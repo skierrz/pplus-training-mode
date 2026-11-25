@@ -1800,6 +1800,9 @@ def main():
     if cmd == "test-stage4a-pplus-tech" and rest:
         import stage4a_pplus_tech_tests
         return stage4a_pplus_tech_tests.cmd_test_stage4a_pplus_tech(rest)
+    if cmd == "test-stage4c" and rest:
+        import stage4c_tests
+        return stage4c_tests.cmd_test_stage4c(rest)
     if cmd == "test-grab-visualizer" and rest:
         import grab_visualizer_tests
         return grab_visualizer_tests.cmd_test_grab_visualizer(rest)
