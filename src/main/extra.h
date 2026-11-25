@@ -139,7 +139,8 @@ namespace main {
         kRngDedede,
         kRngSnake,
         kRngGanondorf,
-        kRngIceClimbers
+        kRngIceClimbers,
+        kRngOlimar
     };
 
     // What the match module asks of the Stage Options code.
@@ -185,6 +186,7 @@ namespace main {
     bool extraSnakeRows();
     bool extraGanondorfRows();
     bool extraIceClimbersRows();
+    bool extraOlimarRows();
     // The Main Menu row: any character the page has rows for.
     bool extraCharacterRngPage();
     // Stage Options rows on Stage & Cast. Without the extra module, or on a

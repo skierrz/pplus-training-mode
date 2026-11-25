@@ -73,12 +73,13 @@ TEST(fighter_mechanics, ftkind_dispatch_and_mario_fox_disabled)
     CHECK(!extra::fighterHasMechanicsRow(extra::kFtRoy));
     CHECK(!extra::fighterHasMechanicsRow(extra::kFtKnuckles));
 
-    // All 16 supported Tier 1 + Tier 2 fighters, including P+ clone Mewtwo (0x26).
+    // All 17 supported fighters (plus Ice Climbers Nana Throw gated via live partner).
     static const int kSupported[] = {
         extra::kFtPeach,     extra::kFtLuigi,    extra::kFtGameWatch, extra::kFtSamus,
         extra::kFtMewtwo,    extra::kFtLucario,  extra::kFtWario,     extra::kFtDonkeyKong,
         extra::kFtIvysaur,   extra::kFtRob,      extra::kFtLucas,     extra::kFtSquirtle,
         extra::kFtSheik,     extra::kFtDedede,   extra::kFtSnake,     extra::kFtGanondorf,
+        extra::kFtOlimar,
     };
     for (u32 i = 0; i < sizeof(kSupported) / sizeof(kSupported[0]); i++)
     {
@@ -388,6 +389,81 @@ TEST(fighter_mechanics, dedede_waddle_table_swap_safety_and_detach_restore)
     CHECK_NEAR(999.0f, pac1->table[6], 0.001f);
 }
 
+TEST(fighter_mechanics, olimar_pikmin_weights_swap_safety_and_detach_restore)
+{
+    struct OlimarDataBlock {
+        u8 header[0x90];
+        s32 gid;
+        float speed;
+        float weights[5];
+    };
+    g_ftCommonDataAccesser.reset();
+    main::loadSettings(host::fakes::block());
+    extra::fighterMechanicsAttach();
+
+    OlimarDataBlock* pac1 = host::mem::make<OlimarDataBlock>();
+    memset(pac1, 0, sizeof(*pac1));
+    pac1->gid = 0;
+    pac1->speed = 1.0f;
+    for (int i = 0; i < 5; i++) pac1->weights[i] = 1.0f;
+    u32 tableAddr = reinterpret_cast<u32>(&pac1->gid);
+    u32 count = 30;
+    memcpy(pac1->header + 0x7C, &tableAddr, 4);
+    memcpy(pac1->header + 0x80, &count, 4);
+
+    g_ftCommonDataAccesser.setData(extra::kFtOlimar, pac1->header);
+    host::fakes::FakeFighter& olimar = host::fakes::addFighter();
+
+    // Force Purple (index 4): weights become {0, 0, 0, 0, 1}.
+    main::settings().fighterMechanics.olimarPikmin = main::kPikminPurple;
+    extra::fighterMechanicsApplyFighter(olimar.fighter, olimar.modules, extra::kFtOlimar, 0);
+    CHECK_NEAR(0.0f, pac1->weights[0], 0.001f);
+    CHECK_NEAR(0.0f, pac1->weights[1], 0.001f);
+    CHECK_NEAR(0.0f, pac1->weights[2], 0.001f);
+    CHECK_NEAR(0.0f, pac1->weights[3], 0.001f);
+    CHECK_NEAR(1.0f, pac1->weights[4], 0.001f);
+
+    // Force Blue (index 2): weights become {0, 0, 1, 0, 0}.
+    main::settings().fighterMechanics.olimarPikmin = main::kPikminBlue;
+    extra::fighterMechanicsApplyFighter(olimar.fighter, olimar.modules, extra::kFtOlimar, 0);
+    CHECK_NEAR(0.0f, pac1->weights[0], 0.001f);
+    CHECK_NEAR(0.0f, pac1->weights[1], 0.001f);
+    CHECK_NEAR(1.0f, pac1->weights[2], 0.001f);
+    CHECK_NEAR(0.0f, pac1->weights[3], 0.001f);
+    CHECK_NEAR(0.0f, pac1->weights[4], 0.001f);
+
+    // Default restores original {1, 1, 1, 1, 1}.
+    main::settings().fighterMechanics.olimarPikmin = main::kPikminDefault;
+    extra::fighterMechanicsApplyFighter(olimar.fighter, olimar.modules, extra::kFtOlimar, 0);
+    for (int i = 0; i < 5; i++) CHECK_NEAR(1.0f, pac1->weights[i], 0.001f);
+
+    // Swap Olimar out: getData(kFtOlimar) cleared -> detach must NOT overwrite freed PAC.
+    main::settings().fighterMechanics.olimarPikmin = main::kPikminRed;
+    extra::fighterMechanicsApplyFighter(olimar.fighter, olimar.modules, extra::kFtOlimar, 0);
+    g_ftCommonDataAccesser.setData(extra::kFtOlimar, NULL);
+    pac1->weights[0] = 77.0f;
+    extra::fighterMechanicsDetach();
+    CHECK_NEAR(77.0f, pac1->weights[0], 0.001f);
+
+    // Re-attach with fresh PAC and verify detach restores all 5 weights to 1.0.
+    extra::fighterMechanicsAttach();
+    OlimarDataBlock* pac2 = host::mem::make<OlimarDataBlock>();
+    memset(pac2, 0, sizeof(*pac2));
+    pac2->gid = 0;
+    pac2->speed = 1.0f;
+    for (int i = 0; i < 5; i++) pac2->weights[i] = 1.0f;
+    u32 tableAddr2 = reinterpret_cast<u32>(&pac2->gid);
+    memcpy(pac2->header + 0x7C, &tableAddr2, 4);
+    memcpy(pac2->header + 0x80, &count, 4);
+    g_ftCommonDataAccesser.setData(extra::kFtOlimar, pac2->header);
+    main::settings().fighterMechanics.olimarPikmin = main::kPikminWhite;
+    extra::fighterMechanicsApplyFighter(olimar.fighter, olimar.modules, extra::kFtOlimar, 0);
+    CHECK_NEAR(1.0f, pac2->weights[3], 0.001f);
+    CHECK_NEAR(0.0f, pac2->weights[0], 0.001f);
+    extra::fighterMechanicsDetach();
+    for (int i = 0; i < 5; i++) CHECK_NEAR(1.0f, pac2->weights[i], 0.001f);
+}
+
 TEST(fighter_mechanics, settings_offsets_and_storage_roundtrip)
 {
     CHECK_EQ(292u, offsetof(main::Settings, characterRng));
@@ -395,6 +471,7 @@ TEST(fighter_mechanics, settings_offsets_and_storage_roundtrip)
     CHECK_EQ(372u, offsetof(main::Settings, stageOptions));
     CHECK_EQ(388u, offsetof(main::Settings, comboTrainer));
     CHECK_EQ(404u, offsetof(main::Settings, fighterMechanics));
+    CHECK_EQ(427u, offsetof(main::Settings, fighterMechanics.olimarPikmin));
     CHECK_EQ(32u, sizeof(main::FighterMechanicsSettings));
     CHECK_EQ(436u, sizeof(main::Settings));
 
@@ -414,6 +491,7 @@ TEST(fighter_mechanics, settings_offsets_and_storage_roundtrip)
     fm.robBeam = main::kRobBeamSuper;
     fm.dededeWaddle = main::kWaddleGordo;
     fm.ganonFloat = main::kMechAlways;
+    fm.olimarPikmin = main::kPikminPurple;
 
     storage::settingsMenuClosed();
     for (int i = 0; i < 4; i++)
@@ -435,5 +513,6 @@ TEST(fighter_mechanics, settings_offsets_and_storage_roundtrip)
     CHECK_EQ(main::kRobBeamSuper, loaded.robBeam);
     CHECK_EQ(main::kWaddleGordo, loaded.dededeWaddle);
     CHECK_EQ(main::kMechAlways, loaded.ganonFloat);
+    CHECK_EQ(main::kPikminPurple, loaded.olimarPikmin);
     storage::detach();
 }

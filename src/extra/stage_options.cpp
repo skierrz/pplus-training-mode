@@ -89,6 +89,7 @@ namespace extra {
             Ground* whispy;   // Dream Land 2
             Ground* ashiba[2]; // Smashville 80, 81
             Ground* ghzPlat;  // GHZ / Dead Line 80
+            Ground* crayonClouds[2]; // Yoshi's Island Brawl 80 (support clouds), 81 (indicator)
             Ground* moving[kMaxMovingGrounds];
             int movingCount;
         };
@@ -332,6 +333,29 @@ namespace extra {
             for (u32 i = 0; i < n; i++)
             {
                 g->setMotionFrame(frame, i);
+            }
+            clearCarryVelocity(g);
+        }
+
+        static void jumpGroundLongAnimsToFrame(Ground* g, float frame, u32 minFrames)
+        {
+            if (!game::isRam(g) || !game::isRam(g->m_modelAnims))
+            {
+                return;
+            }
+            setPauseAnim(g, true);
+            u32 n = g->m_modelAnimNum;
+            if (n > 16)
+            {
+                n = 16;
+            }
+            for (u32 i = 0; i < n; i++)
+            {
+                gfModelAnimation* anim = g->m_modelAnims[i];
+                if (game::isRam(anim) && game::isRam(anim->m_anmObjChrRes) && anim->getFrameCount() >= minFrames)
+                {
+                    g->setMotionFrame(frame, i);
+                }
             }
             clearCarryVelocity(g);
         }
@@ -644,6 +668,91 @@ namespace extra {
             }
         }
 
+        // Yoshi's Island Brawl (st_crayon_noshyguy_ht.rel): ModelData[80] owns the
+        // 2880f support clouds / timedGhosts (anims 2..6, COLL[3] joints AKumoAMKasure01/r)
+        // and ModelData[81] owns the synced BlarggwichIndicator (anim 0).
+        // Under Hazards OFF, stCrayon::createObj omits both grounds and COLL[3], so live
+        // Hazards OFF parks both underground at f0, disables collision, and hides them
+        // with zero StageInstance allocations.
+        static void applyYoshisIsland(bool hazardOff, u8 platMode, bool force)
+        {
+            Ground* clouds = s_live.crayonClouds[0];
+            Ground* ind = s_live.crayonClouds[1];
+            if (!game::isRam(clouds))
+            {
+                return;
+            }
+            u32 trackIdx = clouds->m_modelAnimNum > 3 ? 3 : 0;
+            if (hazardOff)
+            {
+                clouds->setVisibility(0);
+                clouds->setEnableCollisionStatus(false);
+                if (game::isRam(ind))
+                {
+                    ind->setVisibility(0);
+                }
+                if (force || fabsf(clouds->getMotionFrame(trackIdx) - 0.0f) > 0.05f)
+                {
+                    jumpGroundLongAnimsToFrame(clouds, 0.0f, 1000);
+                    if (game::isRam(ind))
+                    {
+                        jumpGroundToFrame(ind, 0.0f);
+                    }
+                }
+                else
+                {
+                    setPauseAnim(clouds, true);
+                    if (game::isRam(ind))
+                    {
+                        setPauseAnim(ind, true);
+                    }
+                }
+                return;
+            }
+
+            clouds->setVisibility(1);
+            clouds->setEnableCollisionStatus(true);
+            if (game::isRam(ind))
+            {
+                ind->setVisibility(1);
+            }
+
+            float target = platformTargetFrame(kPresetYoshisIsland, platMode, false);
+            if (target >= 0.0f)
+            {
+                if (force || s_live.appliedPlatformMode != platMode
+                    || fabsf(clouds->getMotionFrame(trackIdx) - target) > 0.05f)
+                {
+                    jumpGroundLongAnimsToFrame(clouds, target, 1000);
+                    if (game::isRam(ind))
+                    {
+                        jumpGroundToFrame(ind, target);
+                    }
+                }
+                else
+                {
+                    setPauseAnim(clouds, true);
+                    if (game::isRam(ind))
+                    {
+                        setPauseAnim(ind, true);
+                    }
+                }
+            }
+            else
+            {
+                bool pause = (platMode == main::kStagePlatFreeze);
+                setPauseAnim(clouds, pause);
+                if (game::isRam(ind))
+                {
+                    setPauseAnim(ind, pause);
+                    if (force || s_live.appliedPlatformMode != platMode)
+                    {
+                        ind->setMotionFrame(clouds->getMotionFrame(trackIdx), 0);
+                    }
+                }
+            }
+        }
+
         static void applyGenericPlatforms(int preset, u8 platMode, bool hazardOff, bool force)
         {
             float target = platformTargetFrame(preset, platMode, hazardOff);
@@ -693,6 +802,7 @@ namespace extra {
             in.modDreamLand = moduleLoadedPrefix("st_dreamland64_ht");
             in.modSmashville = moduleLoadedPrefix("st_smashville_ht");
             in.modGreenHill = moduleLoadedPrefix("st_greenhill_ht");
+            in.modCrayon = moduleLoadedPrefix("st_crayon_noshyguy_ht");
 
             Ground* platLeftGround = NULL;
             Ground* randallGround = NULL;
@@ -728,6 +838,18 @@ namespace extra {
                         in.hasDeadLinePlats = true;
                     }
                 }
+                if (in.modCrayon)
+                {
+                    if (mdl == 80 && groundHasNode(g, "AKumoAMKasure01") && groundHasNode(g, "AKumoAMKasure01r"))
+                    {
+                        s_live.crayonClouds[0] = g;
+                        in.hasCrayonClouds80 = true;
+                    }
+                    if (mdl == 81)
+                    {
+                        s_live.crayonClouds[1] = g;
+                    }
+                }
                 if (platLeftGround == NULL && groundChrFrameCount(g) == 3600 && groundHasNode(g, "PlatformLeft"))
                 {
                     platLeftGround = g;
@@ -752,7 +874,7 @@ namespace extra {
             {
                 addMovingGround(randallGround);
             }
-            else if (!in.modFod && !in.modDreamLand && !in.modSmashville && !in.modGreenHill)
+            else if (!in.modFod && !in.modDreamLand && !in.modSmashville && !in.modGreenHill && !in.modCrayon)
             {
                 scanCollisionJoints(NULL);
                 in.hasGenericMovingColl = s_live.movingCount > 0;
@@ -832,6 +954,9 @@ namespace extra {
             case kPresetGreenHill:
             case kPresetDeadLine:
                 applyGreenHillOrDeadLine(s_live.preset, wantHazardOff, platMode, forceNow || hazardChanged);
+                break;
+            case kPresetYoshisIsland:
+                applyYoshisIsland(wantHazardOff, platMode, forceNow || hazardChanged);
                 break;
             case kPresetLuigisMansion:
             case kPresetDelfinoSecret:

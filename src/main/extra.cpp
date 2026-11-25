@@ -136,6 +136,11 @@ namespace main {
         return s_hooks != NULL && s_hooks->characterRng(kRngIceClimbers);
     }
 
+    bool extraOlimarRows()
+    {
+        return s_hooks != NULL && s_hooks->characterRng(kRngOlimar);
+    }
+
     bool extraCharacterRngPage()
     {
         return s_hooks != NULL && s_hooks->characterRng(kRngAny);

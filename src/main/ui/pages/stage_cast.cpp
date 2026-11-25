@@ -53,6 +53,7 @@ namespace pages {
     static const char* const kSheikNeedles[] = {"Default", "0", "6"};
     static const char* const kDededeWaddle[] = {"Default", "Waddle Dee", "Waddle Doo", "Gordo"};
     static const char* const kNanaThrow[] = {"Default", "F-Throw", "B-Throw", "U-Throw", "D-Throw"};
+    static const char* const kOlimarPikmin[] = {"Default", "Red", "Yellow", "Blue", "White", "Purple"};
 
     TM_STATIC_ASSERT(TM_COUNT(kTurnip) == main::kPeachTurnipCount, tm_turnip_labels_match_the_setting);
     TM_STATIC_ASSERT(TM_COUNT(kPeachSmash) == main::kPeachSmashCount, tm_smash_labels_match_the_setting);
@@ -70,6 +71,7 @@ namespace pages {
     TM_STATIC_ASSERT(TM_COUNT(kSheikNeedles) == main::kSheikNeedlesCount, tm_sheik_needles_labels_match_the_setting);
     TM_STATIC_ASSERT(TM_COUNT(kDededeWaddle) == main::kDededeWaddleCount, tm_dedede_waddle_labels_match_the_setting);
     TM_STATIC_ASSERT(TM_COUNT(kNanaThrow) == main::kNanaThrowCount, tm_nana_throw_labels_match_the_setting);
+    TM_STATIC_ASSERT(TM_COUNT(kOlimarPikmin) == main::kOlimarPikminCount, tm_olimar_pikmin_labels_match_the_setting);
 
 #define TM_SROW(field, labels, name, gate)                                                                     \
     TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(field), 0, TM_COUNT(labels) - 1, 0, \
@@ -114,7 +116,8 @@ namespace pages {
         TM_FROW(fighterMechanics.snakeTranq, kUnlimited, "Snake Tranq Ammo", main::extraSnakeRows),
         TM_FROW(fighterMechanics.snakeCypher, kUnlimited, "Snake Cypher", main::extraSnakeRows),
         TM_FROW(fighterMechanics.ganonFloat, kUnlimited, "Ganon Float", main::extraGanondorfRows),
-        TM_FROW(fighterMechanics.nanaThrow, kNanaThrow, "Nana Throw", main::extraIceClimbersRows)
+        TM_FROW(fighterMechanics.nanaThrow, kNanaThrow, "Nana Throw", main::extraIceClimbersRows),
+        TM_FROW(fighterMechanics.olimarPikmin, kOlimarPikmin, "Olimar Pikmin", main::extraOlimarRows)
     };
 #undef TM_SROW
 #undef TM_FROW
@@ -154,6 +157,7 @@ namespace main {
             row.max = TM_COUNT(kPlatDeadLine) - 1;
             break;
         case extra::kPresetYoshisStory:
+        case extra::kPresetYoshisIsland:
             row.data = kPlatRandall;
             row.max = TM_COUNT(kPlatRandall) - 1;
             break;
