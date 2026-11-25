@@ -1221,6 +1221,16 @@ namespace extra {
         }
     }
 
+    bool diCompassVisible(const game::MatchState& m, bool menuOpen)
+    {
+        const main::Settings& set = main::settings();
+        if (!m.running || !m.training || m.paused || menuOpen || set.general.diDisplay == 0)
+        {
+            return false;
+        }
+        return s_compass.active || set.display.diVectorMode != main::kDiVectorLive;
+    }
+
     void diCompassDraw(const game::MatchState& m, bool menuOpen)
     {
         s_pickerDebug.compassDrawn = 0;

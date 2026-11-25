@@ -241,6 +241,29 @@ namespace layout {
         }
         return box(x0, y0, w, kCompassHeight);
     }
+
+    // ---- PSA AnimCmd 11-Thread & FSM Inspector (extra/psa_inspector.cpp) ----
+    // Right-aligned when standalone, or shifted left of the Input Viewer / DI
+    // Compass column with a kStepGap gutter so it clears Large Info Display
+    // (x1 <= 270) and the right-hand overlays in both 4:3 and 16:9.
+    static const float kPsaWidth = 182.0f;
+    static const float kPsaHeight = 104.0f;
+
+    inline Box psaInspectorBox(const Box& band, int viewerSlots, bool hasCompass, bool wide)
+    {
+        float xs = xsOf(wide);
+        float w = kPsaWidth * xs;
+        float x1 = kViewerRight;
+        if (viewerSlots > 0 || hasCompass)
+        {
+            float rightW = viewerSlots > 0 ? (kViewerWidth * xs) : (kCompassWidth * xs);
+            x1 = kViewerRight - rightW - kStepGap;
+        }
+        float x0 = x1 - w;
+        Box probe = {x0, kViewerTop, x1, kViewerTop + 1.0f};
+        float y0 = (meetsX(probe, band) && band.y1 > kViewerTop) ? (band.y1 + kStepGap) : kViewerTop;
+        return box(x0, y0, w, kPsaHeight);
+    }
 }
 }
 }

@@ -6,6 +6,7 @@ namespace tm {
 namespace ui {
 namespace pages {
     static const char* const kWho[] = {"Off", "P1", "CPU", "Both"};
+    static const char* const kPsaTargets[] = {"Off", "P1", "CPU"};
     static const char* const kHitboxColors[] = {"Default", "Property", "Priority"};
     static const char* const kDiVectors[] = {
         "Live Stick", "No DI", "In", "Out", "Up-In", "Up-Out", "Down-In", "Down-Out", "Survival"
@@ -41,7 +42,9 @@ namespace pages {
         TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(display.hitboxColorMode), 0, TM_COUNT(kHitboxColors) - 1, 0,
                "Hitbox Colors", kHitboxColors, NULL, main::extraLoaded),
         TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(display.diVectorMode), 0, TM_COUNT(kDiVectors) - 1, 0,
-               "DI Vector", kDiVectors, NULL, main::extraLoaded)
+               "DI Vector", kDiVectors, NULL, main::extraLoaded),
+        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(display.psaInspector), 0, TM_COUNT(kPsaTargets) - 1, 0,
+               "PSA Inspector", kPsaTargets, NULL, main::extraLoaded)
     };
 
     extern const Page kDisplayOptions = TM_PAGE("Display", kRows);

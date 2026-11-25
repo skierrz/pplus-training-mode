@@ -1803,6 +1803,9 @@ def main():
     if cmd == "test-grab-visualizer" and rest:
         import grab_visualizer_tests
         return grab_visualizer_tests.cmd_test_grab_visualizer(rest)
+    if cmd == "test-psa-inspector" and rest:
+        import psa_inspector_tests
+        return psa_inspector_tests.cmd_test_psa_inspector(rest)
     if cmd == "test-match-hud" and rest:
         import match_hud_tests
         return match_hud_tests.cmd_test_match_hud(rest)

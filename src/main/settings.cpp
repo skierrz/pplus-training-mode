@@ -58,6 +58,7 @@ namespace main {
             TM_CLAMP(display.heatmapOpacity, 20, 100),
             TM_CLAMP(display.heatmapColorFrames, 1, 30),
             TM_CLAMP(display.grabVisualizer, 0, 3),
+            TM_CLAMP(display.psaInspector, 0, kPsaTargetCount - 1),
             TM_CLAMP(recording.startOnFirstInput, 0, 1),
             TM_CLAMP(stageOptions.hazards, 0, kStageHazardCount - 1),
             TM_CLAMP(stageOptions.platformMode, 0, kStagePlatMaxChoices - 1),

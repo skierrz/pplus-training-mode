@@ -115,7 +115,8 @@ namespace extra {
         "Customize on-screen notification background color and opacity.",
         "Show live multi-controller sticks, triggers, and buttons.",
         "Color active hitboxes by property or priority ID.",
-        "Preview preset DI angles on the live DI compass and arc."
+        "Preview preset DI angles on the live DI compass and arc.",
+        "Inspect live PSA AnimCmd threads, wait timers, and FSM."
     };
 
     static const char* const kOsdDesc[] = {

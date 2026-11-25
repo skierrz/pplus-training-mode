@@ -21,6 +21,7 @@
 #include "extra/menu_descriptions.h"
 #include "extra/pplus_recovery.h"
 #include "extra/pplus_tech_tracker.h"
+#include "extra/psa_inspector.h"
 #include "extra/reversal_slots.h"
 #include "extra/scenario_presets.h"
 #include "extra/stage_geom.h"
@@ -144,7 +145,7 @@ namespace extra {
         optionDesc,        uiAssetsDrawIcon,   uiAssetsDrawPageOverlay,
         ui::infoWanted,    ui::infoStep,       ui::drawInfo,       ui::infoReset,
         ui::applyInfoPreset, inputViewerDraw,  drawColoredHitboxes, diCompassDraw,
-        reversalSlotsPick
+        reversalSlotsPick, psaInspectorDraw
     };
 
     static bool attach(iface::Interface* iface)
@@ -159,6 +160,7 @@ namespace extra {
         {
             frameDataAttach();
             heatmapAttach();
+            psaInspectorAttach();
             ui::infoReset();
             main::setExtraHooks(&kHooks);
             TM_LOG("extra: attached (read-only VS) v%s\n", main::kModule.buildVersion);
@@ -184,6 +186,7 @@ namespace extra {
         uiAssetsAttach();
         inputViewerAttach();
         hitboxColorsAttach();
+        psaInspectorAttach();
         main::setExtraHooks(&kHooks);
         TM_LOG("extra: attached next to match module v%s\n", main::kModule.buildVersion);
         return true;
@@ -193,12 +196,14 @@ namespace extra {
     {
         if (s_vsReadOnly)
         {
+            psaInspectorDetach();
             heatmapDetach();
             main::setExtraHooks(NULL);
             s_vsReadOnly = false;
             TM_LOG("extra: detaching\n");
             return;
         }
+        psaInspectorDetach();
         hitboxColorsDetach();
         inputViewerDetach();
         uiAssetsDetach();
