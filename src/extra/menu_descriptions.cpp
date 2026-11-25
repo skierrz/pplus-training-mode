@@ -140,7 +140,8 @@ namespace extra {
         "Show how soon you acted after leaving hitstun or tumble.",
         "Display measured frame advantage after landing a clean hit.",
         "Allow extra idle frames when measuring frame advantage.",
-        "Limit how many notifications display at once per player."
+        "Limit how many notifications display at once per player.",
+        "Show a 3D timing bar above fighters for L-Cancel, WD, or Act-Out."
     };
 
     static const char* const kStageCastDesc[] = {

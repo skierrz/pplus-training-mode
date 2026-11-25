@@ -25,6 +25,7 @@
 #include "extra/scenario_presets.h"
 #include "extra/stage_geom.h"
 #include "extra/stage_options.h"
+#include "extra/timing_meter.h"
 #include "extra/ui_assets.h"
 #include "main/extra.h"
 #include "main/game/match.h"
@@ -120,6 +121,7 @@ namespace extra {
         hoverPsFrame();
         pplusTechFrame();
         techTrackerFrame();
+        timingMeterFrame();
         heatmapTick();
         adaptiveCpuFrame();
     }
@@ -131,6 +133,7 @@ namespace extra {
         hoverPsResetTransient();
         pplusTechReset();
         techTrackerReset();
+        timingMeterReset();
     }
 
     static const main::ExtraHooks kHooks = {
@@ -144,7 +147,7 @@ namespace extra {
         optionDesc,        uiAssetsDrawIcon,   uiAssetsDrawPageOverlay,
         ui::infoWanted,    ui::infoStep,       ui::drawInfo,       ui::infoReset,
         ui::applyInfoPreset, inputViewerDraw,  drawColoredHitboxes, diCompassDraw,
-        reversalSlotsPick
+        reversalSlotsPick, timingMeterDraw
     };
 
     static bool attach(iface::Interface* iface)
@@ -184,6 +187,7 @@ namespace extra {
         uiAssetsAttach();
         inputViewerAttach();
         hitboxColorsAttach();
+        timingMeterAttach();
         main::setExtraHooks(&kHooks);
         TM_LOG("extra: attached next to match module v%s\n", main::kModule.buildVersion);
         return true;
@@ -199,6 +203,7 @@ namespace extra {
             TM_LOG("extra: detaching\n");
             return;
         }
+        timingMeterDetach();
         hitboxColorsDetach();
         inputViewerDetach();
         uiAssetsDetach();

@@ -105,6 +105,8 @@ namespace main {
         void (*diCompassDraw)(const game::MatchState& match, bool menuOpen);
         // Weighted multi-slot reversal picker (extra/reversal_slots.h).
         bool (*reversalPick)(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay);
+        // Overhead 3D Timing Helper Meter (extra/timing_meter.h).
+        void (*timingMeterDraw)(const game::MatchState& match);
     };
 
     // What the match module asks of the Scenario Presets engine.
@@ -266,5 +268,7 @@ namespace main {
     void extraDiCompassDraw(const game::MatchState& match, bool menuOpen);
     // Weighted multi-slot reversal picker (extra/reversal_slots.h).
     bool extraReversalPick(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay);
+    // Overhead 3D Timing Helper Meter (extra/timing_meter.h).
+    void extraTimingMeterDraw(const game::MatchState& match);
 }
 }

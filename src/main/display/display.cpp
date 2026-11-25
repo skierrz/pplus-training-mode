@@ -389,9 +389,10 @@ namespace display {
         bool di = settings().general.diDisplay != 0;
         bool heatmap = d.heatmap != kWhoNone && main::extraLoaded();
         bool grabViz = d.grabVisualizer != kWhoNone && main::extraLoaded();
+        bool timingMeter = settings().osd.timingMeter != main::kTimingMeterOff && main::extraLoaded();
         game::FighterRef refs[game::kMaxFighters];
         int n = game::listFighters(refs, game::kMaxFighters);
-        if (d.hitboxes == kWhoNone && !d.envCollision && !di && !heatmap && !grabViz
+        if (d.hitboxes == kWhoNone && !d.envCollision && !di && !heatmap && !grabViz && !timingMeter
             && !anyCollisionOverlay(refs, n))
         {
             return;
@@ -434,6 +435,10 @@ namespace display {
         if (di)
         {
             main::extraDiDraw(m);
+        }
+        if (timingMeter)
+        {
+            main::extraTimingMeterDraw(m);
         }
         debugDrawEnd();
     }

@@ -458,5 +458,13 @@ namespace main {
         return s_hooks != NULL && s_hooks->reversalPick != NULL
                && s_hooks->reversalPick(trigger, fighterKind, roll, outAction, outDelay);
     }
+
+    void extraTimingMeterDraw(const game::MatchState& match)
+    {
+        if (s_hooks != NULL && s_hooks->timingMeterDraw != NULL)
+        {
+            s_hooks->timingMeterDraw(match);
+        }
+    }
 }
 }
