@@ -291,8 +291,8 @@ namespace extra {
     {
         const main::Settings& s = main::settings();
         u8 mode = s.cpu.options.adaptiveMode;
-        if (!match.running || match.paused || lab::menuOpen() || mode == cpu::kAdaptiveOff || s_trackers == NULL
-            || gfx::lineHeight(0.5f) <= 0.0f)
+        if (!match.running || match.paused || lab::menuOpen() || s.cpu.options.control != cpu::kControlLab
+            || mode == cpu::kAdaptiveOff || s_trackers == NULL || gfx::lineHeight(0.5f) <= 0.0f)
         {
             return;
         }

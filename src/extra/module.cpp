@@ -101,6 +101,7 @@ namespace extra {
         }
         bool drawDrill = !s_vsReadOnly && (drillHudHook(0, NULL) & 1u) != 0u;
         bool drawAdap = !s_vsReadOnly && !match.paused && !lab::menuOpen()
+                        && main::settings().cpu.options.control == cpu::kControlLab
                         && main::settings().cpu.options.adaptiveMode != cpu::kAdaptiveOff;
         if (drawDrill || drawAdap)
         {

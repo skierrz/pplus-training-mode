@@ -753,6 +753,39 @@ TEST(settings_file, combo_meters_corrupt_bit7_is_masked_on_load_and_round_trips)
     storage::detach();
 }
 
+// Pre-generation-2 SD saves wrote enabledMeters = 0x7F (all 7 meters on) while
+// floating meters were hidden behind comboTrainer.enabled. Bumping
+// kAreaComboTrainer to generation 2 resets legacy gen-1 blobs to safe defaults
+// (enabledMeters == 0, noclip == 1, fixedDamageMode == 0) while preserving all
+// other 15 areas.
+TEST(settings_file, combo_trainer_gen1_legacy_save_resets_to_safe_defaults)
+{
+    Settings defaults, chosen;
+    saveChosen(defaults, chosen);
+    storage::detach();
+
+    storage::AreaEntry* comboArea = areaEntry(kFileA, storage::kAreaComboTrainer);
+    REQUIRE(comboArea != NULL);
+    CHECK_EQ(2, comboArea->generation);
+    comboArea->generation = 1;
+    comboArea->used = offsetof(main::ComboTrainerSettings, fixedDamageMode);
+    u8* comboBytes = host::card::data(kFileA) + comboArea->offset;
+    comboBytes[offsetof(main::ComboTrainerSettings, noclip)] = 0;
+    comboBytes[offsetof(main::ComboTrainerSettings, enabledMeters)] = main::kMeterAll;
+    reseal(kFileA);
+
+    boot();
+    CHECK_LOG("15 areas, 0 with new fields, 1 at defaults, 0 unknown");
+    CHECK_LOG("storage: notice: Lab settings from an older version: new ones at defaults");
+    CHECK_EQ(0, static_cast<int>(main::settings().comboTrainer.enabledMeters));
+    CHECK_EQ(1, static_cast<int>(main::settings().comboTrainer.noclip));
+    CHECK_EQ(static_cast<int>(main::kComboDmgCpu), static_cast<int>(main::settings().comboTrainer.fixedDamageMode));
+    Settings expected = afterReboot(chosen, defaults);
+    expected.comboTrainer = defaults.comboTrainer;
+    CHECK_SETTINGS(expected, main::settings());
+    storage::detach();
+}
+
 TEST(settings_file, a_locked_or_full_card)
 {
     boot();
@@ -958,7 +991,7 @@ TEST(areas, the_table_and_the_bounds)
     for (int i = 0; i < count; i++)
     {
         CHECK_EQ(next, table[i].offset);
-        CHECK_EQ(1, table[i].generation);
+        CHECK_EQ(table[i].id == storage::kAreaComboTrainer ? 2 : 1, table[i].generation);
         next += (table[i].used + 3u) & ~3u;
     }
     CHECK_EQ(40 + n, next);
