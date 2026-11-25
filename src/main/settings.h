@@ -126,6 +126,22 @@ namespace main {
         u8 reserved[6];
     };
 
+    // Display > Theme: OSD background color presets and opacity steps (0..10 = 0%..100%).
+    enum OsdBgColor {
+        kOsdBgTeal = 0,
+        kOsdBgDarkSlate,
+        kOsdBgBrawlNavy,
+        kOsdBgCharcoal,
+        kOsdBgBlack,
+        kOsdBgCrimson,
+        kOsdBgViolet,
+        kOsdBgColorCount
+    };
+    enum {
+        kOsdAlphaMax = 10,
+        kDefaultOsdAlpha = 5
+    };
+
     // OSD Menu page.
     struct OsdSettings {
         u8 position;           // osd::Position
@@ -151,7 +167,9 @@ namespace main {
         u8 grabBreakout;
         u8 itemThrow;
         u8 maxMessages; // 1-6 per player (osd::kPerPlayer)
-        u8 reserved[10];
+        u8 bgColor;     // OsdBgColor (0..6, default kOsdBgTeal)
+        u8 bgAlpha;     // 0..10 (0%..100% in 10% steps, default 5 = 50%)
+        u8 reserved[8];
     };
 
     // CPU Options and its subpages (Tech, Advanced Counter).
@@ -393,6 +411,8 @@ namespace main {
     TM_STATIC_ASSERT(offsetof(Settings, display.grabVisualizer) == 51, tm_settings_display_grab_viz_at_51);
     TM_STATIC_ASSERT(offsetof(Settings, info) == 56, tm_settings_info_at_56);
     TM_STATIC_ASSERT(offsetof(Settings, osd) == 88, tm_settings_osd_at_88);
+    TM_STATIC_ASSERT(offsetof(Settings, osd.bgColor) == 110, tm_settings_osd_bg_color_at_110);
+    TM_STATIC_ASSERT(offsetof(Settings, osd.bgAlpha) == 111, tm_settings_osd_bg_alpha_at_111);
     TM_STATIC_ASSERT(offsetof(Settings, general.playerInfiniteShields) == 20, tm_settings_player_infinite_shields_at_20);
     TM_STATIC_ASSERT(offsetof(Settings, controls.dpadLeft) == 27, tm_settings_dpad_left_at_27);
     TM_STATIC_ASSERT(offsetof(Settings, controls.dpadRight) == 28, tm_settings_dpad_right_at_28);

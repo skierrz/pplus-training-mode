@@ -10,11 +10,12 @@
 #include "main/record/record.h"
 #include "main/settings.h"
 #include "main/ui/hud_layout.h"
+#include "main/ui/osd_theme_core.h"
 #include "main/ui/style.h"
 #include "shared/log.h"
 
-// Per-player OSD message stacks rendered in a neutral dark-slate P+ card with
-// a bottom lifetime strip, smoothstep glide transitions, and fold-out expiry.
+// Per-player OSD message stacks rendered in a themed P+ card with a bottom
+// lifetime strip, smoothstep glide transitions, and fold-out expiry.
 // Placement geometry lives in osd_place.h.
 namespace tm {
 namespace osd {
@@ -23,9 +24,7 @@ namespace osd {
     static const float kLinePitch = 13.5f;
     // 6 px margin each side inside the 124 px card; wider lines scale down.
     static const float kTextWidth = 112.0f;
-    static const gfx::Rgba kBody = 0x141A24D0;
-    static const gfx::Rgba kTrack = 0x0C1018D8;
-    static const gfx::Rgba kBar = 0x38BDF8C8;
+    static const gfx::Rgba kBar = 0x38BDF8FF;
 
     static int s_position = kPositionSides;
 
@@ -233,7 +232,7 @@ namespace osd {
         return false;
     }
 
-    static void drawMessage(Message& m, s32 now, float scale, float floorY)
+    static void drawMessage(Message& m, s32 now, float scale, float floorY, const ThemeColors& t)
     {
         float xs = gfx::xScale();
         float w = kBoxWidth * xs;
@@ -252,19 +251,29 @@ namespace osd {
         float left = cx - w * 0.5f;
         float top = cy - h * 0.5f;
         float strip = kStrip * fold;
-        gfx::fillRect(left, top, w, h - strip, kBody);
-        gfx::fillRect(left, top + h - strip, w, strip, kTrack);
+        float barY = top + h - strip;
+        if (t.bodyColor != 0)
+        {
+            gfx::fillRect(left, top, w, h - strip, t.bodyColor);
+            gfx::fillRect(left, barY, w, strip, t.trackColor);
+        }
         float life = age < kLifetime ? 1.0f - static_cast<float>(age) / kLifetime : 0.0f;
         if (life > 0.0f)
         {
-            gfx::fillRect(left, top + h - strip, w * life, strip, kBar);
+            float barW = w * life;
+            if (t.shadowColor != 0)
+            {
+                gfx::fillRect(left + xs, barY + 1.0f, barW, strip, t.shadowColor);
+            }
+            gfx::fillRect(left, barY, barW, strip, kBar);
         }
         // Centre the lines' capital-height block vertically inside the body.
+        float sy = scale * fold;
         float pitch = kLinePitch * fold;
         float cap = kTextCap * fold;
         float block = (m.lines - 1) * pitch + cap;
         float capTop = top + (h - strip - block) * 0.5f;
-        float y = ui::style::textYForCap(capTop, scale * fold);
+        float y = ui::style::textYForCap(capTop, sy);
         for (int i = 0; i < m.lines; i++)
         {
             if (!(m.measured & (1 << i)))
@@ -279,7 +288,12 @@ namespace osd {
                 sx = scale * kTextWidth * xs / tw;
                 tw = kTextWidth * xs;
             }
-            gfx::text(cx - tw * 0.5f, y, m.text[i], m.color[i], sx, scale * fold);
+            float tx = cx - tw * 0.5f;
+            if (t.shadowColor != 0)
+            {
+                gfx::text(tx + xs, y + 1.0f, m.text[i], t.shadowColor, sx, sy);
+            }
+            gfx::text(tx, y, m.text[i], m.color[i], sx, sy);
             y += pitch;
         }
     }
@@ -292,10 +306,14 @@ namespace osd {
             return;
         }
         float scale = ui::style::scaleForCap(kTextCap);
-        const main::RecordingSettings& rec = main::settings().recording;
+        const main::Settings& s = main::settings();
+        ThemeColors theme;
+        resolveThemeTo(s.size ? s.osd.bgColor : static_cast<u8>(main::kOsdBgTeal),
+                       s.size ? s.osd.bgAlpha : static_cast<u8>(main::kDefaultOsdAlpha), theme);
+        const main::RecordingSettings& rec = s.recording;
         bool recBar = record::positionsSaved()
                       && (rec.hmnMode != 0
-                          || (rec.cpuMode != 0 && main::settings().cpu.options.control == cpu::kControlLab));
+                          || (rec.cpuMode != 0 && s.cpu.options.control == cpu::kControlLab));
         float floorY = recBar ? ui::layout::recBarOsdFloor() : 0.0f;
         s32 now = game::trackerFrame();
         for (int p = 0; p < kPlayers; p++)
@@ -309,7 +327,7 @@ namespace osd {
                     Message& m = s_messages[i];
                     if (m.used && m.player == p && m.slot == slot)
                     {
-                        drawMessage(m, now, scale, floorY);
+                        drawMessage(m, now, scale, floorY, theme);
                     }
                 }
             }

@@ -63,7 +63,7 @@ GROUP_WAIT, GROUP_DASH, GROUP_RUN, GROUP_IASA = 8, 10, 11, 15
 COLOR_NONE, COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_CYAN, COLOR_ORANGE, COLOR_INVISIBLE = 0, 1, 2, 3, 7, 8, 11
 
 # Lab menu rows (src/main/ui/pages/display_options.cpp, osd_menu.cpp).
-DISPLAY_HMN_OVERLAYS, DISPLAY_LEDGE_HUD = 12, 16
+DISPLAY_HMN_OVERLAYS, DISPLAY_LEDGE_HUD, DISPLAY_THEME = 12, 16, 17
 OSD_ROWS = {"wavedash": 1, "lcancel": 2, "actoos": 3, "dashback": 4, "powershield": 5, "sdi": 6, "lockout": 7,
             "itemthrow": 8, "boostgrab": 9, "actoolag": 10, "actooairborne": 11, "jumpcancel": 12, "fastfall": 13,
             "combo": 15, "grabbreakout": 16, "ledgedash": 17, "actoohitstun": 18}
@@ -91,6 +91,7 @@ SPEED = "0"
 # box's centre for each, 640x480 space (src/main/ui/osd_place.h): HUD above
 # the damage readout; Sides and the top rows at the configured screen-space spots.
 S_OSD_POSITION = 88
+S_OSD_BG_COLOR, S_OSD_BG_ALPHA = 110, 111
 POS_HUD, POS_SIDES, POS_TOP_LEFT, POS_TOP_RIGHT = 0, 1, 2, 3
 SIDES_X, SIDES_Y = (96.0, 245.0, 395.0, 544.0), 366.0
 TOP_Y = (47.0, 103.0, 159.0, 215.0)
@@ -1182,6 +1183,74 @@ def sc_osd_position(r, position, name):
         r.note(f"{name}: text moved ({dx:.2f}, {dy:.2f}) from HUD, expected ({sx - hx:.2f}, {sy - hy:.2f})")
 
 
+def osd_body_mean_rgb(shot, player, position=POS_SIDES):
+    """Mean RGB in the upper-left interior corner of `player`'s newest OSD
+    card (away from centred text lines), 640x480 space."""
+    from PIL import Image
+    path, w, h = shot
+    im = Image.open(path).convert("RGB")
+    sx, sy = w / 640.0, h / 480.0
+    cx, cy = osd_spot(position, player, squeeze_of(shot))
+    half = 124.0 * squeeze_of(shot) / 2
+    x0, x1 = int((cx - half + 3) * sx), int((cx - half + 14) * sx)
+    y0, y1 = int((cy - 22) * sy), int((cy - 14) * sy)
+    rs, gs, bs, n = 0, 0, 0, 0
+    for y in range(y0, max(y0 + 1, y1)):
+        for x in range(x0, max(x0 + 1, x1)):
+            r_, g_, b_ = im.getpixel((x, y))
+            rs += r_
+            gs += g_
+            bs += b_
+            n += 1
+    return (rs / n, gs / n, bs / n) if n else (0.0, 0.0, 0.0)
+
+
+def sc_osd_theme(r, name):
+    """Display > Theme navigated through the lab menu, then live frame-1
+    wavedash OSDs photographed across default Teal 50%, low-opacity 20% and
+    0% (drop-shadow), Brawl Navy 50%, and Crimson 60%."""
+    lab, emu = r.lab, r.emu
+    emu.h.call("load_state", path=r.states["control"])
+    lab.open_menu()
+    lab.main_to(LT.MAIN_DISPLAY)
+    lab.tap(["A"])
+    lab.down(DISPLAY_THEME)
+    lab.tap(["A"])
+    if lab.setting(S_OSD_BG_COLOR) != 0 or lab.setting(S_OSD_BG_ALPHA) != 5:
+        raise OsdError(f"{name}: Theme defaults ({lab.setting(S_OSD_BG_COLOR)}, {lab.setting(S_OSD_BG_ALPHA)}), "
+                       f"wanted (0, 5)")
+    r.shots.append(emu.screenshot("osds-menu-theme"))
+    lab.set_choice(S_OSD_BG_COLOR, 2)
+    lab.down(1)
+    lab.set_choice(S_OSD_BG_ALPHA, 0)
+    if lab.setting(S_OSD_BG_COLOR) != 2 or lab.setting(S_OSD_BG_ALPHA) != 0:
+        raise OsdError(f"{name}: Theme menu change gave ({lab.setting(S_OSD_BG_COLOR)}, "
+                       f"{lab.setting(S_OSD_BG_ALPHA)}), wanted (2, 0)")
+    lab.close_menu()
+
+    js = jump_squat(r, 0)
+    fr = {1: (J, 0.0, 0.0), js + 1: (B_GUARD, *DOWN_RIGHT), js + 2: (0, *DOWN_RIGHT)}
+    means = {}
+    for tag, bg, alpha in (("teal-50", 0, 5), ("teal-20", 0, 2), ("teal-0", 0, 0),
+                           ("navy-50", 2, 5), ("crimson-60", 5, 6)):
+        _, text = r.play(r.states["control"], {0: (fr, js + 2)}, extra=40,
+                         settings=[(S_OSD_BG_COLOR, f"{bg:02x}"), (S_OSD_BG_ALPHA, f"{alpha:02x}")],
+                         shot=f"osds-theme-{tag}", osd_player=1)
+        r.expect_osd(f"{name}-{tag}", text, 1, ID_WAVEDASH, ["Wavedash: f1", "Angle: 45.0", "SH (1f)"])
+        r.check_color(r.shots[-1], 1, GREEN, f"{name}-{tag}")
+        means[tag] = osd_body_mean_rgb(r.shots[-1], 1)
+        r.note(f"{name}-{tag}: card corner RGB ({means[tag][0]:.1f}, {means[tag][1]:.1f}, {means[tag][2]:.1f})")
+    crim_rb = means["crimson-60"][0] - means["crimson-60"][2]
+    navy_rb = means["navy-50"][0] - means["navy-50"][2]
+    if crim_rb <= navy_rb + 4.0:
+        raise OsdError(f"{name}: Crimson (R-B={crim_rb:.1f}) did not shift warmer than Brawl Navy (R-B={navy_rb:.1f})")
+    diff_0_50 = sum(abs(a - b) for a, b in zip(means["teal-50"], means["teal-0"]))
+    if diff_0_50 < 4.0:
+        raise OsdError(f"{name}: 50% and 0% OSD card bodies look identical (L1 RGB diff {diff_0_50:.1f})")
+    r.results.append((name, "Theme menu + 5 presets/alphas",
+                      f"crimson-navy R-B delta {crim_rb - navy_rb:.1f}, 50%-0% diff {diff_0_50:.1f}"))
+
+
 def green_box(shot):
     """Centre of the bounding box (640x480 space) and count of the
     message's green text in the lower left quarter of the screen (the box's
@@ -2257,6 +2326,8 @@ def cmd_test_osds(rest):
     ap = argparse.ArgumentParser(prog="emu.py test-osds")
     ap.add_argument("rel")
     ap.add_argument("--only", nargs="*", default=None)
+    ap.add_argument("--aspect", choices=("16:9", "4:3"), default=None,
+                    help="the game's screen setting (default: as the save has it)")
     ap.add_argument("--keep-going", action="store_true",
                     help="run the remaining scenarios after one fails (the run still fails)")
     opts = ap.parse_args(rest)
@@ -2278,7 +2349,12 @@ def cmd_test_osds(rest):
             r = Runner(emu, notes, shots)
             try:
                 step = "into the match"
-                nav.enter_training_match(emu, "mario", "fox")
+                if opts.aspect:
+                    nav.boot_to_training_css(emu)
+                    LT.set_aspect(emu, opts.aspect, r.note)
+                    nav.start_training_match(emu, "mario", "fox")
+                else:
+                    nav.enter_training_match(emu, "mario", "fox")
                 emu.advance(60)
                 r.lab.find_settings()
                 r.ft = {"m": r.f.by_player(0), "c": r.f.by_player(1)}
@@ -2352,6 +2428,7 @@ def cmd_test_osds(rest):
                         ("osd-position-top-left", lambda: sc_osd_position(r, POS_TOP_LEFT, "osd-position-top-left")),
                         ("osd-position-top-right", lambda: sc_osd_position(r, POS_TOP_RIGHT,
                                                                            "osd-position-top-right")),
+                        ("osd-theme", lambda: sc_osd_theme(r, "osd-theme")),
                         ("lcancel-landing-frame", lambda: sc_lcancel_exact(r, 0, "lcancel-landing-frame", 0)),
                         ("lcancel-last-airborne", lambda: sc_lcancel_exact(r, 1, "lcancel-last-airborne")),
                         ("lcancel-window-end", lambda: sc_lcancel_exact(r, 6, "lcancel-window-end")),

@@ -100,7 +100,8 @@ namespace extra {
         "Color-code CPU fighter states such as hitstun or shield stun.",
         "Configure live frame and physics telemetry rows for Player 1.",
         "Configure live frame and physics telemetry rows for the CPU.",
-        "Show the ledgedash frame timeline bar and GALINT readout."
+        "Show the ledgedash frame timeline bar and GALINT readout.",
+        "Customize on-screen notification background color and opacity."
     };
 
     static const char* const kOsdDesc[] = {
@@ -320,6 +321,11 @@ namespace extra {
         "Reload the chosen fighters in place without leaving the match."
     };
 
+    static const char* const kThemeDesc[] = {
+        "Choose the background color preset for OSD notification cards.",
+        "Adjust OSD card opacity from transparent (0%) to solid (100%)."
+    };
+
     static const char* const kRailDesc[] = {
         "Frame advance, Player 1 damage, speed, camera, and controls.",
         "One-click P+ practice presets and Combo Trainer settings.",
@@ -364,6 +370,7 @@ namespace extra {
         TM_DESC(kInfoDesc),         // P_CPU_INFO
         TM_DESC(kLedgedashDesc),    // P_LEDGEDASH_HUD
         TM_DESC(kFighterSwapDesc),  // P_FIGHTER_SWAP
+        TM_DESC(kThemeDesc),        // P_THEME
         TM_DESC(kRailDesc)          // P_COUNT (Category Rail entries)
     };
 #undef TM_DESC

@@ -34,6 +34,7 @@ namespace pages {
         P_CPU_INFO,
         P_LEDGEDASH_HUD,
         P_FIGHTER_SWAP,
+        P_THEME,
         P_COUNT
     };
     enum { kCategoryCount = 7 };
@@ -62,6 +63,7 @@ namespace pages {
     extern const Page kCpuInfo;
     extern const Page kLedgedashHud;
     extern const Page kFighterSwap;
+    extern const Page kTheme;
 
     // Indexed by PageId (registry.cpp).
     extern const Page* const kPages[P_COUNT];
