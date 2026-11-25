@@ -1,0 +1,624 @@
+#include "extra/scenario_presets.h"
+
+#include <ft/fighter.h>
+#include <so/ground/so_ground_module_impl.h>
+#include <so/ground/so_ground_shape_impl.h>
+#include <so/situation/so_situation_module_impl.h>
+#include <so/so_module_accesser.h>
+#include <so/status/so_status_module_impl.h>
+#include <so/stop/so_stop_module_impl.h>
+#include <string.h>
+
+#include "extra/combo_trainer.h"
+#include "extra/drill_core_engines.h"
+#include "extra/drill_hover_ps_engines.h"
+#include "extra/drill_pplus_tech_engines.h"
+#include "extra/pplus_recovery.h"
+#include "extra/scenario_presets_core.h"
+#include "extra/stage_geom.h"
+#include "main/cpu/options.h"
+#include "main/extra.h"
+#include "main/game/fighters.h"
+#include "main/game/tracker.h"
+#include "main/lab.h"
+#include "main/services.h"
+#include "main/settings.h"
+#include "main/ui/pages/scenarios.h"
+#include "shared/drill_session.h"
+#include "shared/game/frame.h"
+#include "shared/game/mem.h"
+#include "shared/log.h"
+#include "shared/version.h"
+
+namespace tm {
+namespace extra {
+    enum {
+        kScenarioDebugMagic = 0x544D5343, // "TMSC"
+        kStatusPassId = 0x72              // Fighter::Status::Pass (ft/fighter.h:134)
+    };
+
+    // Compact RAM-inspectable telemetry block for live Dolphin tests.
+    struct ScenarioDebugBlock {
+        u32 magic;                // +0x00: kScenarioDebugMagic
+        u32 frame;                // +0x04
+        u32 scratchAddr;          // +0x08: ScenarioMenuState in ui::menuScratch()
+        u32 resetCount;           // +0x0C
+        u32 completionCount;      // +0x10
+        u32 sdiHitCount;          // +0x14
+        u32 sdiHitlagFrames;      // +0x18
+        u32 grabEscapeFrames;     // +0x1C
+        u32 shieldHitCount;       // +0x20
+        float hmnSpawnX;          // +0x24
+        float hmnSpawnY;          // +0x28
+        float cpuSpawnX;          // +0x2C
+        float cpuSpawnY;          // +0x30
+        float sdiDispX;           // +0x34
+        float sdiDispY;           // +0x38
+        u8 activePreset;          // +0x3C
+        u8 hasPlatform;           // +0x3D
+        u8 snapshotActive;        // +0x3E
+        u8 sdiEscaped;            // +0x3F
+        u8 lastCorrectWritten[2]; // +0x40..0x41 (0=HMN, 1=CPU)
+        u8 observedCorrect[2];    // +0x42..0x43 (0=HMN, 1=CPU)
+        u8 restorePending[2];     // +0x44..0x45
+        u8 sawShieldDrop;         // +0x46
+        u8 sawWallTech;           // +0x47
+        u8 sawSlideOff;           // +0x48
+        u8 sawGrabEscape;         // +0x49
+        u8 autoReset;             // +0x4A
+        u8 side;                  // +0x4B
+        u8 multiHitMove;          // +0x4C
+        u8 pad[3];                // +0x4D..0x4F
+    };
+    TM_STATIC_ASSERT(sizeof(ScenarioDebugBlock) == 0x50, tm_scenario_debug_block_size);
+
+    static ScenarioState s_state;
+    static ScenarioCpuState s_cpuState;
+    static ScenarioDebugBlock s_debug;
+    static s8 s_placedPlayer[2] = {-1, -1};
+
+    static ScenarioConfig readMenuConfig()
+    {
+        const ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
+        ScenarioConfig raw;
+        raw.preset = m->preset;
+        raw.autoReset = m->autoReset;
+        raw.side = m->side;
+        raw.multiHitMove = m->multiHitMove;
+        return sanitizeScenarioConfig(raw);
+    }
+
+    static void initScratchDefaults()
+    {
+        ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
+        m->preset = kScenarioOff;
+        m->autoReset = 1;
+        m->side = kScenarioSideRight;
+        m->multiHitMove = kMultiHitUpAir;
+    }
+
+    static void syncDebugBlock(Fighter* hmn, Fighter* cpu)
+    {
+        ScenarioConfig cfg = readMenuConfig();
+        s_debug.magic = kScenarioDebugMagic;
+        s_debug.frame = game::frameCounter();
+        s_debug.scratchAddr = reinterpret_cast<u32>(ui::pages::scenarioMenuState());
+        s_debug.resetCount = s_state.resetCount;
+        s_debug.completionCount = s_state.completionCount;
+        s_debug.sdiHitCount = s_state.sdiHitCount;
+        s_debug.sdiHitlagFrames = s_state.sdiHitlagFrames;
+        s_debug.grabEscapeFrames = s_state.grabEscapeFrames;
+        s_debug.shieldHitCount = s_state.shieldHitCount;
+        s_debug.hmnSpawnX = s_state.hmnSpawnX;
+        s_debug.hmnSpawnY = s_state.hmnSpawnY;
+        s_debug.cpuSpawnX = s_state.cpuSpawnX;
+        s_debug.cpuSpawnY = s_state.cpuSpawnY;
+        s_debug.sdiDispX = s_state.sdiDispX;
+        s_debug.sdiDispY = s_state.sdiDispY;
+        s_debug.activePreset = s_state.activePreset;
+        s_debug.hasPlatform = s_state.hasPlatform ? 1 : 0;
+        s_debug.snapshotActive = s_state.snapshotActive ? 1 : 0;
+        s_debug.sdiEscaped = s_state.sdiEscaped ? 1 : 0;
+        s_debug.lastCorrectWritten[0] = s_state.lastCorrectWritten[0];
+        s_debug.lastCorrectWritten[1] = s_state.lastCorrectWritten[1];
+        int hObs = hmn != NULL ? getFighterCorrect(hmn) : -1;
+        int cObs = cpu != NULL ? getFighterCorrect(cpu) : -1;
+        s_debug.observedCorrect[0] = hObs >= 0 ? static_cast<u8>(hObs) : 0xFF;
+        s_debug.observedCorrect[1] = cObs >= 0 ? static_cast<u8>(cObs) : 0xFF;
+        s_debug.restorePending[0] = s_state.restoreCorrect[0] ? 1 : 0;
+        s_debug.restorePending[1] = s_state.restoreCorrect[1] ? 1 : 0;
+        s_debug.sawShieldDrop = s_state.sawShieldDrop ? 1 : 0;
+        s_debug.sawWallTech = s_state.sawWallTech ? 1 : 0;
+        s_debug.sawSlideOff = s_state.sawSlideOff ? 1 : 0;
+        s_debug.sawGrabEscape = s_state.sawGrabEscape ? 1 : 0;
+        s_debug.autoReset = cfg.autoReset;
+        s_debug.side = cfg.side;
+        s_debug.multiHitMove = cfg.multiHitMove;
+    }
+
+    static bool sawIntraFrameStatus(int playerNo, int targetStatus)
+    {
+        for (int i = 0; i < game::kMaxTracked; i++)
+        {
+            const game::Tracked* t = game::tracked(i);
+            if (t == NULL || t->playerNo != playerNo)
+            {
+                continue;
+            }
+            if (t->cur.status == targetStatus)
+            {
+                return true;
+            }
+            for (int k = 0; k < t->eventCount; k++)
+            {
+                if (t->events[k].status == targetStatus)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    static bool findPlayerRef(const game::FighterRef* refs, int n, int playerNo, game::FighterRef& out)
+    {
+        for (int i = 0; i < n; i++)
+        {
+            if (refs[i].playerNo == playerNo)
+            {
+                out = refs[i];
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void scenarioPresetsAttach()
+    {
+        scenarioStateInit(s_state);
+        scenarioCpuStateReset(s_cpuState);
+        s_placedPlayer[0] = -1;
+        s_placedPlayer[1] = -1;
+        initScratchDefaults();
+        drills::Session* sess = drills::sessionIn(main::services().settings());
+        if (sess != NULL && sess->pendingScenario >= kScenarioComboLab && sess->pendingScenario < kScenarioCount)
+        {
+            u8 p = sess->pendingScenario;
+            sess->pendingScenario = 0;
+            ui::pages::scenarioMenuState()->preset = p;
+            TM_LOG("scenarios: armed preset %u from menu session\n", p);
+        }
+        memset(&s_debug, 0, sizeof(s_debug));
+        syncDebugBlock(NULL, NULL);
+        TM_LOG("scenarios: debug block %08x\n", &s_debug);
+    }
+
+    // Clears lingering respawn or ledge intangibility/invincibility when a
+    // scenario warps a fighter into a fresh rep (soCollisionHitModule).
+    static void clearWarpIntang(const game::FighterRef& ref)
+    {
+        Fighter* pair[2] = {ref.fighter, (ref.partner != NULL && ref.partner != ref.fighter) ? ref.partner : NULL};
+        for (int i = 0; i < 2; i++)
+        {
+            if (pair[i] == NULL)
+            {
+                continue;
+            }
+            const soModuleEnumeration* m = game::fighterModules(pair[i]);
+            if (m != NULL && game::isRam(m->m_collisionHitModule))
+            {
+                m->m_collisionHitModule->setXluFrameGlobal(0, 0);
+                m->m_collisionHitModule->setInvincibleFrameGlobal(0, true, 0);
+                m->m_collisionHitModule->resetStatusGlobal(0);
+            }
+        }
+    }
+
+    // Airborne statuses (Fall, DamageFly, FallSpecial) and Rebirth (0xBE) hold
+    // Correct_Air or Correct_None, so placeStanding's initial attachGround can
+    // fail and trigger spurious Landing lag on the next frame. Re-attach to the
+    // target floor/platform with Correct_Ground_Cliff_Stop so the fighter stands
+    // cleanly in Wait with zero landing lag.
+    static void finishStandingWarp(const game::FighterRef& ref, bool setNoclip)
+    {
+        Fighter* pair[2] = {ref.fighter, (ref.partner != NULL && ref.partner != ref.fighter) ? ref.partner : NULL};
+        for (int i = 0; i < 2; i++)
+        {
+            if (pair[i] == NULL)
+            {
+                continue;
+            }
+            const soModuleEnumeration* m = game::fighterModules(pair[i]);
+            if (m == NULL || !game::isRam(m->m_groundModule) || !game::isRam(m->m_statusModule)
+                || !game::isRam(pair[i]->m_moduleAccesser))
+            {
+                continue;
+            }
+            m->m_groundModule->setCorrect(soGroundShapeImpl::Correct_Ground_Cliff_Stop, 0);
+            if (m->m_groundModule->attachGround(0))
+            {
+                m->m_groundModule->setStGroundForce(0);
+            }
+            m->m_statusModule->changeStatusForce(game::kStatusWait, pair[i]->m_moduleAccesser);
+            m->m_groundModule->setCorrect(
+                setNoclip ? soGroundShapeImpl::Correct_None : soGroundShapeImpl::Correct_Ground_Cliff_Stop, 0);
+        }
+    }
+
+    static void applyHmnPercentIfChanged(u16 beforePct, const main::GeneralSettings& gen)
+    {
+        if (gen.playerPercent != beforePct)
+        {
+            lab::applyPercent(main::kSideHuman);
+        }
+    }
+
+    void scenarioPresetsDetach()
+    {
+        main::Settings& s = main::settings();
+        u16 prevPct = s.general.playerPercent;
+        restoreScenarioSnapshot(s_state, s.cpu.options, s.comboTrainer, &s.general);
+        applyHmnPercentIfChanged(prevPct, s.general);
+        s_state.activePreset = kScenarioOff;
+        s_placedPlayer[0] = -1;
+        s_placedPlayer[1] = -1;
+    }
+
+    void scenarioPresetsPrepareSwap()
+    {
+        ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
+        bool wasActive = s_state.activePreset != kScenarioOff || m->preset != kScenarioOff || s_state.snapshotActive;
+        // Restore any pending 1-frame noclip override on live fighters before
+        // clearing scenario state.
+        if (s_state.restoreCorrect[0] || s_state.restoreCorrect[1])
+        {
+            game::FighterRef refs[game::kMaxFighters];
+            int n = game::listFighters(refs, game::kMaxFighters);
+            for (int slot = 0; slot < 2; slot++)
+            {
+                if (!s_state.restoreCorrect[slot])
+                {
+                    continue;
+                }
+                game::FighterRef target;
+                if (s_placedPlayer[slot] >= 0 && findPlayerRef(refs, n, s_placedPlayer[slot], target))
+                {
+                    setFighterCorrect(target, s_state.restoreCorrectKind[slot]);
+                }
+            }
+        }
+        m->preset = kScenarioOff;
+        main::Settings& s = main::settings();
+        u16 prevPct = s.general.playerPercent;
+        applyScenarioConfig(s_state, readMenuConfig(), s.cpu.options, s.comboTrainer, &s.general);
+        applyHmnPercentIfChanged(prevPct, s.general);
+        scenarioTransientReset(s_state);
+        scenarioCpuStateReset(s_cpuState);
+        s_placedPlayer[0] = -1;
+        s_placedPlayer[1] = -1;
+        syncDebugBlock(NULL, NULL);
+        if (wasActive)
+        {
+            TM_LOG("scenarios: deactivated for fighter swap\n");
+        }
+    }
+
+    void scenarioPresetsCall(int call)
+    {
+        main::Settings& s = main::settings();
+        switch (call)
+        {
+        case main::kScenarioChanged:
+        {
+            u16 prevPct = s.general.playerPercent;
+            applyScenarioConfig(s_state, readMenuConfig(), s.cpu.options, s.comboTrainer, &s.general);
+            applyHmnPercentIfChanged(prevPct, s.general);
+            scenarioCpuStateReset(s_cpuState);
+            break;
+        }
+        case main::kScenarioResetNow:
+            requestScenarioManualReset(s_state);
+            scenarioCpuStateReset(s_cpuState);
+            break;
+        case main::kScenarioSavestateLoaded:
+            scenarioTransientReset(s_state);
+            scenarioCpuStateReset(s_cpuState);
+            stageGeomReset();
+            break;
+        case main::kScenarioSettingsReset:
+            discardScenarioSnapshot(s_state);
+            scenarioCpuStateReset(s_cpuState);
+            initScratchDefaults();
+            break;
+        default:
+            break;
+        }
+        syncDebugBlock(NULL, NULL);
+    }
+
+    void scenarioPresetsFrame()
+    {
+        ScenarioConfig cfg = readMenuConfig();
+        // Fast path when Off: zero per-frame fighter reads, writes, or overrides.
+        if (cfg.preset == kScenarioOff && s_state.activePreset == kScenarioOff && !s_state.restoreCorrect[0]
+            && !s_state.restoreCorrect[1])
+        {
+            s_debug.frame = game::frameCounter();
+            s_debug.activePreset = kScenarioOff;
+            s_debug.snapshotActive = s_state.snapshotActive ? 1 : 0;
+            s_debug.autoReset = cfg.autoReset;
+            s_debug.side = cfg.side;
+            s_debug.multiHitMove = cfg.multiHitMove;
+            return;
+        }
+
+        game::FighterRef refs[game::kMaxFighters];
+        int n = game::listFighters(refs, game::kMaxFighters);
+        game::FighterRef hmnRef;
+        game::FighterRef cpuRef;
+        bool haveHmn = false;
+        bool haveCpu = false;
+        for (int i = 0; i < n; i++)
+        {
+            if (!refs[i].cpu && !haveHmn)
+            {
+                hmnRef = refs[i];
+                haveHmn = true;
+            }
+            else if (refs[i].cpu && !haveCpu)
+            {
+                cpuRef = refs[i];
+                haveCpu = true;
+            }
+        }
+        if (!haveHmn || !haveCpu)
+        {
+            // Still synchronize settings transitions even if a fighter is absent.
+            main::Settings& s = main::settings();
+            u16 prevPct = s.general.playerPercent;
+            applyScenarioConfig(s_state, cfg, s.cpu.options, s.comboTrainer, &s.general);
+            applyHmnPercentIfChanged(prevPct, s.general);
+            syncDebugBlock(haveHmn ? hmnRef.fighter : NULL, haveCpu ? cpuRef.fighter : NULL);
+            return;
+        }
+
+        game::FighterState hmnFs;
+        game::FighterState cpuFs;
+        if (!game::readState(hmnRef, hmnFs) || !game::readState(cpuRef, cpuFs))
+        {
+            return;
+        }
+
+        const soModuleEnumeration* hm = game::fighterModules(hmnRef.fighter);
+        const soModuleEnumeration* cm = game::fighterModules(cpuRef.fighter);
+        if (hm == NULL || cm == NULL)
+        {
+            return;
+        }
+
+        cpu::View hmnView;
+        cpu::View cpuView;
+        bool haveHmnView = cpu::readView(hmnRef.fighter, hmnView);
+        bool haveCpuView = cpu::readView(cpuRef.fighter, cpuView);
+
+        ScenarioStepInput in;
+        memset(&in, 0, sizeof(in));
+        in.hmnStatus = hmnFs.status;
+        in.hmnHitlag = game::isRam(hm->m_stopModule) ? hm->m_stopModule->getHitStopRealFrame() : 0;
+        if (in.hmnHitlag < 0)
+        {
+            in.hmnHitlag = 0;
+        }
+        in.hmnDamageHitlag = in.hmnHitlag > 0 && game::isRam(hm->m_stopModule) && hm->m_stopModule->isDamage();
+        in.hmnHitstun = hmnFs.hitstun;
+        in.hmnShieldStun = hmnFs.shieldStun;
+        in.hmnX = hmnFs.x;
+        in.hmnY = hmnFs.y;
+        in.hmnAir = game::isRam(hm->m_situationModule) && hm->m_situationModule->getKind() == Situation_Air;
+        in.hmnOutOfPlay = game::outOfPlay(hmnFs.status, true);
+        in.hmnActionable = haveHmnView ? cpu::canAct(hmnView) : (in.hmnHitlag == 0 && in.hmnHitstun == 0);
+        in.hmnEnteredPass = hmnFs.status == kStatusPassId || sawIntraFrameStatus(hmnRef.playerNo, kStatusPassId);
+
+        in.cpuStatus = cpuFs.status;
+        in.cpuHitlag = game::isRam(cm->m_stopModule) ? cm->m_stopModule->getHitStopRealFrame() : 0;
+        if (in.cpuHitlag < 0)
+        {
+            in.cpuHitlag = 0;
+        }
+        in.cpuHitstun = cpuFs.hitstun;
+        in.cpuShieldStun = cpuFs.shieldStun;
+        in.cpuX = cpuFs.x;
+        in.cpuY = cpuFs.y;
+        in.cpuAir = game::isRam(cm->m_situationModule) && cm->m_situationModule->getKind() == Situation_Air;
+        in.cpuOutOfPlay = game::outOfPlay(cpuFs.status, true);
+        in.cpuActionable = haveCpuView ? cpu::canAct(cpuView) : (in.cpuHitlag == 0 && in.cpuHitstun == 0);
+
+        bool needFreshGeom = s_state.pendingReset || cfg.preset != s_state.activePreset || cfg.side != s_state.lastSide
+                             || cfg.multiHitMove != s_state.lastMultiHitMove;
+        bool needPlatforms = cfg.preset == kScenarioShieldDrop || cfg.preset == kScenarioSlideOff
+                             || s_state.activePreset == kScenarioShieldDrop
+                             || s_state.activePreset == kScenarioSlideOff;
+        liveGeometry(in.geom, needFreshGeom, needPlatforms);
+
+        ScenarioStepAction act;
+        main::Settings& s = main::settings();
+        stepScenario(s_state, cfg, in, s.cpu.options, s.comboTrainer, act, &s.general);
+        if (act.applyHmnPercent)
+        {
+            lab::applyPercent(main::kSideHuman);
+        }
+
+        // Apply 1-frame noclip restores to the exact placed fighter(s).
+        for (int slot = 0; slot < 2; slot++)
+        {
+            if (act.restoreCorrect[slot])
+            {
+                game::FighterRef target = slot == 0 ? hmnRef : cpuRef;
+                if (s_placedPlayer[slot] >= 0)
+                {
+                    findPlayerRef(refs, n, s_placedPlayer[slot], target);
+                }
+                setFighterCorrect(target, act.restoreCorrectKind[slot]);
+            }
+        }
+
+        // Cancel spurious Landing lag (0x16..0x19) if Brawl snaps a fighter
+        // warped from air/Rebirth onto a standing floor right after the 1-frame
+        // noclip restore (frames 2..3 post-warp).
+        if (!act.warpHmn && !act.warpCpu && s_state.activePreset != kScenarioOff && s_state.sinceResetFrames >= 2
+            && s_state.sinceResetFrames <= 3)
+        {
+            for (int slot = 0; slot < 2; slot++)
+            {
+                if (s_state.restoreCorrectKind[slot] != kCorrectGroundCliffStop)
+                {
+                    continue;
+                }
+                game::FighterRef target = slot == 0 ? hmnRef : cpuRef;
+                if (s_placedPlayer[slot] >= 0)
+                {
+                    findPlayerRef(refs, n, s_placedPlayer[slot], target);
+                }
+                Fighter* pair[2] = {target.fighter,
+                                    (target.partner != NULL && target.partner != target.fighter) ? target.partner : NULL};
+                for (int p = 0; p < 2; p++)
+                {
+                    if (pair[p] == NULL)
+                    {
+                        continue;
+                    }
+                    const soModuleEnumeration* tm = game::fighterModules(pair[p]);
+                    int st = tm != NULL ? game::fighterStatus(tm) : -1;
+                    if (st >= game::kStatusLanding && st <= game::kStatusLandingFallSpecial
+                        && game::isRam(tm->m_statusModule) && game::isRam(pair[p]->m_moduleAccesser))
+                    {
+                        tm->m_statusModule->changeStatusForce(game::kStatusWait, pair[p]->m_moduleAccesser);
+                    }
+                }
+            }
+        }
+
+        if (act.warpHmn)
+        {
+            if (act.spawns.hmnFalling)
+            {
+                placeFalling(hmnRef, act.spawns.hmnX, act.spawns.hmnY, act.setNoclip[0], -1.0f, act.spawns.hmnLr);
+            }
+            else
+            {
+                placeStanding(hmnRef, act.spawns.hmnX, act.spawns.hmnY, act.setNoclip[0], -1.0f, act.spawns.hmnLr);
+                finishStandingWarp(hmnRef, act.setNoclip[0]);
+            }
+            clearWarpIntang(hmnRef);
+            s_placedPlayer[0] = static_cast<s8>(hmnRef.playerNo);
+        }
+        if (act.warpCpu)
+        {
+            if (act.spawns.cpuFalling)
+            {
+                placeFalling(cpuRef, act.spawns.cpuX, act.spawns.cpuY, act.setNoclip[1], -1.0f, act.spawns.cpuLr);
+            }
+            else
+            {
+                placeStanding(cpuRef, act.spawns.cpuX, act.spawns.cpuY, act.setNoclip[1], -1.0f, act.spawns.cpuLr);
+                finishStandingWarp(cpuRef, act.setNoclip[1]);
+            }
+            clearWarpIntang(cpuRef);
+            s_placedPlayer[1] = static_cast<s8>(cpuRef.playerNo);
+        }
+        if (act.resetComboTrainer)
+        {
+            comboTrainerReset();
+            coreDrillEnginesSavestateReset();
+            hoverPsResetTransient();
+            pplusTechReset();
+            cpu::optionsPrepareSwap(false, 0);
+            for (int i = 0; i < n; i++)
+            {
+                if (refs[i].cpu && refs[i].playerNo >= 0 && refs[i].playerNo < game::kMaxFighters)
+                {
+                    pplusRecoveryReset(refs[i].playerNo);
+                }
+            }
+            scenarioCpuStateReset(s_cpuState);
+        }
+
+        syncDebugBlock(hmnRef.fighter, cpuRef.fighter);
+    }
+
+    bool scenarioPresetsCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out,
+                                u32 lastButtons)
+    {
+        if (s_state.activePreset == kScenarioOff || !who.cpu || f == NULL)
+        {
+            return false;
+        }
+        if (s_state.activePreset != kScenarioMultiHitSdi && s_state.activePreset != kScenarioLedgetech
+            && s_state.activePreset != kScenarioSlideOff)
+        {
+            return false;
+        }
+
+        game::FighterRef refs[game::kMaxFighters];
+        int n = game::listFighters(refs, game::kMaxFighters);
+        game::FighterRef hmnRef;
+        bool haveHmn = false;
+        for (int i = 0; i < n; i++)
+        {
+            if (!refs[i].cpu)
+            {
+                hmnRef = refs[i];
+                haveHmn = true;
+                break;
+            }
+        }
+        if (!haveHmn)
+        {
+            return false;
+        }
+        game::FighterState hmnFs;
+        const soModuleEnumeration* hm = game::fighterModules(hmnRef.fighter);
+        if (hm == NULL || !game::readState(hmnRef, hmnFs))
+        {
+            return false;
+        }
+
+        ScenarioConfig cfg = readMenuConfig();
+        ScenarioCpuInput in;
+        in.preset = s_state.activePreset;
+        in.multiHitMove = cfg.multiHitMove;
+        in.cpuStatus = v.status;
+        in.cpuAir = v.air;
+        in.cpuCanAct = cpu::canAct(v);
+        in.cpuTakeoffNext = cpu::takeoffNext(v);
+        in.cpuX = v.x;
+        in.cpuY = v.y;
+        in.cpuVx = v.vx;
+        in.cpuVy = v.vy;
+        in.cpuLr = v.lr;
+        in.hmnX = hmnFs.x;
+        in.hmnY = hmnFs.y;
+        in.hmnAir = game::isRam(hm->m_situationModule) && hm->m_situationModule->getKind() == Situation_Air;
+        in.hmnHitstun = hmnFs.hitstun;
+        in.hmnOutOfPlay = game::outOfPlay(hmnFs.status, true);
+        in.cpuOutOfPlay = game::outOfPlay(v.status, true);
+        in.lastButtons = lastButtons;
+
+        ScenarioCpuOutput cpuOut;
+        stepScenarioCpu(in, s_cpuState, cpuOut);
+        if (!cpuOut.active)
+        {
+            return false;
+        }
+        out.buttons = cpuOut.buttons;
+        out.x = cpuOut.stickX;
+        out.y = cpuOut.stickY;
+        return true;
+    }
+
+    void scenarioPresetsSavedView(main::Settings& out)
+    {
+        projectScenarioSavedView(s_state, out.cpu.options, out.comboTrainer, &out.general);
+    }
+}
+}

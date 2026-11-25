@@ -1,0 +1,313 @@
+// Host unit tests for SF6-style Start-On-First-Input recording logic
+// (src/main/record/start_input.h), HUD Armed fit (src/main/record/hud.cpp),
+// and RecordingSettings::startOnFirstInput sanitization.
+#include <string.h>
+
+#include "host/canvas.h"
+#include "host/fakes.h"
+#include "host/test.h"
+#include "main/gfx/text.h"
+#include "main/record/hud.h"
+#include "main/record/slots.h"
+#include "main/record/start_input.h"
+#include "main/settings.h"
+
+using namespace tm;
+
+namespace {
+    record::Input neutralInput()
+    {
+        record::Input in;
+        memset(&in, 0, sizeof(in));
+        return in;
+    }
+}
+
+TEST(record_start_on_input, neutrality_thresholds_match_buttons_sticks_and_triggers)
+{
+    record::Input in = neutralInput();
+    CHECK(record::isNeutralInput(in));
+
+    // kFlickJump alone (tap-jump bit always set by AI/pad neutral) stays neutral.
+    in.buttons = cpu::button::kFlickJump;
+    CHECK(record::isNeutralInput(in));
+
+    // Any real button breaks neutrality.
+    in.buttons = cpu::button::kFlickJump | cpu::button::kAttack;
+    CHECK(!record::isNeutralInput(in));
+    in.buttons = cpu::button::kJump;
+    CHECK(!record::isNeutralInput(in));
+    in.buttons = cpu::button::kGuard;
+    CHECK(!record::isNeutralInput(in));
+
+    // Main stick & C-stick dead zone: strictly below 12/127 is neutral, >= 12/127 triggers.
+    const float belowStick = 11.9f / 127.0f;
+    const float atStick = 12.0f / 127.0f;
+
+    in = neutralInput();
+    in.x = belowStick;
+    in.y = -belowStick;
+    in.cx = belowStick;
+    in.cy = -belowStick;
+    CHECK(record::isNeutralInput(in));
+
+    in = neutralInput();
+    in.x = atStick;
+    CHECK(!record::isNeutralInput(in));
+    in = neutralInput();
+    in.x = -atStick;
+    CHECK(!record::isNeutralInput(in));
+    in = neutralInput();
+    in.y = atStick;
+    CHECK(!record::isNeutralInput(in));
+    in = neutralInput();
+    in.cx = -atStick;
+    CHECK(!record::isNeutralInput(in));
+    in = neutralInput();
+    in.cy = atStick;
+    CHECK(!record::isNeutralInput(in));
+
+    // Analog triggers: strictly below 40/255 is neutral, >= 40/255 triggers.
+    const float belowTrig = 39.9f / 255.0f;
+    const float atTrig = 40.0f / 255.0f;
+
+    in = neutralInput();
+    in.l = belowTrig;
+    in.r = belowTrig;
+    CHECK(record::isNeutralInput(in));
+
+    in = neutralInput();
+    in.l = atTrig;
+    CHECK(!record::isNeutralInput(in));
+    in = neutralInput();
+    in.r = atTrig;
+    CHECK(!record::isNeutralInput(in));
+}
+
+TEST(record_start_on_input, standalone_vs_coplayback_arming_and_clock_hold)
+{
+    CHECK(!record::shouldArmRecording(false, true, false));
+    CHECK(!record::shouldArmRecording(true, false, false));
+    CHECK(record::shouldArmRecording(true, true, false));
+    CHECK(record::shouldArmRecording(true, false, true));
+
+    // Standalone recording holds s_t = 0 while armed; co-playback lets s_t advance.
+    CHECK(record::shouldHoldRecordingClock(true, false));
+    CHECK(!record::shouldHoldRecordingClock(true, true));
+    CHECK(!record::shouldHoldRecordingClock(false, false));
+
+    // Simulate standalone recording with stale prior slot data.
+    static record::Slot slot;
+    record::slotClear(slot);
+    record::Input stale = neutralInput();
+    stale.buttons = cpu::button::kJump;
+    record::slotWrite(slot, 0, stale);
+    record::slotWrite(slot, 1, stale);
+    CHECK_EQ(0u, static_cast<unsigned>(slot.start));
+    CHECK_EQ(2u, static_cast<unsigned>(slot.end));
+
+    bool armed = record::shouldArmRecording(true, true, false);
+    int t = 0;
+    bool clearSlot = false;
+    record::Input neut = neutralInput();
+    neut.buttons = cpu::button::kFlickJump;
+    for (int f = 0; f < 10; f++)
+    {
+        CHECK(!record::consumeArmedInput(armed, neut, true, clearSlot));
+        CHECK(!clearSlot);
+        CHECK(armed);
+        if (!record::shouldHoldRecordingClock(armed, false))
+        {
+            t++;
+        }
+    }
+    CHECK_EQ(0, t);
+
+    // First non-neutral input clears stale data, writes frame 0, and unarms clock.
+    record::Input act = neutralInput();
+    act.buttons = cpu::button::kAttack;
+    CHECK(record::consumeArmedInput(armed, act, true, clearSlot));
+    CHECK(clearSlot);
+    CHECK(!armed);
+    if (clearSlot)
+    {
+        record::slotClear(slot);
+    }
+    record::slotWrite(slot, t, act);
+    if (!record::shouldHoldRecordingClock(armed, false))
+    {
+        t++;
+    }
+    CHECK_EQ(1, t);
+    CHECK_EQ(0u, static_cast<unsigned>(slot.start));
+    CHECK_EQ(1u, static_cast<unsigned>(slot.end));
+
+    // Co-playback + record: s_t advances while armed; first input sets slot.start = t.
+    record::slotClear(slot);
+    armed = true;
+    t = 0;
+    for (int f = 0; f < 15; f++)
+    {
+        CHECK(!record::consumeArmedInput(armed, neut, true, clearSlot));
+        if (!record::shouldHoldRecordingClock(armed, true))
+        {
+            t++;
+        }
+    }
+    CHECK_EQ(15, t);
+    CHECK(record::consumeArmedInput(armed, act, true, clearSlot));
+    CHECK(clearSlot);
+    CHECK(!armed);
+    record::slotWrite(slot, t, act);
+    CHECK_EQ(15u, static_cast<unsigned>(slot.start));
+    CHECK_EQ(16u, static_cast<unsigned>(slot.end));
+
+    // Re-record takeover preserves earlier frames (clearSlot stays false).
+    armed = true;
+    CHECK(record::consumeArmedInput(armed, act, false, clearSlot));
+    CHECK(!clearSlot);
+    CHECK(!armed);
+}
+
+TEST(record_start_on_input, standalone_rerecord_holds_clock_and_dual_record_clears_both_slots)
+{
+    // Standalone kModeReRecord: active playback advances s_t, then after playback
+    // ends (cancelled == true) and armed activates, s_t holds in place until the
+    // first non-neutral input so no neutral zero frames are padded.
+    CHECK(record::hasActivePlayback(true, false, false, false));
+    CHECK(!record::hasActivePlayback(true, true, false, false));
+    CHECK(record::hasActivePlayback(true, true, true, false));
+    CHECK(!record::hasActivePlayback(true, true, true, true));
+
+    static record::Slot hmnSlot;
+    static record::Slot cpuSlot;
+    record::slotClear(hmnSlot);
+    record::Input prev = neutralInput();
+    prev.buttons = cpu::button::kJump;
+    for (int f = 0; f < 5; f++)
+    {
+        record::slotWrite(hmnSlot, f, prev);
+    }
+    CHECK_EQ(5u, static_cast<unsigned>(hmnSlot.end));
+
+    // Playback finished at frame 5 -> cancelled = true, armed = true.
+    bool armed = true;
+    int t = 5;
+    record::Input neut = neutralInput();
+    neut.buttons = cpu::button::kFlickJump;
+    bool clearSlot = false;
+    for (int f = 0; f < 10; f++)
+    {
+        CHECK(!record::consumeArmedInput(armed, neut, false, clearSlot));
+        CHECK(!clearSlot);
+        bool anyPlaying = record::hasActivePlayback(true, true, false, false);
+        CHECK(record::shouldHoldRecordingClock(armed, anyPlaying));
+        if (!record::shouldHoldRecordingClock(armed, anyPlaying))
+        {
+            t++;
+        }
+    }
+    CHECK_EQ(5, t);
+    CHECK(armed);
+
+    // First non-neutral input writes directly at frame 5 (no neutral gap).
+    record::Input act = neutralInput();
+    act.buttons = cpu::button::kAttack;
+    CHECK(record::consumeArmedInput(armed, act, false, clearSlot));
+    CHECK(!clearSlot);
+    CHECK(!armed);
+    record::slotWrite(hmnSlot, t, act);
+    if (!record::shouldHoldRecordingClock(armed, false))
+    {
+        t++;
+    }
+    CHECK_EQ(6, t);
+    CHECK_EQ(0u, static_cast<unsigned>(hmnSlot.start));
+    CHECK_EQ(6u, static_cast<unsigned>(hmnSlot.end));
+
+    // Co-playback while HMN kModeReRecord is armed after ending: CPU is still
+    // playing (cpuCancelled == false), so s_t keeps advancing for sync.
+    CHECK(!record::shouldHoldRecordingClock(true, record::hasActivePlayback(true, true, true, false)));
+
+    // Quick-load guard: only restore recArmed when Start On Input is still on
+    // and both sides kept the same modes as when the quick state was saved.
+    CHECK(record::shouldRestoreQuickArmed(true, 1, 1, 0, 0));
+    CHECK(!record::shouldRestoreQuickArmed(false, 1, 1, 0, 0));
+    CHECK(!record::shouldRestoreQuickArmed(true, 1, 0, 0, 0));
+    CHECK(!record::shouldRestoreQuickArmed(true, 1, 1, 2, 0));
+
+    // Dual-record pendingClear safety: both HMN and CPU slots have stale data;
+    // when armed triggers on HMN first, CPU's pendingClear still clears CPU's
+    // stale slot on its first write instead of appending to stale frames.
+    record::slotClear(hmnSlot);
+    record::slotClear(cpuSlot);
+    record::slotWrite(hmnSlot, 0, prev);
+    record::slotWrite(hmnSlot, 1, prev);
+    record::slotWrite(cpuSlot, 0, prev);
+    record::slotWrite(cpuSlot, 1, prev);
+
+    armed = record::shouldArmRecording(true, true, true);
+    bool pendingClear[2] = {armed, armed};
+    CHECK(armed);
+    // HMN triggers first at t = 0.
+    CHECK(record::consumeArmedInput(armed, act, true, clearSlot));
+    CHECK(!armed);
+    if (clearSlot || pendingClear[0])
+    {
+        record::slotClear(hmnSlot);
+        pendingClear[0] = false;
+    }
+    record::slotWrite(hmnSlot, 0, act);
+    // CPU runs second in the same frame with armed == false, clearSlot == false.
+    CHECK(record::consumeArmedInput(armed, neut, true, clearSlot));
+    CHECK(!clearSlot);
+    CHECK(pendingClear[1]);
+    if (clearSlot || pendingClear[1])
+    {
+        record::slotClear(cpuSlot);
+        pendingClear[1] = false;
+    }
+    record::slotWrite(cpuSlot, 0, neut);
+    CHECK_EQ(1u, static_cast<unsigned>(hmnSlot.end));
+    CHECK_EQ(1u, static_cast<unsigned>(cpuSlot.end));
+    CHECK(!pendingClear[0] && !pendingClear[1]);
+}
+
+TEST(record_start_on_input, armed_hud_tag_fits_bar_on_both_aspects)
+{
+    const float aspects[2] = {1.0f, 0.75f};
+    for (int a = 0; a < 2; a++)
+    {
+        gfx::setXScale(aspects[a]);
+        host::canvas::clear();
+        record::HudInfo info = {record::kHudArmed, 0, 0, false, NULL};
+        record::hudDraw(info);
+        REQUIRE(host::canvas::rects() >= 2);
+        const host::canvas::Rect& bar = host::canvas::rect(0);
+        const host::canvas::Rect& track = host::canvas::rect(1);
+        bool sawArmed = false;
+        for (int i = 0; i < host::canvas::runs(); i++)
+        {
+            const host::canvas::Run& r = host::canvas::run(i);
+            if (strcmp(r.text, "Armed") == 0)
+            {
+                sawArmed = true;
+                CHECK(r.x >= track.x + track.width - 0.05f);
+                CHECK(r.right <= bar.x + bar.width + 0.05f);
+            }
+        }
+        CHECK(sawArmed);
+    }
+}
+
+TEST(record_start_on_input, settings_layout_and_sanitization)
+{
+    u8* block = host::fakes::block();
+    memset(block, 0, iface::kSettingsBlockSize);
+    main::loadSettings(block);
+    CHECK_EQ(0u, static_cast<unsigned>(main::settings().recording.startOnFirstInput));
+
+    main::settings().recording.startOnFirstInput = 250;
+    main::sanitizeSettings(main::settings());
+    CHECK_EQ(1u, static_cast<unsigned>(main::settings().recording.startOnFirstInput));
+}

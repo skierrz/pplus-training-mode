@@ -1,0 +1,33 @@
+# Build output
+build/
+out/
+*.o
+*.elf
+*.map
+
+# Game data and disc images are never committed
+*.iso
+*.wbfs
+*.rvz
+*.gcm
+*.raw
+*.gct
+
+# Local configuration
+local.mk
+*.local.*
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Third-party toolchain, fetched by scripts/fetch-tools.sh
+/tools/
+
+# Python bytecode
+__pycache__/
+*.pyc

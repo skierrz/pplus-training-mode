@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.rel binary
+*.pac binary
+*.bin binary
+*.png binary

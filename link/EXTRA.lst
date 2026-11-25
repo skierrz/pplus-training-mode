@@ -1,0 +1,55 @@
+// Adapted from SyriingePluginTemplate EXTRA.lst @ 2b3ba22 (MIT, see THIRD_PARTY_NOTICES.md).
+// Extra symbol linkages not provided by lib/BrawlHeaders/RSBE01.lst.
+// Passed to elf2rel after RSBE01.lst. Format depends on where the symbol lives:
+//  - Rels:   "RelID,RelSectionId,offset:symbol_name"
+//  - Global: "address:symbol_name"
+
+// Symbols this project needs, with addresses from the doldecomp/brawl
+// symbol map for RSBE01 rev 2 (config/RSBE01_02/symbols.txt).
+801ddc4c:OSLinkFixed
+8002f048:setPauseCategory__15gfTaskSchedulerFQ26gfTask8Categoryb
+
+// sora_melee (module 27) .text offsets, from the doldecomp/brawl symbol map
+// (config/RSBE01_02/rels/sora_melee/symbols.txt).
+27,1,0000677C:addObserver__22soAnimCmdEventObserverFsSc
+
+// Savestates (src/main/savestate/): from the same symbol map.
+801dcf10:OSDisableInterrupts
+801dcf38:OSRestoreInterrupts
+801f0a30:GXDrawDone
+801f0248:GXInvalidateVtxCache
+801f3194:GXInvalidateTexAll
+
+// SD card storage (src/main/storage/): OSSleepTicks and OSTicksToCalendarTime
+// from the same symbol map; gfFileIO::checkSDInserted and
+// ::checkSDWriteProtected are unnamed there (fn_8001BCFC, fn_8001BCBC) and
+// were identified from their code (see src/main/storage/file_io.cpp, which
+// checks it before every call).
+801e1a80:OSSleepTicks
+801e1d80:OSTicksToCalendarTime
+8001bcfc:checkSDInserted__8gfFileIOFv
+8001bcbc:checkSDWriteProtected__8gfFileIOFv
+
+// 2D and line drawing (src/main/gfx/draw.cpp): from the same symbol map;
+// gfCamera::setGX (0x80018DE4) calls it at 0x80018EA4.
+801f51dc:GXLoadPosMtxImm
+
+// The Character RNG page (src/extra/character_rng.cpp): from the same
+// symbol map (sora_melee .text and .bss offsets).
+27,1,00145478:getData__20ftCommonDataAccesserCF6ftKind
+27,6,0000320C:g_ftCommonDataAccesser
+
+// Player controller port lookup (src/main/game/fighters.cpp): from the same
+// symbol map.
+80048548:getInstance__11ipPadConfigFv
+
+// Native Brawl/P+ CI8/TLUT UI emblem & StockFaceTex rendering (src/extra/ui_assets.cpp):
+// RSBE01 rev 2 addresses from the doldecomp/brawl symbol map.
+801f2afc:GXInitTexObjCI
+801f2b44:GXInitTexObjLOD
+801f2fb0:GXLoadTexObj
+801f3004:GXInitTlutObj
+801f302c:GXLoadTlut
+801f47a8:GXSetZCompLoc
+801f3f20:GXSetTevSwapMode
+801f3f5c:GXSetTevSwapModeTable

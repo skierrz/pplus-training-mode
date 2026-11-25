@@ -1,0 +1,63 @@
+# Machine-specific build settings.
+#
+# Copy this file to local.mk (git-ignored) and uncomment what you need.
+# Anything set here can also be given on the command line: make TOOLS=...
+# Use forward slashes.
+
+# --- Build -----------------------------------------------------------------
+# These are used in make rules, so they must not contain spaces.
+
+# Where MWCC 4.2 and elf2rel live. Default: tools (inside the repo).
+# TOOLS := tools
+
+# A local SyriingePluginTemplate checkout for `make tools` to copy from
+# instead of cloning it from GitHub. Its tools/ must match the pinned commit.
+# TOOLS_SRC := ../SyriingePluginTemplate
+
+# --- Emulator (make sd-folder / install / run / test-load / test-match) ----
+# These are handed to scripts/emu.py through the environment, so spaces are
+# fine. Write them unquoted, as Windows paths with forward slashes
+# (C:/...). Do not use '$' or a trailing space. See docs/testing.md.
+
+# Python 3.8+ (standard library only).
+# PYTHON := py -3
+
+# Dolphin executable (Brawl Online's Dolphin build or a compatible one).
+# DOLPHIN := C:/path/to/Dolphin.exe
+
+# A Dolphin user folder used only for this project. Created if missing.
+# DOLPHIN_USER := C:/path/to/sandbox/dolphin-user
+
+# Project+ Offline Launcher DOL (from the Project+ release's Launcher folder).
+# LAUNCHER_DOL := C:/path/to/Project+ Offline Launcher.dol
+
+# Your Brawl disc image (NTSC-U, RSBE01).
+# BRAWL_ISO := C:/path/to/Brawl.iso
+
+# A clean Project+ SD card image. Only read, by `make sd-folder`.
+# SD_SOURCE := C:/path/to/sd.raw
+
+# Folder holding the SD card's files. Dolphin packs it into SD_IMAGE at
+# every boot. Keep it outside the repo.
+# SD_FOLDER := C:/path/to/sandbox/sd
+
+# The SD card image Dolphin generates from SD_FOLDER (overwritten every boot).
+# SD_IMAGE := C:/path/to/sandbox/sd.raw
+
+# Optional: a folder copied once into the user folder's Wii/ (NAND), for
+# example one holding title/00010000/52534245/data with a Brawl save, so the
+# game does not ask to create one.
+# NAND_SEED := C:/path/to/save-template
+
+# Seconds emulator tests wait for boot and log lines.
+# TEST_TIMEOUT := 120
+
+# Folder for emulator test screenshots. Default: DOLPHIN_USER/ScreenShots.
+# SCREENSHOT_DIR := C:/path/to/sandbox/screenshots
+
+# Video backend for visual emulator tests (D3D, D3D12, Vulkan or OGL; not Null).
+# VIDEO_BACKEND := D3D
+
+# Port on 127.0.0.1 for the Dolphin automation harness.
+# Default: any free port.
+# HARNESS_PORT := 47311

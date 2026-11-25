@@ -1,0 +1,27 @@
+/* Adapted from SyriingePluginTemplate rel.lcf @ 2b3ba22 (MIT, see THIRD_PARTY_NOTICES.md). */
+/* Linker configuration for building a relocatable (.rel) module */
+
+SECTIONS
+{
+    GROUP :
+    {
+        .init   :{}
+        .text   :{}
+        .ctors  :{}
+        .dtors  :{}
+        .rodata :{}
+        .data   :{}
+        .bss    :{}
+    }
+
+}
+
+FORCEACTIVE
+{
+    _prolog
+    _epilog
+    _unresolved
+    _ctors
+    _dtors
+    __destroy_global_chain
+}

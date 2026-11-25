@@ -1,0 +1,1263 @@
+// The menu's option logic (src/main/ui/menu.cpp) and the lab menu's own
+// tables (src/main/ui/pages/, every page compiled as it is).
+//
+// Every setting the mod has is a row of these tables: a byte offset into
+// main::Settings, a range and a default. A row added with a wrong offset,
+// a default outside its range, or a field the card does not keep works on
+// screen and is wrong where nobody looks: these tests look at every row.
+#include "extra/menu_descriptions.h"
+#include "host/canvas.h"
+#include "host/card.h"
+#include "host/fakes.h"
+#include "host/log.h"
+#include "host/test.h"
+#include "main/extra.h"
+#include "main/gfx/text.h"
+#include "main/settings.h"
+#include "main/storage/storage.h"
+#include "main/storage/settings_file.h"
+#include "main/ui/lab_menu.h"
+#include "main/ui/menu.h"
+#include "main/ui/pages/pages.h"
+#include "main/ui/style.h"
+#include "shared/game/menu_sound.h"
+
+using namespace tm;
+using main::Settings;
+
+namespace {
+    bool stored(const ui::Option& o)
+    {
+        return ui::hasValue(o) && (o.flags & (ui::kFlagUnavailable | ui::kFlagScratch)) == 0;
+    }
+
+    int low(const ui::Option& o)
+    {
+        return o.kind == ui::kKindInt ? o.min : 0;
+    }
+
+    int high(const ui::Option& o)
+    {
+        return o.kind == ui::kKindToggle ? 1 : o.max;
+    }
+
+    const char* nameOf(const ui::Option& o)
+    {
+        return o.name != NULL ? o.name : "(no name)";
+    }
+
+    void bootLab()
+    {
+        storage::detach();
+        u8* block = host::fakes::block();
+        memset(block, 0, iface::kSettingsBlockSize);
+        main::loadSettings(block);
+        storage::attach(block);
+    }
+
+    // The sounds asked for since the log was last cleared, by id.
+    int sounds(int id)
+    {
+        char line[32];
+        snprintf(line, sizeof(line), "ui: sound %d ", id);
+        return host::log::count(line);
+    }
+}
+
+// ---- the lab menu's tables --------------------------------------------------
+
+TEST(lab_menu, every_row_is_well_formed)
+{
+    bootLab();
+    const ui::MenuDef& menu = ui::labMenu();
+    CHECK_EQ(ui::pages::P_COUNT, menu.pageCount);
+    int rows = 0;
+    for (int p = 0; p < menu.pageCount; p++)
+    {
+        const ui::Page& page = *menu.pages[p];
+        REQUIRE(page.title != NULL);
+        for (int i = 0; i < page.count; i++)
+        {
+            const ui::Option& o = page.options[i];
+            const char* problem = NULL;
+            int width = (o.flags & ui::kFlagHalf) ? 2 : 1;
+            if (o.kind > ui::kKindInfo)
+            {
+                problem = "an unknown kind";
+            }
+            else if (o.name == NULL && (o.flags & ui::kFlagHidden) == 0)
+            {
+                problem = "no name, and not a hidden row";
+            }
+            else if (o.kind == ui::kKindMenu && (o.max < 0 || o.max >= menu.pageCount))
+            {
+                problem = "opens a page that does not exist";
+            }
+            else if (ui::hasValue(o) && (o.def < low(o) || o.def > high(o)))
+            {
+                problem = "its default is outside its range";
+            }
+            else if (ui::hasValue(o) && low(o) > high(o))
+            {
+                problem = "an empty range";
+            }
+            else if (o.kind == ui::kKindChoice && o.data == NULL)
+            {
+                problem = "a choice without labels";
+            }
+            else if (stored(o) && (o.offset < offsetof(Settings, general) || o.offset + width > sizeof(Settings)))
+            {
+                problem = "its value lies outside the settings' fields";
+            }
+            else if (stored(o) && width == 2 && (o.offset & 1) != 0)
+            {
+                problem = "a 16-bit value at an odd offset";
+            }
+            else if ((o.flags & ui::kFlagScratch) != 0 && o.offset + width > ui::kScratchBytes)
+            {
+                problem = "its value lies outside the menu's scratch bytes";
+            }
+            else if (stored(o) && width == 1 && (low(o) < -128 || high(o) > ((o.flags & ui::kFlagSigned) ? 127 : 255)))
+            {
+                problem = "a range a byte cannot hold";
+            }
+            else if (stored(o) && low(o) < 0 && (o.flags & ui::kFlagSigned) == 0)
+            {
+                problem = "a negative range on an unsigned value";
+            }
+            else if ((o.flags & ui::kFlagBit) != 0
+                     && (o.kind != ui::kKindToggle || (o.flags & (ui::kFlagHalf | ui::kFlagSigned)) != 0
+                         || o.min < 1 || o.min > 0xFF || (o.min & (o.min - 1)) != 0))
+            {
+                problem = "a bit flag row must be an unsigned byte toggle with a single-bit mask";
+            }
+            if (problem == NULL && o.kind == ui::kKindChoice)
+            {
+                const char* const* labels = static_cast<const char* const*>(o.data);
+                for (int v = 0; v <= o.max && problem == NULL; v++)
+                {
+                    problem = labels[v] == NULL ? "a choice value without a label" : NULL;
+                }
+            }
+            if (problem == NULL && o.desc != NULL)
+            {
+                problem = "match-module Option::desc must stay NULL (descriptions live in extra)";
+            }
+            if (problem != NULL)
+            {
+                host::test::fail(__FILE__, __LINE__, "page \"%s\" row %d \"%s\": %s", page.title, i, nameOf(o), problem);
+            }
+            rows++;
+        }
+    }
+    NOTE("%d rows on %d pages", rows, menu.pageCount);
+    storage::detach();
+}
+
+TEST(lab_menu, defaults_are_the_rows_defaults_and_clamping_keeps_them)
+{
+    bootLab();
+    const ui::MenuDef& menu = ui::labMenu();
+    Settings defaults = main::settings();
+    for (int p = 0; p < menu.pageCount; p++)
+    {
+        const ui::Page& page = *menu.pages[p];
+        for (int i = 0; i < page.count; i++)
+        {
+            const ui::Option& o = page.options[i];
+            if (stored(o) && ui::optionValue(menu, o) != o.def)
+            {
+                // Two rows on one field must agree on its default.
+                host::test::fail(__FILE__, __LINE__, "page \"%s\" row \"%s\": after a reset its value is %d, its default %d",
+                                 page.title, nameOf(o), ui::optionValue(menu, o), o.def);
+            }
+        }
+    }
+    ui::clampSettings();
+    CHECK(memcmp(&defaults, &main::settings(), sizeof(Settings)) == 0);
+    storage::detach();
+}
+
+// The card must keep what a row sets, or the row is one of those kept for
+// the session only on purpose (src/main/storage/settings_file.cpp lists
+// them and says why). Each row in turn: set to another value, saved, the
+// console switched off and on.
+TEST(lab_menu, every_rows_setting_survives_a_save_and_a_boot_unless_it_is_for_the_session_only)
+{
+    static const char* const kSessionOnly[] = {
+        "general.playerPercent", "general.lockPlayerPercent", "general.frameAdvance", "general.gameSpeed",
+        "display.debugOverlay",  "display.hud",               "display.models",       "display.stageModel",
+        "display.effects",       "cpu.percent",               "cpu.lockPercent",      "cpu.options.control",
+        "comboTrainer.enabled",  "recording (from HMN Mode on)",
+    };
+    struct Range {
+        u32 from, to;
+    };
+#define FIELD(f) {offsetof(Settings, f), offsetof(Settings, f) + sizeof(((Settings*)0)->f)}
+    static const Range kRanges[] = {
+        FIELD(general.playerPercent), FIELD(general.lockPlayerPercent), FIELD(general.frameAdvance),
+        FIELD(general.gameSpeed),     FIELD(display.debugOverlay),      FIELD(display.hud),
+        FIELD(display.models),        FIELD(display.stageModel),        FIELD(display.effects),
+        FIELD(cpu.percent),           FIELD(cpu.lockPercent),           FIELD(cpu.options.control),
+        FIELD(comboTrainer.enabled),
+        {offsetof(Settings, recording.hmnMode), offsetof(Settings, recording.reserved)},
+    };
+#undef FIELD
+    CHECK_EQ(sizeof(kSessionOnly) / sizeof(kSessionOnly[0]), sizeof(kRanges) / sizeof(kRanges[0]));
+
+    bootLab();
+    const ui::MenuDef& menu = ui::labMenu();
+    int kept = 0, session = 0;
+    for (int p = 0; p < menu.pageCount; p++)
+    {
+        const ui::Page& page = *menu.pages[p];
+        for (int i = 0; i < page.count; i++)
+        {
+            const ui::Option& o = page.options[i];
+            if (!stored(o) || low(o) == high(o))
+            {
+                continue;
+            }
+            bool sessionOnly = false;
+            for (u32 r = 0; r < sizeof(kRanges) / sizeof(kRanges[0]); r++)
+            {
+                sessionOnly = sessionOnly || (o.offset >= kRanges[r].from && o.offset < kRanges[r].to);
+            }
+            host::card::reset();
+            bootLab();
+            int other = o.def < high(o) ? o.def + 1 : o.def - 1;
+            ui::setOptionValue(menu, o, other);
+            storage::settingsMenuClosed();
+            for (int f = 0; f < 4; f++)
+            {
+                storage::settingsUpdate();
+            }
+            bootLab();
+            int found = ui::optionValue(menu, o);
+            if (!sessionOnly && found != other)
+            {
+                host::test::fail(__FILE__, __LINE__,
+                                 "page \"%s\" row \"%s\" (offset %d of main::Settings): set to %d and saved, it is %d "
+                                 "after a boot. Its field is not in a stored area (src/main/storage/areas.cpp), or lies "
+                                 "in an area's reserved bytes.",
+                                 page.title, nameOf(o), o.offset, other, found);
+            }
+            if (sessionOnly && found != o.def)
+            {
+                host::test::fail(__FILE__, __LINE__,
+                                 "page \"%s\" row \"%s\": a session-only setting came back from the card as %d", page.title,
+                                 nameOf(o), found);
+            }
+            kept += sessionOnly ? 0 : 1;
+            session += sessionOnly ? 1 : 0;
+        }
+    }
+    CHECK(kept > 100);
+    NOTE("%d rows kept by the card, %d for the session only", kept, session);
+    storage::detach();
+}
+
+// ---- stepping through a menu ------------------------------------------------
+
+namespace {
+    // A small menu over eight bytes: every kind of row.
+    u8 s_values[8];
+    int s_funcCalls = 0;
+    int s_changes = 0;
+    bool s_gate = false;
+
+    u8* values()
+    {
+        return s_values;
+    }
+    void func()
+    {
+        s_funcCalls++;
+    }
+    void changed()
+    {
+        s_changes++;
+    }
+    bool gate()
+    {
+        return s_gate;
+    }
+
+    const char* const kSpeeds[] = {"Slow", TM_UNAVAILABLE_LABEL "Medium", TM_UNAVAILABLE_LABEL "Fast", "Full"};
+    const char* const kEnds[] = {TM_UNAVAILABLE_LABEL "None", "One", TM_UNAVAILABLE_LABEL "Two"};
+
+    enum { kRowInt, kRowHalf, kRowChoice, kRowEnds, kRowToggle, kRowFunc, kRowGated, kRowHidden, kRowNa, kRowSub };
+    const ui::Option kTop[] = {
+        {ui::kKindInt, ui::kFlagSigned, 0, -3, 3, 0, 0, "Signed", "", "%d", changed, NULL},
+        {ui::kKindInt, ui::kFlagHalf, 2, 0, 999, 500, 0, "Percent", "", "%d", changed, NULL},
+        {ui::kKindChoice, 0, 4, 0, 3, 0, 0, "Speed", "", kSpeeds, changed, NULL},
+        {ui::kKindChoice, 0, 5, 0, 2, 1, 0, "Ends", "", kEnds, changed, NULL},
+        {ui::kKindToggle, 0, 6, 0, 1, 0, 0, "Toggle", "", NULL, changed, NULL},
+        {ui::kKindFunc, 0, 0, 0, 0, 0, 0, "Run", "", NULL, func, NULL},
+        {ui::kKindToggle, 0, 7, 0, 1, 0, 0, "Gated", "", NULL, changed, gate},
+        {ui::kKindInfo, ui::kFlagHidden, 0, 0, 0, 0, 0, NULL, "", NULL, NULL, NULL},
+        {ui::kKindToggle, ui::kFlagUnavailable, 0, 0, 1, 1, 0, "Not built", "", NULL, NULL, NULL},
+        {ui::kKindMenu, 0, 0, 0, 1, 0, 0, "More", "", NULL, NULL, NULL},
+    };
+    const ui::Option kLong[] = {
+        {ui::kKindInfo, 0, 0, 0, 0, 0, 0, "r0", "", NULL, NULL, NULL},  {ui::kKindInfo, 0, 0, 0, 0, 0, 0, "r1", "", NULL, NULL, NULL},
+        {ui::kKindInfo, 0, 0, 0, 0, 0, 0, "r2", "", NULL, NULL, NULL},  {ui::kKindInfo, 0, 0, 0, 0, 0, 0, "r3", "", NULL, NULL, NULL},
+        {ui::kKindInfo, 0, 0, 0, 0, 0, 0, "r4", "", NULL, NULL, NULL},  {ui::kKindInfo, 0, 0, 0, 0, 0, 0, "r5", "", NULL, NULL, NULL},
+        {ui::kKindInfo, 0, 0, 0, 0, 0, 0, "r6", "", NULL, NULL, NULL},  {ui::kKindInfo, 0, 0, 0, 0, 0, 0, "r7", "", NULL, NULL, NULL},
+        {ui::kKindInfo, 0, 0, 0, 0, 0, 0, "r8", "", NULL, NULL, NULL},  {ui::kKindInfo, 0, 0, 0, 0, 0, 0, "r9", "", NULL, NULL, NULL},
+        {ui::kKindInfo, 0, 0, 0, 0, 0, 0, "r10", "", NULL, NULL, NULL}, {ui::kKindInfo, 0, 0, 0, 0, 0, 0, "r11", "", NULL, NULL, NULL},
+        {ui::kKindInfo, 0, 0, 0, 0, 0, 0, "r12", "", NULL, NULL, NULL}, {ui::kKindInfo, 0, 0, 0, 0, 0, 0, "r13", "", NULL, NULL, NULL},
+        {ui::kKindMenu, 0, 0, 0, 1, 0, 0, "Again", "", NULL, NULL, NULL},
+    };
+    const ui::Page kTopPage = {"Top", kTop, sizeof(kTop) / sizeof(kTop[0]), {0, 0, 0}};
+    const ui::Page kLongPage = {"Long", kLong, sizeof(kLong) / sizeof(kLong[0]), {0, 0, 0}};
+    const ui::Page* const kSmallPages[] = {&kTopPage, &kLongPage};
+    const ui::MenuDef kSmall = {kSmallPages, 2, values};
+
+    ui::MenuState s_state;
+
+    void open()
+    {
+        memset(s_values, 0, sizeof(s_values));
+        s_funcCalls = s_changes = 0;
+        s_gate = false;
+        ui::g_menuQuiet = false;
+        ui::defaultAll(kSmall);
+        ui::menuReset(kSmall, s_state);
+        host::log::clear();
+    }
+
+    bool press(int up, int down, int left, int right, bool a, bool b)
+    {
+        ui::MenuInput in = {up, down, left, right, a, b};
+        return ui::menuStep(kSmall, s_state, in);
+    }
+    void down(int times = 1)
+    {
+        for (int i = 0; i < times; i++)
+        {
+            press(0, 1, 0, 0, false, false);
+        }
+    }
+    void right(int times = 1)
+    {
+        for (int i = 0; i < times; i++)
+        {
+            press(0, 0, 0, 1, false, false);
+        }
+    }
+    void left(int times = 1)
+    {
+        for (int i = 0; i < times; i++)
+        {
+            press(0, 0, 1, 0, false, false);
+        }
+    }
+    int cursor()
+    {
+        return s_state.cursor[ui::currentPage(s_state)];
+    }
+    int value(int row)
+    {
+        return ui::optionValue(kSmall, kTop[row]);
+    }
+}
+
+TEST(menu, values_change_within_their_range_and_sound_only_when_they_change)
+{
+    open();
+    CHECK_EQ(0, value(kRowInt));
+    CHECK_EQ(500, value(kRowHalf));
+    CHECK_EQ(1, value(kRowEnds));
+    CHECK_EQ(1, value(kRowNa)); // a row not built shows its default
+
+    // A signed value down to its minimum, and no further.
+    left(5);
+    CHECK_EQ(-3, value(kRowInt));
+    CHECK_EQ(static_cast<s8>(-3), static_cast<s8>(s_values[0]));
+    CHECK_EQ(3, s_changes);
+    CHECK_EQ(3, sounds(game::kSoundMove));
+    right(9);
+    CHECK_EQ(3, value(kRowInt));
+
+    // A 16-bit value: two bytes, the others untouched.
+    down();
+    CHECK_EQ(kRowHalf, cursor());
+    right(2);
+    CHECK_EQ(502, value(kRowHalf));
+    CHECK_EQ(0, s_values[4]);
+    left(600);
+    CHECK_EQ(0, value(kRowHalf));
+    ui::setOptionValue(kSmall, kTop[kRowHalf], 999);
+    right();
+    CHECK_EQ(999, value(kRowHalf));
+}
+
+// Values listed but not built yet are stepped over, or the row stays.
+TEST(menu, a_choice_steps_over_values_not_built_yet)
+{
+    open();
+    down(2);
+    CHECK_EQ(kRowChoice, cursor());
+    right();
+    CHECK_EQ(3, value(kRowChoice)); // Slow to Full, past Medium and Fast
+    right();
+    CHECK_EQ(3, value(kRowChoice));
+    left();
+    CHECK_EQ(0, value(kRowChoice));
+    CHECK_EQ(2, s_changes);
+
+    // Nothing built on either side: the value stays, silently.
+    down();
+    host::log::clear();
+    right();
+    left();
+    CHECK_EQ(1, value(kRowEnds));
+    CHECK_EQ(2, s_changes);
+    CHECK_EQ(0, sounds(game::kSoundMove));
+}
+
+// A retired choice value keeps its index: stepping never stops on it, a value
+// holding it shows its name, and retireDropped resets it to the row's default.
+namespace {
+    u8 s_dropValues[2];
+    u8* dropValues()
+    {
+        return s_dropValues;
+    }
+    const char* const kDropLabels[] = {"A", TM_DROPPED_LABEL "B", "C", TM_DROPPED_LABEL "D"};
+    const ui::Option kDropRows[] = {
+        {ui::kKindChoice, 0, 0, 0, 3, 2, 0, "Drop", "", kDropLabels, NULL, NULL},
+    };
+    const ui::Page kDropPage = {"Drop", kDropRows, 1, {0, 0, 0}};
+    const ui::Page* const kDropPages[] = {&kDropPage};
+    const ui::MenuDef kDrop = {kDropPages, 1, dropValues};
+}
+
+TEST(menu, a_choice_steps_over_dropped_values_and_loading_retires_them)
+{
+    ui::MenuState state;
+    ui::g_menuQuiet = true;
+    s_dropValues[0] = 0;
+    ui::menuReset(kDrop, state);
+    ui::MenuInput right = {0, 0, 0, 1, false, false};
+    ui::MenuInput left = {0, 0, 1, 0, false, false};
+    ui::menuStep(kDrop, state, right);
+    CHECK_EQ(2, s_dropValues[0]); // A to C, past B
+    ui::menuStep(kDrop, state, right);
+    CHECK_EQ(2, s_dropValues[0]); // D is the last: stays on C
+    ui::menuStep(kDrop, state, left);
+    CHECK_EQ(0, s_dropValues[0]);
+    s_dropValues[0] = 3; // set by other code (a drill)
+    ui::retireDropped(kDrop);
+    CHECK_EQ(2, s_dropValues[0]); // the row's default
+    ui::g_menuQuiet = false;
+}
+
+TEST(menu, the_cursor_skips_rows_that_are_disabled_or_hidden)
+{
+    open();
+    down(4);
+    CHECK_EQ(kRowToggle, cursor());
+    press(0, 0, 0, 0, true, false); // A flips a toggle
+    CHECK_EQ(1, value(kRowToggle));
+    right();
+    CHECK_EQ(0, value(kRowToggle));
+    down();
+    CHECK_EQ(kRowFunc, cursor());
+    host::log::clear();
+    press(0, 0, 0, 0, true, false);
+    CHECK_EQ(1, s_funcCalls);
+    CHECK_EQ(kRowFunc, ui::activeRow());
+    CHECK_EQ(1, sounds(game::kSoundConfirm));
+
+    // The gated row is closed, the next is hidden and the one after is not
+    // built yet: down skips all three disabled/hidden rows.
+    down();
+    CHECK_EQ(kRowSub, cursor());
+    CHECK_EQ(1, value(kRowNa));
+    press(1, 0, 0, 0, false, false);
+    CHECK_EQ(kRowFunc, cursor());
+
+    // The gate opens: the row can be reached. It closes under the cursor:
+    // the cursor leaves it at the next step.
+    s_gate = true;
+    down();
+    CHECK_EQ(kRowGated, cursor());
+    s_gate = false;
+    press(0, 0, 0, 1, false, false);
+    CHECK_EQ(0, value(kRowGated));
+    CHECK(cursor() != kRowGated);
+
+    // Up at the top and down at the bottom stay.
+    ui::menuReset(kSmall, s_state);
+    press(1, 0, 0, 0, false, false);
+    CHECK_EQ(0, cursor());
+    down(30);
+    CHECK_EQ(kRowSub, cursor());
+}
+
+TEST(menu, pages_open_and_close_and_the_depth_is_bounded)
+{
+    open();
+    down(30);
+    press(0, 0, 0, 0, true, false);
+    CHECK_EQ(1, ui::currentPage(s_state));
+    CHECK_EQ(1, s_state.depth);
+    CHECK_EQ(1, sounds(game::kSoundConfirm));
+
+    // The window follows the cursor: it stays kScrollMargin rows from the
+    // window's edges except at the page's ends.
+    for (int i = 0; i < 14; i++)
+    {
+        int cur = cursor();
+        int top = s_state.scroll[1];
+        CHECK(cur >= top && cur < top + ui::style::kLabVisibleRows);
+        CHECK(top + ui::style::kLabVisibleRows <= kLongPage.count);
+        if (cur >= ui::style::kScrollMargin && cur < kLongPage.count - ui::style::kScrollMargin)
+        {
+            CHECK(cur - top >= ui::style::kScrollMargin
+                  && cur - top <= ui::style::kLabVisibleRows - 1 - ui::style::kScrollMargin);
+        }
+        down();
+    }
+    CHECK_EQ(14, cursor());
+    CHECK_EQ(kLongPage.count - ui::style::kLabVisibleRows, s_state.scroll[1]);
+
+    // The page opens itself again and again: never deeper than the state
+    // has room for.
+    for (int i = 0; i < 10; i++)
+    {
+        down(30);
+        press(0, 0, 0, 0, true, false);
+        CHECK(s_state.depth < ui::kMaxDepth);
+    }
+    CHECK_EQ(ui::kMaxDepth - 1, s_state.depth);
+
+    // B goes back a page at a time; the page left starts at its top next
+    // time; on the top page B is the caller's to handle.
+    host::log::clear();
+    int steps = 0;
+    while (s_state.depth > 0 && steps < 20)
+    {
+        CHECK(press(0, 0, 0, 0, false, true));
+        steps++;
+    }
+    CHECK_EQ(ui::kMaxDepth - 1, steps);
+    CHECK_EQ(steps, sounds(game::kSoundBack));
+    CHECK_EQ(0, s_state.cursor[1]);
+    CHECK_EQ(kRowSub, cursor());
+    CHECK(!press(0, 0, 0, 0, false, true));
+
+    // Quiet (the lab replays frames on its own): no sound is asked for.
+    ui::g_menuQuiet = true;
+    host::log::clear();
+    press(1, 0, 0, 0, false, false);
+    CHECK_EQ(0, host::log::count("ui: sound"));
+    ui::g_menuQuiet = false;
+}
+
+TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
+{
+    bootLab();
+    const ui::MenuDef& menu = ui::labMenu();
+    CHECK_EQ(ui::pages::kCategoryCount, static_cast<int>(menu.categoryCount));
+    static const u8 kExpectedCats[ui::pages::kCategoryCount] = {
+        ui::pages::P_GENERAL, ui::pages::P_SCENARIOS, ui::pages::P_CPU,
+        ui::pages::P_RECORDING, ui::pages::P_DISPLAY, ui::pages::P_OSD_MENU,
+        ui::pages::P_STAGE_CAST
+    };
+    for (int c = 0; c < ui::pages::kCategoryCount; c++)
+    {
+        CHECK_EQ(static_cast<int>(kExpectedCats[c]), static_cast<int>(menu.categoryPages[c]));
+    }
+    CHECK_EQ(3, static_cast<int>(menu.utilityCount));
+
+    const ui::Page& lab = ui::pages::kGeneral;
+    for (int i = 0; i < lab.count; i++)
+    {
+        CHECK(!(lab.options[i].kind == ui::kKindMenu && lab.options[i].max == ui::pages::P_OSD_MENU));
+        CHECK(!(lab.options[i].name != NULL && strcmp(lab.options[i].name, "OSD Menu") == 0));
+    }
+    REQUIRE(lab.count == 12);
+    CHECK(strcmp(lab.options[7].name, "Controls") == 0);
+    CHECK_EQ(ui::pages::P_CONTROLS, lab.options[7].max);
+    CHECK(strcmp(lab.options[8].name, "Debug") == 0);
+    CHECK_EQ(ui::pages::P_DEBUG, lab.options[8].max);
+    CHECK((lab.options[9].flags & ui::kFlagTabsOnly) != 0);
+    CHECK((lab.options[10].flags & ui::kFlagTabsOnly) != 0);
+    CHECK((lab.options[11].flags & ui::kFlagTabsOnly) != 0);
+
+    const ui::Page& scen = ui::pages::kScenarios;
+    REQUIRE(scen.count == 6);
+    CHECK(strcmp(scen.options[5].name, "Combo Trainer") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[5].max);
+
+    const ui::Page& sc = ui::pages::kStageCast;
+    REQUIRE(sc.count == 33);
+    CHECK(strcmp(sc.options[0].name, "Fighter Swap") == 0);
+    CHECK_EQ(ui::pages::P_FIGHTER_SWAP, sc.options[0].max);
+    CHECK(strcmp(sc.options[1].name, "Show Inactive") == 0);
+    storage::detach();
+}
+
+namespace {
+    // The extra module's hooks, doing nothing: with them registered the
+    // rows that need the extra module are open.
+    void nothing()
+    {
+    }
+    bool yes()
+    {
+        return true;
+    }
+    bool no()
+    {
+        return false;
+    }
+    void noMatch(const game::MatchState&)
+    {
+    }
+    void noFlag(bool)
+    {
+    }
+    int noActIn(Fighter*, int*)
+    {
+        return -1;
+    }
+    bool noAdvantage(const game::Advantage&)
+    {
+        return false;
+    }
+    // The Character RNG page: a Peach is in the match.
+    bool yesCall(int)
+    {
+        return true;
+    }
+    bool noRecovery(const cpu::Owner&, const cpu::View&, Fighter*, cpu::Frame&, u32)
+    {
+        return false;
+    }
+    void noSlot(int)
+    {
+    }
+    int noAdaptiveBias(int, int, bool, float, bool)
+    {
+        return -1;
+    }
+    void noSettings(main::Settings&)
+    {
+    }
+    const main::ExtraHooks kNoHooks = {NULL, yes, nothing, noMatch, nothing, noFlag,
+                                       noActIn, nothing, noAdvantage, yesCall, yesCall,
+                                       noRecovery, noSlot, noMatch, nothing, noMatch, nothing,
+                                       noAdaptiveBias, nothing, noSlot, noRecovery, noSettings, noMatch,
+                                       yes, nothing, nothing, no, extra::optionDesc};
+}
+
+// Random presses on the real lab menu, every row's own code running, with
+// every row that depends on the match open: 2,000 presses starting on each
+// page a row leads to. The state stays inside its bounds and every value
+// in its range.
+TEST(lab_menu, random_presses_never_leave_the_tables)
+{
+    bootLab();
+    const ui::MenuDef& menu = ui::labMenu();
+    host::fakes::recording().positions = true;
+    host::fakes::recording().rows = true;
+    main::setExtraHooks(&kNoHooks);
+
+    // The way to every page: seeded from all 7 top-level categories.
+    int parent[ui::kMaxPages];
+    for (int p = 0; p < ui::kMaxPages; p++)
+    {
+        parent[p] = -1;
+    }
+    int queue[ui::kMaxPages];
+    int head = 0, tail = 0;
+    for (int c = 0; c < menu.categoryCount; c++)
+    {
+        int pg = menu.categoryPages[c];
+        queue[tail++] = pg;
+        parent[pg] = pg;
+    }
+    while (head < tail)
+    {
+        int from = queue[head++];
+        const ui::Page& page = *menu.pages[from];
+        for (int i = 0; i < page.count; i++)
+        {
+            const ui::Option& o = page.options[i];
+            if (o.kind == ui::kKindMenu && (o.flags & ui::kFlagUnavailable) == 0 && o.max >= 0 && o.max < menu.pageCount
+                && parent[o.max] < 0)
+            {
+                parent[o.max] = from;
+                queue[tail++] = o.max;
+            }
+        }
+    }
+
+    u32 seed = 12345;
+    int visited = 0;
+    char missed[200] = "";
+    for (int target = 0; target < menu.pageCount && !host::test::failing(); target++)
+    {
+        ui::MenuState state;
+        ui::menuReset(menu, state);
+        u8 path[ui::kMaxDepth];
+        int length = 0;
+        bool reached = parent[target] >= 0;
+        for (int p = target; reached; p = parent[p])
+        {
+            reached = length < ui::kMaxDepth;
+            if (reached)
+            {
+                path[length++] = static_cast<u8>(p);
+            }
+            if (parent[p] == p)
+            {
+                break;
+            }
+        }
+        for (int i = 0; i < length / 2; i++)
+        {
+            u8 swap = path[i];
+            path[i] = path[length - 1 - i];
+            path[length - 1 - i] = swap;
+        }
+        if (!reached || !ui::menuJump(menu, state, path, length))
+        {
+            // No row leads there (a page not built yet), or its row is closed.
+            if (strlen(missed) + strlen(menu.pages[target]->title) + 3 < sizeof(missed))
+            {
+                strcat(missed, missed[0] != '\0' ? ", " : "");
+                strcat(missed, menu.pages[target]->title);
+            }
+            continue;
+        }
+        CHECK_EQ(target, ui::currentPage(state));
+        visited++;
+        for (int step = 0; step < 2000 && !host::test::failing(); step++)
+        {
+            seed = seed * 1664525u + 1013904223u;
+            u32 pick = (seed >> 8) % 22;
+            ui::MenuInput in = {0, 0, 0, 0, false, false, false, false};
+            in.up = pick < 4 ? 1 : 0;
+            in.down = pick >= 4 && pick < 10 ? 1 : 0;
+            in.left = pick == 10 || pick == 11 ? 1 : 0;
+            in.right = pick >= 12 && pick < 15 ? 1 : 0;
+            in.a = pick >= 15 && pick < 19;
+            in.b = pick == 19;
+            in.prevCat = pick == 20;
+            in.nextCat = pick == 21;
+            ui::menuStep(menu, state, in);
+            host::log::clear();
+            REQUIRE(state.depth < ui::kMaxDepth);
+            int id = ui::currentPage(state);
+            REQUIRE(id >= 0 && id < menu.pageCount);
+            const ui::Page& page = *menu.pages[id];
+            REQUIRE(page.count == 0 || state.cursor[id] < page.count);
+            REQUIRE(state.scroll[id] <= state.cursor[id]);
+            const ui::Option* o = ui::currentOption(menu, state);
+            if (o != NULL && stored(*o))
+            {
+                int v = ui::optionValue(menu, *o);
+                if (v < low(*o) || v > high(*o))
+                {
+                    host::test::fail(__FILE__, __LINE__, "from page \"%s\", step %d: page \"%s\" row \"%s\" holds %d, outside "
+                                                         "%d..%d",
+                                     menu.pages[target]->title, step, page.title, nameOf(*o), v, low(*o), high(*o));
+                }
+            }
+        }
+    }
+    // Whatever was pressed, clamping finds nothing to change.
+    Settings after = main::settings();
+    ui::clampSettings();
+    CHECK(memcmp(&after, &main::settings(), sizeof(Settings)) == 0);
+    main::setExtraHooks(NULL);
+    CHECK(visited >= 20);
+    NOTE("%d of %d pages%s%s", visited, menu.pageCount, missed[0] != '\0' ? "; no open row leads to: " : "", missed);
+    storage::detach();
+}
+
+TEST(menu, bit_flag_toggles_default_and_preserve_sibling_bits)
+{
+    // Standalone bit-flag rows with mixed defaults leave unmapped bits alone.
+    static u8 bitBuf[2];
+    struct BitVals {
+        static u8* ptr() { return bitBuf; }
+    };
+    static const ui::Option kBitRows[] = {
+        {ui::kKindToggle, ui::kFlagBit, 0, 0x01, 1, 1, 0, "B0", NULL, NULL, NULL, NULL},
+        {ui::kKindToggle, ui::kFlagBit, 0, 0x02, 1, 0, 0, "B1", NULL, NULL, NULL, NULL},
+        {ui::kKindToggle, ui::kFlagBit, 0, 0x08, 1, 1, 0, "B3", NULL, NULL, NULL, NULL},
+    };
+    static const ui::Page kBitPage = {"Bits", kBitRows, 3, {0, 0, 0}};
+    static const ui::Page* const kBitPages[] = {&kBitPage};
+    static const ui::MenuDef kBitMenu = {kBitPages, 1, BitVals::ptr};
+
+    bitBuf[0] = 0x00;
+    bitBuf[1] = 0x5A;
+    ui::defaultAll(kBitMenu);
+    CHECK_EQ(0x09, static_cast<int>(bitBuf[0]));
+    CHECK_EQ(0x5A, static_cast<int>(bitBuf[1]));
+    CHECK_EQ(1, ui::optionValue(kBitMenu, kBitRows[0]));
+    CHECK_EQ(0, ui::optionValue(kBitMenu, kBitRows[1]));
+    CHECK_EQ(1, ui::optionValue(kBitMenu, kBitRows[2]));
+
+    bitBuf[0] = 0xFF;
+    ui::defaultAll(kBitMenu);
+    CHECK_EQ(0xFD, static_cast<int>(bitBuf[0])); // B1 cleared, B0/B3 set, unmapped bits preserved
+
+    // Real lab menu Floating Meters subpage (P_COMBO_METERS).
+    bootLab();
+    const ui::MenuDef& menu = ui::labMenu();
+    const ui::Page& combo = ui::pages::kComboTrainer;
+    REQUIRE(combo.count >= 10);
+    CHECK(combo.options[9].name != NULL && strcmp(combo.options[9].name, "Floating Meters") == 0);
+    CHECK_EQ(ui::kKindMenu, combo.options[9].kind);
+    CHECK_EQ(ui::pages::P_COMBO_METERS, combo.options[9].max);
+
+    const ui::Page& meters = ui::pages::kComboMeters;
+    CHECK_EQ(7, static_cast<int>(meters.count));
+    CHECK_EQ(static_cast<int>(main::kMeterAll), static_cast<int>(main::settings().comboTrainer.enabledMeters));
+
+    // Verify defaultAll produces 0x7F and every bit reads back normalized as 1.
+    main::settings().comboTrainer.enabledMeters = 0;
+    ui::defaultAll(menu);
+    CHECK_EQ(0x7F, static_cast<int>(main::settings().comboTrainer.enabledMeters));
+    for (int i = 0; i < meters.count; i++)
+    {
+        CHECK((meters.options[i].flags & ui::kFlagBit) != 0);
+        CHECK_EQ(1, ui::optionValue(menu, meters.options[i]));
+    }
+
+    // Toggling any single bit leaves the other 6 bits intact, and clampAll preserves partial masks.
+    static const u8 kExpectedBits[7] = {
+        main::kMeterHitlag, main::kMeterHitstun, main::kMeterShieldstun, main::kMeterDi,
+        main::kMeterIasa,   main::kMeterLedgeIntang, main::kMeterIntang
+    };
+    for (int i = 0; i < 7; i++)
+    {
+        const ui::Option& o = meters.options[i];
+        CHECK_EQ(static_cast<int>(kExpectedBits[i]), static_cast<int>(o.min));
+        ui::setOptionValue(menu, o, 0);
+        CHECK_EQ(0, ui::optionValue(menu, o));
+        CHECK_EQ(static_cast<int>(0x7F & ~kExpectedBits[i]),
+                 static_cast<int>(main::settings().comboTrainer.enabledMeters));
+        ui::clampAll(menu);
+        CHECK_EQ(static_cast<int>(0x7F & ~kExpectedBits[i]),
+                 static_cast<int>(main::settings().comboTrainer.enabledMeters));
+        for (int j = 0; j < 7; j++)
+        {
+            CHECK_EQ(j == i ? 0 : 1, ui::optionValue(menu, meters.options[j]));
+        }
+        ui::setOptionValue(menu, o, 1);
+        CHECK_EQ(0x7F, static_cast<int>(main::settings().comboTrainer.enabledMeters));
+    }
+
+    // Stepping through P_COMBO_METERS with A and Right flips individual bits cleanly.
+    main::settings().cpu.options.control = cpu::kControlLab;
+    main::settings().comboTrainer.enabled = 1;
+    main::setExtraHooks(&kNoHooks);
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+    const u8 path[] = {ui::pages::P_SCENARIOS, ui::pages::P_COMBO_TRAINER, ui::pages::P_COMBO_METERS};
+    REQUIRE(ui::menuJump(menu, st, path, 3));
+    CHECK_EQ(ui::pages::P_COMBO_METERS, ui::currentPage(st));
+
+    ui::MenuInput pressA = {0, 0, 0, 0, true, false};
+    ui::MenuInput pressDown = {0, 1, 0, 0, false, false};
+    ui::MenuInput pressRight = {0, 0, 0, 1, false, false};
+    ui::menuStep(menu, st, pressA); // Hitlag Off
+    CHECK_EQ(static_cast<int>(0x7F & ~main::kMeterHitlag),
+             static_cast<int>(main::settings().comboTrainer.enabledMeters));
+    ui::menuStep(menu, st, pressDown);
+    ui::menuStep(menu, st, pressDown);
+    ui::menuStep(menu, st, pressDown); // DI Ring
+    ui::menuStep(menu, st, pressRight); // DI Ring Off
+    CHECK_EQ(static_cast<int>(0x7F & ~(main::kMeterHitlag | main::kMeterDi)),
+             static_cast<int>(main::settings().comboTrainer.enabledMeters));
+    ui::menuStep(menu, st, pressRight); // DI Ring back On
+    CHECK_EQ(static_cast<int>(0x7F & ~main::kMeterHitlag),
+             static_cast<int>(main::settings().comboTrainer.enabledMeters));
+    main::setExtraHooks(NULL);
+    storage::detach();
+}
+
+// ---- kFlagHideWhenDisabled compaction, Rail (C) & Tabs (A) ergonomics -------
+
+namespace {
+    bool s_rowOn[16];
+    u8 s_compactVals[16];
+    u8* compactVals()
+    {
+        return s_compactVals;
+    }
+    bool row1On() { return s_rowOn[1]; }
+    bool row2On() { return s_rowOn[2]; }
+    bool row3On() { return s_rowOn[3]; }
+    bool row4On() { return s_rowOn[4]; }
+    bool row5On() { return s_rowOn[5]; }
+    bool row6On() { return s_rowOn[6]; }
+    bool row7On() { return s_rowOn[7]; }
+    bool row8On() { return s_rowOn[8]; }
+    bool row9On() { return s_rowOn[9]; }
+    bool row10On() { return s_rowOn[10]; }
+    bool row11On() { return s_rowOn[11]; }
+    bool row12On() { return s_rowOn[12]; }
+    bool row13On() { return s_rowOn[13]; }
+    bool row14On() { return s_rowOn[14]; }
+    bool row15On() { return s_rowOn[15]; }
+
+#define COMPACT_ROW(i, name, fn) \
+    {ui::kKindToggle, ui::kFlagHideWhenDisabled, i, 0, 1, 0, 0, name, NULL, NULL, NULL, fn}
+    const ui::Option kCompactRows[16] = {
+        {ui::kKindToggle, 0, 0, 0, 1, 0, 0, "Always0", NULL, NULL, NULL, NULL},
+        COMPACT_ROW(1, "Dyn1", row1On),   COMPACT_ROW(2, "Dyn2", row2On),   COMPACT_ROW(3, "Dyn3", row3On),
+        COMPACT_ROW(4, "Dyn4", row4On),   COMPACT_ROW(5, "Dyn5", row5On),   COMPACT_ROW(6, "Dyn6", row6On),
+        COMPACT_ROW(7, "Dyn7", row7On),   COMPACT_ROW(8, "Dyn8", row8On),   COMPACT_ROW(9, "Dyn9", row9On),
+        COMPACT_ROW(10, "Dyn10", row10On), COMPACT_ROW(11, "Dyn11", row11On), COMPACT_ROW(12, "Dyn12", row12On),
+        COMPACT_ROW(13, "Dyn13", row13On), COMPACT_ROW(14, "Dyn14", row14On), COMPACT_ROW(15, "Dyn15", row15On),
+    };
+#undef COMPACT_ROW
+    const ui::Page kCompactPage = {"Compact", kCompactRows, 16, {0, 0, 0}};
+    const ui::Page* const kCompactPages[] = {&kCompactPage};
+    const ui::MenuDef kCompactMenu = {kCompactPages, 1, compactVals};
+
+    // Mock Smashville Peach vs Fox hooks for Stage & Cast compaction check.
+    bool smashvilleStage(int call)
+    {
+        return call == main::kStagePage || call == main::kStagePlatformsRow;
+    }
+    bool peachOnlyRng(int call)
+    {
+        return call == main::kRngAny || call == main::kRngPeach;
+    }
+    const main::ExtraHooks kSmashvillePeachHooks = {
+        NULL, yes, nothing, noMatch, nothing, noFlag, noActIn, nothing, noAdvantage,
+        peachOnlyRng, smashvilleStage, noRecovery, noSlot, noMatch, nothing, noMatch,
+        nothing, noAdaptiveBias, nothing, noSlot, noRecovery, noSettings, noMatch,
+        yes, nothing, nothing, no, extra::optionDesc
+    };
+}
+
+TEST(menu, hide_when_disabled_compacts_rows_clamps_scroll_and_snaps_cursor)
+{
+    memset(s_rowOn, 0, sizeof(s_rowOn));
+    memset(s_compactVals, 0, sizeof(s_compactVals));
+    s_rowOn[5] = true;
+    s_rowOn[14] = true;
+
+    ui::MenuState st;
+    ui::menuReset(kCompactMenu, st);
+    CHECK(!ui::g_showInactiveRows);
+    CHECK_EQ(0, static_cast<int>(st.cursor[0]));
+    CHECK_EQ(0, static_cast<int>(st.scroll[0]));
+
+    // Only rows 0, 5, and 14 are visible (3 rows <= 11): scroll stays 0 even at raw index 14!
+    ui::MenuInput down = {0, 1, 0, 0, false, false, false, false};
+    ui::MenuInput noop = {0, 0, 0, 0, false, false, false, false};
+    ui::menuStep(kCompactMenu, st, down);
+    CHECK_EQ(5, static_cast<int>(st.cursor[0]));
+    CHECK_EQ(0, static_cast<int>(st.scroll[0]));
+    ui::menuStep(kCompactMenu, st, down);
+    CHECK_EQ(14, static_cast<int>(st.cursor[0]));
+    CHECK_EQ(0, static_cast<int>(st.scroll[0]));
+
+    // Disable row 14 while highlighted: cursor snaps cleanly to nearest selectable (row 5).
+    s_rowOn[14] = false;
+    ui::menuStep(kCompactMenu, st, noop);
+    CHECK_EQ(5, static_cast<int>(st.cursor[0]));
+    CHECK_EQ(0, static_cast<int>(st.scroll[0]));
+
+    // Show Inactive expands all 16 rows even while rows 1..15 remain disabled,
+    // allowing full scrolling to inspect descriptions while refusing edits.
+    ui::g_showInactiveRows = true;
+    ui::menuScratch()[ui::kShowInactiveScratchOffset] = 1;
+    for (int i = 0; i < 16; i++)
+    {
+        ui::menuStep(kCompactMenu, st, down);
+    }
+    CHECK_EQ(15, static_cast<int>(st.cursor[0]));
+    CHECK_EQ(16 - ui::style::kLabVisibleRows, static_cast<int>(st.scroll[0]));
+    // Disabled revealed row 15 cannot be mutated by Right or A (A plays error sound).
+    ui::MenuInput inRight = {0, 0, 0, 1, false, false, false, false};
+    ui::MenuInput inA = {0, 0, 0, 0, true, false, false, false};
+    ui::menuStep(kCompactMenu, st, inRight);
+    CHECK_EQ(0, static_cast<int>(s_compactVals[15]));
+    host::log::clear();
+    ui::menuStep(kCompactMenu, st, inA);
+    CHECK_EQ(0, static_cast<int>(s_compactVals[15]));
+    CHECK_EQ(1, sounds(game::kSoundError));
+
+    // defaultAll() resets BOTH the scratch toggle and g_showInactiveRows so
+    // Reset Settings never leaves inactive rows expanded while showing Off.
+    ui::defaultAll(kCompactMenu);
+    CHECK(!ui::g_showInactiveRows);
+    CHECK_EQ(0, static_cast<int>(ui::menuScratch()[ui::kShowInactiveScratchOffset]));
+    ui::menuStep(kCompactMenu, st, noop);
+    CHECK_EQ(5, static_cast<int>(st.cursor[0]));
+    CHECK_EQ(0, static_cast<int>(st.scroll[0]));
+}
+
+TEST(lab_menu, rail_and_tabs_navigation_and_stage_cast_compaction)
+{
+    bootLab();
+    main::setExtraHooks(&kSmashvillePeachHooks);
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+
+    // Default Draft C (Rail): opens directly in Lab options pane, depth 0.
+    CHECK_EQ(static_cast<int>(main::kMenuStyleRail), static_cast<int>(main::settings().controls.menuStyle));
+    CHECK_EQ(ui::pages::P_GENERAL, ui::currentPage(st));
+    CHECK(!st.railFocus);
+
+    // B at depth 0 focuses left rail; B on rail returns false (caller decides close).
+    ui::MenuInput inB = {0, 0, 0, 0, false, true, false, false};
+    ui::MenuInput inA = {0, 0, 0, 0, true, false, false, false};
+    ui::MenuInput inDown = {0, 1, 0, 0, false, false, false, false};
+    ui::MenuInput inNext = {0, 0, 0, 0, false, false, false, true};
+    ui::MenuInput inPrev = {0, 0, 0, 0, false, false, true, false};
+    CHECK(ui::menuStep(menu, st, inB));
+    CHECK(st.railFocus);
+    CHECK_EQ(0, static_cast<int>(st.railCursor));
+    CHECK(!ui::menuStep(menu, st, inB));
+
+    // Scroll rail down to Stage & Cast (index 6) and enter options pane.
+    for (int i = 0; i < 6; i++)
+    {
+        CHECK(ui::menuStep(menu, st, inDown));
+    }
+    CHECK_EQ(6, static_cast<int>(st.railCursor));
+    CHECK_EQ(ui::pages::P_STAGE_CAST, ui::currentPage(st));
+    CHECK(ui::menuStep(menu, st, inA));
+    CHECK(!st.railFocus);
+
+    // Smashville Peach vs Fox with Show Inactive Off: exactly 6 active rows!
+    // (0 Fighter Swap, 1 Show Inactive, 3 Platforms, 6 Peach Turnip, 7 Peach F-Smash, 8 Peach Float)
+    const int kExpectedRows[6] = {0, 1, 3, 6, 7, 8};
+    CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_STAGE_CAST]));
+    for (int k = 1; k < 6; k++)
+    {
+        ui::menuStep(menu, st, inDown);
+        CHECK_EQ(kExpectedRows[k], static_cast<int>(st.cursor[ui::pages::P_STAGE_CAST]));
+    }
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(8, static_cast<int>(st.cursor[ui::pages::P_STAGE_CAST])); // bottom of compacted list
+    CHECK_EQ(0, static_cast<int>(st.scroll[ui::pages::P_STAGE_CAST]));
+
+    // L / R category switching wraps across all 7 categories and resets railFocus.
+    ui::menuStep(menu, st, inNext);
+    CHECK_EQ(0, static_cast<int>(st.category));
+    CHECK_EQ(ui::pages::P_GENERAL, ui::currentPage(st));
+    ui::menuStep(menu, st, inPrev);
+    CHECK_EQ(6, static_cast<int>(st.category));
+    CHECK_EQ(ui::pages::P_STAGE_CAST, ui::currentPage(st));
+
+    // Live switch to Draft A (Tabs): B at depth 0 returns false directly (no rail).
+    main::settings().controls.menuStyle = main::kMenuStyleTabs;
+    CHECK(!ui::menuStep(menu, st, inB));
+    CHECK(!st.railFocus);
+    ui::menuStep(menu, st, inNext);
+    CHECK_EQ(0, static_cast<int>(st.category));
+
+    main::setExtraHooks(NULL);
+    storage::detach();
+}
+
+namespace {
+    u8 s_allOffVals[4];
+    bool s_allOffEnabled = true;
+    u8* allOffValues()
+    {
+        return s_allOffVals;
+    }
+    bool allOffRowEnabled()
+    {
+        return s_allOffEnabled;
+    }
+    void disableAllRows()
+    {
+        s_allOffEnabled = false;
+    }
+    const ui::Option kAllOffOpts[] = {
+        {ui::kKindToggle, 0, 0, 0, 1, 0, 0, "Row 0", "", NULL, NULL, allOffRowEnabled},
+        {ui::kKindToggle, 0, 1, 0, 1, 0, 0, "Row 1", "", NULL, NULL, allOffRowEnabled},
+        {ui::kKindFunc, 0, 0, 0, 0, 0, 0, "Apply", "", NULL, disableAllRows, allOffRowEnabled},
+    };
+    const ui::Page kAllOffPage = {"All Off", kAllOffOpts, 3, {0, 0, 0}};
+    const ui::Page* const kAllOffPages[] = {&kAllOffPage};
+    const ui::MenuDef kAllOffMenu = {kAllOffPages, 1, allOffValues};
+}
+
+TEST(menu, all_disabled_page_preserves_cursor_across_transient_lockout)
+{
+    memset(s_allOffVals, 0, sizeof(s_allOffVals));
+    s_allOffEnabled = true;
+    ui::MenuState st;
+    ui::menuReset(kAllOffMenu, st);
+
+    ui::MenuInput inDown = {0, 1, 0, 0, false, false, false, false};
+    ui::MenuInput inA = {0, 0, 0, 0, true, false, false, false};
+    ui::menuStep(kAllOffMenu, st, inDown);
+    ui::menuStep(kAllOffMenu, st, inDown);
+    CHECK_EQ(2, static_cast<int>(st.cursor[0]));
+
+    // Mirror Fighter Swap > Apply Swap: onChange temporarily disables every row on the page.
+    // nearestSelectable must keep cursor at row 2 rather than clobbering it to 0.
+    ui::menuStep(kAllOffMenu, st, inA);
+    CHECK(!s_allOffEnabled);
+    CHECK_EQ(2, static_cast<int>(st.cursor[0]));
+}
+
+namespace {
+    bool menuCanvasDrew(const char* text)
+    {
+        for (int i = 0; i < host::canvas::runs(); i++)
+        {
+            if (strcmp(host::canvas::run(i).text, text) == 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    int s_overlayCalls = 0;
+    u8 s_lastOverlayPage = 0xFF;
+    bool s_lastOverlayRail = false;
+    void recordPageOverlay(u8 pageId, bool railMode)
+    {
+        s_overlayCalls++;
+        s_lastOverlayPage = pageId;
+        s_lastOverlayRail = railMode;
+    }
+}
+
+TEST(lab_menu, rail_hides_tabs_only_utilities_and_clamps_on_live_style_switch)
+{
+    bootLab();
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+
+    ui::MenuInput inDown = {0, 1, 0, 0, false, false, false, false};
+    ui::MenuInput noop = {0, 0, 0, 0, false, false, false, false};
+
+    // Draft C (Rail): Lab has 9 visible rows (0..8); rows 9..11 (kFlagTabsOnly) are omitted.
+    main::settings().controls.menuStyle = main::kMenuStyleRail;
+    for (int i = 0; i < 15; i++)
+    {
+        ui::menuStep(menu, st, inDown);
+    }
+    CHECK_EQ(8, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(menuCanvasDrew("Debug"));
+    CHECK(!menuCanvasDrew("Brawl Training Menu"));
+
+    // Live switch to Draft A (Tabs): all 12 rows appear including Reset / Brawl Training / Return to CSS.
+    main::settings().controls.menuStyle = main::kMenuStyleTabs;
+    for (int i = 0; i < 5; i++)
+    {
+        ui::menuStep(menu, st, inDown);
+    }
+    CHECK_EQ(11, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(menuCanvasDrew("Brawl Training Menu"));
+    CHECK(menuCanvasDrew("Return to CSS"));
+
+    // Live switch back to Draft C (Rail) while row 11 is highlighted: cursor clamps cleanly to row 8.
+    main::settings().controls.menuStyle = main::kMenuStyleRail;
+    ui::menuStep(menu, st, noop);
+    CHECK_EQ(8, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
+    storage::detach();
+}
+
+TEST(lab_menu, footer_hides_confirm_badge_on_disabled_row_and_invokes_page_overlay)
+{
+    bootLab();
+    main::ExtraHooks hooks = kSmashvillePeachHooks;
+    hooks.drawPageOverlay = recordPageOverlay;
+    main::setExtraHooks(&hooks);
+    s_overlayCalls = 0;
+
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+    const u8 path[] = {ui::pages::P_STAGE_CAST};
+    REQUIRE(ui::menuJump(menu, st, path, 1));
+
+    // Active row 0 (Fighter Swap): footer shows [A] Open and extraDrawPageOverlay runs.
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(menuCanvasDrew("A"));
+    CHECK(menuCanvasDrew("Open"));
+    CHECK_EQ(1, s_overlayCalls);
+    CHECK_EQ(static_cast<int>(ui::pages::P_STAGE_CAST), static_cast<int>(s_lastOverlayPage));
+    CHECK(s_lastOverlayRail);
+
+    // Reveal inactive rows and highlight row 2 (Hazards, disabled on Smashville): [A] is hidden.
+    ui::g_showInactiveRows = true;
+    ui::menuScratch()[ui::kShowInactiveScratchOffset] = 1;
+    st.cursor[ui::pages::P_STAGE_CAST] = 2;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(!menuCanvasDrew("A"));
+    CHECK(!menuCanvasDrew("Select"));
+    CHECK(!menuCanvasDrew("Toggle"));
+    CHECK(!menuCanvasDrew("Open"));
+    CHECK(menuCanvasDrew("B"));
+    CHECK(menuCanvasDrew("Rail"));
+
+    ui::g_showInactiveRows = false;
+    main::setExtraHooks(NULL);
+    storage::detach();
+}
+
+TEST(menu, display_font_cmapped_and_fallback_characters)
+{
+    CHECK(gfx::displayFontLoaded());
+    CHECK(gfx::displayHasChar('A'));
+    CHECK(gfx::displayHasChar('z'));
+    CHECK(gfx::displayHasChar('0'));
+    CHECK(gfx::displayHasChar('&'));
+    CHECK(gfx::displayHasChar('+'));
+    CHECK(gfx::displayHasChar('/'));
+    CHECK(!gfx::displayHasChar('('));
+    CHECK(!gfx::displayHasChar(')'));
+    CHECK(!gfx::displayHasChar('>'));
+    CHECK(!gfx::displayHasChar('<'));
+
+    gfx::setXScale(1.0f);
+    const char* sample = "Scenarios > Combo (1)";
+    float scale = ui::style::displayScaleForCap(10.0f);
+    float measured = gfx::displayTextWidth(sample, scale);
+    CHECK(measured > 0.0f);
+
+    host::canvas::clear();
+    float endX = gfx::displayText(50.0f, ui::style::displayYForCap(40.0f, scale), sample, 0xFFFFFFFF, scale);
+    CHECK_NEAR(measured, endX - 50.0f, 0.05);
+
+    int dispRuns = 0;
+    int fallbackRuns = 0;
+    for (int i = 0; i < host::canvas::runs(); i++)
+    {
+        const host::canvas::Run& r = host::canvas::run(i);
+        CHECK_EQ(0, r.unknown);
+        if (r.displayFont)
+        {
+            dispRuns++;
+        }
+        else
+        {
+            fallbackRuns++;
+        }
+    }
+    CHECK(dispRuns >= 3);
+    CHECK(fallbackRuns >= 3);
+}

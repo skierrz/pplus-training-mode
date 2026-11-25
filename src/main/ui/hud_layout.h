@@ -1,0 +1,188 @@
+#pragma once
+
+#include "main/gfx/draw.h"
+
+// Screen layout geometry for P+ Training Mode HUD pieces in Brawl's 640x480 2D
+// space across 4:3 and 16:9 modes. Drawing code pulls positions from here and
+// host tests verify non-overlap and 5% CRT safe-area containment.
+namespace tm {
+namespace ui {
+namespace layout {
+    struct Box {
+        float x0, y0, x1, y1;
+    };
+
+    inline Box box(float x, float y, float width, float height)
+    {
+        Box b = {x, y, x + width, y + height};
+        return b;
+    }
+
+    inline float xsOf(bool wide)
+    {
+        return wide ? 0.75f : 1.0f;
+    }
+
+    inline float leftX(float x, bool wide)
+    {
+        return x * xsOf(wide);
+    }
+
+    inline float rightX(float x, bool wide)
+    {
+        return 640.0f - (640.0f - x) * xsOf(wide);
+    }
+
+    inline float centreX(float x, bool wide)
+    {
+        return 320.0f + (x - 320.0f) * xsOf(wide);
+    }
+
+    // ---- 4:3 CRT overscan safe area ----
+    // 5% margin on each edge (SMPTE RP 27.3 / Nintendo Wii 90% action-safe
+    // frame: 32 px on 640, 24 px on 480). Brawl's own 4:3 HUD in
+    // info_training.pac stays inside this margin; on 16:9 the same vertical
+    // margin applies across the full 640 width.
+    static const float kSafeMarginX = 32.0f;
+    static const float kSafeMarginY = 24.0f;
+
+    inline Box safeArea(bool wide)
+    {
+        Box b = {wide ? 0.0f : kSafeMarginX, kSafeMarginY, wide ? 640.0f : 640.0f - kSafeMarginX,
+                 480.0f - kSafeMarginY};
+        return b;
+    }
+
+    // ---- Info Display panels (ui/info_display.cpp) ----
+    static const float kInfoLeft = 34.0f;
+    static const float kInfoTop = 26.0f;
+    static const float kInfoGap = 6.0f;
+    static const float kInfoSizeScale[3] = {0.72f, 0.86f, 1.0f};
+
+    inline float infoScale(int size)
+    {
+        return kInfoSizeScale[size >= 0 && size < 3 ? size : 1];
+    }
+
+    inline float infoLeft(bool wide)
+    {
+        return leftX(kInfoLeft, wide);
+    }
+
+    inline float infoWidth(int size, bool wide)
+    {
+        return 236.0f * infoScale(size) * xsOf(wide);
+    }
+
+    inline float infoHeight(int rows, int size)
+    {
+        return rows > 0 ? (12.0f + rows * 13.0f) * infoScale(size) : 0.0f;
+    }
+
+    // Top y of the CPU info panel below the human panel (or at humanTop when
+    // the human panel has no rows).
+    inline float infoCpuTop(float humanTop, float humanBottom)
+    {
+        return humanBottom > humanTop ? humanBottom + kInfoGap : humanTop;
+    }
+
+    // ---- Ledgedash HUD top band (ui/ledgedash_hud.cpp) ----
+    static const float kBarTop = 79.8f;
+    static const float kBarBottom = 91.7f;
+    // Spans 32..608 at most on 4:3 (inside the 5% CRT safe area).
+    static const float kBarMaxW = 576.0f;
+    static const float kKeyY = 42.0f;
+    static const float kKeyLabelTop = 58.5f;
+
+    static const float kCellW = 10.8f;
+    static const float kCellGap = 1.0f;
+    static const float kKeySwatch = 11.0f;
+    static const float kKeyCap = 8.0f;
+
+    // The Ledgedash HUD's bar of `cells` cells, centred and narrowed to kBarMaxW.
+    Box frameBarBox(int cells, bool wide);
+
+    // The Ledgedash HUD's summary strip above the bar.
+    Box ledgeHeaderBox(bool wide);
+
+    // ---- Pause-menu hint (lab.cpp) ----
+    // textBox pads 3 px above kHintY, so 27.0 puts the box top at y = 24.0.
+    static const float kHintX = 520.0f;
+    static const float kHintY = 27.0f;
+
+    // ---- Recording HUD and storage notice (record/hud.cpp, storage/notice.cpp) ----
+    // Stacked cleanly above the damage row (y >= 397) with clear portrait
+    // headroom in both 4:3 and 16:9 inside the 5% CRT safe area (y 24..456).
+    static const float kRecMessageY = 320.0f;
+    static const float kNoticeY = 347.0f;
+    static const float kRecBarCentreY = 375.0f;
+    static const float kRecBarHeight = 20.0f;
+
+    // Storage notice y while a menu is open: centres a textBox of `lineHeight`
+    // in the strip between `panelBottom` and the bottom of the 5% safe area.
+    inline float menuNoticeY(float panelBottom, float lineHeight)
+    {
+        return (panelBottom + (480.0f - kSafeMarginY) - lineHeight) * 0.5f;
+    }
+
+    // ---- Training character select reopen hint (menu/drill_list.cpp) ----
+    // In the dark teal band (y 56..88) between the TRAINING banner and the
+    // fighter icon grid (y >= 89), inside the 5% CRT safe area.
+    static const float kCssPendingCapTop = 62.0f;
+    static const float kCssPendingRight = 608.0f;
+
+    // ---- Watermark (ui/watermark.cpp) ----
+    // Bottom-right inside the 5% CRT safe area.
+    static const float kWatermarkRight = 606.0f;
+    static const float kWatermarkCapTop = 443.5f;
+
+    // ---- Brawl's native top-band HUD pieces (ui/match_hud.cpp) ----
+    Box timerRoom(bool wide);
+    Box counterRoom(bool wide);
+
+    // ---- Stepping aside ----
+    static const float kStepGap = 6.0f;
+
+    // Highest bottom edge for lower-screen OSD stacks while the recording seek
+    // bar is shown: one step gap above the bar's top edge.
+    inline float recBarOsdFloor()
+    {
+        return kRecBarCentreY - kRecBarHeight * 0.5f - kStepGap;
+    }
+
+    inline bool empty(const Box& b)
+    {
+        return b.x1 <= b.x0 || b.y1 <= b.y0;
+    }
+
+    inline Box none()
+    {
+        Box b = {0.0f, 0.0f, 0.0f, 0.0f};
+        return b;
+    }
+
+    Box unite(const Box& a, const Box& b);
+
+    inline bool meetsX(const Box& a, const Box& b)
+    {
+        return !empty(a) && !empty(b) && a.x0 < b.x1 && b.x0 < a.x1;
+    }
+
+    inline bool meets(const Box& a, const Box& b)
+    {
+        return meetsX(a, b) && a.y0 < b.y1 && b.y0 < a.y1;
+    }
+
+    // Top y of the first info panel: kInfoTop, or stepped below `band` when a
+    // panel of `width` would overlap it horizontally.
+    float infoTop(const Box& band, float width, bool wide);
+
+    // Top band occupied by the lab this frame: match timer room (when shown)
+    // united with the Ledgedash HUD bar and header (when `ledgeCells > 0`).
+    Box labBand(bool timer, int ledgeCells, bool wide);
+
+    void setLabBand(const Box& band);
+    Box topBand();
+}
+}
+}
