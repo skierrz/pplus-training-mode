@@ -57,7 +57,7 @@ namespace cpu {
         bool prevGuardHeld;    // (lastButtons & kGuard) != 0
         bool attackPressed;    // (out.buttons & kAttack) != 0
         float vy;
-        int framesToLand;      // 0..kAutoLCancelLead if landing soon, else -1
+        int framesToLand;      // 0..kAutoLCancelLead from real ground rays only (no fallback groundY), else -1
         bool hasGround;
         float heightAboveGround;
     };

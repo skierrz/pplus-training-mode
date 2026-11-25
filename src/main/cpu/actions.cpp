@@ -106,12 +106,12 @@ namespace cpu {
     static const Step kTumbleFastfall[] = {TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 240), TM_FLICKS, TM_END};
     static const Step kWiggleFastfall[] = {TM_STEP(0, 100, 0, kRefToward, 1), TM_STEP(0, 0, 0, kRefAbs, 1),
                                            TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 240), TM_FLICKS, TM_END};
-    // Canonical Frame-Perfect SHFFL and FFL scripts; options.cpp expands them
-    // with CpuOptions::shfflTiming via shffl_core.h.
+    // Canonical Frame-Perfect SHFFL and FFL templates; options.cpp expands them
+    // with CpuOptions::shfflTiming via shffl_core.h, so 1 flick pair suffices.
 #define TM_SHFFL_SCRIPT(aerial) \
-    {TM_TAKEOFF, aerial, TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 60), TM_FLICKS, TM_END}
+    {TM_TAKEOFF, aerial, TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 60), TM_FLICK, TM_END}
 #define TM_FFL_SCRIPT(aerial) \
-    {aerial, TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 240), TM_FLICKS, TM_END}
+    {aerial, TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 240), TM_FLICK, TM_END}
     static const Step kShfflNair[] = TM_SHFFL_SCRIPT(TM_STEP(A, 0, 0, kRefAbs, 1));
     static const Step kShfflFair[] = TM_SHFFL_SCRIPT(TM_STEP(C, 100, 0, kRefForward, 1));
     static const Step kShfflBair[] = TM_SHFFL_SCRIPT(TM_STEP(C, -100, 0, kRefForward, 1));

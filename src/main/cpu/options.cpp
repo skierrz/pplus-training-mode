@@ -1042,8 +1042,9 @@ namespace cpu {
         }
 
         // Frames until the fighter lands, if within `lead`; -1 otherwise.
-        // docs/internals.md, "CPU tech timing".
-        int framesToLand(int lead = kTechLead, float lift = 0.0f)
+        // `fallbackGround`: when false, only real ground rays count (no
+        // phantom `groundY` plane offstage). docs/internals.md, "CPU tech timing".
+        int framesToLand(int lead = kTechLead, float lift = 0.0f, bool fallbackGround = true)
         {
             float x = v.x, y = v.y, vx = v.vx, vy = v.vy;
             // At the fall speed cap the speed no longer grows.
@@ -1081,7 +1082,7 @@ namespace cpu {
                     float rayDx = 0.0f, rayDy = 0.0f;
                     groundRayDir(static_cast<float>(kRayDown), rayDx, rayDy);
                     bool found = groundBetween(f, nx, b, rayDx, rayDy, ground) && ground <= b + 0.5f;
-                    if (!found && groundKnown)
+                    if (!found && fallbackGround && groundKnown)
                     {
                         ground = groundY;
                         found = true;
@@ -1686,7 +1687,7 @@ namespace cpu {
             in.prevGuardHeld = (lastButtons(slot) & kGuard) != 0;
             in.attackPressed = (out.buttons & kAttack) != 0;
             in.vy = v.vy;
-            in.framesToLand = framesToLand(kAutoLCancelLead, lift);
+            in.framesToLand = framesToLand(kAutoLCancelLead, lift, false);
             in.hasGround = hasGround;
             in.heightAboveGround = height;
             if (shouldAutoLCancel(in))

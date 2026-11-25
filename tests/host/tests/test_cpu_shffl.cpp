@@ -118,9 +118,24 @@ TEST(cpu_shffl, auto_lcancel_eligibility_and_safety_guardrails)
     in.vy = 0.0f;
     in.hitlag = 1;
     CHECK(cpu::shouldAutoLCancel(in));
-    // Offstage (no floor below): rejected even if heightAboveGround were small.
+    // Offstage (no floor below, real ground rays miss -> framesToLand == -1
+    // even while descending across y = groundY): must never fire or trigger
+    // 40f tech lockout.
+    in = baseLCancel();
+    in.framesToLand = -1;
     in.hasGround = false;
+    in.vy = -2.2f;
+    in.heightAboveGround = 0.5f;
     CHECK(!cpu::shouldAutoLCancel(in));
+    in.hitlag = 1;
+    in.vy = 0.0f;
+    CHECK(!cpu::shouldAutoLCancel(in));
+    // Moving horizontally from offstage onto the stage edge where a real
+    // forward ground ray hits within kAutoLCancelLead still L-cancels cleanly.
+    in = baseLCancel();
+    in.hasGround = false;
+    in.framesToLand = 2;
+    CHECK(cpu::shouldAutoLCancel(in));
 
     // Guardrail: Auto L-Cancel Off never fires.
     in = baseLCancel();
