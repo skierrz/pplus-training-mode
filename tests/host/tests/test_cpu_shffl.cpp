@@ -369,23 +369,22 @@ TEST(cpu_shffl, action_tables_preserve_indices_fix_ganon_floats_and_expose_shffl
         CHECK_EQ(cpu::kUntilFalling, ffl->steps[1].until);
     }
 
-    // Menu rows at indices 28..29 of P_CPU (followed by Reversal Slots and P+ Tech OSD), with matching descriptions.
-    const ui::Page& page = ui::pages::kCpuOptions;
-    REQUIRE(page.count == 32);
-    CHECK(strcmp(page.options[27].name, "Adaptive CPU") == 0);
-    CHECK(strcmp(page.options[28].name, "Auto L-Cancel") == 0);
-    CHECK_EQ(ui::kKindToggle, page.options[28].kind);
-    CHECK_EQ(1, page.options[28].def);
-    CHECK(strcmp(page.options[29].name, "SHFFL Timing") == 0);
-    CHECK_EQ(ui::kKindChoice, page.options[29].kind);
-    CHECK_EQ(cpu::kShfflFramePerfect, page.options[29].def);
-    CHECK_EQ(cpu::kShfflTimingCount - 1, page.options[29].max);
-    CHECK(strcmp(page.options[30].name, "Reversal Slots") == 0);
-    CHECK(strcmp(page.options[31].name, "P+ Tech OSD") == 0);
+    // Menu rows live on CPU > Counters & Reversals (P_CPU_COUNTERS), with matching descriptions.
+    const ui::Page& page = ui::pages::kCpuCounters;
+    REQUIRE(page.count == 9);
+    CHECK(strcmp(page.options[5].name, "Reversal Slots") == 0);
+    CHECK(strcmp(page.options[6].name, "Adaptive CPU") == 0);
+    CHECK(strcmp(page.options[7].name, "Auto L-Cancel") == 0);
+    CHECK_EQ(ui::kKindToggle, page.options[7].kind);
+    CHECK_EQ(1, page.options[7].def);
+    CHECK(strcmp(page.options[8].name, "SHFFL Timing") == 0);
+    CHECK_EQ(ui::kKindChoice, page.options[8].kind);
+    CHECK_EQ(cpu::kShfflFramePerfect, page.options[8].def);
+    CHECK_EQ(cpu::kShfflTimingCount - 1, page.options[8].max);
 
     for (int r = 0; r < page.count; r++)
     {
-        const char* desc = extra::optionDesc(ui::pages::P_CPU, static_cast<u8>(r));
+        const char* desc = extra::optionDesc(ui::pages::P_CPU_COUNTERS, static_cast<u8>(r));
         CHECK(desc != NULL && desc[0] != '\0');
     }
 }

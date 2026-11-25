@@ -554,12 +554,16 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK_EQ(static_cast<int>(kScenarioSideRight), static_cast<int>(clean.side));
     CHECK_EQ(static_cast<int>(kMultiHitUpAir), static_cast<int>(clean.multiHitMove));
 
-    // Lab (kGeneral) places Controls at row 7 and Debug at row 8; Scenarios is
-    // its own top-level category page with Combo Trainer at row 5.
+    // Lab (kGeneral) places Offline VS Displays at row 7 and Controls at row 8;
+    // Debug moved into Display > Advanced / Debug (row 21).
     const ui::Page& gen = ui::pages::kGeneral;
-    REQUIRE(gen.count == 13);
-    CHECK(strcmp(gen.options[7].name, "Controls") == 0);
-    CHECK(strcmp(gen.options[8].name, "Debug") == 0);
+    REQUIRE(gen.count == 12);
+    CHECK(strcmp(gen.options[7].name, "Offline VS Displays") == 0);
+    CHECK(strcmp(gen.options[8].name, "Controls") == 0);
+    const ui::Page& disp = ui::pages::kDisplayOptions;
+    REQUIRE(disp.count == 22);
+    CHECK(strcmp(disp.options[21].name, "Advanced / Debug") == 0);
+    CHECK_EQ(ui::pages::P_DEBUG, disp.options[21].max);
     const ui::Page& scen = ui::pages::kScenarios;
     REQUIRE(scen.count == 6);
     CHECK(strcmp(scen.options[0].name, "Preset") == 0);
@@ -997,4 +1001,52 @@ TEST(scenario_presets, slideoff_temporarily_sets_tumble_percent_and_restores_wit
     restoreScenarioSnapshot(st, cpuOpts, comboCfg, &gen);
     CHECK_EQ(80, static_cast<int>(gen.playerPercent));
     CHECK_EQ(1, static_cast<int>(gen.lockPlayerPercent));
+}
+
+TEST(scenario_presets, powershield_drill_cpu_approaches_faces_and_throws_repeating_jab)
+{
+    ScenarioCpuState cs;
+    scenarioCpuStateReset(cs);
+    ScenarioCpuInput ci;
+    memset(&ci, 0, sizeof(ci));
+    ci.cpuCanAct = true;
+    ci.cpuLr = -1.0f;
+    ci.hmnX = -20.0f;
+    ci.cpuX = 20.0f; // 40u apart (> 11.0u): must walk toward P1 without swinging yet
+    ScenarioCpuOutput co;
+    stepPowershieldDrillCpu(ci, cs, co);
+    CHECK(co.active);
+    CHECK(co.stickX < -0.5f);
+    CHECK_EQ(0u, co.buttons);
+
+    // Close range (8u apart), facing away (cpuLr = +1 while HMN is to the left): turns first.
+    ci.cpuX = -12.0f;
+    ci.cpuLr = 1.0f;
+    stepPowershieldDrillCpu(ci, cs, co);
+    CHECK(co.active);
+    CHECK(co.stickX < -0.3f);
+    CHECK_EQ(0u, co.buttons);
+
+    // Close range and facing P1: fires neutral Jab (kAttack) immediately, then waits cooldown.
+    ci.cpuLr = -1.0f;
+    stepPowershieldDrillCpu(ci, cs, co);
+    CHECK(co.active);
+    CHECK_EQ(static_cast<u32>(cpu::button::kAttack), co.buttons);
+
+    // Next frame during cooldown: does not spam Attack on frame 2.
+    stepPowershieldDrillCpu(ci, cs, co);
+    CHECK_EQ(0u, co.buttons);
+
+    // After 52 frames of cooldown, throws Jab again!
+    bool firedAgain = false;
+    for (int f = 0; f < 55; f++)
+    {
+        stepPowershieldDrillCpu(ci, cs, co);
+        if ((co.buttons & cpu::button::kAttack) != 0)
+        {
+            firedAgain = true;
+            break;
+        }
+    }
+    CHECK(firedAgain);
 }

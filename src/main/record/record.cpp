@@ -337,7 +337,7 @@ namespace record {
             s_side[side].refused = why;
             if (why == 4)
             {
-                message("CPU Mode is off while Controlled By is on.");
+                message("CPU Mode is off while Port Control is on.");
             }
             else if (why != 0)
             {
@@ -1904,8 +1904,29 @@ namespace record {
         s_hadInputs[kCpu] = 0;
     }
 
+    char g_deletePosLabel[12];
+    char g_deleteSlotLabel[12];
+
+    void clearDeleteConfirm()
+    {
+        g_deletePosLabel[0] = '\0';
+        g_deleteSlotLabel[0] = '\0';
+    }
+
+    void deletePositionsPressed()
+    {
+        if (g_deletePosLabel[0] == '\0')
+        {
+            strcpy(g_deletePosLabel, "A: Confirm");
+            return;
+        }
+        g_deletePosLabel[0] = '\0';
+        deletePositions();
+    }
+
     void deletePositions()
     {
+        clearDeleteConfirm();
         s_start->clear();
         savestate::dropRecordingState();
         s_exact = false;
@@ -1934,7 +1955,7 @@ namespace record {
         if (side == kCpu && m != kModeOff && controlledByActive())
         {
             s_side[kCpu].refused = 4;
-            message("CPU Mode is off while Controlled By is on.");
+            message("CPU Mode is off while Port Control is on.");
             TM_LOG("record: CPU mode %d\n", m);
             return;
         }
@@ -2074,8 +2095,20 @@ namespace record {
         rebalance(chance, s_hadInputs[side], slot);
     }
 
+    void deleteManagedSlotPressed()
+    {
+        if (g_deleteSlotLabel[0] == '\0')
+        {
+            strcpy(g_deleteSlotLabel, "A: Confirm");
+            return;
+        }
+        g_deleteSlotLabel[0] = '\0';
+        deleteManagedSlot();
+    }
+
     void deleteManagedSlot()
     {
+        g_deleteSlotLabel[0] = '\0';
         const main::RecordingSettings& r = settings().recording;
         Slot* s = slotAt(r.manageSide, r.manageSlot);
         if (s != NULL)

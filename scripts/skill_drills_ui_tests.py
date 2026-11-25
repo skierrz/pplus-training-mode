@@ -59,6 +59,7 @@ SCENARIOS = [
     "ledgedash-hud",
     "wavedash-hud",
     "lcancel-lab",
+    "powershield-cpu",
 ]
 
 
@@ -204,7 +205,7 @@ class Runner:
             DT.go_to_page(e, "Skill Drills", "R")
         e.advance(6)
 
-    def arm_skill_drill_and_enter(self, row_idx, drill_id, p1_name, cpu_name="fox", aspect="16:9"):
+    def arm_skill_drill_and_enter(self, row_idx, drill_id, p1_name, cpu_name="fox", aspect="16:9", freeze_cpu=True):
         e = self.e
         self.ensure_skill_drills_open()
         DT.go_to_row(e, row_idx)
@@ -232,10 +233,11 @@ class Runner:
         lab = LT.Lab(e, [])
         self.settings = lab.find_settings()
         e.h.call("write_mem", addr=self.settings + LT.SET_CPU_PERCENT, hex="000000")
-        e.h.call("write_mem", addr=self.settings + CT.SET_CPU_OPTIONS, hex="00")
         e.h.call("write_mem", addr=self.settings + LT.SET_FRAME_ADVANCE, hex="00")
-        for off, val in DO.CPU_STILL.items():
-            e.h.call("write_mem", addr=self.settings + off, hex=f"{int(val) & 0xFF:02x}")
+        if freeze_cpu:
+            e.h.call("write_mem", addr=self.settings + CT.SET_CPU_OPTIONS, hex="00")
+            for off, val in DO.CPU_STILL.items():
+                e.h.call("write_mem", addr=self.settings + off, hex=f"{int(val) & 0xFF:02x}")
         CT.wait_game_frames(e, 20)
         f = LT.Fighters(e)
         p1 = f.by_player(0)
@@ -490,11 +492,69 @@ def sc_lcancel_lab(t):
     )
 
 
+def sc_powershield_cpu(t):
+    e = t.e
+    # Row 4 on Skill Drills is P+ Powershield (DrillId 5). Leave default Lab CPU
+    # control active (freeze_cpu=False) so stepPowershieldDrillCpu drives the CPU.
+    p1, cpu, tmdh = t.arm_skill_drill_and_enter(4, 5, "mario", "fox", aspect="16:9", freeze_cpu=False)
+    e.h.call("pause")
+    e.h.call("frame_advance", n=2)
+
+    d0 = read_tmdh(e, tmdh)
+    t.check(
+        d0["magic"] == TMDH_MAGIC and d0["activeDrill"] == 5 and d0["modalOpen"] == 0,
+        "powershield-initial-tmdh",
+        f"magic={d0['magic']:#x} drill={d0['activeDrill']} draws={d0['drawCalls']}",
+    )
+
+    p1_ptr = p1["fighter"]
+    cpu_ptr = cpu["fighter"]
+    start_p1 = S4.read_fighter_full(e, p1_ptr)
+    start_cpu = S4.read_fighter_full(e, cpu_ptr)
+    start_dist = abs(start_cpu["x"] - start_p1["x"])
+    min_dist = start_dist
+    attack_entries = 0
+    prev_attack = False
+
+    # Step 200 game frames while P1 holds shield periodically or stands still:
+    # Fox CPU must close distance (<= 14 units) and throw universal Jab (0x24)
+    # at least twice across the 52-frame attack cadence.
+    for _ in range(200):
+        e.h.call("frame_advance", n=1)
+        cp = S4.read_fighter_full(e, cpu_ptr)
+        hp = S4.read_fighter_full(e, p1_ptr)
+        dist = abs(cp["x"] - hp["x"])
+        if dist < min_dist:
+            min_dist = dist
+        in_attack = cp["status"] == 0x24  # Fighter::Status::Attack (Jab)
+        if in_attack and not prev_attack:
+            attack_entries += 1
+        prev_attack = in_attack
+
+    t.check(
+        min_dist <= 14.0 and attack_entries >= 2,
+        "powershield-cpu-attacks-live",
+        f"startDist={start_dist:.1f} minDist={min_dist:.1f} jabEntries={attack_entries}",
+    )
+
+    e.h.call("resume")
+    unload_pos = len(e.log_text())
+    nav.finish_training(e)
+    e.advance(20)
+    utail = e.log_text()[unload_pos:]
+    t.check(
+        "back to baseline: yes" in utail and "back to baseline: NO" not in utail,
+        "powershield-clean-unload",
+        "match and extra unloaded cleanly back to baseline after P+ Powershield",
+    )
+
+
 DISPATCH = {
     "boot-menu": sc_boot_menu,
     "ledgedash-hud": sc_ledgedash_hud,
     "wavedash-hud": sc_wavedash_hud,
     "lcancel-lab": sc_lcancel_lab,
+    "powershield-cpu": sc_powershield_cpu,
 }
 
 

@@ -11,9 +11,24 @@
 namespace tm {
 namespace ui {
 namespace pages {
+    enum {
+        kPresetOff = 0,
+        kPresetMultiHitSdi = 10
+    };
+
     static bool comboTrainerAvailable()
     {
         return cpuLabControl() && main::extraLoaded();
+    }
+
+    static bool scenarioActive()
+    {
+        return main::extraLoaded() && scenarioMenuState()->preset != kPresetOff;
+    }
+
+    static bool scenarioMultiHitActive()
+    {
+        return main::extraLoaded() && scenarioMenuState()->preset == kPresetMultiHitSdi;
     }
 
     static const char* const kPresets[] = {
@@ -28,14 +43,15 @@ namespace pages {
     static const Option kRows[] = {
         TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch, TM_SCEN_OFF(preset), 0, TM_COUNT(kPresets) - 1, 0,
                "Preset", kPresets, main::extraScenarioChanged, main::extraLoaded),
-        TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch, TM_SCEN_OFF(autoReset), 0, 1, 1, "Auto-Reset", NULL,
-               main::extraScenarioChanged, main::extraLoaded),
-        TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch, TM_SCEN_OFF(side), 0, TM_COUNT(kSides) - 1, 0, "Side",
-               kSides, main::extraScenarioChanged, main::extraLoaded),
-        TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch, TM_SCEN_OFF(multiHitMove), 0,
-               TM_COUNT(kMultiHitMoves) - 1, 0, "Multi-Hit Move", kMultiHitMoves, main::extraScenarioChanged,
-               main::extraLoaded),
-        TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Reset Now", NULL, main::extraScenarioResetNow, main::extraLoaded),
+        TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled, TM_SCEN_OFF(autoReset),
+               0, 1, 1, "Auto-Reset", NULL, main::extraScenarioChanged, scenarioActive),
+        TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled, TM_SCEN_OFF(side), 0,
+               TM_COUNT(kSides) - 1, 0, "Side", kSides, main::extraScenarioChanged, scenarioActive),
+        TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,
+               TM_SCEN_OFF(multiHitMove), 0, TM_COUNT(kMultiHitMoves) - 1, 0, "Multi-Hit Move", kMultiHitMoves,
+               main::extraScenarioChanged, scenarioMultiHitActive),
+        TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, "Reset Now", NULL,
+               main::extraScenarioResetNow, scenarioActive),
         TM_MENU_IF("Combo Trainer", P_COMBO_TRAINER, comboTrainerAvailable)
     };
 #undef TM_SCEN_OFF

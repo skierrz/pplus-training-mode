@@ -62,11 +62,12 @@ FOX_DISTINGUISHABLE = 4  # src/main/game/tech_frames.cpp
 GROUP_WAIT, GROUP_DASH, GROUP_RUN, GROUP_IASA = 8, 10, 11, 15
 COLOR_NONE, COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_CYAN, COLOR_ORANGE, COLOR_INVISIBLE = 0, 1, 2, 3, 7, 8, 11
 
-# Lab menu rows (src/main/ui/pages/display_options.cpp, osd_menu.cpp).
-DISPLAY_HMN_OVERLAYS, DISPLAY_LEDGE_HUD, DISPLAY_THEME = 12, 16, 17
-OSD_ROWS = {"wavedash": 1, "lcancel": 2, "actoos": 3, "dashback": 4, "powershield": 5, "sdi": 6, "lockout": 7,
-            "itemthrow": 8, "boostgrab": 9, "actoolag": 10, "actooairborne": 11, "jumpcancel": 12, "fastfall": 13,
-            "combo": 15, "grabbreakout": 16, "ledgedash": 17, "actoohitstun": 18}
+# Lab menu rows (src/main/ui/pages/display_options.cpp, osd_menu.cpp; visible indices at default).
+DISPLAY_HMN_OVERLAYS, DISPLAY_LEDGE_HUD, DISPLAY_THEME = 11, 15, 2
+OSD_ROWS = {"wavedash": 4, "lcancel": 5, "ledgedash": 6, "actoos": 7,
+            "dashback": 10, "powershield": 11, "actoolag": 12, "actooairborne": 13,
+            "actoohitstun": 14, "jumpcancel": 15, "fastfall": 16, "boostgrab": 17,
+            "sdi": 18, "lockout": 19, "combo": 20, "grabbreakout": 21, "itemthrow": 22}
 # Rows not built yet: the cursor skips them.
 OSD_UNBUILT = ()
 

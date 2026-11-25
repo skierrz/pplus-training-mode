@@ -42,7 +42,7 @@ namespace pages {
 #undef TM_CHANCES
 #undef TM_CHANCE
 
-    extern const Page kHmnChances = TM_PAGE("HMN Slot Chances", kHmnRows);
+    extern const Page kHmnChances = TM_PAGE("P1 Slot Chances", kHmnRows);
     extern const Page kCpuChances = TM_PAGE("CPU Slot Chances", kCpuRows);
 }
 }

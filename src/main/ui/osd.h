@@ -43,7 +43,8 @@ namespace osd {
         kIdActOoHitstun,
         kIdFrameAdvantageHit,
         kIdGalint,
-        kIdSavestate
+        kIdSavestate,
+        kIdPPlusTech
     };
 
     // Neutral P+ status colours: neutral, positive, negative, caution.

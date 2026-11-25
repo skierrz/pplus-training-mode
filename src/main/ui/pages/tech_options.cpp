@@ -10,6 +10,16 @@ namespace pages {
     static const char* const kTechTrap[] = {"Off", "Early", "Late"};
     static const char* const kLockout[] = {"Early", "Late"};
 
+    static bool techInvisActive()
+    {
+        return main::settings().techInvis.mode != 0;
+    }
+
+    static bool techNotMiss()
+    {
+        return cpuLabControl() && main::settings().cpu.options.tech != cpu::kTechNone;
+    }
+
     static bool techRandom()
     {
         return cpuLabControl() && main::settings().cpu.options.tech == cpu::kTechRandom;
@@ -67,10 +77,14 @@ namespace pages {
         TM_CPU_CHOICE("Tech", cpu.options.tech, kTech, 0),
         TM_CPU_CHOICE("Getup", cpu.options.getup, kGetUp, 0),
         TM_CHOICE("Tech Invisibility", techInvis.mode, kInvisibility, 0, NULL),
-        TM_INT("Invis Delay", techInvis.delay, 0, 15, 0, "%df", NULL),
-        TM_CPU_TOGGLE("Tech Sound Cue", cpu.options.techSound, 0),
-        TM_CPU_CHOICE("Tech Trap", cpu.options.techTrap, kTechTrap, 0),
-        TM_CPU_CHOICE("Tech Timing", cpu.options.techLockout, kLockout, 0),
+        TM_ROW(::tm::ui::kKindInt, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(techInvis.delay), 0, 15, 0,
+               "Invis Delay", "%df", NULL, techInvisActive),
+        TM_ROW(::tm::ui::kKindToggle, 0, TM_FIELD(cpu.options.techSound), 0, 1, 0, "Tech Sound Cue", NULL, NULL,
+               techNotMiss),
+        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(cpu.options.techTrap), 0, TM_COUNT(kTechTrap) - 1, 0, "Tech Trap",
+               kTechTrap, NULL, techNotMiss),
+        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(cpu.options.techLockout), 0, TM_COUNT(kLockout) - 1, 0,
+               "Tech Timing", kLockout, NULL, techNotMiss),
         TM_CHANCE("Tech In Place %", cpu.options.techChance[0], tech0, techRandom),
         TM_CHANCE("Tech Away %", cpu.options.techChance[1], tech1, techRandom),
         TM_CHANCE("Tech Toward %", cpu.options.techChance[2], tech2, techRandom),

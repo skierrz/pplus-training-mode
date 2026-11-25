@@ -43,6 +43,12 @@ namespace record {
     void resavePositions();
     void prunePositions();
     void deletePositions();
+    // Double-press guarded menu callbacks and confirm labels ("A: Confirm").
+    extern char g_deletePosLabel[];
+    extern char g_deleteSlotLabel[];
+    void deletePositionsPressed();
+    void deleteManagedSlotPressed();
+    void clearDeleteConfirm();
     // A row of the Recording page changed.
     void hmnModeChanged();
     void cpuModeChanged();

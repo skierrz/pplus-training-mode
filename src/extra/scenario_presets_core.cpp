@@ -1447,5 +1447,45 @@ namespace extra {
             return;
         }
     }
+
+    void stepPowershieldDrillCpu(const ScenarioCpuInput& in, ScenarioCpuState& st, ScenarioCpuOutput& out)
+    {
+        out.active = false;
+        out.buttons = 0;
+        out.stickX = 0.0f;
+        out.stickY = 0.0f;
+
+        if (in.hmnOutOfPlay || in.cpuOutOfPlay)
+        {
+            return;
+        }
+        out.active = true;
+        if (st.cooldown > 0)
+        {
+            st.cooldown--;
+            return;
+        }
+        if (in.cpuAir || !in.cpuCanAct)
+        {
+            return;
+        }
+        float dx = in.hmnX - in.cpuX;
+        float toward = dx >= 0.0f ? 1.0f : -1.0f;
+        float absDx = absf(dx);
+        // Walk smoothly into universal jab range without dashing offstage.
+        if (absDx > 11.0f)
+        {
+            out.stickX = toward * 0.55f;
+            return;
+        }
+        // Ensure CPU faces P1 before throwing the poke.
+        if (in.cpuLr * toward < 0.0f)
+        {
+            out.stickX = toward * 0.35f;
+            return;
+        }
+        out.buttons = cpu::button::kAttack;
+        st.cooldown = 52;
+    }
 }
 }

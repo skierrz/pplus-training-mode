@@ -53,9 +53,9 @@ SET_ON_HIT, SET_ON_SHIELD, SET_TOLERANCE = LT.SET_ADVANTAGE_HIT, LT.SET_ADVANTAG
 # ui::InfoValue (src/main/ui/info_display.h).
 INFO_ROWS = {"state": 2, "stateframe": 3, "subaction": 30, "actionable": 32, "hitlag": 15, "iasa": 31,
              "airborne": 33, "lasthit": 34, "hitstun": 16, "shield": 18}
-# Lab menu rows (src/main/ui/pages/general.cpp, osd_menu.cpp).
-MAIN_OSD, GEN_DEBUG = LT.MAIN_OSD, LT.GEN_DEBUG
-OSD_POSITION, OSD_ADVANTAGE, OSD_ADVANTAGE_HIT = 0, 14, 19
+# Lab menu rows (src/main/ui/pages/display_options.cpp, osd_menu.cpp).
+MAIN_OSD, MAIN_DISPLAY = LT.MAIN_OSD, LT.MAIN_DISPLAY
+OSD_POSITION, OSD_ADVANTAGE, OSD_ADVANTAGE_HIT = 0, 8, 9
 ID_FRAME_ADVANTAGE, ID_FRAME_ADVANTAGE_HIT = 14, 19
 SET_OSD_POSITION = LT.SET_OSD_POSITION
 STOP_HITLAG = 0x10  # soStopModuleImpl: hitlag frames left
@@ -377,11 +377,12 @@ class Runner:
         if lab.setting(SET_TOLERANCE) != 1:
             raise DisplayError(f"Advantage Tolerance is {lab.setting(SET_TOLERANCE)}, wanted the default 1")
         self.shots.append(emu.screenshot("displays-menu-osds"))
-        lab.tap(["B"])  # back to Main Menu, on the OSD Menu row
-        lab.up(MAIN_OSD)
-        lab.tap(["A"])  # Top -> General
-        lab.down(GEN_DEBUG)
-        lab.tap(["A"])
+        lab.tap(["B"])  # back to rail, on OSDs
+        lab.up(MAIN_OSD - MAIN_DISPLAY)
+        lab.tap(["A"])  # Display
+        lab.down(LT.DISPLAY_DEBUG)
+        lab.tap(["A"])  # Advanced / Debug
+        lab.down(LT.DEBUG_OVERLAY_ROW)
         lab.toggle_on(LT.SET_OVERLAY)
         lab.close_menu()
 

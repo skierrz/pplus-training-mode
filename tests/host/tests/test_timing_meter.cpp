@@ -246,12 +246,12 @@ TEST(timing_meter, osd_menu_row_and_description)
     main::loadSettings(block);
     const ui::MenuDef& menu = ui::labMenu();
     const ui::Page& osdPage = *menu.pages[ui::pages::P_OSD_MENU];
-    int lastRow = osdPage.count - 1;
-    CHECK_STR("Overhead Timing Bar", osdPage.options[lastRow].name);
-    CHECK_EQ(static_cast<int>(ui::kKindChoice), static_cast<int>(osdPage.options[lastRow].kind));
-    CHECK_EQ(static_cast<int>(main::kTimingMeterCount - 1), static_cast<int>(osdPage.options[lastRow].max));
-    CHECK_EQ(static_cast<int>(main::kTimingMeterOff), static_cast<int>(osdPage.options[lastRow].def));
-    CHECK(osdPage.options[lastRow].enabled != NULL);
-    const char* desc = extra::optionDesc(ui::pages::P_OSD_MENU, static_cast<u8>(lastRow));
+    const int meterRow = 2;
+    CHECK_STR("Overhead Timing Bar", osdPage.options[meterRow].name);
+    CHECK_EQ(static_cast<int>(ui::kKindChoice), static_cast<int>(osdPage.options[meterRow].kind));
+    CHECK_EQ(static_cast<int>(main::kTimingMeterCount - 1), static_cast<int>(osdPage.options[meterRow].max));
+    CHECK_EQ(static_cast<int>(main::kTimingMeterOff), static_cast<int>(osdPage.options[meterRow].def));
+    CHECK(osdPage.options[meterRow].enabled != NULL);
+    const char* desc = extra::optionDesc(ui::pages::P_OSD_MENU, static_cast<u8>(meterRow));
     REQUIRE(desc != NULL && desc[0] != '\0');
 }

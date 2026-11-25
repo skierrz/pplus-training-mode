@@ -212,7 +212,7 @@ TEST(drill_hud, wavedash_and_lcancel_grading_and_late_upgrade)
 
 TEST(drill_hud, hover_ps_and_pplus_tech_drills)
 {
-    // Drill 4: Float / Hover & DJC.
+    // Drill 4: Float / Hover & DJC ineligible fighter warning before any rep completes.
     DrillHudState fdHud;
     drillHudInit(fdHud, drills::kDrillHoverFloat, 0);
     FloatDjcSlot fd;
@@ -220,6 +220,13 @@ TEST(drill_hud, hover_ps_and_pplus_tech_drills)
     DrillEngineFeed ff = emptyFeed();
     ff.fd = &fd;
     drillHudSyncBaselines(fdHud, ff);
+
+    ff.ineligibleFighter = true;
+    CHECK(!drillHudStep(fdHud, ff));
+    CHECK_EQ(static_cast<int>(kDrillGradeWarn), static_cast<int>(fdHud.lastGrade));
+    CHECK_EQ(1, static_cast<int>(fdHud.alcNotice));
+    CHECK(strcmp(fdHud.lastFeedback, "PICK PEACH/MEWTWO/DJC") == 0);
+    ff.ineligibleFighter = false;
 
     fd.stats.fcAttempts++;
     fd.last.fcOutcome = kFcSuccess;

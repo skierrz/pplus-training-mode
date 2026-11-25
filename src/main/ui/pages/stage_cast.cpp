@@ -41,7 +41,6 @@ namespace pages {
     static const char* const kPeachSmash[] = {"Default", "Golf Club", "Frying Pan", "Tennis Racket"};
     static const char* const kMisfire[] = {"Default", "Always", "Never"};
     static const char* const kHammer[] = {"Default", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
-    static const char* const kAlways[] = {"Default", "Always"};
     static const char* const kUnlimited[] = {"Default", "Unlimited"};
     static const char* const kCharge2[] = {"Default", "Empty", "Full"};
     static const char* const kCharge3[] = {"Default", "Empty", "Half", "Full"};
@@ -59,7 +58,6 @@ namespace pages {
     TM_STATIC_ASSERT(TM_COUNT(kPeachSmash) == main::kPeachSmashCount, tm_smash_labels_match_the_setting);
     TM_STATIC_ASSERT(TM_COUNT(kHammer) == main::kGnwHammerCount, tm_hammer_labels_match_the_setting);
     TM_STATIC_ASSERT(TM_COUNT(kMisfire) == main::kLuigiMisfireCount, tm_misfire_labels_match_the_setting);
-    TM_STATIC_ASSERT(TM_COUNT(kAlways) == main::kMechToggleCount, tm_always_labels_match_the_setting);
     TM_STATIC_ASSERT(TM_COUNT(kUnlimited) == main::kMechToggleCount, tm_unlimited_labels_match_the_setting);
     TM_STATIC_ASSERT(TM_COUNT(kCharge2) == main::kCharge2Count, tm_charge2_labels_match_the_setting);
     TM_STATIC_ASSERT(TM_COUNT(kCharge3) == main::kCharge3Count, tm_charge3_labels_match_the_setting);
@@ -83,7 +81,7 @@ namespace pages {
     // Non-const so extra/stage_options.cpp can swap row 3 (Platforms) labels
     // and max index to match the active stage.
     static Option kRows[] = {
-        TM_MENU_IF("Fighter Swap", P_FIGHTER_SWAP, main::extraLoaded),
+        TM_MENU_IF("Fighter Swap", P_FIGHTER_SWAP, main::extraFighterSwapRow),
         TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch, kShowInactiveScratchOffset, 0, 1, 0, "Show Inactive",
                NULL, showInactiveChanged, NULL),
         TM_SROW(stageOptions.hazards, kHazards, "Hazards", main::extraStageHazardsRow),
@@ -92,7 +90,7 @@ namespace pages {
         TM_SROW(stageOptions.fodRight, kFodHeight, "Right Platform", main::extraStageFodRow),
         TM_FROW(characterRng.peachTurnip, kTurnip, "Peach Turnip", main::extraPeachRows),
         TM_FROW(characterRng.peachSmash, kPeachSmash, "Peach F-Smash", main::extraPeachRows),
-        TM_FROW(fighterMechanics.peachFloat, kAlways, "Peach Float", main::extraPeachRows),
+        TM_FROW(fighterMechanics.peachFloat, kUnlimited, "Peach Float", main::extraPeachRows),
         TM_FROW(characterRng.luigiMisfire, kMisfire, "Luigi Misfire", main::extraLuigiRows),
         TM_FROW(characterRng.gnwHammer, kHammer, "G&W Judge", main::extraGameWatchRows),
         TM_FROW(fighterMechanics.gnwBucket, kGnwBucket, "G&W Oil Panic", main::extraGameWatchRows),

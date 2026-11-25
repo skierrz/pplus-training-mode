@@ -191,9 +191,9 @@ AIR_ACTIONS = {"None": 0, "Airdodge": 1, "Jump Neutral": 4, "Tumble Fastfall": 1
 SHIELD_ACTIONS = {"None": 0, "Grab": 1,
                   "SHFFL Nair": 44, "SHFFL Fair": 45, "SHFFL Bair": 46, "SHFFL Uair": 47, "SHFFL Dair": 48}
 LAB, TRAINING = 1, 0  # CPU Control
-# CPU Options rows (main's tree plus CPU Control) and Tech Options rows.
-CPU_CONTROL_ROW, CPU_TECH_ROW, CPU_BEHAVIOR_ROW = 2, 3, 9
-TECH_INVIS_ROW, TECH_DELAY_ROW, TECH_SOUND_ROW, TECH_IN_PLACE_ROW = 2, 3, 4, 7
+# CPU Options rows (src/main/ui/pages/cpu_options.cpp) and Tech & Getup rows.
+CPU_CONTROL_ROW, CPU_BEHAVIOR_ROW, CPU_COUNTERS_ROW, CPU_TECH_ROW = 2, 3, 5, 6
+TECH_INVIS_ROW, TECH_DELAY_ROW, TECH_SOUND_ROW, TECH_IN_PLACE_ROW = 2, 3, 4, 6
 SET_TECH_INVIS, SET_TECH_DELAY = 288, 289
 # P+'s first distinguishable tech frame per character (src/main/game/tech_frames.cpp).
 TECH_DIST = {"fox": 4, "mario": 8, "zelda": 3, "sheik": 4}
@@ -2325,7 +2325,7 @@ def o_menu(r):
     lab.tap(stick=LT.RIGHT)
     behavior = r.opt.get("behavior")
     shot = emu.screenshot("cpu-menu-options")[0]
-    lab.up(CPU_BEHAVIOR_ROW - CPU_TECH_ROW)
+    lab.down(CPU_TECH_ROW - CPU_BEHAVIOR_ROW)
     lab.tap(["A"])
     lab.down(TECH_IN_PLACE_ROW)
     lab.tap(stick=LT.RIGHT)
@@ -4093,7 +4093,8 @@ def o_tdi_angles(r):
 
 # ---- lab menu helpers -----------------------------------------------------------------
 
-CPU_ROWS = {"advanced": 14, "move": 21, "controlled by": 22, "freeze": 23}
+CPU_ROWS = {"counters": 5, "move": 10, "freeze": 11, "controlled by": 12}
+COUNTERS_ADVANCED_ROW = 4
 
 
 def cpu_page(r, row, then=None):
@@ -4560,14 +4561,16 @@ def o_advanced(r):
     emu.h.call("resume")
 
     def to_custom_usmash(lab):
-        lab.tap(["A"])  # open the page (cursor on the Advanced Counter row)
+        lab.tap(["A"])  # open Counters & Reversals
+        lab.down(COUNTERS_ADVANCED_ROW)
+        lab.tap(["A"])  # open Per-Hit Counters
         emu.press(0, [], frames=30, after=4, stick=LT.UP)
         lab.down(ADV_ROW_LOGIC)
         lab.set_choice(SET_CPU + CPU_FIELDS["advLogic"], 2)
         lab.down(ADV_ROW_GROUND - ADV_ROW_LOGIC)
         lab.set_choice(SET_CPU + CPU_FIELDS["advGround"], 8)
-        lab.back_to_main(1)
-    cpu_page(r, CPU_ROWS["advanced"], then=to_custom_usmash)
+        lab.back_to_main(2)
+    cpu_page(r, CPU_ROWS["counters"], then=to_custom_usmash)
     res.row("page fields: hit 1, Custom, Up Smash", "1 / 2 / 8",
             f"{r.opt.get('advHit')} / {r.opt.get('advLogic')} / {r.opt.get('advGround')}",
             (r.opt.get("advHit"), r.opt.get("advLogic"), r.opt.get("advGround")) == (1, 2, 8))
@@ -4593,14 +4596,16 @@ def o_advanced(r):
             s0 is not None and rows[s0][CPU]["status"] == STATUS["Attack_Hi4_Start"])
 
     def to_disable(lab):
-        lab.tap(["A"])
+        lab.tap(["A"])  # open Counters & Reversals
+        lab.down(COUNTERS_ADVANCED_ROW)
+        lab.tap(["A"])  # open Per-Hit Counters
         emu.press(0, [], frames=30, after=4, stick=LT.UP)
         lab.down(ADV_ROW_LOGIC)
         lab.set_choice(SET_CPU + CPU_FIELDS["advLogic"], 1)
-        lab.back_to_main(1)
+        lab.back_to_main(2)
     r.load("adv-near", {"control": LAB})
     emu.h.call("resume")
-    cpu_page(r, CPU_ROWS["advanced"], then=to_disable)
+    cpu_page(r, CPU_ROWS["counters"], then=to_disable)
     emu.advance(20)
     emu.h.call("pause")
     r.states.save(emu, "adv-near")

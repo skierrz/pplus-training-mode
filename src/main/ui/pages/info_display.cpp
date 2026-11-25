@@ -61,16 +61,51 @@ namespace pages {
         main::extraInfoApplyPreset(main::kSideCpu);
     }
 
-#define TM_INFO_ROW(side, n, name) TM_CHOICE(name, info[side].rows[n], kValues, kInfoNone, NULL)
-#define TM_INFO_PAGE(side, onPreset)                                                                          \
-    TM_CHOICE("Preset", info[side].preset, kPresets, kInfoPresetNone, onPreset),                              \
-        TM_CHOICE("Size", info[side].size, kSizes, main::kInfoMedium, NULL),                                  \
-        TM_INFO_ROW(side, 0, "Row 1"), TM_INFO_ROW(side, 1, "Row 2"), TM_INFO_ROW(side, 2, "Row 3"),          \
-        TM_INFO_ROW(side, 3, "Row 4"), TM_INFO_ROW(side, 4, "Row 5"), TM_INFO_ROW(side, 5, "Row 6"),          \
-        TM_INFO_ROW(side, 6, "Row 7"), TM_INFO_ROW(side, 7, "Row 8")
+    static void hmnRowEdited()
+    {
+        main::settings().info[main::kSideHuman].preset = kInfoPresetNone;
+    }
 
-    static const Option kHmnRows[] = {TM_INFO_PAGE(0, hmnPreset)};
-    static const Option kCpuRows[] = {TM_INFO_PAGE(1, cpuPreset)};
+    static void cpuRowEdited()
+    {
+        main::settings().info[main::kSideCpu].preset = kInfoPresetNone;
+    }
+
+    static bool infoHasRows(int side)
+    {
+        const u8* rows = main::settings().info[side].rows;
+        for (int i = 0; i < main::kInfoRows; i++)
+        {
+            if (rows[i] != kInfoNone)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static bool hmnHasRows()
+    {
+        return infoHasRows(main::kSideHuman);
+    }
+
+    static bool cpuHasRows()
+    {
+        return infoHasRows(main::kSideCpu);
+    }
+
+#define TM_INFO_ROW(side, n, name, onEdit) TM_CHOICE(name, info[side].rows[n], kValues, kInfoNone, onEdit)
+#define TM_INFO_PAGE(side, onPreset, onEdit, hasRows)                                                         \
+    TM_CHOICE("Preset", info[side].preset, kPresets, kInfoPresetNone, onPreset),                              \
+        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(info[side].size), 0, TM_COUNT(kSizes) - 1, main::kInfoMedium, \
+               "Size", kSizes, NULL, hasRows),                                                                \
+        TM_INFO_ROW(side, 0, "Row 1", onEdit), TM_INFO_ROW(side, 1, "Row 2", onEdit),                         \
+        TM_INFO_ROW(side, 2, "Row 3", onEdit), TM_INFO_ROW(side, 3, "Row 4", onEdit),                         \
+        TM_INFO_ROW(side, 4, "Row 5", onEdit), TM_INFO_ROW(side, 5, "Row 6", onEdit),                         \
+        TM_INFO_ROW(side, 6, "Row 7", onEdit), TM_INFO_ROW(side, 7, "Row 8", onEdit)
+
+    static const Option kHmnRows[] = {TM_INFO_PAGE(0, hmnPreset, hmnRowEdited, hmnHasRows)};
+    static const Option kCpuRows[] = {TM_INFO_PAGE(1, cpuPreset, cpuRowEdited, cpuHasRows)};
 #undef TM_INFO_PAGE
 #undef TM_INFO_ROW
 

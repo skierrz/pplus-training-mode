@@ -95,7 +95,7 @@ S_CPU_CONTROL, S_CPU_BEHAVIOR, S_CPU_TDI, S_CPU_SDI = 123, 124, 125, 126  # cpu:
 # P1 Color Overlays (main::OverlaySettings at +248: preset, then the 17
 # groups), its Wait row, and Display page row indices (src/main/ui/pages/display_options.cpp).
 S_OVERLAY_HMN, GROUP_WAIT = 248, 8
-DISPLAY_MODELS, DISPLAY_HMN_OVERLAYS = 8, 12
+DISPLAY_MODELS, DISPLAY_HMN_OVERLAYS = 8, 11
 SHOW_COLLISION, PLAY_SOUND = 10, 12
 OVERLAY_SOUND = re.compile(r"overlays: P(\d) play sound, group (\d+) \(handle (-?\d+)\)")
 WAIT, JUMP_SQUAT = 0x0, 0xA

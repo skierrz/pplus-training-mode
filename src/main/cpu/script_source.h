@@ -47,6 +47,7 @@ namespace cpu {
     };
 
     void scriptAttach();
+    void scriptDetach();
     // Driver claimer: takes the scripted player's slot when a new script starts.
     void scriptClaim(const Owner& who);
 }

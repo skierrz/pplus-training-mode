@@ -876,11 +876,11 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     menu::list::attach();
     stepFrame(pads); // neutral clears wait-release
 
-    // Starts on Page 0 (All Modes, 12 rows): Row 0 = Training Lab, pendingScenario == 0.
+    // Starts on Page 0 (All Modes, 18 rows: Lab + 10 Scenarios + Browse Recordings + 6 Skill Drills).
     CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
 
-    // Scroll down past row 10 (P+ Multi-Hit SDI) to row 11 (Browse Recordings) and open browser.
-    for (int i = 0; i < 12; i++)
+    // Scroll down 11 steps past row 10 (P+ Multi-Hit SDI) to row 11 (Browse Recordings) and open browser.
+    for (int i = 0; i < 11; i++)
     {
         setPadInput(pads[0], kDpadDown);
         stepFrame(pads);
@@ -899,6 +899,17 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     CHECK(host::log::contains("browser: closed"));
     setPadInput(pads[0], 0);
     stepFrame(pads);
+
+    // Scrolling 6 more steps inside All Modes reaches all 6 Skill Drills through row 17 (P+ Tech).
+    for (int i = 0; i < 6; i++)
+    {
+        setPadInput(pads[0], kDpadDown);
+        stepFrame(pads);
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+    }
+    CHECK(host::log::contains("drills: row 12 Ledgedash"));
+    CHECK(host::log::contains("drills: row 17 RAR / DACUS / B-Rev"));
 
     // GC R cycles: All Modes -> Offense -> Defense -> All Modes.
     setPadInput(pads[0], game::kPadR);

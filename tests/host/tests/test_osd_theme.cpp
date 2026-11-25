@@ -178,8 +178,8 @@ TEST(osd_theme, display_theme_menu_navigation_and_descriptions)
     const ui::Page& displayPage = *menu.pages[ui::pages::P_DISPLAY];
     const ui::Page& themePage = *menu.pages[ui::pages::P_THEME];
 
-    // Theme stays at row 17 in Display so no existing row index shifts.
-    const u8 themeRow = 17;
+    // Streamlined Display places Theme at row 2 near the top for quick access.
+    const u8 themeRow = 2;
     CHECK_STR("Theme", displayPage.options[themeRow].name);
     CHECK_EQ(static_cast<int>(ui::kKindMenu), static_cast<int>(displayPage.options[themeRow].kind));
     CHECK_EQ(static_cast<int>(ui::pages::P_THEME), static_cast<int>(displayPage.options[themeRow].max));

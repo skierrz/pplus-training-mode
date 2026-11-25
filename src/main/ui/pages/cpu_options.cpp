@@ -106,6 +106,55 @@ namespace pages {
     }
 #pragma dont_inline reset
 
+    static bool cpuSdiActive()
+    {
+        return cpuLabControl() && main::settings().cpu.options.sdiAmount > 0;
+    }
+
+    static bool cpuShieldHealthActive()
+    {
+        return cpuLabControl() && main::settings().cpu.options.infiniteShields != cpu::kShieldsOff;
+    }
+
+    static bool isShfflAction(int list, int idx)
+    {
+        const cpu::Action* a = cpu::action(list, idx);
+        return a != NULL && (a->flags & (cpu::kForShffl | cpu::kForFfl)) != 0;
+    }
+
+    static bool cpuShfflActive()
+    {
+        if (!cpuLabControl())
+        {
+            return false;
+        }
+        const cpu::CpuOptions& c = main::settings().cpu.options;
+        if (isShfflAction(cpu::kListGround, c.counterGround)
+            || isShfflAction(cpu::kListAir, c.counterAir)
+            || isShfflAction(cpu::kListShield, c.counterShield))
+        {
+            return true;
+        }
+        if (c.multiReversal != 0
+            && (isShfflAction(cpu::kListGround, c.revSlot2Action[cpu::kRevOnHit])
+                || isShfflAction(cpu::kListShield, c.revSlot2Action[cpu::kRevOnShield])))
+        {
+            return true;
+        }
+        const cpu::CpuTables& t = main::settings().cpuTables;
+        for (int h = 0; h < cpu::kAdvancedHits; h++)
+        {
+            if (t.hits[h].logic == cpu::kLogicCustom
+                && (isShfflAction(cpu::kListGround, t.hits[h].action[cpu::kListGround])
+                    || isShfflAction(cpu::kListAir, t.hits[h].action[cpu::kListAir])
+                    || isShfflAction(cpu::kListShield, t.hits[h].action[cpu::kListShield])))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static void controlledByChanged()
     {
         cpu::controlledByChanged();
@@ -127,53 +176,71 @@ namespace pages {
 #define TM_CPU_FUNC(name, onSelect, label) \
     TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, name, label, onSelect, cpuLabControl)
 
+    // Top-level CPU page: 13 core controls + 4 focused subpages.
     static const Option kRows[] = {
         TM_INT("CPU Damage", cpu.percent, 0, 999, 0, "%d%%", cpuPercent),
         TM_TOGGLE("Lock CPU Damage", cpu.lockPercent, 0, cpuPercent),
         TM_CHOICE("CPU Control", cpu.options.control, kControl, cpu::kControlLab, NULL),
-        TM_MENU("Tech & Getup", P_TECH),
-        TM_CPU_CHOICE("Trajectory DI", cpu.options.tdi, kTdi, 0),
-        TM_CPU_INT("SDI Inputs", cpu.options.sdiAmount, 0, 7, 0, "%df"),
-        TM_CPU_CHOICE("SDI Direction", cpu.options.sdiDir, kSdiDirection, 0),
-        TM_CPU_CHOICE("ASDI Direction", cpu.options.asdi, kAsdi, 0),
-        TM_CPU_TOGGLE("Dual-Stick SDI", cpu.options.dualStickSdi, 0),
         TM_CPU_CHOICE("Idle Behavior", cpu.options.behavior, kBehavior, 0),
+        TM_MENU_IF("DI & SDI", P_CPU_DI, cpuLabControl),
+        TM_MENU_IF("Counters & Reversals", P_CPU_COUNTERS, cpuLabControl),
+        TM_MENU_IF("Tech & Getup", P_TECH, cpuLabControl),
+        TM_MENU_IF("Shield & Grab", P_CPU_DEFENSE, cpuLabControl),
+        TM_CPU_CHOICE("Recovery", cpu.options.recovery, kRecovery, cpu::kRecoveryGame),
+        TM_CPU_CHOICE("Ledge Option", cpu.options.ledgeOption, kLedgeOption, cpu::kLedgeDefault),
+        TM_CPU_FUNC("Move CPU", moveCpu, cpu::g_moveCpuLabel),
+        TM_CPU_FUNC("Freeze CPU", freezeCpu, cpu::g_freezeCpuLabel),
+        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(cpu.options.controlledBy), 0, TM_COUNT(kControlledBy) - 1, 0,
+               "Port Control", kControlledBy, controlledByChanged, cpuLabControl)
+    };
+
+    // CPU > DI & SDI (P_CPU_DI)
+    static const Option kDiRows[] = {
+        TM_CPU_CHOICE("Trajectory DI", cpu.options.tdi, kTdi, 0),
+        TM_CPU_INT("SDI Inputs", cpu.options.sdiAmount, 0, 7, 0, "%d"),
+        TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.sdiDir), 0,
+               TM_COUNT(kSdiDirection) - 1, 0, "SDI Direction", kSdiDirection, NULL, cpuSdiActive),
+        TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.dualStickSdi), 0, 1, 0,
+               "Dual-Stick SDI", NULL, NULL, cpuSdiActive),
+        TM_CPU_CHOICE("ASDI Direction", cpu.options.asdi, kAsdi, 0)
+    };
+
+    // CPU > Counters & Reversals (P_CPU_COUNTERS)
+    static const Option kCounterRows[] = {
         TM_COUNTER_CHOICE("Ground Counter", cpu.options.counterGround, kCounterGround, 13),
         TM_COUNTER_CHOICE("Air Counter", cpu.options.counterAir, kCounterAir, 1),
         TM_COUNTER_CHOICE("Shield Counter", cpu.options.counterShield, kCounterShield, 1),
         TM_CPU_INT("Counter Delay", cpu.options.counterDelay, 0, 99, 0, "%df"),
-        TM_MENU("Per-Hit Counters", P_ADVANCED_COUNTER),
+        TM_MENU_IF("Per-Hit Counters", P_ADVANCED_COUNTER, cpuLabControl),
+        TM_MENU_IF("Reversal Slots", P_REVERSALS, cpuExtraAvailable),
+        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(cpu.options.adaptiveMode), 0, TM_COUNT(kAdaptiveMode) - 1,
+               cpu::kAdaptiveOff, "Adaptive CPU", kAdaptiveMode, NULL, cpuExtraAvailable),
+        TM_CPU_TOGGLE("Auto L-Cancel", cpu.options.autoLCancel, 1),
+        TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.shfflTiming), 0,
+               TM_COUNT(kShfflTiming) - 1, cpu::kShfflFramePerfect, "SHFFL Timing", kShfflTiming, NULL, cpuShfflActive)
+    };
+
+    // CPU > Shield & Grab (P_CPU_DEFENSE)
+    static const Option kDefenseRows[] = {
         TM_CPU_CHOICE("Infinite Shield", cpu.options.infiniteShields, kInfiniteShields, 1),
-        TM_CPU_INT("Shield Health", cpu.options.shieldHealth, 0, 60, 60, "%d"),
+        TM_ROW(::tm::ui::kKindInt, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.shieldHealth), 0, 60, 60,
+               "Shield Health", "%d", NULL, cpuShieldHealthActive),
         TM_CPU_CHOICE("Shield Tilt", cpu.options.shieldAngle, kShieldAngle, 0),
         TM_CPU_TOGGLE("No Knockback", cpu.options.intangible, 0),
         TM_CPU_CHOICE("Grab Mash", cpu.options.grabEscape, kGrabEscape, 0),
         TM_CPU_CHOICE("Grab Release", cpu.options.grabRelease, kGrabRelease, 0),
-        TM_CPU_FUNC("Move CPU", moveCpu, cpu::g_moveCpuLabel),
-        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(cpu.options.controlledBy), 0, TM_COUNT(kControlledBy) - 1, 0,
-               "Port Control", kControlledBy, controlledByChanged, cpuLabControl),
-        TM_CPU_FUNC("Freeze CPU", freezeCpu, cpu::g_freezeCpuLabel),
-        TM_CPU_CHOICE("Recovery", cpu.options.recovery, kRecovery, cpu::kRecoveryGame),
-        TM_CPU_CHOICE("Ledge Option", cpu.options.ledgeOption, kLedgeOption, cpu::kLedgeDefault),
-        TM_CPU_CHOICE("Clatter Escape", cpu.options.clatterEscape, kGrabEscape, cpu::kMashNone),
-        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(cpu.options.adaptiveMode), 0, TM_COUNT(kAdaptiveMode) - 1,
-               cpu::kAdaptiveOff, "Adaptive CPU", kAdaptiveMode, NULL, cpuExtraAvailable),
-        TM_CPU_TOGGLE("Auto L-Cancel", cpu.options.autoLCancel, 1),
-        TM_CPU_CHOICE("SHFFL Timing", cpu.options.shfflTiming, kShfflTiming, cpu::kShfflFramePerfect),
-        TM_MENU_IF("Reversal Slots", P_REVERSALS, cpuExtraAvailable),
-        TM_ROW(::tm::ui::kKindToggle, 0, TM_FIELD(cpu.options.techTrackerOsd), 0, 1, 0, "P+ Tech OSD", NULL, NULL,
-               main::extraLoaded)
+        TM_CPU_CHOICE("Clatter Escape", cpu.options.clatterEscape, kGrabEscape, cpu::kMashNone)
     };
 
 #undef TM_CPU_FUNC
 #undef TM_COUNTER_CHOICE
 
     extern const Page kCpuOptions = TM_PAGE("CPU", kRows);
+    extern const Page kCpuDi = TM_PAGE("DI & SDI", kDiRows);
+    extern const Page kCpuCounters = TM_PAGE("Counters & Reversals", kCounterRows);
+    extern const Page kCpuDefense = TM_PAGE("Shield & Grab", kDefenseRows);
 
-    // CPU > Reversal Slots (P_REVERSALS): weighted multi-slot reversal options
-    // and per-slot delays across On-Hit, On-Shield, On-Getup, and On-Ledge.
-    // The active trigger selector lives in ui::menuScratch()[33] so all 13
-    // persisted reversal bytes fit inside CpuOptions while leaving reserved[1].
+    // CPU > Counters & Reversals > Reversal Slots (P_REVERSALS)
     enum {
         kRevTriggerScratchOffset = 33
     };
@@ -183,11 +250,17 @@ namespace pages {
 
     static const char* const kRevTriggers[] = {"On-Hit", "On-Shield", "On-Getup", "On-Ledge"};
     static const char* const kRevGetup[] = {"None", "Stand", "Away", "Toward", "Attack"};
+    static const char* const kRevLedge[] = {"None", "Neutral", "Roll", "Attack", "Jump", "Drop"};
+
+    static bool revEnabled()
+    {
+        return cpuExtraAvailable() && main::settings().cpu.options.multiReversal != 0;
+    }
 
 #pragma dont_inline on
     static bool revTrig(int t)
     {
-        return cpuExtraAvailable() && menuScratch()[kRevTriggerScratchOffset] == t;
+        return revEnabled() && menuScratch()[kRevTriggerScratchOffset] == t;
     }
 #pragma dont_inline reset
 
@@ -209,8 +282,8 @@ namespace pages {
     static const Option kRevRows[] = {
         TM_ROW(::tm::ui::kKindToggle, 0, TM_FIELD(cpu.options.multiReversal), 0, 1, 0, "Enabled", NULL, NULL,
                cpuExtraAvailable),
-        TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch, kRevTriggerScratchOffset, 0, TM_COUNT(kRevTriggers) - 1,
-               0, "Trigger", kRevTriggers, NULL, cpuExtraAvailable),
+        TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,
+               kRevTriggerScratchOffset, 0, TM_COUNT(kRevTriggers) - 1, 0, "Trigger", kRevTriggers, NULL, revEnabled),
         TM_REV_ACT(cpu::kRevOnHit, kCounterGround, kCounterGroundSize, revTrig0),
         TM_REV_DELAY(cpu::kRevOnHit, revTrig0),
         TM_REV_WEIGHT(cpu::kRevOnHit, revTrig0),
@@ -220,7 +293,7 @@ namespace pages {
         TM_REV_ACT(cpu::kRevOnGetup, kRevGetup, TM_COUNT(kRevGetup), revTrig2),
         TM_REV_DELAY(cpu::kRevOnGetup, revTrig2),
         TM_REV_WEIGHT(cpu::kRevOnGetup, revTrig2),
-        TM_REV_ACT(cpu::kRevOnLedge, kLedgeOption, cpu::kLedgeDrop + 1, revTrig3),
+        TM_REV_ACT(cpu::kRevOnLedge, kRevLedge, TM_COUNT(kRevLedge), revTrig3),
         TM_REV_DELAY(cpu::kRevOnLedge, revTrig3),
         TM_REV_WEIGHT(cpu::kRevOnLedge, revTrig3)
     };

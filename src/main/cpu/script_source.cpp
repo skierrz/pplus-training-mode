@@ -1,14 +1,19 @@
 #include "main/cpu/script_source.h"
 
+#include <gf/gf_heap_manager.h>
+#include <gf/gf_memory_pool.h>
+#include <memory.h>
 #include <string.h>
 
 #include "main/cpu/driver.h"
 #include "shared/game/frame.h"
+#include "shared/game/heap.h"
+#include "shared/game/mem.h"
 #include "shared/log.h"
 
 namespace tm {
 namespace cpu {
-    static ScriptBlock s_blocks[kScriptBlocks];
+    static ScriptBlock* s_blocks = NULL;
 
     class ScriptSource : public Source {
     public:
@@ -68,6 +73,25 @@ namespace cpu {
 
     void scriptAttach()
     {
+        if (s_blocks == NULL)
+        {
+            u32 need = (static_cast<u32>(sizeof(ScriptBlock) * kScriptBlocks) + 31u) & ~31u;
+            game::HeapUsage u;
+            if (game::heapUsage(Heaps::Network, u) && u.largest >= need)
+            {
+                void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
+                if (game::isRam(p))
+                {
+                    s_blocks = static_cast<ScriptBlock*>(p);
+                }
+            }
+        }
+        if (s_blocks == NULL)
+        {
+            TM_LOG("cpu script: alloc failed (%u bytes in Network)\n",
+                   static_cast<unsigned>(sizeof(ScriptBlock) * kScriptBlocks));
+            return;
+        }
         for (int i = 0; i < kScriptBlocks; i++)
         {
             ScriptBlock& b = s_blocks[i];
@@ -82,8 +106,27 @@ namespace cpu {
                kScriptBlocks);
     }
 
+    void scriptDetach()
+    {
+        for (int i = 0; i < kScriptBlocks; i++)
+        {
+            s_sources[i].block = NULL;
+            s_sources[i].generation = 0;
+            s_sources[i].framesLeft = 0;
+        }
+        if (s_blocks != NULL)
+        {
+            free(s_blocks);
+            s_blocks = NULL;
+        }
+    }
+
     void scriptClaim(const Owner& who)
     {
+        if (s_blocks == NULL)
+        {
+            return;
+        }
         for (int i = 0; i < kScriptBlocks; i++)
         {
             ScriptSource& src = s_sources[i];

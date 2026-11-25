@@ -165,8 +165,8 @@ def open_theme_page(emu, lab):
     # Category Rail starts on Lab (0) -> press R four times to reach Display (4).
     for _ in range(4):
         tap(emu, ["R"], hold=3, settle=10)
-    # Row 17 on Display is Theme.
-    for _ in range(17):
+    # Row 2 on Display is Theme.
+    for _ in range(2):
         tap(emu, ["DDOWN"], hold=2, settle=5)
     tap(emu, ["A"], hold=3, settle=12)
 

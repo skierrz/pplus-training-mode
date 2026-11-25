@@ -51,6 +51,7 @@ namespace extra {
         const DacusState* dacus;
         const BReverseState* brev;
         bool autoLCancel;
+        bool ineligibleFighter;
     };
 
     // Prefix layout (activeDrill .. bestMetric, 14 bytes) mirrors
@@ -201,7 +202,8 @@ namespace extra {
             "DACUS MISS",            // 36
             "TURNAROUND B",          // 37
             "B-REVERSE",             // 38
-            "WAVEBOUNCE"             // 39
+            "WAVEBOUNCE",            // 39
+            "PICK PEACH/MEWTWO/DJC"  // 40
         };
 
         int msg = -1;
@@ -434,6 +436,13 @@ namespace extra {
             st.prev[2] = c;
         }
 
+        if (d == drills::kDrillHoverFloat && f.ineligibleFighter && st.repsDone == 0 && !syncOnly)
+        {
+            st.alcNotice = 1;
+            st.lastGrade = kDrillGradeWarn;
+            snprintf(st.lastFeedback, sizeof(st.lastFeedback), "%s", kMsg[40]);
+            return false;
+        }
         if (syncOnly || ev == 0 || msg < 0)
         {
             return false;

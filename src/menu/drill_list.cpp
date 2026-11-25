@@ -287,7 +287,7 @@ namespace list {
         }
     };
 
-    static const u8 kAllModeIndices[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    static const u8 kAllModeIndices[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
     static const u8 kOffenseIndices[] = {1, 2, 3, 4, 9};
     static const u8 kDefenseIndices[] = {5, 6, 7, 8, 10};
     static const u8 kSkillDrillIndices[] = {12, 13, 14, 15, 16, 17};

@@ -292,7 +292,15 @@ namespace extra {
             float x = b.x0;
             float y = b.y0;
             float bw = b.x1 - b.x0;
-            float bh = b.y1 - b.y0;
+            int shown[kPsaDisplayRows];
+            int rowCount = psaSelectDisplayThreads(s_debug.threads, shown, kPsaDisplayRows);
+            int fitRows = rowCount > 0 ? rowCount : 1;
+            float maxBh = b.y1 - b.y0;
+            float bh = 34.0f + static_cast<float>(fitRows) * 11.8f + 4.0f;
+            if (bh > maxBh)
+            {
+                bh = maxBh;
+            }
             float px = 1.5f * xs;
 
             // Native P+ dark-teal card frame matching Input Viewer & DI Compass.
@@ -303,7 +311,7 @@ namespace extra {
             gfx::fillRect(x + px, y + 1.5f, bw - 2.0f * px, 1.0f, 0xFFFFFF40u);
 
             // Header divider below Act/Sub/AnimFrame line.
-            gfx::fillRect(x + 4.0f * xs, y + 26.5f, bw - 8.0f * xs, 1.0f, 0x2A4C58C0u);
+            gfx::fillRect(x + 4.0f * xs, y + 27.5f, bw - 8.0f * xs, 1.0f, 0x2A4C58C0u);
 
             // Header line 1: PSA target + FSM rate.
             char title[16];
@@ -320,17 +328,15 @@ namespace extra {
             char subLine[40];
             psaFormatSubHeader(s_debug.status, s_debug.subaction, s_debug.animFrame, s_debug.secondaryKind,
                                s_debug.secondaryRate, subLine, sizeof(subLine));
-            float subScale = ui::style::scaleForCap(5.5f);
+            float subScale = ui::style::scaleForCap(6.0f);
             float subY = ui::style::textYForCap(y + 17.5f, subScale);
             drawShadowText(x + 6.0f * xs, subY, subLine, 0xB8CDD6FFu, subScale);
 
             // Up to 6 active threads in fixed columns: Name | Frame | Wait | Op.
-            int shown[kPsaDisplayRows];
-            int rowCount = psaSelectDisplayThreads(s_debug.threads, shown, kPsaDisplayRows);
             float rowScale = ui::style::scaleForCap(6.0f);
             if (rowCount == 0)
             {
-                float ry = ui::style::textYForCap(y + 32.0f, rowScale);
+                float ry = ui::style::textYForCap(y + 32.5f, rowScale);
                 drawShadowText(x + 6.0f * xs, ry, "No active threads", 0x7A8E9CFFu, rowScale);
                 return;
             }
@@ -344,7 +350,7 @@ namespace extra {
             {
                 int idx = shown[r];
                 const PsaThreadSnapshot& th = s_debug.threads[idx];
-                float ry = ui::style::textYForCap(y + 30.5f + static_cast<float>(r) * 11.8f, rowScale);
+                float ry = ui::style::textYForCap(y + 31.5f + static_cast<float>(r) * 11.8f, rowScale);
 
                 char frameBuf[12];
                 char waitBuf[12];

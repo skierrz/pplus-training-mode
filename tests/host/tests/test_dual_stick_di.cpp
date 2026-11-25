@@ -415,18 +415,25 @@ TEST(dual_stick_di, settings_layout_menu_row_and_storage_round_trip)
     CHECK_EQ(64u, sizeof(main::CpuSettings));
     CHECK_EQ(436u, sizeof(main::Settings));
 
-    // Dual-Stick SDI lives right after ASDI Direction on CPU Options (index 8).
-    const ui::Page& page = ui::pages::kCpuOptions;
-    REQUIRE(page.count >= 32);
-    CHECK(strcmp(page.options[7].name, "ASDI Direction") == 0);
-    CHECK(strcmp(page.options[8].name, "Dual-Stick SDI") == 0);
-    CHECK_EQ(ui::kKindToggle, page.options[8].kind);
-    CHECK_EQ(0, page.options[8].def);
-    CHECK(strcmp(page.options[27].name, "Adaptive CPU") == 0);
-    CHECK(strcmp(page.options[28].name, "Auto L-Cancel") == 0);
-    CHECK(strcmp(page.options[29].name, "SHFFL Timing") == 0);
-    CHECK(strcmp(page.options[page.count - 2].name, "Reversal Slots") == 0);
-    CHECK(strcmp(page.options[page.count - 1].name, "P+ Tech OSD") == 0);
+    // Dual-Stick SDI lives on CPU > DI & SDI (P_CPU_DI, row 3); counters live on P_CPU_COUNTERS;
+    // P+ Tech OSD lives on P_OSD_MENU (row 3).
+    const ui::Page& diPage = ui::pages::kCpuDi;
+    REQUIRE(diPage.count == 5);
+    CHECK(strcmp(diPage.options[3].name, "Dual-Stick SDI") == 0);
+    CHECK_EQ(ui::kKindToggle, diPage.options[3].kind);
+    CHECK_EQ(0, diPage.options[3].def);
+    CHECK(strcmp(diPage.options[4].name, "ASDI Direction") == 0);
+
+    const ui::Page& cntPage = ui::pages::kCpuCounters;
+    REQUIRE(cntPage.count == 9);
+    CHECK(strcmp(cntPage.options[5].name, "Reversal Slots") == 0);
+    CHECK(strcmp(cntPage.options[6].name, "Adaptive CPU") == 0);
+    CHECK(strcmp(cntPage.options[7].name, "Auto L-Cancel") == 0);
+    CHECK(strcmp(cntPage.options[8].name, "SHFFL Timing") == 0);
+
+    const ui::Page& osdPage = ui::pages::kOsdMenu;
+    REQUIRE(osdPage.count == 24);
+    CHECK(strcmp(osdPage.options[3].name, "P+ Tech OSD") == 0);
 
     host::card::reset();
     bootStorage();

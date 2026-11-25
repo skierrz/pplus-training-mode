@@ -15,7 +15,11 @@ namespace extra {
         kRevSlotsPerTrigger = 4,
         kRevMaxDelay = 30,
         kRevMaxPrimaryDelay = 99,
-        kRevMaxWeight = 100
+        kRevMaxWeight = 100,
+        // Sentinel Slot-0 action for On-Ledge when primary Ledge Option is
+        // Default (0): participates in weighted selection against Slot 2..4
+        // and yields back to Default ledge behavior when picked.
+        kRevActionDefault = 0xFE
     };
 
     enum ReversalFlag {
@@ -132,6 +136,34 @@ namespace extra {
         }
     }
 
+    // True when at least one secondary slot (Slot 2 persisted or session extra
+    // Slots 3..4) has a non-empty enabled action for `trigger`. When false,
+    // multi-slot reversal picking returns false immediately so Per-Hit Counters
+    // and On-Getup zero-delay defaults are never clobbered.
+    inline bool hasSecondaryReversal(int trigger, const cpu::CpuOptions& opts, const ReversalTable* extraSlots)
+    {
+        if (trigger < 0 || trigger >= cpu::kRevTriggerCount)
+        {
+            return false;
+        }
+        if (opts.revSlot2Action[trigger] != 0)
+        {
+            return true;
+        }
+        if (extraSlots != NULL)
+        {
+            for (int i = 2; i < kRevSlotsPerTrigger; i++)
+            {
+                const ReversalSlot& s = extraSlots->slots[trigger][i];
+                if ((s.flags & kRevFlagEnabled) != 0 && s.action != 0 && clampRevWeight(s.weight) > 0)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     // Builds the 4-slot candidate array for `trigger`:
     //   Slot 0: Primary setting (`counterGround`/`counterShield`/`getup`/`ledgeOption` + `counterDelay`),
     //           weight = 100 - revSlot2Weight[trigger]
@@ -148,7 +180,12 @@ namespace extra {
         const u8 w2 = clampRevWeight(opts.revSlot2Weight[trigger]);
         const u8 w1 = static_cast<u8>(kRevMaxWeight - w2);
 
-        out[0].action = primaryReversalAction(trigger, opts, roll);
+        u8 prim = primaryReversalAction(trigger, opts, roll);
+        if (prim == 0 && trigger == cpu::kRevOnLedge && opts.ledgeOption == cpu::kLedgeDefault)
+        {
+            prim = static_cast<u8>(kRevActionDefault);
+        }
+        out[0].action = prim;
         out[0].delay = clampRevDelay(opts.counterDelay, kRevMaxPrimaryDelay);
         out[0].weight = w1;
         out[0].flags = out[0].action != 0 ? static_cast<u8>(kRevFlagEnabled) : 0;
@@ -170,17 +207,28 @@ namespace extra {
     }
 
     // Top-level pick helper: returns false immediately when multiReversal == 0
-    // so default single-slot behavior is 100% untouched.
+    // or no secondary slot is configured for `trigger`, so default single-slot
+    // behavior, Per-Hit Counters, and On-Getup zero-delay stay 100% untouched.
     inline bool pickConfiguredReversal(int trigger, const cpu::CpuOptions& opts, const ReversalTable* extraSlots,
                                        u32 roll, int& outAction, int& outDelay)
     {
-        if (opts.multiReversal == 0 || trigger < 0 || trigger >= cpu::kRevTriggerCount)
+        if (opts.multiReversal == 0 || !hasSecondaryReversal(trigger, opts, extraSlots))
         {
             return false;
         }
         ReversalSlot slots[kRevSlotsPerTrigger];
         buildReversalSlots(trigger, opts, extraSlots, roll, slots);
-        return pickReversalSlot(slots, kRevSlotsPerTrigger, roll, outAction, outDelay);
+        if (!pickReversalSlot(slots, kRevSlotsPerTrigger, roll, outAction, outDelay))
+        {
+            return false;
+        }
+        if (outAction == kRevActionDefault)
+        {
+            outAction = 0;
+            outDelay = 0;
+            return false;
+        }
+        return true;
     }
 }
 }

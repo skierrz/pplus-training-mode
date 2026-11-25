@@ -5,10 +5,12 @@
 #include <string.h>
 
 #include "extra/drill_core_engines.h"
+#include "extra/drill_float_djc_core.h"
 #include "extra/drill_hover_ps_engines.h"
 #include "extra/drill_hud_core.h"
 #include "extra/drill_pplus_tech_engines.h"
 #include "extra/ui_assets.h"
+#include "main/game/fighters.h"
 #include "main/game/freeze.h"
 #include "main/game/pad_inmatch.h"
 #include "main/game/tracker.h"
@@ -349,6 +351,12 @@ namespace extra {
             else if (d == drills::kDrillHoverFloat)
             {
                 feed.fd = hoverPsFloatDjcSlot(slot);
+                const game::Tracked* tr = game::tracked(slot);
+                if (tr != NULL)
+                {
+                    int ftKind = game::fighterKind(tr->entryId, tr->partner);
+                    feed.ineligibleFighter = !isFloatCapable(ftKind) && !isDjcCapable(ftKind);
+                }
             }
             else if (d == drills::kDrillPowershield)
             {
@@ -526,6 +534,16 @@ namespace extra {
             drawLiveHud();
         }
         s_rt.debug.drawCalls++;
+    }
+
+    u8 drillHudActiveId()
+    {
+        return s_rt.st.activeDrill;
+    }
+
+    bool drillHudModalOpen()
+    {
+        return s_rt.st.modalOpen != 0;
     }
 }
 }

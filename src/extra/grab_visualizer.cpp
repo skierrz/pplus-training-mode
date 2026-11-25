@@ -11,6 +11,7 @@
 // 0x805483FF == 1) and rectangular item-pickup areas via GX_LINESTRIP, restoring
 // camera GX state afterward. Zero heap allocation; zero work when disabled.
 #include "extra/grab_visualizer.h"
+#include "extra/pplus_collision.h"
 
 #include <GX/GXTypes.h>
 #include <ft/fighter.h>
@@ -36,25 +37,12 @@ namespace extra {
     namespace {
         enum {
             kDebugMagic = 0x544D4756,            // "TMGV"
-            kCodeStart = 0x80000000,
-            kCodeEnd = 0x81000000,
-            kShapeOfAddr = 0x80740A3C,           // soCollision::getShape(coll, id, group)
-            kBubbleAddr = 0x80541FA0,            // P+ 3.2.1 hitbox bubble drawer trampoline
-            kBubbleGateAddr = 0x805483FF,        // P+ 3.2.1 debug color/bubble init gate (== 1)
-            kCatchRenderDebug = 0x80756A48,      // soCollisionCatchModuleImpl::renderDebug
-            kCatchSlotRenderDebug = 0x48,
-            kSearchRenderDebug = 0x807597DC,     // soCollisionSearchModuleImpl::renderDebug
-            kSearchSlotRenderDebug = 0x50,
             kAreaSetup = 0x807AE3F8,             // soAreaModuleImpl::setup (shared by ftAreaModuleImpl)
             kAreaSlotSetup = 0x28,
             kStageObjVptr = 0x3C,                // gfTask vptr (sizeof(gfTask) == 0x40)
             kSlotProcessAnim = 0x10,
             kStageObjProcessAnim = 0x8070F444,   // StageObject::processAnim
             kAccesserOffset = 0x60,
-            kCatchParts = 0x2C,                  // soCollisionCatchModuleImpl::m_collisionCatchPartArray
-            kCatchCollision = 0xC0,              // soCollisionCatchModuleImpl::m_collision
-            kSearchParts = 0x2C,                 // soCollisionSearchModuleImpl::m_collisionSearchPartArray
-            kSearchCollision = 0xB8,             // soCollisionSearchModuleImpl::m_collision
             kSearchPartGroup = 0x58,             // soCollisionSearchPart::m_groupIndex (88)
             kSearchInterval = 0xFC,              // soCollisionSearchModuleImpl::m_checkInterval (252)
             kSearchCounter = 0x100,              // soCollisionSearchModuleImpl::m_checkCounter (256)
@@ -71,48 +59,16 @@ namespace extra {
             kGfAreaPos = 0x20,                   // gfArea::m_pos (Vec2f)
             kGfAreaShapeData = 0x48,             // Rect: 4x Vec2f local corners; Circle: Vec2f offset + float r
             kGfAreaCircleRadius = 0x50,
-            kPartActive = 2,
-            kCollGroups = 0x08,
-            kShapeRadius = 0x0C,
-            kShapeActive = 0x24,
-            kShapeVtable = 0x30,
-            kShapeBefore = 0x34,
-            kCapsuleMatrix = 0x40,
-            kCapsuleVtable = 0x80ADEEE8,         // clCapsule
-            kArrayAt = 0x0C,
-            kArraySize = 0x14,
             kCategoryLists = 0x58,               // gfTaskScheduler category list heads (0x8002EFE8)
             kTaskNext = 0x10,
             kTaskFlags = 0x2C,
             kTaskAlive = 0x40000000,
-            kMaxParts = 32,
             kMaxAreas = 32,
             kMaxItemRects = 24,
             kMaxCategoryTasks = 96
         };
 
-        // Verified in P+ 3.2.1 RSBE01 rev 2 RAM dump:
-        // soCollision::getShape (0x80740A3C): stwu r1,-16(r1); mflr r0; lwz r3,8(r3); ...
-        const u32 kGetShapeWords[] = {
-            0x9421FFF0, 0x7C0802A6, 0x80630008, 0x90010014,
-            0x93E1000C, 0x7C9F2378, 0x7CA42B78, 0x81830000
-        };
-
-        // Target of branch at 0x80541FA0 (0x80576E18 in P+ 3.2.1):
-        // stwu r1,-336(r1); mflr r0; stw r0,340(r1); stmw r22,272(r1); ...
-        const u32 kBubbleBodyWords[] = {
-            0x9421FEB0, 0x7C0802A6, 0x90010154, 0xBEC10110,
-            0xDBE10138, 0xDBC10140, 0xFFE00890, 0x7C7C1B78
-        };
-
         const u8 kItemLineWidth = 18;
-
-        typedef const void* (*ShapeOfFn)(const void* collision, int id, u32 group);
-        typedef int (*ArraySizeFn)(const void* array);
-        typedef const void* (*ArrayAtFn)(const void* array, int index);
-        typedef void (*BubbleFn)(double radius, const float scaleMatrix[3][4], const float pos1[3],
-                                 const float pos2[3], const u32* color1, const u32* color2,
-                                 const float viewMatrix[3][4]);
 
         // RAM telemetry block exposed for live Dolphin tests ("TMGV").
         struct GrabVizDebugBlock {
@@ -142,84 +98,6 @@ namespace extra {
         };
 
         GrabVizDebugBlock s_debug;
-
-        u32 readWord(u32 address)
-        {
-            return *reinterpret_cast<const u32*>(address);
-        }
-
-        float floatAt(const void* base, u32 offset)
-        {
-            return *reinterpret_cast<const float*>(reinterpret_cast<u32>(base) + offset);
-        }
-
-        u32 branchTarget(u32 address)
-        {
-            u32 w = readWord(address);
-            if ((w & 0xFC000003u) != 0x48000000u)
-            {
-                return 0;
-            }
-            s32 offset = static_cast<s32>(w & 0x03FFFFFCu);
-            if ((offset & 0x02000000) != 0)
-            {
-                offset -= 0x04000000;
-            }
-            return address + static_cast<u32>(offset);
-        }
-
-        bool wordsMatch(u32 address, const u32* words, int count)
-        {
-            if (address < kCodeStart || address >= kCodeEnd)
-            {
-                return false;
-            }
-            for (int i = 0; i < count; i++)
-            {
-                if (readWord(address + 4u * static_cast<u32>(i)) != words[i])
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        int safeArraySize(const void* arr, const void* calls)
-        {
-            const void* fn = reinterpret_cast<const void*>(game::wordAt(calls, kArraySize));
-            return game::isRam(fn) ? reinterpret_cast<ArraySizeFn>(fn)(arr) : 0;
-        }
-
-        const void* safeArrayAt(const void* arr, const void* calls, int index)
-        {
-            const void* fn = reinterpret_cast<const void*>(game::wordAt(calls, kArrayAt));
-            return game::isRam(fn) ? reinterpret_cast<ArrayAtFn>(fn)(arr, index) : NULL;
-        }
-
-        int safeGroupCount(const void* coll)
-        {
-            if (!s_debug.shapeOk || !game::isRam(coll))
-            {
-                return 0;
-            }
-            const void* groups = reinterpret_cast<const void*>(game::wordAt(coll, kCollGroups));
-            const void* gVt = game::isRam(groups) ? reinterpret_cast<const void*>(game::wordAt(groups, 0)) : NULL;
-            if (!game::isRam(gVt))
-            {
-                return 0;
-            }
-            const void* atFn = reinterpret_cast<const void*>(game::wordAt(gVt, kArrayAt));
-            return game::isRam(atFn) ? safeArraySize(groups, gVt) : 0;
-        }
-
-        const void* safeShapeOf(const void* coll, int gCount, int id, u32 group)
-        {
-            if (gCount <= 0 || group >= static_cast<u32>(gCount))
-            {
-                return NULL;
-            }
-            return reinterpret_cast<ShapeOfFn>(kShapeOfAddr)(coll, id, group);
-        }
 
         const soModuleEnumeration* verifiedWeaponModules(const void* task, Weapon*& outWeapon)
         {
@@ -273,38 +151,15 @@ namespace extra {
 
         bool drawCollisionShape(const void* shape, u8 kind, const float viewMtx[3][4], bool& drewBubble)
         {
-            if (!s_debug.bubbleOk || !game::isRam(shape) || game::byteAt(shape, kShapeActive) != 1)
+            if (!s_debug.bubbleOk)
             {
                 return false;
-            }
-            float r = floatAt(shape, kShapeRadius);
-            if (!grabVizValidRadius(r))
-            {
-                return false;
-            }
-            float pos1[3];
-            float pos2[3];
-            float scaleMtx[3][4];
-            pos1[0] = floatAt(shape, 0);
-            pos1[1] = floatAt(shape, 4);
-            pos1[2] = floatAt(shape, 8);
-            pos2[0] = floatAt(shape, kShapeBefore);
-            pos2[1] = floatAt(shape, kShapeBefore + 4);
-            pos2[2] = floatAt(shape, kShapeBefore + 8);
-            if (game::wordAt(shape, kShapeVtable) == kCapsuleVtable)
-            {
-                memcpy(scaleMtx, reinterpret_cast<const void*>(reinterpret_cast<u32>(shape) + kCapsuleMatrix),
-                       sizeof(scaleMtx));
-            }
-            else
-            {
-                grabVizIdentityMatrix34(scaleMtx);
             }
             u32 c1 = grabVizColor(kind);
-            u32 c2 = grabVizShadeColor(c1);
-            BubbleFn drawBubble = reinterpret_cast<BubbleFn>(kBubbleAddr);
-            drawBubble(static_cast<double>(r), scaleMtx, pos1, pos2, &c1, &c2, viewMtx);
-            drewBubble = true;
+            if (!collEmitShapeBubble(shape, c1, grabVizShadeColor(c1), viewMtx, drewBubble))
+            {
+                return false;
+            }
             s_debug.drawCalls++;
             return true;
         }
@@ -317,35 +172,23 @@ namespace extra {
             }
             const void* catchMod = m->m_collisionCatchModule;
             const void* vt = reinterpret_cast<const void*>(game::wordAt(catchMod, 0));
-            if (!game::isRam(vt) || game::wordAt(vt, kCatchSlotRenderDebug) != kCatchRenderDebug)
+            if (!game::isRam(vt) || game::wordAt(vt, kCollCatchSlotRenderDebug) != kCollCatchRenderDebug)
             {
                 return;
             }
-            const void* parts = reinterpret_cast<const void*>(game::wordAt(catchMod, kCatchParts));
-            const void* calls = game::isRam(parts) ? reinterpret_cast<const void*>(game::wordAt(parts, 0)) : NULL;
-            if (!game::isRam(calls))
+            const void* parts = NULL;
+            const void* calls = NULL;
+            const void* coll = NULL;
+            int gCount = 0;
+            int limit = collOpenParts(catchMod, kCollCatchParts, kCollCatchCollision, parts, calls, coll, gCount);
+            for (int id = 0; id < limit; id++)
             {
-                return;
-            }
-            int count = safeArraySize(parts, calls);
-            if (count <= 0)
-            {
-                return;
-            }
-            const void* coll = reinterpret_cast<const void*>(reinterpret_cast<u32>(catchMod) + kCatchCollision);
-            int gCount = safeGroupCount(coll);
-            if (gCount <= 0)
-            {
-                return;
-            }
-            for (int id = 0; id < count && id < kMaxParts; id++)
-            {
-                const void* part = safeArrayAt(parts, calls, id);
-                if (!game::isRam(part) || game::wordAt(part, 0) != kPartActive)
+                const void* part = collArrayAt(parts, calls, id);
+                if (!game::isRam(part) || game::wordAt(part, 0) != kCollPartActive)
                 {
                     continue;
                 }
-                const void* shape = safeShapeOf(coll, gCount, id, 0);
+                const void* shape = collShapeOf(coll, gCount, id, 0);
                 if (drawCollisionShape(shape, kGrabVizGrab, viewMtx, drewBubble))
                 {
                     s_debug.grabShapes++;
@@ -362,7 +205,7 @@ namespace extra {
             }
             const void* searchMod = m->m_collisionSearchModule;
             const void* vt = reinterpret_cast<const void*>(game::wordAt(searchMod, 0));
-            if (!game::isRam(vt) || game::wordAt(vt, kSearchSlotRenderDebug) != kSearchRenderDebug)
+            if (!game::isRam(vt) || game::wordAt(vt, kCollSearchSlotRenderDebug) != kCollSearchRenderDebug)
             {
                 return;
             }
@@ -371,32 +214,20 @@ namespace extra {
             {
                 return;
             }
-            const void* parts = reinterpret_cast<const void*>(game::wordAt(searchMod, kSearchParts));
-            const void* calls = game::isRam(parts) ? reinterpret_cast<const void*>(game::wordAt(parts, 0)) : NULL;
-            if (!game::isRam(calls))
+            const void* parts = NULL;
+            const void* calls = NULL;
+            const void* coll = NULL;
+            int gCount = 0;
+            int limit = collOpenParts(searchMod, kCollSearchParts, kCollSearchCollision, parts, calls, coll, gCount);
+            for (int id = 0; id < limit; id++)
             {
-                return;
-            }
-            int count = safeArraySize(parts, calls);
-            if (count <= 0)
-            {
-                return;
-            }
-            const void* coll = reinterpret_cast<const void*>(reinterpret_cast<u32>(searchMod) + kSearchCollision);
-            int gCount = safeGroupCount(coll);
-            if (gCount <= 0)
-            {
-                return;
-            }
-            for (int id = 0; id < count && id < kMaxParts; id++)
-            {
-                const void* part = safeArrayAt(parts, calls, id);
-                if (!game::isRam(part) || game::wordAt(part, 0) != kPartActive)
+                const void* part = collArrayAt(parts, calls, id);
+                if (!game::isRam(part) || game::wordAt(part, 0) != kCollPartActive)
                 {
                     continue;
                 }
                 u32 group = game::wordAt(part, kSearchPartGroup);
-                const void* shape = safeShapeOf(coll, gCount, id, group);
+                const void* shape = collShapeOf(coll, gCount, id, group);
                 if (drawCollisionShape(shape, kGrabVizSearch, viewMtx, drewBubble))
                 {
                     s_debug.searchShapes++;
@@ -424,14 +255,14 @@ namespace extra {
             {
                 return;
             }
-            int count = safeArraySize(instArr, calls);
+            int count = collArraySize(instArr, calls);
             if (count <= 0)
             {
                 return;
             }
             for (int i = 0; i < count && i < kMaxAreas; i++)
             {
-                const void* inst = safeArrayAt(instArr, calls, i);
+                const void* inst = collArrayAt(instArr, calls, i);
                 if (!game::isRam(inst) || (game::byteAt(inst, kAreaInstFlags) & kAreaInstInitBit) == 0)
                 {
                     continue;
@@ -451,8 +282,8 @@ namespace extra {
                     continue;
                 }
                 u32 shapeType = game::wordAt(gf, kGfAreaShapeType);
-                float px = floatAt(gf, kGfAreaPos);
-                float py = floatAt(gf, kGfAreaPos + 4);
+                float px = collFloatAt(gf, kGfAreaPos);
+                float py = collFloatAt(gf, kGfAreaPos + 4);
                 if (shapeType == 0)
                 {
                     if (rectCount >= kMaxItemRects)
@@ -462,8 +293,8 @@ namespace extra {
                     ItemRect r;
                     for (int k = 0; k < 4; k++)
                     {
-                        r.xs[k] = px + floatAt(gf, kGfAreaShapeData + 8u * static_cast<u32>(k));
-                        r.ys[k] = py + floatAt(gf, kGfAreaShapeData + 8u * static_cast<u32>(k) + 4u);
+                        r.xs[k] = px + collFloatAt(gf, kGfAreaShapeData + 8u * static_cast<u32>(k));
+                        r.ys[k] = py + collFloatAt(gf, kGfAreaShapeData + 8u * static_cast<u32>(k) + 4u);
                     }
                     if (grabVizValidRect(r.xs, r.ys))
                     {
@@ -472,18 +303,17 @@ namespace extra {
                 }
                 else if (shapeType == 1 && s_debug.bubbleOk)
                 {
-                    float cx = px + floatAt(gf, kGfAreaShapeData);
-                    float cy = py + floatAt(gf, kGfAreaShapeData + 4);
-                    float radius = floatAt(gf, kGfAreaCircleRadius);
+                    float cx = px + collFloatAt(gf, kGfAreaShapeData);
+                    float cy = py + collFloatAt(gf, kGfAreaShapeData + 4);
+                    float radius = collFloatAt(gf, kGfAreaCircleRadius);
                     if (grabVizValidCoord(cx) && grabVizValidCoord(cy) && grabVizValidRadius(radius))
                     {
                         float pos[3] = {cx, cy, 0.0f};
                         float scaleMtx[3][4];
-                        grabVizIdentityMatrix34(scaleMtx);
+                        collIdentityMatrix34(scaleMtx);
                         u32 c1 = grabVizColor(kGrabVizItem);
-                        u32 c2 = grabVizShadeColor(c1);
-                        BubbleFn drawBubble = reinterpret_cast<BubbleFn>(kBubbleAddr);
-                        drawBubble(static_cast<double>(radius), scaleMtx, pos, pos, &c1, &c2, viewMtx);
+                        collDrawBubble(static_cast<double>(radius), scaleMtx, pos, pos, c1, grabVizShadeColor(c1),
+                                       viewMtx);
                         drewBubble = true;
                         s_debug.itemShapes++;
                         s_debug.totalItemDrawn++;
@@ -527,11 +357,8 @@ namespace extra {
     {
         memset(&s_debug, 0, sizeof(s_debug));
         s_debug.magic = kDebugMagic;
-        bool shapeOk = wordsMatch(kShapeOfAddr, kGetShapeWords, static_cast<int>(sizeof(kGetShapeWords) / 4));
-        u32 bubbleBody = branchTarget(kBubbleAddr);
-        bool bubbleGate = *reinterpret_cast<const u8*>(kBubbleGateAddr) == 1;
-        bool bubbleOk = bubbleBody != 0 && bubbleGate
-                        && wordsMatch(bubbleBody, kBubbleBodyWords, static_cast<int>(sizeof(kBubbleBodyWords) / 4));
+        bool shapeOk = collShapeSupported();
+        bool bubbleOk = collBubbleSupported();
         s_debug.shapeOk = shapeOk ? 1u : 0u;
         s_debug.bubbleOk = bubbleOk ? 1u : 0u;
         TM_LOG("grabviz: debug block at %08x; shape %s, bubble %s\n", &s_debug, shapeOk ? "ok" : "off",

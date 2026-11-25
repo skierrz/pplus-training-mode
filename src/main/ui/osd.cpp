@@ -332,6 +332,15 @@ namespace osd {
                       && (rec.hmnMode != 0
                           || (rec.cpuMode != 0 && s.cpu.options.control == cpu::kControlLab));
         float floorY = recBar ? ui::layout::recBarOsdFloor() : 0.0f;
+        if (!game::trainingGameMode())
+        {
+            // Stock Versus renders stock icons at y ~ 384..397 above portraits;
+            // cap bottom OSDs at 374 so even frame-0 glide-in (+4.9 px) stays clear.
+            if (floorY <= 0.0f || floorY > 374.0f)
+            {
+                floorY = 374.0f;
+            }
+        }
         float topY = 0.0f;
         if (s_position == kPositionTopLeft || s_position == kPositionTopRight)
         {

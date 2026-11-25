@@ -579,16 +579,40 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
         CHECK(!(lab.options[i].kind == ui::kKindMenu && lab.options[i].max == ui::pages::P_OSD_MENU));
         CHECK(!(lab.options[i].name != NULL && strcmp(lab.options[i].name, "OSD Menu") == 0));
     }
-    REQUIRE(lab.count == 13);
-    CHECK(strcmp(lab.options[7].name, "Controls") == 0);
-    CHECK_EQ(ui::pages::P_CONTROLS, lab.options[7].max);
-    CHECK(strcmp(lab.options[8].name, "Debug") == 0);
-    CHECK_EQ(ui::pages::P_DEBUG, lab.options[8].max);
+    REQUIRE(lab.count == 12);
+    CHECK(strcmp(lab.options[7].name, "Offline VS Displays") == 0);
+    CHECK((lab.options[7].flags & ui::kFlagTabsOnly) == 0);
+    CHECK(strcmp(lab.options[8].name, "Controls") == 0);
+    CHECK_EQ(ui::pages::P_CONTROLS, lab.options[8].max);
     CHECK((lab.options[9].flags & ui::kFlagTabsOnly) != 0);
     CHECK((lab.options[10].flags & ui::kFlagTabsOnly) != 0);
     CHECK((lab.options[11].flags & ui::kFlagTabsOnly) != 0);
-    CHECK(strcmp(lab.options[12].name, "Offline VS Displays") == 0);
-    CHECK((lab.options[12].flags & ui::kFlagTabsOnly) == 0);
+
+    const ui::Page& disp = ui::pages::kDisplayOptions;
+    REQUIRE(disp.count == 22);
+    CHECK(strcmp(disp.options[1].name, "Input Viewer") == 0);
+    CHECK(strcmp(disp.options[2].name, "Theme") == 0);
+    CHECK_EQ(ui::pages::P_THEME, disp.options[2].max);
+    CHECK(strcmp(disp.options[3].name, "Hitboxes") == 0);
+    CHECK(strcmp(disp.options[4].name, "Hitbox Colors") == 0);
+    CHECK((disp.options[4].flags & ui::kFlagHideWhenDisabled) != 0);
+    CHECK(strcmp(disp.options[10].name, "DI Display") == 0);
+    CHECK(strcmp(disp.options[11].name, "DI Vector") == 0);
+    CHECK((disp.options[11].flags & ui::kFlagHideWhenDisabled) != 0);
+    CHECK(strcmp(disp.options[21].name, "Advanced / Debug") == 0);
+    CHECK_EQ(ui::pages::P_DEBUG, disp.options[21].max);
+
+    const ui::Page& dbg = ui::pages::kDebug;
+    REQUIRE(dbg.count == 2);
+    CHECK(strcmp(dbg.options[0].name, "PSA Inspector") == 0);
+    CHECK(strcmp(dbg.options[1].name, "Debug Overlay") == 0);
+
+    const ui::Page& cpuP = ui::pages::kCpuOptions;
+    REQUIRE(cpuP.count == 13);
+    CHECK_EQ(ui::pages::P_CPU_DI, cpuP.options[4].max);
+    CHECK_EQ(ui::pages::P_CPU_COUNTERS, cpuP.options[5].max);
+    CHECK_EQ(ui::pages::P_TECH, cpuP.options[6].max);
+    CHECK_EQ(ui::pages::P_CPU_DEFENSE, cpuP.options[7].max);
 
     const ui::Page& scen = ui::pages::kScenarios;
     REQUIRE(scen.count == 6);
@@ -1150,22 +1174,25 @@ TEST(lab_menu, rail_hides_tabs_only_utilities_and_clamps_on_live_style_switch)
     ui::MenuInput inDown = {0, 1, 0, 0, false, false, false, false};
     ui::MenuInput noop = {0, 0, 0, 0, false, false, false, false};
 
-    // Draft C (Rail): Lab has 10 visible rows (0..8 and 12); rows 9..11 (kFlagTabsOnly) are omitted.
+    // Draft C (Rail): Lab has 9 visible rows (0..8); rows 9..11 (kFlagTabsOnly) are omitted.
     main::settings().controls.menuStyle = main::kMenuStyleRail;
     for (int i = 0; i < 15; i++)
     {
         ui::menuStep(menu, st, inDown);
     }
-    CHECK_EQ(12, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
+    CHECK_EQ(8, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
     host::canvas::clear();
     ui::menuDraw(menu, st);
-    CHECK(menuCanvasDrew("Debug"));
     CHECK(menuCanvasDrew("Offline VS Displays"));
+    CHECK(menuCanvasDrew("Controls"));
     CHECK(!menuCanvasDrew("Brawl Training Menu"));
 
-    // Live switch to Draft A (Tabs): all 13 rows appear including Reset / Brawl Training / Return to CSS.
+    // Live switch to Draft A (Tabs): all 12 rows appear including Reset / Brawl Training / Return to CSS.
     main::settings().controls.menuStyle = main::kMenuStyleTabs;
-    ui::menuStep(menu, st, inUp);
+    for (int i = 0; i < 5; i++)
+    {
+        ui::menuStep(menu, st, inDown);
+    }
     CHECK_EQ(11, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
     host::canvas::clear();
     ui::menuDraw(menu, st);
@@ -1176,6 +1203,7 @@ TEST(lab_menu, rail_hides_tabs_only_utilities_and_clamps_on_live_style_switch)
     main::settings().controls.menuStyle = main::kMenuStyleRail;
     ui::menuStep(menu, st, noop);
     CHECK_EQ(8, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
+    (void)inUp;
     storage::detach();
 }
 
@@ -1304,4 +1332,73 @@ TEST(menu, compressed_option_descriptions_decode_all_pages_and_bounds)
                  "Force Olimar pluck to pull Red, Yellow, Blue, White, or Purple.") == 0);
     CHECK(strcmp(extra::optionDesc(ui::pages::P_COUNT, 9),
                  "End this session and return to the Character Select Screen.") == 0);
+}
+
+TEST(lab_menu, progressive_disclosure_hides_child_rows_until_parent_enabled)
+{
+    bootLab();
+    main::setExtraHooks(&kNoHooks);
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuInput inDown = {0, 1, 0, 0, false, false, false, false};
+
+    // 1. Display: Hitbox Colors, Heatmap Bounds/Opacity/Step, and DI Vector stay hidden until enabled.
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+    const u8 dispPath[] = {ui::pages::P_DISPLAY};
+    REQUIRE(ui::menuJump(menu, st, dispPath, 1));
+    main::settings().display.hitboxes = 0;
+    main::settings().display.heatmap = 0;
+    main::settings().general.diDisplay = 0;
+    // Row 0 Match HUD -> 1 Input Viewer -> 2 Theme -> 3 Hitboxes -> 5 Hitbox Heatmap -> 9 Grab -> 10 DI Display -> 12 Stage Coll
+    static const int kDispCompact[] = {0, 1, 2, 3, 5, 9, 10, 12};
+    CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_DISPLAY]));
+    for (int i = 1; i < 8; i++)
+    {
+        ui::menuStep(menu, st, inDown);
+        CHECK_EQ(kDispCompact[i], static_cast<int>(st.cursor[ui::pages::P_DISPLAY]));
+    }
+    // Enable Hitboxes -> row 4 (Hitbox Colors) becomes reachable right under Hitboxes!
+    main::settings().display.hitboxes = 1;
+    st.cursor[ui::pages::P_DISPLAY] = 3;
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(4, static_cast<int>(st.cursor[ui::pages::P_DISPLAY]));
+
+    // 2. CPU > DI & SDI: SDI Direction (2) and Dual-Stick SDI (3) hidden while SDI Inputs == 0.
+    const u8 diPath[] = {ui::pages::P_CPU, ui::pages::P_CPU_DI};
+    REQUIRE(ui::menuJump(menu, st, diPath, 2));
+    main::settings().cpu.options.sdiAmount = 0;
+    CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_CPU_DI]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(1, static_cast<int>(st.cursor[ui::pages::P_CPU_DI]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(4, static_cast<int>(st.cursor[ui::pages::P_CPU_DI])); // jumped past rows 2 & 3 to ASDI Direction
+    main::settings().cpu.options.sdiAmount = 2;
+    st.cursor[ui::pages::P_CPU_DI] = 1;
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(2, static_cast<int>(st.cursor[ui::pages::P_CPU_DI]));
+
+    // 3. Recording: post-save rows (1..18) hidden when !positionsSaved; only row 0 visible.
+    host::fakes::recording().positions = false;
+    host::fakes::recording().rows = false;
+    const u8 recPath[] = {ui::pages::P_RECORDING};
+    REQUIRE(ui::menuJump(menu, st, recPath, 1));
+    CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_RECORDING]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_RECORDING]));
+
+    // 4. OSDs: Advantage Tolerance (row 10) hidden when Frame Advantage & Hit Advantage are both Off.
+    const u8 osdPath[] = {ui::pages::P_OSD_MENU};
+    REQUIRE(ui::menuJump(menu, st, osdPath, 1));
+    main::settings().osd.frameAdvantage = 0;
+    main::settings().osd.frameAdvantageOnHit = 0;
+    st.cursor[ui::pages::P_OSD_MENU] = 9; // Hit Advantage
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(11, static_cast<int>(st.cursor[ui::pages::P_OSD_MENU])); // skips row 10 Advantage Tolerance
+    main::settings().osd.frameAdvantage = 1;
+    st.cursor[ui::pages::P_OSD_MENU] = 9;
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(10, static_cast<int>(st.cursor[ui::pages::P_OSD_MENU]));
+
+    main::setExtraHooks(NULL);
+    storage::detach();
 }

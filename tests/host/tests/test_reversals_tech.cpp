@@ -189,6 +189,31 @@ TEST(reversals_tech, configured_reversals_all_four_triggers_and_off_passthrough)
     REQUIRE(pickConfiguredReversal(cpu::kRevOnHit, opts, &extraTbl, 175, act, del));
     CHECK_EQ(4, act);
     CHECK_EQ(20, del);
+
+    // P1 fix: multiReversal == 1 with empty Slot 2 (action == 0) and no extra Slots 3..4
+    // MUST return false (pass-through so Per-Hit Counters and On-Getup 0-delay stay untouched).
+    cpu::CpuOptions emptySlot2 = opts;
+    for (int t = 0; t < cpu::kRevTriggerCount; t++)
+    {
+        emptySlot2.revSlot2Action[t] = 0;
+        CHECK(!pickConfiguredReversal(t, emptySlot2, NULL, 0, act, del));
+        CHECK(!pickConfiguredReversal(t, emptySlot2, NULL, 99, act, del));
+    }
+
+    // P1 fix: On-Ledge with Ledge Option == Default (0) + Slot 2 Roll at 50% weight
+    // must weigh Default (50%, returns false with action 0 so stepLedge latches Default)
+    // against Roll (50%, returns true with kLedgeRoll) rather than firing Roll 100%.
+    cpu::CpuOptions ledgeDef = opts;
+    ledgeDef.ledgeOption = cpu::kLedgeDefault;
+    ledgeDef.revSlot2Action[cpu::kRevOnLedge] = cpu::kLedgeRoll;
+    ledgeDef.revSlot2Delay[cpu::kRevOnLedge] = 4;
+    ledgeDef.revSlot2Weight[cpu::kRevOnLedge] = 50;
+    CHECK(!pickConfiguredReversal(cpu::kRevOnLedge, ledgeDef, NULL, 10, act, del));
+    CHECK_EQ(0, act);
+    CHECK_EQ(0, del);
+    REQUIRE(pickConfiguredReversal(cpu::kRevOnLedge, ledgeDef, NULL, 75, act, del));
+    CHECK_EQ(static_cast<int>(cpu::kLedgeRoll), act);
+    CHECK_EQ(4, del);
 }
 
 // ---- 44-Fighter P+ Tech Tracker Table & State Machines ---------------------
@@ -423,17 +448,26 @@ TEST(reversals_tech, sd_migration_from_46_byte_cpu_options_and_round_trip)
     CHECK_EQ(436u, sizeof(main::Settings));
     CHECK_EQ(1u, sizeof(main::settings().cpu.reserved));
 
-    // P_CPU has two new rows appended at indices 30 and 31 (preserving 0..29).
+    // Streamlined CPU & OSD menu placement: Counters & Reversals hosts Auto L-Cancel,
+    // SHFFL Timing, and Reversal Slots; OSDs hosts P+ Tech OSD at row 3.
     const ui::Page& cpuPage = ui::pages::kCpuOptions;
-    REQUIRE(cpuPage.count == 32);
-    CHECK(strcmp(cpuPage.options[28].name, "Auto L-Cancel") == 0);
-    CHECK(strcmp(cpuPage.options[29].name, "SHFFL Timing") == 0);
-    CHECK(strcmp(cpuPage.options[30].name, "Reversal Slots") == 0);
-    CHECK_EQ(ui::kKindMenu, cpuPage.options[30].kind);
-    CHECK_EQ(static_cast<int>(ui::pages::P_REVERSALS), static_cast<int>(cpuPage.options[30].max));
-    CHECK(strcmp(cpuPage.options[31].name, "P+ Tech OSD") == 0);
-    CHECK_EQ(ui::kKindToggle, cpuPage.options[31].kind);
-    CHECK_EQ(0, cpuPage.options[31].def);
+    REQUIRE(cpuPage.count == 13);
+    CHECK(strcmp(cpuPage.options[5].name, "Counters & Reversals") == 0);
+    CHECK_EQ(static_cast<int>(ui::pages::P_CPU_COUNTERS), static_cast<int>(cpuPage.options[5].max));
+
+    const ui::Page& countersPage = ui::pages::kCpuCounters;
+    REQUIRE(countersPage.count == 9);
+    CHECK(strcmp(countersPage.options[5].name, "Reversal Slots") == 0);
+    CHECK_EQ(ui::kKindMenu, countersPage.options[5].kind);
+    CHECK_EQ(static_cast<int>(ui::pages::P_REVERSALS), static_cast<int>(countersPage.options[5].max));
+    CHECK(strcmp(countersPage.options[7].name, "Auto L-Cancel") == 0);
+    CHECK(strcmp(countersPage.options[8].name, "SHFFL Timing") == 0);
+
+    const ui::Page& osdPage = ui::pages::kOsdMenu;
+    REQUIRE(osdPage.count == 24);
+    CHECK(strcmp(osdPage.options[3].name, "P+ Tech OSD") == 0);
+    CHECK_EQ(ui::kKindToggle, osdPage.options[3].kind);
+    CHECK_EQ(0, osdPage.options[3].def);
 
     // P_REVERSALS has 14 rows and every row has a description in extra.
     const ui::Page& revPage = ui::pages::kReversalSlots;

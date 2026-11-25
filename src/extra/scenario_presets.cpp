@@ -12,6 +12,7 @@
 #include "extra/combo_trainer.h"
 #include "extra/drill_core_engines.h"
 #include "extra/drill_hover_ps_engines.h"
+#include "extra/drill_hud.h"
 #include "extra/drill_pplus_tech_engines.h"
 #include "extra/pplus_recovery.h"
 #include "extra/scenario_presets_core.h"
@@ -549,14 +550,20 @@ namespace extra {
     bool scenarioPresetsCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out,
                                 u32 lastButtons)
     {
-        if (s_state.activePreset == kScenarioOff || !who.cpu || f == NULL)
+        if (!who.cpu || f == NULL)
         {
             return false;
         }
-        if (s_state.activePreset != kScenarioMultiHitSdi && s_state.activePreset != kScenarioLedgetech
-            && s_state.activePreset != kScenarioSlideOff)
+        const bool psDrill = (s_state.activePreset == kScenarioOff)
+                             && (drillHudActiveId() == drills::kDrillPowershield)
+                             && !drillHudModalOpen();
+        if (!psDrill)
         {
-            return false;
+            if (s_state.activePreset != kScenarioMultiHitSdi && s_state.activePreset != kScenarioLedgetech
+                && s_state.activePreset != kScenarioSlideOff)
+            {
+                return false;
+            }
         }
 
         game::FighterRef refs[game::kMaxFighters];
@@ -605,7 +612,14 @@ namespace extra {
         in.lastButtons = lastButtons;
 
         ScenarioCpuOutput cpuOut;
-        stepScenarioCpu(in, s_cpuState, cpuOut);
+        if (psDrill)
+        {
+            stepPowershieldDrillCpu(in, s_cpuState, cpuOut);
+        }
+        else
+        {
+            stepScenarioCpu(in, s_cpuState, cpuOut);
+        }
         if (!cpuOut.active)
         {
             return false;

@@ -136,7 +136,7 @@ namespace extra {
             TechSlotStats& stats = s_block.slots[t->playerNo];
             if (stepFighterTech(in, s_watches[i], stats, label) && postOsd && label != NULL)
             {
-                osd::post(t->playerNo, osd::kIdMiscellaneous, osd::kGreen, "%s\nCount: %u", label, stats.successes);
+                osd::post(t->playerNo, osd::kIdPPlusTech, osd::kGreen, "%s\nCount: %u", label, stats.successes);
                 stats.osdPosted++;
             }
         }

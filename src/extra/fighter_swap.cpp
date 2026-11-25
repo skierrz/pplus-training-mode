@@ -28,10 +28,13 @@
 #include "main/record/record.h"
 #include "main/savestate/savestate.h"
 #include "main/services.h"
+#include "main/storage/notice.h"
+#include "main/ui/menu.h"
 #include "main/ui/pages/fighter_swap.h"
 #include "shared/drill_session.h"
 #include "shared/game/frame.h"
 #include "shared/game/mem.h"
+#include "shared/game/menu_sound.h"
 #include "shared/log.h"
 #include "shared/version.h"
 
@@ -324,11 +327,28 @@ namespace extra {
             s_synced = true;
         }
 
+        const char* refuseNoticeText(u8 code)
+        {
+            switch (code)
+            {
+            case kRefuseDrill:
+                return "Fighter Swap unavailable during a Skill Drill";
+            case kRefuseSetBudget:
+                return "Fighter Swap refused: max 3 fighter sets in match";
+            case kRefuseLoading:
+                return "Fighter Swap busy: another load is in progress";
+            default:
+                return "Fighter Swap unavailable in this match state";
+            }
+        }
+
         void recordRefusal(u8 code, const char* why)
         {
             s_debug.refusalCount++;
             s_debug.lastRefusal = code;
             TM_LOG("swap: refused: %s\n", why);
+            storage::notice(storage::kNoticeError, "%s", refuseNoticeText(code));
+            ui::menuSound(game::kSoundError);
         }
 
         bool canSwapNow()

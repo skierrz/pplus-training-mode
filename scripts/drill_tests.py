@@ -172,20 +172,20 @@ def check_list_screens(emu, taken, notes):
     if hi0 or not hi1:
         raise nav.NavError(f"the highlight is not on Combo Lab alone (row 0 {c0}, row 1 {c1})")
 
-    # Hold Down with key repeat to row 11 (Browse Recordings, scrolled by 2 -> visible row 9)
+    # Hold Down with key repeat to row 17 (RAR / DACUS / B-Rev, scrolled by 8 -> visible row 9)
     # and verify bottom clamp.
     emu.hold(0, stick=DOWN)
-    emu.advance(80)
+    emu.advance(130)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 11:
-        raise nav.NavError(f"Down repeat did not reach bottom All Modes row 11, at {last_row(emu)}")
+    if last_row(emu) != 17:
+        raise nav.NavError(f"Down repeat did not reach bottom All Modes row 17, at {last_row(emu)}")
     emu.hold(0, stick=DOWN)
     emu.advance(20)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 11:
-        raise nav.NavError(f"Down at bottom row moved off row 11 to {last_row(emu)}")
+    if last_row(emu) != 17:
+        raise nav.NavError(f"Down at bottom row moved off row 17 to {last_row(emu)}")
     path = shot(emu, taken, "drills-list-all-bottom")
     hi9, c9 = row_highlighted(path, 9)
     hi8, c8 = row_highlighted(path, 8)
@@ -1124,8 +1124,8 @@ def run_wii_inmatch(emu, notes, state, taken):
     state["step"] = "wii-inmatch: switch Menu Open to Z in Pause"
     wii_set_extension(emu, "classic", PAD_TYPE_CLASSIC)
     wii_menu_open(emu, classic, "wii-inmatch: Classic open for Controls")
-    # Lab row 0 -> row 7 (Controls): 7 Downs, then A enters Controls.
-    for _ in range(7):
+    # Lab row 0 -> row 8 (Controls; row 7 is Offline VS Displays): 8 Downs, then A enters Controls.
+    for _ in range(8):
         wii_press(emu, classic["down"], frames=9, after=10)
     wii_press(emu, classic["confirm"], frames=9, after=10)
     # Controls row 0 -> row 7 (Menu Open): 7 Downs, then Left to switch Start (1) -> Z in Pause (0).

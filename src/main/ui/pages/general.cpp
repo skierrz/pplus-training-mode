@@ -22,14 +22,13 @@ namespace pages {
         TM_CHOICE("Game Speed", general.gameSpeed, kGameSpeed, 0, NULL),
         TM_CHOICE("Camera", general.cameraMode, kCamera, 0, NULL),
         TM_TOGGLE("Move Staling", general.moveStaling, 1, NULL),
+        TM_TOGGLE("Offline VS Displays", general.offlineVersus, 0, NULL),
         TM_MENU("Controls", P_CONTROLS),
-        TM_MENU("Debug", P_DEBUG),
         TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagTabsOnly, 0, 0, 0, 0, "Reset Settings", lab::g_resetLabel,
                lab::resetAllPressed, NULL),
         TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagTabsOnly, 0, 0, 0, 0, "Brawl Training Menu", NULL,
                lab::openTrainingMenu, NULL),
-        TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagTabsOnly, 0, 0, 0, 0, "Return to CSS", NULL, lab::exitMatch, NULL),
-        TM_TOGGLE("Offline VS Displays", general.offlineVersus, 0, NULL)
+        TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagTabsOnly, 0, 0, 0, 0, "Return to CSS", NULL, lab::exitMatch, NULL)
     };
 
     extern const Page kGeneral = TM_PAGE("Lab", kRows);

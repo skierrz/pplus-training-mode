@@ -566,7 +566,7 @@ namespace ui {
             // when the scripts do not settle it.
             int how = main::kActNone;
             int n = extra::framesUntilActionable(ref.fighter, &how);
-            snprintf(buf, size, n >= 0 ? "Actionable In: %d" : "Actionable In:", n);
+            snprintf(buf, size, n >= 0 ? "Actionable In: %d" : "Actionable In: -", n);
             return true;
         }
         case kInfoStateName:

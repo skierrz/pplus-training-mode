@@ -39,8 +39,8 @@ namespace extra {
     };
 
     enum {
-        kTmHoldFrames = 30,
-        kTmActFlashFrames = 12,
+        kTmHoldFrames = 60,
+        kTmActFlashFrames = 20,
         kTmLcWindowFrames = 7,
         kTmMaxEvents = 8,
         kTmModeOff = 0,

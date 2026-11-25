@@ -215,3 +215,23 @@ TEST(osd_place, floor_lifts_lower_stacks_above_rec_bar_and_leaves_top_rows)
         }
     }
 }
+
+TEST(osd_place, vs_stock_floor_clears_stock_icons_during_glide_in)
+{
+    // Offline VS stock icons sit around y = 384..397; capping floorY at 374.0f
+    // leaves >= 5px clearance even on frame-0 glide-in (+4.9px downward offset).
+    const float vsFloorY = 374.0f;
+    const float xs[2] = {1.0f, 0.75f};
+    for (int k = 0; k < 2; k++)
+    {
+        for (int p = 0; p < 4; p++)
+        {
+            for (int pos = osd::kPositionHud; pos <= osd::kPositionSides; pos++)
+            {
+                osd::StackPlace s = osd::stackPlace(pos, p, xs[k], vsFloorY);
+                float bottomWithGlide = s.y + osd::kBoxHeight * 0.5f + 4.9f;
+                CHECK(bottomWithGlide < 384.0f);
+            }
+        }
+    }
+}

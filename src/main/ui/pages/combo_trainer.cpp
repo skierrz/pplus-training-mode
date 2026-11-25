@@ -15,9 +15,31 @@ namespace pages {
         return comboActive() && main::settings().comboTrainer.enabled != 0;
     }
 
+    static bool comboAnyResetEnabled()
+    {
+        const main::ComboTrainerSettings& c = main::settings().comboTrainer;
+        return comboOptionEnabled() && (c.fixPosition != 0 || c.recoveryTrainer != 0);
+    }
+
+    static bool comboFixPosEligible()
+    {
+        return comboOptionEnabled() && main::settings().comboTrainer.recoveryTrainer == 0;
+    }
+
+    static bool comboFixPosChildEnabled()
+    {
+        const main::ComboTrainerSettings& c = main::settings().comboTrainer;
+        return comboFixPosEligible() && c.fixPosition != 0;
+    }
+
     static bool comboRandGroundEnabled()
     {
-        return comboOptionEnabled() && main::settings().comboTrainer.randomizePosition != 0;
+        return comboFixPosChildEnabled() && main::settings().comboTrainer.randomizePosition != 0;
+    }
+
+    static bool comboFixedDmgEnabled()
+    {
+        return comboAnyResetEnabled() && main::settings().comboTrainer.randomizeDamage == 0;
     }
 
 #define TM_COMBO_TOGGLE(name, f, def, en) \
@@ -29,13 +51,13 @@ namespace pages {
 
     static const Option kRows[] = {
         TM_COMBO_TOGGLE("Enabled", comboTrainer.enabled, 0, comboActive),
-        TM_COMBO_TOGGLE("Noclip Reset", comboTrainer.noclip, 0, comboOptionEnabled),
-        TM_COMBO_TOGGLE("Fix Position", comboTrainer.fixPosition, 0, comboOptionEnabled),
-        TM_COMBO_TOGGLE("Random Position", comboTrainer.randomizePosition, 0, comboOptionEnabled),
+        TM_COMBO_TOGGLE("Noclip Reset", comboTrainer.noclip, 0, comboAnyResetEnabled),
+        TM_COMBO_TOGGLE("Fix Position", comboTrainer.fixPosition, 0, comboFixPosEligible),
+        TM_COMBO_TOGGLE("Random Position", comboTrainer.randomizePosition, 0, comboFixPosChildEnabled),
         TM_COMBO_TOGGLE("Random On Ground", comboTrainer.randOnGround, 0, comboRandGroundEnabled),
-        TM_COMBO_TOGGLE("Random Damage", comboTrainer.randomizeDamage, 0, comboOptionEnabled),
-        TM_COMBO_INT("Fixed Damage", comboTrainer.fixedDamage, 0, 999, 0, "%d%%", comboOptionEnabled),
-        TM_COMBO_INT("Timer Adjust", comboTrainer.comboTimerAdjustment, -60, 60, 0, "%+df", comboOptionEnabled),
+        TM_COMBO_TOGGLE("Random Damage", comboTrainer.randomizeDamage, 0, comboAnyResetEnabled),
+        TM_COMBO_INT("Fixed Damage", comboTrainer.fixedDamage, 0, 999, 0, "%d%%", comboFixedDmgEnabled),
+        TM_COMBO_INT("Timer Adjust", comboTrainer.comboTimerAdjustment, -60, 60, 0, "%+df", comboFixPosChildEnabled),
         TM_COMBO_TOGGLE("Recovery Trainer", comboTrainer.recoveryTrainer, 0, comboOptionEnabled),
         TM_MENU_IF("Floating Meters", P_COMBO_METERS, comboOptionEnabled)
     };

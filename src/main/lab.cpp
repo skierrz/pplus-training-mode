@@ -426,6 +426,7 @@ namespace lab {
     {
         s_st.open = true;
         g_resetLabel[0] = 0;
+        record::clearDeleteConfirm();
         s_st.openStart = start;
         s_st.owner = port;
         s_st.nextCatHold = 0;
@@ -459,6 +460,8 @@ namespace lab {
             return;
         }
         s_st.open = false;
+        g_resetLabel[0] = 0;
+        record::clearDeleteConfirm();
         // Whatever is still held when the menu closes stays hidden until it
         // is let go, so it neither moves Training's menu nor the fighters.
         for (int i = 0; i < kPorts; i++)
@@ -592,9 +595,21 @@ namespace lab {
         }
         // B on the top page (Tabs) or left rail (Rail) closes the menu when
         // opened from Training's pause; in Start mode, Start closes.
+        int prevPage = ui::currentPage(s_menu);
+        u8 prevCur = s_menu.cursor[prevPage];
+        bool prevRail = s_menu.railFocus;
+        u8 prevRailCur = s_menu.railCursor;
         if (!ui::menuStep(ui::labMenu(), s_menu, mi) && !s_st.openStart)
         {
             closeByButton();
+            return;
+        }
+        int nextPage = ui::currentPage(s_menu);
+        if (nextPage != prevPage || s_menu.cursor[nextPage] != prevCur || s_menu.railFocus != prevRail
+            || s_menu.railCursor != prevRailCur)
+        {
+            g_resetLabel[0] = 0;
+            record::clearDeleteConfirm();
         }
     }
 
@@ -1455,7 +1470,7 @@ namespace lab {
                 {
                     main::extraPsaInspectorDraw(m, s_st.open);
                 }
-                if (hud && (ro || !(s_st.open && storage::noticeActive())))
+                if (hud && !ro && !(s_st.open && storage::noticeActive()))
                 {
                     TM_PERF_SCOPE(kWatermark);
                     ui::drawWatermark();

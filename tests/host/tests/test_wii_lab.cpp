@@ -268,8 +268,8 @@ TEST(wii_lab, classic_nunchuk_sideways_open_nav_close_and_pause_hints)
     CHECK(lab_uut::menuOpen());
     CHECK_EQ(0u, pads[4].m_buttonsCurrentFrame.bits); // hidden while open
 
-    // Neutral, move down 7 to Controls and press A to enter Controls (depth 1), then + to close.
-    for (int i = 0; i < 7; i++)
+    // Neutral, move down 8 to Controls (row 7 is Offline VS Displays) and press A to enter Controls (depth 1).
+    for (int i = 0; i < 8; i++)
     {
         setPad(pads[4], 0);
         stepBoth(pads);

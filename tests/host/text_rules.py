@@ -231,6 +231,7 @@ WORDS = {
     ("settings_file.cpp", "resultText(r)"): file_results,
     ("settings_file.cpp", "resultText(s_job.result())"): file_results,
     ("pplus_tech_tracker.cpp", "label"): array("extra/pplus_tech_tracker_core.h", "kTable"),
+    ("fighter_swap.cpp", "refuseNoticeText(code)"): returned("extra/fighter_swap.cpp", "refuseNoticeText"),
 }
 
 # ---- restated layouts ----------------------------------------------------------
@@ -588,6 +589,10 @@ def record_cpp(c, src):
             continue
         if lit.name == "message":
             c.item("bar-message", lit, lit.text)
+        elif lit.name == "strcpy" and "g_delete" in lit.first:
+            # Double-press "A: Confirm" labels on Delete Positions / Delete Slot (12 bytes).
+            c.item("menu-value", lit, lit.text)
+            c.buffer(lit, lit.text, 12.0)
         elif lit.func in ("savePositions",) and re.search(r"why =$", lit.stmt):
             pass  # a reason for the log
         else:

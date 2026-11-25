@@ -256,5 +256,9 @@ namespace extra {
 
     // Steps optional CPU pressure input scripting for active scenarios.
     void stepScenarioCpu(const ScenarioCpuInput& in, ScenarioCpuState& st, ScenarioCpuOutput& out);
+
+    // Steps default repeating CPU jab/poke attacker for Boot > Skill Drills >
+    // P+ Powershield when no Scenario Preset or Recording overrides the CPU.
+    void stepPowershieldDrillCpu(const ScenarioCpuInput& in, ScenarioCpuState& st, ScenarioCpuOutput& out);
 }
 }

@@ -84,16 +84,18 @@ MAIN_GENERAL, MAIN_SCENARIOS, MAIN_CPU, MAIN_RECORDING, MAIN_DISPLAY, MAIN_OSD, 
 MAIN_RESET, MAIN_TRAINING, MAIN_EXIT = 7, 8, 9
 MAIN_DISABLED, MAIN_ROWS = (), 10
 GEN_FRAME_ADVANCE, GEN_PLAYER_PERCENT, GEN_LOCK_PLAYER, GEN_PLAYER_SHIELDS = 0, 1, 2, 3
-GEN_GAME_SPEED, GEN_CAMERA, GEN_STALING, GEN_CONTROLS, GEN_DEBUG = 4, 5, 6, 7, 8
-GEN_RAIL_ROWS, GEN_TABS_ROWS = 10, 13
+GEN_GAME_SPEED, GEN_CAMERA, GEN_STALING, GEN_OFFLINE_VS, GEN_CONTROLS = 4, 5, 6, 7, 8
+GEN_RAIL_ROWS, GEN_TABS_ROWS = 9, 12
 GEN_ROWS = GEN_RAIL_ROWS
 CPU_PERCENT_ROW, CPU_LOCK_ROW = 0, 1
+CPU_DEFENSE_ROW, CPU_SHIELD_HEALTH_ROW = 7, 1
 INFO_PRESET, INFO_SIZE = 0, 1
 CONTROLS_MENU_BUTTON, CONTROLS_CODE_MENU, CONTROLS_MENU_STYLE = 7, 8, 9
-OSD_ROWS = 22
-CPU_INFINITE_SHIELDS_HEALTH = 16
-DISPLAY_HMN_INFO, DISPLAY_CPU_INFO = 14, 15
-DISPLAY_ROWS = 21  # Display page rows (Match HUD .. DI Vector)
+OSD_POWERSHIELD = 11  # visible row at default (Advantage Tolerance hidden)
+OSD_ROWS = 23         # visible OSD rows at default (24 total minus hidden Advantage Tolerance)
+DISPLAY_HMN_INFO, DISPLAY_CPU_INFO, DISPLAY_DEBUG = 13, 14, 16  # visible Display rows at default
+DISPLAY_ROWS = 17     # visible Display rows at default (Hitbox Colors, Heatmap*, DI Vector hidden)
+DEBUG_OVERLAY_ROW = 1  # Display > Advanced / Debug: 0 PSA Inspector, 1 Debug Overlay
 PRESETS = {"none": 0, "state": 1, "ledge": 2, "damage": 3, "debug": 4}
 SIZES = {"small": 0, "medium": 1, "large": 2}
 # main::Settings offsets (src/main/settings.h; the module checks them at build time).
@@ -889,14 +891,16 @@ def infinite_shields(emu, lab, cpu, note, shot):
     lab.open_menu()
     lab.main_to(MAIN_CPU)
     lab.tap(["A"])
-    lab.down(CPU_INFINITE_SHIELDS_HEALTH)
+    lab.down(CPU_DEFENSE_ROW)
+    lab.tap(["A"])  # Shield & Grab
+    lab.down(CPU_SHIELD_HEALTH_ROW)
     emu.advance(4)
     shot("lab-cpu-shields-60")
     lab.tap(stick=RIGHT)
     top = lab.setting(SET_SHIELD_HEALTH)
     lab.tap(stick=LEFT)
     one_less = lab.setting(SET_SHIELD_HEALTH)
-    lab.back_to_main()
+    lab.back_to_main(2)
     lab.close_menu()
     nav.resume_training(emu)
     try:
@@ -1735,10 +1739,15 @@ def cmd_test_lab(rest):
                              rf"lab: Player percent {PLAYER_PERCENT} applied to entry {human['entry']:x} \(P1\), damage now {PLAYER_PERCENT}\.0",
                              pos)
                 shot("lab-menu-general")
-                lab.down(GEN_DEBUG - GEN_PLAYER_PERCENT)
-                lab.tap(["A"])
+                lab.back_to_main(1)
+                lab.main_to(MAIN_DISPLAY)
+                lab.tap(["A"])  # Display
+                lab.down(DISPLAY_DEBUG)
+                lab.tap(["A"])  # Advanced / Debug
+                lab.down(DEBUG_OVERLAY_ROW)
                 lab.toggle_on(SET_OVERLAY)
                 lab.back_to_main(2)
+                lab.up(MAIN_DISPLAY)
 
                 step = "CPU Options: CPU Percent, key repeat, lock"
                 lab.main_to(MAIN_CPU)
@@ -1822,11 +1831,10 @@ def cmd_test_lab(rest):
                 lab.set_choice(SET_CPU_INFO + 2, row1)
                 note(f"CPU Info Display row 1: right from {IV_SYS_L} skipped unavailable {IV_ENG_C} to {IV_SYS_C}; back to {row1}")
                 note(f"info presets: HMN rows {rows}, CPU rows {list(emu.read(lab.settings + SET_CPU_INFO + 2, 8))}")
-                lab.back_to_main(2)
-                lab.up(MAIN_DISPLAY)
-                lab.tap(["A"])  # Lab
-                lab.down(GEN_DEBUG)
-                lab.tap(["A"])
+                lab.tap(["B"])  # back to Display (row DISPLAY_CPU_INFO)
+                lab.down(DISPLAY_DEBUG - DISPLAY_CPU_INFO)
+                lab.tap(["A"])  # Advanced / Debug
+                lab.down(DEBUG_OVERLAY_ROW)
                 lab.toggle_off(SET_OVERLAY)
                 lab.close_menu()
                 nav.resume_training(emu)
@@ -2085,19 +2093,19 @@ def cmd_test_lab(rest):
                 lab.main_to(MAIN_OSD)
                 lab.tap(["A"])
                 shot("restyle-osd-menu")
-                # Five downs from OSD Position land on Powershield (row 5),
-                # which A turns on (and back off).
-                lab.down(5)
+                # Eleven downs from OSD Position land on Powershield (visible row 11,
+                # Advantage Tolerance hidden at default), which A turns on (and back off).
+                lab.down(OSD_POWERSHIELD)
                 lab.tap(["A"])
                 shot("restyle-unavailable-skipped")
                 on = lab.setting(SET_OSD_POWERSHIELD)
                 lab.tap(["A"])
                 if on != 1 or lab.setting(SET_OSD_POWERSHIELD) != 0:
-                    raise LabError(f"five downs on OSDs did not land on Powershield (A set it to {on})")
-                note("OSDs: five downs landed on Powershield")
-                # Scroll to the last row of OSDs (22 rows > 11 visible rows).
+                    raise LabError(f"{OSD_POWERSHIELD} downs on OSDs did not land on Powershield (A set it to {on})")
+                note(f"OSDs: {OSD_POWERSHIELD} downs landed on Powershield")
+                # Scroll to the last row of OSDs (23 visible rows > 11 visible rows).
                 # Visible row 1 (Act OoAirborne) has no descenders for glyph measurement.
-                lab.down(OSD_ROWS - 1 - 5)
+                lab.down(OSD_ROWS - 1 - OSD_POWERSHIELD)
                 opened = shot("restyle-scrolled")
                 menu_check(note, closed, opened, xscale, "OSDs scrolled to bottom", cursor_row=10,
                            count=OSD_ROWS, scroll=OSD_ROWS - 11, cursor_box=True, name_row=1)

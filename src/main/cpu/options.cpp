@@ -7,6 +7,9 @@
 #include <ft/ft_entry.h>
 #include <ft/ft_entry_manager.h>
 #include <ft/ft_manager.h>
+#include <gf/gf_heap_manager.h>
+#include <gf/gf_memory_pool.h>
+#include <memory.h>
 #include <so/ground/so_ground_module_impl.h>
 #include <so/so_module_accesser.h>
 #include <so/work/so_work_manage_module_impl.h>
@@ -34,6 +37,7 @@
 #include "main/record/record.h"
 #include "main/settings.h"
 #include "shared/game/frame.h"
+#include "shared/game/heap.h"
 #include "shared/game/mem.h"
 #include "shared/log.h"
 
@@ -2004,10 +2008,31 @@ namespace cpu {
             playSlot = -1;
             noTech = false;
             revPicked = false;
-            if (!isCliffWaitStatus(v.status) || (!ledgeState.active && !pickMultiRev(kRevOnLedge, who.entryId)))
+            if (!isCliffWaitStatus(v.status))
             {
                 revAction = base;
                 revDelay = c.counterDelay;
+            }
+            else if (!ledgeState.active)
+            {
+                if (!pickMultiRev(kRevOnLedge, who.entryId))
+                {
+                    if (c.ledgeOption == kLedgeDefault)
+                    {
+                        // Slot 0 (Default ledge behavior) won the weighted roll:
+                        // latch active/kLedgeDefault so we yield cleanly without re-rolling.
+                        ledgeState.active = true;
+                        ledgeState.chosen = kLedgeDefault;
+                        revAction = kLedgeDefault;
+                        return false;
+                    }
+                    revAction = c.ledgeOption;
+                    revDelay = c.counterDelay;
+                }
+            }
+            else if (ledgeState.chosen == kLedgeDefault)
+            {
+                return false;
             }
             LedgeInput li;
             if (stepLedgeOption(revAction, revDelay, v.status, v.lr, rnd(), ledgeState, li))
@@ -2033,7 +2058,7 @@ namespace cpu {
         }
     };
 
-    static Brain s_brains[kMaxSlots];
+    static Brain* s_brains = NULL;
 
     bool cue(int playerNo, int list, int index, s32 frame)
     {
@@ -2066,6 +2091,10 @@ namespace cpu {
     {
         cueCancel(playerNo);
         holdRelease(playerNo);
+        if (s_brains == NULL)
+        {
+            return;
+        }
         for (int i = 0; i < kMaxSlots; i++)
         {
             Brain& b = s_brains[i];
@@ -2081,6 +2110,10 @@ namespace cpu {
 
     s32 techReady(int playerNo)
     {
+        if (s_brains == NULL)
+        {
+            return 0;
+        }
         for (int i = 0; i < kMaxSlots; i++)
         {
             if (s_brains[i].player == playerNo)
@@ -2110,7 +2143,7 @@ namespace cpu {
         {
             return;
         }
-        for (int i = 0; i < kMaxSlots && q->state == kCueRunning; i++)
+        for (int i = 0; s_brains != NULL && i < kMaxSlots && q->state == kCueRunning; i++)
         {
             Brain& b = s_brains[i];
             if (b.player == playerNo && b.state == kAfter)
@@ -2726,10 +2759,19 @@ namespace cpu {
         s8 savedPort[kMaxSlots];
         u8 savedType[kMaxSlots];
     };
-    static Saved s_saved[2];
+    struct OptionsHeap {
+        Brain brains[kMaxSlots];
+        Saved saved[2];
+    };
+    static OptionsHeap* s_heap = NULL;
+    static Saved* s_saved = NULL;
 
     void optionsSaved(int which)
     {
+        if (s_brains == NULL || s_saved == NULL)
+        {
+            return;
+        }
         Saved& c = s_saved[which & 1];
         for (int i = 0; i < kMaxSlots; i++)
         {
@@ -2749,6 +2791,10 @@ namespace cpu {
 
     void optionsLoaded(int which)
     {
+        if (s_brains == NULL || s_saved == NULL)
+        {
+            return;
+        }
         const Saved& c = s_saved[which & 1];
         for (int i = 0; i < kMaxSlots; i++)
         {
@@ -2816,7 +2862,8 @@ namespace cpu {
 #pragma force_active on
     bool optionsDi(int slot, float& x, float& y)
     {
-        if (slot < 0 || slot >= kMaxSlots || sourceOf(slot) != &s_brains[slot] || s_brains[slot].state != kHit)
+        if (s_brains == NULL || slot < 0 || slot >= kMaxSlots || sourceOf(slot) != &s_brains[slot]
+            || s_brains[slot].state != kHit)
         {
             return false;
         }
@@ -2888,6 +2935,37 @@ namespace cpu {
 
     void optionsAttach()
     {
+        if (s_heap == NULL)
+        {
+            u32 need = (static_cast<u32>(sizeof(OptionsHeap)) + 31u) & ~31u;
+            game::HeapUsage u;
+            if (game::heapUsage(Heaps::Network, u) && u.largest >= need)
+            {
+                void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
+                if (game::isRam(p))
+                {
+                    s_heap = static_cast<OptionsHeap*>(p);
+                    memset(s_heap, 0, sizeof(*s_heap));
+                    // Copy a live stack Brain prototype so every allocated Brain
+                    // holds the exact Source/Brain vtable pointer.
+                    Brain proto;
+                    for (int i = 0; i < kMaxSlots; i++)
+                    {
+                        memcpy(&s_heap->brains[i], &proto, sizeof(Brain));
+                        memcpy(&s_heap->saved[0].brains[i], &proto, sizeof(Brain));
+                        memcpy(&s_heap->saved[1].brains[i], &proto, sizeof(Brain));
+                    }
+                    s_brains = s_heap->brains;
+                    s_saved = s_heap->saved;
+                }
+            }
+        }
+        if (s_brains == NULL)
+        {
+            TM_LOG("cpu: options heap alloc failed (%u bytes in Network)\n",
+                   static_cast<unsigned>(sizeof(OptionsHeap)));
+            return;
+        }
         for (int i = 0; i < kMaxSlots; i++)
         {
             s_brains[i].slot = i;
@@ -2921,6 +2999,13 @@ namespace cpu {
         game::trainingControllerSuppress(game::kControllerOwnerControlledBy, false);
         s_moving = false;
         s_freezeRequest = false;
+        if (s_heap != NULL)
+        {
+            free(s_heap);
+            s_heap = NULL;
+            s_brains = NULL;
+            s_saved = NULL;
+        }
     }
 
     static void clampIncompatibleCounter(u8& index, int list, int ftKind)
@@ -2942,9 +3027,12 @@ namespace cpu {
             {
                 release(i, "fighter swap");
             }
-            s_brains[i].reset();
-            s_brains[i].player = -1;
-            s_brains[i].noReaction = false;
+            if (s_brains != NULL)
+            {
+                s_brains[i].reset();
+                s_brains[i].player = -1;
+                s_brains[i].noReaction = false;
+            }
             restorePort(i, false);
             s_handed[i].frame = game::kNoFrame;
             s_playbackSeen[i].frame = game::kNoFrame;
@@ -2995,7 +3083,7 @@ namespace cpu {
             }
             return;
         }
-        if (!labControl(who) || !who.cpu)
+        if (s_brains == NULL || !labControl(who) || !who.cpu)
         {
             return;
         }

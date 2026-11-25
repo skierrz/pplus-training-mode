@@ -444,16 +444,23 @@ TEST(settings_reset, reset_settings_page_resets_only_target_page)
     CHECK_BYTES("P_STAGE_CAST", &expected, &main::settings(), sizeof(Settings));
     CHECK(memcmp(stageScratchBefore, ui::menuScratch(), sizeof(stageScratchBefore)) == 0);
 
-    // P_CPU: resets CPU page rows while preserving P_TECH and P_ADVANCED_COUNTER fields and other pages.
+    // P_CPU: resets top-level CPU page rows while preserving CPU subpage fields (DI, Counters, Tech, Defense).
     main::settings() = dirty;
     CHECK(main::resetSettingsPage(ui::pages::P_CPU));
     CHECK_EQ(defaults.cpu.percent, main::settings().cpu.percent);
     CHECK_EQ(defaults.cpu.lockPercent, main::settings().cpu.lockPercent);
     CHECK_EQ(defaults.cpu.options.control, main::settings().cpu.options.control);
-    CHECK_EQ(defaults.cpu.options.tdi, main::settings().cpu.options.tdi);
-    CHECK_EQ(defaults.cpu.options.counterGround, main::settings().cpu.options.counterGround);
     CHECK_EQ(defaults.cpu.options.recovery, main::settings().cpu.options.recovery);
+    CHECK_EQ(dirty.cpu.options.tdi, main::settings().cpu.options.tdi);
+    CHECK_EQ(dirty.cpu.options.counterGround, main::settings().cpu.options.counterGround);
+    CHECK_EQ(dirty.cpu.options.dualStickSdi, main::settings().cpu.options.dualStickSdi);
+    // Resetting P_CPU_DI and P_CPU_COUNTERS individually resets only their own rows.
+    CHECK(main::resetSettingsPage(ui::pages::P_CPU_DI));
+    CHECK_EQ(defaults.cpu.options.tdi, main::settings().cpu.options.tdi);
     CHECK_EQ(defaults.cpu.options.dualStickSdi, main::settings().cpu.options.dualStickSdi);
+    CHECK_EQ(dirty.cpu.options.counterGround, main::settings().cpu.options.counterGround);
+    CHECK(main::resetSettingsPage(ui::pages::P_CPU_COUNTERS));
+    CHECK_EQ(defaults.cpu.options.counterGround, main::settings().cpu.options.counterGround);
     // Tech & Getup and Advanced Counter fields live on separate pages and stay untouched.
     CHECK_EQ(dirty.cpu.options.tech, main::settings().cpu.options.tech);
     CHECK_EQ(dirty.cpu.options.getup, main::settings().cpu.options.getup);
@@ -551,7 +558,7 @@ TEST(settings_reset, reset_settings_option_resets_single_row_and_preserves_sibli
     memset(scratchBefore, 0x6B, sizeof(scratchBefore));
     memcpy(ui::menuScratch(), scratchBefore, sizeof(scratchBefore));
 
-    CHECK(!main::resetSettingsOption(ui::pages::P_GENERAL, 7));    // Controls (kKindMenu)
+    CHECK(!main::resetSettingsOption(ui::pages::P_GENERAL, 8));    // Controls (kKindMenu)
     CHECK(!main::resetSettingsOption(ui::pages::P_GENERAL, 9));    // Reset Settings (kKindFunc)
     CHECK(!main::resetSettingsOption(ui::pages::P_STAGE_CAST, 1)); // Show Inactive (kFlagScratch)
     CHECK(!main::resetSettingsOption(ui::pages::P_SCENARIOS, 0));  // kFlagScratch

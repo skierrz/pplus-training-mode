@@ -126,6 +126,17 @@ namespace record {
     void deletePositions()
     {
     }
+    char g_deletePosLabel[12];
+    char g_deleteSlotLabel[12];
+    void deletePositionsPressed()
+    {
+    }
+    void deleteManagedSlotPressed()
+    {
+    }
+    void clearDeleteConfirm()
+    {
+    }
     void hmnModeChanged()
     {
     }

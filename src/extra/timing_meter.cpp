@@ -253,7 +253,7 @@ namespace extra {
             }
             Vec2f top = m->m_groundModule->getUpPos(0);
             float cx = top.m_x;
-            float cy = top.m_y + 6.5f + comboMeterClearance(p);
+            float cy = top.m_y + 10.5f + comboMeterClearance(p);
             drawOverheadBar(cx, cy, v);
             s_debug.slots[p].worldX = cx;
             s_debug.slots[p].worldY = cy;

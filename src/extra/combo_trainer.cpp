@@ -317,7 +317,7 @@ namespace extra {
             }
             Vec2f top = m->m_groundModule->getUpPos(0);
             float cx = top.m_x;
-            float cy = top.m_y + 7.0f;
+            float cy = top.m_y + 10.5f;
 
             // Main state bar (priority: shieldstun > hitlag > hitstun > timeUntilIASA).
             const float kBarW = 14.0f;

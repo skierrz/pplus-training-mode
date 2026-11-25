@@ -48,7 +48,8 @@ namespace extra {
         }
         if (trigger == cpu::kRevOnLedge)
         {
-            return actionIndex >= cpu::kLedgeNeutral && actionIndex <= cpu::kLedgeDrop;
+            return actionIndex == kRevActionDefault
+                   || (actionIndex >= cpu::kLedgeNeutral && actionIndex <= cpu::kLedgeDrop);
         }
         return false;
     }
@@ -56,7 +57,7 @@ namespace extra {
     bool reversalSlotsPick(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay)
     {
         const cpu::CpuOptions& opts = main::settings().cpu.options;
-        if (opts.multiReversal == 0 || trigger < 0 || trigger >= cpu::kRevTriggerCount)
+        if (opts.multiReversal == 0 || !hasSecondaryReversal(trigger, opts, &s_extraSlots))
         {
             return false;
         }
@@ -69,7 +70,17 @@ namespace extra {
                 slots[i].flags = 0;
             }
         }
-        return pickReversalSlot(slots, kRevSlotsPerTrigger, roll, outAction, outDelay);
+        if (!pickReversalSlot(slots, kRevSlotsPerTrigger, roll, outAction, outDelay))
+        {
+            return false;
+        }
+        if (outAction == kRevActionDefault)
+        {
+            outAction = 0;
+            outDelay = 0;
+            return false;
+        }
+        return true;
     }
 }
 }

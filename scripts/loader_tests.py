@@ -852,25 +852,26 @@ def boot_offline_vs_readonly(backend):
         if emu.u8(settings_addr + 21) != 0:
             return f"general.offlineVersus was not 0 by default ({emu.u8(settings_addr + 21)})"
 
-        # Open Lab Menu via Start, navigate to Offline VS Displays (row 12,
-        # 9 Downs from row 0 in Rail mode), and toggle it ON.
+        # Open Lab Menu via Start, navigate to Offline VS Displays (row 7,
+        # 7 Downs from row 0 in Rail mode), and toggle it ON.
         pos_menu = len(log)
         emu.press(0, ["START"], frames=3, after=8)
         emu.wait_for("Lab Menu open in Training",
                      lambda: "lab: menu opened by port 1 (Start)" in E.read_log(emu.log_path)[pos_menu:],
                      180, every=2)
-        for _ in range(9):
+        for _ in range(7):
             emu.press(0, ["DDOWN"], frames=2, after=5)
         emu.press(0, ["DRIGHT"], frames=2, after=6)
         if emu.u8(settings_addr + 21) != 1:
             return f"Offline VS Displays toggle did not set byte +21 to 1 (got {emu.u8(settings_addr + 21)})"
 
-        # Enable OSD Menu > Wavedash (rail 5 -> row 1) through the real menu.
+        # Enable OSD Menu > Wavedash (rail 5 -> row 4) through the real menu.
         emu.press(0, ["B"], frames=2, after=6)
         for _ in range(5):
             emu.press(0, ["DDOWN"], frames=2, after=5)
         emu.press(0, ["A"], frames=2, after=6)
-        emu.press(0, ["DDOWN"], frames=2, after=5)
+        for _ in range(4):
+            emu.press(0, ["DDOWN"], frames=2, after=5)
         emu.press(0, ["DRIGHT"], frames=2, after=6)
         if emu.u8(settings_addr + 92) != 1:
             return f"Wavedash OSD toggle did not set byte +92 to 1 (got {emu.u8(settings_addr + 92)})"
