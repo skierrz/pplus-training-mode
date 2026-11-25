@@ -61,6 +61,15 @@ namespace cpu {
         kAdaptiveActive,
         kAdaptiveModeCount
     };
+    // Aerial and fastfall timing for CPU SHFFL and FFL counter actions.
+    enum ShfflTiming {
+        kShfflFramePerfect = 0,
+        kShfflEarly = 1,
+        kShfflNormal = 2,
+        kShfflLate = 3,
+        kShfflRandom = 4,
+        kShfflTimingCount = 5
+    };
     // The lab row sets NoReaction (hits connect with no knockback reaction and
     // no grabs); PassThrough makes attacks pass through completely.
     enum Intangible { kIntangibleOff, kIntangibleNoReaction, kIntangiblePassThrough };
@@ -109,8 +118,10 @@ namespace cpu {
         u8 clatterEscape; // GrabEscape (0 None, 1 Medium, 2 High, 3 Max) for Bury/Ice/FuraFura/Sleep
         u8 adaptiveMode;  // AdaptiveMode (0 Off, 1 Track, 2 Adaptive)
         u8 dualStickSdi;  // 0 Off, 1 On (consecutive-frame alternating SDI on hitlag > 1)
+        u8 autoLCancel;   // 0 Off, 1 On (default 1: L-cancel active AttackAir before landing)
+        u8 shfflTiming;   // ShfflTiming (0 Frame-Perfect .. 4 Random, default 0)
     };
-    TM_STATIC_ASSERT(sizeof(CpuOptions) == 44, tm_cpu_options_is_44_bytes);
+    TM_STATIC_ASSERT(sizeof(CpuOptions) == 46, tm_cpu_options_is_46_bytes);
 
     // One Advanced Counter page: Counter Logic, and per list (ground, air,
     // shield) the action index and its delay.

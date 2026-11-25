@@ -8,7 +8,7 @@ namespace ui {
 namespace pages {
     bool cpuLabControl();
 
-    enum { kCounterGroundSize = 51, kCounterAirSize = 29, kCounterShieldSize = 44 };
+    enum { kCounterGroundSize = 56, kCounterAirSize = 34, kCounterShieldSize = 49 };
     extern const char* kCounterGround[kCounterGroundSize];
     extern const char* const kCounterAir[kCounterAirSize];
     extern const char* kCounterShield[kCounterShieldSize];

@@ -106,6 +106,24 @@ namespace cpu {
     static const Step kTumbleFastfall[] = {TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 240), TM_FLICKS, TM_END};
     static const Step kWiggleFastfall[] = {TM_STEP(0, 100, 0, kRefToward, 1), TM_STEP(0, 0, 0, kRefAbs, 1),
                                            TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 240), TM_FLICKS, TM_END};
+    // Canonical Frame-Perfect SHFFL and FFL scripts; options.cpp expands them
+    // with CpuOptions::shfflTiming via shffl_core.h.
+#define TM_SHFFL_SCRIPT(aerial) \
+    {TM_TAKEOFF, aerial, TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 60), TM_FLICKS, TM_END}
+#define TM_FFL_SCRIPT(aerial) \
+    {aerial, TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 240), TM_FLICKS, TM_END}
+    static const Step kShfflNair[] = TM_SHFFL_SCRIPT(TM_STEP(A, 0, 0, kRefAbs, 1));
+    static const Step kShfflFair[] = TM_SHFFL_SCRIPT(TM_STEP(C, 100, 0, kRefForward, 1));
+    static const Step kShfflBair[] = TM_SHFFL_SCRIPT(TM_STEP(C, -100, 0, kRefForward, 1));
+    static const Step kShfflUair[] = TM_SHFFL_SCRIPT(TM_STEP(C, 0, 100, kRefAbs, 1));
+    static const Step kShfflDair[] = TM_SHFFL_SCRIPT(TM_STEP(C, 0, -100, kRefAbs, 1));
+    static const Step kFflNair[] = TM_FFL_SCRIPT(TM_STEP(A, 0, 0, kRefAbs, 1));
+    static const Step kFflFair[] = TM_FFL_SCRIPT(TM_STEP(C, 100, 0, kRefForward, 1));
+    static const Step kFflBair[] = TM_FFL_SCRIPT(TM_STEP(C, -100, 0, kRefForward, 1));
+    static const Step kFflUair[] = TM_FFL_SCRIPT(TM_STEP(C, 0, 100, kRefAbs, 1));
+    static const Step kFflDair[] = TM_FFL_SCRIPT(TM_STEP(C, 0, -100, kRefAbs, 1));
+#undef TM_SHFFL_SCRIPT
+#undef TM_FFL_SCRIPT
 #undef TM_FLICK
 #undef TM_FLICKS
     static const Step kWait[] = {TM_STEP(0, 0, 0, kRefAbs, 1), TM_END};
@@ -197,11 +215,19 @@ namespace cpu {
 #define TM_FLOATS                                                                                       \
     {kFloatNair, kForFloat, 0}, {kFloatFair, kForFloat, 0}, {kFloatBair, kForFloat, 0}, {kFloatUair, kForFloat, 0}, \
         {kFloatDair, kForFloat, 0}
+#define TM_SHFFLS                                                                                     \
+    {kShfflNair, kForShffl | kEndsWithSteps, 0}, {kShfflFair, kForShffl | kEndsWithSteps, 0},         \
+        {kShfflBair, kForShffl | kEndsWithSteps, 0}, {kShfflUair, kForShffl | kEndsWithSteps, 0},     \
+        {kShfflDair, kForShffl | kEndsWithSteps, 0}
+#define TM_FFLS                                                                                   \
+    {kFflNair, kForFfl | kEndsWithSteps, 0}, {kFflFair, kForFfl | kEndsWithSteps, 0},             \
+        {kFflBair, kForFfl | kEndsWithSteps, 0}, {kFflUair, kForFfl | kEndsWithSteps, 0},         \
+        {kFflDair, kForFfl | kEndsWithSteps, 0}
 
     // Indexed like the Counter Action rows' labels (ui/pages/cpu_options.cpp).
     // A NULL script is None, Play Slot N (playSlot), or (flags) one of the
-    // random kinds. P+ character techniques (DJC, Float) sit at the end of
-    // the ground and shield tables.
+    // random kinds. P+ character techniques (DJC, Float) and SHFFL/FFL aerials
+    // sit at the end of their tables to preserve all existing indices.
     static const Action kGround[] = {
         TM_NONE,             TM_DO(kSpotdodge),    TM_DO(kShield),        TM_DO(kGrab),
         TM_DO(kUpB),         TM_DO(kSideBToward),  TM_DO(kDownB),         TM_DO(kNeutralB),
@@ -212,7 +238,7 @@ namespace cpu {
         {kDashThrough, kEndsWithSteps, 0}, TM_PLAY_SLOTS, TM_PLAY_RANDOM, TM_DO(kSideBAway),
         TM_DO(kRollRandom),  TM_DO(kSHNair),       TM_DO(kSHFair),        TM_DO(kSHBair),
         TM_DO(kSHUair),      TM_DO(kSHDair),       TM_RANDOM_ADV,         TM_RANDOM,
-        TM_DJCS,             TM_FLOATS};
+        TM_DJCS,             TM_FLOATS,            TM_SHFFLS};
     static const Action kAir[] = {
         TM_NONE,           TM_DO(kAirdodge),        {kJumpAway, kNeedsJump, 0}, {kJumpToward, kNeedsJump, 0},
         {kJumpNeutral, kNeedsJump, 0}, TM_DO(kUpBAway), TM_DO(kUpBToward),      TM_DO(kNeutralB),
@@ -220,7 +246,8 @@ namespace cpu {
         TM_DO(kFair),      TM_DO(kBair),            TM_DO(kUair),           TM_DO(kDair),
         {kTumbleFastfall, kEndsWithSteps, 0},       {kWiggleFastfall, kEndsWithSteps, 0},
         TM_NONE,           {kWait, kNoTech | kEndsWithSteps, 0},
-        TM_PLAY_SLOTS,     TM_PLAY_RANDOM,          TM_RANDOM_ADV,          TM_RANDOM};
+        TM_PLAY_SLOTS,     TM_PLAY_RANDOM,          TM_RANDOM_ADV,          TM_RANDOM,
+        TM_FFLS};
     static const Action kShieldList[] = {
         TM_NONE,              TM_DO(kOosGrab),        TM_DO(kShortHop),      TM_DO(kFullHop),
         TM_DO(kOosSpotdodge), TM_DO(kOosRollAway),    TM_DO(kOosRollToward), TM_DO(kOosUpB),
@@ -229,7 +256,7 @@ namespace cpu {
         TM_DO(kSHFair),       TM_DO(kSHBair),         TM_DO(kSHUair),        TM_DO(kSHDair),
         TM_DO(kWavedashAway), TM_DO(kOosShieldDrop),  TM_PLAY_SLOTS,         TM_PLAY_RANDOM,
         TM_DO(kWavedashToward), TM_DO(kWavedashDown), TM_DO(kOosRollRandom), TM_RANDOM_ADV,
-        TM_RANDOM,            TM_DJCS,                TM_FLOATS};
+        TM_RANDOM,            TM_DJCS,                TM_FLOATS,             TM_SHFFLS};
 
 #undef TM_NONE
 #undef TM_RANDOM
@@ -239,6 +266,8 @@ namespace cpu {
 #undef TM_PLAY_RANDOM
 #undef TM_DJCS
 #undef TM_FLOATS
+#undef TM_SHFFLS
+#undef TM_FFLS
 
     // Clean P+ Random counter action pools, indexed into the tables above:
     //  - Ground: defensive options, quick pokes, and movement mixups
@@ -294,7 +323,13 @@ namespace cpu {
         }
         if (kind == kGanon && (a->flags & kForFloat) != 0)
         {
-            return &kGanonFloats[index - (kCounts[list] - 5)];
+            int float0 = index;
+            while (float0 > 0 && (kLists[list][float0 - 1].flags & kForFloat) != 0)
+            {
+                float0--;
+            }
+            int offset = index - float0;
+            return offset >= 0 && offset < 5 ? &kGanonFloats[offset] : NULL;
         }
         return fitsKind(a, kind) ? a : NULL;
     }
