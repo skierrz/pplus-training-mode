@@ -542,6 +542,8 @@ namespace cpu {
         bool mashFlip;
         // Freeze CPU
         bool frozen;
+        u8 revAction;
+        u8 revDelay;
         int frozenStatus;
         // Move CPU
         bool placed;
@@ -599,6 +601,7 @@ namespace cpu {
             techSounded = false;
             recovering = false;
             ledgeStateReset(ledgeState);
+            revAction = 0;
             main::extraPPlusRecoveryReset(slot);
         }
 
@@ -1242,6 +1245,21 @@ namespace cpu {
             }
         }
 
+#pragma dont_inline on
+        bool pickMultiRev(int trigger, int entryId)
+        {
+            revAction = 0;
+            int ra = 0, rd = 0;
+            if (opts().multiReversal == 0 || !main::extraReversalPick(trigger, fighterKind(entryId), rnd(), ra, rd))
+            {
+                return false;
+            }
+            revAction = static_cast<u8>(ra);
+            revDelay = static_cast<u8>(rd);
+            return true;
+        }
+#pragma dont_inline reset
+
         void getupInput(Frame& out, const Owner& who)
         {
             // Lay_Down (0x50, e.g. Snake down throw) and Slip_Wait (0x8D, e.g.
@@ -1267,8 +1285,21 @@ namespace cpu {
             if (downFrames == 0)
             {
                 const CpuOptions& c = opts();
-                static const u8 kFromRandom[4] = {kGetupStand, kGetupAway, kGetupTowards, kGetupAttack};
-                getup = c.getup == kGetupRandom ? kFromRandom[weighted(c.getupChance)] : c.getup;
+                if (pickMultiRev(kRevOnGetup, who.entryId))
+                {
+                    getup = revAction;
+                    if (revDelay > 0)
+                    {
+                        missWait = revDelay;
+                        downFrames = 2;
+                        return;
+                    }
+                }
+                else
+                {
+                    static const u8 kFromRandom[4] = {kGetupStand, kGetupAway, kGetupTowards, kGetupAttack};
+                    getup = c.getup == kGetupRandom ? kFromRandom[weighted(c.getupChance)] : c.getup;
+                }
                 TM_LOG("cpu: P%d get up %d\n", who.playerNo + 1, getup);
             }
             // Pushed every other frame, so each push is a fresh input.
@@ -1543,6 +1574,18 @@ namespace cpu {
                 state = kAfter;
                 return;
             }
+            if (list != kListAir)
+            {
+                if (actionable == 0)
+                {
+                    pickMultiRev(list == kListShield ? kRevOnShield : kRevOnHit, who.entryId);
+                }
+                if (revAction != 0)
+                {
+                    index = revAction;
+                    delay = revDelay;
+                }
+            }
             // A held guard acts on hitstun's last frame, but delays count from
             // the first actionable frame, the next one.
             bool lastStun = v.hitstun == 1;
@@ -1560,7 +1603,7 @@ namespace cpu {
                 return;
             }
             bool adaptiveUsed = false;
-            if (opts().adaptiveMode == kAdaptiveActive && (list == kListGround || list == kListShield)
+            if (revAction == 0 && opts().adaptiveMode == kAdaptiveActive && list != kListAir
                 && main::extraLoaded())
             {
                 int biasIdx = main::extraAdaptiveBias(who.playerNo, list, true, oppDist, false);
@@ -1917,6 +1960,50 @@ namespace cpu {
         }
 
         // What the next frame compares with.
+#pragma dont_inline on
+        bool stepLedge(Frame& out, const Owner& who, const CpuOptions& c, bool busy)
+        {
+            u8 base = busy ? 0 : (c.ledgeOption ? c.ledgeOption : (c.multiReversal ? c.revSlot2Action[kRevOnLedge] : 0));
+            bool hold = false;
+            if (!base || (!(hold = isCliffHoldStatus(v.status)) && !isCliffGetupStatus(v.status)))
+            {
+                ledgeStateReset(ledgeState);
+                return false;
+            }
+            if (recovering)
+            {
+                recovering = false;
+                main::extraPPlusRecoveryReset(slot);
+            }
+            if (!hold)
+            {
+                ledgeStateReset(ledgeState);
+                return true;
+            }
+            state = kIdle;
+            hits = 0;
+            shieldKind = false;
+            script = NULL;
+            pending = NULL;
+            playSlot = -1;
+            noTech = false;
+            if (!ledgeState.active && isCliffWaitStatus(v.status) && !pickMultiRev(kRevOnLedge, who.entryId))
+            {
+                revAction = base;
+                revDelay = c.counterDelay;
+            }
+            LedgeInput li;
+            if (stepLedgeOption(revAction, revDelay, v.status, v.lr, rnd(), ledgeState, li))
+            {
+                out.buttons = li.buttons;
+                out.x = li.x;
+                out.y = li.y;
+                return true;
+            }
+            return false;
+        }
+#pragma dont_inline reset
+
         void remember()
         {
             havePrev = true;
@@ -2273,52 +2360,15 @@ namespace cpu {
         noReactionOn(who, c.intangible == kIntangibleNoReaction);
 
         // On-ledge reversal / getup option (ledge_logic.h): preempts Game AI /
-        // PPlusAI recovery only while hanging on the ledge (Cliff_Catch_Move /
-        // Cliff_Catch / Cliff_Wait) or completing an on-stage getup (Attack /
-        // Climb / Escape). Once airborne after Drop or Jump, normal recovery /
+        // PPlusAI recovery only while hanging on the ledge or completing an
+        // on-stage getup. Once airborne after Drop or Jump, normal recovery /
         // lab state resumes cleanly.
         bool busyForLedge = (state == kHit && (v.hitstun > 0 || v.hitlag > 0)) || state == kGrabbed
                             || state == kClatter || v.hitlag > 0 || q.state != kCueNone || q.hold;
-        if (c.ledgeOption != kLedgeDefault && !busyForLedge && isCliffHoldStatus(v.status))
+        if (stepLedge(out, who, c, busyForLedge))
         {
-            // Clear stale pre-ledge combat state so exiting Cliff_Wait does not
-            // fire a leftover counter or script on frame 1 onstage.
-            state = kIdle;
-            hits = 0;
-            shieldKind = false;
-            script = NULL;
-            pending = NULL;
-            playSlot = -1;
-            noTech = false;
-            if (recovering)
-            {
-                recovering = false;
-                main::extraPPlusRecoveryReset(slot);
-            }
-            LedgeInput li;
-            if (stepLedgeOption(c.ledgeOption, c.counterDelay, v.status, v.lr, rnd(), ledgeState, li))
-            {
-                out.buttons = li.buttons;
-                out.x = li.x;
-                out.y = li.y;
-                remember();
-                return true;
-            }
-        }
-        else if (c.ledgeOption != kLedgeDefault && !busyForLedge && isCliffGetupStatus(v.status))
-        {
-            ledgeStateReset(ledgeState);
-            if (recovering)
-            {
-                recovering = false;
-                main::extraPPlusRecoveryReset(slot);
-            }
             remember();
             return true;
-        }
-        else
-        {
-            ledgeStateReset(ledgeState);
         }
 
         // Offstage / ledge recovery routing (Game AI, PPlusAI, or Off).
@@ -2889,6 +2939,8 @@ namespace cpu {
             CpuOptions& mutableOpts = main::settings().cpu.options;
             clampIncompatibleCounter(mutableOpts.counterGround, kListGround, newCpuFtKind);
             clampIncompatibleCounter(mutableOpts.counterShield, kListShield, newCpuFtKind);
+            clampIncompatibleCounter(mutableOpts.revSlot2Action[kRevOnHit], kListGround, newCpuFtKind);
+            clampIncompatibleCounter(mutableOpts.revSlot2Action[kRevOnShield], kListShield, newCpuFtKind);
             CpuTables& tables = main::settings().cpuTables;
             for (int h = 0; h < kAdvancedHits; h++)
             {

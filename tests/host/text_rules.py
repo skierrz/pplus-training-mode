@@ -109,6 +109,7 @@ NUMBERS = {
     ("lab.cpp", "L-Cancel (%d%%)\nMissed"): ["100"],
     ("lab.cpp", "L-Cancel (%d%%)\nFrame %d/7"): ["100", "7"],
     ("lab.cpp", "%s\nRate: %d%%"): [None, "100"],
+    ("pplus_tech_tracker.cpp", "%s\nCount: %u"): [None, "999"],
     ("lab.cpp", "Wavedash: f%d\nAngle: %2.1f\n%s (%df)"): ["99", "90.0", None, "99"],
     ("lab.cpp", "Grab Escape\nTimer: %d\n%.1f / frame"): ["999", "9.9"],
     ("ledgedash_hud.cpp", "GALINT: %d   Ledge: %d   Angle: %.1f"): ["-24", "99", "90.0"],
@@ -192,6 +193,7 @@ WORDS = {
     ("settings_file.cpp", "storage::resultText(s_job.result())"): file_results,
     ("settings_file.cpp", "resultText(r)"): file_results,
     ("settings_file.cpp", "resultText(s_job.result())"): file_results,
+    ("pplus_tech_tracker.cpp", "label"): array("extra/pplus_tech_tracker_core.h", "kTable"),
 }
 
 # ---- restated layouts ----------------------------------------------------------
@@ -812,6 +814,7 @@ HANDLERS = [
     ("main/record/record.cpp", record_cpp),
     ("extra/lab_tools.cpp", lab_tools),
     ("extra/fighter_swap_core.h", fighter_swap_core_h),
+    ("extra/pplus_tech_tracker_core.h", walked),
     ("main/savestate/savestate.cpp", savestate),
     ("main/game/pad_inmatch.cpp", pad_inmatch_cpp),
     ("main/lab.cpp", lab_cpp),

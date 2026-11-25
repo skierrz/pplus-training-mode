@@ -70,6 +70,14 @@ namespace cpu {
         kShfflRandom = 4,
         kShfflTimingCount = 5
     };
+    // Weighted multi-slot reversal trigger categories (extra/reversal_slots*).
+    enum ReversalTrigger {
+        kRevOnHit = 0,
+        kRevOnShield = 1,
+        kRevOnGetup = 2,
+        kRevOnLedge = 3,
+        kRevTriggerCount = 4
+    };
     // The lab row sets NoReaction (hits connect with no knockback reaction and
     // no grabs); PassThrough makes attacks pass through completely.
     enum Intangible { kIntangibleOff, kIntangibleNoReaction, kIntangiblePassThrough };
@@ -120,8 +128,13 @@ namespace cpu {
         u8 dualStickSdi;  // 0 Off, 1 On (consecutive-frame alternating SDI on hitlag > 1)
         u8 autoLCancel;   // 0 Off, 1 On (default 1: L-cancel active AttackAir before landing)
         u8 shfflTiming;   // ShfflTiming (0 Frame-Perfect .. 4 Random, default 0)
+        u8 multiReversal; // 0 Off, 1 On (weighted multi-slot reversals across 4 triggers)
+        u8 revSlot2Action[kRevTriggerCount]; // Slot 2 action per ReversalTrigger
+        u8 revSlot2Delay[kRevTriggerCount];  // Slot 2 delay (0..30f) per ReversalTrigger
+        u8 revSlot2Weight[kRevTriggerCount]; // Slot 2 weight (0..100%) vs Slot 1 (100 - weight)
+        u8 techTrackerOsd; // 0 Off, 1 On (44-fighter P+ tech tracker OSD callouts)
     };
-    TM_STATIC_ASSERT(sizeof(CpuOptions) == 46, tm_cpu_options_is_46_bytes);
+    TM_STATIC_ASSERT(sizeof(CpuOptions) == 60, tm_cpu_options_is_60_bytes);
 
     // One Advanced Counter page: Counter Logic, and per list (ground, air,
     // shield) the action index and its delay.

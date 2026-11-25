@@ -431,5 +431,10 @@ namespace main {
             s_hooks->infoApplyPreset(side);
         }
     }
+
+    bool extraReversalPick(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay)
+    {
+        return s_hooks != NULL && s_hooks->reversalPick(trigger, fighterKind, roll, outAction, outDelay);
+    }
 }
 }

@@ -93,11 +93,12 @@ namespace pages {
     static const char* const kGrabRelease[] = {"Grounded", "Airborne"};
     static const char* const kControlledBy[] = {"None", "Port 1", "Port 2", "Port 3", "Port 4"};
     static const char* const kRecovery[] = {"Game AI", "PPlusAI", "Off"};
-    static const char* const kLedgeOption[] = {"Default", "Neutral", "Roll", "Attack", "Jump", "Drop", "Random"};
+    extern const char* const kLedgeOption[kLedgeOptionLabelsSize] = {"Default", "Neutral", "Roll", "Attack",
+                                                                     "Jump",    "Drop",    "Random"};
     static const char* const kAdaptiveMode[] = {"Off", "Track", "Adaptive"};
     static const char* const kShfflTiming[] = {"Frame-Perfect", "Early", "Normal", "Late", "Random"};
 
-    static bool comboTrainerAvailable()
+    bool cpuExtraAvailable()
     {
         return cpuLabControl() && main::extraLoaded();
     }
@@ -153,9 +154,12 @@ namespace pages {
         TM_CPU_CHOICE("Ledge Option", cpu.options.ledgeOption, kLedgeOption, cpu::kLedgeDefault),
         TM_CPU_CHOICE("Clatter Escape", cpu.options.clatterEscape, kGrabEscape, cpu::kMashNone),
         TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(cpu.options.adaptiveMode), 0, TM_COUNT(kAdaptiveMode) - 1,
-               cpu::kAdaptiveOff, "Adaptive CPU", kAdaptiveMode, NULL, comboTrainerAvailable),
+               cpu::kAdaptiveOff, "Adaptive CPU", kAdaptiveMode, NULL, cpuExtraAvailable),
         TM_CPU_TOGGLE("Auto L-Cancel", cpu.options.autoLCancel, 1),
-        TM_CPU_CHOICE("SHFFL Timing", cpu.options.shfflTiming, kShfflTiming, cpu::kShfflFramePerfect)
+        TM_CPU_CHOICE("SHFFL Timing", cpu.options.shfflTiming, kShfflTiming, cpu::kShfflFramePerfect),
+        TM_MENU_IF("Reversal Slots", P_REVERSALS, cpuExtraAvailable),
+        TM_ROW(::tm::ui::kKindToggle, 0, TM_FIELD(cpu.options.techTrackerOsd), 0, 1, 0, "P+ Tech OSD", NULL, NULL,
+               main::extraLoaded)
     };
 
 #undef TM_CPU_FUNC

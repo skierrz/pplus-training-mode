@@ -411,20 +411,22 @@ TEST(dual_stick_di, cpu_hitlag_cadence_single_vs_dual_stick)
 
 TEST(dual_stick_di, settings_layout_menu_row_and_storage_round_trip)
 {
-    CHECK_EQ(46u, sizeof(cpu::CpuOptions));
+    CHECK_EQ(60u, sizeof(cpu::CpuOptions));
     CHECK_EQ(64u, sizeof(main::CpuSettings));
     CHECK_EQ(436u, sizeof(main::Settings));
 
     // Dual-Stick SDI lives right after ASDI Direction on CPU Options (index 8).
     const ui::Page& page = ui::pages::kCpuOptions;
-    REQUIRE(page.count >= 10);
+    REQUIRE(page.count >= 32);
     CHECK(strcmp(page.options[7].name, "ASDI Direction") == 0);
     CHECK(strcmp(page.options[8].name, "Dual-Stick SDI") == 0);
     CHECK_EQ(ui::kKindToggle, page.options[8].kind);
     CHECK_EQ(0, page.options[8].def);
     CHECK(strcmp(page.options[27].name, "Adaptive CPU") == 0);
-    CHECK(strcmp(page.options[page.count - 2].name, "Auto L-Cancel") == 0);
-    CHECK(strcmp(page.options[page.count - 1].name, "SHFFL Timing") == 0);
+    CHECK(strcmp(page.options[28].name, "Auto L-Cancel") == 0);
+    CHECK(strcmp(page.options[29].name, "SHFFL Timing") == 0);
+    CHECK(strcmp(page.options[page.count - 2].name, "Reversal Slots") == 0);
+    CHECK(strcmp(page.options[page.count - 1].name, "P+ Tech OSD") == 0);
 
     host::card::reset();
     bootStorage();

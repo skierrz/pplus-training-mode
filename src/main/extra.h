@@ -97,6 +97,8 @@ namespace main {
         void (*infoDraw)();
         void (*infoReset)();
         void (*infoApplyPreset)(int side);
+        // Weighted multi-slot reversal picker (extra/reversal_slots.h).
+        bool (*reversalPick)(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay);
     };
 
     // What the match module asks of the Scenario Presets engine.
@@ -250,5 +252,7 @@ namespace main {
     void extraInfoDraw();
     void extraInfoReset();
     void extraInfoApplyPreset(int side);
+    // Weighted multi-slot reversal picker (extra/reversal_slots.h).
+    bool extraReversalPick(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay);
 }
 }

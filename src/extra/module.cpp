@@ -17,6 +17,8 @@
 #include "extra/lab_tools.h"
 #include "extra/menu_descriptions.h"
 #include "extra/pplus_recovery.h"
+#include "extra/pplus_tech_tracker.h"
+#include "extra/reversal_slots.h"
 #include "extra/scenario_presets.h"
 #include "extra/stage_geom.h"
 #include "extra/stage_options.h"
@@ -103,6 +105,7 @@ namespace extra {
         coreDrillEnginesFrame();
         hoverPsFrame();
         pplusTechFrame();
+        techTrackerFrame();
         heatmapTick();
         adaptiveCpuFrame();
     }
@@ -113,6 +116,7 @@ namespace extra {
         coreDrillEnginesSavestateReset();
         hoverPsResetTransient();
         pplusTechReset();
+        techTrackerReset();
     }
 
     static const main::ExtraHooks kHooks = {
@@ -125,7 +129,7 @@ namespace extra {
         fighterSwapRow,    fighterSwapChanged, fighterSwapApply,   fighterSwapBusy,
         optionDesc,        uiAssetsDrawIcon,   uiAssetsDrawPageOverlay,
         ui::infoWanted,    ui::infoStep,       ui::drawInfo,       ui::infoReset,
-        ui::applyInfoPreset
+        ui::applyInfoPreset, reversalSlotsPick
     };
 
     static bool attach(iface::Interface* iface)
@@ -137,10 +141,12 @@ namespace extra {
         s_logged = false;
         stageGeomAttach();
         pplusRecoveryAttach();
+        reversalSlotsAttach();
         comboTrainerAttach();
         coreDrillEnginesAttach();
         hoverPsAttach();
         pplusTechAttach();
+        techTrackerAttach();
         adaptiveCpuAttach();
         scenarioPresetsAttach();
         diAttach();
@@ -159,6 +165,7 @@ namespace extra {
     static void detach()
     {
         uiAssetsDetach();
+        techTrackerDetach();
         pplusTechDetach();
         fighterSwapDetach();
         // Restore any active Scenario Preset settings snapshot before unloading.
