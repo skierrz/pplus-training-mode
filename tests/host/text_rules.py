@@ -418,7 +418,7 @@ def menu_descriptions(c, src):
         c.take(lit)
 
 
-guard("main/ui/info_display.cpp", "drawSide", "45d9714b")
+guard("main/ui/info_display.cpp", "drawSide", "997b7537")
 
 
 def info_display(c, src):

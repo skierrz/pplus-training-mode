@@ -337,7 +337,10 @@ namespace extra {
 
     static const char* const kThemeDesc[] = {
         "Choose the background color preset for OSD notification cards.",
-        "Adjust OSD card opacity from transparent (0%) to solid (100%)."
+        "Adjust OSD card opacity from transparent (0%) to solid (100%).",
+        "Choose the chrome accent palette for the in-match Training Lab.",
+        "Choose the background color preset for Info Display panels.",
+        "Adjust Info Display opacity with drop shadow at low values."
     };
 
     static const char* const kReversalDesc[] = {
