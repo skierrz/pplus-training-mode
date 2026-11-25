@@ -7,6 +7,7 @@
 #include <so/so_value_accesser.h>
 #include <string.h>
 
+#include "extra/net_alloc.h"
 #include "main/game/body.h"
 #include "main/game/fighters.h"
 #include "main/game/tracker.h"
@@ -78,7 +79,7 @@ namespace extra {
             s8 attackerSlot;
         };
 
-        SlotEngine s_engines[game::kMaxTracked];
+        SlotEngine* s_engines = NULL;
         PPlusTechDebugBlock s_debug;
         u32 s_resetCount = 0;
         s32 s_prevFrame = game::kNoFrame;
@@ -177,9 +178,12 @@ namespace extra {
 
         void clearAllTransient(bool countReset)
         {
-            for (int i = 0; i < game::kMaxTracked; i++)
+            if (s_engines != NULL)
             {
-                resetSlotEngine(s_engines[i]);
+                for (int i = 0; i < game::kMaxTracked; i++)
+                {
+                    resetSlotEngine(s_engines[i]);
+                }
             }
             if (countReset)
             {
@@ -348,6 +352,8 @@ namespace extra {
 
     void pplusTechAttach()
     {
+        freeNetPtr(s_engines);
+        s_engines = allocNetArray<SlotEngine>(game::kMaxTracked);
         s_resetCount = 0;
         s_prevFrame = game::kNoFrame;
         clearAllTransient(false);
@@ -358,6 +364,7 @@ namespace extra {
     {
         s_prevFrame = game::kNoFrame;
         clearAllTransient(false);
+        freeNetPtr(s_engines);
     }
 
     void pplusTechReset()
@@ -368,6 +375,10 @@ namespace extra {
 
     void pplusTechFrame()
     {
+        if (s_engines == NULL)
+        {
+            return;
+        }
         const s32 f = game::trackerFrame();
         if (s_prevFrame != game::kNoFrame && f <= s_prevFrame)
         {
@@ -647,35 +658,35 @@ namespace extra {
 
     const RarState* pplusTechRar(int trackedSlot)
     {
-        return (trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_engines[trackedSlot].active)
+        return (s_engines != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_engines[trackedSlot].active)
                    ? &s_engines[trackedSlot].rar
                    : NULL;
     }
 
     const DacusState* pplusTechDacus(int trackedSlot)
     {
-        return (trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_engines[trackedSlot].active)
+        return (s_engines != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_engines[trackedSlot].active)
                    ? &s_engines[trackedSlot].dacus
                    : NULL;
     }
 
     const BReverseState* pplusTechBReverse(int trackedSlot)
     {
-        return (trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_engines[trackedSlot].active)
+        return (s_engines != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_engines[trackedSlot].active)
                    ? &s_engines[trackedSlot].brev
                    : NULL;
     }
 
     const FootstoolAgtState* pplusTechFootstoolAgt(int trackedSlot)
     {
-        return (trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_engines[trackedSlot].active)
+        return (s_engines != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_engines[trackedSlot].active)
                    ? &s_engines[trackedSlot].fa
                    : NULL;
     }
 
     const FloorhugState* pplusTechFloorhug(int trackedSlot)
     {
-        return (trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_engines[trackedSlot].active)
+        return (s_engines != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_engines[trackedSlot].active)
                    ? &s_engines[trackedSlot].fh
                    : NULL;
     }

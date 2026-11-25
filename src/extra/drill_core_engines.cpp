@@ -5,6 +5,7 @@
 #include <so/work/so_work_manage_module_impl.h>
 #include <string.h>
 
+#include "extra/net_alloc.h"
 #include "extra/stage_geom.h"
 #include "main/game/body.h"
 #include "main/game/fighters.h"
@@ -42,7 +43,7 @@ namespace extra {
             LcCoreState lc;
         };
 
-        static CoreDrillSlot s_slots[game::kMaxTracked];
+        static CoreDrillSlot* s_slots = NULL;
         static CoreDrillDebugBlock s_debug;
         static s32 s_prevFrame = game::kNoFrame;
         static bool s_autoLCancel = false;
@@ -243,9 +244,14 @@ namespace extra {
 
     void coreDrillEnginesAttach()
     {
-        for (int i = 0; i < game::kMaxTracked; i++)
+        freeNetPtr(s_slots);
+        s_slots = allocNetArray<CoreDrillSlot>(game::kMaxTracked);
+        if (s_slots != NULL)
         {
-            resetSlotAll(s_slots[i]);
+            for (int i = 0; i < game::kMaxTracked; i++)
+            {
+                resetSlotAll(s_slots[i]);
+            }
         }
         s_prevFrame = game::kNoFrame;
         s_autoLCancel = false;
@@ -264,10 +270,7 @@ namespace extra {
 
     void coreDrillEnginesDetach()
     {
-        for (int i = 0; i < game::kMaxTracked; i++)
-        {
-            resetSlotAll(s_slots[i]);
-        }
+        freeNetPtr(s_slots);
         s_prevFrame = game::kNoFrame;
         s_autoLCancel = false;
         s_inputBuffer3f = false;
@@ -276,9 +279,12 @@ namespace extra {
 
     void coreDrillEnginesSavestateReset()
     {
-        for (int i = 0; i < game::kMaxTracked; i++)
+        if (s_slots != NULL)
         {
-            resetSlotTransient(s_slots[i]);
+            for (int i = 0; i < game::kMaxTracked; i++)
+            {
+                resetSlotTransient(s_slots[i]);
+            }
         }
         s_prevFrame = game::kNoFrame;
         s_debug.savestateResets++;
@@ -286,6 +292,10 @@ namespace extra {
 
     void coreDrillEnginesFrame()
     {
+        if (s_slots == NULL)
+        {
+            return;
+        }
         s32 f = game::trackerFrame();
         if (s_prevFrame != game::kNoFrame && f <= s_prevFrame)
         {
@@ -477,7 +487,7 @@ namespace extra {
 
     const LedgeCoreState* coreDrillLedgeState(int tracked)
     {
-        if (tracked < 0 || tracked >= game::kMaxTracked || !s_slots[tracked].active)
+        if (s_slots == NULL || tracked < 0 || tracked >= game::kMaxTracked || !s_slots[tracked].active)
         {
             return NULL;
         }
@@ -486,7 +496,7 @@ namespace extra {
 
     const WdCoreState* coreDrillWavedashState(int tracked)
     {
-        if (tracked < 0 || tracked >= game::kMaxTracked || !s_slots[tracked].active)
+        if (s_slots == NULL || tracked < 0 || tracked >= game::kMaxTracked || !s_slots[tracked].active)
         {
             return NULL;
         }
@@ -495,7 +505,7 @@ namespace extra {
 
     const LcCoreState* coreDrillLCancelState(int tracked)
     {
-        if (tracked < 0 || tracked >= game::kMaxTracked || !s_slots[tracked].active)
+        if (s_slots == NULL || tracked < 0 || tracked >= game::kMaxTracked || !s_slots[tracked].active)
         {
             return NULL;
         }

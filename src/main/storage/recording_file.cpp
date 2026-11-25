@@ -31,12 +31,14 @@ namespace storage {
 
     enum {
         // Built and read in one block of the Network heap, which a Training
-        // match leaves empty but for the costume decompression buffer (up to
-        // 0x10BA20 bytes) while a fighter's files load, leaving about 0x37D40
-        // bytes (measured; setup not recorded). allocTemp checks it is empty
-        // and large enough first.
+        // match leaves free except for the costume decompression buffer (up to
+        // 0x10BA20 bytes, leaving ~0x37D40) while a fighter's files load, and
+        // the extra module's resident working buffers (~30 KiB). Requiring
+        // kTempReserve (512 KiB) past `bytes` waits out costume decompression
+        // while coexisting cleanly with extra's Network buffers.
         kTempHeap = Heaps::Network,
         kTempMax = 0x30000,
+        kTempReserve = 0x80000,
         kWaitMs = 5000,
         // gmGlobalModeMelee (gm_global_mode_melee.h: the stage kind at
         // m_meleeInitData +0x12, P+ m_isHazardOff at m_meleeInitData +0x21
@@ -79,7 +81,7 @@ namespace storage {
     static u8* allocTemp(u32 bytes, bool quiet = false)
     {
         game::HeapUsage u;
-        if (bytes > kTempMax || !game::heapUsage(kTempHeap, u) || u.allocated != 0 || u.largest < bytes)
+        if (bytes > kTempMax || !game::heapUsage(kTempHeap, u) || u.largest < bytes + kTempReserve)
         {
             if (quiet)
             {

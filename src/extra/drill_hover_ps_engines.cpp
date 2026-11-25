@@ -4,6 +4,7 @@
 #include <so/work/so_work_manage_module_impl.h>
 #include <string.h>
 
+#include "extra/net_alloc.h"
 #include "main/game/body.h"
 #include "main/game/fighters.h"
 #include "main/game/tracker.h"
@@ -12,8 +13,12 @@
 
 namespace tm {
 namespace extra {
-    static FloatDjcSlot s_floatDjc[kHoverPsMaxSlots];
-    static PsSlot s_ps[kHoverPsMaxSlots];
+    struct HoverPsState {
+        FloatDjcSlot floatDjc[kHoverPsMaxSlots];
+        PsSlot ps[kHoverPsMaxSlots];
+    };
+
+    static HoverPsState* s_state = NULL;
     static HoverPsDebugBlock s_debug;
     static s32 s_lastFrame = game::kNoFrame;
     static const Fighter* s_lastFighter[kHoverPsMaxSlots];
@@ -29,9 +34,13 @@ namespace extra {
 
     static void syncDebugSlot(int i, const game::Tracked* t, int ftKind, s16 motionKind)
     {
+        if (s_state == NULL)
+        {
+            return;
+        }
         HoverPsDebugSlot& d = s_debug.slots[i];
-        const FloatDjcSlot& fd = s_floatDjc[i];
-        const PsSlot& ps = s_ps[i];
+        const FloatDjcSlot& fd = s_state->floatDjc[i];
+        const PsSlot& ps = s_state->ps[i];
 
         if (t != NULL && t->used)
         {
@@ -114,8 +123,11 @@ namespace extra {
         s_lastFrame = game::kNoFrame;
         for (int i = 0; i < kHoverPsMaxSlots; i++)
         {
-            floatDjcResetAll(s_floatDjc[i]);
-            psResetAll(s_ps[i]);
+            if (s_state != NULL)
+            {
+                floatDjcResetAll(s_state->floatDjc[i]);
+                psResetAll(s_state->ps[i]);
+            }
             clearSlotIdentity(i);
         }
         memset(&s_debug, 0, sizeof(s_debug));
@@ -132,8 +144,11 @@ namespace extra {
         s_lastFrame = game::kNoFrame;
         for (int i = 0; i < kHoverPsMaxSlots; i++)
         {
-            floatDjcResetTransient(s_floatDjc[i]);
-            psResetTransient(s_ps[i]);
+            if (s_state != NULL)
+            {
+                floatDjcResetTransient(s_state->floatDjc[i]);
+                psResetTransient(s_state->ps[i]);
+            }
             s_debug.slots[i].inFloat = 0;
             s_debug.slots[i].floatAerialActive = 0;
             s_debug.slots[i].guardArmed = 0;
@@ -143,6 +158,8 @@ namespace extra {
 
     void hoverPsAttach()
     {
+        freeNetPtr(s_state);
+        s_state = allocNetArray<HoverPsState>(1);
         hoverPsResetAll();
         TM_LOG("hover_ps: debug block at %08x\n", &s_debug);
     }
@@ -150,10 +167,15 @@ namespace extra {
     void hoverPsDetach()
     {
         hoverPsResetAll();
+        freeNetPtr(s_state);
     }
 
     void hoverPsFrame()
     {
+        if (s_state == NULL)
+        {
+            return;
+        }
         const s32 frame = game::trackerFrame();
         if (s_lastFrame != game::kNoFrame && frame <= s_lastFrame)
         {
@@ -170,8 +192,8 @@ namespace extra {
             {
                 if (s_debug.slots[i].used != 0 || s_lastFighter[i] != NULL)
                 {
-                    floatDjcResetTransient(s_floatDjc[i]);
-                    psResetTransient(s_ps[i]);
+                    floatDjcResetTransient(s_state->floatDjc[i]);
+                    psResetTransient(s_state->ps[i]);
                     clearSlotIdentity(i);
                     syncDebugSlot(i, NULL, -1, -1);
                 }
@@ -180,8 +202,8 @@ namespace extra {
 
             if (s_lastFighter[i] != t->fighter || s_lastEntryId[i] != t->entryId || s_lastTaskId[i] != t->taskId)
             {
-                floatDjcResetTransient(s_floatDjc[i]);
-                psResetTransient(s_ps[i]);
+                floatDjcResetTransient(s_state->floatDjc[i]);
+                psResetTransient(s_state->ps[i]);
                 s_lastFighter[i] = t->fighter;
                 s_lastEntryId[i] = t->entryId;
                 s_lastTaskId[i] = t->taskId;
@@ -242,7 +264,7 @@ namespace extra {
                 fdIn.events[k].lCancel = t->events[k].lCancel;
                 fdIn.events[k].airborne = t->events[k].airborne;
             }
-            stepFloatDjc(fdIn, s_floatDjc[i]);
+            stepFloatDjc(fdIn, s_state->floatDjc[i]);
 
             // --- Feed Engine 2: P+ Powershield & PS-Drop ---
             PsInput psIn;
@@ -274,7 +296,7 @@ namespace extra {
                 psIn.events[k].status = t->events[k].status;
                 psIn.events[k].prev = t->events[k].prev;
             }
-            stepPowershield(psIn, s_ps[i]);
+            stepPowershield(psIn, s_state->ps[i]);
 
             syncDebugSlot(i, t, ftKind, fdIn.motionKind);
         }
@@ -282,20 +304,20 @@ namespace extra {
 
     const FloatDjcSlot* hoverPsFloatDjcSlot(int trackedIndex)
     {
-        if (trackedIndex < 0 || trackedIndex >= kHoverPsMaxSlots)
+        if (s_state == NULL || trackedIndex < 0 || trackedIndex >= kHoverPsMaxSlots)
         {
             return NULL;
         }
-        return &s_floatDjc[trackedIndex];
+        return &s_state->floatDjc[trackedIndex];
     }
 
     const PsSlot* hoverPsPowershieldSlot(int trackedIndex)
     {
-        if (trackedIndex < 0 || trackedIndex >= kHoverPsMaxSlots)
+        if (s_state == NULL || trackedIndex < 0 || trackedIndex >= kHoverPsMaxSlots)
         {
             return NULL;
         }
-        return &s_ps[trackedIndex];
+        return &s_state->ps[trackedIndex];
     }
 }
 }

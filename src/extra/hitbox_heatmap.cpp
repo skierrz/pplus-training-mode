@@ -3,11 +3,12 @@
 // CREDITS.md and THIRD_PARTY_NOTICES.md).
 //
 // Samples active attack parts on tracker frames via stock P+ 3.2.1's resident
-// soCollision::getShape (0x80740A3C) into a fixed BSS ring buffer (zero heap
-// allocation), and renders capsules/spheres during display::render3d() via
-// stock P+ 3.2.1's resident kBubble (0x80541FA0, gated on 0x805483FF == 1),
-// restoring the camera GX state afterward.
+// soCollision::getShape (0x80740A3C) into a ring buffer allocated from
+// Heaps::Network on attach/detach, and renders capsules/spheres during
+// display::render3d() via stock P+ 3.2.1's resident kBubble (0x80541FA0,
+// gated on 0x805483FF == 1), restoring the camera GX state afterward.
 #include "extra/hitbox_heatmap.h"
+#include "extra/net_alloc.h"
 
 #include <GX/GXTypes.h>
 #include <ft/fighter.h>
@@ -120,7 +121,7 @@ namespace extra {
         };
 
         HeatmapDebugBlock s_debug;
-        HeatmapRing s_ring;
+        HeatmapRing* s_ring = NULL;
         u8 s_framesAfterActionable[kHeatmapMaxFighters];
         bool s_boundsOverwrite[kHeatmapMaxFighters];
         bool s_playerWanted[kHeatmapMaxFighters];
@@ -319,7 +320,10 @@ namespace extra {
                     identityMatrix34(e.scaleMatrix);
                 }
 
-                s_ring.push(e);
+                if (s_ring != NULL)
+                {
+                    s_ring->push(e);
+                }
 
                 if (updateBounds && playerSlot < kHeatmapMaxFighters)
                 {
@@ -404,7 +408,10 @@ namespace extra {
 
     void heatmapReset()
     {
-        s_ring.clear();
+        if (s_ring != NULL)
+        {
+            s_ring->clear();
+        }
         for (int p = 0; p < kHeatmapMaxFighters; p++)
         {
             s_framesAfterActionable[p] = 0;
@@ -420,6 +427,8 @@ namespace extra {
 
     void heatmapAttach()
     {
+        freeNetPtr(s_ring);
+        s_ring = allocNetArray<HeatmapRing>(1);
         memset(&s_debug, 0, sizeof(s_debug));
         s_debug.magic = kDebugMagic;
         bool shapeOk = wordsMatch(kShapeOfAddr, kGetShapeWords, static_cast<int>(sizeof(kGetShapeWords) / 4));
@@ -438,10 +447,15 @@ namespace extra {
     void heatmapDetach()
     {
         heatmapReset();
+        freeNetPtr(s_ring);
     }
 
     void heatmapTick()
     {
+        if (s_ring == NULL)
+        {
+            return;
+        }
         const main::DisplaySettings& d = main::settings().display;
         if (d.heatmap == display::kWhoNone)
         {
@@ -450,16 +464,16 @@ namespace extra {
             {
                 anyBounds = anyBounds || s_debug.bounds[p].valid != 0;
             }
-            if (s_ring.count > 0 || anyBounds)
+            if (s_ring->count > 0 || anyBounds)
             {
                 heatmapReset();
             }
             return;
         }
 
-        if (s_ring.count > 0)
+        if (s_ring->count > 0)
         {
-            s_ring.tickAge();
+            s_ring->tickAge();
         }
 
         FighterSlotInfo slots[kHeatmapMaxFighters];
@@ -525,8 +539,8 @@ namespace extra {
             sampleCategoryTasks(gfTask::Category_Item, StageObject_Item, d.heatmap, slots);
         }
 
-        s_debug.ringCount = s_ring.count;
-        s_debug.totalSampled = s_ring.totalPushed;
+        s_debug.ringCount = s_ring->count;
+        s_debug.totalSampled = s_ring->totalPushed;
     }
 
     void heatmapDraw(const game::MatchState& match)
@@ -534,7 +548,7 @@ namespace extra {
         s_debug.drawCalls = 0;
         s_debug.boundsDrawn = 0;
         const main::DisplaySettings& d = main::settings().display;
-        if (!match.running || match.paused || d.heatmap == display::kWhoNone)
+        if (!match.running || match.paused || d.heatmap == display::kWhoNone || s_ring == NULL)
         {
             return;
         }
@@ -549,18 +563,18 @@ namespace extra {
         u8 alpha = opacityPercentToAlpha(d.heatmapOpacity);
         u8 step = clampColorFrames(d.heatmapColorFrames);
 
-        if (s_debug.bubbleOk && s_ring.count > 0)
+        if (s_debug.bubbleOk && s_ring->count > 0)
         {
             BubbleFn drawBubble = reinterpret_cast<BubbleFn>(kBubbleAddr);
-            int idx = static_cast<int>(s_ring.head);
+            int idx = static_cast<int>(s_ring->head);
             u16 drawn = 0;
-            u16 total = s_ring.count;
+            u16 total = s_ring->count;
             int lastOffset = -1;
             u32 c1 = 0;
             u32 c2 = 0;
             for (int k = 0; k < kHeatmapRing && drawn < total; k++)
             {
-                const HeatmapEntry& e = s_ring.entries[idx];
+                const HeatmapEntry& e = s_ring->entries[idx];
                 if (++idx >= kHeatmapRing)
                 {
                     idx = 0;

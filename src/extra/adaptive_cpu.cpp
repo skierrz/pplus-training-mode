@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "extra/adaptive_cpu_core.h"
+#include "extra/net_alloc.h"
 #include "extra/stage_geom.h"
 #include "main/cpu/actions.h"
 #include "main/cpu/cpu_settings.h"
@@ -35,7 +36,7 @@ namespace extra {
         u32 biasTriggers;   // 0x2C: total adaptive bias activations
     };
 
-    static MovementTracker s_trackers[game::kMaxFighters];
+    static MovementTracker* s_trackers = NULL;
     static PatternManager s_patterns;
     static int s_prevStatus[game::kMaxFighters];
     static u8 s_prevRps[game::kMaxFighters];
@@ -67,7 +68,10 @@ namespace extra {
     {
         for (int i = 0; i < game::kMaxFighters; i++)
         {
-            s_trackers[i].reset();
+            if (s_trackers != NULL)
+            {
+                s_trackers[i].reset();
+            }
             s_prevStatus[i] = -1;
             s_prevRps[i] = kRpsNull;
             s_neutralCooldown[i] = 0;
@@ -82,6 +86,8 @@ namespace extra {
 
     void adaptiveCpuAttach()
     {
+        freeNetPtr(s_trackers);
+        s_trackers = allocNetArray<MovementTracker>(game::kMaxFighters);
         adaptiveCpuReset();
         TM_LOG("adaptive: debug block at %08x\n", &s_debug);
     }
@@ -89,6 +95,7 @@ namespace extra {
     void adaptiveCpuDetach()
     {
         adaptiveCpuReset();
+        freeNetPtr(s_trackers);
     }
 
     static void updateDebugTelemetry(u8 mode)
@@ -100,20 +107,20 @@ namespace extra {
         }
         s_debug.magic = kAdaptiveDebugMagic;
         s_debug.mode = mode;
-        s_debug.samples = s_trackers[p].sampleCount();
-        s_debug.p1CurrentMov = s_trackers[p].currentMov();
+        s_debug.samples = s_trackers != NULL ? s_trackers[p].sampleCount() : 0;
+        s_debug.p1CurrentMov = s_trackers != NULL ? s_trackers[p].currentMov() : 0;
         s_debug.p1RpsCount = s_patterns.count(p);
         s_debug.p1DominantRps = s_patterns.dominantRps(p);
         s_debug.p1Confidence = s_patterns.confidence(p);
-        s_debug.p1AttackProb = s_trackers[p].approxChance(kMovAttack);
-        s_debug.p1ShieldProb = s_trackers[p].approxChance(kMovShield);
-        s_debug.p1GrabProb = s_trackers[p].approxChance(kMovGrab);
+        s_debug.p1AttackProb = s_trackers != NULL ? s_trackers[p].approxChance(kMovAttack) : 0.0f;
+        s_debug.p1ShieldProb = s_trackers != NULL ? s_trackers[p].approxChance(kMovShield) : 0.0f;
+        s_debug.p1GrabProb = s_trackers != NULL ? s_trackers[p].approxChance(kMovGrab) : 0.0f;
     }
 
     void adaptiveCpuFrame()
     {
         u8 mode = main::settings().cpu.options.adaptiveMode;
-        if (mode == cpu::kAdaptiveOff)
+        if (mode == cpu::kAdaptiveOff || s_trackers == NULL)
         {
             s_debug.mode = cpu::kAdaptiveOff;
             return;

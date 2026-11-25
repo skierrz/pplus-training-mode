@@ -165,8 +165,8 @@ STUB_BUDGET ?= 20480
 endif
 MAIN_BUDGET ?= 292832
 # The menu module (its block, as above), loaded for Training's character
-# select into the same heap.
-MENU_BUDGET ?= 65536
+# select into OverlayMenu (293,728 bytes free on CSS; match is not loaded).
+MENU_BUDGET ?= 98304
 # The extra module (its block, as above), loaded next to the main module
 # into OverlayFighter4 (296,032 bytes free in every Training match measured):
 # the largest size that passed the stress test there (8 character pairs,

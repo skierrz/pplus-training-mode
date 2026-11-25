@@ -8,6 +8,9 @@
 // these tests is not a file the console could read, and the console's files
 // are not read here: what is tested is the logic (what is kept, what is
 // refused, what an older or damaged file does), not the byte order.
+#include <gf/gf_heap_manager.h>
+#include <gf/gf_memory_pool.h>
+#include <memory.h>
 #include <sr/sr_common.h>
 
 #include "host/card.h"
@@ -1909,6 +1912,46 @@ TEST(recording_file, what_export_and_import_refuse)
     CHECK_EQ(0, host::card::reads());
     storage::detach();
     record::storageFree();
+}
+
+TEST(recording_file, coexists_with_resident_network_buffers)
+{
+    // Resident extra working buffers (~32 KiB) in Heaps::Network must coexist
+    // cleanly with recording export and import when headroom remains >= 512 KiB.
+    host::fakes::setHeapRoom(Heaps::Network, 0x143800);
+    void* resident = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), 32768, 32);
+    REQUIRE(resident != NULL);
+    CHECK_EQ(1, host::fakes::heapBlocks(Heaps::Network));
+
+    Settings atExport;
+    REQUIRE(exported(atExport));
+    u32 size = header(kRecording)->size;
+    storage::detach();
+
+    runImport(kRecording, size);
+    CHECK_EQ(1, host::fakes::recording().imports);
+    CHECK_EQ(1, host::fakes::heapBlocks(Heaps::Network));
+    storage::detach();
+    record::storageFree();
+
+    // During costume decompression (~0x37D40 left in Network), import waits out
+    // the headroom reserve instead of allocating.
+    storage::Handoff* hand = storage::blockHandoff(host::fakes::block());
+    hand->magic = storage::kHandoffMagic;
+    hand->size = size;
+    strcpy(hand->name, kRecording);
+    host::fakes::setHeapRoom(Heaps::Network, 0x37D40 + 32768);
+    int readsBefore = host::card::reads();
+    host::log::clear();
+    storage::attach(host::fakes::block());
+    frames(1000);
+    CHECK_LOG("storage: notice: Import failed: not enough memory");
+    CHECK_EQ(readsBefore, host::card::reads());
+    storage::detach();
+    record::storageFree();
+
+    free(resident);
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
 }
 
 TEST(recording_file, a_short_read_does_not_double_free)

@@ -6,6 +6,12 @@ namespace tm {
 namespace extra {
     using namespace ui::pages;
 
+    static const char kDescTrainingMenu[] = "Switch directly to Brawl's built-in Training pause menu.";
+    static const char kDescExitCss[] = "End this session and return to the Character Select Screen.";
+    static const char kDescRevAction[] = "Secondary reversal action mixed with the primary trigger option.";
+    static const char kDescRevDelay[] = "Actionable frame delay before the Slot 2 reversal fires.";
+    static const char kDescRevChance[] = "Probability weight for Slot 2 versus primary Slot 1.";
+
     static const char* const kGeneralDesc[] = {
         "Freeze gameplay and step one frame per advance press.",
         "Set Player 1 starting damage percentage immediately.",
@@ -17,8 +23,8 @@ namespace extra {
         "Configure frame advance, D-pad bindings, menu button, and style.",
         "Open diagnostics and frame telemetry overlay toggles.",
         "Restore all Training Lab settings to default values.",
-        "Switch directly to Brawl's built-in Training pause menu.",
-        "End this session and return to the Character Select Screen.",
+        kDescTrainingMenu,
+        kDescExitCss,
         "Show read-only OSDs and info panels in local offline Versus."
     };
 
@@ -337,18 +343,18 @@ namespace extra {
     static const char* const kReversalDesc[] = {
         "Enable weighted multi-slot reversals across all four triggers.",
         "Choose On-Hit, On-Shield, On-Getup, or On-Ledge slots to edit.",
-        "Secondary reversal action mixed with the primary trigger option.",
-        "Actionable frame delay before the Slot 2 reversal fires.",
-        "Probability weight for Slot 2 versus primary Slot 1.",
-        "Secondary reversal action mixed with the primary trigger option.",
-        "Actionable frame delay before the Slot 2 reversal fires.",
-        "Probability weight for Slot 2 versus primary Slot 1.",
-        "Secondary reversal action mixed with the primary trigger option.",
-        "Actionable frame delay before the Slot 2 reversal fires.",
-        "Probability weight for Slot 2 versus primary Slot 1.",
-        "Secondary reversal action mixed with the primary trigger option.",
-        "Actionable frame delay before the Slot 2 reversal fires.",
-        "Probability weight for Slot 2 versus primary Slot 1."
+        kDescRevAction,
+        kDescRevDelay,
+        kDescRevChance,
+        kDescRevAction,
+        kDescRevDelay,
+        kDescRevChance,
+        kDescRevAction,
+        kDescRevDelay,
+        kDescRevChance,
+        kDescRevAction,
+        kDescRevDelay,
+        kDescRevChance
     };
 
     static const char* const kRailDesc[] = {
@@ -360,8 +366,8 @@ namespace extra {
         "Toggle on-screen frame data and technique notifications.",
         "Fighter swap, active stage options, and character mechanics.",
         "Press A twice to reset all Training Lab settings to defaults.",
-        "Switch directly to Brawl's built-in Training pause menu.",
-        "End this session and return to the Character Select Screen."
+        kDescTrainingMenu,
+        kDescExitCss
     };
 
     struct DescTable {
