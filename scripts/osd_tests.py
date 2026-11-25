@@ -93,8 +93,9 @@ SPEED = "0"
 S_OSD_POSITION = 88
 S_OSD_BG_COLOR, S_OSD_BG_ALPHA = 110, 111
 POS_HUD, POS_SIDES, POS_TOP_LEFT, POS_TOP_RIGHT = 0, 1, 2, 3
-SIDES_X, SIDES_Y = (96.0, 245.0, 395.0, 544.0), 366.0
-TOP_Y = (47.0, 103.0, 159.0, 215.0)
+SIDES_X, SIDES_Y = (96.0, 245.0, 395.0, 544.0), 360.0
+# TopLeft / TopRight step below timerRoom (y1=65) + kStepGap (6) = 71 -> centre 94, pitch 56.
+TOP_Y = (94.0, 150.0, 206.0, 262.0)
 
 
 def squeeze_of(shot):
@@ -115,7 +116,7 @@ def osd_spot(position, player, squeeze):
         x, y = 640.0 - margin - half_w, TOP_Y[player - 1]
     else:
         hud_right = [144.0, 290.0, 436.0, 575.0] if squeeze < 1.0 else [155.0, 301.0, 448.0, 595.0]
-        x, y = hud_right[player - 1] - half_w, 376.0
+        x, y = hud_right[player - 1] - half_w, 360.0
     if squeeze >= 1.0:
         x = max(32.0 + half_w, min(640.0 - 32.0 - half_w, x))
     return x, y

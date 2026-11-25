@@ -39,7 +39,7 @@ namespace osd {
         s16 slot;     // place in the stack, 0 = newest
         s32 born;     // tracker frame
         s32 moved;    // tracker frame the glide to `slot` began
-        float from;   // stack place the glide started from (-1 = below)
+        float from;   // stack place the glide started from (kEnterFrom = below)
         float width[kMaxLines];
         gfx::Rgba color[kMaxLines];
         char text[kMaxLines][kLineChars + 1];
@@ -109,9 +109,11 @@ namespace osd {
             Message& m = *order[k];
             if (m.slot != k)
             {
+                // Pushing older cards up to make room for a new arrival completes
+                // immediately so they never overlap the entering card mid-glide.
                 m.from = place(m, now);
+                m.moved = (m.slot >= 0 && k > m.slot) ? now - kAnimFrames : now;
                 m.slot = static_cast<s16>(k);
-                m.moved = now;
             }
         }
     }
@@ -198,7 +200,7 @@ namespace osd {
         }
         else
         {
-            m->from = -1.0f;
+            m->from = kEnterFrom;
         }
         m->moved = now;
 

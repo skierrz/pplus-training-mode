@@ -27,15 +27,20 @@ namespace osd {
     static const float kHudRight[4] = {144.0f, 290.0f, 436.0f, 575.0f};
     static const float kHudRight43[4] = {155.0f, 301.0f, 448.0f, 595.0f};
     static const float kDigitsTop = 415.0f;
-    static const float kHudGap = 16.0f;
+    static const float kHudGap = 32.0f;
 
     static const float kBoxWidth = 124.0f;
     static const float kBoxHeight = 46.0f;
-    static const float kBoxGap = 4.0f;
-    static const float kPitch = kBoxHeight + kBoxGap; // 50.0 px vertical stack pitch
+    static const float kBoxGap = 3.0f;
+    static const float kPitch = kBoxHeight + kBoxGap; // 49.0 px vertical stack pitch
+
+    // Starting stack offset for a newly posted OSD card's glide-in. Kept compact
+    // (+4.9 px on lower stacks) so entering cards never clip Brawl's portrait row
+    // (y >= 397) or the recording seek bar (y >= 365) on frame 0..kAnimFrames.
+    static const float kEnterFrom = -0.10f;
 
     static const float kSidesX[4] = {96.0f, 245.0f, 395.0f, 544.0f};
-    static const float kSidesY = 366.0f;
+    static const float kSidesY = 360.0f;
     static const float kTopRowGap = 10.0f;
     static const float kTopColGap = 6.0f;
 

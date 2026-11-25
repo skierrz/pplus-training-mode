@@ -1622,6 +1622,48 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
         canvas::Bounds wb = canvas::bounds();
         Box watermarkBox = {wb.x0, wb.y0, wb.x1, wb.y1};
 
+        // End-to-end rendered OSD glide check: posting two consecutive P1 OSDs
+        // on Sides and HUD keeps every card cleanly above Brawl's P1 portrait
+        // top (y = 397) AND keeps slot 0 / slot 1 separated with zero overlap
+        // at frame 0, mid-glide (frame 4), and settled (frame 10) on 4:3 & 16:9.
+        static const int kSampleAges[3] = {0, 4, 10};
+        for (int pos = osd_real::kPositionHud; pos <= osd_real::kPositionSides; pos++)
+        {
+            osd_real::setPosition(pos);
+            osd_real::reset();
+            host::fakes::setTrackerFrame(95);
+            REQUIRE(osd_real::post(0, osd_real::kIdWavedash, osd_real::kWhite, "Ledge Hang\n4 Frames") != NULL);
+            host::fakes::setTrackerFrame(100);
+            REQUIRE(osd_real::post(0, osd_real::kIdMiscellaneous, osd_real::kWhite, "GALINT\n+1 Frames") != NULL);
+            for (int ai = 0; ai < 3; ai++)
+            {
+                host::fakes::setTrackerFrame(100 + kSampleAges[ai]);
+                canvas::clear();
+                osd_real::draw();
+                canvas::Bounds ob = canvas::bounds();
+                REQUIRE(ob.any);
+                CHECK(ob.y1 <= 389.0f + kTol);
+                // Check card body rects (height > 10 px): slot 1 bottom must stay above slot 0 top.
+                float tops[2] = {0.0f, 0.0f};
+                float bots[2] = {0.0f, 0.0f};
+                int bodies = 0;
+                for (int ri = 0; ri < canvas::rects() && bodies < 2; ri++)
+                {
+                    const canvas::Rect& r = canvas::rect(ri);
+                    if (r.height > 10.0f)
+                    {
+                        tops[bodies] = r.y;
+                        bots[bodies] = r.y + r.height;
+                        bodies++;
+                    }
+                }
+                CHECK_EQ(2, bodies);
+                CHECK(bots[0] <= tops[1] + kTol);
+            }
+        }
+        osd_real::setPosition(osd_real::kPositionSides);
+        osd_real::reset();
+
         // Sweep: Timer vs Ledgedash (30 & 64) vs Live Skill Drill HUD
         //        x Info (Small 8+8, Med 8+2, Large 8+8)
         //        x Input Viewer (0, 1, 2) x DI Compass (0, 1) x PSA Card (0, 1).
@@ -1777,14 +1819,28 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                             }
 
                             // 4. Lower OSD stacks (HUD & Sides, 3 typical messages for P1+CPU)
-                            //    never collide with Timer, Ledgedash HUD, Drill HUD, Viewer, Compass, or PSA.
+                            //    clear P1's Brawl bottom-HUD portrait zone (y >= 397) at BOTH
+                            //    settled and mid-glide (kEnterFrom) frames, and never collide
+                            //    with Timer, Ledgedash HUD, Drill HUD, Viewer, Compass, or PSA.
                             if (ii == 1 && (ledge == 0 || drillHud))
                             {
                                 for (int pos = osd_real::kPositionHud; pos <= osd_real::kPositionSides; pos++)
                                 {
                                     for (int pl = 0; pl < 2; pl++)
                                     {
+                                        // Without rec bar: both settled (slot 0) and frame-0 glide-in
+                                        // (kEnterFrom) must clear P1's fighter portrait / 0% HUD.
+                                        osd_real::StackPlace spBase = osd_real::stackPlace(pos, pl, xs, 0.0f);
+                                        float settledBottom = spBase.y + hh;
+                                        float glideBottom = spBase.y + osd_real::kEnterFrom * spBase.dy + hh;
+                                        CHECK(settledBottom <= 385.0f + kTol);
+                                        CHECK(glideBottom <= 389.0f + kTol);
+
+                                        // With rec bar: even frame-0 glide-in stays above rec-bar top (365).
                                         osd_real::StackPlace sp = osd_real::stackPlace(pos, pl, xs, recBarOsdFloor());
+                                        float recGlideBottom = sp.y + osd_real::kEnterFrom * sp.dy + hh;
+                                        CHECK(recGlideBottom <= recBar.y0 + kTol);
+
                                         Box stack = none();
                                         for (int sl = 0; sl < 3; sl++)
                                         {
