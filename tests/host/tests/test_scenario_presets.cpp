@@ -557,7 +557,7 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     // Lab (kGeneral) places Controls at row 7 and Debug at row 8; Scenarios is
     // its own top-level category page with Combo Trainer at row 5.
     const ui::Page& gen = ui::pages::kGeneral;
-    REQUIRE(gen.count == 12);
+    REQUIRE(gen.count == 13);
     CHECK(strcmp(gen.options[7].name, "Controls") == 0);
     CHECK(strcmp(gen.options[8].name, "Debug") == 0);
     const ui::Page& scen = ui::pages::kScenarios;

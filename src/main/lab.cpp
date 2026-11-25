@@ -41,6 +41,7 @@
 #include "shared/game/mem.h"
 #include "shared/game/menu_sound.h"
 #include "shared/game/pad_bits.h"
+#include "shared/game/scene.h"
 #include "shared/interface.h"
 #include "shared/log.h"
 #include "shared/perf.h"
@@ -138,6 +139,7 @@ namespace lab {
     static bool s_menuFresh = true; // the menu starts on its first row at the next open
     static bool s_prevRan = true;
     static bool s_fightersLogged = false;
+    static bool s_vsReadOnly = false;
     static u32 s_systemCalls = 0;
     static u32 s_gameCalls = 0;
     static u32 s_frozenGameCalls = 0;
@@ -1315,11 +1317,14 @@ namespace lab {
             TM_PERF_SCOPE(kTechniques);
             game::techniquesFrame();
         }
+        if (!s_vsReadOnly)
         {
-            TM_PERF_SCOPE(kCharacterRng);
-            main::extraCharacterRng();
+            {
+                TM_PERF_SCOPE(kCharacterRng);
+                main::extraCharacterRng();
+            }
+            main::extraStageOptionsTick();
         }
-        main::extraStageOptionsTick();
     }
 
     void frameAdvanceChanged()
@@ -1368,31 +1373,36 @@ namespace lab {
     // Info panels and OSD messages hide while the lab menu or pause is open.
     void onRender(u32 call, const game::MatchState& m)
     {
+        bool ro = s_vsReadOnly;
         bool info = m.running && !s_st.open && !m.paused && main::extraInfoWanted();
         bool messages = m.running && !m.paused && !s_st.open && osd::visible();
         // Z opens the lab menu from Training's pause in both modes; the hint
         // shows only where that is the way in.
-        bool hint = m.running && m.training && m.paused && !s_st.open && !startOpensMenu();
+        bool hint = !ro && m.running && m.training && m.paused && !s_st.open && !startOpensMenu();
         bool ledge = m.running && !m.paused && !s_st.open && ui::ledgedashHudVisible();
+        bool hud = ro || display::hudShown();
         // Training leaves Brawl's own timer off: it is turned on here instead
         // (ui/match_hud.cpp), hidden while the Ledgedash HUD is shown.
-        bool timer = m.running && display::hudShown() && !ui::ledgedashHudVisible() && (!m.paused || s_st.open);
+        bool timer = !ro && m.running && hud && !ui::ledgedashHudVisible() && (!m.paused || s_st.open);
         if (timer)
         {
             ui::showMatchTimer(game::trackerFrame());
         }
-        setLayout(display::hudShown());
+        setLayout(hud);
         if (m.running)
         {
+            if (!ro)
             {
-                TM_PERF_SCOPE(kRender3d);
-                display::render3d(m);
-            }
-            if (!m.paused && settings().comboTrainer.enabled && settings().comboTrainer.enabledMeters != 0)
-            {
-                display::debugDrawBegin();
-                main::extraComboDraw(m);
-                display::debugDrawEnd();
+                {
+                    TM_PERF_SCOPE(kRender3d);
+                    display::render3d(m);
+                }
+                if (!m.paused && settings().comboTrainer.enabled && settings().comboTrainer.enabledMeters != 0)
+                {
+                    display::debugDrawBegin();
+                    main::extraComboDraw(m);
+                    display::debugDrawEnd();
+                }
             }
             gfx::begin();
             if (gfx::lineHeight(0.5f) > 0.0f)
@@ -1422,13 +1432,16 @@ namespace lab {
                     }
                     gfx::textBox(kSlotHint, ui::layout::kHintX, ui::layout::kHintY, text, kYellow, kBox, 0.5f, false);
                 }
-                display::render2d(m, s_st.open);
-                if (s_st.open)
+                if (!ro)
                 {
-                    TM_PERF_SCOPE(kMenuDraw);
-                    ui::menuDraw(ui::labMenu(), s_menu);
+                    display::render2d(m, s_st.open);
+                    if (s_st.open)
+                    {
+                        TM_PERF_SCOPE(kMenuDraw);
+                        ui::menuDraw(ui::labMenu(), s_menu);
+                    }
                 }
-                if (display::hudShown() && !(s_st.open && storage::noticeActive()))
+                if (hud && (ro || !(s_st.open && storage::noticeActive())))
                 {
                     TM_PERF_SCOPE(kWatermark);
                     ui::drawWatermark();
@@ -1436,7 +1449,7 @@ namespace lab {
             }
             gfx::end();
         }
-        if (settings().display.debugOverlay)
+        if (!ro && settings().display.debugOverlay)
         {
             TM_PERF_SCOPE(kDebugOverlay);
             ui::drawDebugOverlay(call, m);
@@ -1497,6 +1510,7 @@ namespace lab {
         memset(&s_st, 0, sizeof(s_st));
         s_st.owner = -1;
         s_st.pausePort = -1;
+        s_vsReadOnly = !game::trainingGameMode();
         memset(s_playerShieldHit, 0, sizeof(s_playerShieldHit));
         game::trackerAttach();
         game::advantageReset(onAdvantage);
@@ -1505,15 +1519,27 @@ namespace lab {
         osd::reset();
         osdSettingsChanged();
         s_menuFresh = true;
-        display::attach();
+        if (!s_vsReadOnly)
+        {
+            display::attach();
+        }
         bool wide = game::widescreen();
         gfx::setWidescreen(wide);
-        TM_LOG("lab: screen %s; frame advance %s, overlay %s\n", wide ? "16:9" : "4:3",
-               settings().general.frameAdvance ? "on" : "off", settings().display.debugOverlay ? "on" : "off");
+        if (!s_vsReadOnly)
+        {
+            TM_LOG("lab: screen %s; frame advance %s, overlay %s\n", wide ? "16:9" : "4:3",
+                   settings().general.frameAdvance ? "on" : "off", settings().display.debugOverlay ? "on" : "off");
+        }
     }
 
     void detach()
     {
+        if (s_vsReadOnly)
+        {
+            game::trackerDetach();
+            s_vsReadOnly = false;
+            return;
+        }
         display::detach();
         game::overlaysClear();
         game::trackerDetach();

@@ -15,7 +15,8 @@ namespace game {
     // True if `scene` is a readable scene object named `name`.
     bool sceneIs(const gfScene* scene, const char* name);
 
-    // True while the current sequence is Training (its menus and matches).
+    // True while the current sequence is named `name` (or Training).
+    bool sequenceIs(const char* name);
     bool inTraining();
 
     // True if the game mode the menus set for the next or current match

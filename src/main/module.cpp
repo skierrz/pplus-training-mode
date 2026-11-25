@@ -3,8 +3,10 @@
 #include <types.h>
 
 #include "main/cpu/cpu.h"
+#include "main/display/display.h"
 #include "main/extra.h"
 #include "main/game/code_menu.h"
+#include "main/game/freeze.h"
 #include "main/game/match_log.h"
 #include "main/game/overlays.h"
 #include "main/game/tracker.h"
@@ -46,6 +48,8 @@ namespace main {
 
     static const iface::Services kNoServices = {ignoreLog, noSettings};
     static iface::Interface* s_iface = NULL;
+    static bool s_vsReadOnly = false;
+    static bool s_vsPrevRan = false;
 
     const iface::Services& services()
     {
@@ -103,6 +107,7 @@ namespace main {
             game::trackerHandOver();
         }
         // Draw the save flash first so the HUD and overlays render above it.
+        if (!s_vsReadOnly)
         {
             TM_PERF_SCOPE(kSavestateRender);
             savestate::onRender(match);
@@ -111,7 +116,7 @@ namespace main {
             TM_PERF_SCOPE(kLabRender);
             lab::onRender(call, match);
         }
-        if (match.running && !match.paused && !lab::menuOpen() && record::hudVisible())
+        if (!s_vsReadOnly && match.running && !match.paused && !lab::menuOpen() && record::hudVisible())
         {
             TM_PERF_SCOPE(kRecordHud);
             gfx::begin();
@@ -123,10 +128,12 @@ namespace main {
             extraRender(call, match);
         }
         // after everything that asks for the match timer
+        if (!s_vsReadOnly)
         {
             TM_PERF_SCOPE(kMatchHud);
             ui::matchHudApply(match);
         }
+        if (!s_vsReadOnly)
         {
             TM_PERF_SCOPE(kStorage);
             storage::onRender(match);
@@ -198,6 +205,35 @@ namespace main {
         }
     }
 
+    // Passive pad callback for opted-in local offline Versus: updates read-only
+    // stick capture, fighter trackers, and Info Display clocks without masking
+    // pads, opening the lab menu, freezing gameplay, or mutating fighters.
+    static void onPadsReadOnly(u32 phase, gfPadStatus* pads)
+    {
+        if (phase != iface::kPadsGame)
+        {
+            return;
+        }
+        if (game::codeMenuOpen())
+        {
+            game::trackerStepRuns(false);
+            return;
+        }
+        display::capturePads(pads);
+        game::MatchState m = game::matchState();
+        bool live = m.running && !m.paused && !game::heldByOthers();
+        {
+            TM_PERF_SCOPE(kTrackerStep);
+            game::trackerStep(live);
+        }
+        if (extraInfoWanted())
+        {
+            extraInfoStep(s_vsPrevRan);
+        }
+        s_vsPrevRan = live;
+        game::trackerStepRuns(live);
+    }
+
     static bool attach(iface::Interface* iface)
     {
         if (iface->version != iface::kVersion || iface->size != sizeof(iface::Interface))
@@ -210,10 +246,23 @@ namespace main {
             return false;
         }
         s_iface = iface;
+        s_vsReadOnly = !game::trainingGameMode();
+        s_vsPrevRan = false;
 #ifdef TM_PERF
         perf::announce("main", perf::kMainNames, perf::kMainSections);
 #endif
         bool reset = loadSettings(block);
+        if (s_vsReadOnly)
+        {
+            lab::attach();
+            iface->callbacks.render = onRender;
+            iface->callbacks.pads = onPadsReadOnly;
+            iface->callbacks.fighterPad = NULL;
+            iface->callbacks.fighterInput = NULL;
+            iface->callbacks.fighterFixCamera = NULL;
+            TM_LOG("main: read-only offline Versus displays attached\n");
+            return true;
+        }
         TM_LOG("main: attached in %s / %s; settings v%d at %08x %s\n", game::sceneName(), game::sequenceName(),
                kSettingsVersion, block, reset ? "set to defaults" : "kept");
         // The SD card's settings (first match of the session), before the
@@ -248,6 +297,15 @@ namespace main {
 #ifdef TM_EXPERIMENTS
         experiments::heapStatsOnDetach();
 #endif
+        if (s_vsReadOnly)
+        {
+            lab::detach();
+            TM_LOG("main: detaching\n");
+            s_vsReadOnly = false;
+            s_vsPrevRan = false;
+            s_iface = NULL;
+            return;
+        }
         storage::detach();
         record::detach();
         savestate::detach();

@@ -51,9 +51,14 @@ namespace game {
         return isRam(scene) && isRam(scene->m_sceneName) && sameString(scene->m_sceneName, name);
     }
 
+    bool sequenceIs(const char* name)
+    {
+        return sameString(sequenceName(), name);
+    }
+
     bool inTraining()
     {
-        return sameString(sequenceName(), "sqTraining");
+        return sequenceIs("sqTraining");
     }
 
     bool trainingGameMode()

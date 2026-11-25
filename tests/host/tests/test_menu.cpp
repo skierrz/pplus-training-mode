@@ -579,7 +579,7 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
         CHECK(!(lab.options[i].kind == ui::kKindMenu && lab.options[i].max == ui::pages::P_OSD_MENU));
         CHECK(!(lab.options[i].name != NULL && strcmp(lab.options[i].name, "OSD Menu") == 0));
     }
-    REQUIRE(lab.count == 12);
+    REQUIRE(lab.count == 13);
     CHECK(strcmp(lab.options[7].name, "Controls") == 0);
     CHECK_EQ(ui::pages::P_CONTROLS, lab.options[7].max);
     CHECK(strcmp(lab.options[8].name, "Debug") == 0);
@@ -587,6 +587,8 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK((lab.options[9].flags & ui::kFlagTabsOnly) != 0);
     CHECK((lab.options[10].flags & ui::kFlagTabsOnly) != 0);
     CHECK((lab.options[11].flags & ui::kFlagTabsOnly) != 0);
+    CHECK(strcmp(lab.options[12].name, "Offline VS Displays") == 0);
+    CHECK((lab.options[12].flags & ui::kFlagTabsOnly) == 0);
 
     const ui::Page& scen = ui::pages::kScenarios;
     REQUIRE(scen.count == 6);
@@ -1144,27 +1146,26 @@ TEST(lab_menu, rail_hides_tabs_only_utilities_and_clamps_on_live_style_switch)
     ui::MenuState st;
     ui::menuReset(menu, st);
 
+    ui::MenuInput inUp = {1, 0, 0, 0, false, false, false, false};
     ui::MenuInput inDown = {0, 1, 0, 0, false, false, false, false};
     ui::MenuInput noop = {0, 0, 0, 0, false, false, false, false};
 
-    // Draft C (Rail): Lab has 9 visible rows (0..8); rows 9..11 (kFlagTabsOnly) are omitted.
+    // Draft C (Rail): Lab has 10 visible rows (0..8 and 12); rows 9..11 (kFlagTabsOnly) are omitted.
     main::settings().controls.menuStyle = main::kMenuStyleRail;
     for (int i = 0; i < 15; i++)
     {
         ui::menuStep(menu, st, inDown);
     }
-    CHECK_EQ(8, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
+    CHECK_EQ(12, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
     host::canvas::clear();
     ui::menuDraw(menu, st);
     CHECK(menuCanvasDrew("Debug"));
+    CHECK(menuCanvasDrew("Offline VS Displays"));
     CHECK(!menuCanvasDrew("Brawl Training Menu"));
 
-    // Live switch to Draft A (Tabs): all 12 rows appear including Reset / Brawl Training / Return to CSS.
+    // Live switch to Draft A (Tabs): all 13 rows appear including Reset / Brawl Training / Return to CSS.
     main::settings().controls.menuStyle = main::kMenuStyleTabs;
-    for (int i = 0; i < 5; i++)
-    {
-        ui::menuStep(menu, st, inDown);
-    }
+    ui::menuStep(menu, st, inUp);
     CHECK_EQ(11, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
     host::canvas::clear();
     ui::menuDraw(menu, st);

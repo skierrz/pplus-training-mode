@@ -27,6 +27,7 @@
 #include "main/gfx/text.h"
 #include "main/module.h"
 #include "main/ui/info_display.h"
+#include "shared/game/scene.h"
 #include "shared/log.h"
 #include "shared/version.h"
 
@@ -54,6 +55,7 @@ namespace extra {
 #endif
 
     static bool s_logged = false;
+    static bool s_vsReadOnly = false;
 
     // The match module's version and interface version (its data), the
     // tracker's frame and slot 0's status (its functions), and the trace
@@ -71,7 +73,10 @@ namespace extra {
 #if TM_EXTRA_PAD_BYTES > 0
         s_padding[call % sizeof(s_padding)] = 1;
 #endif
-        fighterSwapTick(match);
+        if (!s_vsReadOnly)
+        {
+            fighterSwapTick(match);
+        }
         if (!match.running)
         {
             return;
@@ -96,6 +101,12 @@ namespace extra {
     // Once per finished tracker frame.
     static void onFrame()
     {
+        if (s_vsReadOnly)
+        {
+            frameDataFrame();
+            heatmapTick();
+            return;
+        }
         fighterSwapTick(game::matchState());
         frameDataFrame();
         scenarioPresetsFrame();
@@ -135,6 +146,16 @@ namespace extra {
             return false;
         }
         s_logged = false;
+        s_vsReadOnly = !game::trainingGameMode();
+        if (s_vsReadOnly)
+        {
+            frameDataAttach();
+            heatmapAttach();
+            ui::infoReset();
+            main::setExtraHooks(&kHooks);
+            TM_LOG("extra: attached (read-only VS) v%s\n", main::kModule.buildVersion);
+            return true;
+        }
         stageGeomAttach();
         pplusRecoveryAttach();
         comboTrainerAttach();
@@ -158,6 +179,14 @@ namespace extra {
 
     static void detach()
     {
+        if (s_vsReadOnly)
+        {
+            heatmapDetach();
+            main::setExtraHooks(NULL);
+            s_vsReadOnly = false;
+            TM_LOG("extra: detaching\n");
+            return;
+        }
         uiAssetsDetach();
         pplusTechDetach();
         fighterSwapDetach();
