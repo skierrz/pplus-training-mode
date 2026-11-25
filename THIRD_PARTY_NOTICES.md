@@ -127,7 +127,7 @@ Project+ 3.2.1 recording and CPU options:
 |------|---------------|------|
 | `src/main/record/start_input.h`, `src/main/record/record.cpp`, `src/main/record/hud.cpp`, `src/main/ui/pages/recording.cpp` | `extension/source/recorder.cpp` | Start On First Input recording arming: wait for the first non-neutral input before capturing frames, showing an Armed indicator until capture begins |
 | `src/main/cpu/ledge_logic.h`, `src/main/cpu/options.cpp` | `extension/source/recorder.cpp`, `extension/source/actions.cpp` | On-Ledge reversal trigger on `Cliff_Wait` (`0x75`), respecting delay frames and context-aware ledge option inputs |
-| `src/extra/reversal_slots_core.h`, `src/extra/reversal_slots.cpp`, `src/main/ui/pages/reversal_slots.cpp` | `extension/source/actions.cpp` | Weighted multi-slot reversal picking and per-slot delays across On-Hit, On-Shield, On-Getup, and On-Ledge triggers |
+| `src/extra/reversal_slots_core.h`, `src/extra/reversal_slots.cpp`, `src/main/ui/pages/cpu_options.cpp` | `extension/source/actions.cpp` | Weighted multi-slot reversal picking and per-slot delays across On-Hit, On-Shield, On-Getup, and On-Ledge triggers |
 
 ## fudgepop01 (PPlusAI and SuperTraining)
 

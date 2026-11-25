@@ -547,6 +547,7 @@ namespace cpu {
         int frozenStatus;
         // Move CPU
         bool placed;
+        bool revPicked;
         float moveX, moveY;
         int player; // the player driven last
         bool techSounded;
@@ -601,7 +602,7 @@ namespace cpu {
             techSounded = false;
             recovering = false;
             ledgeStateReset(ledgeState);
-            revAction = 0;
+            revPicked = false;
             main::extraPPlusRecoveryReset(slot);
         }
 
@@ -1249,7 +1250,7 @@ namespace cpu {
         bool pickMultiRev(int trigger, int entryId)
         {
             revAction = 0;
-            int ra = 0, rd = 0;
+            int ra, rd;
             if (opts().multiReversal == 0 || !main::extraReversalPick(trigger, fighterKind(entryId), rnd(), ra, rd))
             {
                 return false;
@@ -1285,15 +1286,11 @@ namespace cpu {
             if (downFrames == 0)
             {
                 const CpuOptions& c = opts();
+                u8 wait = 0;
                 if (pickMultiRev(kRevOnGetup, who.entryId))
                 {
                     getup = revAction;
-                    if (revDelay > 0)
-                    {
-                        missWait = revDelay;
-                        downFrames = 2;
-                        return;
-                    }
+                    wait = revDelay;
                 }
                 else
                 {
@@ -1301,6 +1298,12 @@ namespace cpu {
                     getup = c.getup == kGetupRandom ? kFromRandom[weighted(c.getupChance)] : c.getup;
                 }
                 TM_LOG("cpu: P%d get up %d\n", who.playerNo + 1, getup);
+                if (wait > 0)
+                {
+                    missWait = wait - 1;
+                    downFrames = 2;
+                    return;
+                }
             }
             // Pushed every other frame, so each push is a fresh input.
             if ((downFrames++ & 1) != 0)
@@ -1439,6 +1442,7 @@ namespace cpu {
                         powershield = 0;
                         hits++;
                         actionable = 0;
+                        revPicked = false;
                         script = NULL;
                         pending = NULL;
                         state = kCounter;
@@ -1543,6 +1547,7 @@ namespace cpu {
                 shieldKind = false;
                 hits = 0;
                 actionable = 0;
+                revPicked = false;
                 state = kIdle;
                 idle(out, who);
                 return;
@@ -1553,6 +1558,7 @@ namespace cpu {
                 // Reset while unactionable so pre-landing air frames do not
                 // shorten the delay after landing.
                 actionable = 0;
+                revPicked = false;
                 if (shieldKind)
                 {
                     out.buttons = kGuard;
@@ -1571,14 +1577,22 @@ namespace cpu {
             if (!counterChoice(list, index, delay))
             {
                 TM_LOG("cpu: P%d counter disabled for hit %d\n", who.playerNo + 1, hits);
+                revPicked = false;
                 state = kAfter;
                 return;
             }
-            if (list != kListAir)
+            if (list == kListAir)
             {
-                if (actionable == 0)
+                revPicked = false;
+            }
+            else
+            {
+                if (!revPicked)
                 {
-                    pickMultiRev(list == kListShield ? kRevOnShield : kRevOnHit, who.entryId);
+                    revPicked = true;
+                    TM_STATIC_ASSERT((kListGround >> 1) == kRevOnHit && (kListShield >> 1) == kRevOnShield,
+                                     tm_list_to_rev_trigger);
+                    pickMultiRev(list >> 1, who.entryId);
                 }
                 if (revAction != 0)
                 {
@@ -1619,6 +1633,7 @@ namespace cpu {
                 int pick = randomSlot();
                 TM_LOG("cpu: P%d counter list %d: Play Random Slot picks slot %d, frame %u\n", who.playerNo + 1, list,
                        pick + 1, frameOf(slot));
+                revPicked = false;
                 startPlay(out, pick);
                 return;
             }
@@ -1742,6 +1757,7 @@ namespace cpu {
         // Starts action `a` (NULL: none) from this frame.
         void start(Frame& out, const Action* a)
         {
+            revPicked = false;
             // When no aerial jump remains, wiggle out of tumble or do nothing
             // instead of retrying jump.
             if (a != NULL && (a->flags & kNeedsJump) != 0 && !jumpLeft(f))
@@ -1987,7 +2003,8 @@ namespace cpu {
             pending = NULL;
             playSlot = -1;
             noTech = false;
-            if (!ledgeState.active && isCliffWaitStatus(v.status) && !pickMultiRev(kRevOnLedge, who.entryId))
+            revPicked = false;
+            if (!isCliffWaitStatus(v.status) || (!ledgeState.active && !pickMultiRev(kRevOnLedge, who.entryId)))
             {
                 revAction = base;
                 revDelay = c.counterDelay;
@@ -2257,6 +2274,7 @@ namespace cpu {
         if (newHit)
         {
             actionable = 0;
+            revPicked = false;
             script = NULL;
             pending = NULL;
             hits++;
@@ -2474,6 +2492,7 @@ namespace cpu {
                 hits++;
                 shieldKind = false;
                 actionable = 0;
+                revPicked = false;
                 state = kCounter;
                 TM_LOG("cpu: P%d released from a grab (%x), hit %d, frame %u\n", who.playerNo + 1, prevStatus, hits,
                        frameOf(slot));
@@ -2571,6 +2590,7 @@ namespace cpu {
             if (!downStatus(v.status))
             {
                 actionable = 0;
+                revPicked = false;
                 state = kCounter;
                 counter(out, who);
             }
@@ -2584,6 +2604,7 @@ namespace cpu {
             {
                 // Missed tech while waiting out Counter Delay: run Get Up.
                 actionable = 0;
+                revPicked = false;
                 state = kDown;
                 downFrames = 0;
                 missWait = 0;
@@ -2664,6 +2685,7 @@ namespace cpu {
                 // Successful tech after an air counter also runs the ground counter.
                 state = kCounter;
                 actionable = 0;
+                revPicked = false;
             }
             break;
         default:

@@ -434,7 +434,8 @@ namespace main {
 
     bool extraReversalPick(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay)
     {
-        return s_hooks != NULL && s_hooks->reversalPick(trigger, fighterKind, roll, outAction, outDelay);
+        return s_hooks != NULL && s_hooks->reversalPick != NULL
+               && s_hooks->reversalPick(trigger, fighterKind, roll, outAction, outDelay);
     }
 }
 }

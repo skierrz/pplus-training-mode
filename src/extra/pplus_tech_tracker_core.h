@@ -132,7 +132,7 @@ namespace extra {
             {0x1A, kTechDjc,         kTtStJumpAerial,  kTtStAttackAir,          0,  0, "DJC Aerial"},
             {0x1B, kTechAgt,         kTtStEscapeAir,   kTtStItemThrow,          0,  0, "Banana AGT"},
             {0x1D, kTechGlideCancel, kTtStGlideStart,  kTtStAttackAir,          0,  0, "Glide Cancel"},
-            {0x1E, kTechSpecialJc,   kTtStSpecialS,    kTtStJumpSquat,          0,  0, "Shellshift JC"},
+            {0x1E, kTechSpecialJc,   kTtStSpecialS,    kTtStJumpSquat,          0,  0, "Withdraw JC"},
             {0x1F, kTechTetherZair,  kTtStAirLasso,    kTtStAirLassoHang,       0,  0, "Tether / Zair"},
             {0x20, kTechDacus,       kTtStAttackDash,  kTtStAttackHi4Start,     0,  0, "DACUS"},
             {0x21, kTechSpecialJc,   kTtStSpecialHi,   kTtStAttackAir,          0,  0, "Aura Cancel"},
@@ -313,7 +313,7 @@ namespace extra {
                     bool hitTarget = (s == pB)
                                      || (pB == kTtStJumpSquat && (s == kTtStJump || s == kTtStJumpAerial))
                                      || (pB == kTtStAttackAir && (s == kTtStJumpSquat || s == kTtStJumpAerial));
-                    if (hitTarget && (in.frame - w.startFrame) <= 45)
+                    if (hitTarget && (in.frame - w.startFrame) <= 180)
                     {
                         succeeded = true;
                         w.phase = 0;

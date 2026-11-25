@@ -240,6 +240,11 @@ TEST(reversals_tech, all_44_fighters_mapped_unique_and_valid_labels)
     CHECK_EQ(0u, findFighterTechDef(0x1C, unusedDef));
     CHECK_EQ(0u, findFighterTechDef(0x24, unusedDef));
     CHECK_EQ(0u, findFighterTechDef(0x28, unusedDef));
+
+    const FighterTechDef* squirtleDef = NULL;
+    CHECK(findFighterTechDef(0x1E, squirtleDef) != 0);
+    REQUIRE(squirtleDef != NULL);
+    CHECK(strcmp(squirtleDef->label, "Withdraw JC") == 0);
 }
 
 TEST(reversals_tech, tech_tracker_detectors_cover_verified_pplus_families)
@@ -260,6 +265,19 @@ TEST(reversals_tech, tech_tracker_detectors_cover_verified_pplus_families)
     CHECK(stepFighterTech(f2, w, st, label));
     CHECK_EQ(1u, st.successes);
     CHECK(label != NULL && strcmp(label, "JC Shine") == 0);
+
+    // 1b. Ike (0x22) charged Quick Draw JC held 90 frames (within 180f window):
+    techWatchReset(w);
+    techSlotStatsReset(st);
+    TechFrameInput iq1 = makeTt(10, 0x22, kTtStSpecialS);
+    addTtEv(iq1, kTtStSpecialS, 0x00);
+    CHECK(!stepFighterTech(iq1, w, st, label));
+    CHECK_EQ(1u, st.attempts);
+    TechFrameInput iq2 = makeTt(100, 0x22, kTtStJumpSquat);
+    addTtEv(iq2, kTtStJumpSquat, 0x11B);
+    CHECK(stepFighterTech(iq2, w, st, label));
+    CHECK_EQ(1u, st.successes);
+    CHECK(label != NULL && strcmp(label, "Quick Draw JC") == 0);
 
     // 2. Peach (0x0C) Float Cancel: 0x11E + AttackAirN (0x62) -> Landing (0x16)
     techWatchReset(w);

@@ -7,13 +7,11 @@ namespace tm {
 namespace ui {
 namespace pages {
     bool cpuLabControl();
-    bool cpuExtraAvailable();
 
-    enum { kCounterGroundSize = 56, kCounterAirSize = 34, kCounterShieldSize = 49, kLedgeOptionLabelsSize = 7 };
+    enum { kCounterGroundSize = 56, kCounterAirSize = 34, kCounterShieldSize = 49 };
     extern const char* kCounterGround[kCounterGroundSize];
     extern const char* const kCounterAir[kCounterAirSize];
     extern const char* kCounterShield[kCounterShieldSize];
-    extern const char* const kLedgeOption[kLedgeOptionLabelsSize];
     // Enables/disables fighter-specific DJC/Float counter labels for the active CPU.
     bool counterLabels();
 }
