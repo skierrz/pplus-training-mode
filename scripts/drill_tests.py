@@ -172,20 +172,20 @@ def check_list_screens(emu, taken, notes):
     if hi0 or not hi1:
         raise nav.NavError(f"the highlight is not on Combo Lab alone (row 0 {c0}, row 1 {c1})")
 
-    # Hold Down with key repeat to row 17 (RAR / DACUS / B-Rev, scrolled by 8 -> visible row 9)
+    # Hold Down with key repeat to row 16 (RAR / DACUS / B-Rev, scrolled by 7 -> visible row 9)
     # and verify bottom clamp.
     emu.hold(0, stick=DOWN)
     emu.advance(130)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 17:
-        raise nav.NavError(f"Down repeat did not reach bottom All Modes row 17, at {last_row(emu)}")
+    if last_row(emu) != 16:
+        raise nav.NavError(f"Down repeat did not reach bottom All Modes row 16, at {last_row(emu)}")
     emu.hold(0, stick=DOWN)
     emu.advance(20)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 17:
-        raise nav.NavError(f"Down at bottom row moved off row 17 to {last_row(emu)}")
+    if last_row(emu) != 16:
+        raise nav.NavError(f"Down at bottom row moved off row 16 to {last_row(emu)}")
     path = shot(emu, taken, "drills-list-all-bottom")
     hi9, c9 = row_highlighted(path, 9)
     hi8, c8 = row_highlighted(path, 8)
@@ -348,16 +348,16 @@ def run(emu, opts, taken, notes, state):
     if css_snapshot(emu) != before:
         raise nav.NavError(f"L+R moved the character select: {before} -> {css_snapshot(emu)}")
 
-    # Arm a Scenario (Shield Pressure, preset 4) from Offense, verify backing
+    # Arm a Scenario (Shield Pressure / OoS, preset 4) from Offense, verify backing
     # out of Stage Select with B keeps the list closed and preserves the armed
     # scenario, then start the match and confirm extra/scenario_presets.cpp
     # auto-activates it on match load.
-    state["step"] = "Scenario auto-activation from boot menu (Shield Pressure)"
+    state["step"] = "Scenario auto-activation from boot menu (Shield Pressure / OoS)"
     go_to_page(emu, "Offense", "R")
     go_to_row(emu, 3)
-    n_armed = count(emu, r"\] drills: scenario 4 \(Shield Pressure\) armed")
+    n_armed = count(emu, r"\] drills: scenario 4 \(Shield Pressure / OoS\) armed")
     emu.press(0, ["A"], frames=4, after=10)
-    wait_count(emu, "Shield Pressure armed", r"\] drills: scenario 4 \(Shield Pressure\) armed", n_armed + 1, 120)
+    wait_count(emu, "Shield Pressure / OoS armed", r"\] drills: scenario 4 \(Shield Pressure / OoS\) armed", n_armed + 1, 120)
     # Stage Select -> B -> CSS must NOT reopen the boot list.
     state["step"] = "Stage Select back to CSS keeps boot list closed"
     nav.choose_on_css(emu, "mario", "fox")
@@ -384,11 +384,11 @@ def run(emu, opts, taken, notes, state):
     reset_count = emu.u32(sb_addr + 0x0C)
     if active_preset != 4 or reset_count < 1:
         raise nav.NavError(f"boot menu Scenario did not auto-activate (activePreset={active_preset}, resets={reset_count})")
-    notes.append(f"Scenario handoff ok: Shield Pressure (preset={active_preset}, resets={reset_count})")
+    notes.append(f"Scenario handoff ok: Shield Pressure / OoS (preset={active_preset}, resets={reset_count})")
     nav.finish_training(emu)
     state["visits"] += 1
-    wait_count(emu, "the list to reopen on remembered Shield Pressure row after scenario match",
-               r"\] drills: list opened \(auto\) for port 1, row 3 Shield Pressure", 1, 300)
+    wait_count(emu, "the list to reopen on remembered Shield Pressure / OoS row after scenario match",
+               r"\] drills: list opened \(auto\) for port 1, row 3 Shield Pressure / OoS", 1, 300)
     emu.advance(10)
     n_all = count(emu, r"\] drills: page All Modes")
     emu.press(0, ["L"], frames=4, after=10)

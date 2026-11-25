@@ -43,151 +43,159 @@ namespace main {
         return s_hooks != NULL;
     }
 
+#pragma dont_inline on
+    static bool rngCall(int call)
+    {
+        return s_hooks != NULL && s_hooks->characterRng(call);
+    }
+
+    static bool stageCall(int call)
+    {
+        return s_hooks != NULL && s_hooks->stageOptions != NULL && s_hooks->stageOptions(call);
+    }
+
+    static void scenCall(int call)
+    {
+        if (s_hooks != NULL && s_hooks->scenarioCall != NULL)
+        {
+            s_hooks->scenarioCall(call);
+        }
+    }
+#pragma dont_inline reset
+
     void extraCharacterRng()
     {
-        if (s_hooks != NULL)
-        {
-            s_hooks->characterRng(kRngApply);
-        }
+        rngCall(kRngApply);
     }
 
     bool extraPeachRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngPeach);
+        return rngCall(kRngPeach);
     }
 
     bool extraGameWatchRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngGameWatch);
+        return rngCall(kRngGameWatch);
     }
 
     bool extraLuigiRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngLuigi);
+        return rngCall(kRngLuigi);
     }
 
     bool extraSamusRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngSamus);
+        return rngCall(kRngSamus);
     }
 
     bool extraMewtwoRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngMewtwo);
+        return rngCall(kRngMewtwo);
     }
 
     bool extraLucarioRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngLucario);
+        return rngCall(kRngLucario);
     }
 
     bool extraWarioRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngWario);
+        return rngCall(kRngWario);
     }
 
     bool extraDonkeyKongRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngDonkeyKong);
+        return rngCall(kRngDonkeyKong);
     }
 
     bool extraIvysaurRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngIvysaur);
+        return rngCall(kRngIvysaur);
     }
 
     bool extraRobRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngRob);
+        return rngCall(kRngRob);
     }
 
     bool extraLucasRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngLucas);
+        return rngCall(kRngLucas);
     }
 
     bool extraSquirtleRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngSquirtle);
+        return rngCall(kRngSquirtle);
     }
 
     bool extraSheikRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngSheik);
+        return rngCall(kRngSheik);
     }
 
     bool extraDededeRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngDedede);
+        return rngCall(kRngDedede);
     }
 
     bool extraSnakeRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngSnake);
+        return rngCall(kRngSnake);
     }
 
     bool extraGanondorfRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngGanondorf);
+        return rngCall(kRngGanondorf);
     }
 
     bool extraIceClimbersRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngIceClimbers);
+        return rngCall(kRngIceClimbers);
     }
 
     bool extraOlimarRows()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngOlimar);
+        return rngCall(kRngOlimar);
     }
 
     bool extraCharacterRngPage()
     {
-        return s_hooks != NULL && s_hooks->characterRng(kRngAny);
+        return rngCall(kRngAny);
     }
 
     void extraStageOptionsTick()
     {
-        if (s_hooks != NULL && s_hooks->stageOptions != NULL)
-        {
-            s_hooks->stageOptions(kStageTick);
-        }
+        stageCall(kStageTick);
     }
 
     void extraStageOptionsChanged()
     {
-        if (s_hooks != NULL && s_hooks->stageOptions != NULL)
-        {
-            s_hooks->stageOptions(kStageChanged);
-        }
+        stageCall(kStageChanged);
     }
 
     void extraStageOptionsSavestateLoaded()
     {
-        if (s_hooks != NULL && s_hooks->stageOptions != NULL)
-        {
-            s_hooks->stageOptions(kStageSavestateLoaded);
-        }
+        stageCall(kStageSavestateLoaded);
     }
 
     bool extraStageOptionsPage()
     {
-        return s_hooks != NULL && s_hooks->stageOptions != NULL && s_hooks->stageOptions(kStagePage);
+        return stageCall(kStagePage);
     }
 
     bool extraStageHazardsRow()
     {
-        return s_hooks != NULL && s_hooks->stageOptions != NULL && s_hooks->stageOptions(kStageHazardsRow);
+        return stageCall(kStageHazardsRow);
     }
 
     bool extraStagePlatformsRow()
     {
-        return s_hooks != NULL && s_hooks->stageOptions != NULL && s_hooks->stageOptions(kStagePlatformsRow);
+        return stageCall(kStagePlatformsRow);
     }
 
     bool extraStageFodRow()
     {
-        return s_hooks != NULL && s_hooks->stageOptions != NULL && s_hooks->stageOptions(kStageFodRow);
+        return stageCall(kStageFodRow);
     }
 
     bool extraDiRow()
@@ -318,34 +326,27 @@ namespace main {
 
     void extraScenarioChanged()
     {
-        if (s_hooks != NULL && s_hooks->scenarioCall != NULL)
-        {
-            s_hooks->scenarioCall(kScenarioChanged);
-        }
+        scenCall(kScenarioChanged);
     }
 
     void extraScenarioResetNow()
     {
-        if (s_hooks != NULL && s_hooks->scenarioCall != NULL)
-        {
-            s_hooks->scenarioCall(kScenarioResetNow);
-        }
+        scenCall(kScenarioResetNow);
     }
 
     void extraScenarioSavestateLoaded()
     {
-        if (s_hooks != NULL && s_hooks->scenarioCall != NULL)
-        {
-            s_hooks->scenarioCall(kScenarioSavestateLoaded);
-        }
+        scenCall(kScenarioSavestateLoaded);
     }
 
     void extraScenarioSettingsReset()
     {
-        if (s_hooks != NULL && s_hooks->scenarioCall != NULL)
-        {
-            s_hooks->scenarioCall(kScenarioSettingsReset);
-        }
+        scenCall(kScenarioSettingsReset);
+    }
+
+    void extraScenarioCyclePlatform()
+    {
+        scenCall(kScenarioCyclePlatform);
     }
 
     bool extraScenarioCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons)

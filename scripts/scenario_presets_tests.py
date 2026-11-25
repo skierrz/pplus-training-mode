@@ -36,6 +36,11 @@ CHARS = {
     "fox": (0x07, 0x07),
     "pikachu": (0x08, 0x08),
     "ness": (0x0B, 0x0B),
+    "wario": (0x17, 0x15),
+    "meta_knight": (0x18, 0x16),
+    "ivysaur": (0x22, 0x2C),
+    "jigglypuff": (0x27, 0x23),
+    "snake": (0x2A, 0x26),
 }
 
 # ScenarioDebugBlock layout (src/extra/scenario_presets.cpp, 0x50 bytes).
@@ -45,8 +50,9 @@ SCENARIO_FMT = ">9I6f20B"
 SCENARIO_SIZE = 0x50
 
 # Settings offsets (src/main/settings.h).
+SET_PLAYER_INF_SHIELD = 20
 SET_CPU_OPTIONS = 123
-CPU_OPTIONS_SIZE = 44
+CPU_OPTIONS_SIZE = 61
 SET_COMBO = 388
 COMBO_SIZE = 16
 
@@ -56,15 +62,24 @@ SCEN_COMBO_LAB = 1
 SCEN_TECHCHASE = 2
 SCEN_EDGEGUARD = 3
 SCEN_SHIELD_PRESSURE = 4
-SCEN_OOS_REVERSAL = 5
-SCEN_SHIELD_DROP = 6
-SCEN_LEDGETECH = 7
-SCEN_SLIDE_OFF = 8
-SCEN_GRAB_ESCAPE = 9
-SCEN_MULTI_HIT_SDI = 10
+SCEN_SHIELD_DROP = 5
+SCEN_LEDGETECH = 6
+SCEN_SLIDE_OFF = 7
+SCEN_GRAB_ESCAPE = 8
+SCEN_MULTI_HIT_SDI = 9
 
-SIDE_RIGHT, SIDE_LEFT = 0, 1
-MH_UP_AIR, MH_SIDE_B, MH_RAPID_JAB, MH_DOWN_AIR = 0, 1, 2, 3
+SIDE_RIGHT, SIDE_LEFT, SIDE_RANDOM = 0, 1, 2
+MH_AUTO, MH_NAIR, MH_FAIR, MH_UP_AIR, MH_DOWN_AIR = 0, 1, 2, 3, 4
+MH_RAPID_JAB, MH_UP_B, MH_SIDE_B, MH_DOWN_B = 5, 6, 7, 8
+OOS_GRAB, OOS_UP_B, OOS_SPOTDODGE, OOS_ROLL_AWAY, OOS_SH_NAIR, OOS_WAVEDASH, OOS_RANDOM = 0, 1, 2, 3, 4, 5, 6
+LT_SPAWN_CLOSE_LOW, LT_SPAWN_DEEP_LOW, LT_SPAWN_FAR_OUT, LT_SPAWN_HIGH, LT_SPAWN_RANDOM = 0, 1, 2, 3, 4
+LT_DJ_AVAIL, LT_DJ_SPENT = 0, 1
+LT_ATK_DTILT, LT_ATK_FTILT, LT_ATK_FSMASH, LT_ATK_DSMASH, LT_ATK_DAIR, LT_ATK_NEUTRAL_B, LT_ATK_SIDE_B, LT_ATK_RANDOM = (
+    0, 1, 2, 3, 4, 5, 6, 7
+)
+SD_PLAT_LEFT, SD_PLAT_RIGHT, SD_PLAT_TOP, SD_PLAT_RANDOM = 0, 1, 2, 3
+SD_SPACE_RANDOM, SD_SPACE_CLOSE, SD_SPACE_UNDER, SD_SPACE_FAR = 0, 1, 2, 3
+SD_FACE_TOWARD, SD_FACE_AWAY, SD_FACE_RANDOM = 0, 1, 2
 
 CORRECT_NONE, CORRECT_GROUND_CLIFF_STOP, CORRECT_AIR = 0, 2, 5
 STATUS_PASS = 0x72
@@ -134,10 +149,20 @@ class ScenarioBlock:
             "autoReset": v[29],
             "side": v[30],
             "multiHitMove": v[31],
+            "resolvedMultiHit": v[32],
+            "resolvedPlatformSlot": v[33],
+            "resolvedLedgetechAtk": v[34],
         }
 
-    def set_menu(self, preset, auto_reset=1, side=SIDE_RIGHT, move=MH_UP_AIR):
-        payload = bytes([preset, auto_reset, side, move])
+    def set_menu(self, preset, auto_reset=1, side=SIDE_RIGHT, move=MH_AUTO,
+                 oos_action=OOS_GRAB, lt_spawn=LT_SPAWN_CLOSE_LOW, lt_dj=LT_DJ_AVAIL,
+                 lt_atk=LT_ATK_DTILT, sd_plat=SD_PLAT_LEFT, sd_space=SD_SPACE_RANDOM,
+                 sd_face=SD_FACE_TOWARD):
+        payload = bytes([
+            preset, auto_reset, side, move,
+            oos_action, lt_spawn, lt_dj, lt_atk,
+            sd_plat, sd_space, sd_face,
+        ])
         self.emu.h.call("write_mem", addr=self.scratch_addr, hex=payload.hex())
 
 
@@ -396,11 +421,11 @@ def scenario_shield_pressure(r, sb):
 
 
 def scenario_oos_reversal(r, sb):
-    """Verify OoS / Reversal CPU shields, counters with UpB OoS, and auto-resets."""
+    """Verify unified Shield Pressure / OoS with CPU OoS = Up B counters & auto-resets."""
     res = CT.Result("oos-reversal")
     sb.set_menu(SCEN_OFF)
     r.emu.advance(3)
-    sb.set_menu(SCEN_OOS_REVERSAL, auto_reset=1, side=SIDE_RIGHT)
+    sb.set_menu(SCEN_SHIELD_PRESSURE, auto_reset=1, side=SIDE_RIGHT, oos_action=OOS_UP_B)
     r.emu.advance(12)
     d0 = sb.read()
 
@@ -606,20 +631,47 @@ def scenario_multi_hit_sdi(r, sb):
 
 
 def scenario_battlefield_platforms(r, sb):
-    """Verify Battlefield live platform Shield Drop (Guard->Pass) and Slide-Off."""
+    """Verify Battlefield Shield Drop platform cycling (D-Pad Up), P1 Infinite Shield,
+    Guard->Pass detection, and Slide-Off."""
     res = CT.Result("battlefield-platforms")
     sb.set_menu(SCEN_OFF)
     r.emu.advance(3)
 
-    # 1. Shield Drop on Battlefield right platform.
-    sb.set_menu(SCEN_SHIELD_DROP, auto_reset=1, side=SIDE_RIGHT)
+    # 1. Shield Drop on Battlefield: Left default + P1 Infinite Shield On + D-Pad Up cycles Left -> Right -> Top.
+    sb.set_menu(SCEN_SHIELD_DROP, auto_reset=1, side=SIDE_RIGHT,
+                sd_plat=SD_PLAT_LEFT, sd_space=SD_SPACE_UNDER, sd_face=SD_FACE_TOWARD)
     r.emu.advance(6)
-    d0 = sb.read()
+    d_left = sb.read()
     h_en = r.g.entry(CT.P1)
     c_en = r.g.entry(CT.CPU)
+    hf_l = r.g.fighter(h_en)
+    inf_sh = r.emu.u8(r.opt.base + SET_PLAYER_INF_SHIELD)
+    res.row("Shield Drop Left plat & P1 Infinite Shield On", "slot=0 x<-20 y~27 inf=2",
+            f"slot={d_left['resolvedPlatformSlot']} hmn=({hf_l['x']:.1f},{hf_l['y']:.1f}) inf={inf_sh}",
+            d_left["hasPlatform"] == 1 and d_left["resolvedPlatformSlot"] == SD_PLAT_LEFT
+            and -58.0 < hf_l["x"] < -20.0 and 24.0 < hf_l["y"] < 31.0 and inf_sh == 2)
+
+    # Press D-Pad Up once -> cycles to Right platform; press again -> Top platform; press again -> Left, then Right.
+    r.emu.press(0, ["DUP"], frames=2, after=6)
+    d_right = sb.read()
+    hf_r = r.g.fighter(h_en)
+    r.emu.press(0, ["DUP"], frames=2, after=6)
+    d_top = sb.read()
+    hf_t = r.g.fighter(h_en)
+    res.row("D-Pad Up cycles Left -> Right -> Top platforms", "R(slot=1 x>20) T(slot=2 y>45)",
+            f"R=(slot={d_right['resolvedPlatformSlot']},x={hf_r['x']:.1f},y={hf_r['y']:.1f}) "
+            f"T=(slot={d_top['resolvedPlatformSlot']},x={hf_t['x']:.1f},y={hf_t['y']:.1f})",
+            d_right["resolvedPlatformSlot"] == SD_PLAT_RIGHT and 20.0 < hf_r["x"] < 58.0 and 24.0 < hf_r["y"] < 31.0
+            and d_top["resolvedPlatformSlot"] == SD_PLAT_TOP and abs(hf_t["x"]) < 20.0 and hf_t["y"] > 45.0)
+
+    # Select Right platform explicitly for the Guard->Pass shield drop check.
+    sb.set_menu(SCEN_SHIELD_DROP, auto_reset=1, side=SIDE_RIGHT,
+                sd_plat=SD_PLAT_RIGHT, sd_space=SD_SPACE_CLOSE, sd_face=SD_FACE_TOWARD)
+    r.emu.advance(6)
+    d0 = sb.read()
     hf = r.g.fighter(h_en)
     cf = r.g.fighter(c_en)
-    res.row("Battlefield Shield Drop spawns on platform", "hasPlat=1 hmnY~27 cpuY~0",
+    res.row("Battlefield Shield Drop spawns on Right plat", "hasPlat=1 hmnY~27 cpuY~0",
             f"hasPlat={d0['hasPlatform']} hmn=({hf['x']:.1f},{hf['y']:.1f}) cpu=({cf['x']:.1f},{cf['y']:.1f})",
             d0["hasPlatform"] == 1 and 20.0 < hf["x"] < 58.0 and 24.0 < hf["y"] < 31.0 and abs(cf["y"]) < 2.0)
 
@@ -881,6 +933,178 @@ def scenario_fox_ledgetech_and_offstage_switch(r, sb):
     return res
 
 
+def scenario_ledgetech_cypher_dj_and_pause(r, sb):
+    """Verify Snake Ledgetech Cypher refresh across repeated resets, 60% auto-seed,
+    P1 Double Jump = Spent, and Brawl Training Pause preservation."""
+    res = CT.Result("ledgetech-cypher-dj-and-pause")
+    h_en = r.g.entry(CT.P1)
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(4)
+    set_player_percent(r.emu, r.opt.base, 0, False)
+    r.emu.advance(3)
+
+    # 1. Activate Ledgetech from 0% -> auto-seeds P1 to 60%, and Up-B Cypher works on rep 1 AND rep 2!
+    sb.set_menu(SCEN_LEDGETECH, auto_reset=0, side=SIDE_RIGHT,
+                lt_spawn=LT_SPAWN_CLOSE_LOW, lt_dj=LT_DJ_AVAIL, lt_atk=LT_ATK_DTILT)
+    r.emu.advance(4)
+    pct_live, _ = read_player_percent(r.emu, r.opt.base)
+    dmg_live = r.g.fighter(h_en)["damage"]
+    res.row("Ledgetech auto-seeds P1 to 60% from 0%", "pct=60 dmg>=59",
+            f"pct={pct_live} dmg={dmg_live:.1f}", pct_live == 60 and dmg_live >= 59.0)
+
+    cypher_reps = []
+    for rep in range(2):
+        if rep > 0:
+            # Force a fresh rep via menu reset (same path as auto-reset / Reset Now).
+            sb.set_menu(SCEN_OFF)
+            r.emu.advance(2)
+            sb.set_menu(SCEN_LEDGETECH, auto_reset=0, side=SIDE_RIGHT,
+                        lt_spawn=LT_SPAWN_CLOSE_LOW, lt_dj=LT_DJ_AVAIL, lt_atk=LT_ATK_DTILT)
+            r.emu.advance(3)
+        saw_upb = False
+        r.emu.press(0, ["B"], stick=(128, 255), frames=4, after=0)
+        for _ in range(24):
+            r.emu.advance(1)
+            if r.g.fighter(h_en)["status"] >= 0x112:
+                saw_upb = True
+                break
+        cypher_reps.append(saw_upb)
+    res.row("Snake Cypher (Up-B) works across repeated resets", "[True, True]",
+            str(cypher_reps), cypher_reps == [True, True])
+
+    # 2. P1 Double Jump = Spent: pressing X in air must NOT enter Jump_Aerial (0x0C).
+    sb.set_menu(SCEN_LEDGETECH, auto_reset=0, side=SIDE_RIGHT,
+                lt_spawn=LT_SPAWN_CLOSE_LOW, lt_dj=LT_DJ_SPENT, lt_atk=LT_ATK_DTILT)
+    r.emu.advance(4)
+    saw_dj = False
+    r.emu.press(0, ["X"], frames=4, after=0)
+    for _ in range(16):
+        r.emu.advance(1)
+        if r.g.fighter(h_en)["status"] == CT.STATUS["Jump_Aerial"]:
+            saw_dj = True
+            break
+    res.row("Snake P1 Double Jump Spent blocks midair jump", "sawDj=False",
+            f"sawDj={saw_dj}", not saw_dj)
+
+    # 3. Brawl Training Pause -> unpause preserves active Ledgetech & triggers reset.
+    resets_pre_pause = sb.read()["resetCount"]
+    nav.pause_training(r.emu)
+    r.emu.advance(12)
+    nav.press_until(r.emu, "unpause Brawl Training pause", ["B"],
+                    lambda: not nav.training_paused(r.emu), 120, every=10)
+    r.emu.advance(8)
+    d_post_pause = sb.read()
+    res.row("Brawl Training Pause preserves & resets Ledgetech", "preset=6 resets+",
+            f"preset={d_post_pause['activePreset']} resets={resets_pre_pause}->{d_post_pause['resetCount']}",
+            d_post_pause["activePreset"] == SCEN_LEDGETECH and d_post_pause["resetCount"] > resets_pre_pause)
+
+    # 4. Off restores P1 percent cleanly to 0% unlocked.
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(4)
+    pct_end, lock_end = read_player_percent(r.emu, r.opt.base)
+    res.row("Ledgetech Off restores P1 0% unlocked", "(0, 0)",
+            f"({pct_end}, {lock_end})", pct_end == 0 and lock_end == 0)
+    return res
+
+
+def scenario_jigglypuff_dj_spent(r, sb):
+    """Verify P1 Double Jump = Spent exhausts all 5 air jumps on multi-jump Jigglypuff."""
+    res = CT.Result("jigglypuff-dj-spent")
+    h_en = r.g.entry(CT.P1)
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(4)
+    sb.set_menu(SCEN_LEDGETECH, auto_reset=0, side=SIDE_RIGHT,
+                lt_spawn=LT_SPAWN_FAR_OUT, lt_dj=LT_DJ_SPENT, lt_atk=LT_ATK_DTILT)
+    r.emu.advance(4)
+    saw_air_jump = False
+    r.emu.press(0, ["X"], frames=4, after=0)
+    for _ in range(18):
+        r.emu.advance(1)
+        st = r.g.fighter(h_en)["status"]
+        if st in (CT.STATUS["Jump_Aerial"], 0x0D):  # Jump_Aerial or Fly
+            saw_air_jump = True
+            break
+    res.row("Jigglypuff DJ Spent blocks all multi-jumps", "sawAirJump=False",
+            f"sawAirJump={saw_air_jump}", not saw_air_jump)
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(3)
+    return res
+
+
+def scenario_techchase_air_and_edgeguard_sides(r, sb):
+    """Verify Edgeguard Left/Right side spawns + 35% CPU seed, and Techchase air escape auto-reset."""
+    res = CT.Result("techchase-air-and-edgeguard-sides")
+    h_en = r.g.entry(CT.P1)
+    c_en = r.g.entry(CT.CPU)
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(3)
+    r.opt.cpu_percent(0, False)
+    r.emu.advance(3)
+
+    # 1. Edgeguard Left spawns left + auto-seeds CPU to 35%; Right spawns right; Off restores 0%.
+    sb.set_menu(SCEN_EDGEGUARD, auto_reset=1, side=SIDE_LEFT)
+    r.emu.advance(5)
+    hf_l, cf_l = r.g.fighter(h_en), r.g.fighter(c_en)
+    cpu_pct_live = r.emu.u16(r.opt.base + LT.SET_CPU_PERCENT)
+    sb.set_menu(SCEN_EDGEGUARD, auto_reset=1, side=SIDE_RIGHT)
+    r.emu.advance(5)
+    hf_r, cf_r = r.g.fighter(h_en), r.g.fighter(c_en)
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(4)
+    cpu_pct_end = r.emu.u16(r.opt.base + LT.SET_CPU_PERCENT)
+    res.row("Edgeguard Left/Right sides & 35% CPU seed/restore", "L<0 R>0 pct=35->0",
+            f"L=({hf_l['x']:.1f},{cf_l['x']:.1f}) R=({hf_r['x']:.1f},{cf_r['x']:.1f}) pct={cpu_pct_live}->{cpu_pct_end}",
+            hf_l["x"] < -60.0 and cf_l["x"] < -88.0 and hf_r["x"] > 60.0 and cf_r["x"] > 88.0
+            and cpu_pct_live == 35 and cpu_pct_end == 0)
+
+    # 2. Techchase airborne escape: launch Fox high at 115% with Up Smash so he recovers/escapes in air -> auto-reset!
+    sb.set_menu(SCEN_TECHCHASE, auto_reset=1, side=SIDE_RIGHT)
+    r.emu.advance(6)
+    r.opt.cpu_percent(115, True)
+    r.emu.advance(2)
+    r.opt.cpu_percent(115, False)
+    d0 = sb.read()
+    hit_ok = RC.move_p1_to_cpu_and_hit(r, CT.USMASH)
+    auto_reset = False
+    for _ in range(260):
+        r.emu.advance(1)
+        if sb.read()["resetCount"] > d0["resetCount"]:
+            auto_reset = True
+            break
+    res.row("Techchase airborne escape triggers auto-reset", "hit & resetCount+",
+            f"hit={hit_ok} resets={d0['resetCount']}->{sb.read()['resetCount']}", hit_ok and auto_reset)
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(3)
+    return res
+
+
+def scenario_multihit_sdi_auto(r, sb, cpu_label, want_move):
+    """Verify Multi-Hit SDI Auto (Best) selects expected move and delivers >= 2 hits."""
+    res = CT.Result(f"multihit-sdi-auto-{cpu_label}")
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(4)
+    set_player_percent(r.emu, r.opt.base, 25, True)
+    sb.set_menu(SCEN_MULTI_HIT_SDI, auto_reset=0, side=SIDE_RIGHT, move=MH_AUTO)
+    r.emu.advance(5)
+    d0 = sb.read()
+    max_hits = 0
+    for _ in range(130):
+        r.emu.advance(1)
+        d = sb.read()
+        if d["sdiHitCount"] > max_hits:
+            max_hits = d["sdiHitCount"]
+            if max_hits >= 2:
+                break
+    set_player_percent(r.emu, r.opt.base, 0, False)
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(3)
+    res.row(f"Auto (Best) {cpu_label} move={want_move} & hits>=2",
+            f"move={want_move} hits>=2",
+            f"move={d0['resolvedMultiHit']} hits={max_hits}",
+            d0["resolvedMultiHit"] == want_move and max_hits >= 2)
+    return res
+
+
 ALL_SCENARIOS = [
     "off-snapshot-restore",
     "combo-lab",
@@ -897,6 +1121,13 @@ ALL_SCENARIOS = [
     "slide-off-zero-and-offstage-switch",
     "pikachu-grab-and-multihit-aerials",
     "fox-ledgetech-and-offstage-switch",
+    "techchase-air-and-edgeguard-sides",
+    "ledgetech-cypher-dj-and-pause",
+    "jigglypuff-dj-spent",
+    "multihit-sdi-auto-ivysaur",
+    "multihit-sdi-auto-wario",
+    "multihit-sdi-auto-meta-knight",
+    "multihit-sdi-auto-fox",
 ]
 
 
@@ -976,6 +1207,8 @@ def cmd_test_scenarios(rest):
                     "slide-off-fd": lambda: scenario_slide_off_fd(r, sb),
                     "grab-escape": lambda: scenario_grab_escape(r, sb),
                     "slide-off-zero-and-offstage-switch": lambda: scenario_slide_off_zero_and_offstage_switch(r, sb),
+                    "techchase-air-and-edgeguard-sides": lambda: scenario_techchase_air_and_edgeguard_sides(r, sb),
+                    "multihit-sdi-auto-fox": lambda: scenario_multihit_sdi_auto(r, sb, "fox", MH_DOWN_AIR),
                 }
                 for name in wanted:
                     if name in fd_fox_map:
@@ -994,6 +1227,28 @@ def cmd_test_scenarios(rest):
                     ensure_match("final_destination", "fox", p1_name="fox")
                     run_one("fox-ledgetech-and-offstage-switch",
                             lambda: scenario_fox_ledgetech_and_offstage_switch(r, sb))
+
+                if "ledgetech-cypher-dj-and-pause" in wanted:
+                    step = "ledgetech-cypher-dj-and-pause"
+                    ensure_match("final_destination", "fox", p1_name="snake")
+                    run_one("ledgetech-cypher-dj-and-pause",
+                            lambda: scenario_ledgetech_cypher_dj_and_pause(r, sb))
+
+                if "jigglypuff-dj-spent" in wanted:
+                    step = "jigglypuff-dj-spent"
+                    ensure_match("final_destination", "fox", p1_name="jigglypuff")
+                    run_one("jigglypuff-dj-spent",
+                            lambda: scenario_jigglypuff_dj_spent(r, sb))
+
+                for sc_name, cpu_key, label_key, want_mv in (
+                    ("multihit-sdi-auto-ivysaur", "ivysaur", "ivysaur", MH_NAIR),
+                    ("multihit-sdi-auto-wario", "wario", "wario", MH_UP_B),
+                    ("multihit-sdi-auto-meta-knight", "meta_knight", "meta-knight", MH_SIDE_B),
+                ):
+                    if sc_name in wanted:
+                        step = sc_name
+                        ensure_match("final_destination", cpu_key)
+                        run_one(sc_name, lambda lk=label_key, wm=want_mv: scenario_multihit_sdi_auto(r, sb, lk, wm))
 
                 if "multi-hit-sdi" in wanted:
                     step = "multi-hit-sdi"

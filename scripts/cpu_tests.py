@@ -173,7 +173,8 @@ CPU_FIELDS = {"control": 0, "behavior": 1, "tdi": 2, "sdiAmount": 3, "sdiDir": 4
               "advHit": 31, "advLogic": 32, "advGround": 33, "advAir": 34, "advShield": 35,
               "advDelayGround": 36, "advDelayAir": 37, "advDelayShield": 38, "recovery": 39,
               "ledgeOption": 40, "clatterEscape": 41, "adaptiveMode": 42, "dualStickSdi": 43,
-              "autoLCancel": 44, "shfflTiming": 45}
+              "autoLCancel": 44, "shfflTiming": 45, "shieldTiming": 60}
+SHIELD_TIMING = {"First Gap": 0, "Full Move": 1}
 SHFFL_TIMING = {"Frame-Perfect": 0, "Early": 1, "Normal": 2, "Late": 3, "Random": 4}
 RECOVERY = {"Game": 0, "PPlusAI": 1, "Off": 2}
 BEHAVIOR = {"Stand": 0, "Shield": 1, "Crouch": 2, "Jump": 3, "Perfect Shield": 4}
@@ -6005,6 +6006,76 @@ def o_auto_lcancel_tether(r):
     return res
 
 
+def o_shield_timing_multihit(r):
+    """Shield Timing: First Gap (0) vs Full Move (1) against Meta Knight Fair
+    (3-hit aerial) and single-hit Down Tilt (zero delay on single-hit moves)."""
+    res = Result("Shield Timing (First Gap vs Full Move)")
+
+    # 1. Single-hit Down Tilt: Full Move must counter on the EXACT same frame as First Gap.
+    single_catch = {}
+    for label, st_mode in (("First Gap", 0), ("Full Move", 1)):
+        r.load("near", on(behavior=BEHAVIOR["Shield"], infiniteShields=SHIELDS["On"],
+                          counterShield=SHIELD_ACTIONS["Grab"], shieldTiming=st_mode), percent=0)
+
+        def dtilt(i, rows):
+            if i == 25:
+                r.emu.hold(0, buttons=["A"], stick=DTILT)
+            elif i == 28:
+                r.emu.neutral(0)
+        rows = r.record(95, players=(CPU, P1), each=dtilt)
+        r.emu.neutral(0)
+        stun = first(rows, 25, lambda x: x[CPU]["status"] == STATUS["Guard_Damage"])
+        catch = first(rows, stun, lambda x: x[CPU]["status"] == STATUS["Catch"]) if stun is not None else None
+        single_catch[label] = (stun, catch, None if stun is None or catch is None else catch - stun)
+        res.note(f"single-hit dtilt {label}: stun={stun} catch={catch} (+{single_catch[label][2]})")
+    res.row("single-hit dtilt: Full Move matches First Gap frame", "equal +frames",
+            f"FG=+{single_catch['First Gap'][2]} FM=+{single_catch['Full Move'][2]}",
+            single_catch["First Gap"][2] is not None and single_catch["First Gap"][2] == single_catch["Full Move"][2])
+
+    # 2. Multi-hit Meta Knight short-hop Fair:
+    #    - First Gap (0) tries to Grab after wave 1 and gets hit (damage > 0) or counters early.
+    #    - Full Move (1) holds guard cleanly through all hits (damage == 0, >=2 hitlag pulses)
+    #      and executes Grab after the final hit.
+    mh = {}
+    for label, st_mode in (("First Gap", 0), ("Full Move", 1)):
+        r.load("near", on(behavior=BEHAVIOR["Shield"], infiniteShields=SHIELDS["On"],
+                          counterShield=SHIELD_ACTIONS["Grab"], shieldTiming=st_mode), percent=0)
+
+        def mk_fair(i, rows):
+            if i == 25:
+                r.emu.hold(0, buttons=["X"])
+            elif i == 26:
+                r.emu.neutral(0)
+            elif i == 29:
+                r.emu.hold(0, buttons=["A"], stick=(255, 128))
+            elif i == 32:
+                r.emu.neutral(0)
+        rows = r.record(110, players=(CPU, P1), each=mk_fair)
+        r.emu.neutral(0)
+        pulses = 0
+        prev_hl = 0
+        for row in rows[25:]:
+            c = row[CPU]
+            if c["status"] == STATUS["Guard_Damage"] and c["hitlag"] > prev_hl:
+                pulses += 1
+            prev_hl = c["hitlag"]
+        stun = first(rows, 25, lambda x: x[CPU]["status"] == STATUS["Guard_Damage"])
+        catch = first(rows, stun, lambda x: x[CPU]["status"] == STATUS["Catch"]) if stun is not None else None
+        dmg = rows[-1][CPU]["damage"] - rows[25][CPU]["damage"]
+        mh[label] = {"stun": stun, "catch": catch, "pulses": pulses, "dmg": dmg}
+        res.note(f"MK Fair {label}: stun={stun} pulses={pulses} catch={catch} dmg={dmg:.1f}; "
+                 f"statuses {statuses(rows[25:])[:18]}")
+
+    fg, fm = mh["First Gap"], mh["Full Move"]
+    res.row("MK Fair Full Move: blocks >=2 hits, 0 dmg, counters Grab", "pulses>=2 dmg=0 Catch",
+            f"pulses={fm['pulses']} dmg={fm['dmg']:.1f} catch={fm['catch']}",
+            fm["pulses"] >= 2 and fm["dmg"] < 0.1 and fm["catch"] is not None)
+    res.row("MK Fair First Gap vs Full Move: distinct behavior", "FG hit or earlier Catch",
+            f"FG(dmg={fg['dmg']:.1f},catch={fg['catch']}) vs FM(dmg={fm['dmg']:.1f},catch={fm['catch']})",
+            fg["dmg"] > 0.5 or (fg["catch"] is not None and fm["catch"] is not None and fg["catch"] < fm["catch"]))
+    return res
+
+
 MEASURE = [("oos-probe", m_oos_probe)]
 
 SCENARIOS = [("c1", c1_shield), ("c2", c2_jump), ("c3", c3_sequence), ("c4", c4_stick), ("c5", c5_silence),
@@ -6053,6 +6124,7 @@ TECH_SLIP = ("tech-slip", o_tech_slip)
 TECH_INVIS_MARIO = ("tech-invis-mario", o_tech_invis)
 TECH_INVIS_SHEIK = ("tech-invis-sheik", o_tech_invis_sheik)
 AUTO_LCANCEL_TETHER = ("auto-lcancel-tether", o_auto_lcancel_tether)
+SHIELD_TIMING_MULTIHIT = ("shield-timing-multihit", o_shield_timing_multihit)
 # The P+ character techniques against characters that have them, and Wolf.
 OOS_OTHERS = [(f"oos-techniques-{c}", o_oos_techniques) for c in ("wolf", "ness", "lucas", "peach", "mewtwo", "ganondorf", "yoshi")]
 # Projectile / thrown-item powershield scenarios in their own matches.
@@ -6069,7 +6141,7 @@ PS_CHARS = [
     (("powershield-jigglypuff-mario", make_ps_char("Mario fireball", (-25.0, 25.0), 120)), "mario", "jigglypuff"),
 ]
 # The scenarios of the other matches that start from the hit states.
-FROM_HIT_STATES = [THROW_LAYDOWN[0], TECH_SLIP[0], TECH_INVIS_MARIO[0], AIR_JUMP_FLY[0]] + [name for name, _ in OOS_OTHERS]
+FROM_HIT_STATES = [THROW_LAYDOWN[0], TECH_SLIP[0], TECH_INVIS_MARIO[0], AIR_JUMP_FLY[0], SHIELD_TIMING_MULTIHIT[0]] + [name for name, _ in OOS_OTHERS]
 
 # Shard units in the order cmd_test_cpu plays them.
 # MEASURE scenarios run only with --only and are left out.
@@ -6082,6 +6154,7 @@ SHARD_UNITS = (
     + [spec[0] for spec, _, _ in PS_CHARS]
     + [TECH_INVIS_SHEIK[0]]
     + [AUTO_LCANCEL_TETHER[0]]
+    + [SHIELD_TIMING_MULTIHIT[0]]
     + [TECH_INVIS_MARIO[0]]
 )
 # Seconds per scenario (for --shard balancing; unlisted scenarios take the mean).
@@ -6218,6 +6291,7 @@ def cmd_test_cpu(rest):
                 others += [(spec, p1, cpu, "final_destination") for spec, p1, cpu in PS_CHARS]
                 others += [(TECH_INVIS_SHEIK, "mario", "zelda", "final_destination")]
                 others += [(AUTO_LCANCEL_TETHER, "mario", "link", "final_destination")]
+                others += [(SHIELD_TIMING_MULTIHIT, "meta_knight", "fox", "final_destination")]
                 others += [(TECH_INVIS_MARIO, "mario", "mario", "final_destination")]
                 for (name, fn), p1, cpu, stage in others:
                     if not wanted(name):

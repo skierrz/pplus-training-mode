@@ -7,6 +7,7 @@
 #include <so/posture/so_posture_module_impl.h>
 #include <so/situation/so_situation_module_impl.h>
 #include <so/so_module_accesser.h>
+#include <so/so_value_accesser.h>
 #include <so/status/so_status_module_impl.h>
 #include <so/stop/so_stop_module_impl.h>
 #include <so/work/so_work_manage_module_impl.h>
@@ -595,12 +596,152 @@ namespace extra {
         }
     }
 
+    namespace {
+        enum {
+            kLaBasicBase = 0x10000000,
+            kLaFloatBase = 0x11000000,
+            kLaBitBase = 0x12000000,
+            kIcJumpCountMax = 23003,
+            kAirRuleBit = 0,
+            kAirRuleInt = 1,
+            kAirRuleFloatZero = 2
+        };
+
+        struct AirResetRule {
+            u8 ftKind; // 0xFF = common (every fighter)
+            u8 type;   // kAirRuleBit / kAirRuleInt / kAirRuleFloatZero
+            u8 idx;
+            u8 val;
+        };
+
+        // Complete P+ 3.2.1 once-per-airtime resource table verified against
+        // ProjectM/Modifier/VariableSet.asm, Turbo.asm, MoveDef/Misc.asm,
+        // Ledge.asm, AirDodge.asm, and Fit*.pac Landing/Wait1 scripts.
+        static const AirResetRule kAirRules[] = {
+            // Common airborne resets (all fighters)
+            {0xFF, kAirRuleInt, 2, 0},       // ledge regrab cooldown
+            {0xFF, kAirRuleInt, 3, 0},       // wall jump count
+            {0xFF, kAirRuleInt, 4, 0},       // wall jump past frame
+            {0xFF, kAirRuleInt, 11, 0},      // no attach wall frame
+            {0xFF, kAirRuleInt, 12, 0},      // attach wall count
+            {0xFF, kAirRuleInt, 62, 0},      // AirLassoHang tether count
+            {0xFF, kAirRuleInt, 79, 0},      // 5-ledge-grab invuln counter
+            {0xFF, kAirRuleInt, 81, 0},      // P+ AGT counter
+            {0xFF, kAirRuleBit, 22, 0},      // glide used
+            {0xFF, kAirRuleBit, 57, 0},      // P+ airdodge / momentum scratch
+            {0xFF, kAirRuleFloatZero, 0, 0}, // landing lag override
+            // Per-fighter once-per-airtime resets
+            {0x00, kAirRuleBit, 62, 0}, {0x00, kAirRuleBit, 113, 0}, {0x00, kAirRuleBit, 116, 0}, {0x00, kAirRuleBit, 118, 0}, // Mario
+            {0x01, kAirRuleBit, 70, 0},                                                                                          // DK
+            {0x03, kAirRuleInt, 67, 0}, {0x03, kAirRuleBit, 120, 0},                                                             // Samus
+            {0x04, kAirRuleBit, 112, 0}, {0x04, kAirRuleBit, 113, 0},                                                            // Yoshi
+            {0x05, kAirRuleBit, 112, 0}, {0x05, kAirRuleBit, 114, 0}, {0x05, kAirRuleBit, 119, 0},                               // Kirby
+            {0x08, kAirRuleBit, 61, 0}, {0x08, kAirRuleBit, 115, 0}, {0x08, kAirRuleBit, 116, 0},                                // Luigi
+            {0x0A, kAirRuleBit, 66, 0}, {0x0A, kAirRuleBit, 112, 1},                                                             // Ness
+            {0x0B, kAirRuleBit, 119, 0},                                                                                         // Bowser
+            {0x0C, kAirRuleBit, 62, 0},                                                                                          // Peach
+            {0x0D, kAirRuleBit, 126, 0}, {0x0D, kAirRuleBit, 127, 0},                                                            // Zelda
+            {0x0E, kAirRuleBit, 114, 1},                                                                                         // Sheik
+            {0x11, kAirRuleBit, 115, 1},                                                                                         // Marth
+            {0x12, kAirRuleBit, 114, 0},                                                                                         // G&W
+            {0x14, kAirRuleBit, 115, 0}, {0x14, kAirRuleBit, 120, 1}, {0x14, kAirRuleInt, 98, 0},                                // Ganondorf
+            {0x15, kAirRuleBit, 118, 0}, {0x15, kAirRuleBit, 122, 0},                                                            // Wario
+            {0x16, kAirRuleBit, 61, 0}, {0x16, kAirRuleBit, 115, 0}, {0x16, kAirRuleBit, 116, 0},                                // MK
+            {0x17, kAirRuleBit, 113, 0}, {0x17, kAirRuleBit, 114, 1}, {0x17, kAirRuleBit, 125, 0},                               // Pit
+            {0x18, kAirRuleBit, 113, 0},                                                                                         // ZSS
+            {0x19, kAirRuleBit, 122, 1},                                                                                         // Olimar
+            {0x1A, kAirRuleBit, 122, 1},                                                                                         // Lucas
+            {0x1D, kAirRuleBit, 113, 0}, {0x1D, kAirRuleInt, 92, 0},                                                             // Charizard
+            {0x1E, kAirRuleBit, 115, 0},                                                                                         // Squirtle
+            {0x1F, kAirRuleInt, 75, 0},                                                                                          // Ivysaur
+            {0x21, kAirRuleBit, 66, 0}, {0x21, kAirRuleBit, 69, 0},                                                              // Lucario
+            {0x22, kAirRuleInt, 91, 1},                                                                                          // Ike
+            {0x23, kAirRuleBit, 111, 0}, {0x23, kAirRuleBit, 114, 0}, {0x23, kAirRuleInt, 75, 3},                                // R.O.B.
+            {0x26, kAirRuleBit, 114, 0}, {0x26, kAirRuleBit, 115, 0}, {0x26, kAirRuleBit, 117, 0}, {0x26, kAirRuleBit, 118, 0},
+            {0x26, kAirRuleInt, 98, 0},                                                                                          // Mewtwo
+            {0x27, kAirRuleBit, 115, 1},                                                                                         // Roy
+            {0x2D, kAirRuleBit, 61, 0}, {0x2D, kAirRuleBit, 113, 0}, {0x2D, kAirRuleBit, 122, 0},
+            {0x2D, kAirRuleInt, 91, 0}, {0x2D, kAirRuleInt, 92, 0}, {0x2D, kAirRuleInt, 93, 0},                                  // Knuckles
+            {0x2E, kAirRuleBit, 61, 0}, {0x2E, kAirRuleBit, 113, 0}, {0x2E, kAirRuleFloatZero, 52, 0},                           // Snake
+            {0x2F, kAirRuleBit, 61, 0}, {0x2F, kAirRuleBit, 112, 0}, {0x2F, kAirRuleBit, 113, 0},
+            {0x2F, kAirRuleBit, 114, 0}, {0x2F, kAirRuleInt, 91, 0}                                                              // Sonic
+        };
+
+#pragma dont_inline on
+        void refreshAirSingle(Fighter* f, int ftKind, bool grounded, bool spendDoubleJump)
+        {
+            const soModuleEnumeration* m = game::fighterModules(f);
+            if (m == NULL || !game::isRam(m->m_workManageModule))
+            {
+                return;
+            }
+            soWorkManageModule* w = m->m_workManageModule;
+            int maxJumps = 2;
+            if (game::isRam(f->m_moduleAccesser))
+            {
+                int v = soValueAccesser::getConstantInt(f->m_moduleAccesser, kIcJumpCountMax, 0);
+                if (v >= 2 && v <= 10)
+                {
+                    maxJumps = v;
+                }
+            }
+            int jumpVal = grounded ? 0 : (spendDoubleJump ? maxJumps : 1);
+            w->setInt(jumpVal, kLaBasicBase + 1);
+            const u32 count = static_cast<u32>(sizeof(kAirRules) / sizeof(kAirRules[0]));
+            for (u32 i = 0; i < count; i++)
+            {
+                const AirResetRule& r = kAirRules[i];
+                if (r.ftKind != 0xFF && static_cast<int>(r.ftKind) != ftKind)
+                {
+                    continue;
+                }
+                if (r.type == kAirRuleBit)
+                {
+                    if (r.val != 0)
+                    {
+                        w->onFlag(kLaBitBase + r.idx);
+                    }
+                    else
+                    {
+                        w->offFlag(kLaBitBase + r.idx);
+                    }
+                }
+                else if (r.type == kAirRuleInt)
+                {
+                    w->setInt(r.val, kLaBasicBase + r.idx);
+                }
+                else
+                {
+                    w->setFloat(0.0f, kLaFloatBase + r.idx);
+                }
+            }
+        }
+#pragma dont_inline reset
+    }
+
+    void refreshAirResources(const game::FighterRef& ref, bool spendDoubleJump)
+    {
+        if (ref.fighter != NULL)
+        {
+            refreshAirSingle(ref.fighter, game::fighterKind(ref.entryId, false), false, spendDoubleJump);
+        }
+        if (ref.partner != NULL && ref.partner != ref.fighter)
+        {
+            refreshAirSingle(ref.partner, game::fighterKind(ref.entryId, true), false, spendDoubleJump);
+        }
+    }
+
     void placeStanding(const game::FighterRef& ref, float x, float y, bool setNoclip, float damage, float lr)
     {
         warpSingle(ref.fighter, x, y, false, setNoclip, lr);
+        if (ref.fighter != NULL)
+        {
+            refreshAirSingle(ref.fighter, game::fighterKind(ref.entryId, false), true, false);
+        }
         if (ref.partner != NULL && ref.partner != ref.fighter)
         {
             warpSingle(ref.partner, x, y, false, setNoclip, lr);
+            refreshAirSingle(ref.partner, game::fighterKind(ref.entryId, true), true, false);
         }
         if (damage >= 0.0f)
         {

@@ -104,26 +104,13 @@ namespace list {
             "Starts on match load"
         },
         {
-            "Shield Pressure",
+            "Shield Pressure / OoS",
             kRowScenario,
             extra::kScenarioShieldPressure,
             {
-                "CPU holds full shield and tries",
-                "to shield grab unsafe pressure.",
-                "Work on spacing and frame traps."
-            },
-            "Any Fighter",
-            "Any Stage",
-            "Starts on match load"
-        },
-        {
-            "OoS / Reversal",
-            kRowScenario,
-            extra::kScenarioOosReversal,
-            {
-                "Test out-of-shield and reversal",
-                "timings against Up-B, jab, and",
-                "jump counters from close range."
+                "CPU holds full shield and fires",
+                "your chosen OoS counter option.",
+                "Drill spacing, traps, & punishes."
             },
             "Any Fighter",
             "Any Stage",
@@ -287,10 +274,10 @@ namespace list {
         }
     };
 
-    static const u8 kAllModeIndices[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
-    static const u8 kOffenseIndices[] = {1, 2, 3, 4, 9};
-    static const u8 kDefenseIndices[] = {5, 6, 7, 8, 10};
-    static const u8 kSkillDrillIndices[] = {12, 13, 14, 15, 16, 17};
+    static const u8 kAllModeIndices[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    static const u8 kOffenseIndices[] = {1, 2, 3, 4, 8};
+    static const u8 kDefenseIndices[] = {4, 5, 6, 7, 9};
+    static const u8 kSkillDrillIndices[] = {11, 12, 13, 14, 15, 16};
 
     struct LauncherSection {
         const char* name;

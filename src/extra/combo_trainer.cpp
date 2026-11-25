@@ -9,6 +9,7 @@
 
 #include "extra/frame_data.h"
 #include "extra/pplus_recovery.h"
+#include "extra/scenario_presets.h"
 #include "extra/stage_geom.h"
 #include "main/game/body.h"
 #include "main/game/fighters.h"
@@ -226,7 +227,7 @@ namespace extra {
                     float wy = s_slots[p].anchorY;
                     if (act.pickOffstagePos && haveGeom)
                     {
-                        sampleRecoveryCandidate(geom, s_rng, wx, wy);
+                        sampleRecoveryCandidate(geom, s_rng, wx, wy, scenarioPresetsEdgeguardSide());
                     }
                     else if (act.pickRandomPos && haveGeom)
                     {
@@ -245,6 +246,7 @@ namespace extra {
                     if (act.warpFalling)
                     {
                         placeFalling(ref, wx, wy, act.setCorrectNone, dmg);
+                        refreshAirResources(ref, false);
                     }
                     else
                     {

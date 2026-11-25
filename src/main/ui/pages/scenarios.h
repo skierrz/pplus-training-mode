@@ -3,26 +3,38 @@
 #include <types.h>
 
 #include "main/ui/menu.h"
-#include "main/ui/pages/alter_inputs.h"
 
-// Session-only Scenario Preset menu values, stored in ui::menuScratch() after
-// AlterCopy so they are never persisted to the SD card and never auto-warp
-// fighters on boot.
+// Session-only Scenario Preset menu values, stored in ui::menuScratch() past
+// kShowInactiveScratchOffset / kRevTriggerScratchOffset so they are never
+// persisted to the SD card and never auto-warp fighters on boot.
 namespace tm {
 namespace ui {
 namespace pages {
     enum {
-        kScenarioScratchOffset = 24
+        kScenarioScratchOffset = 36,
+        kPresetOff = 0,
+        kPresetShieldPressure = 4,
+        kPresetShieldDrop = 5,
+        kPresetLedgetech = 6,
+        kPresetMultiHitSdi = 9
     };
 
     struct ScenarioMenuState {
-        u8 preset;       // extra::ScenarioId (0 = Off)
-        u8 autoReset;    // 0 = Off, 1 = On
-        u8 side;         // 0 = Right, 1 = Left
-        u8 multiHitMove; // 0 = Up Air, 1 = Side B, 2 = Rapid Jab, 3 = Down Air
+        u8 preset;            // extra::ScenarioId (0 = Off, 1..9 = presets)
+        u8 autoReset;         // 0 = Off, 1 = On
+        u8 side;              // 0 = Right, 1 = Left, 2 = Random
+        u8 multiHitMove;      // 0 = Auto (Best), 1..8 explicit moves
+        u8 oosAction;         // 0 = Grab, 1 = Up B, 2 = Spotdodge, 3 = Roll Away, 4 = SH Nair, 5 = Wavedash, 6 = Random
+        u8 ledgetechSpawn;    // 0 = Close Low, 1 = Deep Low, 2 = Far Out, 3 = High, 4 = Random
+        u8 ledgetechDj;       // 0 = Available, 1 = Spent
+        u8 ledgetechAttack;   // 0 = Down Tilt .. 6 = Side B, 7 = Random
+        u8 shieldDropPlat;    // 0 = Left, 1 = Right, 2 = Top, 3 = Random
+        u8 shieldDropSpacing; // 0 = Random, 1 = Close, 2 = Under, 3 = Far
+        u8 shieldDropFacing;  // 0 = Toward, 1 = Away, 2 = Random
     };
 
-    TM_STATIC_ASSERT(kScenarioScratchOffset >= sizeof(AlterCopy), tm_scenario_scratch_after_alter_copy);
+    TM_STATIC_ASSERT(kScenarioScratchOffset > kShowInactiveScratchOffset + 2,
+                     tm_scenario_scratch_after_flags);
     TM_STATIC_ASSERT(kScenarioScratchOffset + sizeof(ScenarioMenuState) <= kScratchBytes,
                      tm_scenario_scratch_fits_menu_scratch);
 

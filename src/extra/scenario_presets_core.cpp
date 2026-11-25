@@ -13,12 +13,18 @@ namespace extra {
             kStWait = 0x00,
             kStWalk = 0x01,
             kStWalkBrake = 0x02,
+            kStJump = 0x0B,
+            kStJumpAerial = 0x0C,
+            kStFly = 0x0D,
+            kStFall = 0x0E,
+            kStFallAerial = 0x0F,
             kStSquat = 0x11,
             kStSquatWait = 0x12,
             kStGuardOn = 0x1A,
             kStGuard = 0x1B,
             kStGuardOff = 0x1C,
             kStGuardDamage = 0x1D,
+            kStEscapeAir = 0x21,
             kStAttackFirst = 0x24,
             kStAttackS3 = 0x27,
             kStAttackAir = 0x33,
@@ -56,12 +62,15 @@ namespace extra {
         enum {
             kTechGraceFrames = 42,
             kShieldGraceFrames = 32,
-            kReversalGraceFrames = 24,
             kShieldDropGraceFrames = 26,
             kLedgetechGraceFrames = 30,
             kSlideOffGraceFrames = 28,
             kGrabGraceFrames = 28,
             kSdiEscapeGraceFrames = 26,
+            kLedgetechMinPercent = 50,
+            kLedgetechTargetPercent = 60,
+            kEdgeguardMinCpuPercent = 30,
+            kEdgeguardTargetCpuPercent = 35,
             kSlideOffMinPercent = 75,
             kSlideOffTargetPercent = 95,
             kUpAirMinFrames = 5,
@@ -93,6 +102,12 @@ namespace extra {
         bool isTumbleStatus(int s)
         {
             return s >= kStDamageFly && s <= kStDamageFall;
+        }
+
+        bool isAirEscapeStatus(int s)
+        {
+            return s == kStJump || s == kStJumpAerial || s == kStFly || s == kStFall || s == kStFallAerial
+                   || s == kStEscapeAir;
         }
 
         bool isCaptureHoldStatus(int s)
@@ -159,10 +174,32 @@ namespace extra {
             return false;
         }
 
-        void applyPresetOverrides(u8 preset, cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg,
-                                  main::GeneralSettings* generalCfg)
+#pragma dont_inline on
+        void copySnapshotTo(const ScenarioState& st, cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg,
+                            main::GeneralSettings* generalCfg, main::CpuSettings* cpuSettings)
         {
-            switch (preset)
+            cpuOpts = st.snapshotCpu;
+            comboCfg = st.snapshotCombo;
+            if (st.snapshotPlayerValid && generalCfg != NULL)
+            {
+                generalCfg->playerPercent = st.snapshotPlayerPercent;
+                generalCfg->lockPlayerPercent = st.snapshotLockPlayerPercent;
+                generalCfg->playerInfiniteShields = st.snapshotPlayerInfShields;
+            }
+            if (st.snapshotCpuValid && cpuSettings != NULL)
+            {
+                cpuSettings->percent = st.snapshotCpuPercent;
+                cpuSettings->lockPercent = st.snapshotLockCpuPercent;
+            }
+        }
+#pragma dont_inline reset
+
+#pragma dont_inline on
+        void applyPresetOverrides(const ScenarioConfig& cfg, cpu::CpuOptions& cpuOpts,
+                                  main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg,
+                                  main::CpuSettings* cpuSettings)
+        {
+            switch (cfg.preset)
             {
             case kScenarioComboLab:
                 comboCfg.enabled = 1;
@@ -200,6 +237,11 @@ namespace extra {
                 cpuOpts.behavior = cpu::kBehaviorStand;
                 cpuOpts.recovery = cpu::kRecoveryPPlusAi;
                 cpuOpts.tdi = cpu::kTdiSurvival;
+                if (cpuSettings != NULL && cpuSettings->percent < kEdgeguardMinCpuPercent)
+                {
+                    cpuSettings->percent = kEdgeguardTargetCpuPercent;
+                    cpuSettings->lockPercent = 1;
+                }
                 break;
 
             case kScenarioShieldPressure:
@@ -209,17 +251,7 @@ namespace extra {
                 cpuOpts.behavior = cpu::kBehaviorShield;
                 cpuOpts.infiniteShields = cpu::kShieldsOn;
                 cpuOpts.shieldHealth = cpu::kShieldFull;
-                cpuOpts.counterShield = kCounterShieldGrab;
-                break;
-
-            case kScenarioOosReversal:
-                comboCfg.enabled = 0;
-                comboCfg.recoveryTrainer = 0;
-                cpuOpts.control = cpu::kControlLab;
-                cpuOpts.behavior = cpu::kBehaviorShield;
-                cpuOpts.infiniteShields = cpu::kShieldsUntilHit;
-                cpuOpts.shieldHealth = cpu::kShieldFull;
-                cpuOpts.counterShield = kCounterShieldUpB;
+                cpuOpts.counterShield = resolveOosCounterShield(cfg.oosAction);
                 cpuOpts.counterGround = kCounterGroundJab;
                 cpuOpts.counterAir = kCounterAirJumpNeutral;
                 break;
@@ -230,6 +262,10 @@ namespace extra {
                 cpuOpts.control = cpu::kControlLab;
                 cpuOpts.behavior = cpu::kBehaviorStand;
                 cpuOpts.tdi = cpu::kTdiNone;
+                if (generalCfg != NULL)
+                {
+                    generalCfg->playerInfiniteShields = cpu::kShieldsOn;
+                }
                 break;
 
             case kScenarioLedgetech:
@@ -242,6 +278,11 @@ namespace extra {
                 cpuOpts.counterGround = 0;
                 cpuOpts.counterAir = 0;
                 cpuOpts.counterShield = 0;
+                if (generalCfg != NULL && generalCfg->playerPercent < kLedgetechMinPercent)
+                {
+                    generalCfg->playerPercent = kLedgetechTargetPercent;
+                    generalCfg->lockPlayerPercent = 1;
+                }
                 break;
 
             case kScenarioSlideOff:
@@ -287,6 +328,7 @@ namespace extra {
                 break;
             }
         }
+#pragma dont_inline reset
 
         void clearCycleTrackers(ScenarioState& st)
         {
@@ -294,7 +336,6 @@ namespace extra {
             st.hmnGuardWindow = 0;
             st.techEngaged = false;
             st.shieldEngaged = false;
-            st.reversalEngaged = false;
             st.shieldDropDone = false;
             st.ledgetechDone = false;
             st.slideOffArmed = false;
@@ -309,13 +350,117 @@ namespace extra {
         }
     }
 
+    u8 resolveOosCounterShield(u8 oosAction)
+    {
+        switch (oosAction)
+        {
+        case kOosGrab:
+            return kCounterShieldGrab;
+        case kOosUpB:
+            return kCounterShieldUpB;
+        case kOosSpotdodge:
+            return kCounterShieldSpotdodge;
+        case kOosRollAway:
+            return kCounterShieldRollAway;
+        case kOosShNair:
+            return kCounterShieldShNair;
+        case kOosWavedash:
+            return kCounterShieldWavedashAway;
+        case kOosRandom:
+            return kCounterShieldRandom;
+        default:
+            return kCounterShieldGrab;
+        }
+    }
+
+    // Complete P+ 3.2.1 per-fighter multi-hit SDI table verified directly from
+    // sandbox/sd/Project+/pf/fighter/*/Fit*.pac subactionMain scripts.
+    u8 bestMultiHitMoveForFighter(int ftKind)
+    {
+        static const u8 kBest[0x32] = {
+            kMultiHitDownAir,  // 0x00 Mario
+            kMultiHitUpB,      // 0x01 DK
+            kMultiHitUpB,      // 0x02 Link
+            kMultiHitUpAir,    // 0x03 Samus
+            kMultiHitDownAir,  // 0x04 Yoshi
+            kMultiHitDownAir,  // 0x05 Kirby
+            kMultiHitDownAir,  // 0x06 Fox
+            kMultiHitFair,     // 0x07 Pikachu
+            kMultiHitDownB,    // 0x08 Luigi
+            kMultiHitRapidJab, // 0x09 Falcon
+            kMultiHitFair,     // 0x0A Ness
+            kMultiHitDownAir,  // 0x0B Bowser
+            kMultiHitDownAir,  // 0x0C Peach
+            kMultiHitNair,     // 0x0D Zelda
+            kMultiHitRapidJab, // 0x0E Sheik
+            kMultiHitSideB,    // 0x0F Popo
+            kMultiHitSideB,    // 0x10 Nana
+            kMultiHitNair,     // 0x11 Marth
+            kMultiHitRapidJab, // 0x12 G&W
+            kMultiHitFair,     // 0x13 Falco
+            kMultiHitNair,     // 0x14 Ganondorf
+            kMultiHitUpB,      // 0x15 Wario
+            kMultiHitSideB,    // 0x16 Meta Knight
+            kMultiHitNair,     // 0x17 Pit
+            kMultiHitFair,     // 0x18 ZSS
+            kMultiHitNair,     // 0x19 Olimar
+            kMultiHitNair,     // 0x1A Lucas
+            kMultiHitRapidJab, // 0x1B Diddy
+            kMultiHitDownAir,  // 0x1C PokeTrainer (unused)
+            kMultiHitSideB,    // 0x1D Charizard
+            kMultiHitDownAir,  // 0x1E Squirtle
+            kMultiHitNair,     // 0x1F Ivysaur
+            kMultiHitDownAir,  // 0x20 Dedede
+            kMultiHitDownAir,  // 0x21 Lucario
+            kMultiHitUpB,      // 0x22 Ike
+            kMultiHitUpAir,    // 0x23 R.O.B.
+            kMultiHitDownAir,  // 0x24 PraMai (unused)
+            kMultiHitDownAir,  // 0x25 Jigglypuff
+            kMultiHitNair,     // 0x26 Mewtwo
+            kMultiHitUpB,      // 0x27 Roy
+            kMultiHitDownAir,  // 0x28 DrMario (unused)
+            kMultiHitUpB,      // 0x29 Toon Link
+            kMultiHitDownAir,  // 0x2A ToonZelda (unused)
+            kMultiHitDownAir,  // 0x2B ToonSheik (unused)
+            kMultiHitNair,     // 0x2C Wolf
+            kMultiHitRapidJab, // 0x2D Knuckles
+            kMultiHitDownAir,  // 0x2E Snake
+            kMultiHitUpAir,    // 0x2F Sonic
+            kMultiHitDownAir,  // 0x30 Giga Bowser
+            kMultiHitNair      // 0x31 Wario-Man
+        };
+        if (ftKind >= 0 && ftKind < static_cast<int>(sizeof(kBest)))
+        {
+            return kBest[ftKind];
+        }
+        return kMultiHitDownAir;
+    }
+
+    u8 resolveMultiHitMove(u8 multiHitMove, int cpuFtKind)
+    {
+        if (multiHitMove == kMultiHitAuto || multiHitMove >= kMultiHitMoveCount)
+        {
+            return bestMultiHitMoveForFighter(cpuFtKind);
+        }
+        return multiHitMove;
+    }
+
     ScenarioConfig sanitizeScenarioConfig(const ScenarioConfig& raw)
     {
         ScenarioConfig c;
         c.preset = raw.preset < kScenarioCount ? raw.preset : static_cast<u8>(kScenarioOff);
         c.autoReset = raw.autoReset != 0 ? 1 : 0;
         c.side = raw.side < kScenarioSideCount ? raw.side : static_cast<u8>(kScenarioSideRight);
-        c.multiHitMove = raw.multiHitMove < kMultiHitMoveCount ? raw.multiHitMove : static_cast<u8>(kMultiHitUpAir);
+        c.multiHitMove = raw.multiHitMove < kMultiHitMoveCount ? raw.multiHitMove : static_cast<u8>(kMultiHitAuto);
+        c.oosAction = raw.oosAction < kOosCount ? raw.oosAction : static_cast<u8>(kOosGrab);
+        c.ledgetechSpawn = raw.ledgetechSpawn < kLtSpawnCount ? raw.ledgetechSpawn : static_cast<u8>(kLtSpawnCloseLow);
+        c.ledgetechDj = raw.ledgetechDj < kLtDjCount ? raw.ledgetechDj : static_cast<u8>(kLtDjAvailable);
+        c.ledgetechAttack = raw.ledgetechAttack < kLtAtkCount ? raw.ledgetechAttack : static_cast<u8>(kLtAtkDtilt);
+        c.shieldDropPlat = raw.shieldDropPlat < kSdPlatCount ? raw.shieldDropPlat : static_cast<u8>(kSdPlatLeft);
+        c.shieldDropSpacing =
+            raw.shieldDropSpacing < kSdSpaceCount ? raw.shieldDropSpacing : static_cast<u8>(kSdSpaceRandom);
+        c.shieldDropFacing =
+            raw.shieldDropFacing < kSdFaceCount ? raw.shieldDropFacing : static_cast<u8>(kSdFaceToward);
         return c;
     }
 
@@ -323,6 +468,7 @@ namespace extra {
     {
         memset(&st, 0, sizeof(st));
         st.lastAutoReset = 1;
+        st.rng = 0x51A7C0DEu;
         st.lastCorrectWritten[0] = 0xFF;
         st.lastCorrectWritten[1] = 0xFF;
         st.restoreCorrectKind[0] = kCorrectGroundCliffStop;
@@ -341,18 +487,65 @@ namespace extra {
         memset(&st, 0, sizeof(st));
     }
 
+    void reapplyActiveScenarioOverrides(const ScenarioState& st, const ScenarioConfig& rawCfg, cpu::CpuOptions& cpuOpts,
+                                        main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg,
+                                        main::CpuSettings* cpuSettings)
+    {
+        if (st.activePreset == kScenarioOff)
+        {
+            return;
+        }
+        ScenarioConfig cfg = sanitizeScenarioConfig(rawCfg);
+        cfg.preset = st.activePreset;
+        if (st.snapshotActive)
+        {
+            cpuOpts = st.snapshotCpu;
+            comboCfg = st.snapshotCombo;
+            if (st.snapshotPlayerValid && generalCfg != NULL)
+            {
+                generalCfg->playerPercent = st.snapshotPlayerPercent;
+                generalCfg->lockPlayerPercent = st.snapshotLockPlayerPercent;
+                generalCfg->playerInfiniteShields = st.snapshotPlayerInfShields;
+            }
+            if (st.snapshotCpuValid && cpuSettings != NULL)
+            {
+                cpuSettings->percent = st.snapshotCpuPercent;
+                cpuSettings->lockPercent = st.snapshotLockCpuPercent;
+            }
+        }
+        applyPresetOverrides(cfg, cpuOpts, comboCfg, generalCfg, cpuSettings);
+    }
+
     bool applyScenarioConfig(ScenarioState& st, const ScenarioConfig& rawCfg, cpu::CpuOptions& cpuOpts,
-                             main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg)
+                             main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg,
+                             main::CpuSettings* cpuSettings)
     {
         ScenarioConfig cfg = sanitizeScenarioConfig(rawCfg);
         bool presetChanged = cfg.preset != st.activePreset;
-        bool layoutChanged = cfg.side != st.lastSide || cfg.multiHitMove != st.lastMultiHitMove;
+        bool oosChanged = cfg.oosAction != st.lastOosAction;
+        bool layoutChanged = cfg.side != st.lastSide || cfg.multiHitMove != st.lastMultiHitMove || oosChanged
+                             || cfg.ledgetechSpawn != st.lastLedgetechSpawn || cfg.ledgetechDj != st.lastLedgetechDj
+                             || cfg.ledgetechAttack != st.lastLedgetechAttack
+                             || cfg.shieldDropPlat != st.lastShieldDropPlat
+                             || cfg.shieldDropSpacing != st.lastShieldDropSpacing
+                             || cfg.shieldDropFacing != st.lastShieldDropFacing;
         st.lastAutoReset = cfg.autoReset;
         st.lastSide = cfg.side;
         st.lastMultiHitMove = cfg.multiHitMove;
+        st.lastOosAction = cfg.oosAction;
+        st.lastLedgetechSpawn = cfg.ledgetechSpawn;
+        st.lastLedgetechDj = cfg.ledgetechDj;
+        st.lastLedgetechAttack = cfg.ledgetechAttack;
+        st.lastShieldDropPlat = cfg.shieldDropPlat;
+        st.lastShieldDropSpacing = cfg.shieldDropSpacing;
+        st.lastShieldDropFacing = cfg.shieldDropFacing;
 
         if (!presetChanged)
         {
+            if (cfg.preset == kScenarioShieldPressure && oosChanged)
+            {
+                cpuOpts.counterShield = resolveOosCounterShield(cfg.oosAction);
+            }
             if (cfg.preset != kScenarioOff && layoutChanged)
             {
                 st.pendingReset = true;
@@ -362,7 +555,7 @@ namespace extra {
 
         if (cfg.preset == kScenarioOff)
         {
-            restoreScenarioSnapshot(st, cpuOpts, comboCfg, generalCfg);
+            restoreScenarioSnapshot(st, cpuOpts, comboCfg, generalCfg, cpuSettings);
             st.activePreset = kScenarioOff;
             st.pendingReset = false;
             st.hasPlatform = false;
@@ -379,11 +572,22 @@ namespace extra {
             {
                 st.snapshotPlayerPercent = generalCfg->playerPercent;
                 st.snapshotLockPlayerPercent = generalCfg->lockPlayerPercent;
+                st.snapshotPlayerInfShields = generalCfg->playerInfiniteShields;
                 st.snapshotPlayerValid = true;
             }
             else
             {
                 st.snapshotPlayerValid = false;
+            }
+            if (cpuSettings != NULL)
+            {
+                st.snapshotCpuPercent = cpuSettings->percent;
+                st.snapshotLockCpuPercent = cpuSettings->lockPercent;
+                st.snapshotCpuValid = true;
+            }
+            else
+            {
+                st.snapshotCpuValid = false;
             }
             st.snapshotActive = true;
         }
@@ -391,16 +595,10 @@ namespace extra {
         {
             // Preset A -> Preset B: always restore original snapshot first so
             // no overrides from Preset A leak into Preset B.
-            cpuOpts = st.snapshotCpu;
-            comboCfg = st.snapshotCombo;
-            if (st.snapshotPlayerValid && generalCfg != NULL)
-            {
-                generalCfg->playerPercent = st.snapshotPlayerPercent;
-                generalCfg->lockPlayerPercent = st.snapshotLockPlayerPercent;
-            }
+            copySnapshotTo(st, cpuOpts, comboCfg, generalCfg, cpuSettings);
         }
 
-        applyPresetOverrides(cfg.preset, cpuOpts, comboCfg, generalCfg);
+        applyPresetOverrides(cfg, cpuOpts, comboCfg, generalCfg, cpuSettings);
         st.activePreset = cfg.preset;
         st.pendingReset = true;
         st.sawShieldDrop = false;
@@ -419,18 +617,13 @@ namespace extra {
     }
 
     void restoreScenarioSnapshot(ScenarioState& st, cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg,
-                                 main::GeneralSettings* generalCfg)
+                                 main::GeneralSettings* generalCfg, main::CpuSettings* cpuSettings)
     {
         if (st.snapshotActive)
         {
-            cpuOpts = st.snapshotCpu;
-            comboCfg = st.snapshotCombo;
-            if (st.snapshotPlayerValid && generalCfg != NULL)
-            {
-                generalCfg->playerPercent = st.snapshotPlayerPercent;
-                generalCfg->lockPlayerPercent = st.snapshotLockPlayerPercent;
-            }
+            copySnapshotTo(st, cpuOpts, comboCfg, generalCfg, cpuSettings);
             st.snapshotPlayerValid = false;
+            st.snapshotCpuValid = false;
             st.snapshotActive = false;
         }
     }
@@ -439,6 +632,7 @@ namespace extra {
     {
         st.snapshotActive = false;
         st.snapshotPlayerValid = false;
+        st.snapshotCpuValid = false;
         st.activePreset = kScenarioOff;
         st.pendingReset = false;
         st.hasPlatform = false;
@@ -446,17 +640,12 @@ namespace extra {
     }
 
     void projectScenarioSavedView(const ScenarioState& st, cpu::CpuOptions& cpuOpts,
-                                  main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg)
+                                  main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg,
+                                  main::CpuSettings* cpuSettings)
     {
         if (st.snapshotActive)
         {
-            cpuOpts = st.snapshotCpu;
-            comboCfg = st.snapshotCombo;
-            if (st.snapshotPlayerValid && generalCfg != NULL)
-            {
-                generalCfg->playerPercent = st.snapshotPlayerPercent;
-                generalCfg->lockPlayerPercent = st.snapshotLockPlayerPercent;
-            }
+            copySnapshotTo(st, cpuOpts, comboCfg, generalCfg, cpuSettings);
         }
     }
 
@@ -478,14 +667,17 @@ namespace extra {
         }
     }
 
-    void computeScenarioSpawns(u8 preset, u8 side, u8 multiHitMove, const StageGeometry& geom, ScenarioSpawns& out)
+    void computeScenarioSpawnsEx(const ScenarioConfig& rawCfg, int cpuFtKind, u32& rng, const StageGeometry& geom,
+                                 ScenarioSpawns& out)
     {
         memset(&out, 0, sizeof(out));
         if (!geom.floor.valid)
         {
             return;
         }
-        bool leftSide = side == kScenarioSideLeft;
+        ScenarioConfig cfg = sanitizeScenarioConfig(rawCfg);
+        u8 effSide = cfg.side == kScenarioSideRandom ? static_cast<u8>(geomNextRng(rng) & 1u) : cfg.side;
+        bool leftSide = effSide == kScenarioSideLeft;
         float dir = leftSide ? -1.0f : 1.0f;
         float floorLeft = geom.floor.leftX;
         float floorRight = geom.floor.rightX;
@@ -497,8 +689,9 @@ namespace extra {
         out.hmnFalling = false;
         out.cpuFalling = false;
         out.hasPlatform = false;
+        out.resolvedPlatformSlot = kPlatSlotLeft;
 
-        switch (preset)
+        switch (cfg.preset)
         {
         case kScenarioComboLab:
         {
@@ -558,32 +751,49 @@ namespace extra {
             break;
         }
 
-        case kScenarioOosReversal:
-        {
-            float span = geomMin(6.0f, halfW * 0.25f);
-            out.hmnX = centerX - dir * span;
-            out.hmnY = floorY;
-            out.hmnLr = dir;
-            out.cpuX = centerX + dir * span;
-            out.cpuY = floorY;
-            out.cpuLr = -dir;
-            break;
-        }
-
         case kScenarioShieldDrop:
         {
             StagePlatform plat;
-            if (selectPlatform(geom, leftSide, plat))
+            u8 actualSlot = kPlatSlotLeft;
+            if (selectPlatformBySlot(geom, cfg.shieldDropPlat, rng, plat, &actualSlot))
             {
                 out.hasPlatform = true;
+                out.resolvedPlatformSlot = actualSlot;
                 float platMid = 0.5f * (plat.leftX + plat.rightX);
                 float inward = platMid >= centerX ? -1.0f : 1.0f;
                 out.hmnX = platMid;
                 out.hmnY = plat.y;
                 out.hmnLr = inward;
-                out.cpuX = geomClamp(platMid + inward * 4.0f, floorLeft + 10.0f, floorRight - 10.0f);
+
+                u8 spaceMode = cfg.shieldDropSpacing;
+                if (spaceMode == kSdSpaceRandom)
+                {
+                    spaceMode = static_cast<u8>(1u + (geomNextRng(rng) % 3u)); // Close, Under, or Far
+                }
+                float offset = 0.0f;
+                if (spaceMode == kSdSpaceClose)
+                {
+                    offset = inward * 6.0f;
+                }
+                else if (spaceMode == kSdSpaceFar)
+                {
+                    offset = inward * 14.0f;
+                }
+                else
+                {
+                    // Under: directly below P1 on the platform.
+                    offset = 0.0f;
+                }
+                out.cpuX = geomClamp(platMid + offset, floorLeft + 10.0f, floorRight - 10.0f);
                 out.cpuY = floorY;
-                out.cpuLr = platMid >= out.cpuX ? 1.0f : -1.0f;
+
+                float towardP1 = absf(platMid - out.cpuX) > 0.5f ? (platMid >= out.cpuX ? 1.0f : -1.0f) : -inward;
+                u8 faceMode = cfg.shieldDropFacing;
+                if (faceMode == kSdFaceRandom)
+                {
+                    faceMode = static_cast<u8>(geomNextRng(rng) & 1u);
+                }
+                out.cpuLr = faceMode == kSdFaceAway ? -towardP1 : towardP1;
             }
             else
             {
@@ -604,14 +814,44 @@ namespace extra {
             const LedgeInfo& ledge = leftSide ? geom.leftLedge : geom.rightLedge;
             float outward = leftSide ? -1.0f : 1.0f;
             float inward = -outward;
-            out.hmnX = ledge.x + outward * 8.0f;
-            float loY = geom.blast.valid ? (geom.blast.bottom + 36.0f) : (ledge.y - 36.0f);
-            out.hmnY = geomMax(loY, ledge.y - 20.0f);
+            u8 spawnMode = cfg.ledgetechSpawn;
+            if (spawnMode == kLtSpawnRandom)
+            {
+                spawnMode = static_cast<u8>(geomNextRng(rng) % 4u);
+            }
+            float outDist = 8.0f;
+            float relY = -20.0f;
+            switch (spawnMode)
+            {
+            case kLtSpawnDeepLow:
+                outDist = 12.0f;
+                relY = -36.0f;
+                break;
+            case kLtSpawnFarOut:
+                outDist = 26.0f;
+                relY = -12.0f;
+                break;
+            case kLtSpawnHigh:
+                outDist = 18.0f;
+                relY = 10.0f;
+                break;
+            case kLtSpawnCloseLow:
+            default:
+                outDist = 8.0f;
+                relY = -20.0f;
+                break;
+            }
+            float maxOut = leftSide ? (ledge.x - geom.blast.left - 24.0f) : (geom.blast.right - ledge.x - 24.0f);
+            outDist = geomClamp(outDist, 6.0f, geomMax(8.0f, maxOut));
+            out.hmnX = ledge.x + outward * outDist;
+            float loY = geom.blast.valid ? (geom.blast.bottom + 36.0f) : (ledge.y - 44.0f);
+            float hiY = geom.blast.valid ? (geom.blast.top - 30.0f) : (ledge.y + 30.0f);
+            out.hmnY = geomClamp(ledge.y + relY, loY, geomMax(loY, hiY));
             out.hmnLr = inward;
             out.hmnFalling = true;
 
-            // Place CPU right at the ledge lip so dtilt pokes past the edge
-            // across short- and long-reach fighters alike.
+            // Place CPU right at the ledge lip so dtilt/ftilt/smash/dair pokes
+            // past the edge across short- and long-reach fighters alike.
             out.cpuX = ledge.x + inward * geomMin(4.5f, halfW * 0.25f);
             out.cpuY = ledge.y;
             out.cpuLr = outward;
@@ -667,18 +907,35 @@ namespace extra {
 
         case kScenarioMultiHitSdi:
         {
-            float spacing = 5.5f; // kMultiHitUpAir
-            if (multiHitMove == kMultiHitDownAir)
+            u8 move = resolveMultiHitMove(cfg.multiHitMove, cpuFtKind);
+            float spacing = 5.5f;
+            switch (move)
             {
+            case kMultiHitNair:
+                spacing = 6.0f;
+                break;
+            case kMultiHitFair:
+                spacing = 7.5f;
+                break;
+            case kMultiHitUpAir:
+                spacing = 5.5f;
+                break;
+            case kMultiHitDownAir:
                 spacing = 5.0f;
-            }
-            else if (multiHitMove == kMultiHitRapidJab)
-            {
+                break;
+            case kMultiHitRapidJab:
                 spacing = 7.0f;
-            }
-            else if (multiHitMove == kMultiHitSideB)
-            {
+                break;
+            case kMultiHitUpB:
+            case kMultiHitDownB:
+                spacing = 5.5f;
+                break;
+            case kMultiHitSideB:
                 spacing = 10.5f;
+                break;
+            default:
+                spacing = 5.5f;
+                break;
             }
             float span = geomMin(spacing * 0.5f, halfW * 0.30f);
             out.hmnX = centerX + dir * span;
@@ -696,16 +953,41 @@ namespace extra {
         }
     }
 
-    static void triggerWarp(ScenarioState& st, const ScenarioConfig& cfg, const StageGeometry& geom,
+    void computeScenarioSpawns(u8 preset, u8 side, u8 multiHitMove, const StageGeometry& geom, ScenarioSpawns& out)
+    {
+        ScenarioConfig cfg;
+        memset(&cfg, 0, sizeof(cfg));
+        cfg.preset = preset;
+        cfg.autoReset = 1;
+        cfg.side = side;
+        cfg.multiHitMove = multiHitMove;
+        cfg.shieldDropPlat = side == kScenarioSideLeft ? kSdPlatLeft : kSdPlatRight;
+        cfg.shieldDropSpacing = kSdSpaceClose;
+        cfg.shieldDropFacing = kSdFaceToward;
+        u32 rng = 0x51A7C0DEu;
+        computeScenarioSpawnsEx(cfg, -1, rng, geom, out);
+    }
+
+#pragma dont_inline on
+    static void triggerWarp(ScenarioState& st, const ScenarioConfig& cfg, int cpuFtKind, const StageGeometry& geom,
                             ScenarioStepAction& act, bool warpHmn, bool warpCpu)
     {
+        st.resolvedMultiHit = resolveMultiHitMove(cfg.multiHitMove, cpuFtKind);
+        st.resolvedLedgetechAttack = cfg.ledgetechAttack == kLtAtkRandom
+                                         ? static_cast<u8>(geomNextRng(st.rng) % 7u)
+                                         : cfg.ledgetechAttack;
+        st.resolvedSide = cfg.side == kScenarioSideRandom ? static_cast<u8>(geomNextRng(st.rng) & 1u) : cfg.side;
+
+        ScenarioConfig resolvedCfg = cfg;
+        resolvedCfg.side = st.resolvedSide;
         ScenarioSpawns sp;
-        computeScenarioSpawns(cfg.preset, cfg.side, cfg.multiHitMove, geom, sp);
+        computeScenarioSpawnsEx(resolvedCfg, cpuFtKind, st.rng, geom, sp);
         if (!sp.valid)
         {
             return;
         }
         st.hasPlatform = sp.hasPlatform;
+        st.resolvedPlatformSlot = sp.resolvedPlatformSlot;
         st.hmnSpawnX = sp.hmnX;
         st.hmnSpawnY = sp.hmnY;
         st.cpuSpawnX = sp.cpuX;
@@ -721,6 +1003,8 @@ namespace extra {
         if (warpHmn)
         {
             act.setNoclip[0] = true;
+            act.refreshHmnAir = sp.hmnFalling;
+            act.hmnSpendDj = cfg.preset == kScenarioLedgetech && cfg.ledgetechDj == kLtDjSpent;
             st.restoreCorrect[0] = true;
             st.restoreCorrectKind[0] = sp.hmnFalling ? kCorrectAir : kCorrectGroundCliffStop;
             st.lastCorrectWritten[0] = kCorrectNone;
@@ -728,15 +1012,17 @@ namespace extra {
         if (warpCpu)
         {
             act.setNoclip[1] = true;
+            act.refreshCpuAir = sp.cpuFalling;
             st.restoreCorrect[1] = true;
             st.restoreCorrectKind[1] = sp.cpuFalling ? kCorrectAir : kCorrectGroundCliffStop;
             st.lastCorrectWritten[1] = kCorrectNone;
         }
     }
+#pragma dont_inline reset
 
     void stepScenario(ScenarioState& st, const ScenarioConfig& rawCfg, const ScenarioStepInput& in,
                       cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg, ScenarioStepAction& act,
-                      main::GeneralSettings* generalCfg)
+                      main::GeneralSettings* generalCfg, main::CpuSettings* cpuSettings)
     {
         memset(&act, 0, sizeof(act));
         act.restoreCorrectKind[0] = kCorrectGroundCliffStop;
@@ -756,11 +1042,16 @@ namespace extra {
         }
 
         u16 prevPct = generalCfg != NULL ? generalCfg->playerPercent : 0;
+        u16 prevCpuPct = cpuSettings != NULL ? cpuSettings->percent : 0;
         ScenarioConfig cfg = sanitizeScenarioConfig(rawCfg);
-        applyScenarioConfig(st, cfg, cpuOpts, comboCfg, generalCfg);
+        applyScenarioConfig(st, cfg, cpuOpts, comboCfg, generalCfg, cpuSettings);
         if (generalCfg != NULL && generalCfg->playerPercent != prevPct)
         {
             act.applyHmnPercent = true;
+        }
+        if (cpuSettings != NULL && cpuSettings->percent != prevCpuPct)
+        {
+            act.applyCpuPercent = true;
         }
         if (st.activePreset == kScenarioOff)
         {
@@ -776,7 +1067,7 @@ namespace extra {
             {
                 return;
             }
-            triggerWarp(st, cfg, in.geom, act, true, true);
+            triggerWarp(st, cfg, in.cpuFtKind, in.geom, act, true, true);
             return;
         }
 
@@ -812,21 +1103,32 @@ namespace extra {
             }
             else if (st.techEngaged)
             {
-                if (in.cpuHitstun > 0 || in.cpuHitlag > 0 || isCaptureHoldStatus(in.cpuStatus))
+                bool cpuStillComboed = in.cpuHitstun > 0 || in.cpuHitlag > 0 || isCaptureHoldStatus(in.cpuStatus)
+                                       || in.cpuStatus == kStCaptureThrown || (in.cpuAir && isTumbleStatus(in.cpuStatus));
+                if (cpuStillComboed)
                 {
                     st.graceFrames = 0;
                 }
-                else if (isNeutralGrounded(in.cpuStatus, in.cpuAir, in.cpuHitstun, in.cpuHitlag)
-                         || (!in.cpuAir && in.cpuActionable))
+                else
                 {
-                    if (st.graceFrames == 0)
+                    bool groundedSettled = isNeutralGrounded(in.cpuStatus, in.cpuAir, in.cpuHitstun, in.cpuHitlag)
+                                           || (!in.cpuAir && in.cpuActionable);
+                    // Also reset if CPU escapes into the air (Jump, Double Jump,
+                    // Airdodge, or post-wiggle Fall) once out of hitstun/tumble,
+                    // without cutting short platform techchases during tumble!
+                    bool airEscaped = in.cpuAir && !isTumbleStatus(in.cpuStatus) && !isDownOrTechStatus(in.cpuStatus)
+                                      && (in.cpuActionable || isAirEscapeStatus(in.cpuStatus));
+                    if (groundedSettled || airEscaped)
                     {
-                        st.completionCount++;
-                    }
-                    st.graceFrames++;
-                    if (autoReset && st.graceFrames >= kTechGraceFrames)
-                    {
-                        wantReset = true;
+                        if (st.graceFrames == 0)
+                        {
+                            st.completionCount++;
+                        }
+                        st.graceFrames++;
+                        if (autoReset && st.graceFrames >= kTechGraceFrames)
+                        {
+                            wantReset = true;
+                        }
                     }
                 }
             }
@@ -858,6 +1160,11 @@ namespace extra {
                 st.shieldEngaged = true;
                 st.graceFrames = 0;
             }
+            else if (in.cpuHitstun > 0)
+            {
+                st.shieldEngaged = true;
+                st.graceFrames = 0;
+            }
             st.prevCpuGuardDamage = cpuGuardDmg;
             if (isShieldBreakStatus(in.cpuStatus))
             {
@@ -868,62 +1175,26 @@ namespace extra {
                     wantReset = true;
                 }
             }
-            else if (st.shieldEngaged && !isGuardStatus(in.cpuStatus) && !isAttackOrSpecial(in.cpuStatus)
-                     && in.cpuHitstun == 0 && in.cpuHitlag == 0)
+            else if (st.shieldEngaged)
             {
-                st.graceFrames++;
-                if (autoReset && st.graceFrames >= kShieldGraceFrames)
-                {
-                    wantReset = true;
-                }
-            }
-            else if (st.shieldEngaged && in.cpuStatus == kStGuardOff)
-            {
-                st.graceFrames++;
-                if (autoReset && st.graceFrames >= kShieldGraceFrames)
-                {
-                    wantReset = true;
-                }
-            }
-            else
-            {
-                st.graceFrames = 0;
-            }
-            break;
-        }
-
-        case kScenarioOosReversal:
-        {
-            if (autoReset && (hmnDanger || cpuDanger))
-            {
-                wantReset = true;
-                break;
-            }
-            bool cpuPressured = in.cpuStatus == kStGuardDamage || in.cpuShieldStun > 0 || in.cpuHitstun > 0;
-            if (cpuPressured)
-            {
-                st.reversalEngaged = true;
-                st.graceFrames = 0;
-            }
-            else if (st.reversalEngaged)
-            {
-                bool activeExchange = in.hmnHitstun > 0 || in.hmnHitlag > 0 || in.cpuHitlag > 0
-                                      || isAttackOrSpecial(in.cpuStatus) || isAttackOrSpecial(in.hmnStatus);
+                bool activeExchange = in.hmnHitstun > 0 || in.hmnHitlag > 0 || in.cpuHitstun > 0 || in.cpuHitlag > 0
+                                      || isAttackOrSpecial(in.cpuStatus) || isAttackOrSpecial(in.hmnStatus)
+                                      || cpuGuardDmg;
                 if (activeExchange)
                 {
                     st.graceFrames = 0;
                 }
-                else if (!in.cpuAir && !in.hmnAir && in.cpuActionable && in.hmnActionable)
+                else if (!isGuardStatus(in.cpuStatus) || in.cpuStatus == kStGuardOff)
                 {
-                    if (st.graceFrames == 0)
-                    {
-                        st.completionCount++;
-                    }
                     st.graceFrames++;
-                    if (autoReset && st.graceFrames >= kReversalGraceFrames)
+                    if (autoReset && st.graceFrames >= kShieldGraceFrames)
                     {
                         wantReset = true;
                     }
+                }
+                else
+                {
+                    st.graceFrames = 0;
                 }
             }
             break;
@@ -1098,7 +1369,6 @@ namespace extra {
             }
             else if (st.grabActive)
             {
-                // Left capture directly without CaptureCut/Thrown.
                 st.grabActive = false;
                 st.grabDone = true;
                 st.graceFrames = 1;
@@ -1189,7 +1459,7 @@ namespace extra {
             }
             else
             {
-                triggerWarp(st, cfg, in.geom, act, resetHmn, resetCpu);
+                triggerWarp(st, cfg, in.cpuFtKind, in.geom, act, resetHmn, resetCpu);
             }
         }
     }
@@ -1212,10 +1482,11 @@ namespace extra {
 
         if (in.preset == kScenarioMultiHitSdi)
         {
-            if (st.lastMove != in.multiHitMove)
+            u8 move = resolveMultiHitMove(in.multiHitMove, in.cpuFtKind);
+            if (st.lastMove != move)
             {
                 scenarioCpuStateReset(st);
-                st.lastMove = in.multiHitMove;
+                st.lastMove = move;
             }
             out.active = true;
             if (st.cooldown > 0)
@@ -1224,26 +1495,31 @@ namespace extra {
                 return;
             }
 
-            switch (in.multiHitMove)
+            switch (move)
             {
+            case kMultiHitNair:
+            case kMultiHitFair:
             case kMultiHitUpAir:
             case kMultiHitDownAir:
             {
                 // Gentle takeoff stick + velocity-damped airborne steering so
                 // CPU lands right on HMN's live X without overshooting.
-                float takeoffDiv = in.multiHitMove == kMultiHitUpAir ? 14.0f : 9.0f;
+                float takeoffDiv = move == kMultiHitUpAir ? 14.0f : (move == kMultiHitFair ? 11.0f : 9.0f);
+                float approachDist = move == kMultiHitFair ? 10.5f : 8.5f;
                 float takeoffSteerX = geomClamp(dx / takeoffDiv, -1.0f, 1.0f);
                 float airSteerX = geomClamp((dx - in.cpuVx * 8.0f) / 3.0f, -1.0f, 1.0f);
                 if (st.phase == 0)
                 {
                     if (!in.cpuAir && in.cpuCanAct)
                     {
-                        // Walk smoothly beneath HMN while they are above
-                        // short-hop reach (stay below dash threshold to avoid
-                        // slingshot jumps).
-                        if (absDx > 8.5f || (in.hmnAir && in.hmnY > in.cpuY + 18.0f))
+                        if (absDx > approachDist || (in.hmnAir && in.hmnY > in.cpuY + 18.0f))
                         {
                             out.stickX = geomClamp(dx / 5.0f, -0.55f, 0.55f);
+                            return;
+                        }
+                        if (move == kMultiHitFair && in.cpuLr * toward < 0.0f)
+                        {
+                            out.stickX = toward * 0.45f;
                             return;
                         }
                         out.buttons = cpu::button::kJump;
@@ -1257,11 +1533,27 @@ namespace extra {
                     st.timer++;
                     if (in.cpuAir)
                     {
-                        if (in.multiHitMove == kMultiHitDownAir)
+                        if (move == kMultiHitDownAir)
                         {
                             out.buttons = cpu::button::kAttack | cpu::button::kSmash | cpu::button::kCStick;
                             out.stickX = 0.0f;
                             out.stickY = -1.0f;
+                            st.phase = 3;
+                            st.timer = 0;
+                        }
+                        else if (move == kMultiHitNair)
+                        {
+                            out.buttons = cpu::button::kAttack;
+                            out.stickX = 0.0f;
+                            out.stickY = 0.0f;
+                            st.phase = 3;
+                            st.timer = 0;
+                        }
+                        else if (move == kMultiHitFair)
+                        {
+                            out.buttons = cpu::button::kAttack | cpu::button::kSmash | cpu::button::kCStick;
+                            out.stickX = in.cpuLr;
+                            out.stickY = 0.0f;
                             st.phase = 3;
                             st.timer = 0;
                         }
@@ -1291,9 +1583,6 @@ namespace extra {
                         return;
                     }
                     st.timer++;
-                    // Wait for falling arc near HMN height so both fastfallers
-                    // and floaties hit grounded hurtboxes instead of swinging
-                    // over HMN's head at jump peak.
                     bool readyForUpAir =
                         in.hmnAir ? (st.timer >= kUpAirAirborneDelay)
                                   : ((st.timer >= kUpAirMinFrames && in.cpuVy <= 0.25f && in.cpuY <= in.hmnY + 12.0f)
@@ -1328,12 +1617,54 @@ namespace extra {
                 return;
             }
 
+            case kMultiHitUpB:
+            {
+                if (st.phase == 0)
+                {
+                    if (!in.cpuAir && in.cpuCanAct)
+                    {
+                        if (absDx > 8.0f)
+                        {
+                            out.stickX = toward * 0.60f;
+                            return;
+                        }
+                        if (in.cpuLr * toward < 0.0f)
+                        {
+                            out.stickX = toward * 0.45f;
+                            return;
+                        }
+                        out.buttons = cpu::button::kSpecial;
+                        out.stickX = 0.0f;
+                        out.stickY = 1.0f;
+                        st.phase = 1;
+                        st.timer = 0;
+                    }
+                }
+                else
+                {
+                    st.timer++;
+                    out.stickX = geomClamp(dx / 6.0f, -0.45f, 0.45f);
+                    if (st.timer >= 14)
+                    {
+                        st.phase = 0;
+                        st.timer = 0;
+                        st.cooldown = 26;
+                    }
+                }
+                return;
+            }
+
             case kMultiHitSideB:
             {
                 if (st.phase == 0)
                 {
                     if (!in.cpuAir && in.cpuCanAct)
                     {
+                        if (absDx > 14.0f)
+                        {
+                            out.stickX = toward * 0.60f;
+                            return;
+                        }
                         out.buttons = cpu::button::kSpecial;
                         out.stickX = toward;
                         out.stickY = 0.0f;
@@ -1344,11 +1675,48 @@ namespace extra {
                 else
                 {
                     st.timer++;
-                    if (st.timer >= 10)
+                    out.stickX = toward;
+                    if (st.timer >= 12)
                     {
                         st.phase = 0;
                         st.timer = 0;
-                        st.cooldown = 20;
+                        st.cooldown = 22;
+                    }
+                }
+                return;
+            }
+
+            case kMultiHitDownB:
+            {
+                if (st.phase == 0)
+                {
+                    if (!in.cpuAir && in.cpuCanAct)
+                    {
+                        if (absDx > 8.0f)
+                        {
+                            out.stickX = toward * 0.60f;
+                            return;
+                        }
+                        out.buttons = cpu::button::kSpecial;
+                        out.stickX = 0.0f;
+                        out.stickY = -1.0f;
+                        st.phase = 1;
+                        st.timer = 1;
+                    }
+                }
+                else
+                {
+                    st.timer++;
+                    out.stickX = geomClamp(dx / 5.0f, -0.55f, 0.55f);
+                    if ((st.timer & 1) == 0 && (in.lastButtons & cpu::button::kSpecial) == 0)
+                    {
+                        out.buttons = cpu::button::kSpecial;
+                    }
+                    if (st.timer >= 16)
+                    {
+                        st.phase = 0;
+                        st.timer = 0;
+                        st.cooldown = 24;
                     }
                 }
                 return;
@@ -1366,7 +1734,6 @@ namespace extra {
                             out.stickX = toward * 0.65f;
                             return;
                         }
-                        // Turn toward HMN if facing away before starting rapid jab.
                         if (in.cpuLr * toward < 0.0f)
                         {
                             out.stickX = toward * 0.45f;
@@ -1398,15 +1765,49 @@ namespace extra {
 
         if (in.preset == kScenarioLedgetech)
         {
+            u8 atk = in.ledgetechAttack < 7 ? in.ledgetechAttack : static_cast<u8>(kLtAtkDtilt);
+            // Finish airborne Down Air phase cleanly before cooldown.
+            if (atk == kLtAtkDair && st.phase > 0)
+            {
+                out.active = true;
+                st.timer++;
+                if (st.phase == 1)
+                {
+                    if (in.cpuAir)
+                    {
+                        out.buttons = cpu::button::kAttack | cpu::button::kSmash | cpu::button::kCStick;
+                        out.stickX = 0.0f;
+                        out.stickY = -1.0f;
+                        st.phase = 2;
+                        st.timer = 0;
+                    }
+                    else if (st.timer >= 10)
+                    {
+                        st.phase = 0;
+                        st.timer = 0;
+                    }
+                }
+                else
+                {
+                    // Drift slightly back onstage while swinging Dair at the ledge.
+                    out.stickX = -toward * 0.35f;
+                    if (!in.cpuAir || st.timer >= 24)
+                    {
+                        st.phase = 0;
+                        st.timer = 0;
+                        st.cooldown = 20;
+                    }
+                }
+                return;
+            }
+
             if (st.cooldown > 0)
             {
                 st.cooldown--;
                 return;
             }
-            // Wait until HMN begins recovering toward the ledge from spawn
-            // (12.5u out, -20u low) so dtilt lands right at the ledge lip and
-            // re-triggers cleanly if HMN lingers or recovers slowly.
-            bool inLedgeWindow = absDx <= 12.4f && in.hmnY >= in.cpuY - 18.0f && in.hmnY <= in.cpuY + 12.0f;
+            float maxX = (atk == kLtAtkNeutralB || atk == kLtAtkSideB) ? 16.0f : 12.4f;
+            bool inLedgeWindow = absDx <= maxX && in.hmnY >= in.cpuY - 18.0f && in.hmnY <= in.cpuY + 20.0f;
             if (!in.cpuAir && in.cpuCanAct && inLedgeWindow && in.hmnHitstun == 0)
             {
                 out.active = true;
@@ -1415,10 +1816,46 @@ namespace extra {
                     out.stickX = toward * 0.45f;
                     return;
                 }
-                out.buttons = cpu::button::kAttack;
-                out.stickX = 0.0f;
-                out.stickY = -0.55f; // low dtilt / ledge poke
-                st.cooldown = 16;
+                switch (atk)
+                {
+                case kLtAtkFtilt:
+                    out.buttons = cpu::button::kAttack;
+                    out.stickX = toward * 0.55f;
+                    st.cooldown = 18;
+                    break;
+                case kLtAtkFsmash:
+                    out.buttons = cpu::button::kAttack | cpu::button::kSmash | cpu::button::kCStick;
+                    out.stickX = toward;
+                    st.cooldown = 28;
+                    break;
+                case kLtAtkDsmash:
+                    out.buttons = cpu::button::kAttack | cpu::button::kSmash | cpu::button::kCStick;
+                    out.stickY = -1.0f;
+                    st.cooldown = 26;
+                    break;
+                case kLtAtkDair:
+                    out.buttons = cpu::button::kJump;
+                    out.stickX = toward * 0.20f;
+                    st.phase = 1;
+                    st.timer = 0;
+                    break;
+                case kLtAtkNeutralB:
+                    out.buttons = cpu::button::kSpecial;
+                    st.cooldown = 24;
+                    break;
+                case kLtAtkSideB:
+                    out.buttons = cpu::button::kSpecial;
+                    out.stickX = toward;
+                    st.cooldown = 28;
+                    break;
+                case kLtAtkDtilt:
+                default:
+                    out.buttons = cpu::button::kAttack;
+                    out.stickX = 0.0f;
+                    out.stickY = -0.55f;
+                    st.cooldown = 16;
+                    break;
+                }
             }
             return;
         }
@@ -1476,13 +1913,11 @@ namespace extra {
         float dx = in.hmnX - in.cpuX;
         float toward = dx >= 0.0f ? 1.0f : -1.0f;
         float absDx = absf(dx);
-        // Walk smoothly into universal jab range without dashing offstage.
         if (absDx > 11.0f)
         {
             out.stickX = toward * 0.55f;
             return;
         }
-        // Ensure CPU faces P1 before throwing the poke.
         if (in.cpuLr * toward < 0.0f)
         {
             out.stickX = toward * 0.35f;

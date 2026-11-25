@@ -876,19 +876,19 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     menu::list::attach();
     stepFrame(pads); // neutral clears wait-release
 
-    // Starts on Page 0 (All Modes, 18 rows: Lab + 10 Scenarios + Browse Recordings + 6 Skill Drills).
+    // Starts on Page 0 (All Modes, 17 rows: Lab + 9 Scenarios + Browse Recordings + 6 Skill Drills).
     CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
 
-    // Scroll down 11 steps past row 10 (P+ Multi-Hit SDI) to row 11 (Browse Recordings) and open browser.
-    for (int i = 0; i < 11; i++)
+    // Scroll down 10 steps past row 9 (P+ Multi-Hit SDI) to row 10 (Browse Recordings) and open browser.
+    for (int i = 0; i < 10; i++)
     {
         setPadInput(pads[0], kDpadDown);
         stepFrame(pads);
         setPadInput(pads[0], 0);
         stepFrame(pads);
     }
-    CHECK(host::log::contains("drills: row 10 P+ Multi-Hit SDI"));
-    CHECK(host::log::contains("drills: row 11 Browse Recordings"));
+    CHECK(host::log::contains("drills: row 9 P+ Multi-Hit SDI"));
+    CHECK(host::log::contains("drills: row 10 Browse Recordings"));
     setPadInput(pads[0], kButtonA);
     stepFrame(pads);
     CHECK(host::log::contains("browser: opened for port 1"));
@@ -900,7 +900,7 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
-    // Scrolling 6 more steps inside All Modes reaches all 6 Skill Drills through row 17 (P+ Tech).
+    // Scrolling 6 more steps inside All Modes reaches all 6 Skill Drills through row 16 (P+ Tech).
     for (int i = 0; i < 6; i++)
     {
         setPadInput(pads[0], kDpadDown);
@@ -908,8 +908,8 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
         setPadInput(pads[0], 0);
         stepFrame(pads);
     }
-    CHECK(host::log::contains("drills: row 12 Ledgedash"));
-    CHECK(host::log::contains("drills: row 17 RAR / DACUS / B-Rev"));
+    CHECK(host::log::contains("drills: row 11 Ledgedash"));
+    CHECK(host::log::contains("drills: row 16 RAR / DACUS / B-Rev"));
 
     // GC R cycles: All Modes -> Offense -> Defense -> All Modes.
     setPadInput(pads[0], game::kPadR);
@@ -918,7 +918,7 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
-    // Move down to row 3 in Offense (Shield Pressure, presetId = 4) and select it.
+    // Move down to row 3 in Offense (Shield Pressure / OoS, presetId = 4) and select it.
     for (int i = 0; i < 3; i++)
     {
         setPadInput(pads[0], kDpadDown);
@@ -926,26 +926,26 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
         setPadInput(pads[0], 0);
         stepFrame(pads);
     }
-    CHECK(host::log::contains("drills: row 3 Shield Pressure"));
+    CHECK(host::log::contains("drills: row 3 Shield Pressure / OoS"));
     setPadInput(pads[0], kButtonA);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: scenario 4 (Shield Pressure) armed"));
-    CHECK(host::log::contains("drills: list closed (Shield Pressure)"));
+    CHECK(host::log::contains("drills: scenario 4 (Shield Pressure / OoS) armed"));
+    CHECK(host::log::contains("drills: list closed (Shield Pressure / OoS)"));
     CHECK_EQ(4, static_cast<int>(menu::session().pendingScenario));
     CHECK_EQ(1, static_cast<int>(menu::session().page));
     CHECK_EQ(3, static_cast<int>(menu::session().row));
     CHECK_EQ(1, static_cast<int>(menu::session().labChosen));
 
-    // Reopen with L+R: remembers Page 1 (Offense), Row 3 (Shield Pressure).
+    // Reopen with L+R: remembers Page 1 (Offense), Row 3 (Shield Pressure / OoS).
     setPadInput(pads[0], 0);
     stepFrame(pads);
     setPadInput(pads[0], game::kPadL | game::kPadR);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: list opened (L+R) for port 1, row 3 Shield Pressure"));
+    CHECK(host::log::contains("drills: list opened (L+R) for port 1, row 3 Shield Pressure / OoS"));
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
-    // Cycle R -> Defense (Page 2, 5 rows) and move to bottom row 4 (P+ Multi-Hit SDI, presetId = 10).
+    // Cycle R -> Defense (Page 2, 5 rows) and move to bottom row 4 (P+ Multi-Hit SDI, presetId = 9).
     setPadInput(pads[0], game::kPadR);
     stepFrame(pads);
     CHECK(host::log::contains("drills: page Defense"));
@@ -961,8 +961,8 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     CHECK(host::log::contains("drills: row 4 P+ Multi-Hit SDI"));
     setPadInput(pads[0], kButtonA);
     stepFrame(pads);
-    CHECK_EQ(10, static_cast<int>(menu::session().pendingScenario));
-    CHECK(host::log::contains("drills: scenario 10 (P+ Multi-Hit SDI) armed"));
+    CHECK_EQ(9, static_cast<int>(menu::session().pendingScenario));
+    CHECK(host::log::contains("drills: scenario 9 (P+ Multi-Hit SDI) armed"));
 
     // Reopen, cycle R -> Skill Drills (Page 3) -> All Modes (Page 0), select row 0 (Training Lab) -> clears pendingScenario to 0!
     setPadInput(pads[0], 0);

@@ -35,6 +35,7 @@ namespace extra {
     };
 
     // Portable fast square root (zero libm dependency for MWCC and MSVC).
+#pragma dont_inline on
     static float recSqrt(float s)
     {
         if (s <= 0.0f)
@@ -48,6 +49,7 @@ namespace extra {
         }
         return g;
     }
+#pragma dont_inline reset
 
     static float recAbs(float v)
     {

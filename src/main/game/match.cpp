@@ -116,6 +116,7 @@ namespace game {
         return how;
     }
 
+#pragma force_active on
     bool trainingEnding()
     {
         gfScene* scene = currentScene();
@@ -123,6 +124,7 @@ namespace game {
                                                      : NULL;
         return isRam(info) && wordAt(info, kInfoVtable) == kInfoTrainingVtable && wordAt(info, kInfoState) != kStateRunning;
     }
+#pragma force_active reset
 
     int trainingMenuCursor()
     {

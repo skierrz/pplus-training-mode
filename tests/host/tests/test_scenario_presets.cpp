@@ -14,6 +14,7 @@
 #include "main/storage/format.h"
 #include "main/storage/settings_file.h"
 #include "main/storage/storage.h"
+#include "main/ui/pages/cpu_rows.h"
 #include "main/ui/pages/pages.h"
 #include "main/ui/pages/scenarios.h"
 
@@ -136,28 +137,47 @@ namespace {
         return in;
     }
 
-    ScenarioConfig makeCfg(u8 preset, u8 autoReset = 1, u8 side = kScenarioSideRight, u8 move = kMultiHitUpAir)
+    ScenarioConfig makeCfg(u8 preset, u8 autoReset = 1, u8 side = kScenarioSideRight, u8 move = kMultiHitAuto)
     {
         ScenarioConfig c;
+        memset(&c, 0, sizeof(c));
         c.preset = preset;
         c.autoReset = autoReset;
         c.side = side;
         c.multiHitMove = move;
+        c.oosAction = kOosGrab;
+        c.ledgetechSpawn = kLtSpawnCloseLow;
+        c.ledgetechDj = kLtDjAvailable;
+        c.ledgetechAttack = kLtAtkDtilt;
+        c.shieldDropPlat = side == kScenarioSideLeft ? kSdPlatLeft : kSdPlatRight;
+        c.shieldDropSpacing = kSdSpaceClose;
+        c.shieldDropFacing = kSdFaceToward;
         return c;
     }
 }
 
-TEST(scenario_presets, all_ten_presets_map_settings_and_snapshot_restores_cleanly)
+TEST(scenario_presets, all_nine_presets_map_settings_and_snapshot_restores_cleanly)
 {
     const cpu::CpuOptions origCpu = makeCustomCpuOpts();
     const main::ComboTrainerSettings origCombo = makeCustomComboCfg();
     cpu::CpuOptions cpuOpts = origCpu;
     main::ComboTrainerSettings comboCfg = origCombo;
+    main::GeneralSettings gen;
+    memset(&gen, 0, sizeof(gen));
+    gen.playerPercent = 10;
+    gen.lockPlayerPercent = 0;
+    gen.playerInfiniteShields = cpu::kShieldsUntilHit;
+    const main::GeneralSettings origGen = gen;
+    main::CpuSettings cpuSet;
+    memset(&cpuSet, 0, sizeof(cpuSet));
+    cpuSet.percent = 0;
+    cpuSet.lockPercent = 0;
+    const main::CpuSettings origCpuSet = cpuSet;
     ScenarioState st;
     scenarioStateInit(st);
 
     // 1. Combo Lab
-    applyScenarioConfig(st, makeCfg(kScenarioComboLab), cpuOpts, comboCfg);
+    applyScenarioConfig(st, makeCfg(kScenarioComboLab), cpuOpts, comboCfg, &gen, &cpuSet);
     CHECK(st.snapshotActive);
     CHECK_EQ(1, comboCfg.enabled);
     CHECK_EQ(1, comboCfg.fixPosition);
@@ -171,7 +191,7 @@ TEST(scenario_presets, all_ten_presets_map_settings_and_snapshot_restores_cleanl
     CHECK_EQ(cpu::kTechRandom, cpuOpts.tech);
 
     // 2. Techchase (transition A -> B must restore snapshot first: comboTrainer.enabled back to 0!)
-    applyScenarioConfig(st, makeCfg(kScenarioTechchase), cpuOpts, comboCfg);
+    applyScenarioConfig(st, makeCfg(kScenarioTechchase), cpuOpts, comboCfg, &gen, &cpuSet);
     CHECK(st.snapshotActive);
     CHECK_EQ(0, comboCfg.enabled);
     CHECK_EQ(0, comboCfg.fixPosition);
@@ -183,74 +203,84 @@ TEST(scenario_presets, all_ten_presets_map_settings_and_snapshot_restores_cleanl
     CHECK_EQ(cpu::kTdiRandom, cpuOpts.tdi);
     CHECK_EQ(origCpu.recovery, cpuOpts.recovery); // not leaked from Combo Lab
 
-    // 3. Edgeguard
-    applyScenarioConfig(st, makeCfg(kScenarioEdgeguard), cpuOpts, comboCfg);
+    // 3. Edgeguard (seeds CPU 35% when < 30%)
+    applyScenarioConfig(st, makeCfg(kScenarioEdgeguard), cpuOpts, comboCfg, &gen, &cpuSet);
     CHECK_EQ(1, comboCfg.enabled);
     CHECK_EQ(1, comboCfg.recoveryTrainer);
     CHECK_EQ(1, comboCfg.noclip);
     CHECK_EQ(cpu::kControlLab, cpuOpts.control);
     CHECK_EQ(cpu::kRecoveryPPlusAi, cpuOpts.recovery);
     CHECK_EQ(cpu::kTdiSurvival, cpuOpts.tdi);
+    CHECK_EQ(35, static_cast<int>(cpuSet.percent));
+    CHECK_EQ(1, static_cast<int>(cpuSet.lockPercent));
 
-    // 4. Shield Pressure
-    applyScenarioConfig(st, makeCfg(kScenarioShieldPressure), cpuOpts, comboCfg);
+    // 4. Unified Shield Pressure / OoS (CPU OoS defaults to Grab, updates live on change)
+    ScenarioConfig spCfg = makeCfg(kScenarioShieldPressure);
+    applyScenarioConfig(st, spCfg, cpuOpts, comboCfg, &gen, &cpuSet);
     CHECK_EQ(0, comboCfg.enabled);
     CHECK_EQ(0, comboCfg.recoveryTrainer);
+    CHECK_EQ(0, static_cast<int>(cpuSet.percent)); // restored from Edgeguard!
     CHECK_EQ(cpu::kControlLab, cpuOpts.control);
     CHECK_EQ(cpu::kBehaviorShield, cpuOpts.behavior);
     CHECK_EQ(cpu::kShieldsOn, cpuOpts.infiniteShields);
     CHECK_EQ(kCounterShieldGrab, cpuOpts.counterShield);
-
-    // 5. OoS / Reversal
-    applyScenarioConfig(st, makeCfg(kScenarioOosReversal), cpuOpts, comboCfg);
-    CHECK_EQ(cpu::kControlLab, cpuOpts.control);
-    CHECK_EQ(cpu::kBehaviorShield, cpuOpts.behavior);
-    CHECK_EQ(cpu::kShieldsUntilHit, cpuOpts.infiniteShields);
-    CHECK_EQ(kCounterShieldUpB, cpuOpts.counterShield);
     CHECK_EQ(kCounterGroundJab, cpuOpts.counterGround);
     CHECK_EQ(kCounterAirJumpNeutral, cpuOpts.counterAir);
+    spCfg.oosAction = kOosUpB;
+    applyScenarioConfig(st, spCfg, cpuOpts, comboCfg, &gen, &cpuSet);
+    CHECK_EQ(kCounterShieldUpB, cpuOpts.counterShield);
 
-    // 6. Shield Drop
-    applyScenarioConfig(st, makeCfg(kScenarioShieldDrop), cpuOpts, comboCfg);
+    // 5. Shield Drop (enables Player Infinite Shields = On while active)
+    applyScenarioConfig(st, makeCfg(kScenarioShieldDrop), cpuOpts, comboCfg, &gen, &cpuSet);
     CHECK_EQ(cpu::kControlLab, cpuOpts.control);
     CHECK_EQ(cpu::kBehaviorStand, cpuOpts.behavior);
-    CHECK_EQ(origCpu.counterShield, cpuOpts.counterShield); // no leak from OoS / Reversal
+    CHECK_EQ(origCpu.counterShield, cpuOpts.counterShield); // no leak from Shield Pressure / OoS
+    CHECK_EQ(cpu::kShieldsOn, gen.playerInfiniteShields);
 
-    // 7. Ledgetech
-    applyScenarioConfig(st, makeCfg(kScenarioLedgetech), cpuOpts, comboCfg);
+    // 6. Ledgetech (seeds P1 60% when < 50% and restores Infinite Shields from Shield Drop)
+    applyScenarioConfig(st, makeCfg(kScenarioLedgetech), cpuOpts, comboCfg, &gen, &cpuSet);
     CHECK_EQ(cpu::kControlLab, cpuOpts.control);
     CHECK_EQ(cpu::kTechNone, cpuOpts.tech);
+    CHECK_EQ(60, static_cast<int>(gen.playerPercent));
+    CHECK_EQ(1, static_cast<int>(gen.lockPlayerPercent));
+    CHECK_EQ(cpu::kShieldsUntilHit, gen.playerInfiniteShields);
 
-    // 8. Slide-Off
-    applyScenarioConfig(st, makeCfg(kScenarioSlideOff), cpuOpts, comboCfg);
+    // 7. Slide-Off
+    applyScenarioConfig(st, makeCfg(kScenarioSlideOff), cpuOpts, comboCfg, &gen, &cpuSet);
     CHECK_EQ(cpu::kControlLab, cpuOpts.control);
     CHECK_EQ(cpu::kBehaviorStand, cpuOpts.behavior);
+    CHECK_EQ(95, static_cast<int>(gen.playerPercent));
 
-    // 9. Grab Escape
-    applyScenarioConfig(st, makeCfg(kScenarioGrabEscape), cpuOpts, comboCfg);
+    // 8. Grab Escape
+    applyScenarioConfig(st, makeCfg(kScenarioGrabEscape), cpuOpts, comboCfg, &gen, &cpuSet);
     CHECK_EQ(cpu::kControlLab, cpuOpts.control);
     CHECK_EQ(cpu::kBehaviorStand, cpuOpts.behavior);
     CHECK_EQ(cpu::kMashHigh, cpuOpts.grabEscape);
+    CHECK_EQ(10, static_cast<int>(gen.playerPercent));
 
-    // 10. P+ Multi-Hit SDI
-    applyScenarioConfig(st, makeCfg(kScenarioMultiHitSdi), cpuOpts, comboCfg);
+    // 9. P+ Multi-Hit SDI
+    applyScenarioConfig(st, makeCfg(kScenarioMultiHitSdi), cpuOpts, comboCfg, &gen, &cpuSet);
     CHECK_EQ(cpu::kControlLab, cpuOpts.control);
     CHECK_EQ(cpu::kBehaviorStand, cpuOpts.behavior);
     CHECK_EQ(origCpu.grabEscape, cpuOpts.grabEscape); // no leak from Grab Escape
 
     // Back to Off: exact byte-for-byte restore of original user settings!
-    applyScenarioConfig(st, makeCfg(kScenarioOff), cpuOpts, comboCfg);
+    applyScenarioConfig(st, makeCfg(kScenarioOff), cpuOpts, comboCfg, &gen, &cpuSet);
     CHECK(!st.snapshotActive);
     CHECK(memcmp(&origCpu, &cpuOpts, sizeof(origCpu)) == 0);
     CHECK(memcmp(&origCombo, &comboCfg, sizeof(origCombo)) == 0);
+    CHECK(memcmp(&origGen, &gen, sizeof(origGen)) == 0);
+    CHECK(memcmp(&origCpuSet, &cpuSet, sizeof(origCpuSet)) == 0);
 
     // Detach restore while preset active also restores byte-for-byte.
-    applyScenarioConfig(st, makeCfg(kScenarioEdgeguard), cpuOpts, comboCfg);
+    applyScenarioConfig(st, makeCfg(kScenarioEdgeguard), cpuOpts, comboCfg, &gen, &cpuSet);
     CHECK(st.snapshotActive);
-    restoreScenarioSnapshot(st, cpuOpts, comboCfg);
+    restoreScenarioSnapshot(st, cpuOpts, comboCfg, &gen, &cpuSet);
     CHECK(!st.snapshotActive);
     CHECK(memcmp(&origCpu, &cpuOpts, sizeof(origCpu)) == 0);
     CHECK(memcmp(&origCombo, &comboCfg, sizeof(origCombo)) == 0);
+    CHECK(memcmp(&origGen, &gen, sizeof(origGen)) == 0);
+    CHECK(memcmp(&origCpuSet, &cpuSet, sizeof(origCpuSet)) == 0);
 }
 
 TEST(scenario_presets, platform_selection_and_fd_fallback_for_shield_drop_and_slide_off)
@@ -544,15 +574,19 @@ TEST(scenario_presets, multi_hit_sdi_tracks_cumulative_displacement_and_escape_a
 TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
 {
     ScenarioConfig bad;
-    bad.preset = 99;
-    bad.autoReset = 42;
-    bad.side = 7;
-    bad.multiHitMove = 12;
+    memset(&bad, 0xFF, sizeof(bad));
     ScenarioConfig clean = sanitizeScenarioConfig(bad);
     CHECK_EQ(static_cast<int>(kScenarioOff), static_cast<int>(clean.preset));
     CHECK_EQ(1, static_cast<int>(clean.autoReset));
     CHECK_EQ(static_cast<int>(kScenarioSideRight), static_cast<int>(clean.side));
-    CHECK_EQ(static_cast<int>(kMultiHitUpAir), static_cast<int>(clean.multiHitMove));
+    CHECK_EQ(static_cast<int>(kMultiHitAuto), static_cast<int>(clean.multiHitMove));
+    CHECK_EQ(static_cast<int>(kOosGrab), static_cast<int>(clean.oosAction));
+    CHECK_EQ(static_cast<int>(kLtSpawnCloseLow), static_cast<int>(clean.ledgetechSpawn));
+    CHECK_EQ(static_cast<int>(kLtDjAvailable), static_cast<int>(clean.ledgetechDj));
+    CHECK_EQ(static_cast<int>(kLtAtkDtilt), static_cast<int>(clean.ledgetechAttack));
+    CHECK_EQ(static_cast<int>(kSdPlatLeft), static_cast<int>(clean.shieldDropPlat));
+    CHECK_EQ(static_cast<int>(kSdSpaceRandom), static_cast<int>(clean.shieldDropSpacing));
+    CHECK_EQ(static_cast<int>(kSdFaceToward), static_cast<int>(clean.shieldDropFacing));
 
     // Lab (kGeneral) places Offline VS Displays at row 8 and Controls at row 9;
     // Display exposes Floating Meters at row 21 and Advanced / Debug at row 22.
@@ -567,10 +601,19 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK(strcmp(disp.options[22].name, "Advanced / Debug") == 0);
     CHECK_EQ(ui::pages::P_DEBUG, disp.options[22].max);
     const ui::Page& scen = ui::pages::kScenarios;
-    REQUIRE(scen.count == 6);
+    REQUIRE(scen.count == 13);
     CHECK(strcmp(scen.options[0].name, "Preset") == 0);
-    CHECK(strcmp(scen.options[5].name, "Combo Trainer") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[5].max);
+    CHECK_EQ(kScenarioCount - 1, scen.options[0].max);
+    CHECK(strcmp(scen.options[3].name, "CPU OoS") == 0);
+    CHECK(strcmp(scen.options[4].name, "Spawn Position") == 0);
+    CHECK(strcmp(scen.options[5].name, "P1 Double Jump") == 0);
+    CHECK(strcmp(scen.options[6].name, "CPU Edgeguard") == 0);
+    CHECK(strcmp(scen.options[7].name, "Platform") == 0);
+    CHECK(strcmp(scen.options[8].name, "CPU Spacing") == 0);
+    CHECK(strcmp(scen.options[9].name, "CPU Facing") == 0);
+    CHECK(strcmp(scen.options[10].name, "Multi-Hit Move") == 0);
+    CHECK(strcmp(scen.options[12].name, "Combo Trainer") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[12].max);
 }
 
 TEST(scenario_presets, multi_hit_sdi_ignores_attacker_hitlag)
@@ -1051,4 +1094,150 @@ TEST(scenario_presets, powershield_drill_cpu_approaches_faces_and_throws_repeati
         }
     }
     CHECK(firedAgain);
+}
+
+TEST(scenario_presets, techchase_resets_on_air_escape_but_keeps_platform_tumble_intact)
+{
+    StageGeometry bf = makeBattlefieldGeometry();
+    cpu::CpuOptions cpuOpts = makeCustomCpuOpts();
+    main::ComboTrainerSettings comboCfg = makeCustomComboCfg();
+    ScenarioState st;
+    scenarioStateInit(st);
+    ScenarioStepInput in = makeIdleInput(bf);
+    ScenarioStepAction act;
+
+    stepScenario(st, makeCfg(kScenarioTechchase), in, cpuOpts, comboCfg, act);
+    CHECK_EQ(1u, st.resetCount);
+
+    // CPU is launched into tumble (DamageFly 0x45) onto a platform: must engage
+    // techchase WITHOUT advancing graceFrames while tumbling!
+    in.cpuAir = true;
+    in.cpuStatus = 0x45; // DamageFly
+    in.cpuHitstun = 15;
+    in.cpuActionable = false;
+    for (int f = 0; f < 50; f++)
+    {
+        stepScenario(st, makeCfg(kScenarioTechchase), in, cpuOpts, comboCfg, act);
+        CHECK(!act.warpCpu);
+        CHECK_EQ(0u, static_cast<u32>(st.graceFrames));
+    }
+    // Even after hitstun ends while still in DamageFall (0x49) heading to platform:
+    in.cpuHitstun = 0;
+    in.cpuStatus = 0x49; // DamageFall
+    for (int f = 0; f < 50; f++)
+    {
+        stepScenario(st, makeCfg(kScenarioTechchase), in, cpuOpts, comboCfg, act);
+        CHECK(!act.warpCpu);
+        CHECK_EQ(0u, static_cast<u32>(st.graceFrames));
+    }
+
+    // Now CPU jumps out into the air (JumpAerial 0x0C, hitstun == 0): MUST auto-reset!
+    in.cpuStatus = 0x0C; // JumpAerial
+    in.cpuActionable = true;
+    for (int f = 0; f < 50 && !act.warpCpu; f++)
+    {
+        stepScenario(st, makeCfg(kScenarioTechchase), in, cpuOpts, comboCfg, act);
+    }
+    CHECK(act.warpCpu);
+    CHECK_EQ(2u, st.resetCount);
+}
+
+TEST(scenario_presets, edgeguard_side_control_ledgetech_options_shield_drop_and_44_fighter_multihit)
+{
+    StageGeometry bf = makeBattlefieldGeometry();
+    StageGeometry ps2 = bf;
+    ps2.platformCount = 2; // Left + Right only, no Top platform
+
+    // 1. Edgeguard sampleRecoveryCandidate respects explicit Right (0) vs Left (1) vs Random (2).
+    u32 rng = 12345u;
+    for (int i = 0; i < 20; i++)
+    {
+        float x = 0.0f, y = 0.0f;
+        CHECK(sampleRecoveryCandidate(bf, rng, x, y, kScenarioSideRight));
+        CHECK(x > bf.rightLedge.x);
+        CHECK(sampleRecoveryCandidate(bf, rng, x, y, kScenarioSideLeft));
+        CHECK(x < bf.leftLedge.x);
+    }
+
+    // 2. Shield Pressure / OoS counter indices match exact kCounterShield labels!
+    CHECK(strcmp(ui::pages::kCounterShield[resolveOosCounterShield(kOosGrab)], "Grab") == 0);
+    CHECK(strcmp(ui::pages::kCounterShield[resolveOosCounterShield(kOosUpB)], "Up B") == 0);
+    CHECK(strcmp(ui::pages::kCounterShield[resolveOosCounterShield(kOosSpotdodge)], "Spotdodge") == 0);
+    CHECK(strcmp(ui::pages::kCounterShield[resolveOosCounterShield(kOosRollAway)], "Roll Away") == 0);
+    CHECK(strcmp(ui::pages::kCounterShield[resolveOosCounterShield(kOosShNair)], "SH Nair") == 0);
+    CHECK(strcmp(ui::pages::kCounterShield[resolveOosCounterShield(kOosWavedash)], "Wavedash Away") == 0);
+    CHECK(strcmp(ui::pages::kCounterShield[resolveOosCounterShield(kOosRandom)], "Random") == 0);
+
+    // 3. Shield Drop Platform (Left / Right / Top) + PS2 absent-Top fallback + Under/Close/Far spacing + Facing.
+    ScenarioConfig sd = makeCfg(kScenarioShieldDrop);
+    sd.shieldDropPlat = kSdPlatTop;
+    sd.shieldDropSpacing = kSdSpaceUnder;
+    sd.shieldDropFacing = kSdFaceAway;
+    ScenarioSpawns sp;
+    computeScenarioSpawnsEx(sd, -1, rng, bf, sp);
+    CHECK(sp.hasPlatform);
+    CHECK_EQ(static_cast<u8>(kPlatSlotTop), sp.resolvedPlatformSlot);
+    CHECK(fabsf(sp.hmnY - 54.4f) < 0.1f);
+    CHECK(fabsf(sp.cpuX - sp.hmnX) < 0.1f); // Directly Under!
+
+    // On 2-platform stage (no Top), requesting Top cleanly falls back to Left!
+    computeScenarioSpawnsEx(sd, -1, rng, ps2, sp);
+    CHECK(sp.hasPlatform);
+    CHECK_EQ(static_cast<u8>(kPlatSlotLeft), sp.resolvedPlatformSlot);
+
+    // 4. Ledgetech 4 Spawn Positions + Double Jump Spent + CPU Edgeguard attacks.
+    ScenarioConfig lt = makeCfg(kScenarioLedgetech);
+    lt.ledgetechSpawn = kLtSpawnDeepLow;
+    lt.ledgetechDj = kLtDjSpent;
+    computeScenarioSpawnsEx(lt, -1, rng, bf, sp);
+    CHECK(sp.hmnFalling);
+    CHECK(sp.hmnY < bf.rightLedge.y - 30.0f);
+    lt.ledgetechSpawn = kLtSpawnHigh;
+    computeScenarioSpawnsEx(lt, -1, rng, bf, sp);
+    CHECK(sp.hmnY > bf.rightLedge.y + 5.0f);
+    lt.ledgetechSpawn = kLtSpawnFarOut;
+    computeScenarioSpawnsEx(lt, -1, rng, bf, sp);
+    CHECK(sp.hmnX > bf.rightLedge.x + 20.0f);
+
+    // 5. Complete P+ 3.2.1 Multi-Hit SDI Auto table key matchups!
+    CHECK_EQ(static_cast<u8>(kMultiHitNair), bestMultiHitMoveForFighter(0x1F));  // Ivysaur -> Nair
+    CHECK_EQ(static_cast<u8>(kMultiHitUpB), bestMultiHitMoveForFighter(0x15));   // Wario -> Up B
+    CHECK_EQ(static_cast<u8>(kMultiHitSideB), bestMultiHitMoveForFighter(0x16)); // Meta Knight -> Side B
+    CHECK_EQ(static_cast<u8>(kMultiHitDownAir), bestMultiHitMoveForFighter(0x06)); // Fox -> Dair
+    CHECK_EQ(static_cast<u8>(kMultiHitNair), bestMultiHitMoveForFighter(0x1A));  // Lucas -> Nair
+    CHECK_EQ(static_cast<u8>(kMultiHitFair), bestMultiHitMoveForFighter(0x07));  // Pikachu -> Fair
+    CHECK_EQ(static_cast<u8>(kMultiHitUpAir), bestMultiHitMoveForFighter(0x03)); // Samus -> Uair
+    CHECK_EQ(static_cast<u8>(kMultiHitDownAir), bestMultiHitMoveForFighter(0x0C)); // Peach -> Dair
+    CHECK_EQ(static_cast<u8>(kMultiHitNair), bestMultiHitMoveForFighter(0x26));  // Mewtwo -> Nair
+    CHECK_EQ(static_cast<u8>(kMultiHitDownB), bestMultiHitMoveForFighter(0x08)); // Luigi -> Down B
+    CHECK_EQ(static_cast<u8>(kMultiHitRapidJab), bestMultiHitMoveForFighter(0x0E)); // Sheik -> Rapid Jab
+
+    // Verify Auto resolves and fires Up B for Wario (0x15) and Nair for Ivysaur (0x1F).
+    ScenarioCpuState cs;
+    ScenarioCpuInput ci;
+    ScenarioCpuOutput co;
+    scenarioCpuStateReset(cs);
+    memset(&ci, 0, sizeof(ci));
+    ci.preset = kScenarioMultiHitSdi;
+    ci.multiHitMove = kMultiHitAuto;
+    ci.cpuFtKind = 0x15; // Wario -> Up B
+    ci.cpuCanAct = true;
+    ci.cpuLr = 1.0f;
+    ci.cpuX = -2.5f;
+    ci.hmnX = 2.5f;
+    stepScenarioCpu(ci, cs, co);
+    CHECK(co.active);
+    CHECK_EQ(static_cast<u32>(cpu::button::kSpecial), co.buttons);
+    CHECK(co.stickY > 0.9f);
+
+    scenarioCpuStateReset(cs);
+    ci.cpuFtKind = 0x1F; // Ivysaur -> Nair (jump then neutral A in air)
+    stepScenarioCpu(ci, cs, co);
+    CHECK(co.active);
+    CHECK_EQ(static_cast<u32>(cpu::button::kJump), co.buttons);
+    ci.cpuAir = true;
+    ci.cpuCanAct = false;
+    stepScenarioCpu(ci, cs, co);
+    CHECK_EQ(static_cast<u32>(cpu::button::kAttack), co.buttons);
+    CHECK(fabsf(co.stickX) < 0.01f && fabsf(co.stickY) < 0.01f);
 }

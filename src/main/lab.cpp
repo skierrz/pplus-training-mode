@@ -35,6 +35,7 @@
 #include "main/ui/match_hud.h"
 #include "main/ui/menu.h"
 #include "main/ui/osd.h"
+#include "main/ui/pages/scenarios.h"
 #include "main/ui/pages/pages.h"
 #include "main/ui/style.h"
 #include "main/ui/watermark.h"
@@ -194,13 +195,13 @@ namespace lab {
         return -1;
     }
 
-    static bool anyDpadDown(const Raw* raw, const game::MatchState& m, bool held)
+    static bool anyDpadDir(const Raw* raw, const game::MatchState& m, u32 bit, bool held)
     {
         bool allowMinus = !minusBoundToFrameAdvance(m);
         for (int i = 0; i < kPorts; i++)
         {
             u32 w = held ? raw[i].held : raw[i].pressed;
-            if ((w & kDpadDown) == 0)
+            if ((w & bit) == 0)
             {
                 continue;
             }
@@ -211,6 +212,11 @@ namespace lab {
             }
         }
         return false;
+    }
+
+    static bool anyDpadDown(const Raw* raw, const game::MatchState& m, bool held)
+    {
+        return anyDpadDir(raw, m, kDpadDown, held);
     }
 
     // Bit 0: held on any port; bit 1: fresh press on any port.
@@ -327,8 +333,13 @@ namespace lab {
         pad.m_buttonsReleasedThisFrame.bits &= ~bits;
     }
 
+    static bool shieldDropShortcutActive()
+    {
+        return main::extraLoaded() && ui::pages::scenarioMenuState()->preset == ui::pages::kPresetShieldDrop;
+    }
+
     // D-pad Up/Down bound to something other than their taunt (Up None: to
-    // nothing), hidden from the game.
+    // nothing; Shield Drop preset: live platform cycle), hidden from the game.
     static u32 boundDpad(const game::MatchState& m)
     {
         if (!m.running || !m.training || m.paused)
@@ -336,7 +347,8 @@ namespace lab {
             return 0;
         }
         const main::ControlSettings& c = settings().controls;
-        return (c.dpadUp == main::kUpNone ? kDpadUp : 0) | (c.dpadDown != main::kDownNone ? kDpadDown : 0);
+        u32 up = (c.dpadUp == main::kUpNone || shieldDropShortcutActive()) ? kDpadUp : 0;
+        return up | (c.dpadDown != main::kDownNone ? kDpadDown : 0);
     }
 
     static void hidePort(gfPadStatus& pad, u32 port, const game::MatchState& m, bool fighterPad)
@@ -680,6 +692,12 @@ namespace lab {
         {
             settings().general.frameAdvance ^= 1;
             frameAdvanceChanged();
+        }
+        // Scenario-scoped DPad Up while Shield Drop is active: cycle platforms.
+        if (!s_st.open && !m.paused && m.running && m.training && shieldDropShortcutActive()
+            && anyDpadDir(s_st.sys, m, kDpadUp, false))
+        {
+            main::extraScenarioCyclePlatform();
         }
         // Frame Decrement: in frame advance a press steps back one frame; held
         // past the hold delay, repeats once per pass after the last arrives.

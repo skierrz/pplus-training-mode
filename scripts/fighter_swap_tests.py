@@ -122,6 +122,7 @@ DEDEDE_DETACH_RE = FM.DEDEDE_DETACH_RE
 AUTO_SAVE_RE = re.compile(r"savestate: match-start state taken at frame (\d+)")
 SWAP_COMPLETE_RE = re.compile(r"swap: complete after (\d+) frames")
 SCEN_DEACT_RE = re.compile(r"scenarios: deactivated for fighter swap")
+SCEN_RESTORE_RE = re.compile(r"scenarios: restored preset (\d+) after fighter swap")
 PEACH_RESTORE_RE = re.compile(r"character rng: pre-swap restore item odds ([0-9a-f]{8})")
 
 
@@ -477,17 +478,32 @@ def sc_active_scenario_and_recording_cleanup(emu):
             f"preset={sd_before['activePreset']} snap={sd_before['snapshotActive']}",
             sd_before["activePreset"] == SP.SCEN_SHIELD_PRESSURE and sd_before["snapshotActive"] == 1)
 
-    # Swap P1 Mario -> Captain Falcon while scenario is active.
+    # Swap P1 Mario -> Captain Falcon while scenario is active: scenario must be
+    # preserved and cleanly reset for the new fighter, and turning it Off later
+    # must still restore the original pre-scenario CPU options byte-for-byte.
     pos_sc = len(emu.log_text())
     apply_swap_via_menu(emu, sb, p1="Captain Falcon", p1_cos=0, fresh=True)
+    emu.advance(8)
     sd_after = scen.read()
-    restored_opts = SP.read_cpu_opts(emu, base)
-    deact_logged = SCEN_DEACT_RE.search(emu.log_text()[pos_sc:]) is not None
-    res.row("Scenario cleanly deactivated & settings restored", "preset=0 snap=0 exact=True",
+    chunk_sc = emu.log_text()[pos_sc:]
+    deact_logged = SCEN_DEACT_RE.search(chunk_sc) is not None
+    restore_m = SCEN_RESTORE_RE.search(chunk_sc)
+    res.row("Scenario preserved & reset across fighter swap", "preset=4 snap=1 resets+ log=True",
             f"preset={sd_after['activePreset']} snap={sd_after['snapshotActive']} "
-            f"exact={restored_opts == orig_cpu_opts} log={deact_logged}",
-            sd_after["activePreset"] == SP.SCEN_OFF and sd_after["snapshotActive"] == 0
-            and restored_opts == orig_cpu_opts and deact_logged)
+            f"resets={sd_before['resetCount']}->{sd_after['resetCount']} "
+            f"deact={deact_logged} restore={restore_m.group(1) if restore_m else None}",
+            sd_after["activePreset"] == SP.SCEN_SHIELD_PRESSURE and sd_after["snapshotActive"] == 1
+            and sd_after["resetCount"] > sd_before["resetCount"]
+            and deact_logged and restore_m is not None and int(restore_m.group(1)) == SP.SCEN_SHIELD_PRESSURE)
+
+    scen.set_menu(SP.SCEN_OFF, auto_reset=1, side=SP.SIDE_RIGHT)
+    emu.advance(6)
+    sd_off = scen.read()
+    restored_opts = SP.read_cpu_opts(emu, base)
+    res.row("Scenario Off after swap restores original settings", "preset=0 snap=0 exact=True",
+            f"preset={sd_off['activePreset']} snap={sd_off['snapshotActive']} exact={restored_opts == orig_cpu_opts}",
+            sd_off["activePreset"] == SP.SCEN_OFF and sd_off["snapshotActive"] == 0
+            and restored_opts == orig_cpu_opts)
 
     # Now save Recording positions and enter CPU Control mode (which assigns P1's pad to CPU).
     orig_cpu_ctrl = player_init(emu, 1)["controller"]

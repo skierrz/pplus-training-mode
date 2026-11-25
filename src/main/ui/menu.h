@@ -35,7 +35,7 @@ namespace ui {
         kFlagTabsOnly = 0x80
     };
 
-    enum { kScratchBytes = 40, kShowInactiveScratchOffset = 32 };
+    enum { kScratchBytes = 56, kShowInactiveScratchOffset = 32 };
     u8* menuScratch();
     extern bool g_showInactiveRows;
 

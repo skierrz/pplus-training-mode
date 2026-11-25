@@ -3,16 +3,16 @@
 #include <types.h>
 
 #include "main/ui/menu.h"
-#include "main/ui/pages/scenarios.h"
+#include "main/ui/pages/alter_inputs.h"
 
 // Session-only Fighter Swap menu values, stored in ui::menuScratch() after
-// ScenarioMenuState so they are never persisted to the SD card and never touch
+// AlterCopy so they are never persisted to the SD card and never touch
 // main::Settings.
 namespace tm {
 namespace ui {
 namespace pages {
     enum {
-        kFighterSwapScratchOffset = 28
+        kFighterSwapScratchOffset = 24
     };
 
     struct FighterSwapMenuState {
@@ -22,10 +22,10 @@ namespace pages {
         u8 cpuCostume; // 0..numColors-1
     };
 
-    TM_STATIC_ASSERT(kFighterSwapScratchOffset >= kScenarioScratchOffset + sizeof(ScenarioMenuState),
-                     tm_fighter_swap_scratch_after_scenarios);
-    TM_STATIC_ASSERT(kFighterSwapScratchOffset + sizeof(FighterSwapMenuState) <= kScratchBytes,
-                     tm_fighter_swap_scratch_fits_menu_scratch);
+    TM_STATIC_ASSERT(kFighterSwapScratchOffset >= sizeof(AlterCopy),
+                     tm_fighter_swap_scratch_after_alter_copy);
+    TM_STATIC_ASSERT(kFighterSwapScratchOffset + sizeof(FighterSwapMenuState) <= kShowInactiveScratchOffset,
+                     tm_fighter_swap_scratch_before_show_inactive);
 
     inline FighterSwapMenuState* fighterSwapMenuState()
     {

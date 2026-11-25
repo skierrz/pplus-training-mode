@@ -93,6 +93,10 @@ SPEED = "0"
 # the damage readout; Sides and the top rows at the configured screen-space spots.
 S_OSD_POSITION = 88
 S_OSD_BG_COLOR, S_OSD_BG_ALPHA = 110, 111
+S_TECH_SPARKLE = 117
+TS_MAGIC = 0x544D5453  # "TMTS" (src/extra/tech_sparkle.cpp)
+TS_LOG = re.compile(r"tech_sparkle: debug block at ([0-9a-f]{8})")
+TS_EF_SPFLASH, TS_EF_SMASH_FLASH = 0x7D, 0x10
 POS_HUD, POS_SIDES, POS_TOP_LEFT, POS_TOP_RIGHT = 0, 1, 2, 3
 SIDES_X, SIDES_Y = (96.0, 245.0, 395.0, 544.0), 360.0
 # TopLeft / TopRight step below timerRoom (y1=65) + kStepGap (6) = 71 -> centre 94, pitch 56.
@@ -1211,6 +1215,71 @@ def osd_body_mean_rgb(shot, player, position=POS_SIDES):
             bs += b_
             n += 1
     return (rs / n, gs / n, bs / n) if n else (0.0, 0.0, 0.0)
+
+
+def sc_tech_sparkle(r, name):
+    """Native ef_common Tech Sparkle (src/extra/tech_sparkle.cpp): verifies
+    Frame-1 Perfect Wavedash spawns ef_ptc_common_spflash (0x7D), clean
+    Shorthop spawns ef_ptc_common_smash_flash (0x10), Off spawns nothing, and
+    savestate reload immediately after spawning never crashes or corrupts."""
+    emu = r.emu
+    found = TS_LOG.findall(emu.log_text())
+    if not found:
+        raise OsdError(f"{name}: no tech_sparkle debug block line in log")
+    addr = int(found[-1], 16)
+    if emu.u32(addr) != TS_MAGIC:
+        raise OsdError(f"{name}: bad TMTS magic {emu.u32(addr):#x} at {addr:#x}")
+
+    def read_ts():
+        raw = emu.read(addr, 0x24)
+        v = struct.unpack(">3IBbBB4Ii", raw)
+        return {
+            "magic": v[0], "version": v[1], "frame": v[2],
+            "mode": v[3], "lastPlayer": v[4], "lastCue": v[5],
+            "wavedashSparks": v[7], "shorthopSparks": v[8],
+            "lastEffectId": v[9], "lastHandle": v[10], "lastFrame": v[11],
+        }
+
+    js = jump_squat(r, 0)
+    # 1. Mode 1 (Perfect Wavedash): Frame-1 wavedash spawns spflash (0x7D) and captures D3D shot.
+    fr_wd = {1: (J, 0.0, 0.0), js + 1: (B_GUARD, *DOWN_RIGHT), js + 2: (0, *DOWN_RIGHT)}
+    ts_before = read_ts()
+    r.play(r.states["control"], {0: (fr_wd, js + 2)}, extra=24,
+           settings=[(S_TECH_SPARKLE, "01")], shot="osds-tech-sparkle-wd", osd_player=1)
+    ts_wd = read_ts()
+    if (ts_wd["wavedashSparks"] <= ts_before["wavedashSparks"]
+            or ts_wd["lastCue"] != 1
+            or ts_wd["lastEffectId"] != TS_EF_SPFLASH
+            or ts_wd["lastHandle"] == 0):
+        raise OsdError(f"{name}: perfect wavedash sparkle failed: before={ts_before} after={ts_wd}")
+
+    # 2. Mode 2 (Shorthop): 1-frame jump tap spawns smash_flash (0x10) on Jump takeoff.
+    fr_sh = {1: (J, 0.0, 0.0)}
+    ts_before_sh = read_ts()
+    r.play(r.states["control"], {0: (fr_sh, 1)}, extra=js + 8,
+           settings=[(S_TECH_SPARKLE, "02")])
+    ts_sh = read_ts()
+    if (ts_sh["shorthopSparks"] <= ts_before_sh["shorthopSparks"]
+            or ts_sh["lastCue"] != 2
+            or ts_sh["lastEffectId"] != TS_EF_SMASH_FLASH
+            or ts_sh["lastHandle"] == 0):
+        raise OsdError(f"{name}: shorthop sparkle failed: before={ts_before_sh} after={ts_sh}")
+
+    # 3. Mode 0 (Off): Frame-1 wavedash spawns zero additional sparkles.
+    ts_before_off = read_ts()
+    r.play(r.states["control"], {0: (fr_wd, js + 2)}, extra=18,
+           settings=[(S_TECH_SPARKLE, "00")])
+    ts_off = read_ts()
+    if ts_off["wavedashSparks"] != ts_before_off["wavedashSparks"]:
+        raise OsdError(f"{name}: Off mode spawned sparkle: {ts_before_off} -> {ts_off}")
+
+    # 4. Savestate safety: immediately load state right after spawning a sparkle.
+    emu.h.call("load_state", path=r.states["control"])
+    emu.advance(12)
+    r.results.append((name, "WD 0x7D, SH 0x10, Off 0, savestate ok",
+                      f"wd={ts_wd['wavedashSparks']} h={ts_wd['lastHandle']:#x} sh={ts_sh['shorthopSparks']}"))
+    r.note(f"{name}: WD ef={ts_wd['lastEffectId']:#x} h={ts_wd['lastHandle']:#x}; "
+           f"SH ef={ts_sh['lastEffectId']:#x} h={ts_sh['lastHandle']:#x}")
 
 
 def sc_osd_theme(r, name):
@@ -2437,6 +2506,7 @@ def cmd_test_osds(rest):
                         ("osd-position-top-right", lambda: sc_osd_position(r, POS_TOP_RIGHT,
                                                                            "osd-position-top-right")),
                         ("osd-theme", lambda: sc_osd_theme(r, "osd-theme")),
+                        ("tech-sparkle", lambda: sc_tech_sparkle(r, "tech-sparkle")),
                         ("lcancel-landing-frame", lambda: sc_lcancel_exact(r, 0, "lcancel-landing-frame", 0)),
                         ("lcancel-last-airborne", lambda: sc_lcancel_exact(r, 1, "lcancel-last-airborne")),
                         ("lcancel-window-end", lambda: sc_lcancel_exact(r, 6, "lcancel-window-end")),

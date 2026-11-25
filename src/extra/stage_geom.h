@@ -47,6 +47,13 @@ namespace extra {
     void placeFalling(const game::FighterRef& ref, float x, float y, bool setNoclip, float damage = -1.0f,
                       float lr = 0.0f);
 
+    // Refreshes common and per-fighter P+ 3.2.1 once-per-airtime resources
+    // (VariableSet.asm + Fit*.pac) after an airborne warp so double jumps,
+    // walljumps, tethers, glides, and specials (Snake Cypher, Peach/Mewtwo
+    // Float/Hover, R.O.B. boosters, etc.) are restored. When spendDoubleJump
+    // is true, sets LA-Basic[1] = IC-Basic[23003] (0 air jumps remaining).
+    void refreshAirResources(const game::FighterRef& ref, bool spendDoubleJump = false);
+
     // Sets fighter (and Ice Climbers partner) facing direction (+1 right, -1 left).
     void setFighterFacing(const game::FighterRef& ref, float lr);
 

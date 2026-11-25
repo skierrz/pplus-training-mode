@@ -634,9 +634,9 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK(strcmp(osdP.options[10].name, "Shield Advantage") == 0);
 
     const ui::Page& scen = ui::pages::kScenarios;
-    REQUIRE(scen.count == 6);
-    CHECK(strcmp(scen.options[5].name, "Combo Trainer") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[5].max);
+    REQUIRE(scen.count == 13);
+    CHECK(strcmp(scen.options[12].name, "Combo Trainer") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[12].max);
 
     const ui::Page& sc = ui::pages::kStageCast;
     REQUIRE(sc.count == 34);

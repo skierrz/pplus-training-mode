@@ -31,6 +31,7 @@
 #include "main/storage/notice.h"
 #include "main/ui/menu.h"
 #include "main/ui/pages/fighter_swap.h"
+#include "main/ui/pages/scenarios.h"
 #include "shared/drill_session.h"
 #include "shared/game/frame.h"
 #include "shared/game/mem.h"
@@ -129,6 +130,8 @@ namespace extra {
         u32 s_lastGameFrame = 0;
         PendingSlot s_pending[game::kMaxFighters];
         FighterSwapDebugBlock s_debug;
+        bool s_hadActiveScenario = false;
+        ui::pages::ScenarioMenuState s_savedScenarioMenu;
 
         bool codeMatches(u32 addr, const u32* words, int count)
         {
@@ -370,6 +373,7 @@ namespace extra {
         s_altCostumeOk = codeMatches(kAltCostumeMarkerAddr, kAltCostumeWords, 4);
         s_synced = false;
         s_swapInProgress = false;
+        s_hadActiveScenario = false;
         s_prevSelection[0] = 0xFF;
         s_prevSelection[1] = 0xFF;
         s_settleFrames = 0;
@@ -394,6 +398,7 @@ namespace extra {
     void fighterSwapDetach()
     {
         s_swapInProgress = false;
+        s_hadActiveScenario = false;
         s_synced = false;
         s_debug.inProgress = 0;
         main::setFighterSwapLabels(NULL, 0);
@@ -470,6 +475,11 @@ namespace extra {
                 s_debug.completedCount++;
                 memset(s_pending, 0, sizeof(s_pending));
                 TM_LOG("swap: complete after %u frames\n", s_waitFrames);
+                if (s_hadActiveScenario)
+                {
+                    s_hadActiveScenario = false;
+                    scenarioPresetsRestoreAfterSwap(s_savedScenarioMenu);
+                }
             }
         }
         else
@@ -479,6 +489,7 @@ namespace extra {
             {
                 s_swapInProgress = false;
                 s_debug.inProgress = 0;
+                s_hadActiveScenario = false;
                 memset(s_pending, 0, sizeof(s_pending));
                 TM_LOG("swap: wait timed out after %u frames\n", s_waitFrames);
             }
@@ -620,6 +631,12 @@ namespace extra {
         }
 
         // ---- 1. Pre-swap cleanup barrier across all subsystems ----
+        const ui::pages::ScenarioMenuState* curScen = ui::pages::scenarioMenuState();
+        s_hadActiveScenario = curScen->preset != ui::pages::kPresetOff;
+        if (s_hadActiveScenario)
+        {
+            s_savedScenarioMenu = *curScen;
+        }
         scenarioPresetsPrepareSwap();
         record::prepareSwap();
         savestate::resetForSwap();

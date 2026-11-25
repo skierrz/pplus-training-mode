@@ -93,6 +93,7 @@ namespace extra {
         if (!s_vsReadOnly)
         {
             fighterSwapTick(match);
+            scenarioPresetsOnRender(match);
         }
         if (!match.running)
         {
