@@ -238,8 +238,10 @@ namespace extra {
                     }
                     else
                     {
+                        // TourneyWinner(3), OtherGetup(4), Sd(5), Interrupted(6), LandedNoDodge(7).
+                        static const u8 kLedgeMiss[5] = {3, 6, 4, 6, 5};
                         int idx = r.outcome - kLedgeOutcomeTourneyWinner;
-                        msg = 3 + (idx >= 0 && idx < 4 ? idx : 3);
+                        msg = kLedgeMiss[idx >= 0 && idx < 5 ? idx : 1];
                     }
                 }
             }

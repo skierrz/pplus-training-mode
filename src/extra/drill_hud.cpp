@@ -401,6 +401,7 @@ namespace extra {
         if (phase == iface::kPadsSystem)
         {
             bool anyHeld = false;
+            bool sawConn = false;
             int act = 0;
             for (int i = 0; i < kPorts; i++)
             {
@@ -414,8 +415,9 @@ namespace extra {
                 {
                     anyHeld = true;
                 }
-                if (conn && i == 0)
+                if (conn && !sawConn)
                 {
+                    sawConn = true;
                     s_rt.lastPadType = static_cast<u8>(p.m_controllerType);
                 }
                 if (st.modalOpen && !s_rt.waitRelease && !act && pr)

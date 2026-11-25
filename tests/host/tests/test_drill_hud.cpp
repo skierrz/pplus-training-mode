@@ -90,6 +90,7 @@ TEST(drill_hud, ledgedash_10_rep_set_opens_modal_and_tracks_best)
     ledge.seq++;
     ledge.last.outcome = kLedgeOutcomeSd;
     CHECK(drillHudStep(hud, f));
+    CHECK(strcmp(hud.lastFeedback, "LEDGESLIP / SD") == 0);
     CHECK_EQ(10, static_cast<int>(hud.repsDone));
     CHECK_EQ(7, static_cast<int>(hud.repsHit));
     CHECK_EQ(1, static_cast<int>(hud.modalOpen));
@@ -106,6 +107,18 @@ TEST(drill_hud, ledgedash_10_rep_set_opens_modal_and_tracks_best)
     CHECK_EQ(1, static_cast<int>(hud.retryCount));
     CHECK_EQ(7, static_cast<int>(hud.sessionBest));
     CHECK(strcmp(hud.lastFeedback, "READY") == 0);
+
+    // Remaining Ledgedash miss outcomes must map to their exact coaching labels.
+    drillHudSyncBaselines(hud, f);
+    ledge.seq++;
+    ledge.last.outcome = kLedgeOutcomeOtherGetup;
+    CHECK(drillHudStep(hud, f));
+    CHECK(strcmp(hud.lastFeedback, "LEDGE GETUP") == 0);
+
+    ledge.seq++;
+    ledge.last.outcome = kLedgeOutcomeLandedNoDodge;
+    CHECK(drillHudStep(hud, f));
+    CHECK(strcmp(hud.lastFeedback, "NO AIRDODGE") == 0);
 }
 
 TEST(drill_hud, wavedash_and_lcancel_grading_and_late_upgrade)
