@@ -18,8 +18,10 @@
 #include "main/storage/storage.h"
 #include "main/ui/lab_menu.h"
 #include "main/ui/menu.h"
+#include "main/ui/menu_theme_core.h"
 #include "main/ui/osd_theme_core.h"
 #include "main/ui/pages/pages.h"
+#include "main/ui/style.h"
 
 using namespace tm;
 using main::Settings;
@@ -182,23 +184,30 @@ TEST(osd_theme, display_theme_menu_navigation_and_descriptions)
     CHECK_EQ(static_cast<int>(ui::kKindMenu), static_cast<int>(displayPage.options[themeRow].kind));
     CHECK_EQ(static_cast<int>(ui::pages::P_THEME), static_cast<int>(displayPage.options[themeRow].max));
 
-    // Theme page has 2 choice rows with expected defaults.
+    // Theme page has 5 choice rows with expected defaults (Theme v2).
     CHECK_STR("Theme", themePage.title);
-    CHECK_EQ(2, static_cast<int>(themePage.count));
+    CHECK_EQ(5, static_cast<int>(themePage.count));
     CHECK_STR("OSD Background", themePage.options[0].name);
     CHECK_STR("OSD Opacity", themePage.options[1].name);
+    CHECK_STR("Menu Accent", themePage.options[2].name);
+    CHECK_STR("Info Background", themePage.options[3].name);
+    CHECK_STR("Info Opacity", themePage.options[4].name);
     CHECK_EQ(static_cast<int>(main::kOsdBgTeal), static_cast<int>(main::settings().osd.bgColor));
     CHECK_EQ(static_cast<int>(main::kDefaultOsdAlpha), static_cast<int>(main::settings().osd.bgAlpha));
+    CHECK_EQ(static_cast<int>(main::kMenuAccentTeal), static_cast<int>(main::settings().osd.menuAccent));
+    CHECK_EQ(static_cast<int>(main::kInfoBgDefault), static_cast<int>(main::settings().osd.infoBgColor));
+    CHECK_EQ(static_cast<int>(main::kInfoAlphaDefault), static_cast<int>(main::settings().osd.infoBgAlpha));
 
-    // Descriptions exist for Display > Theme and both Theme rows.
+    // Descriptions exist for Display > Theme and all 5 Theme rows.
     const char* displayThemeDesc = extra::optionDesc(ui::pages::P_DISPLAY, themeRow);
-    const char* bgDesc = extra::optionDesc(ui::pages::P_THEME, 0);
-    const char* alphaDesc = extra::optionDesc(ui::pages::P_THEME, 1);
     REQUIRE(displayThemeDesc != NULL && displayThemeDesc[0] != '\0');
-    REQUIRE(bgDesc != NULL && bgDesc[0] != '\0');
-    REQUIRE(alphaDesc != NULL && alphaDesc[0] != '\0');
+    for (u8 r = 0; r < themePage.count; r++)
+    {
+        const char* desc = extra::optionDesc(ui::pages::P_THEME, r);
+        REQUIRE(desc != NULL && desc[0] != '\0');
+    }
 
-    // Navigate from Display into Theme, change both rows, and back out with B.
+    // Navigate from Display into Theme, change rows, and back out with B.
     ui::MenuState state;
     ui::menuReset(menu, state);
     state.category = 4; // Display
@@ -226,11 +235,104 @@ TEST(osd_theme, display_theme_menu_navigation_and_descriptions)
     }
     CHECK_EQ(0, static_cast<int>(main::settings().osd.bgAlpha));
 
+    // Move Down to Menu Accent -> Brawl Navy (1) -> Subspace Violet (2).
+    CHECK(ui::menuStep(menu, state, makeInput(0, 1, 0, 0, false, false)));
+    CHECK_EQ(2, static_cast<int>(state.cursor[ui::pages::P_THEME]));
+    CHECK(ui::menuStep(menu, state, makeInput(0, 0, 0, 1, false, false)));
+    CHECK(ui::menuStep(menu, state, makeInput(0, 0, 0, 1, false, false)));
+    CHECK_EQ(static_cast<int>(main::kMenuAccentViolet), static_cast<int>(main::settings().osd.menuAccent));
+
+    // Move Down to Info Background -> P+ Teal (1).
+    CHECK(ui::menuStep(menu, state, makeInput(0, 1, 0, 0, false, false)));
+    CHECK_EQ(3, static_cast<int>(state.cursor[ui::pages::P_THEME]));
+    CHECK(ui::menuStep(menu, state, makeInput(0, 0, 0, 1, false, false)));
+    CHECK_EQ(static_cast<int>(main::kInfoBgTeal), static_cast<int>(main::settings().osd.infoBgColor));
+
+    // Move Down to Info Opacity -> 0% (1) -> 20% (2).
+    CHECK(ui::menuStep(menu, state, makeInput(0, 1, 0, 0, false, false)));
+    CHECK_EQ(4, static_cast<int>(state.cursor[ui::pages::P_THEME]));
+    CHECK(ui::menuStep(menu, state, makeInput(0, 0, 0, 1, false, false)));
+    CHECK(ui::menuStep(menu, state, makeInput(0, 0, 0, 1, false, false)));
+    CHECK_EQ(static_cast<int>(main::kInfoAlpha20), static_cast<int>(main::settings().osd.infoBgAlpha));
+
     // B returns cleanly to Display.
     CHECK(ui::menuStep(menu, state, makeInput(0, 0, 0, 0, false, true)));
     CHECK_EQ(static_cast<int>(ui::pages::P_DISPLAY), ui::currentPage(state));
     CHECK_EQ(0, static_cast<int>(state.depth));
     storage::detach();
+}
+
+TEST(osd_theme, menu_accent_palettes_and_info_theme_v2)
+{
+    // Preset 0 (P+ Teal) matches baseline style.h constants byte-for-byte.
+    const ui::MenuPalette& teal = ui::menuPalette(main::kMenuAccentTeal);
+    CHECK_EQ(ui::style::kLabBevelLight, teal.bevelLight);
+    CHECK_EQ(ui::style::kLabBevelDark, teal.bevelDark);
+    CHECK_EQ(ui::style::kLabHeaderTop, teal.headerTop);
+    CHECK_EQ(ui::style::kLabHeaderBot, teal.headerBot);
+    CHECK_EQ(ui::style::kLabRailTop, teal.railTop);
+    CHECK_EQ(ui::style::kLabRailBot, teal.railBot);
+    CHECK_EQ(ui::style::kLabBaseTop, teal.baseTop);
+    CHECK_EQ(ui::style::kLabBaseBot, teal.baseBot);
+    CHECK_EQ(ui::style::kLabDescTopCol, teal.descTop);
+    CHECK_EQ(ui::style::kLabDescBotCol, teal.descBot);
+    CHECK_EQ(ui::style::kLabDivider, teal.divider);
+    CHECK_EQ(ui::style::kLabTealTop, teal.accentTop);
+    CHECK_EQ(ui::style::kLabTealBot, teal.accentBot);
+    CHECK_EQ(ui::style::kLabTealSheen, teal.accentSheen);
+    CHECK_EQ(ui::style::kLabTealEdge, teal.accentEdge);
+    CHECK_EQ(ui::style::kLabActiveTabText, teal.activeTabText);
+    CHECK_EQ(ui::style::kLabTabTop, teal.tabTop);
+    CHECK_EQ(ui::style::kLabTabBot, teal.tabBot);
+    CHECK_EQ(ui::style::kLabTabInactiveText, teal.tabInactiveText);
+    CHECK_EQ(ui::style::kLabMutedText, teal.mutedText);
+    CHECK_EQ(ui::style::kLabDescText, teal.descText);
+
+    // Every Menu Accent preset has distinct header & active pill gradients and
+    // preserves vertical gradient depth (top != bot).
+    for (u8 i = 0; i < main::kMenuAccentCount; i++)
+    {
+        const ui::MenuPalette& p = ui::menuPalette(i);
+        CHECK(p.headerTop != p.headerBot);
+        CHECK(p.railTop != p.railBot);
+        CHECK(p.baseTop != p.baseBot);
+        CHECK(p.accentTop != p.accentBot);
+        for (u8 j = 0; j < i; j++)
+        {
+            const ui::MenuPalette& q = ui::menuPalette(j);
+            CHECK(p.headerTop != q.headerTop);
+            CHECK(p.accentTop != q.accentTop);
+        }
+    }
+    // Out-of-range Menu Accent clamps safely to default Teal.
+    CHECK_EQ(teal.headerTop, ui::menuPalette(99).headerTop);
+
+    // Info Display Theme: (0, 0) equals exact existing style::kInfoFill (0x121822CC).
+    ui::InfoThemeColors def = ui::resolveInfoTheme(main::kInfoBgDefault, main::kInfoAlphaDefault);
+    CHECK_EQ(ui::style::kInfoFill, def.fillColor);
+    CHECK_EQ(0u, def.shadowColor);
+
+    // 0% opacity disables fill rect and enables strong drop shadow; 20% enables medium shadow.
+    ui::InfoThemeColors a0 = ui::resolveInfoTheme(main::kInfoBgTeal, main::kInfoAlpha0);
+    CHECK_EQ(0u, a0.fillColor);
+    CHECK_EQ(0x000000D0u, a0.shadowColor);
+
+    ui::InfoThemeColors a20 = ui::resolveInfoTheme(main::kInfoBgTeal, main::kInfoAlpha20);
+    CHECK_EQ(0x0F242C33u, a20.fillColor);
+    CHECK_EQ(0x00000088u, a20.shadowColor);
+
+    ui::InfoThemeColors a40 = ui::resolveInfoTheme(main::kInfoBgNavy, main::kInfoAlpha40);
+    CHECK_EQ(0x101E3A66u, a40.fillColor);
+    CHECK_EQ(0u, a40.shadowColor);
+
+    ui::InfoThemeColors a100 = ui::resolveInfoTheme(main::kInfoBgCrimson, main::kInfoAlpha100);
+    CHECK_EQ(0x281018FFu, a100.fillColor);
+    CHECK_EQ(0u, a100.shadowColor);
+
+    // Out-of-range bytes clamp cleanly.
+    ui::InfoThemeColors clamped = ui::resolveInfoTheme(250, 250);
+    CHECK_EQ(a100.fillColor, clamped.fillColor);
+    CHECK_EQ(0u, clamped.shadowColor);
 }
 
 TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
@@ -240,26 +342,38 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     CHECK_EQ(436u, sizeof(Settings));
     CHECK_EQ(110u, offsetof(Settings, osd.bgColor));
     CHECK_EQ(111u, offsetof(Settings, osd.bgAlpha));
+    CHECK_EQ(112u, offsetof(Settings, osd.menuAccent));
+    CHECK_EQ(113u, offsetof(Settings, osd.infoBgColor));
+    CHECK_EQ(114u, offsetof(Settings, osd.infoBgAlpha));
+    CHECK_EQ(115u, offsetof(Settings, osd.timingMeter));
     CHECK_EQ(22u, offsetof(main::OsdSettings, bgColor));
-    CHECK_EQ(24u, offsetof(main::OsdSettings, reserved));
+    CHECK_EQ(28u, offsetof(main::OsdSettings, reserved));
 
     // Boot clean and verify defaults.
     bootStorage();
     CHECK_EQ(static_cast<int>(main::kOsdBgTeal), static_cast<int>(main::settings().osd.bgColor));
     CHECK_EQ(static_cast<int>(main::kDefaultOsdAlpha), static_cast<int>(main::settings().osd.bgAlpha));
+    CHECK_EQ(static_cast<int>(main::kMenuAccentTeal), static_cast<int>(main::settings().osd.menuAccent));
+    CHECK_EQ(static_cast<int>(main::kInfoBgDefault), static_cast<int>(main::settings().osd.infoBgColor));
+    CHECK_EQ(static_cast<int>(main::kInfoAlphaDefault), static_cast<int>(main::settings().osd.infoBgAlpha));
+    CHECK_EQ(static_cast<int>(main::kTimingMeterOff), static_cast<int>(main::settings().osd.timingMeter));
 
-    // Save custom theme + pre-existing OSD settings and verify round-trip.
+    // Save custom Theme v2 + timing meter + pre-existing OSD settings and verify round-trip.
     main::settings().osd.wavedash = 1;
     main::settings().osd.maxMessages = 4;
     main::settings().osd.bgColor = main::kOsdBgCrimson;
     main::settings().osd.bgAlpha = 2;
+    main::settings().osd.menuAccent = main::kMenuAccentCrimson;
+    main::settings().osd.infoBgColor = main::kInfoBgViolet;
+    main::settings().osd.infoBgAlpha = main::kInfoAlpha20;
+    main::settings().osd.timingMeter = main::kTimingMeterAll;
     saveStorage();
     storage::detach();
 
     REQUIRE(host::card::has(kFileA));
     storage::AreaEntry* osdArea = findAreaEntry(kFileA, storage::kAreaOsd);
     REQUIRE(osdArea != NULL);
-    CHECK_EQ(24u, osdArea->used);
+    CHECK_EQ(28u, osdArea->used);
 
     bootStorage();
     CHECK_LOG("16 areas, 0 with new fields, 0 at defaults, 0 unknown");
@@ -267,11 +381,32 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     CHECK_EQ(4, static_cast<int>(main::settings().osd.maxMessages));
     CHECK_EQ(static_cast<int>(main::kOsdBgCrimson), static_cast<int>(main::settings().osd.bgColor));
     CHECK_EQ(2, static_cast<int>(main::settings().osd.bgAlpha));
+    CHECK_EQ(static_cast<int>(main::kMenuAccentCrimson), static_cast<int>(main::settings().osd.menuAccent));
+    CHECK_EQ(static_cast<int>(main::kInfoBgViolet), static_cast<int>(main::settings().osd.infoBgColor));
+    CHECK_EQ(static_cast<int>(main::kInfoAlpha20), static_cast<int>(main::settings().osd.infoBgAlpha));
+    CHECK_EQ(static_cast<int>(main::kTimingMeterAll), static_cast<int>(main::settings().osd.timingMeter));
+    storage::detach();
+
+    // Simulate Theme v1 SD file where kAreaOsd had used == 24 (ending after bgAlpha):
+    // must preserve bgColor/bgAlpha and default Theme v2 + timingMeter fields to 0.
+    osdArea = findAreaEntry(kFileA, storage::kAreaOsd);
+    REQUIRE(osdArea != NULL);
+    osdArea->used = 24;
+    resealFile(kFileA);
+
+    bootStorage();
+    CHECK_LOG("16 areas, 1 with new fields, 0 at defaults, 0 unknown");
+    CHECK_EQ(static_cast<int>(main::kOsdBgCrimson), static_cast<int>(main::settings().osd.bgColor));
+    CHECK_EQ(2, static_cast<int>(main::settings().osd.bgAlpha));
+    CHECK_EQ(static_cast<int>(main::kMenuAccentTeal), static_cast<int>(main::settings().osd.menuAccent));
+    CHECK_EQ(static_cast<int>(main::kInfoBgDefault), static_cast<int>(main::settings().osd.infoBgColor));
+    CHECK_EQ(static_cast<int>(main::kInfoAlphaDefault), static_cast<int>(main::settings().osd.infoBgAlpha));
+    CHECK_EQ(static_cast<int>(main::kTimingMeterOff), static_cast<int>(main::settings().osd.timingMeter));
     storage::detach();
 
     // Simulate pre3 SD file where kAreaOsd had used == 22 (ending after maxMessages):
-    // must migrate cleanly to (bgColor = P+ Teal [0], bgAlpha = 50% [5]) while
-    // preserving earlier OSD settings.
+    // must migrate cleanly to (bgColor = P+ Teal [0], bgAlpha = 50% [5], Theme v2 = 0)
+    // while preserving earlier OSD settings.
     osdArea = findAreaEntry(kFileA, storage::kAreaOsd);
     REQUIRE(osdArea != NULL);
     osdArea->used = 22;
@@ -284,19 +419,31 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     CHECK_EQ(4, static_cast<int>(main::settings().osd.maxMessages));
     CHECK_EQ(static_cast<int>(main::kOsdBgTeal), static_cast<int>(main::settings().osd.bgColor));
     CHECK_EQ(static_cast<int>(main::kDefaultOsdAlpha), static_cast<int>(main::settings().osd.bgAlpha));
+    CHECK_EQ(static_cast<int>(main::kMenuAccentTeal), static_cast<int>(main::settings().osd.menuAccent));
+    CHECK_EQ(static_cast<int>(main::kInfoBgDefault), static_cast<int>(main::settings().osd.infoBgColor));
+    CHECK_EQ(static_cast<int>(main::kInfoAlphaDefault), static_cast<int>(main::settings().osd.infoBgAlpha));
+    CHECK_EQ(static_cast<int>(main::kTimingMeterOff), static_cast<int>(main::settings().osd.timingMeter));
     storage::detach();
 
     // Corrupt / out-of-range theme bytes in kAreaOsd are clamped on load.
     osdArea = findAreaEntry(kFileA, storage::kAreaOsd);
     REQUIRE(osdArea != NULL);
-    osdArea->used = 24;
+    osdArea->used = 28;
     u8* raw = host::card::data(kFileA) + osdArea->offset;
     raw[offsetof(main::OsdSettings, bgColor)] = 0xFE;
     raw[offsetof(main::OsdSettings, bgAlpha)] = 0xFF;
+    raw[offsetof(main::OsdSettings, menuAccent)] = 0xEE;
+    raw[offsetof(main::OsdSettings, infoBgColor)] = 0xFD;
+    raw[offsetof(main::OsdSettings, infoBgAlpha)] = 0xFC;
+    raw[offsetof(main::OsdSettings, timingMeter)] = 0xFB;
     resealFile(kFileA);
 
     bootStorage();
     CHECK_EQ(static_cast<int>(main::kOsdBgViolet), static_cast<int>(main::settings().osd.bgColor));
     CHECK_EQ(static_cast<int>(main::kOsdAlphaMax), static_cast<int>(main::settings().osd.bgAlpha));
+    CHECK_EQ(static_cast<int>(main::kMenuAccentCrimson), static_cast<int>(main::settings().osd.menuAccent));
+    CHECK_EQ(static_cast<int>(main::kInfoBgCrimson), static_cast<int>(main::settings().osd.infoBgColor));
+    CHECK_EQ(static_cast<int>(main::kInfoAlpha100), static_cast<int>(main::settings().osd.infoBgAlpha));
+    CHECK_EQ(static_cast<int>(main::kTimingMeterActOut), static_cast<int>(main::settings().osd.timingMeter));
     storage::detach();
 }

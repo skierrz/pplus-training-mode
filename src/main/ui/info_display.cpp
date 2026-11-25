@@ -28,6 +28,7 @@
 #include "main/gfx/text.h"
 #include "main/settings.h"
 #include "main/ui/hud_layout.h"
+#include "main/ui/menu_theme_core.h"
 #include "main/ui/style.h"
 #include "main/ui/wall_info_core.h"
 #include "shared/game/mem.h"
@@ -687,7 +688,13 @@ namespace ui {
         float width = layout::infoWidth(size, wide);
         float height = layout::infoHeight(rows, size);
         float left = layout::infoLeft(wide);
-        gfx::fillRect(left, top, width, height, style::kInfoFill);
+        const main::Settings& all = settings();
+        InfoThemeColors theme = resolveInfoTheme(all.size ? all.osd.infoBgColor : static_cast<u8>(main::kInfoBgDefault),
+                                                 all.size ? all.osd.infoBgAlpha : static_cast<u8>(main::kInfoAlphaDefault));
+        if (theme.fillColor != 0)
+        {
+            gfx::fillRect(left, top, width, height, theme.fillColor);
+        }
         gfx::Rgba edge = kOutline[ref.playerNo >= 0 && ref.playerNo < 4 ? ref.playerNo : 0];
         gfx::frameRect(left, top, width, height, edge);
         gfx::frameRect(left + 1.0f, top + 1.0f, width - 2.0f, height - 2.0f, edge);
@@ -710,8 +717,13 @@ namespace ui {
                 }
                 float textW = style::boldWidth(buf, scale);
                 float sx = textW > maxW && textW > 0.0f ? scale * maxW / textW : scale;
-                style::boldText(left + inset, style::textYForCap(capTop + r * kPitch[size], scale), buf,
-                                built ? style::kText : style::kTextDisabled, sx, scale);
+                float tx = left + inset;
+                float ty = style::textYForCap(capTop + r * kPitch[size], scale);
+                if (theme.shadowColor != 0)
+                {
+                    style::boldText(tx + gfx::xScale(), ty + 1.0f, buf, theme.shadowColor, sx, scale);
+                }
+                style::boldText(tx, ty, buf, built ? style::kText : style::kTextDisabled, sx, scale);
             }
         }
         return top + height;

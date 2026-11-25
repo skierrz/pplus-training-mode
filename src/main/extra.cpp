@@ -466,5 +466,13 @@ namespace main {
             s_hooks->psaInspectorDraw(match, menuOpen);
         }
     }
+
+    void extraTimingMeterDraw(const game::MatchState& match)
+    {
+        if (s_hooks != NULL && s_hooks->timingMeterDraw != NULL)
+        {
+            s_hooks->timingMeterDraw(match);
+        }
+    }
 }
 }

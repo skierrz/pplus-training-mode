@@ -243,9 +243,10 @@ namespace layout {
     }
 
     // ---- PSA AnimCmd 11-Thread & FSM Inspector (extra/psa_inspector.cpp) ----
-    // Right-aligned when standalone, or shifted left of the Input Viewer / DI
-    // Compass column with a kStepGap gutter so it clears Large Info Display
-    // (x1 <= 270) and the right-hand overlays in both 4:3 and 16:9.
+    // Right-aligned at kViewerRight (608) when Input Viewer and DI Compass are
+    // off, or shifted left of the active right column with a kStepGap gutter so
+    // it clears Large Info Display (x1 <= 270) and the right-hand overlays in
+    // both 4:3 and 16:9.
     static const float kPsaWidth = 182.0f;
     static const float kPsaHeight = 104.0f;
 
@@ -263,6 +264,80 @@ namespace layout {
         Box probe = {x0, kViewerTop, x1, kViewerTop + 1.0f};
         float y0 = (meetsX(probe, band) && band.y1 > kViewerTop) ? (band.y1 + kStepGap) : kViewerTop;
         return box(x0, y0, w, kPsaHeight);
+    }
+
+    // Bottom y of the active P1 + CPU Info Display stack (0 when both hidden).
+    inline float infoStackBottom(const Box& band, int hmnRows, int hmnSize, int cpuRows, int cpuSize, bool wide)
+    {
+        if (hmnRows <= 0 && cpuRows <= 0)
+        {
+            return 0.0f;
+        }
+        float wH = hmnRows > 0 ? infoWidth(hmnSize, wide) : 0.0f;
+        float wC = cpuRows > 0 ? infoWidth(cpuSize, wide) : 0.0f;
+        float w = wH > wC ? wH : wC;
+        float top = infoTop(band, w, wide);
+        float bottom = hmnRows > 0 ? top + infoHeight(hmnRows, hmnSize) : top;
+        if (cpuRows > 0)
+        {
+            bottom = infoCpuTop(top, bottom) + infoHeight(cpuRows, cpuSize);
+        }
+        return bottom;
+    }
+
+    // Bottom y of active right-hand Lab overlays (Input Viewer, DI Compass, PSA card).
+    inline float rightColumnBottom(const Box& band, int viewerSlots, bool hasCompass, bool hasPsa, bool wide)
+    {
+        float bottom = 0.0f;
+        if (viewerSlots > 0)
+        {
+            Box last = inputViewerCardBox(viewerSlots - 1, band, wide);
+            if (last.y1 > bottom)
+            {
+                bottom = last.y1;
+            }
+        }
+        if (hasCompass)
+        {
+            Box comp = diCompassBox(band, viewerSlots, wide);
+            if (comp.y1 > bottom)
+            {
+                bottom = comp.y1;
+            }
+        }
+        if (hasPsa)
+        {
+            Box psa = psaInspectorBox(band, viewerSlots, hasCompass, wide);
+            if (psa.y1 > bottom)
+            {
+                bottom = psa.y1;
+            }
+        }
+        return bottom;
+    }
+
+    // Starting top y for TopLeft / TopRight OSD stacks so they step cleanly
+    // below the active top band and any same-side overlay column while keeping
+    // P1's row inside the 5% CRT safe area above Brawl's damage HUD (y >= 397).
+    inline float osdTopStartY(bool isTopRight, const Box& band, float infoBottom, float rightBottom)
+    {
+        float y = kSafeMarginY;
+        if (!empty(band) && band.y1 + kStepGap > y)
+        {
+            y = band.y1 + kStepGap;
+        }
+        float sideBottom = isTopRight ? rightBottom : infoBottom;
+        if (sideBottom > 0.0f && sideBottom + kStepGap > y)
+        {
+            y = sideBottom + kStepGap;
+        }
+        // Leave room for one 46 px OSD row cleanly above Brawl's damage row (y 397).
+        const float kMaxTopStart = 345.0f;
+        if (y > kMaxTopStart)
+        {
+            y = kMaxTopStart;
+        }
+        return y;
     }
 }
 }

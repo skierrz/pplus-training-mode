@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <string.h>
 
+#include "main/extra.h"
 #include "main/game/freeze.h"
 #include "main/game/tracker.h"
 #include "main/gfx/text.h"
@@ -12,6 +13,7 @@
 #include "main/ui/hud_layout.h"
 #include "main/ui/osd_theme_core.h"
 #include "main/ui/style.h"
+#include "shared/game/scene.h"
 #include "shared/log.h"
 
 // Per-player OSD message stacks rendered in a themed P+ card with a bottom
@@ -232,11 +234,24 @@ namespace osd {
         return false;
     }
 
-    static void drawMessage(Message& m, s32 now, float scale, float floorY, const ThemeColors& t)
+    static int infoRowCount(const main::InfoSettings& info)
+    {
+        int n = 0;
+        for (int r = 0; r < main::kInfoRows; r++)
+        {
+            if (info.rows[r] != 0)
+            {
+                n = r + 1;
+            }
+        }
+        return n;
+    }
+
+    static void drawMessage(Message& m, s32 now, float scale, float floorY, float topY, const ThemeColors& t)
     {
         float xs = gfx::xScale();
         float w = kBoxWidth * xs;
-        StackPlace at = stackPlace(s_position, m.player, xs, floorY);
+        StackPlace at = stackPlace(s_position, m.player, xs, floorY, topY);
         float slot = place(m, now);
         float cx = at.x + slot * at.dx;
         float cy = at.y + slot * at.dy;
@@ -315,6 +330,33 @@ namespace osd {
                       && (rec.hmnMode != 0
                           || (rec.cpuMode != 0 && s.cpu.options.control == cpu::kControlLab));
         float floorY = recBar ? ui::layout::recBarOsdFloor() : 0.0f;
+        float topY = 0.0f;
+        if (s_position == kPositionTopLeft || s_position == kPositionTopRight)
+        {
+            using namespace ui::layout;
+            bool wide = gfx::widescreen();
+            bool extraReady = main::extraLoaded();
+            Box band = topBand();
+            float infoBot = 0.0f;
+            float rightBot = 0.0f;
+            if (s_position == kPositionTopLeft)
+            {
+                if (extraReady)
+                {
+                    infoBot = infoStackBottom(band, infoRowCount(s.info[0]), s.info[0].size,
+                                              infoRowCount(s.info[1]), s.info[1].size, wide);
+                }
+            }
+            else if (extraReady)
+            {
+                bool training = game::trainingGameMode();
+                int vSlots = training ? inputViewerSlotCount(s.display.inputViewer) : 0;
+                bool hasComp = training && s.general.diDisplay != 0 && s.display.diVectorMode != main::kDiVectorLive;
+                bool hasPsa = s.display.psaInspector != main::kPsaOff;
+                rightBot = rightColumnBottom(band, vSlots, hasComp, hasPsa, wide);
+            }
+            topY = osdTopStartY(s_position == kPositionTopRight, band, infoBot, rightBot);
+        }
         s32 now = game::trackerFrame();
         for (int p = 0; p < kPlayers; p++)
         {
@@ -327,7 +369,7 @@ namespace osd {
                     Message& m = s_messages[i];
                     if (m.used && m.player == p && m.slot == slot)
                     {
-                        drawMessage(m, now, scale, floorY, theme);
+                        drawMessage(m, now, scale, floorY, topY, theme);
                     }
                 }
             }

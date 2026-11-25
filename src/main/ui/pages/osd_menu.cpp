@@ -1,3 +1,4 @@
+#include "main/extra.h"
 #include "main/lab.h"
 #include "main/ui/osd.h"
 #include "main/ui/osd_place.h"
@@ -9,6 +10,10 @@ namespace pages {
     // In osd::Position order (main/ui/osd_place.h).
     static const char* const kPosition[] = {"HUD", "Sides", "Top Left", "Top Right"};
     TM_STATIC_ASSERT(TM_COUNT(kPosition) == osd::kPositionCount, tm_osd_positions_match);
+
+    // In main::TimingMeterMode order (main/settings.h).
+    static const char* const kTimingMeter[] = {"Off", "All", "L-Cancel", "Wavedash", "Act-Out"};
+    TM_STATIC_ASSERT(TM_COUNT(kTimingMeter) == main::kTimingMeterCount, tm_timing_meter_labels_match);
 
     static const Option kRows[] = {
         TM_CHOICE("OSD Position", osd.position, kPosition, osd::kPositionSides, lab::osdSettingsChanged),
@@ -32,7 +37,9 @@ namespace pages {
         TM_TOGGLE("Act OoHitstun", osd.actOoHitstun, 0, NULL),
         TM_TOGGLE("Hit Advantage", osd.frameAdvantageOnHit, 0, NULL),
         TM_INT("Advantage Tolerance", osd.advantageTolerance, 0, 5, 1, "%d Frames", lab::osdSettingsChanged),
-        TM_INT("Max OSDs", osd.maxMessages, 1, osd::kPerPlayer, osd::kPerPlayer, "%d", NULL)
+        TM_INT("Max OSDs", osd.maxMessages, 1, osd::kPerPlayer, osd::kPerPlayer, "%d", NULL),
+        TM_ROW(kKindChoice, 0, TM_FIELD(osd.timingMeter), 0, TM_COUNT(kTimingMeter) - 1, main::kTimingMeterOff,
+               "Overhead Timing Bar", kTimingMeter, NULL, main::extraLoaded)
     };
 
     extern const Page kOsdMenu = TM_PAGE("OSDs", kRows);

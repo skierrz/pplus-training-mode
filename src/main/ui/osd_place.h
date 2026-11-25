@@ -41,8 +41,10 @@ namespace osd {
 
     // `xs`: gfx::xScale() (0.75 on 16:9, 1.0 on 4:3). `floorY`: when positive,
     // highest allowed bottom edge for lower-screen stacks (HUD / Sides) so they
-    // clear elements like the recording seek bar. Unknown positions fall back to HUD.
-    inline StackPlace stackPlace(int position, int player, float xs, float floorY = 0.0f)
+    // clear elements like the recording seek bar. `topY`: when positive, lowest
+    // allowed top edge for TopLeft / TopRight rows so they clear top HUD panels.
+    // Unknown positions fall back to HUD.
+    inline StackPlace stackPlace(int position, int player, float xs, float floorY = 0.0f, float topY = 0.0f)
     {
         StackPlace s;
         s.dx = 0.0f;
@@ -62,7 +64,8 @@ namespace osd {
         {
             float marginX = xs >= 1.0f ? ui::layout::kSafeMarginX : 12.0f;
             float rowPitch = kBoxHeight + kTopRowGap;
-            s.y = ui::layout::kSafeMarginY + halfH + player * rowPitch;
+            float startY = topY > ui::layout::kSafeMarginY ? topY : ui::layout::kSafeMarginY;
+            s.y = startY + halfH + player * rowPitch;
             if (position == kPositionTopLeft)
             {
                 s.x = marginX + halfW;

@@ -176,6 +176,49 @@ namespace main {
         kDefaultOsdAlpha = 5
     };
 
+    // Display > Theme: Lab Menu accent palette presets.
+    enum MenuAccent {
+        kMenuAccentTeal = 0, // P+ Teal (default)
+        kMenuAccentNavy,     // Brawl Navy
+        kMenuAccentViolet,   // Subspace Violet
+        kMenuAccentCrimson,  // Crimson Steel
+        kMenuAccentCount
+    };
+
+    // Display > Theme: Info Display background color presets.
+    enum InfoBgColor {
+        kInfoBgDefault = 0, // Dark Slate #121822 (exact default)
+        kInfoBgTeal,        // P+ Teal
+        kInfoBgNavy,        // Brawl Navy
+        kInfoBgCharcoal,    // Charcoal
+        kInfoBgBlack,       // Black
+        kInfoBgViolet,      // Violet
+        kInfoBgCrimson,     // Crimson
+        kInfoBgColorCount
+    };
+
+    // Display > Theme: Info Display background opacity presets (0 = 80% / 0xCC default).
+    enum InfoAlpha {
+        kInfoAlphaDefault = 0,
+        kInfoAlpha0,
+        kInfoAlpha20,
+        kInfoAlpha40,
+        kInfoAlpha60,
+        kInfoAlpha80,
+        kInfoAlpha100,
+        kInfoAlphaCount
+    };
+
+    // OSDs > Overhead Timing Bar mode.
+    enum TimingMeterMode {
+        kTimingMeterOff = 0,
+        kTimingMeterAll,
+        kTimingMeterLCancel,
+        kTimingMeterWavedash,
+        kTimingMeterActOut,
+        kTimingMeterCount
+    };
+
     // OSD Menu page.
     struct OsdSettings {
         u8 position;           // osd::Position
@@ -203,7 +246,11 @@ namespace main {
         u8 maxMessages; // 1-6 per player (osd::kPerPlayer)
         u8 bgColor;     // OsdBgColor (0..6, default kOsdBgTeal)
         u8 bgAlpha;     // 0..10 (0%..100% in 10% steps, default 5 = 50%)
-        u8 reserved[8];
+        u8 menuAccent;  // MenuAccent (0..3, default kMenuAccentTeal)
+        u8 infoBgColor; // InfoBgColor (0..6, default kInfoBgDefault)
+        u8 infoBgAlpha; // InfoAlpha (0..6, default kInfoAlphaDefault = 80%)
+        u8 timingMeter; // TimingMeterMode (0..4, default kTimingMeterOff)
+        u8 reserved[4];
     };
 
     // CPU Options and its subpages (Tech, Advanced Counter).
@@ -451,6 +498,10 @@ namespace main {
     TM_STATIC_ASSERT(offsetof(Settings, osd) == 88, tm_settings_osd_at_88);
     TM_STATIC_ASSERT(offsetof(Settings, osd.bgColor) == 110, tm_settings_osd_bg_color_at_110);
     TM_STATIC_ASSERT(offsetof(Settings, osd.bgAlpha) == 111, tm_settings_osd_bg_alpha_at_111);
+    TM_STATIC_ASSERT(offsetof(Settings, osd.menuAccent) == 112, tm_settings_osd_menu_accent_at_112);
+    TM_STATIC_ASSERT(offsetof(Settings, osd.infoBgColor) == 113, tm_settings_osd_info_bg_color_at_113);
+    TM_STATIC_ASSERT(offsetof(Settings, osd.infoBgAlpha) == 114, tm_settings_osd_info_bg_alpha_at_114);
+    TM_STATIC_ASSERT(offsetof(Settings, osd.timingMeter) == 115, tm_settings_osd_timing_meter_at_115);
     TM_STATIC_ASSERT(offsetof(Settings, general.playerInfiniteShields) == 20, tm_settings_player_infinite_shields_at_20);
     TM_STATIC_ASSERT(offsetof(Settings, general.offlineVersus) == 21, tm_settings_offline_versus_at_21);
     TM_STATIC_ASSERT(offsetof(Settings, general.offlineVersus) == block::kOfflineVersusOffset,

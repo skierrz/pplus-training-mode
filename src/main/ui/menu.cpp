@@ -8,6 +8,7 @@
 #include "main/gfx/draw.h"
 #include "main/gfx/text.h"
 #include "main/settings.h"
+#include "main/ui/menu_theme_core.h"
 #include "main/ui/style.h"
 #include "shared/game/menu_sound.h"
 #include "shared/log.h"
@@ -749,8 +750,12 @@ namespace ui {
         gfx::Rgba top, bot, sheen, edge;
     };
     static const BevelCols kGoldBevel = {kLabGoldTop, kLabGoldBot, kLabGoldSheen, kLabGoldEdge};
-    static const BevelCols kTealBevel = {kLabTealTop, kLabTealBot, kLabTealSheen, kLabTealEdge};
-    static const BevelCols kTabBevel = {kLabTabTop, kLabTabBot, kLabBevelLight, kLabBevelDark};
+
+    static const MenuPalette& activePalette()
+    {
+        const main::Settings& s = main::settings();
+        return menuPalette(s.size ? s.osd.menuAccent : static_cast<u8>(main::kMenuAccentTeal));
+    }
 
     // Button themes: 0=A green, 1=B red, 2=light silver, 3=Z purple.
     static const gfx::Rgba kBtnTheme[4][3] = {
@@ -792,11 +797,11 @@ namespace ui {
         }
     }
 
-    static void drawHeaderBand(float bottomY)
+    static void drawHeaderBand(float bottomY, const MenuPalette& pal)
     {
         float innerW = kLabInnerRight - kLabInnerLeft;
-        gradBox(kLabInnerLeft, kLabInnerTop, innerW, bottomY - kLabInnerTop, kLabHeaderTop, kLabHeaderBot);
-        fillBox(kLabInnerLeft, bottomY, innerW, 2.0f, kLabDivider);
+        gradBox(kLabInnerLeft, kLabInnerTop, innerW, bottomY - kLabInnerTop, pal.headerTop, pal.headerBot);
+        fillBox(kLabInnerLeft, bottomY, innerW, 2.0f, pal.divider);
     }
 
     // Squeezes long strings horizontally to fit `maxW` (in 4:3 units).
@@ -901,7 +906,7 @@ namespace ui {
         fillBox(kLabRight - kLabBorder, kLabTop + kLabBorder, kLabBorder, innerH, kLabBorderColor);
     }
 
-    static void drawLabScrollBar(int count, int scroll, int visible, float topY, float height)
+    static void drawLabScrollBar(int count, int scroll, int visible, float topY, float height, const MenuPalette& pal)
     {
         if (count <= visible)
         {
@@ -910,7 +915,7 @@ namespace ui {
         float xs = gfx::xScale();
         float left = 320.0f + (kLabScrollLeft - 320.0f) * xs;
         float width = kLabScrollW * xs;
-        gfx::fillRect(left, topY, width, height, kLabDivider);
+        gfx::fillRect(left, topY, width, height, pal.divider);
         float inner = height - 4.0f;
         float length = inner * visible / count;
         if (length < 14.0f)
@@ -923,7 +928,7 @@ namespace ui {
             scroll = maxScroll;
         }
         float thumbY = topY + 2.0f + (inner - length) * scroll / maxScroll;
-        gfx::fillGradV(left + xs, thumbY, width - 2.0f * xs, length, kLabTealTop, kLabTealBot);
+        gfx::fillGradV(left + xs, thumbY, width - 2.0f * xs, length, pal.accentTop, pal.accentBot);
     }
 
     struct CtrlSpec {
@@ -987,7 +992,7 @@ namespace ui {
     }
 
     static void drawBreadcrumb(const MenuDef& def, const MenuState& state, float x43, float yCenter, float cap,
-                               float maxW)
+                               float maxW, const MenuPalette& pal)
     {
         char trail[96];
         size_t pos = 0;
@@ -1021,7 +1026,7 @@ namespace ui {
         float x = cx(x43);
         if (trail[0] != '\0')
         {
-            gfx::displayText(x, ty, trail, kLabMutedText, kLabMutedText, sx, scale, 0.0f, 0);
+            gfx::displayText(x, ty, trail, pal.mutedText, pal.mutedText, sx, scale, 0.0f, 0);
         }
         gfx::displayText(x + prefixW, ty, leaf, kLabTitleTop, kLabTitleBot, sx, scale, 1.0f, kLabTitleEdge);
     }
@@ -1044,12 +1049,13 @@ namespace ui {
         gfx::fillTri(r - 5.0f * xs, midY, r - 11.0f * xs, midY - 4.0f, r - 11.0f * xs, midY + 4.0f, color);
     }
 
-    static void drawDescStrip(const MenuDef& def, const MenuState& state, u8 pageId, int cur, const Page& p)
+    static void drawDescStrip(const MenuDef& def, const MenuState& state, u8 pageId, int cur, const Page& p,
+                              const MenuPalette& pal)
     {
         float iw = kLabInnerRight - kLabInnerLeft;
-        fillBox(kLabInnerLeft, kLabDescTop, iw, 2.0f, kLabDivider);
-        gradBox(kLabInnerLeft, kLabDescTop + 2.0f, iw, kLabFooterTop - (kLabDescTop + 2.0f), kLabDescTopCol,
-                kLabDescBotCol);
+        fillBox(kLabInnerLeft, kLabDescTop, iw, 2.0f, pal.divider);
+        gradBox(kLabInnerLeft, kLabDescTop + 2.0f, iw, kLabFooterTop - (kLabDescTop + 2.0f), pal.descTop,
+                pal.descBot);
 
         const char* desc = NULL;
         if (isRailStyle(def) && state.railFocus)
@@ -1070,13 +1076,14 @@ namespace ui {
         }
         float scale = scaleForCap(kLabDescCap);
         float y = textYForCap(kLabDescTop + 2.0f + (kLabFooterTop - kLabDescTop - 2.0f - kLabDescCap) * 0.5f, scale);
-        fitText(48.0f, y, desc, kLabDescText, scale, 544.0f, false);
+        fitText(48.0f, y, desc, pal.descText, scale, 544.0f, false);
     }
 
-    static void drawFooterStrip(const MenuDef& def, const MenuState& state, const Page& p, int cur)
+    static void drawFooterStrip(const MenuDef& def, const MenuState& state, const Page& p, int cur,
+                                const MenuPalette& pal)
     {
         float iw = kLabInnerRight - kLabInnerLeft;
-        fillBox(kLabInnerLeft, kLabFooterTop, iw, 2.0f, kLabDivider);
+        fillBox(kLabInnerLeft, kLabFooterTop, iw, 2.0f, pal.divider);
         gradBox(kLabInnerLeft, kLabFooterTop + 2.0f, iw, kLabInnerBottom - (kLabFooterTop + 2.0f), kLabFooterTopCol,
                 kLabFooterBotCol);
 
@@ -1146,21 +1153,22 @@ namespace ui {
                 boldText(badgeX[i] + (badgeW[i] - bw) * 0.5f, textY, items[i].badge, kBtnTheme[items[i].theme][2],
                          scale, scale);
             }
-            boldText(labelX[i], textY, items[i].label, kLabMutedText, scale, scale);
+            boldText(labelX[i], textY, items[i].label, pal.mutedText, scale, scale);
         }
     }
 
-    static void drawRailChrome(const MenuDef& def, const MenuState& state)
+    static void drawRailChrome(const MenuDef& def, const MenuState& state, const MenuPalette& pal)
     {
         float railW = kRailRight - kLabInnerLeft;
-        drawHeaderBand(kRailHeaderBottom);
+        drawHeaderBand(kRailHeaderBottom, pal);
 
         float bodyH = kLabDescTop - kRailBodyTop;
-        gradBox(kLabInnerLeft, kRailBodyTop, railW, bodyH, kLabRailTop, kLabRailBot);
-        fillBox(kRailRight, kRailBodyTop, 1.5f, bodyH, kLabDivider);
-        gradBox(kRailPaneLeft, kRailBodyTop, kLabInnerRight - kRailPaneLeft, bodyH, kLabBaseTop, kLabBaseBot);
-        fillBox(47.0f, kRailUtilDivY, 141.0f, 2.0f, kLabDivider);
+        gradBox(kLabInnerLeft, kRailBodyTop, railW, bodyH, pal.railTop, pal.railBot);
+        fillBox(kRailRight, kRailBodyTop, 1.5f, bodyH, pal.divider);
+        gradBox(kRailPaneLeft, kRailBodyTop, kLabInnerRight - kRailPaneLeft, bodyH, pal.baseTop, pal.baseBot);
+        fillBox(47.0f, kRailUtilDivY, 141.0f, 2.0f, pal.divider);
 
+        BevelCols accentBevel = {pal.accentTop, pal.accentBot, pal.accentSheen, pal.accentEdge};
         float itemX = kLabInnerLeft + 3.0f;
         float itemW = railW - 6.0f;
         for (u8 i = 0; i < def.categoryCount; i++)
@@ -1172,7 +1180,7 @@ namespace ui {
             }
             else if (state.category == i)
             {
-                bevelBox(itemX, y, itemW, kRailItemH, kTealBevel);
+                bevelBox(itemX, y, itemW, kRailItemH, accentBevel);
             }
         }
         for (u8 u = 0; u < def.utilityCount; u++)
@@ -1190,19 +1198,19 @@ namespace ui {
             float subScale = displayScaleForCap(8.5f);
             const char* tag = "Training Lab";
             float tagW = gfx::displayTextWidth(tag, subScale);
-            gfx::displayText(cx(592.0f) - tagW, displayYForCap(headerMid - 4.25f, subScale), tag, kLabMutedText,
+            gfx::displayText(cx(592.0f) - tagW, displayYForCap(headerMid - 4.25f, subScale), tag, pal.mutedText,
                              subScale);
         }
         else
         {
-            drawBreadcrumb(def, state, 48.0f, headerMid, 10.0f, 540.0f);
+            drawBreadcrumb(def, state, 48.0f, headerMid, 10.0f, 540.0f, pal);
         }
 
         float capOff = (kRailItemH - kRailCap) * 0.5f;
         for (u8 i = 0; i < def.categoryCount; i++)
         {
             bool focused = state.railFocus && state.railCursor == i;
-            gfx::Rgba col = focused ? kLabGoldInk : (state.category == i ? kLabActiveTabText : kLabMutedText);
+            gfx::Rgba col = focused ? kLabGoldInk : (state.category == i ? pal.activeTabText : pal.mutedText);
             fitDisplay(kRailTextX, kRailItemTop + i * kRailItemPitch + capOff,
                        pageAt(def, def.categoryPages[i]).title, col, kRailCap, kRailTextMaxW, 0);
         }
@@ -1212,25 +1220,25 @@ namespace ui {
             bool focused = state.railFocus && state.railCursor == def.categoryCount + u;
             const char* label = confirming ? def.utilities[u].label : def.utilities[u].name;
             gfx::Rgba col = focused ? (confirming ? 0x7A0C00FF : kLabGoldInk)
-                                    : (confirming ? kLabFocusGold : kLabMutedText);
+                                    : (confirming ? kLabFocusGold : pal.mutedText);
             fitDisplay(kRailTextX, kRailUtilTop + u * kRailItemPitch + capOff, label, col, kRailCap, kRailTextMaxW, 0);
         }
     }
 
-    static void drawTabsChrome(const MenuDef& def, const MenuState& state)
+    static void drawTabsChrome(const MenuDef& def, const MenuState& state, const MenuPalette& pal)
     {
         float innerW = kLabInnerRight - kLabInnerLeft;
-        drawHeaderBand(kTabsBarBottom);
+        drawHeaderBand(kTabsBarBottom, pal);
 
         float paneTop = kTabsBodyTop;
         if (state.depth > 0)
         {
-            gradBox(kLabInnerLeft, kTabsBodyTop, innerW, kTabsCrumbBottom - kTabsBodyTop, kLabDescTopCol,
-                    kLabDescBotCol);
-            fillBox(kLabInnerLeft, kTabsCrumbBottom, innerW, 2.0f, kLabDivider);
+            gradBox(kLabInnerLeft, kTabsBodyTop, innerW, kTabsCrumbBottom - kTabsBodyTop, pal.descTop,
+                    pal.descBot);
+            fillBox(kLabInnerLeft, kTabsCrumbBottom, innerW, 2.0f, pal.divider);
             paneTop = kTabsCrumbBottom + 2.0f;
         }
-        gradBox(kLabInnerLeft, paneTop, innerW, kLabDescTop - paneTop, kLabBaseTop, kLabBaseBot);
+        gradBox(kLabInnerLeft, paneTop, innerW, kLabDescTop - paneTop, pal.baseTop, pal.baseBot);
 
         // Proportional 7-tab widths spanning x 79..561 (sum 458 + 6*4 gaps = 482),
         // sized for 100% natural Brawl Display Font width at kTabsCap (8.5f).
@@ -1249,11 +1257,13 @@ namespace ui {
         drawEmblem(cs.tabR, kNoIcon, cx(581.0f), tabMidY, w(rRound ? 18.0f : 26.0f), 2, kEmblemCentre | kEmblemTab,
                    rightUsedIcon);
 
+        BevelCols accentBevel = {pal.accentTop, pal.accentBot, pal.accentSheen, pal.accentEdge};
+        BevelCols tabBevel = {pal.tabTop, pal.tabBot, pal.bevelLight, pal.bevelDark};
         float tx = 79.0f;
         for (u8 i = 0; i < def.categoryCount && i < 7; i++)
         {
             float tw = kTabWidths[i];
-            bevelBox(tx, tabY, tw, tabH, i == state.category ? kTealBevel : kTabBevel);
+            bevelBox(tx, tabY, tw, tabH, i == state.category ? accentBevel : tabBevel);
             tx += tw + 4.0f;
         }
 
@@ -1276,22 +1286,22 @@ namespace ui {
             const char* label = (def.tabLabels != NULL && def.tabLabels[i] != NULL)
                                     ? def.tabLabels[i]
                                     : pageAt(def, def.categoryPages[i]).title;
-            gfx::Rgba col = i == state.category ? kLabActiveTabText : kLabTabInactiveText;
+            gfx::Rgba col = i == state.category ? pal.activeTabText : pal.tabInactiveText;
             fitDisplay(tx + tw * 0.5f, labelTop, label, col, kTabsCap, tw - 6.0f, 1);
             tx += tw + 4.0f;
         }
 
         if (state.depth > 0)
         {
-            drawBreadcrumb(def, state, kTabsNameX, (kTabsBodyTop + kTabsCrumbBottom) * 0.5f, 9.5f, 520.0f);
+            drawBreadcrumb(def, state, kTabsNameX, (kTabsBodyTop + kTabsCrumbBottom) * 0.5f, 9.5f, 520.0f, pal);
         }
     }
 
-    static void drawPlainChrome(const Page& p)
+    static void drawPlainChrome(const Page& p, const MenuPalette& pal)
     {
-        drawHeaderBand(kRailHeaderBottom);
-        gradBox(kLabInnerLeft, kRailBodyTop, kLabInnerRight - kLabInnerLeft, kLabDescTop - kRailBodyTop, kLabBaseTop,
-                kLabBaseBot);
+        drawHeaderBand(kRailHeaderBottom, pal);
+        gradBox(kLabInnerLeft, kRailBodyTop, kLabInnerRight - kLabInnerLeft, kLabDescTop - kRailBodyTop, pal.baseTop,
+                pal.baseBot);
         fitDisplay(48.0f, (kLabInnerTop + kRailHeaderBottom) * 0.5f - 6.25f, p.title, 0, 12.5f, 540.0f, 2);
     }
 #pragma dont_inline reset
@@ -1345,19 +1355,21 @@ namespace ui {
         float rowTop = state.depth > 0 ? g.subRowTop : g.rowTop;
         float scrollH = state.depth > 0 ? g.subScrollH : g.scrollH;
 
+        const MenuPalette& pal = activePalette();
+
         // 1. Outer frame + layout chrome.
         drawLabFrame();
         if (railMode)
         {
-            drawRailChrome(def, state);
+            drawRailChrome(def, state, pal);
         }
         else if (tabsMode)
         {
-            drawTabsChrome(def, state);
+            drawTabsChrome(def, state, pal);
         }
         else
         {
-            drawPlainChrome(p);
+            drawPlainChrome(p, pal);
         }
 
         // 2. Option row metallic gold bar, Brawl red cursor triangle, inset
@@ -1387,11 +1399,11 @@ namespace ui {
             else if (o.kind == kKindMenu)
             {
                 gfx::Rgba chevCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted)
-                                             : (on ? kLabMutedText : kTextDisabled);
+                                             : (on ? pal.mutedText : kTextDisabled);
                 drawSubmenuChevron(g.hlRight - 4.0f, y, chevCol);
             }
         }
-        drawLabScrollBar(totalVis, first, visRows, rowTop, scrollH);
+        drawLabScrollBar(totalVis, first, visRows, rowTop, scrollH, pal);
 
         // 3. Option row labels and value text (System Font 0x80497E44).
         float capOffset = (kLabRowH - kLabRowCap) * 0.5f;
@@ -1417,11 +1429,11 @@ namespace ui {
         main::extraDrawPageOverlay(pageId, railMode);
 
         // 5. Shared 1-line description strip, Nintendo button footer strip, and inner bevels.
-        drawDescStrip(def, state, pageId, cur, p);
-        drawFooterStrip(def, state, p, cur);
+        drawDescStrip(def, state, pageId, cur, p, pal);
+        drawFooterStrip(def, state, p, cur, pal);
         float iw = kLabInnerRight - kLabInnerLeft;
-        fillBox(kLabInnerLeft, kLabInnerTop, iw, 2.0f, kLabBevelLight);
-        fillBox(kLabInnerLeft, kLabInnerBottom - 2.0f, iw, 2.0f, kLabBevelDark);
+        fillBox(kLabInnerLeft, kLabInnerTop, iw, 2.0f, pal.bevelLight);
+        fillBox(kLabInnerLeft, kLabInnerBottom - 2.0f, iw, 2.0f, pal.bevelDark);
     }
 }
 }

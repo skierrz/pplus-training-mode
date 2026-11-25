@@ -107,6 +107,8 @@ namespace main {
         bool (*reversalPick)(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay);
         // Live read-only PSA AnimCmd 11-Thread & FSM Inspector (extra/psa_inspector.h).
         void (*psaInspectorDraw)(const game::MatchState& match, bool menuOpen);
+        // Overhead 3D Timing Helper Meter (extra/timing_meter.h).
+        void (*timingMeterDraw)(const game::MatchState& match);
     };
 
     // What the match module asks of the Scenario Presets engine.
@@ -270,5 +272,7 @@ namespace main {
     bool extraReversalPick(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay);
     // Live read-only PSA AnimCmd 11-Thread & FSM Inspector (extra/psa_inspector.h).
     void extraPsaInspectorDraw(const game::MatchState& match, bool menuOpen);
+    // Overhead 3D Timing Helper Meter (extra/timing_meter.h).
+    void extraTimingMeterDraw(const game::MatchState& match);
 }
 }
