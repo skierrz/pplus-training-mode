@@ -1446,6 +1446,10 @@ namespace lab {
                         ui::menuDraw(ui::labMenu(), s_menu);
                     }
                 }
+                else if (!m.paused && !s_st.open)
+                {
+                    main::extraPsaInspectorDraw(m, s_st.open);
+                }
                 if (hud && (ro || !(s_st.open && storage::noticeActive())))
                 {
                     TM_PERF_SCOPE(kWatermark);

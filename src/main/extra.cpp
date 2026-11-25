@@ -458,5 +458,13 @@ namespace main {
         return s_hooks != NULL && s_hooks->reversalPick != NULL
                && s_hooks->reversalPick(trigger, fighterKind, roll, outAction, outDelay);
     }
+
+    void extraPsaInspectorDraw(const game::MatchState& match, bool menuOpen)
+    {
+        if (s_hooks != NULL && s_hooks->psaInspectorDraw != NULL)
+        {
+            s_hooks->psaInspectorDraw(match, menuOpen);
+        }
+    }
 }
 }

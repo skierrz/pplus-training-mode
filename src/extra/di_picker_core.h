@@ -128,5 +128,6 @@ namespace extra {
 
     // 2D unit-circle DI Compass rendered inside lab.cpp's 2D pass (implemented in di_display.cpp).
     void diCompassDraw(const game::MatchState& match, bool menuOpen);
+    bool diCompassVisible(const game::MatchState& match, bool menuOpen);
 }
 }

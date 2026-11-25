@@ -509,7 +509,7 @@ TEST(wave3_viz, sd_storage_migration_from_pre_wave3_display_area_and_round_trip)
         }
     }
     REQUIRE(dispEntry != NULL);
-    CHECK_EQ(15, dispEntry->used);
+    CHECK_EQ(16, dispEntry->used);
     dispEntry->used = 12;
     resealFile(name);
 

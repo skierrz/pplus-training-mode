@@ -105,6 +105,8 @@ namespace main {
         void (*diCompassDraw)(const game::MatchState& match, bool menuOpen);
         // Weighted multi-slot reversal picker (extra/reversal_slots.h).
         bool (*reversalPick)(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay);
+        // Live read-only PSA AnimCmd 11-Thread & FSM Inspector (extra/psa_inspector.h).
+        void (*psaInspectorDraw)(const game::MatchState& match, bool menuOpen);
     };
 
     // What the match module asks of the Scenario Presets engine.
@@ -266,5 +268,7 @@ namespace main {
     void extraDiCompassDraw(const game::MatchState& match, bool menuOpen);
     // Weighted multi-slot reversal picker (extra/reversal_slots.h).
     bool extraReversalPick(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay);
+    // Live read-only PSA AnimCmd 11-Thread & FSM Inspector (extra/psa_inspector.h).
+    void extraPsaInspectorDraw(const game::MatchState& match, bool menuOpen);
 }
 }

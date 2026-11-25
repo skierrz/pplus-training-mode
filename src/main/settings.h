@@ -124,6 +124,14 @@ namespace main {
         kDiVectorModeCount
     };
 
+    // Display > PSA Inspector.
+    enum PsaInspectorTarget {
+        kPsaOff = 0,
+        kPsaP1,
+        kPsaCpu,
+        kPsaTargetCount
+    };
+
     // Display Options page and the Debug page.
     struct DisplaySettings {
         u8 debugOverlay; // 0/1
@@ -141,7 +149,7 @@ namespace main {
         u8 inputViewer;        // display::Who (0 Off, 1 P1, 2 CPU, 3 Both)
         u8 hitboxColorMode;    // HitboxColorMode (0 Default, 1 Property, 2 Priority)
         u8 diVectorMode;       // DiVectorMode (0 Live Stick, 1..8 presets)
-        u8 reserved[1];
+        u8 psaInspector;       // PsaInspectorTarget (0 Off, 1 P1, 2 CPU)
     };
 
     // HMN / CPU Info Display pages, one per side.
@@ -438,6 +446,7 @@ namespace main {
     TM_STATIC_ASSERT(offsetof(Settings, display.inputViewer) == 52, tm_settings_display_input_viewer_at_52);
     TM_STATIC_ASSERT(offsetof(Settings, display.hitboxColorMode) == 53, tm_settings_display_hitbox_color_at_53);
     TM_STATIC_ASSERT(offsetof(Settings, display.diVectorMode) == 54, tm_settings_display_di_vector_at_54);
+    TM_STATIC_ASSERT(offsetof(Settings, display.psaInspector) == 55, tm_settings_display_psa_inspector_at_55);
     TM_STATIC_ASSERT(offsetof(Settings, info) == 56, tm_settings_info_at_56);
     TM_STATIC_ASSERT(offsetof(Settings, osd) == 88, tm_settings_osd_at_88);
     TM_STATIC_ASSERT(offsetof(Settings, osd.bgColor) == 110, tm_settings_osd_bg_color_at_110);

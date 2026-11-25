@@ -117,6 +117,14 @@ NUMBERS = {
     ("ledgedash_hud.cpp", "GALINT: None   Ledge: %d"): ["99"],
     ("ledgedash_hud.cpp", "GALINT: None (%d/5)   Ledge: %d"): ["99", "99"],
     ("wall_info_core.h", "Can Walljump: CD %df"): ["99"],
+    ("psa_inspector_core.h", "PSA P%d"): ["4"],
+    ("psa_inspector_core.h", "FSM x%.2f"): ["99.99"],
+    ("psa_inspector_core.h", "A:%03X S:%03X f%.1f 2x%.2f"): ["FFF", "FFF", "999.9", "99.99"],
+    ("psa_inspector_core.h", "A:%03X S:%03X f%.1f"): ["FFF", "FFF", "999.9"],
+    ("psa_inspector_core.h", "f%.1f"): ["999.9"],
+    ("psa_inspector_core.h", "w%.1f"): ["99.9"],
+    ("psa_inspector_core.h", "a%.1f"): ["99.9"],
+    ("psa_inspector_core.h", "%02X:%02X"): ["FF", "FF"],
     ("savestate.cpp", "%u:%02u ago"): ["99", "59"],
     ("recording_file.cpp", "%s-%d%s"): [None, "99", None],
     ("info_display.cpp", "%s: %.0f/%.0f"): [None, "999", "999"],
@@ -748,6 +756,48 @@ def wall_info_core_h(c, src):
             c.take(lit)
 
 
+def psa_inspector_core_h(c, src):
+    # PSA Inspector card (kPsaWidth = 182; inner text room 170 px; column widths
+    # 50/42/42/36 px for name/frame/wait/opcode; header left 84 px, FSM 84 px).
+    for lit in src.literals:
+        if c.taken(lit):
+            continue
+        if lit.func == "psaThreadName":
+            c.item("fit", lit, lit.text, scale_for_cap(6.0), 0, 50.0, 0.0)
+        elif lit.func == "psaFormatTitle" and lit.name == "snprintf" and lit.arg == 2:
+            for t in c.expand(lit, 2):
+                c.item("fit", lit, t, scale_for_cap(6.5), 0, 84.0, 0.0)
+                c.buffer(lit, t, 16.0)
+        elif lit.func == "psaFormatFsm" and lit.name == "snprintf" and lit.arg == 2:
+            for t in c.expand(lit, 2):
+                c.item("fit", lit, t, scale_for_cap(6.5), 0, 84.0, 0.0)
+                c.buffer(lit, t, 20.0)
+        elif lit.func == "psaFormatSubHeader" and lit.name == "snprintf" and lit.arg == 2:
+            for t in c.expand(lit, 2):
+                c.item("fit", lit, t, scale_for_cap(5.5), 0, 170.0, 0.0)
+                c.buffer(lit, t, 40.0)
+        elif lit.func in ("psaFormatFrame", "psaFormatWait") and lit.name == "snprintf" and lit.arg == 2:
+            for t in c.expand(lit, 2):
+                c.item("fit", lit, t, scale_for_cap(6.0), 0, 42.0, 0.0)
+                c.buffer(lit, t, 12.0)
+        elif lit.func == "psaFormatOpcode" and lit.name == "snprintf" and lit.arg == 2:
+            for t in c.expand(lit, 2):
+                c.item("fit", lit, t, scale_for_cap(6.0), 0, 36.0, 0.0)
+                c.buffer(lit, t, 12.0)
+        else:
+            continue
+        c.take(lit)
+
+
+def psa_inspector_cpp(c, src):
+    for lit in src.literals:
+        if c.taken(lit):
+            continue
+        if lit.name == "drawShadowText":
+            c.item("fit", lit, lit.text, scale_for_cap(6.0), 0, 170.0, 0.0)
+            c.take(lit)
+
+
 def read_sources(root):
     """Every source under `root` (the mod's src/), scanned."""
     from text_scan import scan
@@ -815,6 +865,8 @@ HANDLERS = [
     ("extra/lab_tools.cpp", lab_tools),
     ("extra/fighter_swap_core.h", fighter_swap_core_h),
     ("extra/pplus_tech_tracker_core.h", walked),
+    ("extra/psa_inspector_core.h", psa_inspector_core_h),
+    ("extra/psa_inspector.cpp", psa_inspector_cpp),
     ("main/savestate/savestate.cpp", savestate),
     ("main/game/pad_inmatch.cpp", pad_inmatch_cpp),
     ("main/lab.cpp", lab_cpp),

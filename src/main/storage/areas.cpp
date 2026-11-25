@@ -24,7 +24,8 @@ namespace storage {
     static const AreaDef kAreas[] = {
         TM_AREA(kAreaGeneral, general, GeneralSettings),
         TM_AREA(kAreaControls, controls, ControlSettings),
-        TM_AREA(kAreaDisplay, display, DisplaySettings),
+        {kAreaDisplay, 1, offsetof(Settings, display), sizeof(main::DisplaySettings),
+         sizeof(main::DisplaySettings)},
         TM_AREA(kAreaInfoHmn, info[0], InfoSettings),
         TM_AREA(kAreaInfoCpu, info[1], InfoSettings),
         TM_AREA(kAreaOsd, osd, OsdSettings),

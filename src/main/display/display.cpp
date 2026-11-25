@@ -438,8 +438,12 @@ namespace display {
         debugDrawEnd();
     }
 
-    void render2d(const game::MatchState&, bool)
+    void render2d(const game::MatchState& m, bool menuOpen)
     {
+        if (!m.paused && !menuOpen)
+        {
+            main::extraPsaInspectorDraw(m, menuOpen);
+        }
     }
 
     bool hudShown()
