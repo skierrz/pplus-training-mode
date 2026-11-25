@@ -16,6 +16,13 @@ Scenarios:
     and asserts live TMAC RAM block detects p1DominantRps == Attack,
     p1Confidence >= 0.55, p1AttackProb > 0, fires adaptive bias
     (biasTriggers > 0), and resets cleanly on a lab savestate load.
+  - multi-reversal: configures Multi-Slot Reversals with weighted Slot 2 +
+    per-slot delay on On-Shield (primary Grab 0f vs Slot 2 Up Smash 8f) and
+    On-Ledge (primary Neutral 0f vs Slot 2 Roll 10f), proving Slot 2 fires with
+    its per-slot delay when enabled and primary Slot 1 fires when disabled.
+  - tech-tracker: reads live TMTT RAM block with Fox P1 vs Mario CPU, verifies
+    Fox JC Shine increments attempts/successes (no OSD when techTrackerOsd=0,
+    posts OSD when techTrackerOsd=1), and verifies clean reset on savestate load.
 """
 import argparse
 import re
@@ -74,6 +81,26 @@ ADAPTIVE_LOG = re.compile(r"adaptive: debug block at ([0-9a-f]{8})")
 ADAPTIVE_FMT = ">IIIIIIffffII"
 ADAPTIVE_SIZE = struct.calcsize(ADAPTIVE_FMT)
 
+# TechTrackerBlock ("TMTT", src/extra/pplus_tech_tracker_core.h).
+TECH_TRACKER_MAGIC = 0x544D5454
+TECH_TRACKER_LOG = re.compile(r"tech_tracker: debug block at ([0-9a-f]{8})")
+TECH_TRACKER_HDR_FMT = ">IIII"
+TECH_TRACKER_SLOT_FMT = ">IIIiBBBB"
+TECH_TRACKER_HDR_SIZE = struct.calcsize(TECH_TRACKER_HDR_FMT)
+TECH_TRACKER_SLOT_SIZE = struct.calcsize(TECH_TRACKER_SLOT_FMT)
+TECH_TRACKER_SLOTS = 4
+TECH_TRACKER_SIZE = TECH_TRACKER_HDR_SIZE + TECH_TRACKER_SLOTS * TECH_TRACKER_SLOT_SIZE
+
+# Multi-slot reversal and tech tracker CpuOptions tail offsets (offset 46..59).
+REV_TAIL_OFFSET = 46
+REV_ON_HIT, REV_ON_SHIELD, REV_ON_GETUP, REV_ON_LEDGE = 0, 1, 2, 3
+SHIELD_GRAB = 1
+SHIELD_UP_SMASH = 12
+ST_GUARD = 0x1B
+ST_GUARD_DAMAGE = 0x1D
+ST_ATTACK_HI4_START = 0x30
+ST_CATCH = 0x34
+
 # Lab savestate probe block (src/main/savestate/trace.h).
 SAVESTATE_BLOCK_LOG = re.compile(r"savestate: test block at ([0-9a-f]{8})")
 SAVESTATE_SAVED_LOG = re.compile(r"savestate: saved frame (\d+)")
@@ -116,6 +143,65 @@ class AdaptiveBlock:
             "biasAction": vals[10],
             "biasTriggers": vals[11],
         }
+
+
+class TechTrackerBlock:
+    """Reads extra::TechTrackerBlock ("TMTT") directly from game RAM."""
+
+    def __init__(self, emu):
+        self.emu = emu
+        self.addr = None
+
+    def find(self):
+        found = TECH_TRACKER_LOG.findall(self.emu.log_text())
+        if not found:
+            raise TestError("no tech_tracker debug block line in the log")
+        self.addr = int(found[-1], 16)
+        if self.emu.u32(self.addr) != TECH_TRACKER_MAGIC:
+            raise TestError(f"bad tech_tracker debug magic at {self.addr:#x}")
+
+    def read(self):
+        raw = self.emu.read(self.addr, TECH_TRACKER_SIZE)
+        magic, version, frame, reset_count = struct.unpack_from(TECH_TRACKER_HDR_FMT, raw, 0)
+        slots = []
+        off = TECH_TRACKER_HDR_SIZE
+        for _ in range(TECH_TRACKER_SLOTS):
+            att, suc, last_id, last_f, ft_k, tech_k, act, osd = struct.unpack_from(TECH_TRACKER_SLOT_FMT, raw, off)
+            slots.append({
+                "attempts": att,
+                "successes": suc,
+                "lastTechId": last_id,
+                "lastFrame": last_f,
+                "ftKind": ft_k,
+                "techKind": tech_k,
+                "active": act,
+                "osdPosted": osd,
+            })
+            off += TECH_TRACKER_SLOT_SIZE
+        return {
+            "magic": magic,
+            "version": version,
+            "frame": frame,
+            "resetCount": reset_count,
+            "slots": slots,
+        }
+
+
+def write_reversal_tech_opts(r, multi=0, actions=(0, 0, 0, 0), delays=(0, 0, 0, 0),
+                         weights=(50, 50, 50, 50), tech_osd=0):
+    """Writes bytes 46..59 of cpu::CpuOptions (multiReversal .. techTrackerOsd)."""
+    payload = bytes([multi]) + bytes(actions) + bytes(delays) + bytes(weights) + bytes([tech_osd])
+    r.emu.h.call("write_mem", addr=r.opt.base + CT.SET_CPU + REV_TAIL_OFFSET, hex=payload.hex())
+
+
+def wait_fighter_grounded(r, player, max_frames=240):
+    en = r.g.entry(player)
+    for _ in range(max_frames):
+        f = r.g.fighter(en)
+        if not f["air"] and f["status"] not in CT.GONE and abs(f["x"]) < 80.0:
+            return f
+        r.emu.advance(1)
+    return r.g.fighter(en)
 
 
 def wait_cpu_grounded(r, max_frames=240):
@@ -354,7 +440,247 @@ def scenario_adaptive_cpu(r, ab):
     return res
 
 
-ALL_SCENARIOS = ["ledge-options", "clatter-escape", "adaptive-cpu"]
+def scenario_multi_reversal(r):
+    """Verify Multi-Slot Reversals + per-slot delay on On-Shield and On-Ledge."""
+    res = CT.Result("multi-reversal")
+    write_reversal_tech_opts(r, multi=0)
+    r.opt.set(**CT.on(recovery=CT.RECOVERY["Off"], behavior=CT.BEHAVIOR["Stand"],
+                      infiniteShields=CT.SHIELDS["On"], counterShield=SHIELD_GRAB, counterDelay=0))
+    r.emu.advance(15)
+    wait_fighter_grounded(r, CT.CPU)
+    wait_fighter_grounded(r, CT.P1)
+
+    p1_en = r.g.entry(CT.P1)
+    cpu_en = r.g.entry(CT.CPU)
+
+    # Walk Fox CPU back near center stage if a previous scenario left it near the ledge.
+    cpu = r.g.fighter(cpu_en)
+    if abs(cpu["x"]) > 35.0:
+        step_x = -0.7 if cpu["x"] > 0 else 0.7
+        r.drv.play(CT.CPU, [(0, step_x, 0.0, 240)])
+        for _ in range(240):
+            r.emu.advance(1)
+            if abs(r.g.fighter(cpu_en)["x"]) < 25.0:
+                break
+        r.drv.stop()
+        r.emu.advance(8)
+
+    # Walk (not dash) Mario right next to Fox so Mario never slides past Fox.
+    for _ in range(240):
+        p1 = r.g.fighter(p1_en)
+        cpu = r.g.fighter(cpu_en)
+        target_x = cpu["x"] - 8.0
+        dx = target_x - p1["x"]
+        if abs(dx) < 1.5:
+            break
+        r.emu.hold(0, stick=(180 if dx > 0 else 76, 128))
+        r.emu.advance(1)
+    r.emu.neutral(0)
+    r.emu.advance(10)
+    # Ensure Mario faces Fox, then turn on full-health Shield and wait for Guard (0x1B).
+    p1 = r.g.fighter(p1_en)
+    cpu = r.g.fighter(cpu_en)
+    want_lr = 1.0 if cpu["x"] >= p1["x"] else -1.0
+    if (p1["lr"] > 0) != (want_lr > 0):
+        r.emu.hold(0, stick=(185 if want_lr > 0 else 71, 128))
+        r.emu.advance(3)
+        r.emu.neutral(0)
+        r.emu.advance(8)
+    r.opt.set(**CT.on(recovery=CT.RECOVERY["Off"], behavior=CT.BEHAVIOR["Shield"],
+                      infiniteShields=CT.SHIELDS["On"], shieldHealth=100,
+                      counterShield=SHIELD_GRAB, counterDelay=0))
+    for _ in range(40):
+        r.emu.advance(1)
+        if r.g.fighter(cpu_en)["status"] == ST_GUARD:
+            break
+    r.states.save(r.emu, "w3-shield-near")
+
+    def run_shield_trial(multi_on):
+        r.states.load(r.emu, "w3-shield-near")
+        r.g.mods.clear()
+        r.opt.set(**CT.on(recovery=CT.RECOVERY["Off"], behavior=CT.BEHAVIOR["Shield"],
+                          infiniteShields=CT.SHIELDS["On"], shieldHealth=100,
+                          counterShield=SHIELD_GRAB, counterDelay=0))
+        write_reversal_tech_opts(
+            r,
+            multi=1 if multi_on else 0,
+            actions=(0, SHIELD_UP_SMASH, 0, 0),
+            delays=(0, 8, 0, 0),
+            weights=(50, 100, 50, 50),
+            tech_osd=0,
+        )
+        r.emu.h.call("resume")
+        p1_en_l = r.g.entry(CT.P1)
+        cpu_en_l = r.g.entry(CT.CPU)
+        for _ in range(20):
+            if r.g.fighter(cpu_en_l)["status"] == ST_GUARD:
+                break
+            r.emu.advance(1)
+        p1_0 = r.g.fighter(p1_en_l)
+        cpu_0 = r.g.fighter(cpu_en_l)
+        r.emu.hold(0, buttons=["A"])
+        r.emu.advance(3)
+        r.emu.neutral(0)
+        saw_stun = False
+        post_guard = 0
+        hit_status = None
+        seen = []
+        for _ in range(70):
+            r.emu.advance(1)
+            st = r.g.fighter(cpu_en_l)["status"]
+            if not seen or seen[-1] != st:
+                seen.append(st)
+            if st == ST_GUARD_DAMAGE:
+                saw_stun = True
+            elif saw_stun:
+                if st == ST_GUARD:
+                    post_guard += 1
+                elif st in (ST_CATCH, ST_ATTACK_HI4_START):
+                    hit_status = st
+                    break
+        diag = f"p1=({p1_0['x']:.1f},lr={p1_0['lr']:.0f},st={p1_0['status']:#x}) cpu=({cpu_0['x']:.1f}) seen={[hex(s) for s in seen[:8]]}"
+        return saw_stun, hit_status, post_guard, diag
+
+    stun_off, st_off, wait_off, diag_off = run_shield_trial(False)
+    res.row("shield multi=0 fires primary Grab", "0x34",
+            f"{st_off:#x} (wait={wait_off}f)" if st_off is not None else f"none ({diag_off})",
+            stun_off and st_off == ST_CATCH)
+
+    stun_on, st_on, wait_on, diag_on = run_shield_trial(True)
+    res.row("shield multi=1 fires Slot2 UpSmash+8f", "0x30 after>=8f",
+            f"{st_on:#x} (wait={wait_on}f)" if st_on is not None else f"none ({diag_on})",
+            stun_on and st_on == ST_ATTACK_HI4_START and wait_on >= 8)
+
+    # On-Ledge: reload clean onstage state before walking Fox to FD right ledge.
+    r.states.load(r.emu, "w3-shield-near")
+    r.g.mods.clear()
+    write_reversal_tech_opts(r, multi=0)
+    r.emu.h.call("resume")
+    grabbed, f0 = grab_fd_right_ledge(r)
+    res.check(f"Fox grabbed right ledge (st={f0['status']:#x}, x={f0['x']:.1f})", grabbed)
+    if not grabbed:
+        return res
+    r.states.save(r.emu, "w3-cliff")
+
+    def run_ledge_trial(multi_on):
+        r.states.load(r.emu, "w3-cliff")
+        r.g.mods.clear()
+        r.opt.set(**CT.on(recovery=CT.RECOVERY["Game"], ledgeOption=LEDGE_NEUTRAL, counterDelay=0))
+        write_reversal_tech_opts(
+            r,
+            multi=1 if multi_on else 0,
+            actions=(0, 0, 0, LEDGE_ROLL),
+            delays=(0, 0, 0, 10),
+            weights=(50, 50, 50, 100),
+            tech_osd=0,
+        )
+        r.emu.h.call("resume")
+        cpu_en_l = r.g.entry(CT.CPU)
+        wait_frames = 0
+        got = None
+        seen = []
+        for _ in range(90):
+            r.emu.advance(1)
+            st = r.g.fighter(cpu_en_l)["status"]
+            if not seen or seen[-1] != st:
+                seen.append(st)
+            if st == ST_CLIFF_WAIT:
+                wait_frames += 1
+            if st in (ST_CLIFF_CLIMB, ST_CLIFF_ESCAPE):
+                got = st
+                break
+        return got, wait_frames, seen
+
+    l_off, lw_off, lseen_off = run_ledge_trial(False)
+    res.row("ledge multi=0 fires primary Neutral", "0x77",
+            f"{l_off:#x} (wait={lw_off}f)" if l_off is not None else f"none (seen={[hex(s) for s in lseen_off[:8]]})",
+            l_off == ST_CLIFF_CLIMB and lw_off < 8)
+
+    l_on, lw_on, lseen_on = run_ledge_trial(True)
+    res.row("ledge multi=1 fires Slot2 Roll+10f", "0x78 after>=10f",
+            f"{l_on:#x} (wait={lw_on}f)" if l_on is not None else f"none (seen={[hex(s) for s in lseen_on[:8]]})",
+            l_on == ST_CLIFF_ESCAPE and lw_on >= 10)
+
+    write_reversal_tech_opts(r, multi=0)
+    return res
+
+
+def scenario_tech_tracker(r, tt):
+    """Verify live 44-fighter TMTT tracking (Fox JC Shine), OSD toggle, and savestate reset."""
+    res = CT.Result("tech-tracker")
+    write_reversal_tech_opts(r, multi=0, tech_osd=0)
+    r.opt.set(**CT.on(recovery=CT.RECOVERY["Off"], behavior=CT.BEHAVIOR["Stand"]))
+    r.emu.advance(8)
+    wait_fighter_grounded(r, CT.P1)
+
+    snap0 = tt.read()
+    s0 = snap0["slots"][0]
+    s1 = snap0["slots"][1]
+    res.row("TMTT header + P1 Fox / P2 Mario", "TMTT v1 ft=0x06/0x00",
+            f"magic={snap0['magic']:#x} v={snap0['version']} p1=({s0['ftKind']:#x},t={s0['techKind']},a={s0['active']}) "
+            f"p2=({s1['ftKind']:#x},t={s1['techKind']},a={s1['active']})",
+            snap0["magic"] == TECH_TRACKER_MAGIC and snap0["version"] == 1
+            and s0["active"] == 1 and s0["ftKind"] == 0x06 and s0["techKind"] == 1
+            and s1["active"] == 1 and s1["ftKind"] == 0x00 and s1["techKind"] == 5)
+
+    # Save a lab savestate so we can verify TMTT resets cleanly on savestate load.
+    saves_before = len(SAVESTATE_SAVED_LOG.findall(r.emu.log_text()))
+    r.emu.hold(0, buttons=["DRIGHT"])
+    r.emu.advance(24)
+    r.emu.neutral(0)
+    r.emu.advance(6)
+    saves_after = len(SAVESTATE_SAVED_LOG.findall(r.emu.log_text()))
+    res.row("lab savestate saved via D-Right", f">{saves_before}", str(saves_after), saves_after > saves_before)
+
+    def perform_jc_shine():
+        wait_fighter_grounded(r, CT.P1)
+        r.emu.advance(4)
+        # Hold Down + press B to enter SpecialLw (0x115), then press X after 5f to jump-cancel.
+        r.emu.press(0, ["B"], stick=(128, 0), frames=3, after=0)
+        r.emu.advance(4)
+        r.emu.press(0, ["X"], stick=(128, 128), frames=3, after=0)
+        r.emu.advance(36)
+        wait_fighter_grounded(r, CT.P1)
+
+    # First JC Shine with techTrackerOsd = 0 -> counter increments, osdPosted stays 0.
+    write_reversal_tech_opts(r, multi=0, tech_osd=0)
+    perform_jc_shine()
+    snap1 = tt.read()
+    p1_1 = snap1["slots"][0]
+    res.row("Fox JC Shine tracked (OSD off)", "att>=1 suc>=1 osd=0",
+            f"att={p1_1['attempts']} suc={p1_1['successes']} id={p1_1['lastTechId']} "
+            f"f={p1_1['lastFrame']} osd={p1_1['osdPosted']}",
+            p1_1["attempts"] >= 1 and p1_1["successes"] >= 1 and p1_1["lastTechId"] > 0
+            and p1_1["lastFrame"] > 0 and p1_1["osdPosted"] == 0)
+
+    # Second JC Shine with techTrackerOsd = 1 -> counter increments AND osdPosted >= 1.
+    write_reversal_tech_opts(r, multi=0, tech_osd=1)
+    perform_jc_shine()
+    snap2 = tt.read()
+    p1_2 = snap2["slots"][0]
+    res.row("Fox JC Shine posts OSD (OSD on)", f"suc>{p1_1['successes']} osd>=1",
+            f"att={p1_2['attempts']} suc={p1_2['successes']} osd={p1_2['osdPosted']}",
+            p1_2["successes"] > p1_1["successes"] and p1_2["osdPosted"] >= 1)
+
+    # Load lab savestate via D-pad Left -> TMTT resets cleanly.
+    resets_before = snap2["resetCount"]
+    loads_before = len(SAVESTATE_LOADED_LOG.findall(r.emu.log_text()))
+    r.emu.press(0, ["DLEFT"], frames=6, after=0)
+    r.emu.advance(4)
+    loads_after = len(SAVESTATE_LOADED_LOG.findall(r.emu.log_text()))
+    snap3 = tt.read()
+    p1_3 = snap3["slots"][0]
+    res.row("lab savestate loaded via D-Left", f">{loads_before}", str(loads_after), loads_after > loads_before)
+    res.row("TMTT reset on savestate load", f"resets>{resets_before} suc=0 osd=0",
+            f"resets={snap3['resetCount']} att={p1_3['attempts']} suc={p1_3['successes']} osd={p1_3['osdPosted']}",
+            snap3["resetCount"] > resets_before and p1_3["attempts"] == 0
+            and p1_3["successes"] == 0 and p1_3["osdPosted"] == 0)
+
+    write_reversal_tech_opts(r, multi=0, tech_osd=0)
+    return res
+
+
+ALL_SCENARIOS = ["ledge-options", "clatter-escape", "adaptive-cpu", "multi-reversal", "tech-tracker"]
 
 
 def cmd_test_stage3f(rest):
@@ -400,6 +726,7 @@ def cmd_test_stage3f(rest):
             log_path = emu.log_path
             r = CT.Runner(emu)
             ab = AdaptiveBlock(emu)
+            tt = TechTrackerBlock(emu)
             current_pair = None
 
             def ensure_match(p1_name, cpu_name):
@@ -414,6 +741,7 @@ def cmd_test_stage3f(rest):
                     current_pair = (p1_name, cpu_name)
                 r.refresh()
                 ab.find()
+                tt.find()
 
             try:
                 step = "boot"
@@ -430,6 +758,12 @@ def cmd_test_stage3f(rest):
                     elif name == "adaptive-cpu":
                         ensure_match("mario", "fox")
                         run_one(name, lambda: scenario_adaptive_cpu(r, ab))
+                    elif name == "multi-reversal":
+                        ensure_match("mario", "fox")
+                        run_one(name, lambda: scenario_multi_reversal(r))
+                    elif name == "tech-tracker":
+                        ensure_match("fox", "mario")
+                        run_one(name, lambda: scenario_tech_tracker(r, tt))
 
                 step = "finish"
                 emu.h.call("resume")

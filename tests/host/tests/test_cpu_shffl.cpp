@@ -369,9 +369,9 @@ TEST(cpu_shffl, action_tables_preserve_indices_fix_ganon_floats_and_expose_shffl
         CHECK_EQ(cpu::kUntilFalling, ffl->steps[1].until);
     }
 
-    // Menu rows appended at END of P_CPU, with matching descriptions.
+    // Menu rows at indices 28..29 of P_CPU (followed by Reversal Slots and P+ Tech OSD), with matching descriptions.
     const ui::Page& page = ui::pages::kCpuOptions;
-    REQUIRE(page.count == 30);
+    REQUIRE(page.count == 32);
     CHECK(strcmp(page.options[27].name, "Adaptive CPU") == 0);
     CHECK(strcmp(page.options[28].name, "Auto L-Cancel") == 0);
     CHECK_EQ(ui::kKindToggle, page.options[28].kind);
@@ -380,6 +380,8 @@ TEST(cpu_shffl, action_tables_preserve_indices_fix_ganon_floats_and_expose_shffl
     CHECK_EQ(ui::kKindChoice, page.options[29].kind);
     CHECK_EQ(cpu::kShfflFramePerfect, page.options[29].def);
     CHECK_EQ(cpu::kShfflTimingCount - 1, page.options[29].max);
+    CHECK(strcmp(page.options[30].name, "Reversal Slots") == 0);
+    CHECK(strcmp(page.options[31].name, "P+ Tech OSD") == 0);
 
     for (int r = 0; r < page.count; r++)
     {
@@ -392,10 +394,10 @@ TEST(cpu_shffl, action_tables_preserve_indices_fix_ganon_floats_and_expose_shffl
 
 TEST(cpu_shffl, storage_migration_from_44_byte_cpu_options_and_round_trip)
 {
-    CHECK_EQ(46u, sizeof(cpu::CpuOptions));
+    CHECK_EQ(60u, sizeof(cpu::CpuOptions));
     CHECK_EQ(64u, sizeof(main::CpuSettings));
     CHECK_EQ(436u, sizeof(main::Settings));
-    CHECK_EQ(15u, sizeof(main::settings().cpu.reserved));
+    CHECK_EQ(1u, sizeof(main::settings().cpu.reserved));
 
     host::card::reset();
     bootStorage();
@@ -453,7 +455,7 @@ TEST(cpu_shffl, storage_migration_from_44_byte_cpu_options_and_round_trip)
         }
     }
     REQUIRE(cpuArea != NULL);
-    CHECK_EQ(49u, static_cast<u32>(cpuArea->used));
+    CHECK_EQ(63u, static_cast<u32>(cpuArea->used));
     const u32 preShfflUsed = offsetof(main::CpuSettings, options) + offsetof(cpu::CpuOptions, autoLCancel);
     CHECK_EQ(47u, preShfflUsed);
     // Zero the two bytes past used = 47 on disk to prove defaults come from

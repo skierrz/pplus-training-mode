@@ -13,7 +13,8 @@ namespace pages {
         &kGeneral,      &kScenarios,    &kCpuOptions,     &kRecording,   &kDisplayOptions, &kOsdMenu,
         &kStageCast,    &kControls,     &kDebug,          &kComboTrainer, &kComboMeters,   &kTechOptions,
         &kAdvancedCounter, &kSlotManagement, &kAlterInputs, &kHmnChances, &kCpuChances,    &kHmnOverlays,
-        &kCpuOverlays,  &kHmnInfo,      &kCpuInfo,        &kLedgedashHud, &kFighterSwap, &kTheme
+        &kCpuOverlays,  &kHmnInfo,      &kCpuInfo,        &kLedgedashHud, &kFighterSwap, &kTheme,
+        &kReversalSlots
     };
 }
 }

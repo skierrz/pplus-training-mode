@@ -103,6 +103,8 @@ namespace main {
         bool (*drawColoredHitboxes)(Fighter* fighter);
         // Live DI Vector Picker 2D unit-circle compass (extra/di_display.cpp).
         void (*diCompassDraw)(const game::MatchState& match, bool menuOpen);
+        // Weighted multi-slot reversal picker (extra/reversal_slots.h).
+        bool (*reversalPick)(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay);
     };
 
     // What the match module asks of the Scenario Presets engine.
@@ -262,5 +264,7 @@ namespace main {
     bool extraDrawColoredHitboxes(Fighter* fighter);
     // Live DI Vector Picker 2D unit-circle compass (extra/di_display.cpp).
     void extraDiCompassDraw(const game::MatchState& match, bool menuOpen);
+    // Weighted multi-slot reversal picker (extra/reversal_slots.h).
+    bool extraReversalPick(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay);
 }
 }

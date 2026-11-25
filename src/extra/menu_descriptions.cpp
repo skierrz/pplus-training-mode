@@ -61,7 +61,9 @@ namespace extra {
         "Set CPU mash speed for escaping buries, sleep, and freeze.",
         "Track your habits and adapt CPU counter responses over time.",
         "Automatically L-cancel CPU aerial attacks before landing.",
-        "Set aerial and fastfall timing for CPU SHFFL and FFL actions."
+        "Set aerial and fastfall timing for CPU SHFFL and FFL actions.",
+        "Configure weighted multi-slot reversals with per-slot delays.",
+        "Post on-screen callouts for 44-fighter P+ signature techs."
     };
 
     static const char* const kRecordingDesc[] = {
@@ -332,6 +334,23 @@ namespace extra {
         "Adjust OSD card opacity from transparent (0%) to solid (100%)."
     };
 
+    static const char* const kReversalDesc[] = {
+        "Enable weighted multi-slot reversals across all four triggers.",
+        "Choose On-Hit, On-Shield, On-Getup, or On-Ledge slots to edit.",
+        "Secondary reversal action mixed with the primary trigger option.",
+        "Actionable frame delay before the Slot 2 reversal fires.",
+        "Probability weight for Slot 2 versus primary Slot 1.",
+        "Secondary reversal action mixed with the primary trigger option.",
+        "Actionable frame delay before the Slot 2 reversal fires.",
+        "Probability weight for Slot 2 versus primary Slot 1.",
+        "Secondary reversal action mixed with the primary trigger option.",
+        "Actionable frame delay before the Slot 2 reversal fires.",
+        "Probability weight for Slot 2 versus primary Slot 1.",
+        "Secondary reversal action mixed with the primary trigger option.",
+        "Actionable frame delay before the Slot 2 reversal fires.",
+        "Probability weight for Slot 2 versus primary Slot 1."
+    };
+
     static const char* const kRailDesc[] = {
         "Frame advance, Player 1 damage, speed, camera, and controls.",
         "One-click P+ practice presets and Combo Trainer settings.",
@@ -377,6 +396,7 @@ namespace extra {
         TM_DESC(kLedgedashDesc),    // P_LEDGEDASH_HUD
         TM_DESC(kFighterSwapDesc),  // P_FIGHTER_SWAP
         TM_DESC(kThemeDesc),        // P_THEME
+        TM_DESC(kReversalDesc),     // P_REVERSALS
         TM_DESC(kRailDesc)          // P_COUNT (Category Rail entries)
     };
 #undef TM_DESC

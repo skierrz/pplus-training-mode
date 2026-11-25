@@ -542,9 +542,12 @@ namespace cpu {
         bool mashFlip;
         // Freeze CPU
         bool frozen;
+        u8 revAction;
+        u8 revDelay;
         int frozenStatus;
         // Move CPU
         bool placed;
+        bool revPicked;
         float moveX, moveY;
         int player; // the player driven last
         bool techSounded;
@@ -599,6 +602,7 @@ namespace cpu {
             techSounded = false;
             recovering = false;
             ledgeStateReset(ledgeState);
+            revPicked = false;
             main::extraPPlusRecoveryReset(slot);
         }
 
@@ -1242,6 +1246,21 @@ namespace cpu {
             }
         }
 
+#pragma dont_inline on
+        bool pickMultiRev(int trigger, int entryId)
+        {
+            revAction = 0;
+            int ra, rd;
+            if (opts().multiReversal == 0 || !main::extraReversalPick(trigger, fighterKind(entryId), rnd(), ra, rd))
+            {
+                return false;
+            }
+            revAction = static_cast<u8>(ra);
+            revDelay = static_cast<u8>(rd);
+            return true;
+        }
+#pragma dont_inline reset
+
         void getupInput(Frame& out, const Owner& who)
         {
             // Lay_Down (0x50, e.g. Snake down throw) and Slip_Wait (0x8D, e.g.
@@ -1267,9 +1286,24 @@ namespace cpu {
             if (downFrames == 0)
             {
                 const CpuOptions& c = opts();
-                static const u8 kFromRandom[4] = {kGetupStand, kGetupAway, kGetupTowards, kGetupAttack};
-                getup = c.getup == kGetupRandom ? kFromRandom[weighted(c.getupChance)] : c.getup;
+                u8 wait = 0;
+                if (pickMultiRev(kRevOnGetup, who.entryId))
+                {
+                    getup = revAction;
+                    wait = revDelay;
+                }
+                else
+                {
+                    static const u8 kFromRandom[4] = {kGetupStand, kGetupAway, kGetupTowards, kGetupAttack};
+                    getup = c.getup == kGetupRandom ? kFromRandom[weighted(c.getupChance)] : c.getup;
+                }
                 TM_LOG("cpu: P%d get up %d\n", who.playerNo + 1, getup);
+                if (wait > 0)
+                {
+                    missWait = wait - 1;
+                    downFrames = 2;
+                    return;
+                }
             }
             // Pushed every other frame, so each push is a fresh input.
             if ((downFrames++ & 1) != 0)
@@ -1408,6 +1442,7 @@ namespace cpu {
                         powershield = 0;
                         hits++;
                         actionable = 0;
+                        revPicked = false;
                         script = NULL;
                         pending = NULL;
                         state = kCounter;
@@ -1512,6 +1547,7 @@ namespace cpu {
                 shieldKind = false;
                 hits = 0;
                 actionable = 0;
+                revPicked = false;
                 state = kIdle;
                 idle(out, who);
                 return;
@@ -1522,6 +1558,7 @@ namespace cpu {
                 // Reset while unactionable so pre-landing air frames do not
                 // shorten the delay after landing.
                 actionable = 0;
+                revPicked = false;
                 if (shieldKind)
                 {
                     out.buttons = kGuard;
@@ -1540,8 +1577,28 @@ namespace cpu {
             if (!counterChoice(list, index, delay))
             {
                 TM_LOG("cpu: P%d counter disabled for hit %d\n", who.playerNo + 1, hits);
+                revPicked = false;
                 state = kAfter;
                 return;
+            }
+            if (list == kListAir)
+            {
+                revPicked = false;
+            }
+            else
+            {
+                if (!revPicked)
+                {
+                    revPicked = true;
+                    TM_STATIC_ASSERT((kListGround >> 1) == kRevOnHit && (kListShield >> 1) == kRevOnShield,
+                                     tm_list_to_rev_trigger);
+                    pickMultiRev(list >> 1, who.entryId);
+                }
+                if (revAction != 0)
+                {
+                    index = revAction;
+                    delay = revDelay;
+                }
             }
             // A held guard acts on hitstun's last frame, but delays count from
             // the first actionable frame, the next one.
@@ -1560,7 +1617,7 @@ namespace cpu {
                 return;
             }
             bool adaptiveUsed = false;
-            if (opts().adaptiveMode == kAdaptiveActive && (list == kListGround || list == kListShield)
+            if (revAction == 0 && opts().adaptiveMode == kAdaptiveActive && list != kListAir
                 && main::extraLoaded())
             {
                 int biasIdx = main::extraAdaptiveBias(who.playerNo, list, true, oppDist, false);
@@ -1576,6 +1633,7 @@ namespace cpu {
                 int pick = randomSlot();
                 TM_LOG("cpu: P%d counter list %d: Play Random Slot picks slot %d, frame %u\n", who.playerNo + 1, list,
                        pick + 1, frameOf(slot));
+                revPicked = false;
                 startPlay(out, pick);
                 return;
             }
@@ -1699,6 +1757,7 @@ namespace cpu {
         // Starts action `a` (NULL: none) from this frame.
         void start(Frame& out, const Action* a)
         {
+            revPicked = false;
             // When no aerial jump remains, wiggle out of tumble or do nothing
             // instead of retrying jump.
             if (a != NULL && (a->flags & kNeedsJump) != 0 && !jumpLeft(f))
@@ -1917,6 +1976,51 @@ namespace cpu {
         }
 
         // What the next frame compares with.
+#pragma dont_inline on
+        bool stepLedge(Frame& out, const Owner& who, const CpuOptions& c, bool busy)
+        {
+            u8 base = busy ? 0 : (c.ledgeOption ? c.ledgeOption : (c.multiReversal ? c.revSlot2Action[kRevOnLedge] : 0));
+            bool hold = false;
+            if (!base || (!(hold = isCliffHoldStatus(v.status)) && !isCliffGetupStatus(v.status)))
+            {
+                ledgeStateReset(ledgeState);
+                return false;
+            }
+            if (recovering)
+            {
+                recovering = false;
+                main::extraPPlusRecoveryReset(slot);
+            }
+            if (!hold)
+            {
+                ledgeStateReset(ledgeState);
+                return true;
+            }
+            state = kIdle;
+            hits = 0;
+            shieldKind = false;
+            script = NULL;
+            pending = NULL;
+            playSlot = -1;
+            noTech = false;
+            revPicked = false;
+            if (!isCliffWaitStatus(v.status) || (!ledgeState.active && !pickMultiRev(kRevOnLedge, who.entryId)))
+            {
+                revAction = base;
+                revDelay = c.counterDelay;
+            }
+            LedgeInput li;
+            if (stepLedgeOption(revAction, revDelay, v.status, v.lr, rnd(), ledgeState, li))
+            {
+                out.buttons = li.buttons;
+                out.x = li.x;
+                out.y = li.y;
+                return true;
+            }
+            return false;
+        }
+#pragma dont_inline reset
+
         void remember()
         {
             havePrev = true;
@@ -2170,6 +2274,7 @@ namespace cpu {
         if (newHit)
         {
             actionable = 0;
+            revPicked = false;
             script = NULL;
             pending = NULL;
             hits++;
@@ -2273,52 +2378,15 @@ namespace cpu {
         noReactionOn(who, c.intangible == kIntangibleNoReaction);
 
         // On-ledge reversal / getup option (ledge_logic.h): preempts Game AI /
-        // PPlusAI recovery only while hanging on the ledge (Cliff_Catch_Move /
-        // Cliff_Catch / Cliff_Wait) or completing an on-stage getup (Attack /
-        // Climb / Escape). Once airborne after Drop or Jump, normal recovery /
+        // PPlusAI recovery only while hanging on the ledge or completing an
+        // on-stage getup. Once airborne after Drop or Jump, normal recovery /
         // lab state resumes cleanly.
         bool busyForLedge = (state == kHit && (v.hitstun > 0 || v.hitlag > 0)) || state == kGrabbed
                             || state == kClatter || v.hitlag > 0 || q.state != kCueNone || q.hold;
-        if (c.ledgeOption != kLedgeDefault && !busyForLedge && isCliffHoldStatus(v.status))
+        if (stepLedge(out, who, c, busyForLedge))
         {
-            // Clear stale pre-ledge combat state so exiting Cliff_Wait does not
-            // fire a leftover counter or script on frame 1 onstage.
-            state = kIdle;
-            hits = 0;
-            shieldKind = false;
-            script = NULL;
-            pending = NULL;
-            playSlot = -1;
-            noTech = false;
-            if (recovering)
-            {
-                recovering = false;
-                main::extraPPlusRecoveryReset(slot);
-            }
-            LedgeInput li;
-            if (stepLedgeOption(c.ledgeOption, c.counterDelay, v.status, v.lr, rnd(), ledgeState, li))
-            {
-                out.buttons = li.buttons;
-                out.x = li.x;
-                out.y = li.y;
-                remember();
-                return true;
-            }
-        }
-        else if (c.ledgeOption != kLedgeDefault && !busyForLedge && isCliffGetupStatus(v.status))
-        {
-            ledgeStateReset(ledgeState);
-            if (recovering)
-            {
-                recovering = false;
-                main::extraPPlusRecoveryReset(slot);
-            }
             remember();
             return true;
-        }
-        else
-        {
-            ledgeStateReset(ledgeState);
         }
 
         // Offstage / ledge recovery routing (Game AI, PPlusAI, or Off).
@@ -2424,6 +2492,7 @@ namespace cpu {
                 hits++;
                 shieldKind = false;
                 actionable = 0;
+                revPicked = false;
                 state = kCounter;
                 TM_LOG("cpu: P%d released from a grab (%x), hit %d, frame %u\n", who.playerNo + 1, prevStatus, hits,
                        frameOf(slot));
@@ -2521,6 +2590,7 @@ namespace cpu {
             if (!downStatus(v.status))
             {
                 actionable = 0;
+                revPicked = false;
                 state = kCounter;
                 counter(out, who);
             }
@@ -2534,6 +2604,7 @@ namespace cpu {
             {
                 // Missed tech while waiting out Counter Delay: run Get Up.
                 actionable = 0;
+                revPicked = false;
                 state = kDown;
                 downFrames = 0;
                 missWait = 0;
@@ -2614,6 +2685,7 @@ namespace cpu {
                 // Successful tech after an air counter also runs the ground counter.
                 state = kCounter;
                 actionable = 0;
+                revPicked = false;
             }
             break;
         default:
@@ -2889,6 +2961,8 @@ namespace cpu {
             CpuOptions& mutableOpts = main::settings().cpu.options;
             clampIncompatibleCounter(mutableOpts.counterGround, kListGround, newCpuFtKind);
             clampIncompatibleCounter(mutableOpts.counterShield, kListShield, newCpuFtKind);
+            clampIncompatibleCounter(mutableOpts.revSlot2Action[kRevOnHit], kListGround, newCpuFtKind);
+            clampIncompatibleCounter(mutableOpts.revSlot2Action[kRevOnShield], kListShield, newCpuFtKind);
             CpuTables& tables = main::settings().cpuTables;
             for (int h = 0; h < kAdvancedHits; h++)
             {
