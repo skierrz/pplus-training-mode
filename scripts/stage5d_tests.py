@@ -66,7 +66,7 @@ S_LEDGE_GALINT = 14
 S_LEDGE_PANEL = 15
 S_HMN_INFO_ROWS = 56 + 2
 S_OSD_LEDGEDASH = 100
-S_NANA_THROW = 426
+S_NANA_THROW = 454
 
 # ui::InfoValue (src/main/ui/info_display.h).
 IV_STATE = 2
@@ -179,7 +179,7 @@ def start_match(emu, p1_name, cpu_name="fox"):
     emu.h.call("write_mem", addr=settings + LT.SET_CPU_PERCENT, hex="000000")
     emu.h.call("write_mem", addr=settings + CT.SET_CPU_OPTIONS, hex="00")
     emu.h.call("write_mem", addr=settings + LT.SET_FRAME_ADVANCE, hex="00")
-    emu.h.call("write_mem", addr=settings + 404, hex="00" * 32)
+    emu.h.call("write_mem", addr=settings + 432, hex="00" * 32)
     emu.h.call("write_mem", addr=settings + S_HMN_INFO_ROWS, hex="00" * 8)
     CT.wait_game_frames(emu, 24)
     f = LT.Fighters(emu)

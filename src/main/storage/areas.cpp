@@ -38,7 +38,7 @@ namespace storage {
         {kAreaCharacterRng, 1, offsetof(Settings, characterRng), sizeof(main::CharacterRngSettings),
          sizeof(main::CharacterRngSettings)},
         TM_AREA(kAreaStageOptions, stageOptions, StageOptionsSettings),
-        {kAreaComboTrainer, 2, offsetof(Settings, comboTrainer), offsetof(main::ComboTrainerSettings, reserved),
+        {kAreaComboTrainer, 2, offsetof(Settings, comboTrainer), sizeof(main::ComboTrainerSettings),
          sizeof(main::ComboTrainerSettings)},
         TM_AREA(kAreaFighterMechanics, fighterMechanics, FighterMechanicsSettings),
     };

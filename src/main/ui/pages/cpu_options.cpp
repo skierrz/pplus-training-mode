@@ -27,7 +27,10 @@ namespace pages {
     }
 
     static const char* const kControl[] = {"Training", "Lab"};
-    static const char* const kTdi[] = {"Random", "In", "Out", "Survival", "None"};
+    extern const char* const kTdiLabels[cpu::kTdiCount] = {
+        "Random", "In", "Out", "Survival", "None", "Combo", "Slight Random", "Slight Away", "Down & Away", "Custom"
+    };
+    TM_STATIC_ASSERT(TM_COUNT(kTdiLabels) == cpu::kTdiCount, tm_tdi_labels_match);
     static const char* const kSdiDirection[] = {"Auto", "Random", "Away", "Toward", "Left", "Right", "Up", "Down"};
     static const char* const kAsdi[] = {"Auto", "Away", "Toward", "Left", "Right", "Up", "Down"};
     static const char* const kBehavior[] = {"Stand", "Shield", "Crouch", "Jump", "Powershield"};
@@ -45,19 +48,20 @@ namespace pages {
         "Down Smash", "Forward Smash", "Roll Away", "Roll Toward", "Jab", "Forward Tilt", "Up Tilt", "Down Tilt",
         "Dash Attack", "Short Hop", "Full Hop", "Wavedash Away", "Wavedash Toward", "Wavedash Down", "Dash Back",
         "Dash Through", TM_PLAY_SLOT_LABELS, "Side B Away", "Roll Random", "SH Nair", "SH Fair",
-        "SH Bair", "SH Uair", "SH Dair", "Random Custom", "Random", TM_DJC_LABELS, TM_FLOAT_LABELS, TM_SHFFL_LABELS};
+        "SH Bair", "SH Uair", "SH Dair", "Random Custom", "Random", TM_DJC_LABELS, TM_FLOAT_LABELS, TM_SHFFL_LABELS,
+        "Custom Pool"};
     extern const char* const kCounterAir[kCounterAirSize] = {
         "None", "Airdodge", "Jump Away", "Jump Toward", "Jump Neutral", "Up B Away", "Up B Toward",
         "Neutral B", "Side B Away", "Side B Toward", "Down B", "Nair", "Fair", "Bair",
         "Uair", "Dair", "Tumble Fastfall", "Wiggle Fastfall", DROPPED "Ledge", DROPPED "Wait",
-        TM_PLAY_SLOT_LABELS, "Random Custom", "Random", TM_FFL_LABELS};
+        TM_PLAY_SLOT_LABELS, "Random Custom", "Random", TM_FFL_LABELS, "Custom Pool"};
     extern const char* kCounterShield[kCounterShieldSize] = {
         "None", "Grab", "Short Hop", "Full Hop", "Spotdodge", "Roll Away", "Roll Toward", "Up B",
         DROPPED "Side B Away", DROPPED "Side B Toward", "Down B", DROPPED "Neutral B", "Up Smash",
         DROPPED "Down Smash", DROPPED "Forward Smash", "SH Nair", "SH Fair", "SH Bair", "SH Uair",
         "SH Dair", "Wavedash Away", DROPPED "Shield Drop",
         TM_PLAY_SLOT_LABELS, "Wavedash Toward", "Wavedash Down", "Roll Random", "Random Custom", "Random",
-        TM_DJC_LABELS, TM_FLOAT_LABELS, TM_SHFFL_LABELS};
+        TM_DJC_LABELS, TM_FLOAT_LABELS, TM_SHFFL_LABELS, "Custom Pool"};
 #undef TM_PLAY_SLOT_LABELS
 #undef TM_DJC_LABELS
 #undef TM_FLOAT_LABELS
@@ -199,9 +203,20 @@ namespace pages {
                "Port Control", kControlledBy, controlledByChanged, cpuLabControl)
     };
 
+    static bool cpuCustomDiActive()
+    {
+        return cpuLabControl() && main::settings().cpu.options.tdi == cpu::kTdiCustom;
+    }
+
     // CPU > DI & SDI (P_CPU_DI)
     static const Option kDiRows[] = {
-        TM_CPU_CHOICE("Trajectory DI", cpu.options.tdi, kTdi, 0),
+        TM_CPU_CHOICE("Trajectory DI", cpu.options.tdi, kTdiLabels, 0),
+        TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, "Pick DI Angle",
+               lab::g_diPickLabel, lab::toggleDiStickPicker, cpuCustomDiActive),
+        TM_ROW(::tm::ui::kKindInt, ::tm::ui::kFlagSigned | ::tm::ui::kFlagHideWhenDisabled,
+               TM_FIELD(cpuTables.customDiX), -100, 100, 100, "Custom DI X", "%+d", NULL, cpuCustomDiActive),
+        TM_ROW(::tm::ui::kKindInt, ::tm::ui::kFlagSigned | ::tm::ui::kFlagHideWhenDisabled,
+               TM_FIELD(cpuTables.customDiY), -100, 100, 0, "Custom DI Y", "%+d", NULL, cpuCustomDiActive),
         TM_CPU_INT("SDI Inputs", cpu.options.sdiAmount, 0, 7, 0, "%d"),
         TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.sdiDir), 0,
                TM_COUNT(kSdiDirection) - 1, 0, "SDI Direction", kSdiDirection, NULL, cpuSdiActive),
@@ -217,6 +232,7 @@ namespace pages {
         TM_COUNTER_CHOICE("Shield Counter", cpu.options.counterShield, kCounterShield, 1),
         TM_CPU_CHOICE("Shield Timing", cpu.options.shieldTiming, kShieldTiming, cpu::kShieldTimingFullMove),
         TM_CPU_INT("Counter Delay", cpu.options.counterDelay, 0, 99, 0, "%df"),
+        TM_MENU_IF("Custom Pools", P_COUNTER_POOL, cpuLabControl),
         TM_MENU_IF("Per-Hit Counters", P_ADVANCED_COUNTER, cpuLabControl),
         TM_MENU_IF("Reversal Slots", P_REVERSALS, cpuExtraAvailable),
         TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(cpu.options.adaptiveMode), 0, TM_COUNT(kAdaptiveMode) - 1,
@@ -347,6 +363,125 @@ namespace pages {
 #undef TM_REV_WEIGHT
 
     extern const Page kReversalSlots = TM_PAGE("Reversal Slots", kRevRows);
+
+    // CPU > Counters & Reversals > Custom Pools (P_COUNTER_POOL)
+    enum {
+        kPoolCatScratchOffset = 34
+    };
+    TM_STATIC_ASSERT(kPoolCatScratchOffset > kRevTriggerScratchOffset && kPoolCatScratchOffset < kScratchBytes,
+                     tm_pool_cat_scratch_fits);
+
+    static const char* const kPoolCats[] = {"Ground", "Air", "Shield"};
+
+    static int activePoolCat()
+    {
+        u8 c = menuScratch()[kPoolCatScratchOffset];
+        return c < cpu::kListCount ? static_cast<int>(c) : 0;
+    }
+
+    static void resetActivePool()
+    {
+        int cat = activePoolCat();
+        cpu::poolDefaults(cat, main::settings().cpuTables.poolBits[cat]);
+        main::settings().cpuTables.poolReady = 1;
+    }
+
+    static void clearActivePool()
+    {
+        int cat = activePoolCat();
+        memset(main::settings().cpuTables.poolBits[cat], 0, 8);
+        main::settings().cpuTables.poolReady = 1;
+    }
+
+#pragma dont_inline on
+    static bool poolCatIs(int cat)
+    {
+        return cpuLabControl() && activePoolCat() == cat;
+    }
+#pragma dont_inline reset
+
+    static bool poolCat0() { return poolCatIs(cpu::kListGround); }
+    static bool poolCat1() { return poolCatIs(cpu::kListAir); }
+    static bool poolCat2() { return poolCatIs(cpu::kListShield); }
+
+#define TM_POOL_BIT(cat, idx, def, name, gate)                                                                    \
+    TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagBit | ::tm::ui::kFlagHideWhenDisabled,                           \
+           TM_FIELD(cpuTables.poolBits[cat][(idx) >> 3]), (1 << ((idx) & 7)), 1, def, name, NULL, NULL, gate)
+
+    static const Option kPoolRows[] = {
+        TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch, kPoolCatScratchOffset, 0, TM_COUNT(kPoolCats) - 1, 0,
+               "Category", kPoolCats, NULL, cpuLabControl),
+        TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Reset Pool", NULL, resetActivePool, cpuLabControl),
+        TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Clear Pool", NULL, clearActivePool, cpuLabControl),
+        // Ground Pool (indices match kGround in actions.cpp)
+        TM_POOL_BIT(0, 1, 1, "Spotdodge", poolCat0),
+        TM_POOL_BIT(0, 2, 1, "Shield", poolCat0),
+        TM_POOL_BIT(0, 3, 1, "Grab", poolCat0),
+        TM_POOL_BIT(0, 4, 0, "Up B", poolCat0),
+        TM_POOL_BIT(0, 5, 0, "Side B Toward", poolCat0),
+        TM_POOL_BIT(0, 32, 0, "Side B Away", poolCat0),
+        TM_POOL_BIT(0, 6, 0, "Down B", poolCat0),
+        TM_POOL_BIT(0, 7, 0, "Neutral B", poolCat0),
+        TM_POOL_BIT(0, 8, 0, "Up Smash", poolCat0),
+        TM_POOL_BIT(0, 9, 0, "Down Smash", poolCat0),
+        TM_POOL_BIT(0, 10, 0, "Forward Smash", poolCat0),
+        TM_POOL_BIT(0, 11, 1, "Roll Away", poolCat0),
+        TM_POOL_BIT(0, 12, 1, "Roll Toward", poolCat0),
+        TM_POOL_BIT(0, 13, 1, "Jab", poolCat0),
+        TM_POOL_BIT(0, 14, 1, "Forward Tilt", poolCat0),
+        TM_POOL_BIT(0, 15, 1, "Up Tilt", poolCat0),
+        TM_POOL_BIT(0, 16, 1, "Down Tilt", poolCat0),
+        TM_POOL_BIT(0, 17, 0, "Dash Attack", poolCat0),
+        TM_POOL_BIT(0, 18, 1, "Short Hop", poolCat0),
+        TM_POOL_BIT(0, 19, 0, "Full Hop", poolCat0),
+        TM_POOL_BIT(0, 20, 1, "Wavedash Away", poolCat0),
+        TM_POOL_BIT(0, 21, 0, "Wavedash Toward", poolCat0),
+        TM_POOL_BIT(0, 23, 1, "Dash Back", poolCat0),
+        TM_POOL_BIT(0, 34, 0, "SH Nair", poolCat0),
+        TM_POOL_BIT(0, 35, 0, "SH Fair", poolCat0),
+        TM_POOL_BIT(0, 36, 0, "SH Bair", poolCat0),
+        TM_POOL_BIT(0, 37, 0, "SH Uair", poolCat0),
+        TM_POOL_BIT(0, 38, 0, "SH Dair", poolCat0),
+        // Air Pool (indices match kAir in actions.cpp)
+        TM_POOL_BIT(1, 1, 1, "Airdodge", poolCat1),
+        TM_POOL_BIT(1, 2, 1, "Jump Away", poolCat1),
+        TM_POOL_BIT(1, 3, 1, "Jump Toward", poolCat1),
+        TM_POOL_BIT(1, 4, 0, "Jump Neutral", poolCat1),
+        TM_POOL_BIT(1, 5, 0, "Up B Away", poolCat1),
+        TM_POOL_BIT(1, 6, 0, "Up B Toward", poolCat1),
+        TM_POOL_BIT(1, 7, 0, "Neutral B", poolCat1),
+        TM_POOL_BIT(1, 8, 0, "Side B Away", poolCat1),
+        TM_POOL_BIT(1, 9, 0, "Side B Toward", poolCat1),
+        TM_POOL_BIT(1, 10, 0, "Down B", poolCat1),
+        TM_POOL_BIT(1, 11, 1, "Nair", poolCat1),
+        TM_POOL_BIT(1, 12, 1, "Fair", poolCat1),
+        TM_POOL_BIT(1, 13, 1, "Bair", poolCat1),
+        TM_POOL_BIT(1, 14, 1, "Uair", poolCat1),
+        TM_POOL_BIT(1, 15, 1, "Dair", poolCat1),
+        TM_POOL_BIT(1, 16, 0, "Tumble Fastfall", poolCat1),
+        TM_POOL_BIT(1, 17, 0, "Wiggle Fastfall", poolCat1),
+        // Shield Pool (indices match kShieldList in actions.cpp)
+        TM_POOL_BIT(2, 1, 1, "Grab", poolCat2),
+        TM_POOL_BIT(2, 2, 1, "Short Hop", poolCat2),
+        TM_POOL_BIT(2, 3, 0, "Full Hop", poolCat2),
+        TM_POOL_BIT(2, 4, 1, "Spotdodge", poolCat2),
+        TM_POOL_BIT(2, 5, 1, "Roll Away", poolCat2),
+        TM_POOL_BIT(2, 6, 1, "Roll Toward", poolCat2),
+        TM_POOL_BIT(2, 7, 1, "Up B", poolCat2),
+        TM_POOL_BIT(2, 10, 0, "Down B", poolCat2),
+        TM_POOL_BIT(2, 12, 1, "Up Smash", poolCat2),
+        TM_POOL_BIT(2, 15, 1, "SH Nair", poolCat2),
+        TM_POOL_BIT(2, 16, 1, "SH Fair", poolCat2),
+        TM_POOL_BIT(2, 17, 0, "SH Bair", poolCat2),
+        TM_POOL_BIT(2, 18, 0, "SH Uair", poolCat2),
+        TM_POOL_BIT(2, 19, 0, "SH Dair", poolCat2),
+        TM_POOL_BIT(2, 20, 1, "Wavedash Away", poolCat2),
+        TM_POOL_BIT(2, 29, 0, "Wavedash Toward", poolCat2),
+        TM_POOL_BIT(2, 30, 0, "Wavedash Down", poolCat2)
+    };
+#undef TM_POOL_BIT
+
+    extern const Page kCounterPool = TM_PAGE("Custom Pools", kPoolRows);
 }
 }
 }

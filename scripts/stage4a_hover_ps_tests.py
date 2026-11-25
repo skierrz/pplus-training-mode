@@ -215,7 +215,7 @@ def start_match(emu, p1_name, cpu_name="fox"):
     emu.h.call("write_mem", addr=settings + LT.SET_CPU_PERCENT, hex="000000")
     emu.h.call("write_mem", addr=settings + CT.SET_CPU_OPTIONS, hex="00")
     emu.h.call("write_mem", addr=settings + LT.SET_FRAME_ADVANCE, hex="00")
-    emu.h.call("write_mem", addr=settings + 404, hex="00" * 32)
+    emu.h.call("write_mem", addr=settings + 432, hex="00" * 32)
     CT.wait_game_frames(emu, 24)
     f = LT.Fighters(emu)
     p1 = f.by_player(0)

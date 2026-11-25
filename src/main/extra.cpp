@@ -349,6 +349,11 @@ namespace main {
         scenCall(kScenarioCyclePlatform);
     }
 
+    void extraComboReposition()
+    {
+        scenCall(kScenarioComboReposition);
+    }
+
     bool extraScenarioCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons)
     {
         return s_hooks != NULL && s_hooks->scenarioCpuStep != NULL

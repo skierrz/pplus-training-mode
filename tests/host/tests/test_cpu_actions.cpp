@@ -1,6 +1,10 @@
 // CPU counter action selection and fighter-specific technique scripts (src/main/cpu/actions.cpp).
+#include <math.h>
+#include <string.h>
+
 #include "host/test.h"
 #include "main/cpu/actions.h"
+#include "main/cpu/di_logic.h"
 #include "main/cpu/fighter_input.h"
 
 using namespace tm::cpu;
@@ -139,4 +143,80 @@ TEST(cpu_actions, action_for_returns_ganon_float_scripts_vs_peach_mewtwo)
             CHECK_EQ(1, aerial->frames);
         }
     }
+}
+
+TEST(cpu_actions, custom_counter_pool_defaults_sanitize_and_pick)
+{
+    for (int list = 0; list < kListCount; list++)
+    {
+        int idx = customPoolIndex(list);
+        CHECK(idx > 0 && idx < actionCount(list));
+        CHECK_EQ(static_cast<int>(kActionCustomPool), actionKind(list, idx));
+
+        u8 bits[8];
+        poolDefaults(list, bits);
+        int pick = randomPoolAction(list, bits, kMario, 0);
+        CHECK(pick > 0 && pick < idx);
+
+        // Restrict Ground/Air/Shield pool strictly to two chosen actions and verify picks stay in subset.
+        memset(bits, 0, sizeof(bits));
+        int a1 = 1;
+        int a2 = (list == kListAir) ? 11 : 3;
+        bits[a1 >> 3] |= static_cast<u8>(1u << (a1 & 7));
+        bits[a2 >> 3] |= static_cast<u8>(1u << (a2 & 7));
+        // Set out-of-range / meta bit (idx itself) and verify poolSanitize strips it.
+        bits[idx >> 3] |= static_cast<u8>(1u << (idx & 7));
+        poolSanitize(list, bits);
+        CHECK_EQ(0, bits[idx >> 3] & (1u << (idx & 7)));
+
+        bool saw1 = false, saw2 = false;
+        for (u32 r = 0; r < 16; r++)
+        {
+            int p = randomPoolAction(list, bits, kMario, r);
+            CHECK(p == a1 || p == a2);
+            if (p == a1) saw1 = true;
+            if (p == a2) saw2 = true;
+        }
+        CHECK(saw1 && saw2);
+
+        // Empty pool returns 0 (None).
+        memset(bits, 0, sizeof(bits));
+        CHECK_EQ(0, randomPoolAction(list, bits, kMario, 5));
+    }
+}
+
+TEST(cpu_actions, tdi_ten_modes_custom_vector_and_just_out_damage_air)
+{
+    // Stable 0..4 indices preserved.
+    CHECK_EQ(0, static_cast<int>(kTdiRandom));
+    CHECK_EQ(4, static_cast<int>(kTdiNone));
+    CHECK_EQ(9, static_cast<int>(kTdiCustom));
+    CHECK_EQ(10, static_cast<int>(kTdiCount));
+
+    // resolveRandomTdi cycles through 7 dynamic modes (never Random or Custom).
+    for (u32 r = 0; r < 14; r++)
+    {
+        int k = resolveRandomTdi(r);
+        CHECK(k != kTdiRandom && k != kTdiCustom && k < kTdiCount);
+    }
+
+    // Slight Away has ~0.42x magnitude; Down & Away points away and down; Custom normalizes >1 vectors.
+    float ox = 0.0f, oy = 0.0f;
+    computeTdiStick(kTdiSlightAway, 0.7071f, 0.7071f, 1.0f, 1.0f, 0, 0.0f, 0.0f, ox, oy);
+    float mag = sqrtf(ox * ox + oy * oy);
+    CHECK(fabsf(mag - 0.42f) < 0.02f);
+
+    computeTdiStick(kTdiDownAway, 0.0f, 1.0f, 1.0f, 1.0f, 0, 0.0f, 0.0f, ox, oy);
+    CHECK(ox < -0.65f && oy < -0.65f);
+
+    computeTdiStick(kTdiCustom, 0.0f, 1.0f, 1.0f, 1.0f, 0, 1.0f, 1.0f, ox, oy);
+    CHECK(fabsf(ox - 0.7071f) < 0.01f && fabsf(oy - 0.7071f) < 0.01f);
+
+    // cpuJustOut: handles CC hitstun >1 -> 0 skips, but NEVER triggers during Landing/LandingLight lag.
+    CHECK(cpuJustOut(true, 1, 0, 0, false, tm::game::kStatusDamage));
+    CHECK(cpuJustOut(true, 3, 0, 0, false, tm::game::kStatusDamage));
+    CHECK(!cpuJustOut(true, 1, 0, 0, false, tm::game::kStatusLanding));
+    CHECK(!cpuJustOut(true, 2, 0, 0, false, tm::game::kStatusLandingLight));
+    CHECK(!cpuJustOut(true, 1, 0, 1, false, tm::game::kStatusDamage));
+    CHECK(!cpuJustOut(false, 1, 0, 0, false, tm::game::kStatusDamage));
 }

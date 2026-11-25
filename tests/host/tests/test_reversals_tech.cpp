@@ -450,10 +450,10 @@ TEST(reversals_tech, sd_migration_from_46_byte_cpu_options_and_round_trip)
 {
     CHECK_EQ(61u, sizeof(cpu::CpuOptions));
     CHECK_EQ(64u, sizeof(main::CpuSettings));
-    CHECK_EQ(436u, sizeof(main::Settings));
+    CHECK_EQ(464u, sizeof(main::Settings));
 
     // Streamlined CPU & OSD menu placement: Counters & Reversals hosts Shield Timing,
-    // Auto L-Cancel, SHFFL Timing, and Reversal Slots; OSDs hosts Tech Sparkle at row 4
+    // Custom Pools, Auto L-Cancel, SHFFL Timing, and Reversal Slots; OSDs hosts Tech Sparkle at row 4
     // and P+ Tech OSD at row 5.
     const ui::Page& cpuPage = ui::pages::kCpuOptions;
     REQUIRE(cpuPage.count == 14);
@@ -462,14 +462,15 @@ TEST(reversals_tech, sd_migration_from_46_byte_cpu_options_and_round_trip)
     CHECK_EQ(static_cast<int>(ui::pages::P_CPU_COUNTERS), static_cast<int>(cpuPage.options[6].max));
 
     const ui::Page& countersPage = ui::pages::kCpuCounters;
-    REQUIRE(countersPage.count == 10);
+    REQUIRE(countersPage.count == 11);
     CHECK(strcmp(countersPage.options[3].name, "Shield Timing") == 0);
     CHECK_EQ(static_cast<int>(cpu::kShieldTimingFullMove), static_cast<int>(countersPage.options[3].def));
-    CHECK(strcmp(countersPage.options[6].name, "Reversal Slots") == 0);
-    CHECK_EQ(ui::kKindMenu, countersPage.options[6].kind);
-    CHECK_EQ(static_cast<int>(ui::pages::P_REVERSALS), static_cast<int>(countersPage.options[6].max));
-    CHECK(strcmp(countersPage.options[8].name, "Auto L-Cancel") == 0);
-    CHECK(strcmp(countersPage.options[9].name, "SHFFL Timing") == 0);
+    CHECK(strcmp(countersPage.options[5].name, "Custom Pools") == 0);
+    CHECK(strcmp(countersPage.options[7].name, "Reversal Slots") == 0);
+    CHECK_EQ(ui::kKindMenu, countersPage.options[7].kind);
+    CHECK_EQ(static_cast<int>(ui::pages::P_REVERSALS), static_cast<int>(countersPage.options[7].max));
+    CHECK(strcmp(countersPage.options[9].name, "Auto L-Cancel") == 0);
+    CHECK(strcmp(countersPage.options[10].name, "SHFFL Timing") == 0);
 
     const ui::Page& osdPage = ui::pages::kOsdMenu;
     REQUIRE(osdPage.count == 26);

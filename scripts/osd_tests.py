@@ -2205,6 +2205,9 @@ def sc_grab(r, mash, name, off=False):
     for k, n in enumerate(held, 1):
         c = rows[n]["c"]["clatter"]
         want.append(["Grab Escape", f"Timer: {int(f32(c + 0.5))}", f"{f32(f32(start - c) / k):.1f} / frame"])
+    if start > 0.0:
+        optimal = max(1, int(f32(f32(start + 16.999) / 17.0)))
+        want.append(["Grab Escape", f"Frames {len(held)} / {optimal}", f"{f32(start / len(held)):.1f} / frame"])
     got = r.messages(text, 2, ID_GRAB_BREAKOUT)
     if got != want:
         bad = next((k for k in range(min(len(got), len(want))) if got[k] != want[k]), min(len(got), len(want)))

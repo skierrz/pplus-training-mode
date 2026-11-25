@@ -96,6 +96,23 @@ namespace extra {
         kSdFaceCount = 3
     };
 
+    enum GrabAction {
+        kGrabActHold = 0,
+        kGrabActRandThrow = 1,
+        kGrabActFThrow = 2,
+        kGrabActBThrow = 3,
+        kGrabActUThrow = 4,
+        kGrabActDThrow = 5,
+        kGrabActStand = 6,
+        kGrabActCount = 7
+    };
+
+    enum GrabPctMode {
+        kGrabPctRandom = 0,
+        kGrabPctCurrent = 1,
+        kGrabPctCount = 2
+    };
+
     enum MultiHitMove {
         kMultiHitAuto = 0,
         kMultiHitNair = 1,
@@ -135,6 +152,8 @@ namespace extra {
         u8 shieldDropPlat;    // ShieldDropPlat
         u8 shieldDropSpacing; // ShieldDropSpacing
         u8 shieldDropFacing;  // ShieldDropFacing
+        u8 grabAction;        // GrabAction
+        u8 grabPctMode;       // GrabPctMode
     };
 
     struct ScenarioSpawns {
@@ -191,6 +210,10 @@ namespace extra {
         bool resetComboTrainer;
         bool applyHmnPercent;
         bool applyCpuPercent;
+        bool useExplicitHmnDmg;
+        float hmnDmg;
+        bool useExplicitCpuDmg;
+        float cpuDmg;
         bool refreshHmnAir;
         bool hmnSpendDj;
         bool refreshCpuAir;
@@ -208,6 +231,8 @@ namespace extra {
         u8 lastShieldDropPlat;
         u8 lastShieldDropSpacing;
         u8 lastShieldDropFacing;
+        u8 lastGrabAction;
+        u8 lastGrabPctMode;
 
         bool snapshotActive;
         cpu::CpuOptions snapshotCpu;
@@ -219,6 +244,8 @@ namespace extra {
         u16 snapshotCpuPercent;
         u8 snapshotLockCpuPercent;
         bool snapshotCpuValid;
+        u8 snapshotGrabBreakoutOsd;
+        bool snapshotOsdValid;
 
         bool pendingReset;
         bool hasPlatform;
@@ -290,8 +317,11 @@ namespace extra {
         u8 preset;
         u8 multiHitMove;    // MultiHitMove (Auto resolved via cpuFtKind)
         u8 ledgetechAttack; // Resolved LedgetechAttack (0..6)
+        u8 grabAction;      // GrabAction
+        u32 rng;            // Per-frame stirred RNG for pre-grab delay & random throw
         int cpuFtKind;
         int cpuStatus;
+        int hmnStatus;
         bool cpuAir;
         bool cpuCanAct;
         bool cpuTakeoffNext;
@@ -314,6 +344,8 @@ namespace extra {
         u8 timer;
         u8 cooldown;
         u8 lastMove;
+        u8 delay;
+        u8 resolvedThrow;
     };
 
     struct ScenarioCpuOutput {
@@ -337,18 +369,19 @@ namespace extra {
     // from snapshot on Preset A -> Preset B or Preset -> Off).
     bool applyScenarioConfig(ScenarioState& st, const ScenarioConfig& rawCfg, cpu::CpuOptions& cpuOpts,
                              main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg = NULL,
-                             main::CpuSettings* cpuSettings = NULL);
+                             main::CpuSettings* cpuSettings = NULL, main::OsdSettings* osdCfg = NULL);
 
     // Re-applies active preset overrides cleanly (e.g. after returning from
     // Brawl Training pause) without losing the original pre-preset snapshot.
     void reapplyActiveScenarioOverrides(const ScenarioState& st, const ScenarioConfig& rawCfg,
                                         cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg,
                                         main::GeneralSettings* generalCfg = NULL,
-                                        main::CpuSettings* cpuSettings = NULL);
+                                        main::CpuSettings* cpuSettings = NULL, main::OsdSettings* osdCfg = NULL);
 
     // Restores pre-preset snapshot on detach (no-op if snapshotActive is false).
     void restoreScenarioSnapshot(ScenarioState& st, cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg,
-                                 main::GeneralSettings* generalCfg = NULL, main::CpuSettings* cpuSettings = NULL);
+                                 main::GeneralSettings* generalCfg = NULL, main::CpuSettings* cpuSettings = NULL,
+                                 main::OsdSettings* osdCfg = NULL);
 
     // Clears snapshot and active preset after a full Lab "Reset Settings" so
     // the freshly defaulted settings are never overwritten with stale snapshots.
@@ -358,7 +391,7 @@ namespace extra {
     // to the SD card while a preset is active.
     void projectScenarioSavedView(const ScenarioState& st, cpu::CpuOptions& cpuOpts,
                                   main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg = NULL,
-                                  main::CpuSettings* cpuSettings = NULL);
+                                  main::CpuSettings* cpuSettings = NULL, main::OsdSettings* osdCfg = NULL);
 
     // Requests an immediate manual reset on the next live frame (no-op if Off).
     void requestScenarioManualReset(ScenarioState& st);
@@ -373,7 +406,8 @@ namespace extra {
     // Steps one live frame of the active scenario state machine.
     void stepScenario(ScenarioState& st, const ScenarioConfig& rawCfg, const ScenarioStepInput& in,
                       cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg, ScenarioStepAction& act,
-                      main::GeneralSettings* generalCfg = NULL, main::CpuSettings* cpuSettings = NULL);
+                      main::GeneralSettings* generalCfg = NULL, main::CpuSettings* cpuSettings = NULL,
+                      main::OsdSettings* osdCfg = NULL);
 
     // Steps optional CPU pressure input scripting for active scenarios.
     void stepScenarioCpu(const ScenarioCpuInput& in, ScenarioCpuState& st, ScenarioCpuOutput& out);

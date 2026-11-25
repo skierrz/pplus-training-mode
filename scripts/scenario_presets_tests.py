@@ -53,7 +53,7 @@ SCENARIO_SIZE = 0x50
 SET_PLAYER_INF_SHIELD = 20
 SET_CPU_OPTIONS = 123
 CPU_OPTIONS_SIZE = 61
-SET_COMBO = 388
+SET_COMBO = 416
 COMBO_SIZE = 16
 
 # ScenarioId (src/extra/scenario_presets_core.h).

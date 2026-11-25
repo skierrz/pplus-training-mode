@@ -810,8 +810,25 @@ namespace game {
         {
             dashback(w, t, i, kDashbackFailed);
         }
-        if (t.cur.status < kStatusCapturePulled || t.cur.status > kStatusCaptureDamage)
+        // Standard grabs (0x3D..0x3F) and Yoshi tongue grabs (0x107..0x109).
+        bool inGrabHold = (t.cur.status >= kStatusCapturePulled && t.cur.status <= kStatusCaptureDamage)
+                          || (t.cur.status >= 0x107 && t.cur.status <= 0x109);
+        if (!inGrabHold)
         {
+            if (w.grabbed)
+            {
+                bool escaped = t.cur.status == 0x40 || t.cur.status == 0x41 || t.cur.status == 0x10A;
+                if (escaped && w.grabFrames > 0 && w.grabStart > 0.0f)
+                {
+                    int optimal = static_cast<int>((w.grabStart + 16.999f) / 17.0f);
+                    if (optimal < 1)
+                    {
+                        optimal = 1;
+                    }
+                    emit(kTechGrabBreakout, t, i, static_cast<int>(w.grabFrames), 1, optimal, 0,
+                         w.grabStart / static_cast<float>(w.grabFrames));
+                }
+            }
             w.grabbed = false;
             return;
         }

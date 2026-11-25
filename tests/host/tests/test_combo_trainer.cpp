@@ -242,3 +242,70 @@ TEST(combo_trainer, seven_floating_meters_compute_exact_ratios_and_mask)
     computeComboMeters(main::kMeterHitstun, in, st, mv);
     CHECK_EQ(0u, static_cast<unsigned>(mv.activeMask));
 }
+
+TEST(combo_trainer, post_hitstun_delay_frame_trap_cancel_ko_reset_and_reset_p1)
+{
+    main::ComboTrainerSettings cfg = defaultCfg();
+    cfg.fixPosition = 1;
+    cfg.resetP1 = 1;
+    cfg.resetDelay = main::kComboDelay30; // 30f post-hitstun escape window
+
+    ComboSlotState st;
+    comboSlotReset(st);
+    ComboStepAction act;
+    ComboStepInput in = baseInput();
+
+    // Frame 0: capture anchor.
+    stepComboTrainer(cfg, in, st, act);
+    CHECK(st.anchorValid);
+
+    // Hit 1: enter hitstun.
+    in.status = 0x45;
+    in.hitstun = 10;
+    stepComboTrainer(cfg, in, st, act);
+    CHECK(st.wasInHitstun && !act.doWarp);
+
+    // Hitstun ends: must NOT warp on frame 0; counts down 30f delay.
+    in.status = 0x00;
+    in.hitstun = 0;
+    for (int f = 0; f < 10; f++)
+    {
+        stepComboTrainer(cfg, in, st, act);
+        CHECK(!act.doWarp);
+    }
+
+    // Frame-trap hit during the 30f window cancels the timer and continues the string!
+    in.status = 0x45;
+    in.hitstun = 8;
+    stepComboTrainer(cfg, in, st, act);
+    CHECK(!act.doWarp);
+    CHECK(st.wasInHitstun);
+
+    // Hitstun ends again: wait full 30f delay -> warps on frame 31 with resetP1 = true.
+    in.status = 0x00;
+    in.hitstun = 0;
+    for (int f = 0; f < 30; f++)
+    {
+        stepComboTrainer(cfg, in, st, act);
+        CHECK(!act.doWarp);
+    }
+    stepComboTrainer(cfg, in, st, act);
+    CHECK(act.doWarp);
+    CHECK(act.resetP1);
+    CHECK_EQ(1u, st.resetCount);
+
+    // KO (Rebirth 0xBE) bypasses the 30f delay and resets immediately!
+    in.status = 0x45;
+    in.hitstun = 12;
+    stepComboTrainer(cfg, in, st, act);
+    in.status = 0xBE; // Rebirth
+    in.hitstun = 0;
+    stepComboTrainer(cfg, in, st, act);
+    CHECK(act.doWarp);
+    CHECK(act.resetP1);
+    CHECK_EQ(2u, st.resetCount);
+
+    // Yoshi tongue grab (0x107..0x10A) holds combo active without resetting.
+    CHECK(isDownOrGrabStatus(0x107));
+    CHECK(isDownOrGrabStatus(0x10A));
+}

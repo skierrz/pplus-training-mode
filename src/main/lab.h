@@ -55,6 +55,8 @@ namespace lab {
     void resetLabSettings();
     void resetAllPressed();
     extern char g_resetLabel[];
+    void toggleDiStickPicker();
+    extern char g_diPickLabel[];
     // Main Menu > Exit and every drill's Exit row: closes the menu and ends the
     // match as Training's Finish does, to its character select, without its
     // pause (game::endTrainingMatch). Outside a running Training match it only
@@ -69,6 +71,9 @@ namespace lab {
     // cut into (menu open, Start during frame advance, the post-pause catch-up,
     // the match ending after Exit); and the lab's part after a load.
     bool savestateBusy();
+    // True when Combo Lab's L + D-Pad CPU % shortcut is held on raw system pads
+    // (checked by savestate::onPads before it consumes or hides D-Pad Left/Right).
+    bool comboLHeldOnPads(const gfPadStatus* pads);
     void savestateCopying();
     void savestateLoaded();
     // Pre-swap teardown for overlays, OSDs, advantage/technique trackers,

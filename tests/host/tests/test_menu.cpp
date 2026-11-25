@@ -634,9 +634,9 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK(strcmp(osdP.options[10].name, "Shield Advantage") == 0);
 
     const ui::Page& scen = ui::pages::kScenarios;
-    REQUIRE(scen.count == 13);
-    CHECK(strcmp(scen.options[12].name, "Combo Trainer") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[12].max);
+    REQUIRE(scen.count == 15);
+    CHECK(strcmp(scen.options[14].name, "Combo Trainer") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[14].max);
 
     const ui::Page& sc = ui::pages::kStageCast;
     REQUIRE(sc.count == 34);
@@ -863,10 +863,10 @@ TEST(menu, bit_flag_toggles_default_and_preserve_sibling_bits)
     bootLab();
     const ui::MenuDef& menu = ui::labMenu();
     const ui::Page& combo = ui::pages::kComboTrainer;
-    REQUIRE(combo.count == 11);
-    CHECK(combo.options[10].name != NULL && strcmp(combo.options[10].name, "Floating Meters") == 0);
-    CHECK_EQ(ui::kKindMenu, combo.options[10].kind);
-    CHECK_EQ(ui::pages::P_COMBO_METERS, combo.options[10].max);
+    REQUIRE(combo.count == 16);
+    CHECK(combo.options[15].name != NULL && strcmp(combo.options[15].name, "Floating Meters") == 0);
+    CHECK_EQ(ui::kKindMenu, combo.options[15].kind);
+    CHECK_EQ(ui::pages::P_COMBO_METERS, combo.options[15].max);
     CHECK_EQ(1, static_cast<int>(main::settings().comboTrainer.noclip));
     CHECK_EQ(static_cast<int>(main::kComboDmgCpu), static_cast<int>(main::settings().comboTrainer.fixedDamageMode));
 
@@ -1389,19 +1389,20 @@ TEST(lab_menu, progressive_disclosure_hides_child_rows_until_parent_enabled)
     ui::menuStep(menu, st, inDown);
     CHECK_EQ(4, static_cast<int>(st.cursor[ui::pages::P_DISPLAY]));
 
-    // 2. CPU > DI & SDI: SDI Direction (2) and Dual-Stick SDI (3) hidden while SDI Inputs == 0.
+    // 2. CPU > DI & SDI: Custom DI rows (1..3) hidden unless tdi==Custom; SDI rows (5..6) hidden while sdiAmount==0.
     const u8 diPath[] = {ui::pages::P_CPU, ui::pages::P_CPU_DI};
     REQUIRE(ui::menuJump(menu, st, diPath, 2));
+    main::settings().cpu.options.tdi = cpu::kTdiRandom;
     main::settings().cpu.options.sdiAmount = 0;
     CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_CPU_DI]));
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(1, static_cast<int>(st.cursor[ui::pages::P_CPU_DI]));
+    CHECK_EQ(4, static_cast<int>(st.cursor[ui::pages::P_CPU_DI])); // jumped past rows 1..3 to SDI Inputs
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(4, static_cast<int>(st.cursor[ui::pages::P_CPU_DI])); // jumped past rows 2 & 3 to ASDI Direction
+    CHECK_EQ(7, static_cast<int>(st.cursor[ui::pages::P_CPU_DI])); // jumped past rows 5 & 6 to ASDI Direction
     main::settings().cpu.options.sdiAmount = 2;
-    st.cursor[ui::pages::P_CPU_DI] = 1;
+    st.cursor[ui::pages::P_CPU_DI] = 4;
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(2, static_cast<int>(st.cursor[ui::pages::P_CPU_DI]));
+    CHECK_EQ(5, static_cast<int>(st.cursor[ui::pages::P_CPU_DI]));
 
     // 3. Recording: post-save rows (1..18) hidden when !positionsSaved; only row 0 visible.
     host::fakes::recording().positions = false;
@@ -1425,20 +1426,20 @@ TEST(lab_menu, progressive_disclosure_hides_child_rows_until_parent_enabled)
     ui::menuStep(menu, st, inDown);
     CHECK_EQ(12, static_cast<int>(st.cursor[ui::pages::P_OSD_MENU]));
 
-    // 5. Combo Trainer: Fixed Damage (row 7) hidden when Reset Damage == Use CPU %.
+    // 5. Combo Trainer: Fixed Damage (row 11) hidden when Reset Damage == Use CPU %.
     const u8 comboPath[] = {ui::pages::P_SCENARIOS, ui::pages::P_COMBO_TRAINER};
     main::settings().cpu.options.control = cpu::kControlLab;
     main::settings().comboTrainer.enabled = 1;
     main::settings().comboTrainer.fixPosition = 1;
     main::settings().comboTrainer.fixedDamageMode = main::kComboDmgCpu;
     REQUIRE(ui::menuJump(menu, st, comboPath, 2));
-    st.cursor[ui::pages::P_COMBO_TRAINER] = 6; // Reset Damage
+    st.cursor[ui::pages::P_COMBO_TRAINER] = 10; // Reset Damage
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(8, static_cast<int>(st.cursor[ui::pages::P_COMBO_TRAINER])); // skips row 7 Fixed Damage
+    CHECK_EQ(12, static_cast<int>(st.cursor[ui::pages::P_COMBO_TRAINER])); // skips row 11 Fixed Damage
     main::settings().comboTrainer.fixedDamageMode = main::kComboDmgCustom;
-    st.cursor[ui::pages::P_COMBO_TRAINER] = 6;
+    st.cursor[ui::pages::P_COMBO_TRAINER] = 10;
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(7, static_cast<int>(st.cursor[ui::pages::P_COMBO_TRAINER]));
+    CHECK_EQ(11, static_cast<int>(st.cursor[ui::pages::P_COMBO_TRAINER]));
 
     main::setExtraHooks(NULL);
     storage::detach();

@@ -712,7 +712,7 @@ namespace savestate {
         bool live = m.running && m.training && !m.paused;
         if (live)
         {
-            u32 bound = boundBits();
+            u32 bound = lab::comboLHeldOnPads(pads) ? 0u : boundBits();
             s_heldRight = (bound & kDpadRight) && (held & kDpadRight) ? s_heldRight + 1 : 0;
             if (s_heldRight == 0)
             {

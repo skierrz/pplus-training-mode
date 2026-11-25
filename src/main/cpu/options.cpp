@@ -19,6 +19,7 @@
 #include "main/cpu/clatter_logic.h"
 #include "main/cpu/cpu_settings.h"
 #include "main/cpu/cue.h"
+#include "main/cpu/di_logic.h"
 #include "main/cpu/driver.h"
 #include "main/cpu/lab_data.h"
 #include "main/cpu/ledge_logic.h"
@@ -517,6 +518,7 @@ namespace cpu {
         float tdiX, tdiY, sdiX, sdiY, asdiX, asdiY;
         bool haveAsdi;
         int diKind;   // the Tdi the hit's trajectory DI follows (Random resolved)
+        u32 diRoll;   // per-hit RNG seed for Slight Random DI
         int sdiDone, hitlagFrame, afterHitlag;
         // teching
         int tech;
@@ -579,6 +581,7 @@ namespace cpu {
             tdiX = tdiY = sdiX = sdiY = asdiX = asdiY = 0.0f;
             haveAsdi = false;
             diKind = kTdiNone;
+            diRoll = 0;
             sdiDone = hitlagFrame = afterHitlag = 0;
             tech = kTechNone;
             techChosen = techPressed = false;
@@ -872,11 +875,15 @@ namespace cpu {
             return m;
         }
 
-        // Trajectory DI perpendicular to the launch vector (read from knockback
-        // energy before DI is applied): full 18-degree turn for In, Out, and
-        // Survival.
+        // Trajectory DI from the launch vector (read from knockback energy
+        // before DI is applied) for all 9 Tdi modes.
         void relativeDi()
         {
+            if (diKind == kTdiNone)
+            {
+                tdiX = tdiY = 0.0f;
+                return;
+            }
             float kx = 0.0f, ky = 0.0f;
             if (!knockback(f, kx, ky) || (kx == 0.0f && ky == 0.0f))
             {
@@ -885,26 +892,11 @@ namespace cpu {
             }
             float len = length(kx, ky);
             float ux = kx / len, uy = ky / len;
-            // Inwards: clockwise for an upward launch with the opponent on
-            // the right, counter-clockwise for a downward one.
-            float in = (uy >= 0.0f ? -1.0f : 1.0f) * toward;
-            float turn = 1.0f;
-            switch (diKind)
-            {
-            case kTdiInwards:
-                turn = in;
-                break;
-            case kTdiOutwards:
-                turn = -in;
-                break;
-            case kTdiSurvival:
-                turn = survivalTurn(kx, ky, len);
-                break;
-            default:
-                return;
-            }
-            tdiX = -uy * turn;
-            tdiY = ux * turn;
+            float st = diKind == kTdiSurvival ? survivalTurn(kx, ky, len) : 1.0f;
+            const CpuTables& t = main::settings().cpuTables;
+            computeTdiStick(diKind, ux, uy, toward, st, diRoll,
+                            static_cast<float>(t.customDiX) / 100.0f,
+                            static_cast<float>(t.customDiY) / 100.0f, tdiX, tdiY);
         }
 
         void chooseDi(const Owner&)
@@ -914,22 +906,12 @@ namespace cpu {
             haveAsdi = false;
             if (kind == kTdiRandom)
             {
-                static const u8 kPick[4] = {kTdiInwards, kTdiOutwards, kTdiSurvival, kTdiNone};
-                kind = kPick[rndBelow(4)];
+                kind = resolveRandomTdi(rnd());
             }
             float away = -toward;
             diKind = kind;
-            switch (kind)
-            {
-            case kTdiInwards:
-            case kTdiOutwards:
-            case kTdiSurvival:
-                relativeDi();
-                break;
-            default:
-                tdiX = tdiY = 0.0f;
-                break;
-            }
+            diRoll = rnd();
+            relativeDi();
             switch (c.asdi)
             {
             case kAsdiAway:
@@ -1516,13 +1498,17 @@ namespace cpu {
             return true;
         }
 
-        // Random and Random Advanced picked, once per counter.
-        int resolve(int list, int index)
+        // Random, Random Advanced, and Custom Pool picked once per counter.
+        int resolve(int list, int index, int ftKind)
         {
             int kind = actionKind(list, index);
             if (kind == kActionRandom)
             {
                 return randomAction(list, rnd());
+            }
+            if (kind == kActionCustomPool)
+            {
+                return randomPoolAction(list, main::settings().cpuTables.poolBits[list], ftKind, rnd());
             }
             if (kind == kActionRandomAdvanced)
             {
@@ -1531,8 +1517,8 @@ namespace cpu {
                 for (int i = 1; i <= kAdvancedHits; i++)
                 {
                     const AdvancedHit& h = advancedHit(i);
-                    int kind = actionKind(list, h.action[list]);
-                    if (h.logic == kLogicCustom && (kind == kActionScript || kind == kActionPlaySlot))
+                    int hk = actionKind(list, h.action[list]);
+                    if (h.logic == kLogicCustom && (hk == kActionScript || hk == kActionPlaySlot))
                     {
                         picks[n++] = h.action[list];
                     }
@@ -1547,7 +1533,7 @@ namespace cpu {
         // in hitstun, a held guard took effect, a jump pressed then came out).
         bool justOut() const
         {
-            return havePrev && prevHitstun == 1 && v.hitstun == 0 && v.hitlag == 0;
+            return cpuJustOut(havePrev, prevHitstun, v.hitstun, v.hitlag, v.air, v.status);
         }
 
         void counter(Frame& out, const Owner& who)
@@ -1584,14 +1570,47 @@ namespace cpu {
             }
             int list = shieldKind ? kListShield : (counterAir && airNow ? kListAir : kListGround);
             int index = 0, delay = 0;
-            if (!counterChoice(list, index, delay))
+            bool comboJumpInvuln = false;
+            const main::ComboTrainerSettings& combo = main::settings().comboTrainer;
+            if (!shieldKind && combo.enabled != 0 && combo.fixPosition != 0 && combo.recoveryTrainer == 0
+                && combo.postHitstunEscape != main::kComboEscapeCounter)
+            {
+                delay = 0;
+                switch (combo.postHitstunEscape)
+                {
+                case main::kComboEscapeDodge:
+                    index = 1; // Ground: Spotdodge (1), Air: Airdodge (1)
+                    break;
+                case main::kComboEscapeJumpInvuln:
+                    if (list == kListAir && !jumpLeft(f))
+                    {
+                        index = 1; // No double jump left: fall back to Airdodge without phantom intangibility
+                    }
+                    else
+                    {
+                        index = (list == kListAir) ? 2 : 18; // Air: Jump Away (2), Ground: Short Hop (18)
+                        comboJumpInvuln = true;
+                    }
+                    break;
+                case main::kComboEscapeCustomPool:
+                    index = customPoolIndex(list);
+                    break;
+                case main::kComboEscapeNone:
+                default:
+                    index = 0;
+                    break;
+                }
+            }
+            else if (!counterChoice(list, index, delay))
             {
                 TM_LOG("cpu: P%d counter disabled for hit %d\n", who.playerNo + 1, hits);
                 revPicked = false;
                 state = kAfter;
                 return;
             }
-            if (list == kListAir)
+            if (list == kListAir || (!shieldKind && combo.enabled != 0 && combo.fixPosition != 0
+                                     && combo.recoveryTrainer == 0
+                                     && combo.postHitstunEscape != main::kComboEscapeCounter))
             {
                 revPicked = false;
             }
@@ -1628,6 +1647,8 @@ namespace cpu {
             }
             bool adaptiveUsed = false;
             if (revAction == 0 && opts().adaptiveMode == kAdaptiveActive && list != kListAir
+                && !(combo.enabled != 0 && combo.fixPosition != 0 && combo.recoveryTrainer == 0
+                     && combo.postHitstunEscape != main::kComboEscapeCounter)
                 && main::extraLoaded())
             {
                 int biasIdx = main::extraAdaptiveBias(who.playerNo, list, true, oppDist, false);
@@ -1637,7 +1658,8 @@ namespace cpu {
                     adaptiveUsed = true;
                 }
             }
-            int chosen = resolve(list, index);
+            int fk = fighterKind(who.entryId);
+            int chosen = resolve(list, index, fk);
             if (actionKind(list, chosen) == kActionPlayRandomSlot)
             {
                 int pick = randomSlot();
@@ -1647,7 +1669,7 @@ namespace cpu {
                 startPlay(out, pick);
                 return;
             }
-            const Action* a = actionFor(list, chosen, fighterKind(who.entryId));
+            const Action* a = actionFor(list, chosen, fk);
             if (!takeable(a, airNow, fresh))
             {
                 return;
@@ -1655,6 +1677,10 @@ namespace cpu {
             if (adaptiveUsed)
             {
                 main::extraAdaptiveBias(who.playerNo, list, true, oppDist, true);
+            }
+            if (comboJumpInvuln && a != NULL && ((a->flags & kNeedsJump) == 0 || jumpLeft(f)))
+            {
+                setIntangible(f, 10);
             }
             TM_LOG("cpu: P%d counter list %d action %d (%d) after %d actionable frames, hit %d, frame %u, "
                    "air %d y %d vy %d\n",
@@ -1678,7 +1704,7 @@ namespace cpu {
             }
             const u32 first = a->steps[0].buttons;
             const bool stick = a->steps[0].x != 0 || a->steps[0].y != 0;
-            if (v.hitstun == 1 && (airNow || stick || (first & (kAttack | kSpecial | kJump)) != 0))
+            if (v.hitstun == 1 && (v.air || stick || (first & (kAttack | kSpecial | kJump)) != 0))
             {
                 return false;
             }
@@ -1708,8 +1734,9 @@ namespace cpu {
             {
                 return false;
             }
-            int chosen = q.custom != NULL ? 0 : resolve(q.list, q.index);
-            const Action* a = q.custom != NULL ? q.custom : actionFor(q.list, chosen, fighterKind(who.entryId));
+            int fk = fighterKind(who.entryId);
+            int chosen = q.custom != NULL ? 0 : resolve(q.list, q.index, fk);
+            const Action* a = q.custom != NULL ? q.custom : actionFor(q.list, chosen, fk);
             bool randomSlotPick = q.custom == NULL && actionKind(q.list, chosen) == kActionPlayRandomSlot;
             if (!randomSlotPick && !takeable(a, airNow, fresh))
             {
@@ -3077,6 +3104,45 @@ namespace cpu {
             }
             advancedHitChanged();
         }
+    }
+
+    void optionsResetSlot(int playerNo)
+    {
+        if (playerNo < 0 || playerNo >= kMaxSlots)
+        {
+            return;
+        }
+        if (s_brains != NULL)
+        {
+            for (int i = 0; i < kMaxSlots; i++)
+            {
+                if (i == playerNo || s_brains[i].player == playerNo)
+                {
+                    s_brains[i].reset();
+                    s_brains[i].revAction = 0;
+                    s_brains[i].revDelay = 0;
+                }
+            }
+        }
+        s_handed[playerNo].frame = game::kNoFrame;
+        s_playbackSeen[playerNo].frame = game::kNoFrame;
+        memset(&s_cues[playerNo], 0, sizeof(s_cues[playerNo]));
+    }
+
+    void optionsResetAll()
+    {
+        for (int i = 0; i < kMaxSlots; i++)
+        {
+            if (s_brains != NULL)
+            {
+                s_brains[i].reset();
+                s_brains[i].revAction = 0;
+                s_brains[i].revDelay = 0;
+            }
+            s_handed[i].frame = game::kNoFrame;
+            s_playbackSeen[i].frame = game::kNoFrame;
+        }
+        memset(s_cues, 0, sizeof(s_cues));
     }
 #pragma force_active reset
 

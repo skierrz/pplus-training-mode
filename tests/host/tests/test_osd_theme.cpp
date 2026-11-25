@@ -339,7 +339,7 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
 {
     CHECK_EQ(2, static_cast<int>(main::kSettingsVersion));
     CHECK_EQ(32u, sizeof(main::OsdSettings));
-    CHECK_EQ(436u, sizeof(Settings));
+    CHECK_EQ(464u, sizeof(Settings));
     CHECK_EQ(110u, offsetof(Settings, osd.bgColor));
     CHECK_EQ(111u, offsetof(Settings, osd.bgAlpha));
     CHECK_EQ(112u, offsetof(Settings, osd.menuAccent));

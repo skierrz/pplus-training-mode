@@ -468,12 +468,12 @@ TEST(fighter_mechanics, settings_offsets_and_storage_roundtrip)
 {
     CHECK_EQ(292u, offsetof(main::Settings, characterRng));
     CHECK_EQ(296u, offsetof(main::Settings, cpuTables));
-    CHECK_EQ(372u, offsetof(main::Settings, stageOptions));
-    CHECK_EQ(388u, offsetof(main::Settings, comboTrainer));
-    CHECK_EQ(404u, offsetof(main::Settings, fighterMechanics));
-    CHECK_EQ(427u, offsetof(main::Settings, fighterMechanics.olimarPikmin));
+    CHECK_EQ(400u, offsetof(main::Settings, stageOptions));
+    CHECK_EQ(416u, offsetof(main::Settings, comboTrainer));
+    CHECK_EQ(432u, offsetof(main::Settings, fighterMechanics));
+    CHECK_EQ(455u, offsetof(main::Settings, fighterMechanics.olimarPikmin));
     CHECK_EQ(32u, sizeof(main::FighterMechanicsSettings));
-    CHECK_EQ(436u, sizeof(main::Settings));
+    CHECK_EQ(464u, sizeof(main::Settings));
 
     storage::detach();
     host::card::reset();

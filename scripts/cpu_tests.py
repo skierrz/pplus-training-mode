@@ -164,7 +164,7 @@ SET_CPU = LT.SET_CPU_PERCENT + 3  # main::CpuSettings::options
 SET_CPU_PERCENT, SET_CPU_LOCK = LT.SET_CPU_PERCENT, LT.SET_LOCK_CPU
 # main::Settings::cpuTables: the Per-Hit Counters (Advanced Counter) pages
 # (src/main/settings.h:275, cpu::CpuTables in src/main/cpu/cpu_settings.h:100).
-SET_CPU_TABLES, CPU_TABLES_SIZE = 296, 76
+SET_CPU_TABLES, CPU_TABLES_SIZE = 296, 104
 CPU_FIELDS = {"control": 0, "behavior": 1, "tdi": 2, "sdiAmount": 3, "sdiDir": 4, "counterGround": 5,
               "counterAir": 6, "counterShield": 7, "counterDelay": 8, "infiniteShields": 9,
               "shieldHealth": 10, "intangible": 11, "tech": 12, "getup": 13, "techChance": 14,

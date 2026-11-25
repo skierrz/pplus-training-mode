@@ -298,9 +298,9 @@ TEST(cpu_shffl, action_tables_preserve_indices_fix_ganon_floats_and_expose_shffl
     CHECK_EQ(ui::pages::kCounterGroundSize, cpu::actionCount(cpu::kListGround));
     CHECK_EQ(ui::pages::kCounterAirSize, cpu::actionCount(cpu::kListAir));
     CHECK_EQ(ui::pages::kCounterShieldSize, cpu::actionCount(cpu::kListShield));
-    CHECK_EQ(56, cpu::actionCount(cpu::kListGround));
-    CHECK_EQ(34, cpu::actionCount(cpu::kListAir));
-    CHECK_EQ(49, cpu::actionCount(cpu::kListShield));
+    CHECK_EQ(57, cpu::actionCount(cpu::kListGround));
+    CHECK_EQ(35, cpu::actionCount(cpu::kListAir));
+    CHECK_EQ(50, cpu::actionCount(cpu::kListShield));
 
     // Existing indices untouched: Random at 40 (ground), 28 (air), 33 (shield);
     // DJC at 41..45 (ground), 34..38 (shield); Float at 46..50 (ground), 39..43 (shield).
@@ -371,19 +371,20 @@ TEST(cpu_shffl, action_tables_preserve_indices_fix_ganon_floats_and_expose_shffl
 
     // Menu rows live on CPU > Counters & Reversals (P_CPU_COUNTERS), with matching descriptions.
     const ui::Page& page = ui::pages::kCpuCounters;
-    REQUIRE(page.count == 10);
+    REQUIRE(page.count == 11);
     CHECK(strcmp(page.options[3].name, "Shield Timing") == 0);
     CHECK_EQ(ui::kKindChoice, page.options[3].kind);
     CHECK_EQ(cpu::kShieldTimingFullMove, page.options[3].def);
-    CHECK(strcmp(page.options[6].name, "Reversal Slots") == 0);
-    CHECK(strcmp(page.options[7].name, "Adaptive CPU") == 0);
-    CHECK(strcmp(page.options[8].name, "Auto L-Cancel") == 0);
-    CHECK_EQ(ui::kKindToggle, page.options[8].kind);
-    CHECK_EQ(1, page.options[8].def);
-    CHECK(strcmp(page.options[9].name, "SHFFL Timing") == 0);
-    CHECK_EQ(ui::kKindChoice, page.options[9].kind);
-    CHECK_EQ(cpu::kShfflFramePerfect, page.options[9].def);
-    CHECK_EQ(cpu::kShfflTimingCount - 1, page.options[9].max);
+    CHECK(strcmp(page.options[5].name, "Custom Pools") == 0);
+    CHECK(strcmp(page.options[7].name, "Reversal Slots") == 0);
+    CHECK(strcmp(page.options[8].name, "Adaptive CPU") == 0);
+    CHECK(strcmp(page.options[9].name, "Auto L-Cancel") == 0);
+    CHECK_EQ(ui::kKindToggle, page.options[9].kind);
+    CHECK_EQ(1, page.options[9].def);
+    CHECK(strcmp(page.options[10].name, "SHFFL Timing") == 0);
+    CHECK_EQ(ui::kKindChoice, page.options[10].kind);
+    CHECK_EQ(cpu::kShfflFramePerfect, page.options[10].def);
+    CHECK_EQ(cpu::kShfflTimingCount - 1, page.options[10].max);
 
     for (int r = 0; r < page.count; r++)
     {
@@ -398,7 +399,7 @@ TEST(cpu_shffl, storage_migration_from_44_byte_cpu_options_and_round_trip)
 {
     CHECK_EQ(61u, sizeof(cpu::CpuOptions));
     CHECK_EQ(64u, sizeof(main::CpuSettings));
-    CHECK_EQ(436u, sizeof(main::Settings));
+    CHECK_EQ(464u, sizeof(main::Settings));
 
     host::card::reset();
     bootStorage();

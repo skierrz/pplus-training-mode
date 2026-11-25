@@ -48,10 +48,18 @@ namespace lab {
     void resetAllPressed()
     {
     }
+    char g_diPickLabel[16] = "Tilt + A";
+    void toggleDiStickPicker()
+    {
+    }
     void frameAdvanceChanged()
     {
     }
     bool menuOpen()
+    {
+        return false;
+    }
+    bool comboLHeldOnPads(const gfPadStatus*)
     {
         return false;
     }

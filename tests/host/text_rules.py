@@ -113,6 +113,8 @@ NUMBERS = {
     ("pplus_tech_tracker.cpp", "%s\nCount: %u"): [None, "999"],
     ("lab.cpp", "Wavedash: f%d\nAngle: %2.1f\n%s (%df)"): ["99", "90.0", None, "99"],
     ("lab.cpp", "Grab Escape\nTimer: %d\n%.1f / frame"): ["999", "9.9"],
+    ("lab.cpp", "Grab Escape\nFrames %d / %d\n%.1f / frame"): ["999", "99", "17.0"],
+    ("lab.cpp", "CPU Damage: %d%%"): ["999"],
     ("ledgedash_hud.cpp", "GALINT: %d   Ledge: %d   Angle: %.1f"): ["-24", "99", "90.0"],
     ("ledgedash_hud.cpp", "GALINT: %d   Ledge: %d"): ["-24", "99"],
     ("ledgedash_hud.cpp", "GALINT: None   Ledge: %d"): ["99"],
@@ -689,6 +691,10 @@ def lab_cpp(c, src):
             # The Reset All Settings row's value on the Main Menu (12 bytes).
             c.item("menu-value", lit, lit.text)
             c.buffer(lit, lit.text, 12.0)
+        elif (lit.name == "strcpy" and "g_diPickLabel" in lit.first) or "g_diPickLabel" in lit.stmt:
+            # The Pick DI Angle row's value on CPU > DI & SDI (16 bytes).
+            c.item("menu-value", lit, lit.text)
+            c.buffer(lit, lit.text, 16.0)
         else:
             continue
         c.take(lit)

@@ -45,9 +45,9 @@ CHARS = {
     "olimar": (0x1A, 0x18),
 }
 
-# main::Settings offsets for CharacterRngSettings (292) & FighterMechanicsSettings (404).
+# main::Settings offsets for CharacterRngSettings (292) & FighterMechanicsSettings (432).
 S_GNW_HAMMER = 294
-S_FM = 404
+S_FM = 432
 S_PEACH_FLOAT = S_FM + 0
 S_GNW_BUCKET = S_FM + 1
 S_SAMUS_CHARGE = S_FM + 2

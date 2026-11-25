@@ -22,6 +22,7 @@
 #include <so/so_value_accesser.h>
 #include <so/stop/so_stop_module_impl.h>
 #include <st/st_utility.h>
+#include <cstdio>
 #include <string.h>
 
 #include "main/cpu/driver.h"
@@ -1378,6 +1379,70 @@ namespace extra {
         s_pickerDebug.launchY = launchY;
         s_pickerDebug.diX = diX;
         s_pickerDebug.diY = diY;
+    }
+
+    void diDrawCustomPickerOverlay(bool railMode)
+    {
+        const main::Settings& set = main::settings();
+        if (set.cpu.options.control != cpu::kControlLab || set.cpu.options.tdi != cpu::kTdiCustom)
+        {
+            return;
+        }
+        float xs = gfx::xScale();
+        float paneCenter = railMode ? 392.0f : 315.0f;
+        bool compact = !railMode;
+        float topY = compact ? 308.0f : 288.0f;
+        float cardW = ui::style::w(196.0f);
+        float cardH = compact ? 62.0f : 80.0f;
+        float cardX = ui::style::cx(paneCenter) - cardW * 0.5f;
+
+        drawHudCard(cardX, topY, cardW, cardH, xs, 0x2BB7ABFFu, 0x8EF5EA90u);
+
+        float ry = compact ? 21.0f : 27.0f;
+        float rx = ry * xs;
+        float cx = cardX + ui::style::w(46.0f);
+        float cy = topY + 5.0f + (cardH - 7.0f) * 0.5f;
+
+        gfx::fillEllipse(cx, cy, rx, ry, 0x060E14D8u);
+        gfx::lineBegin(GX_LINES, 4, 6);
+        gfx::vertex(cx - rx, cy, 0x3A586888u);
+        gfx::vertex(cx + rx, cy, 0x3A586888u);
+        gfx::vertex(cx, cy - ry, 0x3A586888u);
+        gfx::vertex(cx, cy + ry, 0x3A586888u);
+
+        gfx::lineBegin(GX_LINESTRIP, 17, 10);
+        for (int i = 0; i < 17; i++)
+        {
+            float ux, uy;
+            unitPoint16(i, ux, uy);
+            gfx::vertex(cx + ux * rx, cy - uy * ry, 0x5A96A8F0u);
+        }
+
+        float vx = static_cast<float>(set.cpuTables.customDiX) / 100.0f;
+        float vy = static_cast<float>(set.cpuTables.customDiY) / 100.0f;
+        clampLength(vx, vy, 1.0f);
+        float tipX = cx + vx * rx * 0.90f;
+        float tipY = cy - vy * ry * 0.90f;
+        if (vx * vx + vy * vy > 0.0004f)
+        {
+            gfx::lineBegin(GX_LINES, 2, 16);
+            gfx::vertex(cx, cy, 0x22D3EEFFu);
+            gfx::vertex(tipX, tipY, 0x22D3EEFFu);
+        }
+        gfx::fillEllipse(tipX, tipY, 3.5f * xs, 3.5f, 0x050C12E8u);
+        gfx::fillEllipse(tipX, tipY, 2.5f * xs, 2.5f, 0x22D3EEFFu);
+
+        float tx = cardX + ui::style::w(90.0f);
+        float headScale = ui::style::scaleForCap(compact ? 7.2f : 8.0f);
+        float bodyScale = ui::style::scaleForCap(compact ? 6.4f : 7.0f);
+        float rowStep = compact ? 15.0f : 20.0f;
+        float row0 = topY + (compact ? 10.0f : 14.0f);
+        drawShadowText(tx, ui::style::textYForCap(row0, headScale), "CUSTOM DI", 0xFFD300FFu, headScale);
+        char coords[24];
+        snprintf(coords, sizeof(coords), "X %+d  Y %+d",
+                 static_cast<int>(set.cpuTables.customDiX), static_cast<int>(set.cpuTables.customDiY));
+        drawShadowText(tx, ui::style::textYForCap(row0 + rowStep, bodyScale), coords, 0xE2EEF4FFu, bodyScale);
+        drawShadowText(tx, ui::style::textYForCap(row0 + rowStep * 2.0f, bodyScale), "A: Pin  B: Cancel", 0x9CB4C4FFu, bodyScale);
     }
 
     void diReset()

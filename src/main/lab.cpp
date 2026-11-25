@@ -43,6 +43,7 @@
 #include "shared/game/menu_sound.h"
 #include "shared/game/pad_bits.h"
 #include "shared/game/scene.h"
+#include "shared/game/stick.h"
 #include "shared/interface.h"
 #include "shared/log.h"
 #include "shared/perf.h"
@@ -128,6 +129,9 @@ namespace lab {
         bool openStart;
         bool startInjectedSystem;
         bool wasPaused;
+        bool diPickActive;
+        s8 diPickSavedX;
+        s8 diPickSavedY;
         // Exit was chosen and the game is ending the match (exitMatch): from
         // then until the module detaches every step runs and none is handed
         // over, the observers are off, savestates are refused and the pads
@@ -338,17 +342,72 @@ namespace lab {
         return main::extraLoaded() && ui::pages::scenarioMenuState()->preset == ui::pages::kPresetShieldDrop;
     }
 
+    static bool comboShortcutActive()
+    {
+        const main::ComboTrainerSettings& ct = settings().comboTrainer;
+        return main::extraLoaded() && ct.enabled != 0 && ct.recoveryTrainer == 0;
+    }
+
+    static bool anyLHeld(const Raw* raw)
+    {
+        for (int i = 0; i < kPorts; i++)
+        {
+            if (raw[i].connected)
+            {
+                u32 lBit = game::inMatchPad(raw[i].controllerType).prevCat;
+                if (lBit != 0 && (raw[i].held & lBit) != 0)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    static bool comboLHeld(const game::MatchState& m)
+    {
+        return m.running && m.training && !m.paused && !s_st.open && comboShortcutActive() && anyLHeld(s_st.sys);
+    }
+
+    bool comboLHeldOnPads(const gfPadStatus* pads)
+    {
+        game::MatchState m = game::matchState();
+        if (!m.running || !m.training || m.paused || s_st.open || !comboShortcutActive() || pads == NULL)
+        {
+            return false;
+        }
+        for (int i = 0; i < kPorts; i++)
+        {
+            if (!game::padConnectedInMatch(i, pads[i]))
+            {
+                continue;
+            }
+            u32 lBit = game::inMatchPad(static_cast<u32>(pads[i].m_controllerType)).prevCat;
+            if (lBit != 0 && (pads[i].m_buttonsCurrentFrame.bits & lBit) != 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // D-pad Up/Down bound to something other than their taunt (Up None: to
-    // nothing; Shield Drop preset: live platform cycle), hidden from the game.
+    // nothing; Shield Drop preset: live platform cycle; Combo Lab: L+D-Pad %
+    // and D-Pad Down anchor reposition), hidden from the game.
     static u32 boundDpad(const game::MatchState& m)
     {
         if (!m.running || !m.training || m.paused)
         {
             return 0;
         }
+        if (comboLHeld(m))
+        {
+            return kDpadAll;
+        }
         const main::ControlSettings& c = settings().controls;
         u32 up = (c.dpadUp == main::kUpNone || shieldDropShortcutActive()) ? kDpadUp : 0;
-        return up | (c.dpadDown != main::kDownNone ? kDpadDown : 0);
+        u32 down = (c.dpadDown != main::kDownNone || comboShortcutActive()) ? kDpadDown : 0;
+        return up | down;
     }
 
     static void hidePort(gfPadStatus& pad, u32 port, const game::MatchState& m, bool fighterPad)
@@ -438,6 +497,8 @@ namespace lab {
     {
         s_st.open = true;
         g_resetLabel[0] = 0;
+        s_st.diPickActive = false;
+        strcpy(g_diPickLabel, "Tilt + A");
         record::clearDeleteConfirm();
         s_st.openStart = start;
         s_st.owner = port;
@@ -473,6 +534,13 @@ namespace lab {
         }
         s_st.open = false;
         g_resetLabel[0] = 0;
+        if (s_st.diPickActive)
+        {
+            settings().cpuTables.customDiX = s_st.diPickSavedX;
+            settings().cpuTables.customDiY = s_st.diPickSavedY;
+            s_st.diPickActive = false;
+        }
+        strcpy(g_diPickLabel, "Tilt + A");
         record::clearDeleteConfirm();
         // Whatever is still held when the menu closes stays hidden until it
         // is let go, so it neither moves Training's menu nor the fighters.
@@ -539,6 +607,48 @@ namespace lab {
             ui::menuSound(game::kSoundClose);
             openTrainingMenu();
             return;
+        }
+        // Live 2D stick capture for CPU > DI & SDI > Pick DI Angle.
+        if (s_st.diPickActive)
+        {
+            if (ui::currentPage(s_menu) != ui::pages::P_CPU_DI
+                || settings().cpu.options.tdi != cpu::kTdiCustom)
+            {
+                s_st.diPickActive = false;
+                strcpy(g_diPickLabel, "Tilt + A");
+            }
+            else
+            {
+                float sx = 0.0f, sy = 0.0f;
+                game::mainStick(in.stickX, in.stickY, &sx, &sy);
+                if (sx * sx + sy * sy < 0.15f * 0.15f)
+                {
+                    sx = sy = 0.0f;
+                }
+                int ix = static_cast<int>(sx >= 0.0f ? (sx * 100.0f + 0.5f) : (sx * 100.0f - 0.5f));
+                int iy = static_cast<int>(sy >= 0.0f ? (sy * 100.0f + 0.5f) : (sy * 100.0f - 0.5f));
+                if (ix < -100) ix = -100;
+                else if (ix > 100) ix = 100;
+                if (iy < -100) iy = -100;
+                else if (iy > 100) iy = 100;
+                settings().cpuTables.customDiX = static_cast<s8>(ix);
+                settings().cpuTables.customDiY = static_cast<s8>(iy);
+                if ((in.pressed & kButtonA) != 0)
+                {
+                    s_st.diPickActive = false;
+                    strcpy(g_diPickLabel, "Tilt + A");
+                    ui::menuSound(game::kSoundConfirm);
+                }
+                else if ((in.pressed & kButtonB) != 0)
+                {
+                    settings().cpuTables.customDiX = s_st.diPickSavedX;
+                    settings().cpuTables.customDiY = s_st.diPickSavedY;
+                    s_st.diPickActive = false;
+                    strcpy(g_diPickLabel, "Tilt + A");
+                    ui::menuSound(game::kSoundMove);
+                }
+                return;
+            }
         }
         ui::MenuInput mi;
         bool up = (in.held & kDpadUp) || in.stickY > kStickDeadZone;
@@ -686,15 +796,58 @@ namespace lab {
                 }
             }
         }
+        // Live Combo Lab shortcuts: L + D-Pad adjusts CPU % (+/-1% L/R, +/-10% U/D);
+        // bare D-Pad Down repositions CPU anchor in front of P1 (when not bound to FA).
+        bool comboL = comboLHeld(m);
+        if (comboL)
+        {
+            int delta = 0;
+            if (anyDpadDir(s_st.sys, m, kDpadRight, false))
+            {
+                delta = 1;
+            }
+            else if (anyDpadDir(s_st.sys, m, kDpadLeft, false))
+            {
+                delta = -1;
+            }
+            else if (anyDpadDir(s_st.sys, m, kDpadUp, false))
+            {
+                delta = 10;
+            }
+            else if (anyDpadDir(s_st.sys, m, kDpadDown, false))
+            {
+                delta = -10;
+            }
+            if (delta != 0)
+            {
+                int pct = static_cast<int>(settings().cpu.percent) + delta;
+                if (pct < 0)
+                {
+                    pct = 0;
+                }
+                else if (pct > 999)
+                {
+                    pct = 999;
+                }
+                settings().cpu.percent = static_cast<u16>(pct);
+                applyPercent(main::kSideCpu);
+                storage::notice(storage::kNoticeOk, "CPU Damage: %d%%", pct);
+            }
+        }
         // DPad Down = Frame Advance: a press turns it on or off.
-        if ((boundDpad(m) & kDpadDown) && !s_st.open && settings().controls.dpadDown == main::kDownFrameAdvance
-            && anyDpadDown(s_st.sys, m, false))
+        if (!comboL && (boundDpad(m) & kDpadDown) && !s_st.open
+            && settings().controls.dpadDown == main::kDownFrameAdvance && anyDpadDown(s_st.sys, m, false))
         {
             settings().general.frameAdvance ^= 1;
             frameAdvanceChanged();
         }
+        else if (!comboL && !s_st.open && !m.paused && m.running && m.training && comboShortcutActive()
+                 && settings().controls.dpadDown != main::kDownFrameAdvance && anyDpadDown(s_st.sys, m, false))
+        {
+            main::extraComboReposition();
+        }
         // Scenario-scoped DPad Up while Shield Drop is active: cycle platforms.
-        if (!s_st.open && !m.paused && m.running && m.training && shieldDropShortcutActive()
+        if (!comboL && !s_st.open && !m.paused && m.running && m.training && shieldDropShortcutActive()
             && anyDpadDir(s_st.sys, m, kDpadUp, false))
         {
             main::extraScenarioCyclePlatform();
@@ -1047,6 +1200,23 @@ namespace lab {
     }
 
     char g_resetLabel[12];
+    char g_diPickLabel[16] = "Tilt + A";
+
+    void toggleDiStickPicker()
+    {
+        if (!s_st.diPickActive)
+        {
+            s_st.diPickSavedX = settings().cpuTables.customDiX;
+            s_st.diPickSavedY = settings().cpuTables.customDiY;
+            s_st.diPickActive = true;
+            strcpy(g_diPickLabel, "Pinning");
+        }
+        else
+        {
+            s_st.diPickActive = false;
+            strcpy(g_diPickLabel, "Tilt + A");
+        }
+    }
 
     void resetAllPressed()
     {
@@ -1324,8 +1494,16 @@ namespace lab {
         case game::kTechGrabBreakout:
             if (o.grabBreakout)
             {
-                osd::post(t.player, osd::kIdGrabBreakout, osd::kWhite, "Grab Escape\nTimer: %d\n%.1f / frame",
-                          t.a, t.angle);
+                if (t.flag != 0)
+                {
+                    osd::post(t.player, osd::kIdGrabBreakout, t.frame <= t.a + 3 ? osd::kGreen : osd::kWhite,
+                              "Grab Escape\nFrames %d / %d\n%.1f / frame", t.frame, t.a, t.angle);
+                }
+                else
+                {
+                    osd::post(t.player, osd::kIdGrabBreakout, osd::kWhite, "Grab Escape\nTimer: %d\n%.1f / frame", t.a,
+                              t.angle);
+                }
             }
             break;
         case game::kTechActOoHitstun:
@@ -1506,7 +1684,8 @@ namespace lab {
     bool savestateBusy()
     {
         return s_st.open || s_st.exiting || s_st.startState != kStartIdle || s_st.catchUp > 0
-               || game::categoriesPaused() || main::extraFighterSwapBusy() || (main::extraDrill(0, NULL) & 2u) != 0u;
+               || game::categoriesPaused() || main::extraFighterSwapBusy() || (main::extraDrill(0, NULL) & 2u) != 0u
+               || comboLHeld(game::matchState());
     }
 
     // Only the extra module (fighter_swap) calls this: keep exported.

@@ -25,6 +25,11 @@ namespace cpu {
         kTdiOutwards,
         kTdiSurvival,
         kTdiNone,
+        kTdiCombo,
+        kTdiSlightRandom,
+        kTdiSlightAway,
+        kTdiDownAway,
+        kTdiCustom,
         kTdiCount
     };
 
@@ -151,13 +156,17 @@ namespace cpu {
         u8 delay[3];
     };
 
-    // The ten Advanced Counter pages, kept with the other settings so they
-    // last between matches.
+    // The ten Advanced Counter pages and per-category Custom Counter Pool
+    // bitmasks, kept with the other settings so they last between matches.
     struct CpuTables {
         u8 ready; // 0 after a settings reset: the pages get their defaults
         AdvancedHit hits[kAdvancedHits];
-        u8 reserved[5];
+        u8 poolReady;      // +71: 0 on reset or older save -> seed default poolBits
+        u8 poolBits[3][8]; // +72..+95: 64-bit action masks (Ground, Air, Shield)
+        s8 customDiX;      // +96: -100..100 custom TDI stick X (default 100)
+        s8 customDiY;      // +97: -100..100 custom TDI stick Y (default 0)
+        u8 reserved[6];    // +98..+103
     };
-    TM_STATIC_ASSERT(sizeof(CpuTables) == 76, tm_cpu_tables_is_76_bytes);
+    TM_STATIC_ASSERT(sizeof(CpuTables) == 104, tm_cpu_tables_is_104_bytes);
 }
 }

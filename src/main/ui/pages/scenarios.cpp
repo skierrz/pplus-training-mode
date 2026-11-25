@@ -49,6 +49,11 @@ namespace pages {
         return presetIs(kPresetLedgetech);
     }
 
+    static bool scenarioGrabActive()
+    {
+        return presetIs(kPresetGrabEscape);
+    }
+
     static bool scenarioMultiHitActive()
     {
         return presetIs(kPresetMultiHitSdi);
@@ -56,7 +61,7 @@ namespace pages {
 
     static const char* const kPresets[] = {
         "Off", "Combo Lab", "Techchase", "Edgeguard", "Shield Pressure / OoS",
-        "Shield Drop", "Ledgetech", "Slide-Off", "Grab Escape", "P+ Multi-Hit SDI"
+        "Shield Drop", "Ledgetech", "Slide-Off", "Grab Defense / Throw DI", "P+ Multi-Hit SDI"
     };
     static const char* const kSides[] = {"Right", "Left", "Random"};
     static const char* const kOosActions[] = {
@@ -72,6 +77,10 @@ namespace pages {
     static const char* const kShieldDropPlats[] = {"Left", "Right", "Top", "Random"};
     static const char* const kShieldDropSpacing[] = {"Random", "Close", "Under", "Far"};
     static const char* const kShieldDropFacing[] = {"Toward", "Away", "Random"};
+    static const char* const kGrabActions[] = {
+        "Hold (Mash Out)", "Random Throw", "F-Throw", "B-Throw", "U-Throw", "D-Throw", "Stand (P1 Grabs)"
+    };
+    static const char* const kGrabPctModes[] = {"Random 0-79%", "Current P1 %"};
     static const char* const kMultiHitMoves[] = {
         "Auto (Best)", "Nair", "Fair", "Up Air", "Down Air", "Rapid Jab", "Up B", "Side B", "Down B"
     };
@@ -106,6 +115,12 @@ namespace pages {
         TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,
                TM_SCEN_OFF(shieldDropFacing), 0, TM_COUNT(kShieldDropFacing) - 1, 0, "CPU Facing", kShieldDropFacing,
                main::extraScenarioChanged, scenarioShieldDropActive),
+        TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,
+               TM_SCEN_OFF(grabAction), 0, TM_COUNT(kGrabActions) - 1, 0, "CPU Action", kGrabActions,
+               main::extraScenarioChanged, scenarioGrabActive),
+        TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,
+               TM_SCEN_OFF(grabPctMode), 0, TM_COUNT(kGrabPctModes) - 1, 0, "P1 Damage", kGrabPctModes,
+               main::extraScenarioChanged, scenarioGrabActive),
         TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,
                TM_SCEN_OFF(multiHitMove), 0, TM_COUNT(kMultiHitMoves) - 1, 0, "Multi-Hit Move", kMultiHitMoves,
                main::extraScenarioChanged, scenarioMultiHitActive),

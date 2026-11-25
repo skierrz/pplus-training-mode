@@ -415,6 +415,35 @@ namespace main {
         kComboDmgModeCount
     };
 
+    // Combo Trainer post-hitstun reset delay before warping back.
+    enum ComboResetDelay {
+        kComboDelayInstant = 0,
+        kComboDelay15 = 1,
+        kComboDelay30 = 2, // default
+        kComboDelay45 = 3,
+        kComboDelay60 = 4,
+        kComboDelayCount
+    };
+
+    // Combo Trainer CPU behavior during the post-hitstun escape window.
+    enum ComboPostEscape {
+        kComboEscapeDodge = 0,      // default: airdodge / spotdodge escape
+        kComboEscapeJumpInvuln = 1, // jump + brief escape intangibility cue
+        kComboEscapeCounter = 2,    // run normal CPU Ground/Air Counter settings
+        kComboEscapeCustomPool = 3, // randomly pick from CPU Custom Counter Pool
+        kComboEscapeNone = 4,       // passive
+        kComboEscapeCount
+    };
+
+    // Edgeguard / Recovery Trainer AI mixup profile.
+    enum RecoveryMixup {
+        kRecMixupMixed = 0, // default
+        kRecMixupLow = 1,   // sweetspot low
+        kRecMixupHigh = 2,  // recover high
+        kRecMixupDirect = 3,// direct to ledge/stage
+        kRecMixupCount
+    };
+
     // Combo Trainer backend settings (src/extra/combo_trainer.*).
     struct ComboTrainerSettings {
         u8 enabled;              // 0/1
@@ -428,7 +457,10 @@ namespace main {
         u16 fixedDamage;         // 0..999 fixed damage applied on reset when fixedDamageMode == Custom
         u8 enabledMeters;        // 7-bit ComboMeterBit mask (independent of comboTrainer.enabled)
         u8 fixedDamageMode;      // ComboDamageMode (0 Use CPU %, 1 Custom %)
-        u8 reserved[4];
+        u8 resetP1;              // 0/1 (default 1: restore P1 anchor & damage on combo reset)
+        u8 resetDelay;           // ComboResetDelay (default 2 = 30f)
+        u8 postHitstunEscape;    // ComboPostEscape (default 0 = Dodge)
+        u8 recoveryMixup;        // RecoveryMixup (default 0 = Mixed)
     };
 
     // Fighter Mechanics (extra/fighter_mechanics.*): per-fighter charge,
@@ -562,12 +594,12 @@ namespace main {
     TM_STATIC_ASSERT(offsetof(Settings, techInvis) == 288, tm_settings_tech_invis_at_288);
     TM_STATIC_ASSERT(offsetof(Settings, characterRng) == 292, tm_settings_character_rng_at_292);
     TM_STATIC_ASSERT(offsetof(Settings, cpuTables) == 296, tm_settings_cpu_tables_at_296);
-    TM_STATIC_ASSERT(offsetof(Settings, stageOptions) == 372, tm_settings_stage_options_at_372);
-    TM_STATIC_ASSERT(offsetof(Settings, comboTrainer) == 388, tm_settings_combo_trainer_at_388);
-    TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics) == 404, tm_settings_fighter_mechanics_at_404);
-    TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.nanaThrow) == 426, tm_settings_nana_throw_at_426);
-    TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.olimarPikmin) == 427, tm_settings_olimar_pikmin_at_427);
-    TM_STATIC_ASSERT(sizeof(Settings) == 436, tm_settings_size_unchanged);
+    TM_STATIC_ASSERT(offsetof(Settings, stageOptions) == 400, tm_settings_stage_options_at_400);
+    TM_STATIC_ASSERT(offsetof(Settings, comboTrainer) == 416, tm_settings_combo_trainer_at_416);
+    TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics) == 432, tm_settings_fighter_mechanics_at_432);
+    TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.nanaThrow) == 454, tm_settings_nana_throw_at_454);
+    TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.olimarPikmin) == 455, tm_settings_olimar_pikmin_at_455);
+    TM_STATIC_ASSERT(sizeof(Settings) == 464, tm_settings_size_unchanged);
 
     // Lab Menu Button's default: Start in the match opens the menu (0 keeps it
     // inside Training's pause, where Z opens it).

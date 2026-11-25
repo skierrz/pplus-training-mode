@@ -40,10 +40,10 @@ from harness import HarnessError, Timeout
 from plugin_input import B_JUMP, frames_to_steps
 
 # main::Settings offsets (src/main/settings.h).
-S_STAGE_HAZARDS = 372
-S_STAGE_PLATFORM = 373
-S_STAGE_FOD_LEFT = 374
-S_STAGE_FOD_RIGHT = 375
+S_STAGE_HAZARDS = 400
+S_STAGE_PLATFORM = 401
+S_STAGE_FOD_LEFT = 402
+S_STAGE_FOD_RIGHT = 403
 
 # Game addresses (RSBE01 rev 2, P+ 3.2.1).
 G_STAGE_PTR = 0x80B8A428          # Stage* g_Stage

@@ -573,7 +573,7 @@ TEST(settings_file, a_controls_area_without_menu_style_defaults_to_rail_c)
 {
     CHECK_EQ(2, static_cast<int>(main::kSettingsVersion));
     CHECK_EQ(16u, sizeof(main::ControlSettings));
-    CHECK_EQ(436u, sizeof(main::Settings));
+    CHECK_EQ(464u, sizeof(main::Settings));
     CHECK_EQ(33u, offsetof(main::Settings, controls.menuStyle));
 
     Settings defaults, chosen;

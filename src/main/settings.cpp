@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "main/cpu/actions.h"
 #include "main/cpu/lab_data.h"
 #include "main/game/overlays.h"
 #include "main/storage/areas.h"
@@ -35,6 +36,22 @@ namespace main {
                 h.delay[k] = clampU8(h.delay[k], 99);
             }
         }
+        if (t.poolReady == 0)
+        {
+            cpu::poolTablesDefaults(t);
+        }
+        else
+        {
+            t.poolReady = 1;
+            for (int k = 0; k < cpu::kListCount; k++)
+            {
+                cpu::poolSanitize(k, t.poolBits[k]);
+            }
+            if (t.customDiX < -100) t.customDiX = -100;
+            else if (t.customDiX > 100) t.customDiX = 100;
+            if (t.customDiY < -100) t.customDiY = -100;
+            else if (t.customDiY > 100) t.customDiY = 100;
+        }
 
         // Group kGroupJumps is marked unavailable in the menu, so clampAll skips it.
         for (int side = 0; side < kSideCount; side++)
@@ -66,8 +83,13 @@ namespace main {
             TM_CLAMP(stageOptions.fodRight, 0, kFodHeightCount - 1),
             TM_CLAMP(osd.preset, 0, kOsdPresetCount - 1),
             TM_CLAMP(osd.techSparkle, 0, kTechSparkleCount - 1),
+            TM_CLAMP(cpu.options.tdi, 0, cpu::kTdiCount - 1),
             TM_CLAMP(cpu.options.shieldTiming, 0, cpu::kShieldTimingCount - 1),
             TM_CLAMP(comboTrainer.fixedDamageMode, 0, kComboDmgModeCount - 1),
+            TM_CLAMP(comboTrainer.resetP1, 0, 1),
+            TM_CLAMP(comboTrainer.resetDelay, 0, kComboDelayCount - 1),
+            TM_CLAMP(comboTrainer.postHitstunEscape, 0, kComboEscapeCount - 1),
+            TM_CLAMP(comboTrainer.recoveryMixup, 0, kRecMixupCount - 1),
         };
 #undef TM_CLAMP
         u8* raw = reinterpret_cast<u8*>(&s);

@@ -1,9 +1,13 @@
 #include "extra/combo_trainer.h"
 
 #include <GX/GXTypes.h>
+#include <ft/fighter.h>
+#include <so/collision/so_collision_hit_module_impl.h>
 #include <so/ground/so_ground_module_impl.h>
+#include <so/posture/so_posture_module_impl.h>
 #include <so/situation/so_situation_module_impl.h>
 #include <so/so_module_accesser.h>
+#include <so/status/so_status_module_impl.h>
 #include <so/stop/so_stop_module_impl.h>
 #include <string.h>
 
@@ -13,11 +17,13 @@
 #include "extra/pplus_recovery.h"
 #include "extra/scenario_presets.h"
 #include "extra/stage_geom.h"
+#include "main/cpu/options.h"
 #include "main/game/body.h"
 #include "main/game/fighters.h"
 #include "main/game/status_ids.h"
 #include "main/gfx/draw.h"
 #include "main/settings.h"
+#include "main/storage/notice.h"
 #include "shared/game/frame.h"
 #include "shared/game/mem.h"
 #include "shared/log.h"
@@ -67,11 +73,206 @@ namespace extra {
         ComboSlotState slots[game::kMaxFighters];
         ComboMeterValues meters[game::kMaxFighters];
         bool meterValid[game::kMaxFighters];
+        float hmnAnchorX;
+        float hmnAnchorY;
+        float hmnAnchorLr;
+        bool hmnAnchorValid;
+        bool hmnRestoreCorrect;
+        u8 hmnRestoreCorrectKind;
+        s8 hmnPlacedPlayer;
         ComboDebugBlock debug;
     };
 
     static ComboNet* s_net = NULL;
     static u32 s_rng = 0x51A7F3C9u;
+
+    static void clearComboWarpIntang(const game::FighterRef& ref)
+    {
+        Fighter* pair[2] = {ref.fighter, (ref.partner != NULL && ref.partner != ref.fighter) ? ref.partner : NULL};
+        for (int i = 0; i < 2; i++)
+        {
+            if (pair[i] == NULL)
+            {
+                continue;
+            }
+            const soModuleEnumeration* m = game::fighterModules(pair[i]);
+            if (m != NULL && game::isRam(m->m_collisionHitModule))
+            {
+                m->m_collisionHitModule->setXluFrameGlobal(0, 0);
+                m->m_collisionHitModule->setInvincibleFrameGlobal(0, true, 0);
+                m->m_collisionHitModule->resetStatusGlobal(0);
+            }
+        }
+    }
+
+    static void finishComboStanding(const game::FighterRef& ref, bool setNoclip)
+    {
+        Fighter* pair[2] = {ref.fighter, (ref.partner != NULL && ref.partner != ref.fighter) ? ref.partner : NULL};
+        for (int i = 0; i < 2; i++)
+        {
+            if (pair[i] == NULL)
+            {
+                continue;
+            }
+            const soModuleEnumeration* m = game::fighterModules(pair[i]);
+            if (m == NULL || !game::isRam(m->m_groundModule) || !game::isRam(m->m_statusModule)
+                || !game::isRam(pair[i]->m_moduleAccesser))
+            {
+                continue;
+            }
+            m->m_groundModule->setCorrect(soGroundShapeImpl::Correct_Ground_Cliff_Stop, 0);
+            if (m->m_groundModule->attachGround(0))
+            {
+                m->m_groundModule->setStGroundForce(0);
+                m->m_statusModule->changeStatusForce(game::kStatusWait, pair[i]->m_moduleAccesser);
+                m->m_groundModule->setCorrect(
+                    setNoclip ? soGroundShapeImpl::Correct_None : soGroundShapeImpl::Correct_Ground_Cliff_Stop, 0);
+            }
+            else
+            {
+                m->m_statusModule->changeStatusForce(game::kStatusFall, pair[i]->m_moduleAccesser);
+                m->m_groundModule->setCorrect(
+                    setNoclip ? soGroundShapeImpl::Correct_None : soGroundShapeImpl::Correct_Air, 0);
+            }
+        }
+    }
+
+    void comboTrainerSetAnchors(float hmnX, float hmnY, float hmnLr, float cpuX, float cpuY)
+    {
+        if (s_net == NULL)
+        {
+            return;
+        }
+        s_net->hmnAnchorX = hmnX;
+        s_net->hmnAnchorY = hmnY;
+        s_net->hmnAnchorLr = hmnLr != 0.0f ? hmnLr : 1.0f;
+        s_net->hmnAnchorValid = true;
+        game::FighterRef refs[game::kMaxFighters];
+        int n = game::listFighters(refs, game::kMaxFighters);
+        for (int i = 0; i < n; i++)
+        {
+            int p = refs[i].playerNo;
+            if (refs[i].cpu && p >= 0 && p < game::kMaxFighters)
+            {
+                s_net->slots[p].anchorX = cpuX;
+                s_net->slots[p].anchorY = cpuY;
+                s_net->slots[p].anchorValid = true;
+            }
+        }
+    }
+
+    void comboTrainerRepositionCpu()
+    {
+        if (s_net == NULL)
+        {
+            return;
+        }
+        game::FighterRef refs[game::kMaxFighters];
+        int n = game::listFighters(refs, game::kMaxFighters);
+        game::FighterRef hmnRef;
+        game::FighterRef cpuRef;
+        bool haveHmn = false;
+        bool haveCpu = false;
+        for (int i = 0; i < n; i++)
+        {
+            if (!refs[i].cpu && !haveHmn)
+            {
+                hmnRef = refs[i];
+                haveHmn = true;
+            }
+            else if (refs[i].cpu && !haveCpu)
+            {
+                cpuRef = refs[i];
+                haveCpu = true;
+            }
+        }
+        if (!haveHmn || !haveCpu)
+        {
+            return;
+        }
+        game::FighterState hmnFs;
+        if (!game::readState(hmnRef, hmnFs))
+        {
+            return;
+        }
+        const soModuleEnumeration* hm = game::fighterModules(hmnRef.fighter);
+        if (hm == NULL || (game::isRam(hm->m_situationModule) && hm->m_situationModule->getKind() == Situation_Air))
+        {
+            return;
+        }
+        float lr = 1.0f;
+        if (game::isRam(hm->m_postureModule))
+        {
+            float rawLr = hm->m_postureModule->getLr();
+            if (rawLr < 0.0f)
+            {
+                lr = -1.0f;
+            }
+        }
+        float targetX = hmnFs.x + lr * 10.0f;
+        float targetY = hmnFs.y;
+        StageGeometry geom;
+        if (queryStageGeometry(geom, false, true) && geom.floor.valid)
+        {
+            bool onPlat = false;
+            if (hmnFs.y > geom.floor.centerY + 2.0f)
+            {
+                for (int pi = 0; pi < geom.platformCount; pi++)
+                {
+                    const StagePlatform& plat = geom.platforms[pi];
+                    if (!plat.valid)
+                    {
+                        continue;
+                    }
+                    float dy = hmnFs.y - plat.y;
+                    if (dy < 0.0f) dy = -dy;
+                    if (dy <= 4.0f && hmnFs.x >= plat.leftX - 2.0f && hmnFs.x <= plat.rightX + 2.0f)
+                    {
+                        float lo = plat.leftX + 2.0f;
+                        float hi = plat.rightX - 2.0f;
+                        targetX = lo <= hi ? geomClamp(targetX, lo, hi) : (plat.leftX + plat.rightX) * 0.5f;
+                        targetY = plat.y;
+                        onPlat = true;
+                        break;
+                    }
+                }
+                if (!onPlat)
+                {
+                    targetY = geom.floor.centerY;
+                }
+            }
+            if (!onPlat)
+            {
+                targetX = geomClamp(targetX, geom.floor.leftX + 6.0f, geom.floor.rightX - 6.0f);
+            }
+        }
+        int p = cpuRef.playerNo;
+        if (p >= 0 && p < game::kMaxFighters)
+        {
+            ComboSlotState& st = s_net->slots[p];
+            st.anchorX = targetX;
+            st.anchorY = targetY;
+            st.anchorValid = true;
+            st.wasInHitstun = false;
+            st.postResetArmed = false;
+            st.comboTimer = 0;
+            st.postResetTimer = 0;
+            st.restoreCorrect = true;
+            st.restoreCorrectKind = kCorrectGroundCliffStop;
+            st.lastCorrectWritten = kCorrectNone;
+        }
+        s_net->hmnAnchorX = hmnFs.x;
+        s_net->hmnAnchorY = hmnFs.y;
+        s_net->hmnAnchorLr = lr;
+        s_net->hmnAnchorValid = true;
+        float cpuDmg = static_cast<float>(main::settings().cpu.percent);
+        placeStanding(cpuRef, targetX, targetY, true, cpuDmg, -lr);
+        finishComboStanding(cpuRef, true);
+        clearComboWarpIntang(cpuRef);
+        cpu::optionsResetSlot(p);
+        pplusRecoveryReset(p);
+        storage::notice(storage::kNoticeOk, "CPU anchor updated");
+    }
 
     void comboTrainerReset()
     {
@@ -88,6 +289,10 @@ namespace extra {
             {
                 setFighterCorrect(refs[i], s_net->slots[p].restoreCorrectKind);
             }
+            if (s_net->hmnRestoreCorrect && p == s_net->hmnPlacedPlayer)
+            {
+                setFighterCorrect(refs[i], s_net->hmnRestoreCorrectKind);
+            }
         }
         for (int i = 0; i < game::kMaxFighters; i++)
         {
@@ -95,6 +300,13 @@ namespace extra {
             memset(&s_net->meters[i], 0, sizeof(s_net->meters[i]));
             s_net->meterValid[i] = false;
         }
+        s_net->hmnAnchorX = 0.0f;
+        s_net->hmnAnchorY = 0.0f;
+        s_net->hmnAnchorLr = 1.0f;
+        s_net->hmnAnchorValid = false;
+        s_net->hmnRestoreCorrect = false;
+        s_net->hmnRestoreCorrectKind = kCorrectGroundCliffStop;
+        s_net->hmnPlacedPlayer = -1;
         memset(&s_net->debug, 0, sizeof(s_net->debug));
         s_net->debug.magic = kComboDebugMagic;
     }
@@ -172,6 +384,41 @@ namespace extra {
 
         game::FighterRef refs[game::kMaxFighters];
         int n = game::listFighters(refs, game::kMaxFighters);
+        game::FighterRef hmnRef;
+        bool haveHmn = false;
+        for (int i = 0; i < n; i++)
+        {
+            if (!refs[i].cpu && !haveHmn)
+            {
+                hmnRef = refs[i];
+                haveHmn = true;
+            }
+            if (s_net->hmnRestoreCorrect && refs[i].playerNo == s_net->hmnPlacedPlayer)
+            {
+                setFighterCorrect(refs[i], s_net->hmnRestoreCorrectKind);
+                s_net->hmnRestoreCorrect = false;
+            }
+        }
+        if (!cfg.enabled)
+        {
+            s_net->hmnAnchorValid = false;
+        }
+        else if (haveHmn && !s_net->hmnAnchorValid)
+        {
+            game::FighterState hfs;
+            const soModuleEnumeration* hm = game::fighterModules(hmnRef.fighter);
+            bool hmnGrounded = hm != NULL && game::isRam(hm->m_situationModule)
+                               && hm->m_situationModule->getKind() != Situation_Air;
+            if (hmnGrounded && game::readState(hmnRef, hfs) && !game::outOfPlay(hfs.status, true))
+            {
+                s_net->hmnAnchorX = hfs.x;
+                s_net->hmnAnchorY = hfs.y;
+                s_net->hmnAnchorLr = (game::isRam(hm->m_postureModule) && hm->m_postureModule->getLr() < 0.0f)
+                                         ? -1.0f
+                                         : 1.0f;
+                s_net->hmnAnchorValid = true;
+            }
+        }
         StageGeometry geom;
         bool haveGeom = cfg.enabled ? queryStageGeometry(geom) : false;
 
@@ -268,8 +515,27 @@ namespace extra {
                     else
                     {
                         placeStanding(ref, wx, wy, act.setCorrectNone, dmg);
+                        finishComboStanding(ref, act.setCorrectNone);
                     }
+                    clearComboWarpIntang(ref);
+                    cpu::optionsResetSlot(p);
                     pplusRecoveryReset(p);
+
+                    // Reset P1 position + damage back to starting anchor when Reset P1 is On.
+                    if (act.resetP1 && haveHmn && s_net->hmnAnchorValid)
+                    {
+                        float hmnDmg = static_cast<float>(main::settings().general.playerPercent);
+                        float hlr = wx >= s_net->hmnAnchorX ? 1.0f : -1.0f;
+                        placeStanding(hmnRef, s_net->hmnAnchorX, s_net->hmnAnchorY, act.setCorrectNone, hmnDmg, hlr);
+                        finishComboStanding(hmnRef, act.setCorrectNone);
+                        clearComboWarpIntang(hmnRef);
+                        if (act.setCorrectNone)
+                        {
+                            s_net->hmnRestoreCorrect = true;
+                            s_net->hmnRestoreCorrectKind = kCorrectGroundCliffStop;
+                            s_net->hmnPlacedPlayer = static_cast<s8>(hmnRef.playerNo);
+                        }
+                    }
                 }
                 else if (act.setCorrectNone)
                 {

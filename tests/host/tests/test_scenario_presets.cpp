@@ -251,8 +251,10 @@ TEST(scenario_presets, all_nine_presets_map_settings_and_snapshot_restores_clean
     CHECK_EQ(cpu::kBehaviorStand, cpuOpts.behavior);
     CHECK_EQ(95, static_cast<int>(gen.playerPercent));
 
-    // 8. Grab Escape
-    applyScenarioConfig(st, makeCfg(kScenarioGrabEscape), cpuOpts, comboCfg, &gen, &cpuSet);
+    // 8. Grab Defense / Throw DI (default Hold preserves CPU grabEscape; Stand sets kMashHigh)
+    ScenarioConfig grabStand = makeCfg(kScenarioGrabEscape);
+    grabStand.grabAction = kGrabActStand;
+    applyScenarioConfig(st, grabStand, cpuOpts, comboCfg, &gen, &cpuSet);
     CHECK_EQ(cpu::kControlLab, cpuOpts.control);
     CHECK_EQ(cpu::kBehaviorStand, cpuOpts.behavior);
     CHECK_EQ(cpu::kMashHigh, cpuOpts.grabEscape);
@@ -601,7 +603,7 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK(strcmp(disp.options[22].name, "Advanced / Debug") == 0);
     CHECK_EQ(ui::pages::P_DEBUG, disp.options[22].max);
     const ui::Page& scen = ui::pages::kScenarios;
-    REQUIRE(scen.count == 13);
+    REQUIRE(scen.count == 15);
     CHECK(strcmp(scen.options[0].name, "Preset") == 0);
     CHECK_EQ(kScenarioCount - 1, scen.options[0].max);
     CHECK(strcmp(scen.options[3].name, "CPU OoS") == 0);
@@ -611,9 +613,11 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK(strcmp(scen.options[7].name, "Platform") == 0);
     CHECK(strcmp(scen.options[8].name, "CPU Spacing") == 0);
     CHECK(strcmp(scen.options[9].name, "CPU Facing") == 0);
-    CHECK(strcmp(scen.options[10].name, "Multi-Hit Move") == 0);
-    CHECK(strcmp(scen.options[12].name, "Combo Trainer") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[12].max);
+    CHECK(strcmp(scen.options[10].name, "CPU Action") == 0);
+    CHECK(strcmp(scen.options[11].name, "P1 Damage") == 0);
+    CHECK(strcmp(scen.options[12].name, "Multi-Hit Move") == 0);
+    CHECK(strcmp(scen.options[14].name, "Combo Trainer") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[14].max);
 }
 
 TEST(scenario_presets, multi_hit_sdi_ignores_attacker_hitlag)
@@ -1266,4 +1270,94 @@ TEST(scenario_presets, edgeguard_side_control_ledgetech_options_shield_drop_and_
     }
     CHECK(oosAct.warpHmn);
     CHECK_EQ(2u, stOos.resetCount);
+}
+
+TEST(scenario_presets, grab_defense_cpu_approach_delay_hold_throw_and_yoshi)
+{
+    // 1. CPU approach + 40..99f randomized pre-grab delay + Hold (zero pummel) vs Throw.
+    ScenarioCpuState cs;
+    ScenarioCpuInput ci;
+    ScenarioCpuOutput co;
+    scenarioCpuStateReset(cs);
+    memset(&ci, 0, sizeof(ci));
+    ci.preset = kScenarioGrabEscape;
+    ci.grabAction = kGrabActHold;
+    ci.cpuCanAct = true;
+    ci.cpuX = 12.0f;
+    ci.hmnX = -12.0f;
+    ci.cpuLr = -1.0f;
+
+    // First frame sets a randomized 40..99f delay and does not grab immediately.
+    ci.rng = 12345u;
+    stepScenarioCpu(ci, cs, co);
+    CHECK(co.active);
+    CHECK_EQ(0u, co.buttons);
+    CHECK(cs.delay >= 40 && cs.delay <= 99);
+
+    // While counting down delay, CPU stays neutral/non-grabbing.
+    int delay = cs.delay;
+    for (int f = 1; f < delay; f++)
+    {
+        stepScenarioCpu(ci, cs, co);
+        CHECK_EQ(0u, co.buttons);
+    }
+
+    // Once delay finishes and far (>11u), CPU approaches toward P1.
+    stepScenarioCpu(ci, cs, co);
+    CHECK(co.stickX < -0.5f && co.buttons == 0);
+
+    // Within grab range (<=11u) facing P1: presses Grab (Guard | Attack).
+    ci.cpuX = -4.0f;
+    ci.hmnX = -12.0f;
+    stepScenarioCpu(ci, cs, co);
+    CHECK((co.buttons & (cpu::button::kGuard | cpu::button::kAttack)) == (cpu::button::kGuard | cpu::button::kAttack));
+
+    // In Hold mode while CPU holds P1 (CatchWait 0x39): zero buttons/stick (no pummel!).
+    ci.cpuStatus = 0x39;
+    stepScenarioCpu(ci, cs, co);
+    CHECK(co.active && co.buttons == 0 && fabsf(co.stickX) < 0.01f && fabsf(co.stickY) < 0.01f);
+
+    // In U-Throw mode during CatchWait after brief hold: inputs stickY = +1.0f.
+    ci.grabAction = kGrabActUThrow;
+    cs.timer = 10;
+    stepScenarioCpu(ci, cs, co);
+    CHECK(co.stickY > 0.9f);
+
+    // In Stand mode (P1 Grabs CPU): CPU driver stays inactive.
+    ci.grabAction = kGrabActStand;
+    stepScenarioCpu(ci, cs, co);
+    CHECK(!co.active);
+
+    // 2. Grab Defense tracks P1 grabbed (including Yoshi tongue 0x107..0x10A) and resets on escape.
+    StageGeometry fd = makeFdGeometry();
+    cpu::CpuOptions cpuOpts = makeCustomCpuOpts();
+    main::ComboTrainerSettings comboCfg = makeCustomComboCfg();
+    main::GeneralSettings gen;
+    main::CpuSettings cpuSet;
+    main::OsdSettings osd;
+    memset(&gen, 0, sizeof(gen));
+    memset(&cpuSet, 0, sizeof(cpuSet));
+    memset(&osd, 0, sizeof(osd));
+    ScenarioState st;
+    scenarioStateInit(st);
+    ScenarioConfig gCfg = makeCfg(kScenarioGrabEscape);
+    gCfg.grabAction = kGrabActHold;
+    gCfg.grabPctMode = kGrabPctRandom;
+    applyScenarioConfig(st, gCfg, cpuOpts, comboCfg, &gen, &cpuSet, &osd);
+    CHECK_EQ(1, static_cast<int>(osd.grabBreakout));
+
+    ScenarioStepInput in = makeIdleInput(fd);
+    ScenarioStepAction act;
+    stepScenario(st, gCfg, in, cpuOpts, comboCfg, act); // initial warp
+    in.hmnStatus = 0x108; // Yoshi SwallowCapture
+    stepScenario(st, gCfg, in, cpuOpts, comboCfg, act);
+    CHECK_EQ(1u, st.grabEscapeFrames);
+    in.hmnStatus = 0x00; // escaped
+    stepScenario(st, gCfg, in, cpuOpts, comboCfg, act);
+    CHECK(st.sawGrabEscape);
+    CHECK_EQ(1u, st.completionCount);
+
+    // Restore snapshot restores osd.grabBreakout back to 0.
+    restoreScenarioSnapshot(st, cpuOpts, comboCfg, &gen, &cpuSet, &osd);
+    CHECK_EQ(0, static_cast<int>(osd.grabBreakout));
 }

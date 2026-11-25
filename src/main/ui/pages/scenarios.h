@@ -16,6 +16,7 @@ namespace pages {
         kPresetShieldPressure = 4,
         kPresetShieldDrop = 5,
         kPresetLedgetech = 6,
+        kPresetGrabEscape = 8,
         kPresetMultiHitSdi = 9
     };
 
@@ -31,6 +32,8 @@ namespace pages {
         u8 shieldDropPlat;    // 0 = Left, 1 = Right, 2 = Top, 3 = Random
         u8 shieldDropSpacing; // 0 = Random, 1 = Close, 2 = Under, 3 = Far
         u8 shieldDropFacing;  // 0 = Toward, 1 = Away, 2 = Random
+        u8 grabAction;        // 0 = Hold (Mash Out), 1 = Random Throw, 2..5 = F/B/U/D Throw, 6 = Stand (P1 Grabs)
+        u8 grabPctMode;       // 0 = Random 0-79%, 1 = Current P1 %
     };
 
     TM_STATIC_ASSERT(kScenarioScratchOffset > kShowInactiveScratchOffset + 2,

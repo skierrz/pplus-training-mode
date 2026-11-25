@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "main/cpu/actions.h"
 #include "main/cpu/options.h"
 #include "main/settings.h"
 
@@ -35,6 +36,17 @@ namespace cpu {
         return tables().hits[clampHit(hit) - 1];
     }
 
+    void poolTablesDefaults(CpuTables& t)
+    {
+        for (int list = 0; list < kListCount; list++)
+        {
+            poolDefaults(list, t.poolBits[list]);
+        }
+        t.customDiX = 100;
+        t.customDiY = 0;
+        t.poolReady = 1;
+    }
+
     void tablesDefaults(CpuTables& t)
     {
         for (int i = 0; i < kAdvancedHits; i++)
@@ -42,6 +54,7 @@ namespace cpu {
             defaultHit(t.hits[i]);
         }
         t.ready = 1;
+        poolTablesDefaults(t);
     }
 
     void advancedAttach()
@@ -50,6 +63,10 @@ namespace cpu {
         if (!t.ready)
         {
             tablesDefaults(t);
+        }
+        else if (!t.poolReady)
+        {
+            poolTablesDefaults(t);
         }
         CpuOptions& o = main::settings().cpu.options;
         o.advHit = 1;

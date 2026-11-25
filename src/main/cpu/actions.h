@@ -78,7 +78,8 @@ namespace cpu {
         kActionRandom,
         kActionRandomAdvanced,
         kActionPlaySlot,      // Play Slot 1-6
-        kActionPlayRandomSlot // Play Random Slot
+        kActionPlayRandomSlot, // Play Random Slot
+        kActionCustomPool     // User-selected bitmask subset (CpuTables::poolBits)
     };
 
     int actionKind(int list, int index);
@@ -93,8 +94,16 @@ namespace cpu {
         return actionFor(list, index, kKindAny);
     }
     int actionCount(int list);
+    // Index of the "Custom Pool" choice in `list`.
+    int customPoolIndex(int list);
     // An index from the Random action pool of a list, picked with `roll`.
     int randomAction(int list, u32 roll);
+    // Seeds `bits[8]` with the curated default subset for `list`.
+    void poolDefaults(int list, u8 bits[8]);
+    // Clears any bits in `bits[8]` that do not name a concrete script/slot action.
+    void poolSanitize(int list, u8 bits[8]);
+    // Picks a concrete action from `bits[8]` valid for `kind` (ftKind), or 0 if none.
+    int randomPoolAction(int list, const u8 bits[8], int kind, u32 roll);
     // False if `a` is for characters with a technique fighter kind `kind`
     // (ftKind) lacks.
     bool fitsKind(const Action* a, int kind);

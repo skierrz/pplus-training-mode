@@ -206,6 +206,7 @@ namespace cpu {
 #define TM_NONE {NULL, 0, 0}
 #define TM_RANDOM {NULL, kActionRandom, 0}
 #define TM_RANDOM_ADV {NULL, kActionRandomAdvanced, 0}
+#define TM_CUSTOM_POOL {NULL, kActionCustomPool, 0}
 #define TM_DO(steps) {steps, 0, 0}
 #define TM_PLAY_SLOTS {NULL, 0, 1}, {NULL, 0, 2}, {NULL, 0, 3}, {NULL, 0, 4}, {NULL, 0, 5}, {NULL, 0, 6}
 #define TM_PLAY_RANDOM {NULL, kActionPlayRandomSlot, 0}
@@ -238,7 +239,7 @@ namespace cpu {
         {kDashThrough, kEndsWithSteps, 0}, TM_PLAY_SLOTS, TM_PLAY_RANDOM, TM_DO(kSideBAway),
         TM_DO(kRollRandom),  TM_DO(kSHNair),       TM_DO(kSHFair),        TM_DO(kSHBair),
         TM_DO(kSHUair),      TM_DO(kSHDair),       TM_RANDOM_ADV,         TM_RANDOM,
-        TM_DJCS,             TM_FLOATS,            TM_SHFFLS};
+        TM_DJCS,             TM_FLOATS,            TM_SHFFLS,             TM_CUSTOM_POOL};
     static const Action kAir[] = {
         TM_NONE,           TM_DO(kAirdodge),        {kJumpAway, kNeedsJump, 0}, {kJumpToward, kNeedsJump, 0},
         {kJumpNeutral, kNeedsJump, 0}, TM_DO(kUpBAway), TM_DO(kUpBToward),      TM_DO(kNeutralB),
@@ -247,7 +248,7 @@ namespace cpu {
         {kTumbleFastfall, kEndsWithSteps, 0},       {kWiggleFastfall, kEndsWithSteps, 0},
         TM_NONE,           {kWait, kNoTech | kEndsWithSteps, 0},
         TM_PLAY_SLOTS,     TM_PLAY_RANDOM,          TM_RANDOM_ADV,          TM_RANDOM,
-        TM_FFLS};
+        TM_FFLS,           TM_CUSTOM_POOL};
     static const Action kShieldList[] = {
         TM_NONE,              TM_DO(kOosGrab),        TM_DO(kShortHop),      TM_DO(kFullHop),
         TM_DO(kOosSpotdodge), TM_DO(kOosRollAway),    TM_DO(kOosRollToward), TM_DO(kOosUpB),
@@ -256,11 +257,13 @@ namespace cpu {
         TM_DO(kSHFair),       TM_DO(kSHBair),         TM_DO(kSHUair),        TM_DO(kSHDair),
         TM_DO(kWavedashAway), TM_DO(kOosShieldDrop),  TM_PLAY_SLOTS,         TM_PLAY_RANDOM,
         TM_DO(kWavedashToward), TM_DO(kWavedashDown), TM_DO(kOosRollRandom), TM_RANDOM_ADV,
-        TM_RANDOM,            TM_DJCS,                TM_FLOATS,             TM_SHFFLS};
+        TM_RANDOM,            TM_DJCS,                TM_FLOATS,             TM_SHFFLS,
+        TM_CUSTOM_POOL};
 
 #undef TM_NONE
 #undef TM_RANDOM
 #undef TM_RANDOM_ADV
+#undef TM_CUSTOM_POOL
 #undef TM_DO
 #undef TM_PLAY_SLOTS
 #undef TM_PLAY_RANDOM
@@ -297,6 +300,7 @@ namespace cpu {
             return kActionPlaySlot;
         }
         return a.flags == kActionRandom || a.flags == kActionRandomAdvanced || a.flags == kActionPlayRandomSlot
+                       || a.flags == kActionCustomPool
                    ? static_cast<int>(a.flags)
                    : kActionNone;
     }
@@ -345,6 +349,88 @@ namespace cpu {
         default:
             return kShieldRandom[roll % sizeof(kShieldRandom)];
         }
+    }
+
+    int customPoolIndex(int list)
+    {
+        return list >= 0 && list < kListCount ? kCounts[list] - 1 : 0;
+    }
+
+    void poolDefaults(int list, u8 bits[8])
+    {
+        for (int i = 0; i < 8; i++)
+        {
+            bits[i] = 0;
+        }
+        const u8* src = kGroundRandom;
+        u32 n = sizeof(kGroundRandom);
+        if (list == kListAir)
+        {
+            src = kAirRandom;
+            n = sizeof(kAirRandom);
+        }
+        else if (list == kListShield)
+        {
+            src = kShieldRandom;
+            n = sizeof(kShieldRandom);
+        }
+        for (u32 i = 0; i < n; i++)
+        {
+            u8 idx = src[i];
+            if (idx < 64)
+            {
+                bits[idx >> 3] |= static_cast<u8>(1u << (idx & 7));
+            }
+        }
+    }
+
+    void poolSanitize(int list, u8 bits[8])
+    {
+        if (list < 0 || list >= kListCount)
+        {
+            return;
+        }
+        int count = kCounts[list];
+        for (int idx = 0; idx < 64; idx++)
+        {
+            u8 mask = static_cast<u8>(1u << (idx & 7));
+            if ((bits[idx >> 3] & mask) == 0)
+            {
+                continue;
+            }
+            int ak = idx < count ? actionKind(list, idx) : kActionNone;
+            if (ak != kActionScript && ak != kActionPlaySlot)
+            {
+                bits[idx >> 3] &= static_cast<u8>(~mask);
+            }
+        }
+    }
+
+    int randomPoolAction(int list, const u8 bits[8], int kind, u32 roll)
+    {
+        if (list < 0 || list >= kListCount)
+        {
+            return 0;
+        }
+        u8 picks[64];
+        int n = 0;
+        int count = kCounts[list];
+        if (count > 64)
+        {
+            count = 64;
+        }
+        for (int idx = 1; idx < count; idx++)
+        {
+            if ((bits[idx >> 3] & (1u << (idx & 7))) == 0)
+            {
+                continue;
+            }
+            if (actionFor(list, idx, kind) != NULL)
+            {
+                picks[n++] = static_cast<u8>(idx);
+            }
+        }
+        return n > 0 ? picks[roll % static_cast<u32>(n)] : 0;
     }
 
     bool fitsKind(const Action* a, int kind)

@@ -39,6 +39,7 @@ namespace pages {
         P_CPU_DI,
         P_CPU_COUNTERS,
         P_CPU_DEFENSE,
+        P_COUNTER_POOL,
         P_COUNT
     };
     enum { kCategoryCount = 7 };
@@ -72,6 +73,7 @@ namespace pages {
     extern const Page kCpuDi;
     extern const Page kCpuCounters;
     extern const Page kCpuDefense;
+    extern const Page kCounterPool;
 
     // Indexed by PageId (registry.cpp).
     extern const Page* const kPages[P_COUNT];

@@ -14,6 +14,8 @@ namespace extra {
     void comboTrainerReset();
     void comboTrainerFrame();
     void comboTrainerDraw(const game::MatchState& match);
+    void comboTrainerSetAnchors(float hmnX, float hmnY, float hmnLr, float cpuX, float cpuY);
+    void comboTrainerRepositionCpu();
 
     // Latest meter readings for playerNo (0..3), or NULL if invalid.
     const ComboMeterValues* comboTrainerMeters(int playerNo);

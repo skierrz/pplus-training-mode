@@ -14,7 +14,7 @@ namespace pages {
         &kStageCast,    &kControls,     &kDebug,          &kComboTrainer, &kComboMeters,   &kTechOptions,
         &kAdvancedCounter, &kSlotManagement, &kAlterInputs, &kHmnChances, &kCpuChances,    &kHmnOverlays,
         &kCpuOverlays,  &kHmnInfo,      &kCpuInfo,        &kLedgedashHud, &kFighterSwap, &kTheme,
-        &kReversalSlots, &kCpuDi,       &kCpuCounters,    &kCpuDefense
+        &kReversalSlots, &kCpuDi,       &kCpuCounters,    &kCpuDefense,  &kCounterPool
     };
 }
 }

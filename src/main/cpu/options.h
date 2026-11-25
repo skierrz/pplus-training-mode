@@ -61,5 +61,11 @@ namespace cpu {
     // freeze, cue, and playback-handover state, and clamps incompatible
     // DJC/Float counter settings when `cpuSwapped` is true.
     void optionsPrepareSwap(bool cpuSwapped, int newCpuFtKind);
+
+    // Resets one CPU slot's (or every slot's) option state machine cleanly back
+    // to kIdle without releasing driver claims, port overrides, or noReaction.
+    // Called on every Combo Trainer warp and Scenario preset reset.
+    void optionsResetSlot(int playerNo);
+    void optionsResetAll();
 }
 }

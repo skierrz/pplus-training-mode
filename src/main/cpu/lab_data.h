@@ -15,6 +15,7 @@ namespace cpu {
     // Part of the settings' defaults (main::resetSettings), so a reset and the
     // card's "nothing changed" view agree.
     void tablesDefaults(CpuTables& t);
+    void poolTablesDefaults(CpuTables& t);
     // At attach: the pages' defaults after a reset; the page shows hit 1.
     void advancedAttach();
 }

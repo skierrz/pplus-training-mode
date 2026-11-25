@@ -80,7 +80,7 @@ TEST(grab_visualizer, display_settings_defaults_and_sanitization)
 
     CHECK_EQ(0u, static_cast<unsigned>(main::settings().display.grabVisualizer));
     CHECK_EQ(16u, sizeof(main::DisplaySettings));
-    CHECK_EQ(436u, sizeof(main::Settings));
+    CHECK_EQ(464u, sizeof(main::Settings));
 
     main::settings().display.grabVisualizer = 99;
     main::sanitizeSettings(main::settings());

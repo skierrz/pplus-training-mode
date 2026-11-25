@@ -30,6 +30,10 @@ namespace extra {
             kStAttackS3 = 0x27,
             kStAttackAir = 0x33,
             kStCatch = 0x34,
+            kStCatchPull = 0x35,
+            kStCatchDash = 0x36,
+            kStCatchDashPull = 0x37,
+            kStCatchWait = 0x39,
             kStThrow = 0x3C,
             kStCapturePulled = 0x3D,
             kStCaptureWait = 0x3E,
@@ -37,6 +41,10 @@ namespace extra {
             kStCaptureCut = 0x40,
             kStCaptureJump = 0x41,
             kStCaptureThrown = 0x42,
+            kStCapturePulledYoshi = 0x107,
+            kStCaptureWaitYoshi = 0x108,
+            kStCaptureDamageYoshi = 0x109,
+            kStCaptureCutYoshi = 0x10A,
             kStDamage = 0x43,
             kStDamageFly = 0x45,
             kStDamageFall = 0x49,
@@ -113,12 +121,13 @@ namespace extra {
 
         bool isCaptureHoldStatus(int s)
         {
-            return s >= kStCapturePulled && s <= kStCaptureDamage;
+            return (s >= kStCapturePulled && s <= kStCaptureDamage)
+                   || (s >= kStCapturePulledYoshi && s <= kStCaptureDamageYoshi);
         }
 
         bool isCaptureEscapeStatus(int s)
         {
-            return s == kStCaptureCut || s == kStCaptureJump;
+            return s == kStCaptureCut || s == kStCaptureJump || s == kStCaptureCutYoshi;
         }
 
         bool isWallTechStatus(int s)
@@ -177,7 +186,8 @@ namespace extra {
 
 #pragma dont_inline on
         void copySnapshotTo(const ScenarioState& st, cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg,
-                            main::GeneralSettings* generalCfg, main::CpuSettings* cpuSettings)
+                            main::GeneralSettings* generalCfg, main::CpuSettings* cpuSettings,
+                            main::OsdSettings* osdCfg)
         {
             cpuOpts = st.snapshotCpu;
             comboCfg = st.snapshotCombo;
@@ -192,13 +202,17 @@ namespace extra {
                 cpuSettings->percent = st.snapshotCpuPercent;
                 cpuSettings->lockPercent = st.snapshotLockCpuPercent;
             }
+            if (st.snapshotOsdValid && osdCfg != NULL)
+            {
+                osdCfg->grabBreakout = st.snapshotGrabBreakoutOsd;
+            }
         }
 #pragma dont_inline reset
 
 #pragma dont_inline on
         void applyPresetOverrides(const ScenarioConfig& cfg, cpu::CpuOptions& cpuOpts,
                                   main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg,
-                                  main::CpuSettings* cpuSettings)
+                                  main::CpuSettings* cpuSettings, main::OsdSettings* osdCfg)
         {
             switch (cfg.preset)
             {
@@ -307,10 +321,14 @@ namespace extra {
                 comboCfg.recoveryTrainer = 0;
                 cpuOpts.control = cpu::kControlLab;
                 cpuOpts.behavior = cpu::kBehaviorStand;
-                cpuOpts.grabEscape = cpu::kMashHigh;
+                cpuOpts.grabEscape = cfg.grabAction == kGrabActStand ? cpu::kMashHigh : cpu::kMashNone;
                 cpuOpts.counterGround = 0;
                 cpuOpts.counterAir = 0;
                 cpuOpts.counterShield = 0;
+                if (osdCfg != NULL)
+                {
+                    osdCfg->grabBreakout = 1;
+                }
                 break;
 
             case kScenarioMultiHitSdi:
@@ -463,6 +481,8 @@ namespace extra {
             raw.shieldDropSpacing < kSdSpaceCount ? raw.shieldDropSpacing : static_cast<u8>(kSdSpaceRandom);
         c.shieldDropFacing =
             raw.shieldDropFacing < kSdFaceCount ? raw.shieldDropFacing : static_cast<u8>(kSdFaceToward);
+        c.grabAction = raw.grabAction < kGrabActCount ? raw.grabAction : static_cast<u8>(kGrabActHold);
+        c.grabPctMode = raw.grabPctMode < kGrabPctCount ? raw.grabPctMode : static_cast<u8>(kGrabPctRandom);
         return c;
     }
 
@@ -491,7 +511,7 @@ namespace extra {
 
     void reapplyActiveScenarioOverrides(const ScenarioState& st, const ScenarioConfig& rawCfg, cpu::CpuOptions& cpuOpts,
                                         main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg,
-                                        main::CpuSettings* cpuSettings)
+                                        main::CpuSettings* cpuSettings, main::OsdSettings* osdCfg)
     {
         if (st.activePreset == kScenarioOff)
         {
@@ -501,33 +521,22 @@ namespace extra {
         cfg.preset = st.activePreset;
         if (st.snapshotActive)
         {
-            cpuOpts = st.snapshotCpu;
-            comboCfg = st.snapshotCombo;
-            if (st.snapshotPlayerValid && generalCfg != NULL)
-            {
-                generalCfg->playerPercent = st.snapshotPlayerPercent;
-                generalCfg->lockPlayerPercent = st.snapshotLockPlayerPercent;
-                generalCfg->playerInfiniteShields = st.snapshotPlayerInfShields;
-            }
-            if (st.snapshotCpuValid && cpuSettings != NULL)
-            {
-                cpuSettings->percent = st.snapshotCpuPercent;
-                cpuSettings->lockPercent = st.snapshotLockCpuPercent;
-            }
+            copySnapshotTo(st, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg);
         }
-        applyPresetOverrides(cfg, cpuOpts, comboCfg, generalCfg, cpuSettings);
+        applyPresetOverrides(cfg, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg);
     }
 
     bool applyScenarioConfig(ScenarioState& st, const ScenarioConfig& rawCfg, cpu::CpuOptions& cpuOpts,
                              main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg,
-                             main::CpuSettings* cpuSettings)
+                             main::CpuSettings* cpuSettings, main::OsdSettings* osdCfg)
     {
         ScenarioConfig cfg = sanitizeScenarioConfig(rawCfg);
         bool presetChanged = cfg.preset != st.activePreset;
         bool oosChanged = cfg.oosAction != st.lastOosAction;
+        bool grabChanged = cfg.grabAction != st.lastGrabAction || cfg.grabPctMode != st.lastGrabPctMode;
         bool layoutChanged = cfg.side != st.lastSide || cfg.multiHitMove != st.lastMultiHitMove || oosChanged
-                             || cfg.ledgetechSpawn != st.lastLedgetechSpawn || cfg.ledgetechDj != st.lastLedgetechDj
-                             || cfg.ledgetechAttack != st.lastLedgetechAttack
+                             || grabChanged || cfg.ledgetechSpawn != st.lastLedgetechSpawn
+                             || cfg.ledgetechDj != st.lastLedgetechDj || cfg.ledgetechAttack != st.lastLedgetechAttack
                              || cfg.shieldDropPlat != st.lastShieldDropPlat
                              || cfg.shieldDropSpacing != st.lastShieldDropSpacing
                              || cfg.shieldDropFacing != st.lastShieldDropFacing;
@@ -541,12 +550,18 @@ namespace extra {
         st.lastShieldDropPlat = cfg.shieldDropPlat;
         st.lastShieldDropSpacing = cfg.shieldDropSpacing;
         st.lastShieldDropFacing = cfg.shieldDropFacing;
+        st.lastGrabAction = cfg.grabAction;
+        st.lastGrabPctMode = cfg.grabPctMode;
 
         if (!presetChanged)
         {
             if (cfg.preset == kScenarioShieldPressure && oosChanged)
             {
                 cpuOpts.counterShield = resolveOosCounterShield(cfg.oosAction);
+            }
+            if (cfg.preset == kScenarioGrabEscape && grabChanged)
+            {
+                cpuOpts.grabEscape = cfg.grabAction == kGrabActStand ? cpu::kMashHigh : cpu::kMashNone;
             }
             if (cfg.preset != kScenarioOff && layoutChanged)
             {
@@ -557,7 +572,7 @@ namespace extra {
 
         if (cfg.preset == kScenarioOff)
         {
-            restoreScenarioSnapshot(st, cpuOpts, comboCfg, generalCfg, cpuSettings);
+            restoreScenarioSnapshot(st, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg);
             st.activePreset = kScenarioOff;
             st.pendingReset = false;
             st.hasPlatform = false;
@@ -591,16 +606,25 @@ namespace extra {
             {
                 st.snapshotCpuValid = false;
             }
+            if (osdCfg != NULL)
+            {
+                st.snapshotGrabBreakoutOsd = osdCfg->grabBreakout;
+                st.snapshotOsdValid = true;
+            }
+            else
+            {
+                st.snapshotOsdValid = false;
+            }
             st.snapshotActive = true;
         }
         else
         {
             // Preset A -> Preset B: always restore original snapshot first so
             // no overrides from Preset A leak into Preset B.
-            copySnapshotTo(st, cpuOpts, comboCfg, generalCfg, cpuSettings);
+            copySnapshotTo(st, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg);
         }
 
-        applyPresetOverrides(cfg, cpuOpts, comboCfg, generalCfg, cpuSettings);
+        applyPresetOverrides(cfg, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg);
         st.activePreset = cfg.preset;
         st.pendingReset = true;
         st.sawShieldDrop = false;
@@ -619,13 +643,15 @@ namespace extra {
     }
 
     void restoreScenarioSnapshot(ScenarioState& st, cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg,
-                                 main::GeneralSettings* generalCfg, main::CpuSettings* cpuSettings)
+                                 main::GeneralSettings* generalCfg, main::CpuSettings* cpuSettings,
+                                 main::OsdSettings* osdCfg)
     {
         if (st.snapshotActive)
         {
-            copySnapshotTo(st, cpuOpts, comboCfg, generalCfg, cpuSettings);
+            copySnapshotTo(st, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg);
             st.snapshotPlayerValid = false;
             st.snapshotCpuValid = false;
+            st.snapshotOsdValid = false;
             st.snapshotActive = false;
         }
     }
@@ -635,6 +661,7 @@ namespace extra {
         st.snapshotActive = false;
         st.snapshotPlayerValid = false;
         st.snapshotCpuValid = false;
+        st.snapshotOsdValid = false;
         st.activePreset = kScenarioOff;
         st.pendingReset = false;
         st.hasPlatform = false;
@@ -643,11 +670,11 @@ namespace extra {
 
     void projectScenarioSavedView(const ScenarioState& st, cpu::CpuOptions& cpuOpts,
                                   main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg,
-                                  main::CpuSettings* cpuSettings)
+                                  main::CpuSettings* cpuSettings, main::OsdSettings* osdCfg)
     {
         if (st.snapshotActive)
         {
-            copySnapshotTo(st, cpuOpts, comboCfg, generalCfg, cpuSettings);
+            copySnapshotTo(st, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg);
         }
     }
 
@@ -1007,6 +1034,12 @@ namespace extra {
             act.setNoclip[0] = true;
             act.refreshHmnAir = sp.hmnFalling;
             act.hmnSpendDj = cfg.preset == kScenarioLedgetech && cfg.ledgetechDj == kLtDjSpent;
+            if (cfg.preset == kScenarioGrabEscape && cfg.grabAction != kGrabActStand
+                && cfg.grabPctMode == kGrabPctRandom)
+            {
+                act.useExplicitHmnDmg = true;
+                act.hmnDmg = static_cast<float>(geomNextRng(st.rng) % 80u);
+            }
             st.restoreCorrect[0] = true;
             st.restoreCorrectKind[0] = sp.hmnFalling ? kCorrectAir : kCorrectGroundCliffStop;
             st.lastCorrectWritten[0] = kCorrectNone;
@@ -1024,7 +1057,7 @@ namespace extra {
 
     void stepScenario(ScenarioState& st, const ScenarioConfig& rawCfg, const ScenarioStepInput& in,
                       cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg, ScenarioStepAction& act,
-                      main::GeneralSettings* generalCfg, main::CpuSettings* cpuSettings)
+                      main::GeneralSettings* generalCfg, main::CpuSettings* cpuSettings, main::OsdSettings* osdCfg)
     {
         memset(&act, 0, sizeof(act));
         act.restoreCorrectKind[0] = kCorrectGroundCliffStop;
@@ -1046,7 +1079,7 @@ namespace extra {
         u16 prevPct = generalCfg != NULL ? generalCfg->playerPercent : 0;
         u16 prevCpuPct = cpuSettings != NULL ? cpuSettings->percent : 0;
         ScenarioConfig cfg = sanitizeScenarioConfig(rawCfg);
-        applyScenarioConfig(st, cfg, cpuOpts, comboCfg, generalCfg, cpuSettings);
+        applyScenarioConfig(st, cfg, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg);
         if (generalCfg != NULL && generalCfg->playerPercent != prevPct)
         {
             act.applyHmnPercent = true;
@@ -1378,8 +1411,15 @@ namespace extra {
             }
             else if (st.grabActive)
             {
+                // Escaped directly to Wait/Fall (e.g. Yoshi SwallowCapture breakout).
+                if (!st.grabDone)
+                {
+                    st.sawGrabEscape = true;
+                    st.grabDone = true;
+                    st.grabEscapeFrames = st.activeGrabFrames > 0 ? st.activeGrabFrames : 1;
+                    st.completionCount++;
+                }
                 st.grabActive = false;
-                st.grabDone = true;
                 st.graceFrames = 1;
             }
             break;
@@ -1893,6 +1933,108 @@ namespace extra {
                 out.stickX = toward * 0.55f; // ftilt across edge
                 out.stickY = 0.0f;
                 st.cooldown = 38;
+            }
+            return;
+        }
+
+        if (in.preset == kScenarioGrabEscape && in.grabAction != kGrabActStand)
+        {
+            out.active = true;
+            bool holdingHmn = isCaptureHoldStatus(in.hmnStatus) || in.cpuStatus == kStCatchPull
+                              || in.cpuStatus == kStCatchDashPull || in.cpuStatus == kStCatchWait;
+            if (holdingHmn)
+            {
+                if (st.phase != 2)
+                {
+                    st.phase = 2;
+                    st.timer = 0;
+                    if (in.grabAction == kGrabActRandThrow)
+                    {
+                        st.resolvedThrow = static_cast<u8>(kGrabActFThrow + (in.rng & 3u));
+                    }
+                    else
+                    {
+                        st.resolvedThrow = in.grabAction;
+                    }
+                }
+                else if (st.timer < 255)
+                {
+                    st.timer++;
+                }
+                if (in.grabAction != kGrabActRandThrow)
+                {
+                    st.resolvedThrow = in.grabAction;
+                }
+                // Hold (Mash Out): zero pummel inputs so P1 practices clean mash-outs.
+                if (in.grabAction == kGrabActHold)
+                {
+                    return;
+                }
+                // Throw DI: execute chosen throw once CatchWait settles.
+                if (in.cpuStatus == kStCatchWait && st.timer >= 2)
+                {
+                    switch (st.resolvedThrow)
+                    {
+                    case kGrabActFThrow:
+                        out.stickX = in.cpuLr;
+                        break;
+                    case kGrabActBThrow:
+                        out.stickX = -in.cpuLr;
+                        break;
+                    case kGrabActUThrow:
+                        out.stickY = 1.0f;
+                        break;
+                    case kGrabActDThrow:
+                    default:
+                        out.stickY = -1.0f;
+                        break;
+                    }
+                }
+                return;
+            }
+
+            // Released or thrown: wait cleanly for scenario auto-reset.
+            if (st.phase == 2)
+            {
+                st.phase = 3;
+                st.cooldown = 40;
+                return;
+            }
+            if (st.cooldown > 0)
+            {
+                st.cooldown--;
+                return;
+            }
+            // Randomized 40..99f pre-grab delay so P1 cannot blindly pre-mash.
+            if (st.phase == 0)
+            {
+                if (st.delay == 0)
+                {
+                    st.delay = static_cast<u8>(40u + (in.rng % 60u));
+                    st.timer = 0;
+                }
+                st.timer++;
+                if (st.timer < st.delay)
+                {
+                    return;
+                }
+                st.phase = 1;
+                st.timer = 0;
+            }
+            if (!in.cpuAir && in.cpuCanAct)
+            {
+                if (absDx > 8.5f)
+                {
+                    out.stickX = toward * 0.65f;
+                    return;
+                }
+                if (in.cpuLr * toward < 0.0f)
+                {
+                    out.stickX = toward * 0.45f;
+                    return;
+                }
+                out.buttons = cpu::button::kAttack | cpu::button::kGuard;
+                st.cooldown = 20;
             }
             return;
         }

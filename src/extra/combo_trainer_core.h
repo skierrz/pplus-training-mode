@@ -21,9 +21,11 @@ namespace extra {
         float anchorY;
         bool anchorValid;
         bool wasInHitstun;
+        bool postResetArmed;
         bool restoreCorrect;    // explicit 1-frame flag: restores ground/air correct on next frame
         u8 restoreCorrectKind;  // kCorrectGroundCliffStop (grounded) or kCorrectAir (airborne)
         int comboTimer;
+        int postResetTimer;
         int recoveryAirFrames;
         int maxHitlag;
         int maxHitstun;
@@ -63,11 +65,18 @@ namespace extra {
         u8 restoreCorrectKind;
         bool doWarp;
         bool warpFalling;
+        bool resetP1;
         bool pickRandomPos;
         bool pickOffstagePos;
         bool pickRandomDamage;
         bool applyFixedDamage;
     };
+
+    inline int comboResetDelayFrames(u8 delayMode)
+    {
+        static const u8 kDelays[main::kComboDelayCount] = {0, 15, 30, 45, 60};
+        return delayMode < main::kComboDelayCount ? static_cast<int>(kDelays[delayMode]) : 30;
+    }
 
     struct ComboMeterValues {
         u8 activeMask;         // bits from main::ComboMeterBit currently active
@@ -93,9 +102,11 @@ namespace extra {
         st.anchorY = 0.0f;
         st.anchorValid = false;
         st.wasInHitstun = false;
+        st.postResetArmed = false;
         st.restoreCorrect = false;
         st.restoreCorrectKind = kCorrectAir;
         st.comboTimer = 0;
+        st.postResetTimer = 0;
         st.recoveryAirFrames = 0;
         st.maxHitlag = 0;
         st.maxHitstun = 0;
@@ -123,8 +134,10 @@ namespace extra {
 
     inline bool isDownOrGrabStatus(int status)
     {
-        // Down..Tech (0x4A..0x64) and CapturePulled..CaptureThrown (0x3D..0x42).
-        return (status >= 0x4A && status <= 0x64) || (status >= 0x3D && status <= 0x42);
+        // Down..Tech (0x4A..0x64), CapturePulled..CaptureThrown (0x3D..0x42),
+        // and Yoshi Capture (0x107..0x10A).
+        return (status >= 0x4A && status <= 0x64) || (status >= 0x3D && status <= 0x42)
+               || (status >= 0x107 && status <= 0x10A);
     }
 
     // Updates peak denominators and computes all 7 floating state meters gated
@@ -291,6 +304,7 @@ namespace extra {
         act.restoreCorrectKind = kCorrectAir;
         act.doWarp = false;
         act.warpFalling = false;
+        act.resetP1 = false;
         act.pickRandomPos = false;
         act.pickOffstagePos = false;
         act.pickRandomDamage = false;
@@ -312,8 +326,41 @@ namespace extra {
             if (!cfg.enabled)
             {
                 st.wasInHitstun = false;
+                st.postResetArmed = false;
                 st.comboTimer = 0;
+                st.postResetTimer = 0;
                 st.recoveryAirFrames = 0;
+            }
+            else if (cfg.fixPosition && !cfg.recoveryTrainer && (st.wasInHitstun || st.postResetArmed))
+            {
+                // Immediate reset path on KO once out of Dead/Standby (Rebirth 0xBE).
+                if (in.status == 0xBE)
+                {
+                    st.wasInHitstun = false;
+                    st.postResetArmed = false;
+                    st.comboTimer = 0;
+                    st.postResetTimer = 0;
+                    st.resetCount++;
+                    act.doWarp = true;
+                    act.resetP1 = cfg.resetP1 != 0;
+                    act.warpFalling = cfg.randomizePosition ? (cfg.randOnGround == 0) : false;
+                    act.pickRandomPos = cfg.randomizePosition != 0;
+                    if (cfg.noclip)
+                    {
+                        act.setCorrectNone = true;
+                        st.restoreCorrect = true;
+                        st.restoreCorrectKind = act.warpFalling ? kCorrectAir : kCorrectGroundCliffStop;
+                        st.lastCorrectWritten = kCorrectNone;
+                    }
+                    if (cfg.randomizeDamage)
+                    {
+                        act.pickRandomDamage = true;
+                    }
+                    else
+                    {
+                        act.applyFixedDamage = true;
+                    }
+                }
             }
             return;
         }
@@ -365,42 +412,82 @@ namespace extra {
             return;
         }
 
-        // 2. Hitstun-drop auto-reset (fixPosition).
+        // 2. Hitstun-drop auto-reset (fixPosition) with configurable Reset Delay
+        //    and frame-trap / dodge-read hit continuation.
         if (cfg.fixPosition)
         {
-            int eff = in.hitstun + static_cast<int>(cfg.comboTimerAdjustment);
-            if (in.hitstun > 0 && eff > 0)
+            if (in.status == 0xBE && (st.wasInHitstun || st.postResetArmed))
             {
-                st.wasInHitstun = true;
-                st.comboTimer = eff;
-                return;
-            }
-            if (st.wasInHitstun && !isDownOrGrabStatus(in.status))
-            {
-                // When comboTimerAdjustment <= 0 and hitstun dropped (or hitstun
-                // + adjustment <= 0), count down remaining timer frames (if
-                // positive adjustment extended the wait) and reset at <= 0.
-                if (in.hitstun == 0 && cfg.comboTimerAdjustment > 0 && st.comboTimer > 0)
+                st.wasInHitstun = false;
+                st.postResetArmed = false;
+                st.comboTimer = 0;
+                st.postResetTimer = 0;
+                st.resetCount++;
+                act.doWarp = true;
+                act.resetP1 = cfg.resetP1 != 0;
+                act.warpFalling = cfg.randomizePosition ? (cfg.randOnGround == 0) : false;
+                act.pickRandomPos = cfg.randomizePosition != 0;
+                if (cfg.noclip)
                 {
-                    st.comboTimer--;
-                    if (st.comboTimer > 0)
-                    {
-                        return;
-                    }
+                    act.setCorrectNone = true;
+                    st.restoreCorrect = true;
+                    st.restoreCorrectKind = act.warpFalling ? kCorrectAir : kCorrectGroundCliffStop;
+                    st.lastCorrectWritten = kCorrectNone;
                 }
-                else if (in.hitstun > 0 && eff <= 0)
+                if (cfg.randomizeDamage)
                 {
-                    st.comboTimer = 0;
+                    act.pickRandomDamage = true;
                 }
                 else
                 {
-                    st.comboTimer = 0;
+                    act.applyFixedDamage = true;
+                }
+                return;
+            }
+            int delayBase = comboResetDelayFrames(cfg.resetDelay);
+            int totalDelay = delayBase + static_cast<int>(cfg.comboTimerAdjustment);
+            if (in.hitstun > 0)
+            {
+                int eff = in.hitstun + totalDelay;
+                if (eff > 0)
+                {
+                    st.wasInHitstun = true;
+                    st.postResetArmed = false;
+                    st.postResetTimer = 0;
+                    st.comboTimer = eff;
+                    return;
+                }
+            }
+            if (st.wasInHitstun)
+            {
+                if (isDownOrGrabStatus(in.status))
+                {
+                    // Stay in combo string through knockdown/tech/grab; cancel any reset timer.
+                    st.postResetArmed = false;
+                    st.postResetTimer = 0;
+                    return;
+                }
+                if (in.hitstun == 0 && totalDelay > 0)
+                {
+                    if (!st.postResetArmed)
+                    {
+                        st.postResetArmed = true;
+                        st.postResetTimer = totalDelay;
+                    }
+                    if (st.postResetTimer > 0)
+                    {
+                        st.postResetTimer--;
+                        return;
+                    }
                 }
 
                 st.wasInHitstun = false;
+                st.postResetArmed = false;
                 st.comboTimer = 0;
+                st.postResetTimer = 0;
                 st.resetCount++;
                 act.doWarp = true;
+                act.resetP1 = cfg.resetP1 != 0;
                 act.warpFalling = cfg.randomizePosition ? (cfg.randOnGround == 0) : false;
                 act.pickRandomPos = cfg.randomizePosition != 0;
                 if (cfg.noclip)

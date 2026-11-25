@@ -103,6 +103,8 @@ namespace extra {
         raw.shieldDropPlat = m->shieldDropPlat;
         raw.shieldDropSpacing = m->shieldDropSpacing;
         raw.shieldDropFacing = m->shieldDropFacing;
+        raw.grabAction = m->grabAction;
+        raw.grabPctMode = m->grabPctMode;
         return sanitizeScenarioConfig(raw);
     }
 
@@ -121,6 +123,8 @@ namespace extra {
         m->shieldDropPlat = kSdPlatLeft;
         m->shieldDropSpacing = kSdSpaceRandom;
         m->shieldDropFacing = kSdFaceToward;
+        m->grabAction = kGrabActHold;
+        m->grabPctMode = kGrabPctRandom;
     }
 
     static void syncDebugBlock(Fighter* hmn, Fighter* cpu)
@@ -302,7 +306,7 @@ namespace extra {
             main::Settings& s = main::settings();
             u16 prevHmn = s.general.playerPercent;
             u16 prevCpu = s.cpu.percent;
-            restoreScenarioSnapshot(s_net->state, s.cpu.options, s.comboTrainer, &s.general, &s.cpu);
+            restoreScenarioSnapshot(s_net->state, s.cpu.options, s.comboTrainer, &s.general, &s.cpu, &s.osd);
             applyPercentsIfChanged(prevHmn, prevCpu, s);
             s_net->state.activePreset = kScenarioOff;
             freeNetPtr(s_net);
@@ -344,7 +348,7 @@ namespace extra {
         main::Settings& s = main::settings();
         u16 prevHmn = s.general.playerPercent;
         u16 prevCpu = s.cpu.percent;
-        applyScenarioConfig(s_state, readMenuConfig(), s.cpu.options, s.comboTrainer, &s.general, &s.cpu);
+        applyScenarioConfig(s_state, readMenuConfig(), s.cpu.options, s.comboTrainer, &s.general, &s.cpu, &s.osd);
         applyPercentsIfChanged(prevHmn, prevCpu, s);
         scenarioTransientReset(s_state);
         scenarioCpuStateReset(s_cpuState);
@@ -371,7 +375,7 @@ namespace extra {
         main::Settings& s = main::settings();
         u16 prevHmn = s.general.playerPercent;
         u16 prevCpu = s.cpu.percent;
-        applyScenarioConfig(s_state, readMenuConfig(), s.cpu.options, s.comboTrainer, &s.general, &s.cpu);
+        applyScenarioConfig(s_state, readMenuConfig(), s.cpu.options, s.comboTrainer, &s.general, &s.cpu, &s.osd);
         applyPercentsIfChanged(prevHmn, prevCpu, s);
         requestScenarioManualReset(s_state);
         scenarioCpuStateReset(s_cpuState);
@@ -459,7 +463,7 @@ namespace extra {
         {
             u16 prevHmn = s.general.playerPercent;
             u16 prevCpu = s.cpu.percent;
-            applyScenarioConfig(s_state, readMenuConfig(), s.cpu.options, s.comboTrainer, &s.general, &s.cpu);
+            applyScenarioConfig(s_state, readMenuConfig(), s.cpu.options, s.comboTrainer, &s.general, &s.cpu, &s.osd);
             applyPercentsIfChanged(prevHmn, prevCpu, s);
             scenarioCpuStateReset(s_cpuState);
             break;
@@ -480,6 +484,9 @@ namespace extra {
             break;
         case main::kScenarioCyclePlatform:
             cycleShieldDropPlatform();
+            break;
+        case main::kScenarioComboReposition:
+            comboTrainerRepositionCpu();
             break;
         default:
             break;
@@ -545,7 +552,7 @@ namespace extra {
             main::Settings& s = main::settings();
             u16 prevHmn = s.general.playerPercent;
             u16 prevCpu = s.cpu.percent;
-            applyScenarioConfig(s_state, cfg, s.cpu.options, s.comboTrainer, &s.general, &s.cpu);
+            applyScenarioConfig(s_state, cfg, s.cpu.options, s.comboTrainer, &s.general, &s.cpu, &s.osd);
             applyPercentsIfChanged(prevHmn, prevCpu, s);
             syncDebugBlock(haveHmn ? hmnRef.fighter : NULL, haveCpu ? cpuRef.fighter : NULL);
             return;
@@ -559,7 +566,7 @@ namespace extra {
             if (s_state.activePreset != kScenarioOff)
             {
                 main::Settings& s = main::settings();
-                reapplyActiveScenarioOverrides(s_state, cfg, s.cpu.options, s.comboTrainer, &s.general, &s.cpu);
+                reapplyActiveScenarioOverrides(s_state, cfg, s.cpu.options, s.comboTrainer, &s.general, &s.cpu, &s.osd);
                 lab::applyPercent(main::kSideHuman);
                 lab::applyPercent(main::kSideCpu);
                 requestScenarioManualReset(s_state);
@@ -637,7 +644,7 @@ namespace extra {
 
         ScenarioStepAction act;
         main::Settings& s = main::settings();
-        stepScenario(s_state, cfg, in, s.cpu.options, s.comboTrainer, act, &s.general, &s.cpu);
+        stepScenario(s_state, cfg, in, s.cpu.options, s.comboTrainer, act, &s.general, &s.cpu, &s.osd);
         if (act.applyHmnPercent)
         {
             lab::applyPercent(main::kSideHuman);
@@ -702,11 +709,13 @@ namespace extra {
             }
         }
 
+        float hmnDmg = act.useExplicitHmnDmg ? act.hmnDmg : static_cast<float>(s.general.playerPercent);
+        float cpuDmg = act.useExplicitCpuDmg ? act.cpuDmg : static_cast<float>(s.cpu.percent);
         if (act.warpHmn)
         {
             if (act.spawns.hmnFalling)
             {
-                placeFalling(hmnRef, act.spawns.hmnX, act.spawns.hmnY, act.setNoclip[0], -1.0f, act.spawns.hmnLr);
+                placeFalling(hmnRef, act.spawns.hmnX, act.spawns.hmnY, act.setNoclip[0], hmnDmg, act.spawns.hmnLr);
                 if (act.refreshHmnAir)
                 {
                     refreshAirResources(hmnRef, act.hmnSpendDj);
@@ -714,7 +723,7 @@ namespace extra {
             }
             else
             {
-                placeStanding(hmnRef, act.spawns.hmnX, act.spawns.hmnY, act.setNoclip[0], -1.0f, act.spawns.hmnLr);
+                placeStanding(hmnRef, act.spawns.hmnX, act.spawns.hmnY, act.setNoclip[0], hmnDmg, act.spawns.hmnLr);
                 finishStandingWarp(hmnRef, act.setNoclip[0]);
             }
             clearWarpIntang(hmnRef);
@@ -724,7 +733,7 @@ namespace extra {
         {
             if (act.spawns.cpuFalling)
             {
-                placeFalling(cpuRef, act.spawns.cpuX, act.spawns.cpuY, act.setNoclip[1], -1.0f, act.spawns.cpuLr);
+                placeFalling(cpuRef, act.spawns.cpuX, act.spawns.cpuY, act.setNoclip[1], cpuDmg, act.spawns.cpuLr);
                 if (act.refreshCpuAir)
                 {
                     refreshAirResources(cpuRef, false);
@@ -732,7 +741,7 @@ namespace extra {
             }
             else
             {
-                placeStanding(cpuRef, act.spawns.cpuX, act.spawns.cpuY, act.setNoclip[1], -1.0f, act.spawns.cpuLr);
+                placeStanding(cpuRef, act.spawns.cpuX, act.spawns.cpuY, act.setNoclip[1], cpuDmg, act.spawns.cpuLr);
                 finishStandingWarp(cpuRef, act.setNoclip[1]);
             }
             clearWarpIntang(cpuRef);
@@ -741,10 +750,15 @@ namespace extra {
         if (act.resetComboTrainer)
         {
             comboTrainerReset();
+            if (s_state.activePreset == kScenarioComboLab && act.warpHmn && act.warpCpu)
+            {
+                comboTrainerSetAnchors(act.spawns.hmnX, act.spawns.hmnY, act.spawns.hmnLr, act.spawns.cpuX,
+                                       act.spawns.cpuY);
+            }
             coreDrillEnginesSavestateReset();
             hoverPsResetTransient();
             pplusTechReset();
-            cpu::optionsPrepareSwap(false, 0);
+            cpu::optionsResetAll();
             for (int i = 0; i < n; i++)
             {
                 if (refs[i].cpu && refs[i].playerNo >= 0 && refs[i].playerNo < game::kMaxFighters)
@@ -770,10 +784,12 @@ namespace extra {
         const bool psDrill = (s_state.activePreset == kScenarioOff)
                              && (drillHudActiveId() == drills::kDrillPowershield)
                              && !drillHudModalOpen();
+        ScenarioConfig cfg = readMenuConfig();
         if (!psDrill)
         {
+            bool grabActive = s_state.activePreset == kScenarioGrabEscape && cfg.grabAction != kGrabActStand;
             if (s_state.activePreset != kScenarioMultiHitSdi && s_state.activePreset != kScenarioLedgetech
-                && s_state.activePreset != kScenarioSlideOff)
+                && s_state.activePreset != kScenarioSlideOff && !grabActive)
             {
                 return false;
             }
@@ -803,13 +819,15 @@ namespace extra {
             return false;
         }
 
-        ScenarioConfig cfg = readMenuConfig();
         ScenarioCpuInput in;
         in.preset = s_state.activePreset;
         in.multiHitMove = cfg.multiHitMove;
         in.ledgetechAttack = s_state.resolvedLedgetechAttack;
+        in.grabAction = cfg.grabAction;
+        in.rng = geomNextRng(s_state.rng) ^ game::frameCounter();
         in.cpuFtKind = game::fighterKind(who.entryId, who.sub);
         in.cpuStatus = v.status;
+        in.hmnStatus = hmnFs.status;
         in.cpuAir = v.air;
         in.cpuCanAct = cpu::canAct(v);
         in.cpuTakeoffNext = cpu::takeoffNext(v);
@@ -851,7 +869,7 @@ namespace extra {
         {
             return;
         }
-        projectScenarioSavedView(s_net->state, out.cpu.options, out.comboTrainer, &out.general, &out.cpu);
+        projectScenarioSavedView(s_net->state, out.cpu.options, out.comboTrainer, &out.general, &out.cpu, &out.osd);
     }
 }
 }

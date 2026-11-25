@@ -278,7 +278,7 @@ namespace {
 
 TEST(settings_reset, area_bounds_cover_all_16_areas_with_no_gaps_or_overlaps)
 {
-    CHECK_EQ(436u, static_cast<u32>(sizeof(Settings)));
+    CHECK_EQ(464u, static_cast<u32>(sizeof(Settings)));
 
     u16 off = 0xBEEFu;
     u16 sz = 0xCAFEu;
@@ -536,7 +536,7 @@ TEST(settings_reset, reset_settings_option_resets_single_row_and_preserves_sibli
     CHECK_BYTES("single u16 option", &expected, &main::settings(), sizeof(Settings));
 
     main::settings() = dirty;
-    CHECK(main::resetSettingsOption(ui::pages::P_COMBO_TRAINER, 8)); // Timer Adjust (s8)
+    CHECK(main::resetSettingsOption(ui::pages::P_COMBO_TRAINER, 12)); // Timer Adjust (s8)
     expected = dirty;
     expected.comboTrainer.comboTimerAdjustment = defaults.comboTrainer.comboTimerAdjustment;
     CHECK_BYTES("single s8 option", &expected, &main::settings(), sizeof(Settings));

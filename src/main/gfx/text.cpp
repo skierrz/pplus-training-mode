@@ -515,9 +515,9 @@ namespace gfx {
     }
 
 #ifdef TM_MODULE_MAIN
-#if !defined(__MWERKS__) || defined(TM_PERF)
-    // Widths measured lately (used on host tests and TM_PERF_LEGACY(); on Wii
-    // the glyph cache computes ASCII widths directly without touching GX).
+#if !defined(__MWERKS__)
+    // Widths measured lately (used on host tests; on Wii the glyph cache
+    // computes ASCII widths directly without touching GX).
     enum { kWidthCache = 32, kWidthText = 48 };
     struct CachedWidth {
         float scale;
@@ -577,7 +577,7 @@ namespace gfx {
             }
         }
 #endif
-#if !defined(__MWERKS__) || defined(TM_PERF)
+#if !defined(__MWERKS__)
         u32 len = 0;
         while (str[len] != '\0' && len < kWidthText)
         {

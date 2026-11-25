@@ -11,6 +11,7 @@
 #include <mu/menu.h>
 #include <string.h>
 
+#include "extra/di_display.h"
 #include "extra/fighter_swap_core.h"
 #include "extra/net_alloc.h"
 #include "extra/ui_assets_core.h"
@@ -299,6 +300,11 @@ namespace extra {
 
     void uiAssetsDrawPageOverlay(u8 pageId, bool railMode)
     {
+        if (pageId == ui::pages::P_CPU_DI)
+        {
+            diDrawCustomPickerOverlay(railMode);
+            return;
+        }
         if (pageId != ui::pages::P_FIGHTER_SWAP)
         {
             return;

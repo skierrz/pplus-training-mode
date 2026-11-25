@@ -24,6 +24,9 @@ namespace extra {
     // is, and its Code Menu value is put back as it was when it is not.
     void diHideDrawDi(bool hide);
 
+    // Draws the live 2D unit-circle Custom CPU DI picker preview inside P_CPU_DI.
+    void diDrawCustomPickerOverlay(bool railMode);
+
     // Writing a fighter's player number + 1 here (the harness does) logs the
     // predicted points of that fighter's paths every time they are drawn.
     extern u8 g_diTrace;

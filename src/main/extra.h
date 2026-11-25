@@ -122,7 +122,8 @@ namespace main {
         kScenarioResetNow,
         kScenarioSavestateLoaded,
         kScenarioSettingsReset,
-        kScenarioCyclePlatform
+        kScenarioCyclePlatform,
+        kScenarioComboReposition
     };
 
     // What the match module asks of the Character RNG / Fighter Mechanics code.
@@ -252,6 +253,7 @@ namespace main {
     void extraScenarioSavestateLoaded();
     void extraScenarioSettingsReset();
     void extraScenarioCyclePlatform();
+    void extraComboReposition();
     bool extraScenarioCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons);
     void extraScenarioSavedView(Settings& out);
     // Mid-session Fighter Swap (extra/fighter_swap.h).
