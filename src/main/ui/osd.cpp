@@ -232,11 +232,24 @@ namespace osd {
         return false;
     }
 
-    static void drawMessage(Message& m, s32 now, float scale, float floorY, const ThemeColors& t)
+    static int infoRowCount(const main::InfoSettings& info)
+    {
+        int n = 0;
+        for (int r = 0; r < main::kInfoRows; r++)
+        {
+            if (info.rows[r] != 0)
+            {
+                n = r + 1;
+            }
+        }
+        return n;
+    }
+
+    static void drawMessage(Message& m, s32 now, float scale, float floorY, float topY, const ThemeColors& t)
     {
         float xs = gfx::xScale();
         float w = kBoxWidth * xs;
-        StackPlace at = stackPlace(s_position, m.player, xs, floorY);
+        StackPlace at = stackPlace(s_position, m.player, xs, floorY, topY);
         float slot = place(m, now);
         float cx = at.x + slot * at.dx;
         float cy = at.y + slot * at.dy;
@@ -315,6 +328,59 @@ namespace osd {
                       && (rec.hmnMode != 0
                           || (rec.cpuMode != 0 && s.cpu.options.control == cpu::kControlLab));
         float floorY = recBar ? ui::layout::recBarOsdFloor() : 0.0f;
+        float topY = 0.0f;
+        if (s_position == kPositionTopLeft || s_position == kPositionTopRight)
+        {
+            using namespace ui::layout;
+            bool wide = gfx::widescreen();
+            float xs = xsOf(wide);
+            Box band = topBand();
+            float sideBot = 0.0f;
+            if (s_position == kPositionTopLeft)
+            {
+                int hr = infoRowCount(s.info[0]);
+                int cr = infoRowCount(s.info[1]);
+                if (hr > 0 || cr > 0)
+                {
+                    float wh = hr > 0 ? infoWidth(s.info[0].size, wide) : 0.0f;
+                    float wc = cr > 0 ? infoWidth(s.info[1].size, wide) : 0.0f;
+                    float top = infoTop(band, wh > wc ? wh : wc, wide);
+                    sideBot = hr > 0 ? top + infoHeight(hr, s.info[0].size) : top;
+                    if (cr > 0)
+                    {
+                        sideBot = infoCpuTop(top, sideBot) + infoHeight(cr, s.info[1].size);
+                    }
+                }
+            }
+            else
+            {
+                int vSlots = inputViewerSlotCount(s.display.inputViewer);
+                bool hasComp = s.general.diDisplay != 0 && s.display.diVectorMode != main::kDiVectorLive;
+                if (vSlots > 0 || hasComp)
+                {
+                    float rw = (vSlots > 0 ? kViewerWidth : kCompassWidth) * xs;
+                    float rx0 = kViewerRight - rw;
+                    bool hitBand = !empty(band) && rx0 < band.x1 && band.x0 < kViewerRight && band.y1 > kViewerTop;
+                    float y = hitBand ? (band.y1 + kStepGap) : kViewerTop;
+                    if (vSlots > 0)
+                    {
+                        y += static_cast<float>(vSlots) * (kViewerHeight + kViewerGap) - kViewerGap;
+                        if (hasComp)
+                        {
+                            y += kViewerGap + kCompassHeight;
+                        }
+                    }
+                    else
+                    {
+                        y += kCompassHeight;
+                    }
+                    sideBot = y;
+                }
+            }
+            topY = osdTopStartY(s_position == kPositionTopRight, band,
+                                s_position == kPositionTopLeft ? sideBot : 0.0f,
+                                s_position == kPositionTopRight ? sideBot : 0.0f);
+        }
         s32 now = game::trackerFrame();
         for (int p = 0; p < kPlayers; p++)
         {
@@ -327,7 +393,7 @@ namespace osd {
                     Message& m = s_messages[i];
                     if (m.used && m.player == p && m.slot == slot)
                     {
-                        drawMessage(m, now, scale, floorY, theme);
+                        drawMessage(m, now, scale, floorY, topY, theme);
                     }
                 }
             }

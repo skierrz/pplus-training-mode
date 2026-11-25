@@ -1571,3 +1571,235 @@ TEST(text_fit, places_restated_from_their_drawing_code)
     CHECK(s_checked >= 60);
     end(" box fit squeeze buffer ");
 }
+
+// ---- Multi-HUD piece-against-piece non-overlap checks (4:3 & 16:9) -----------------
+
+TEST(text_fit, multi_hud_non_overlap_43_and_169)
+{
+    using namespace ui::layout;
+
+    struct HudPiece {
+        const char* name;
+        Box rect;
+    };
+
+    const float kTol = 0.5f;
+    int combosChecked = 0;
+
+    for (int a = 0; a < 2; a++)
+    {
+        bool wide = (a == 1);
+        float xs = xsOf(wide);
+        const char* aspect = wide ? "16:9" : "4:3";
+        Box safe = safeArea(wide);
+
+        // Drawn bottom-region HUD boxes (Recording Bar, Storage Notice, Watermark).
+        gfx::setWidescreen(wide);
+        gfx::forgetWidths();
+        canvas::clear();
+        record::HudInfo barInfo = {record::kHudPlayback, 3599, 3600, false, NULL};
+        record::hudDraw(barInfo);
+        canvas::Bounds bb = canvas::bounds();
+        Box recBar = {bb.x0, bb.y0, bb.x1, bb.y1};
+
+        storage::notice(storage::kNoticeOk, "Lab settings from an older version: new ones at defaults");
+        for (int k = 0; k < 2; k++)
+        {
+            canvas::clear();
+            storage::noticeDraw(false);
+        }
+        storage::noticeClear();
+        canvas::Bounds nb = canvas::bounds();
+        Box noticeBox = {nb.x0, nb.y0, nb.x1, nb.y1};
+
+        canvas::clear();
+        ui::drawWatermark();
+        canvas::Bounds wb = canvas::bounds();
+        Box watermarkBox = {wb.x0, wb.y0, wb.x1, wb.y1};
+
+        // Sweep: Timer vs Ledgedash (30 & 64) x Info (Small 8+8, Med 8+2, Large 8+8)
+        //        x Input Viewer (0, 1, 2) x DI Compass (0, 1) x PSA Card (0, 1).
+        static const int kLedgeModes[3] = {0, 30, 64};
+        struct InfoCfg {
+            int size;
+            int hmnRows;
+            int cpuRows;
+        };
+        static const InfoCfg kInfos[3] = {
+            {main::kInfoSmall, 8, 8},
+            {main::kInfoMedium, 8, 2},
+            {main::kInfoLarge, 8, 8}
+        };
+
+        for (int li = 0; li < 3; li++)
+        {
+            int ledge = kLedgeModes[li];
+            Box band = labBand(ledge == 0, ledge, wide);
+
+            for (int ii = 0; ii < 3; ii++)
+            {
+                const InfoCfg& ic = kInfos[ii];
+                float iw = infoWidth(ic.size, wide);
+                float iy = infoTop(band, iw, wide);
+                Box infoHmn = box(infoLeft(wide), iy, iw, infoHeight(ic.hmnRows, ic.size));
+                Box infoCpu = box(infoLeft(wide), infoCpuTop(iy, infoHmn.y1), iw, infoHeight(ic.cpuRows, ic.size));
+                float infoBot = infoStackBottom(band, ic.hmnRows, ic.size, ic.cpuRows, ic.size, wide);
+                CHECK_NEAR(infoCpu.y1, infoBot, 0.01f);
+
+                for (int vSlots = 0; vSlots <= 2; vSlots++)
+                {
+                    for (int hasComp = 0; hasComp <= 1; hasComp++)
+                    {
+                        for (int hasPsa = 0; hasPsa <= 1; hasPsa++)
+                        {
+                            HudPiece pieces[16];
+                            int count = 0;
+                            if (ledge == 0)
+                            {
+                                pieces[count].name = "timer";
+                                pieces[count++].rect = timerRoom(wide);
+                            }
+                            else
+                            {
+                                pieces[count].name = "ledge-bar";
+                                pieces[count++].rect = frameBarBox(ledge, wide);
+                                pieces[count].name = "ledge-header";
+                                pieces[count++].rect = ledgeHeaderBox(wide);
+                            }
+                            pieces[count].name = "info-hmn";
+                            pieces[count++].rect = infoHmn;
+                            pieces[count].name = "info-cpu";
+                            pieces[count++].rect = infoCpu;
+                            for (int s = 0; s < vSlots; s++)
+                            {
+                                pieces[count].name = s == 0 ? "viewer-0" : "viewer-1";
+                                pieces[count++].rect = inputViewerCardBox(s, band, wide);
+                            }
+                            if (hasComp)
+                            {
+                                pieces[count].name = "di-compass";
+                                pieces[count++].rect = diCompassBox(band, vSlots, wide);
+                            }
+                            if (hasPsa)
+                            {
+                                pieces[count].name = "psa-card";
+                                pieces[count++].rect = psaCardBox(band, vSlots, hasComp != 0, wide);
+                            }
+                            pieces[count].name = "rec-bar";
+                            pieces[count++].rect = recBar;
+                            pieces[count].name = "notice";
+                            pieces[count++].rect = noticeBox;
+                            pieces[count].name = "watermark";
+                            pieces[count++].rect = watermarkBox;
+
+                            // 1. Every piece inside 5% CRT safe area.
+                            for (int p = 0; p < count; p++)
+                            {
+                                const Box& r = pieces[p].rect;
+                                if (r.x0 < safe.x0 - kTol || r.y0 < safe.y0 - kTol || r.x1 > safe.x1 + kTol
+                                    || r.y1 > safe.y1 + kTol)
+                                {
+                                    host::test::fail(
+                                        __FILE__, __LINE__,
+                                        "%s (ledge=%d info=%d v=%d comp=%d psa=%d): %s leaves 5%% CRT safe area",
+                                        aspect, ledge, ii, vSlots, hasComp, hasPsa, pieces[p].name);
+                                }
+                            }
+
+                            // 2. Pairwise non-overlap across all active Lab HUD pieces.
+                            for (int p = 0; p < count; p++)
+                            {
+                                for (int q = p + 1; q < count; q++)
+                                {
+                                    const Box& ra = pieces[p].rect;
+                                    const Box& rb = pieces[q].rect;
+                                    float dx = (ra.x1 < rb.x1 ? ra.x1 : rb.x1) - (ra.x0 > rb.x0 ? ra.x0 : rb.x0);
+                                    float dy = (ra.y1 < rb.y1 ? ra.y1 : rb.y1) - (ra.y0 > rb.y0 ? ra.y0 : rb.y0);
+                                    if (dx > kTol && dy > kTol)
+                                    {
+                                        host::test::fail(
+                                            __FILE__, __LINE__,
+                                            "%s (ledge=%d info=%d v=%d comp=%d psa=%d): %s overlaps %s by %.1f x %.1f",
+                                            aspect, ledge, ii, vSlots, hasComp, hasPsa, pieces[p].name, pieces[q].name,
+                                            dx, dy);
+                                    }
+                                }
+                            }
+
+                            // 3. Stepped TopLeft and TopRight P1 OSD card clears top band,
+                            //    same-side HUD column, PSA card, and Brawl damage row (y 397).
+                            float rightBot = rightColumnBottom(band, vSlots, hasComp != 0, hasPsa != 0, wide);
+                            float topL = osdTopStartY(false, band, infoBot, rightBot);
+                            float topR = osdTopStartY(true, band, infoBot, rightBot);
+                            osd_real::StackPlace spL = osd_real::stackPlace(osd_real::kPositionTopLeft, 0, xs, 0.0f, topL);
+                            osd_real::StackPlace spR = osd_real::stackPlace(osd_real::kPositionTopRight, 0, xs, 0.0f, topR);
+                            float hw = osd_real::kBoxWidth * xs * 0.5f;
+                            float hh = osd_real::kBoxHeight * 0.5f;
+                            Box osdL = {spL.x - hw, spL.y - hh, spL.x + hw, spL.y + hh};
+                            Box osdR = {spR.x - hw, spR.y - hh, spR.x + hw, spR.y + hh};
+
+                            CHECK(osdL.x0 >= safe.x0 - kTol && osdL.x1 <= safe.x1 + kTol);
+                            CHECK(osdL.y0 >= safe.y0 - kTol && osdL.y1 <= 397.0f + kTol);
+                            CHECK(osdR.x0 >= safe.x0 - kTol && osdR.x1 <= safe.x1 + kTol);
+                            CHECK(osdR.y0 >= safe.y0 - kTol && osdR.y1 <= 397.0f + kTol);
+
+                            // TopLeft P1 OSD clears band, info panels, viewer, compass, psa, watermark.
+                            for (int p = 0; p < count; p++)
+                            {
+                                if (strcmp(pieces[p].name, "rec-bar") == 0 || strcmp(pieces[p].name, "notice") == 0)
+                                {
+                                    continue;
+                                }
+                                const Box& r = pieces[p].rect;
+                                float dxL = (osdL.x1 < r.x1 ? osdL.x1 : r.x1) - (osdL.x0 > r.x0 ? osdL.x0 : r.x0);
+                                float dyL = (osdL.y1 < r.y1 ? osdL.y1 : r.y1) - (osdL.y0 > r.y0 ? osdL.y0 : r.y0);
+                                CHECK(!(dxL > kTol && dyL > kTol));
+
+                                float dxR = (osdR.x1 < r.x1 ? osdR.x1 : r.x1) - (osdR.x0 > r.x0 ? osdR.x0 : r.x0);
+                                float dyR = (osdR.y1 < r.y1 ? osdR.y1 : r.y1) - (osdR.y0 > r.y0 ? osdR.y0 : r.y0);
+                                CHECK(!(dxR > kTol && dyR > kTol));
+                            }
+
+                            // 4. Lower OSD stacks (HUD & Sides, 3 typical messages for P1+CPU)
+                            //    never collide with Timer, Ledgedash HUD, Viewer, Compass, or PSA.
+                            if (ii == 1 && ledge == 0)
+                            {
+                                for (int pos = osd_real::kPositionHud; pos <= osd_real::kPositionSides; pos++)
+                                {
+                                    for (int pl = 0; pl < 2; pl++)
+                                    {
+                                        osd_real::StackPlace sp = osd_real::stackPlace(pos, pl, xs, recBarOsdFloor());
+                                        Box stack = none();
+                                        for (int sl = 0; sl < 3; sl++)
+                                        {
+                                            float sx = sp.x + sl * sp.dx;
+                                            float sy = sp.y + sl * sp.dy;
+                                            Box one = {sx - hw, sy - hh, sx + hw, sy + hh};
+                                            stack = unite(stack, one);
+                                        }
+                                        for (int p = 0; p < count; p++)
+                                        {
+                                            if (strcmp(pieces[p].name, "notice") == 0)
+                                            {
+                                                continue;
+                                            }
+                                            const Box& r = pieces[p].rect;
+                                            float dx = (stack.x1 < r.x1 ? stack.x1 : r.x1)
+                                                       - (stack.x0 > r.x0 ? stack.x0 : r.x0);
+                                            float dy = (stack.y1 < r.y1 ? stack.y1 : r.y1)
+                                                       - (stack.y0 > r.y0 ? stack.y0 : r.y0);
+                                            CHECK(!(dx > kTol && dy > kTol));
+                                        }
+                                    }
+                                }
+                            }
+                            combosChecked++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    CHECK_EQ(2 * 3 * 3 * 3 * 2 * 2, combosChecked);
+    NOTE("%d multi-HUD 4:3/16:9 combinations verified with 0 overlaps", combosChecked);
+}
