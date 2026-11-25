@@ -47,7 +47,7 @@ namespace drills {
         u8 cardSlot;        // 0/1: which bests file holds cardSequence
         u8 cardNewer;       // 1: newest bests file on the card is a newer format (no writes this session)
         u8 pendingScenario; // extra::ScenarioId (1..10) armed from boot menu; 0 = none
-        u8 reserved[1];
+        u8 matchRan;        // 1: a Training match ran; auto-reopen boot menu on return to CSS
         // Session best score per DrillId (0: none yet; higher is better).
         u16 best[kBestSlots];
         u32 cardSequence; // of the newest bests file on the card (0: none)
@@ -56,6 +56,7 @@ namespace drills {
     TM_STATIC_ASSERT(sizeof(Session) == kSessionSize, tm_drill_session_size);
     TM_STATIC_ASSERT(offsetof(Session, cardNewer) == 13, tm_drill_session_card_newer_offset);
     TM_STATIC_ASSERT(offsetof(Session, pendingScenario) == 14, tm_drill_session_pending_scenario_offset);
+    TM_STATIC_ASSERT(offsetof(Session, matchRan) == 15, tm_drill_session_match_ran_offset);
     TM_STATIC_ASSERT(offsetof(Session, best) == 16, tm_drill_session_best_offset);
     TM_STATIC_ASSERT(offsetof(Session, cardSequence) == 80, tm_drill_session_card_seq_offset);
     TM_STATIC_ASSERT(offsetof(Session, cardSum) == 84, tm_drill_session_card_sum_offset);

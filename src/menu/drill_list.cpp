@@ -1272,9 +1272,15 @@ namespace list {
             s_waitRelease[i] = false;
         }
         bool fromDrill = session().drillRan != 0;
-        session().drill = drills::kDrillNone;
+        bool fromMatch = session().matchRan != 0;
+        if (fromDrill || fromMatch)
+        {
+            session().drill = drills::kDrillNone;
+            session().pendingScenario = 0;
+        }
         session().drillRan = 0;
-        if (!session().labChosen || fromDrill)
+        session().matchRan = 0;
+        if (!session().labChosen || fromDrill || fromMatch)
         {
             int port = training::controllingPort();
             if (port >= 0)
@@ -1302,6 +1308,7 @@ namespace list {
             session().labChosen = 0;
             session().drill = drills::kDrillNone;
             session().pendingScenario = 0;
+            session().matchRan = 0;
         }
         browser::detach();
         TM_LOG("drills: detached, exit code %d\n", code);

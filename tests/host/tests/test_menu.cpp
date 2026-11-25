@@ -613,7 +613,7 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
 
     const ui::Page& dbg = ui::pages::kDebug;
     REQUIRE(dbg.count == 2);
-    CHECK(strcmp(dbg.options[0].name, "PSA Inspector") == 0);
+    CHECK(strcmp(dbg.options[0].name, "PSA Debugger") == 0);
     CHECK(strcmp(dbg.options[1].name, "Debug Overlay") == 0);
 
     const ui::Page& cpuP = ui::pages::kCpuOptions;

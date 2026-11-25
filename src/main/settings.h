@@ -124,7 +124,7 @@ namespace main {
         kDiVectorModeCount
     };
 
-    // Display > PSA Inspector.
+    // Display > Advanced / Debug > PSA Debugger.
     enum PsaInspectorTarget {
         kPsaOff = 0,
         kPsaP1,

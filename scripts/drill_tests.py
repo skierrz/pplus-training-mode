@@ -332,9 +332,14 @@ def run(emu, opts, taken, notes, state):
     state["matches"] += 1
     emu.advance(60)
     nav.finish_training(emu)
-    state["step"] = "back on the character select: the list stays closed"
-    wait_count(emu, "the list to stay closed", r"\] drills: list stays closed", 1, 300)
-    emu.advance(30)
+    state["step"] = "back on the character select: the list reopens after a match"
+    wait_count(emu, "the list to reopen after match",
+               r"\] drills: list opened \(auto\) for port 1, row 0 Training Lab", 2, 300)
+    emu.advance(15)
+    # Close with B and verify L+R still reopens without moving the CSS hand.
+    emu.press(0, ["B"], frames=4, after=10)
+    wait_count(emu, "B to close the reopened list", r"\] drills: list closed \(B\)", 1, 120)
+    emu.advance(20)
     before = css_snapshot(emu)
     state["step"] = "L+R reopens the list"
     emu.press(0, ["L", "R"], frames=4, after=10)
@@ -343,8 +348,9 @@ def run(emu, opts, taken, notes, state):
     if css_snapshot(emu) != before:
         raise nav.NavError(f"L+R moved the character select: {before} -> {css_snapshot(emu)}")
 
-    # Arm a Scenario (Shield Pressure, preset 4) from Offense, start a
-    # normal match via CSS + stage select, and confirm extra/scenario_presets.cpp
+    # Arm a Scenario (Shield Pressure, preset 4) from Offense, verify backing
+    # out of Stage Select with B keeps the list closed and preserves the armed
+    # scenario, then start the match and confirm extra/scenario_presets.cpp
     # auto-activates it on match load.
     state["step"] = "Scenario auto-activation from boot menu (Shield Pressure)"
     go_to_page(emu, "Offense", "R")
@@ -352,6 +358,18 @@ def run(emu, opts, taken, notes, state):
     n_armed = count(emu, r"\] drills: scenario 4 \(Shield Pressure\) armed")
     emu.press(0, ["A"], frames=4, after=10)
     wait_count(emu, "Shield Pressure armed", r"\] drills: scenario 4 \(Shield Pressure\) armed", n_armed + 1, 120)
+    # Stage Select -> B -> CSS must NOT reopen the boot list.
+    state["step"] = "Stage Select back to CSS keeps boot list closed"
+    nav.choose_on_css(emu, "mario", "fox")
+    nav.press_until(emu, "the stage select", ["START"], lambda: nav.scene(emu)[0] == "scSelStage", 600)
+    emu.wait_for("stage select ready", lambda: nav.sss(emu) is not None, 300, every=2)
+    emu.advance(15)
+    nav.press_until(emu, "return to CSS from stage select", ["B"],
+                    lambda: nav.scene(emu)[0] == "scSelctCharacter", 300, every=20)
+    state["visits"] += 1
+    wait_count(emu, "the list to stay closed after backing out of stage select",
+               r"\] drills: list stays closed", 1, 300)
+    emu.advance(15)
     n_scen = count(emu, r"\] scenarios: armed preset 4 from menu session")
     nav.start_training_match(emu, "mario", "fox")
     state["matches"] += 1
@@ -369,11 +387,8 @@ def run(emu, opts, taken, notes, state):
     notes.append(f"Scenario handoff ok: Shield Pressure (preset={active_preset}, resets={reset_count})")
     nav.finish_training(emu)
     state["visits"] += 1
-    wait_count(emu, "the list to stay closed after scenario match", r"\] drills: list stays closed", 2, 300)
-    emu.advance(20)
-    emu.press(0, ["L", "R"], frames=4, after=10)
-    wait_count(emu, "L+R to reopen list on remembered Shield Pressure row",
-               r"\] drills: list opened \(L\+R\) for port 1, row 3 Shield Pressure", 1, 120)
+    wait_count(emu, "the list to reopen on remembered Shield Pressure row after scenario match",
+               r"\] drills: list opened \(auto\) for port 1, row 3 Shield Pressure", 1, 300)
     emu.advance(10)
     n_all = count(emu, r"\] drills: page All Modes")
     emu.press(0, ["L"], frames=4, after=10)

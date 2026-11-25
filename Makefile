@@ -142,6 +142,11 @@ EXTRA_PROOF ?= 0
 ifeq ($(EXTRA_PROOF),1)
 BUILD   := $(BUILD)/proof
 endif
+# STAGE4C=1: compile experimental unwired Stage 4C challenge backends into extra.
+STAGE4C ?= 0
+ifeq ($(STAGE4C),1)
+BUILD   := $(BUILD)/stage4c
+endif
 TOOLS   ?= tools
 # Optional local copy of the upstream template for `make tools`.
 TOOLS_SRC ?=
@@ -197,6 +202,9 @@ MENU_SRCS   := $(sort $(call rwildcard,src/menu,*.cpp)) src/main/gfx/draw.cpp sr
 # it compiles only its own sources, info display/status names moved out of
 # match for headroom, and the destructor chain every module needs its own copy of.
 EXTRA_SRCS  := $(sort $(call rwildcard,src/extra,*.cpp)) $(INFO_EXTRA_SRCS) src/shared/global_chain.cpp
+ifneq ($(STAGE4C),1)
+EXTRA_SRCS  := $(filter-out src/extra/challenge_backends.cpp,$(EXTRA_SRCS))
+endif
 ifneq ($(EXPERIMENTS),1)
 STUB_SRCS := $(filter-out src/stub/experiments/%,$(STUB_SRCS))
 MAIN_SRCS := $(filter-out src/main/experiments/%,$(MAIN_SRCS))
@@ -246,6 +254,9 @@ endif
 endif
 ifeq ($(EXTRA_PROOF),1)
 CXXFLAGS += -DTM_EXTRA_PROOF=1
+endif
+ifeq ($(STAGE4C),1)
+CXXFLAGS += -DTM_STAGE4C=1
 endif
 ifeq ($(PERF),1)
 CXXFLAGS += -DTM_PERF=1
@@ -541,8 +552,11 @@ test-stage4a-pplus-tech: install
 test-skill-drills-ui: install
 	$(Q)$(EMU) test-skill-drills-ui $(REL) $(SKILL_DRILLS_UI_ARGS)
 
-# STAGE4C_ARGS, e.g. STAGE4C_ARGS="--only cancel-sprint flow-course snake-recovery".
+# STAGE4C_ARGS, e.g. STAGE4C_ARGS="--only cancel-sprint flow-course snake-recovery". Needs STAGE4C=1.
 test-stage4c: install
+ifneq ($(STAGE4C),1)
+	$(error test-stage4c needs the STAGE4C=1 build: make STAGE4C=1 test-stage4c)
+endif
 	$(Q)$(EMU) test-stage4c $(REL) $(STAGE4C_ARGS)
 
 # GRAB_VIZ_ARGS, e.g. GRAB_VIZ_ARGS="--only off-noop standard-grab".

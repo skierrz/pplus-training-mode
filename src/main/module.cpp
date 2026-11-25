@@ -20,6 +20,7 @@
 #include "main/settings.h"
 #include "main/storage/storage.h"
 #include "main/ui/match_hud.h"
+#include "shared/drill_session.h"
 #include "shared/game/code_menu.h"
 #include "shared/game/scene.h"
 #include "shared/log.h"
@@ -265,6 +266,13 @@ namespace main {
         }
         TM_LOG("main: attached in %s / %s; settings v%d at %08x %s\n", game::sceneName(), game::sequenceName(),
                kSettingsVersion, block, reset ? "set to defaults" : "kept");
+        // Mark that a Training match ran so returning to Training CSS reopens
+        // the boot launcher (while backing out of Stage Select does not).
+        drills::Session* ds = drills::sessionIn(block);
+        if (ds != NULL)
+        {
+            ds->matchRan = 1;
+        }
         // The SD card's settings (first match of the session), before the
         // features read them.
         storage::attach(block);

@@ -95,7 +95,7 @@ OSD_POWERSHIELD = 12  # visible row at default (OSD Preset at 0; Advantage Toler
 OSD_ROWS = 24         # visible OSD rows at default (25 total minus hidden Advantage Tolerance)
 DISPLAY_HMN_INFO, DISPLAY_CPU_INFO, DISPLAY_DEBUG = 13, 14, 17  # visible Display rows at default
 DISPLAY_ROWS = 18     # visible Display rows at default (Hitbox Colors, Heatmap*, DI Vector hidden)
-DEBUG_OVERLAY_ROW = 1  # Display > Advanced / Debug: 0 PSA Inspector, 1 Debug Overlay
+DEBUG_OVERLAY_ROW = 1  # Display > Advanced / Debug: 0 PSA Debugger, 1 Debug Overlay
 PRESETS = {"none": 0, "state": 1, "ledge": 2, "damage": 3, "debug": 4}
 SIZES = {"small": 0, "medium": 1, "large": 2}
 # main::Settings offsets (src/main/settings.h; the module checks them at build time).

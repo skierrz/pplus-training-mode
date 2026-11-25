@@ -99,7 +99,7 @@ TABLES = {
         "Configure live frame and physics telemetry rows for the CPU.",
         "Show the ledgedash frame timeline bar and GALINT readout.",
         "Toggle 3D floating state meters above fighters anytime.",
-        "Open PSA AnimCmd script inspector and frame debug overlay.",
+        "Open PSA Debugger (modding tool) and frame debug overlay.",
     ],
     "kOsdDesc": [
         "Apply a 1-click competitive OSD bundle (Custom, Essentials, etc).",
@@ -177,7 +177,7 @@ TABLES = {
         "Switch live between Category Rail and Top Tabs layout.",
     ],
     "kDebugDesc": [
-        "Inspect live PSA AnimCmd threads, wait timers, and speed (FSM).",
+        "For modding/debugging (not normal training): PSA threads & FSM.",
         "Show frame counters, scene info, and advantage debug text.",
     ],
     "kComboTrainerDesc": [

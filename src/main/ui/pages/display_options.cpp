@@ -66,7 +66,7 @@ namespace pages {
 
     static const Option kDebugRows[] = {
         TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(display.psaInspector), 0, TM_COUNT(kPsaTargets) - 1, 0,
-               "PSA Inspector", kPsaTargets, NULL, main::extraLoaded),
+               "PSA Debugger", kPsaTargets, NULL, main::extraLoaded),
         TM_TOGGLE("Debug Overlay", display.debugOverlay, 0, NULL)
     };
 

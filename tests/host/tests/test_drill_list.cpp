@@ -1110,3 +1110,64 @@ TEST(drill_list, skill_drills_section_arms_drill_and_shows_personal_best)
     CHECK(canvasDrew("Best: 8/10"));
     menu::list::detach();
 }
+
+TEST(drill_list, return_from_match_reopens_but_stage_select_back_stays_closed)
+{
+    gfPadStatus pads[iface::kPadCount];
+    initPads(pads, 1u << 0);
+    host::fakes::setMenuPort(0);
+    host::fakes::setTrainingSelectRunning(true);
+    menu::list::attach();
+    stepFrame(pads);
+
+    // Arm a scenario (Offense row 0 = Combo Lab, preset 1) -> list closes.
+    setPadInput(pads[0], game::kPadR);
+    stepFrame(pads);
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+    setPadInput(pads[0], kButtonA);
+    stepFrame(pads);
+    CHECK_EQ(1, static_cast<int>(menu::session().labChosen));
+    CHECK_EQ(1, static_cast<int>(menu::session().pendingScenario));
+    CHECK_EQ(0, static_cast<int>(menu::session().matchRan));
+    CHECK_EQ(1, static_cast<int>(menu::session().page));
+    CHECK_EQ(0, static_cast<int>(menu::session().row));
+
+    // Advance from CSS to Stage Select (exitCode == 1), then press B on Stage
+    // Select back to CSS without starting a match (matchRan stays 0).
+    gfSceneManager::getInstance()->unk1 = 1;
+    menu::list::detach();
+    host::log::clear();
+    menu::attachSession(host::fakes::block());
+    menu::list::attach();
+    CHECK(host::log::contains("drills: list stays closed (Training Lab chosen)"));
+    CHECK(!host::log::contains("drills: list opened"));
+    CHECK_EQ(1, static_cast<int>(menu::session().pendingScenario));
+
+    // Same for an armed Skill Drill when backing out of Stage Select.
+    menu::session().pendingScenario = 0;
+    menu::session().drill = drills::kDrillLedgedash;
+    gfSceneManager::getInstance()->unk1 = 1;
+    menu::list::detach();
+    host::log::clear();
+    menu::attachSession(host::fakes::block());
+    menu::list::attach();
+    CHECK(host::log::contains("drills: list stays closed (Training Lab chosen)"));
+    CHECK_EQ(static_cast<int>(drills::kDrillLedgedash), static_cast<int>(menu::session().drill));
+
+    // Now simulate actually running a Training match (matchRan = 1) and
+    // returning to CSS: Draft B MUST auto-reopen on the remembered page/row
+    // and clear matchRan + armed scenario/drill.
+    menu::session().pendingScenario = 1;
+    menu::session().matchRan = 1;
+    gfSceneManager::getInstance()->unk1 = 1;
+    menu::list::detach();
+    host::log::clear();
+    menu::attachSession(host::fakes::block());
+    menu::list::attach();
+    CHECK(host::log::contains("drills: list opened (auto) for port 1, row 0 Combo Lab"));
+    CHECK_EQ(0, static_cast<int>(menu::session().matchRan));
+    CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
+    CHECK_EQ(static_cast<int>(drills::kDrillNone), static_cast<int>(menu::session().drill));
+    menu::list::detach();
+}
