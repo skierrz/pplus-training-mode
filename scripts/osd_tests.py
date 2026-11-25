@@ -92,7 +92,7 @@ SPEED = "0"
 # box's centre for each, 640x480 space (src/main/ui/osd_place.h): HUD above
 # the damage readout; Sides and the top rows at the configured screen-space spots.
 S_OSD_POSITION = 88
-S_OSD_HIT_ADV = 90
+S_OSD_SHIELD_ADV, S_OSD_HIT_ADV = 89, 90
 S_OSD_BG_COLOR, S_OSD_BG_ALPHA = 110, 111
 S_TECH_SPARKLE = 117
 TS_MAGIC = 0x544D5453  # "TMTS" (src/extra/tech_sparkle.cpp)
@@ -1273,13 +1273,33 @@ def sc_tech_sparkle(r, name):
     if ts_off["wavedashSparks"] != 0 or ts_off["shorthopSparks"] != 0:
         raise OsdError(f"{name}: Off mode spawned sparkle: after={ts_off}")
 
-    # 4. Savestate safety: immediately load state right after spawning a sparkle.
+    # 4. In-match savestate safety (D-Pad Right save -> spawn sparkle -> D-Pad Left load):
+    # exercises savestate::doLoad() -> lab::savestateLoaded() -> techSparkleReset() live.
+    import fighter_set_tests as FS  # noqa: E402
     emu.h.call("load_state", path=r.states["control"])
+    emu.h.call("write_mem", addr=r.lab.settings + S_TECH_SPARKLE, hex="01")
+    emu.advance(4)
+    saved_f, serr = FS.dpad_save(emu)
+    if saved_f is None:
+        raise OsdError(f"{name}: in-match D-Pad Right savestate save failed: {serr}")
+    emu.h.call("pause")
+    try:
+        r.inp.run({0: frames_to_steps(fr_wd, js + 2)}, read=r.both.read, extra=6)
+    finally:
+        emu.h.call("resume")
+    ts_pre_load = read_ts()
+    if ts_pre_load["wavedashSparks"] < 1 or ts_pre_load["lastHandle"] == 0:
+        raise OsdError(f"{name}: sparkle before in-match load failed: {ts_pre_load}")
+    loaded_f, lerr = FS.dpad_load(emu)
+    if loaded_f != saved_f:
+        raise OsdError(f"{name}: in-match D-Pad Left savestate load failed: saved={saved_f} loaded={loaded_f} ({lerr})")
     emu.advance(12)
-    r.results.append((name, "WD 0x7D, SH 0x10, Off 0, savestate ok",
-                      f"wd={ts_wd['wavedashSparks']} h={ts_wd['lastHandle']:#x} sh={ts_sh['shorthopSparks']}"))
+    r.results.append((name, "WD 0x7D, SH 0x10, Off 0, in-match ss ok",
+                      f"wd={ts_wd['wavedashSparks']} h={ts_wd['lastHandle']:#x} "
+                      f"sh={ts_sh['shorthopSparks']} ss={saved_f}->{loaded_f}"))
     r.note(f"{name}: WD ef={ts_wd['lastEffectId']:#x} h={ts_wd['lastHandle']:#x}; "
-           f"SH ef={ts_sh['lastEffectId']:#x} h={ts_sh['lastHandle']:#x}")
+           f"SH ef={ts_sh['lastEffectId']:#x} h={ts_sh['lastHandle']:#x}; "
+           f"in-match ss={saved_f}->{loaded_f}")
 
 
 def sc_osd_theme(r, name):
@@ -1533,10 +1553,7 @@ def sc_actoolag(r, kind, delay, name, shot=False, turn=False, from_wait=False):
         for n in range(e, act):
             fr[n] = (0, back, 0.0)
     fr[act] = (J, 0.0, 0.0)
-    # Suppress Hit Advantage (default On in v2) so hitting Fox with Nair does
-    # not push Post-Lag up a slot before check_color samples slot 0.
     rows, text = r.play(r.states["control"], {0: (fr, act + 1)}, extra=10,
-                        settings=[(S_OSD_HIT_ADV, "00")],
                         shot=("osds-" + name) if shot else None, osd_player=1, stop_after_osd=False)
     got_land, got_st, got_before = landing_of(rows, land)
     if got_land != land or got_st != status:
@@ -2446,6 +2463,12 @@ def cmd_test_osds(rest):
                 LT.set_cpu_behaviour(emu, CPU_CONTROL)
                 LT.walk_to(emu, r.lab, r.ft["m"], r.ft["c"], close=9.0)
                 emu.advance(30)
+                # v2 Essentials defaults turn Shield Advantage (+89) and Hit
+                # Advantage (+90) On; suppress them in the osds-control.sav
+                # baseline so contact scenarios don't bump the tested OSD out
+                # of slot 0 (advantage OSDs are covered by test-advantage).
+                emu.h.call("write_mem", addr=r.lab.settings + S_OSD_SHIELD_ADV, hex="0000")
+                emu.advance(2)
                 r.states = {"control": os.path.join(states, "osds-control.sav")}
                 emu.h.call("save_state", path=r.states["control"])
                 for name, fn in (

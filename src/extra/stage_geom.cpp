@@ -626,7 +626,6 @@ namespace extra {
             {0xFF, kAirRuleInt, 4, 0},       // wall jump past frame
             {0xFF, kAirRuleInt, 11, 0},      // no attach wall frame
             {0xFF, kAirRuleInt, 12, 0},      // attach wall count
-            {0xFF, kAirRuleInt, 53, 0},      // Brawl common air-special lockout counter (0x808E0F30)
             {0xFF, kAirRuleInt, 62, 0},      // AirLassoHang tether count
             {0xFF, kAirRuleInt, 79, 0},      // 5-ledge-grab invuln counter
             {0xFF, kAirRuleInt, 81, 0},      // P+ AGT counter
@@ -695,7 +694,7 @@ namespace extra {
             // re-sets LA-Bit[61] on the next frame after warping mid-Up-B).
             // Verified against RSBE01/P+ 3.2.1 soAnimCmdModuleImpl::notifyEventAnimCmd
             // 0x0D01 handler (0x8077D540 -> vtable +0x24 = 0x8077C618).
-            if (game::isRam(m->m_animCmdModule) && game::isRam(f->m_moduleAccesser))
+            if (game::isRam(m->m_animCmdModule) && !m->m_animCmdModule->isNull() && game::isRam(f->m_moduleAccesser))
             {
                 const u32* vt = *reinterpret_cast<const u32* const*>(m->m_animCmdModule);
                 if (game::isRam(vt))

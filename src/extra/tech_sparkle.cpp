@@ -38,27 +38,14 @@ namespace extra {
         };
 
         TechSparkleSlot s_slots[game::kMaxFighters];
-        u32 s_lastHandles[game::kMaxFighters];
         TechSparkleDebugBlock s_debug;
-
-        void killLastHandles()
-        {
-            if (game::isRam(g_ecMgr))
-            {
-                for (int p = 0; p < game::kMaxFighters; p++)
-                {
-                    if (s_lastHandles[p] != 0)
-                    {
-                        g_ecMgr->killEffect(s_lastHandles[p], 1, 1);
-                    }
-                }
-            }
-            memset(s_lastHandles, 0, sizeof(s_lastHandles));
-        }
 
         // Spawns a strictly non-looping (emitLife == 1) native ef_common burst
         // in world space via g_ecMgr->setEffect (direct RSBE01.lst symbol,
-        // zero vtable dispatch).
+        // zero vtable dispatch). Both ef_ptc_common_spflash (0x7D, 12f) and
+        // ef_ptc_common_smash_flash (0x10, 5f) self-terminate and roll back
+        // atomically with Heaps::Effect / g_ecMgr on savestate load, so we
+        // intentionally never call killEffect on saved/recycled handles.
         void spawnCueEffect(const game::Tracked& t, int p, u8 cue, s32 frame)
         {
             if (game::outOfPlay(t.cur.status, true) || !game::isRam(g_ecMgr))
@@ -77,7 +64,6 @@ namespace extra {
             Vec3f rot(0.0f, 0.0f, 0.0f);
             Vec3f scl(scale, scale, scale);
             u32 handle = g_ecMgr->setEffect(efId, &pos, &rot, &scl);
-            s_lastHandles[p] = handle;
             s_debug.lastPlayer = static_cast<s8>(p);
             s_debug.lastCue = cue;
             s_debug.lastEffectId = static_cast<u32>(efId);
@@ -105,7 +91,6 @@ namespace extra {
 
     void techSparkleReset()
     {
-        killLastHandles();
         resetAllSlots();
     }
 
@@ -116,7 +101,6 @@ namespace extra {
         s_debug.version = kDebugVersion;
         s_debug.lastPlayer = -1;
         s_debug.lastFrame = kTsNoFrame;
-        memset(s_lastHandles, 0, sizeof(s_lastHandles));
         resetAllSlots();
         TM_LOG("tech_sparkle: debug block at %08x\n", &s_debug);
     }
