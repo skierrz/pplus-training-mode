@@ -7,13 +7,16 @@
 #include "extra/character_rng.h"
 #include "extra/combo_trainer.h"
 #include "extra/di_display.h"
+#include "extra/di_picker_core.h"
 #include "extra/drill_core_engines.h"
 #include "extra/drill_hover_ps_engines.h"
 #include "extra/drill_pplus_tech_engines.h"
 #include "extra/fighter_swap.h"
 #include "extra/frame_data.h"
 #include "extra/grab_visualizer.h"
+#include "extra/hitbox_colors.h"
 #include "extra/hitbox_heatmap.h"
+#include "extra/input_viewer.h"
 #include "extra/lab_tools.h"
 #include "extra/menu_descriptions.h"
 #include "extra/pplus_recovery.h"
@@ -125,7 +128,7 @@ namespace extra {
         fighterSwapRow,    fighterSwapChanged, fighterSwapApply,   fighterSwapBusy,
         optionDesc,        uiAssetsDrawIcon,   uiAssetsDrawPageOverlay,
         ui::infoWanted,    ui::infoStep,       ui::drawInfo,       ui::infoReset,
-        ui::applyInfoPreset
+        ui::applyInfoPreset, inputViewerDraw,  drawColoredHitboxes, diCompassDraw
     };
 
     static bool attach(iface::Interface* iface)
@@ -151,6 +154,8 @@ namespace extra {
         grabVizAttach();
         fighterSwapAttach();
         uiAssetsAttach();
+        inputViewerAttach();
+        hitboxColorsAttach();
         main::setExtraHooks(&kHooks);
         TM_LOG("extra: attached next to match module v%s\n", main::kModule.buildVersion);
         return true;
@@ -158,6 +163,8 @@ namespace extra {
 
     static void detach()
     {
+        hitboxColorsDetach();
+        inputViewerDetach();
         uiAssetsDetach();
         pplusTechDetach();
         fighterSwapDetach();

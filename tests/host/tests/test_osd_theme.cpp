@@ -176,8 +176,8 @@ TEST(osd_theme, display_theme_menu_navigation_and_descriptions)
     const ui::Page& displayPage = *menu.pages[ui::pages::P_DISPLAY];
     const ui::Page& themePage = *menu.pages[ui::pages::P_THEME];
 
-    // Theme is appended at the very end of Display so no existing row shifts.
-    const u8 themeRow = static_cast<u8>(displayPage.count - 1);
+    // Theme stays at row 17 in Display so no existing row index shifts.
+    const u8 themeRow = 17;
     CHECK_STR("Theme", displayPage.options[themeRow].name);
     CHECK_EQ(static_cast<int>(ui::kKindMenu), static_cast<int>(displayPage.options[themeRow].kind));
     CHECK_EQ(static_cast<int>(ui::pages::P_THEME), static_cast<int>(displayPage.options[themeRow].max));

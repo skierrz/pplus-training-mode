@@ -183,6 +183,64 @@ namespace layout {
 
     void setLabBand(const Box& band);
     Box topBand();
+
+    // ---- Multi-controller Input Viewer (extra/input_viewer.cpp) ----
+    // Right-aligned column strictly inside the 5% CRT safe area (x <= 608,
+    // y >= 24) on both 4:3 and 16:9, stepping below `band` when the Ledgedash
+    // HUD is active.
+    static const float kViewerRight = 608.0f;
+    static const float kViewerTop = 26.0f;
+    static const float kViewerWidth = 138.0f;
+    static const float kViewerHeight = 54.0f;
+    static const float kViewerGap = 4.0f;
+
+    inline int inputViewerSlotCount(u8 who)
+    {
+        if (who == 0)
+        {
+            return 0;
+        }
+        return who == 3 ? 2 : 1;
+    }
+
+    inline Box inputViewerCardBox(int slot, const Box& band, bool wide)
+    {
+        float w = kViewerWidth * xsOf(wide);
+        float x1 = kViewerRight;
+        float x0 = x1 - w;
+        Box probe = {x0, kViewerTop, x1, kViewerTop + 1.0f};
+        float top = (meetsX(probe, band) && band.y1 > kViewerTop) ? (band.y1 + kStepGap) : kViewerTop;
+        float y0 = top + static_cast<float>(slot > 0 ? slot : 0) * (kViewerHeight + kViewerGap);
+        return box(x0, y0, w, kViewerHeight);
+    }
+
+    // ---- Live DI Vector Picker 2D unit-circle compass (extra/di_display.cpp) ----
+    // Right-aligned below any active Input Viewer cards (or below `band`).
+    static const float kCompassRight = 608.0f;
+    static const float kCompassWidth = 82.0f;
+    static const float kCompassHeight = 78.0f;
+
+    inline Box diCompassBox(const Box& band, int viewerSlots, bool wide)
+    {
+        float w = kCompassWidth * xsOf(wide);
+        float x1 = kCompassRight;
+        float x0 = x1 - w;
+        float y0 = kViewerTop;
+        if (viewerSlots > 0)
+        {
+            Box last = inputViewerCardBox(viewerSlots - 1, band, wide);
+            y0 = last.y1 + kViewerGap;
+        }
+        else
+        {
+            Box probe = {x0, kViewerTop, x1, kViewerTop + 1.0f};
+            if (meetsX(probe, band) && band.y1 > kViewerTop)
+            {
+                y0 = band.y1 + kStepGap;
+            }
+        }
+        return box(x0, y0, w, kCompassHeight);
+    }
 }
 }
 }
