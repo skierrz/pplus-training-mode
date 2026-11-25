@@ -192,7 +192,7 @@ SHIELD_ACTIONS = {"None": 0, "Grab": 1,
                   "SHFFL Nair": 44, "SHFFL Fair": 45, "SHFFL Bair": 46, "SHFFL Uair": 47, "SHFFL Dair": 48}
 LAB, TRAINING = 1, 0  # CPU Control
 # CPU Options rows (main's tree plus CPU Control) and Tech Options rows.
-CPU_CONTROL_ROW, CPU_TECH_ROW, CPU_BEHAVIOR_ROW = 2, 3, 8
+CPU_CONTROL_ROW, CPU_TECH_ROW, CPU_BEHAVIOR_ROW = 2, 3, 9
 TECH_INVIS_ROW, TECH_DELAY_ROW, TECH_SOUND_ROW, TECH_IN_PLACE_ROW = 2, 3, 4, 7
 SET_TECH_INVIS, SET_TECH_DELAY = 288, 289
 # P+'s first distinguishable tech frame per character (src/main/game/tech_frames.cpp).
@@ -3566,7 +3566,7 @@ def o_cue(r):
             ops[1] = dict(op=CueBlock.CANCEL)
         rows, st = cue_run(r, ops, 60, )
         names = {sname(x[CPU]["status"]) for x in rows}
-        landed[cancel] = ("Escape_Air" in names or "0x19" in names, "Jump" in names, st["state"])
+        landed[cancel] = ("Escape_Air" in names or "Landing_Fall_Special" in names, "Jump" in names, st["state"])
     res.row("Wavedash Away: done / cancelled in its jump squat", "air dodge / a jump without one, cue None",
             f"{landed[False]} / {landed[True]}",
             landed[False][0] and landed[False][2] == "Done" and not landed[True][0] and landed[True][1]
@@ -4093,7 +4093,7 @@ def o_tdi_angles(r):
 
 # ---- lab menu helpers -----------------------------------------------------------------
 
-CPU_ROWS = {"advanced": 13, "move": 20, "controlled by": 21, "freeze": 22}
+CPU_ROWS = {"advanced": 14, "move": 21, "controlled by": 22, "freeze": 23}
 
 
 def cpu_page(r, row, then=None):

@@ -640,6 +640,99 @@ namespace extra {
         d.y = y;
     }
 
+    // Batches trace point lines ("di: %c %d %.3f %.3f\n" or with "+") using
+    // integer fixed-point formatting so tracing a 70-150 frame arc does not
+    // spend a full console frame in per-line OSReport / float formatting.
+    struct TraceBuf {
+        char data[240];
+        int len;
+        void init()
+        {
+            len = 0;
+        }
+        void flush()
+        {
+            if (len > 0)
+            {
+                data[len] = '\0';
+                TM_LOG("%s", data);
+                len = 0;
+            }
+        }
+        void putChar(char c)
+        {
+            if (len < static_cast<int>(sizeof(data)) - 1)
+            {
+                data[len++] = c;
+            }
+        }
+        void putUint(u32 v)
+        {
+            char tmp[12];
+            int n = 0;
+            do
+            {
+                tmp[n++] = static_cast<char>('0' + (v % 10));
+                v /= 10;
+            } while (v != 0);
+            while (n > 0)
+            {
+                putChar(tmp[--n]);
+            }
+        }
+        void putFixed3(float v)
+        {
+            if (!(v >= -100000.0f && v <= 100000.0f))
+            {
+                v = 0.0f;
+            }
+            s32 m = static_cast<s32>(v >= 0.0f ? (v * 1000.0f + 0.5f) : (v * 1000.0f - 0.5f));
+            if (m < 0)
+            {
+                putChar('-');
+                m = -m;
+            }
+            u32 a = static_cast<u32>(m);
+            putUint(a / 1000);
+            putChar('.');
+            u32 frac = a % 1000;
+            putChar(static_cast<char>('0' + (frac / 100)));
+            putChar(static_cast<char>('0' + ((frac / 10) % 10)));
+            putChar(static_cast<char>('0' + (frac % 10)));
+        }
+        void addPoint(char tag, bool plus, int frame, float x, float y)
+        {
+            if (len > static_cast<int>(sizeof(data)) - 42)
+            {
+                flush();
+            }
+            putChar('d');
+            putChar('i');
+            putChar(':');
+            putChar(' ');
+            putChar(tag);
+            if (plus)
+            {
+                putChar('+');
+            }
+            putChar(' ');
+            if (frame < 0)
+            {
+                putChar('-');
+                putUint(static_cast<u32>(-frame));
+            }
+            else
+            {
+                putUint(static_cast<u32>(frame));
+            }
+            putChar(' ');
+            putFixed3(x);
+            putChar(' ');
+            putFixed3(y);
+            putChar('\n');
+        }
+    };
+
     // What follows a contact without a tech (rules above): the slide after
     // a landing (or from a grounded start) or the flight after a bounce,
     // from the contact frame's flight `at` for at most `left` frames, dashed
@@ -651,6 +744,8 @@ namespace extra {
         s.x = c.x;
         s.y = c.y;
         int n = 0;
+        TraceBuf tb;
+        tb.init();
         if (c.land)
         {
             float b = s_body.brake;
@@ -675,9 +770,10 @@ namespace extra {
                 dashTo(d, s.x, s.y);
                 if (d.draw && s_body.trace)
                 {
-                    TM_LOG("di: %c+ %d %.3f %.3f\n", tag, c.frame + n, s.x, s.y);
+                    tb.addPoint(tag, true, c.frame + n, s.x, s.y);
                 }
             }
+            tb.flush();
             return;
         }
         // Bounce (rules above): faster than Damage_Fly_Reflect_Speed into
@@ -721,10 +817,11 @@ namespace extra {
             dashTo(d, s.x, s.y);
             if (d.draw && s_body.trace)
             {
-                TM_LOG("di: %c+ %d %.3f %.3f\n", tag, c.frame + i, s.x, s.y);
+                tb.addPoint(tag, true, c.frame + i, s.x, s.y);
             }
             step(s);
         }
+        tb.flush();
     }
 
     // The continuation from (x, y), dashed, two thirds of `width`.
@@ -761,6 +858,8 @@ namespace extra {
         }
         int end = firstContact(s, s_body.frames, c);
         int n = end != 0 ? end : s_body.frames;
+        TraceBuf tb;
+        tb.init();
         gfx::lineBegin(GX_LINESTRIP, n + 2, width);
         gfx::vertex(s_body.x, s_body.y + lift, colour);
         gfx::vertex(s.x, s.y + lift, colourAt(s, colour));
@@ -775,9 +874,10 @@ namespace extra {
             gfx::vertex(s.x, s.y + lift, colourAt(s, colour));
             if (s_body.trace)
             {
-                TM_LOG("di: %c %d %.3f %.3f\n", tag, i, s.x, s.y);
+                tb.addPoint(tag, false, i, s.x, s.y);
             }
         }
+        tb.flush();
         if (end == 0)
         {
             return;
@@ -1195,14 +1295,6 @@ namespace extra {
         gfx::fillRect(x + px, y + 1.5f, w - 2.0f * px, 2.5f, 0x2BB7ABFFu);
         gfx::fillRect(x + px, y + 1.5f, w - 2.0f * px, 1.0f, 0x8EF5EA90u);
 
-        char label[16];
-        diVectorShortLabel(mode, label);
-        float scale = ui::style::scaleForCap(6.5f);
-        float tx = x + ui::style::w(5.0f);
-        float ty = ui::style::textYForCap(y + 6.0f, scale);
-        gfx::text(tx + 0.8f, ty + 0.8f, label, 0x000000C8u, scale);
-        gfx::text(tx, ty, label, 0xE2EEF4FFu, scale);
-
         // Unit-circle compass centered inside the lower body of the card.
         float cx = (b.x0 + b.x1) * 0.5f;
         float cy = b.y0 + 16.0f + (h - 19.0f) * 0.5f;
@@ -1264,6 +1356,15 @@ namespace extra {
         float dotY = cy - lStickY * ry * 0.85f;
         gfx::fillEllipse(dotX, dotY, 3.2f * xs, 3.2f, 0x050C12E8u);
         gfx::fillEllipse(dotX, dotY, 2.3f * xs, 2.3f, 0xFFFFFFFFu);
+
+        // Draw mode header text last to avoid a mid-card GX shape->text->shape switch.
+        char label[16];
+        diVectorShortLabel(mode, label);
+        float scale = ui::style::scaleForCap(6.5f);
+        float tx = x + ui::style::w(5.0f);
+        float ty = ui::style::textYForCap(y + 6.0f, scale);
+        gfx::text(tx + 0.8f, ty + 0.8f, label, 0x000000C8u, scale);
+        gfx::text(tx, ty, label, 0xE2EEF4FFu, scale);
 
         s_pickerDebug.compassDrawn = 1;
         s_pickerDebug.totalDrawn++;
