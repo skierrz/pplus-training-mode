@@ -1224,7 +1224,7 @@ namespace extra {
     bool diCompassVisible(const game::MatchState& m, bool menuOpen)
     {
         const main::Settings& set = main::settings();
-        if (!m.running || m.paused || menuOpen || set.general.diDisplay == 0)
+        if (!m.running || !m.training || m.paused || menuOpen || set.general.diDisplay == 0)
         {
             return false;
         }

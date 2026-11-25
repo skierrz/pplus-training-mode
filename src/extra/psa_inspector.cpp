@@ -410,8 +410,8 @@ namespace extra {
         {
             return;
         }
-        int viewerSlots = countActiveViewerSlots(refs, n);
-        bool hasCompass = diCompassVisible(match, menuOpen);
+        int viewerSlots = match.training ? countActiveViewerSlots(refs, n) : 0;
+        bool hasCompass = match.training && diCompassVisible(match, menuOpen);
         ui::layout::Box box = ui::layout::psaInspectorBox(ui::layout::topBand(), viewerSlots, hasCompass,
                                                           gfx::widescreen());
         drawCard(box, target == main::kPsaCpu);
