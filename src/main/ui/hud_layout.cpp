@@ -62,11 +62,17 @@ namespace layout {
         return u;
     }
 
+#ifdef TM_MODULE_MAIN
+#pragma force_active on
+#endif
     float infoTop(const Box& band, float width, bool wide)
     {
         Box at = {infoLeft(wide), kInfoTop, infoLeft(wide) + width, kInfoTop + 1.0f};
         return meetsX(at, band) && band.y1 > kInfoTop ? band.y1 + kStepGap : kInfoTop;
     }
+#ifdef TM_MODULE_MAIN
+#pragma force_active reset
+#endif
 
     Box labBand(bool timer, int ledgeCells, bool wide)
     {
@@ -78,10 +84,16 @@ namespace layout {
         return band;
     }
 
+#ifdef TM_MODULE_MAIN
+#pragma force_active on
+#endif
     Box topBand()
     {
         return s_labBand;
     }
+#ifdef TM_MODULE_MAIN
+#pragma force_active reset
+#endif
 }
 }
 }

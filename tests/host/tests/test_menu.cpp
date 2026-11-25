@@ -886,7 +886,7 @@ TEST(menu, bit_flag_toggles_default_and_preserve_sibling_bits)
     storage::detach();
 }
 
-// ---- kFlagHideWhenDisabled compaction, Rail (C) & Tabs (A) ergonomics -------
+// ---- kFlagHideWhenDisabled compaction, Category Rail & Top Tabs ergonomics -
 
 namespace {
     bool s_rowOn[16];

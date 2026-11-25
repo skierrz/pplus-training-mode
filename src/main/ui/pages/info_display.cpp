@@ -1,3 +1,4 @@
+#include "main/extra.h"
 #include "main/ui/info_display.h"
 #include "main/ui/pages/pages.h"
 
@@ -52,12 +53,12 @@ namespace pages {
 
     static void hmnPreset()
     {
-        applyInfoPreset(main::kSideHuman);
+        main::extraInfoApplyPreset(main::kSideHuman);
     }
 
     static void cpuPreset()
     {
-        applyInfoPreset(main::kSideCpu);
+        main::extraInfoApplyPreset(main::kSideCpu);
     }
 
 #define TM_INFO_ROW(side, n, name) TM_CHOICE(name, info[side].rows[n], kValues, kInfoNone, NULL)
@@ -77,6 +78,10 @@ namespace pages {
     extern const Page kCpuInfo = TM_PAGE("CPU Info Display", kCpuRows);
 }
 
+    // Linked in extra (main/ui/info_display.cpp); keep exported from match.
+#ifdef TM_MODULE_MAIN
+#pragma force_active on
+#endif
     const char* infoValueLabel(int value)
     {
         if (value < 0 || value >= kInfoValueCount)
@@ -91,5 +96,8 @@ namespace pages {
     {
         return value >= 0 && value < kInfoValueCount && pages::kValues[value][0] != TM_UNAVAILABLE_LABEL[0];
     }
+#ifdef TM_MODULE_MAIN
+#pragma force_active reset
+#endif
 }
 }

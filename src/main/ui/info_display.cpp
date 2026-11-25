@@ -15,6 +15,7 @@
 
 #include "shared/game/stick.h"
 
+#include "extra/frame_data.h"
 #include "main/cpu/view.h"
 #include "main/extra.h"
 #include "main/game/body.h"
@@ -560,10 +561,10 @@ namespace ui {
         }
         case kInfoActIn:
         {
-            // Read ahead from the move's scripts by the extra module; blank
-            // without it or when the scripts do not settle it.
-            int how;
-            int n = main::extraActIn(ref.fighter, &how);
+            // Read ahead from the move's scripts by the frame data service; blank
+            // when the scripts do not settle it.
+            int how = main::kActNone;
+            int n = extra::framesUntilActionable(ref.fighter, &how);
             snprintf(buf, size, n >= 0 ? "Actionable In: %d" : "Actionable In:", n);
             return true;
         }

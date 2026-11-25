@@ -26,6 +26,7 @@
 #include "main/game/tracker.h"
 #include "main/gfx/text.h"
 #include "main/module.h"
+#include "main/ui/info_display.h"
 #include "shared/log.h"
 #include "shared/version.h"
 
@@ -122,7 +123,9 @@ namespace extra {
         heatmapReset,      adaptiveCpuBias,    adaptiveCpuReset,   scenarioPresetsCall,
         scenarioPresetsCpuStep, scenarioPresetsSavedView, grabVizDraw,
         fighterSwapRow,    fighterSwapChanged, fighterSwapApply,   fighterSwapBusy,
-        optionDesc,        uiAssetsDrawIcon,   uiAssetsDrawPageOverlay
+        optionDesc,        uiAssetsDrawIcon,   uiAssetsDrawPageOverlay,
+        ui::infoWanted,    ui::infoStep,       ui::drawInfo,       ui::infoReset,
+        ui::applyInfoPreset
     };
 
     static bool attach(iface::Interface* iface)

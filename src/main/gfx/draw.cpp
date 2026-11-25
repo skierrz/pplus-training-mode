@@ -173,6 +173,9 @@ namespace gfx {
 #pragma force_active reset
 #endif
 
+#ifdef TM_MODULE_MAIN
+#pragma force_active on
+#endif
     void frameRect(float x, float y, float width, float height, Rgba color)
     {
         if (TM_PERF_LEGACY())
@@ -190,6 +193,9 @@ namespace gfx {
         quad(x, y, 1.0f, height, color);
         quad(x + width - 1.0f, y, 1.0f, height, color);
     }
+#ifdef TM_MODULE_MAIN
+#pragma force_active reset
+#endif
 
     void arrow(float x, float y, float size, int dir, Rgba color)
     {

@@ -91,6 +91,12 @@ namespace main {
         // Native Brawl/P+ UI button emblems & page overlays (extra/ui_assets.h).
         bool (*drawUiIcon)(u8 iconId, float x, float y, float w, float h, u32 rgba);
         void (*drawPageOverlay)(u8 pageId, bool railMode);
+        // Per-fighter Info Display panels (main/ui/info_display.cpp, linked in extra).
+        bool (*infoWanted)();
+        void (*infoStep)(bool previousRan);
+        void (*infoDraw)();
+        void (*infoReset)();
+        void (*infoApplyPreset)(int side);
     };
 
     // What the match module asks of the Scenario Presets engine.
@@ -238,5 +244,11 @@ namespace main {
     // Native Brawl/P+ UI button emblems & page overlays (extra/ui_assets.h).
     bool extraDrawUiIcon(u8 iconId, float x, float y, float w, float h, u32 rgba);
     void extraDrawPageOverlay(u8 pageId, bool railMode);
+    // Per-fighter Info Display panels (linked in extra).
+    bool extraInfoWanted();
+    void extraInfoStep(bool previousRan);
+    void extraInfoDraw();
+    void extraInfoReset();
+    void extraInfoApplyPreset(int side);
 }
 }

@@ -71,6 +71,9 @@ namespace game {
         return isRam(ints) ? ints[index] : 0;
     }
 
+#ifdef TM_MODULE_MAIN
+#pragma force_active on
+#endif
     const void* extraInfo(const soModuleEnumeration* m)
     {
         const void* w = work(m, kWorkInstance);
@@ -78,6 +81,9 @@ namespace game {
         const void* p = isRam(ints) ? reinterpret_cast<const void*>(ints[kExtraInfoInt]) : NULL;
         return isRam(p) ? p : NULL;
     }
+#ifdef TM_MODULE_MAIN
+#pragma force_active reset
+#endif
 
     void readWorkValues(const soModuleEnumeration* m, u32& flags, s32& lCancel)
     {

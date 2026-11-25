@@ -85,7 +85,7 @@ namespace main {
         u8 dpadUp;         // DpadUp
         u8 dpadDown;       // DpadDown
         u8 allowCodeMenu;  // 0: blocked in Training (default); 1: L+R+D-pad Down allowed
-        u8 menuStyle;      // MenuStyle (0: Rail (C), 1: Tabs (A))
+        u8 menuStyle;      // MenuStyle (0: Category Rail, 1: Top Tabs)
         u8 reserved[6];
     };
 

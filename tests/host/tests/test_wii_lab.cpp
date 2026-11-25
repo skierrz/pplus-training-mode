@@ -156,10 +156,6 @@ namespace record {
 }
 namespace ui {
     void drawDebugOverlay(u32, const game::MatchState&) {}
-    bool infoWanted() { return false; }
-    void infoStep(bool) {}
-    void infoReset() {}
-    void drawInfo() {}
     bool ledgedashHudVisible() { return false; }
     int ledgedashCells() { return 0; }
     void drawLedgedashHud() {}

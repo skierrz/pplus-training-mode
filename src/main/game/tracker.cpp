@@ -1052,11 +1052,17 @@ namespace game {
         return i >= 0 && i < kMaxTracked && s_slots[i].t.used ? &s_slots[i].t : NULL;
     }
 
+#ifdef TM_MODULE_MAIN
+#pragma force_active on
+#endif
     const Tracked* trackedEntry(int entryId)
     {
         int i = findSlot(entryId, false);
         return i >= 0 ? &s_slots[i].t : NULL;
     }
+#ifdef TM_MODULE_MAIN
+#pragma force_active reset
+#endif
 
     int trackedIndex(const Tracked* t)
     {

@@ -394,5 +394,42 @@ namespace main {
             s_hooks->drawPageOverlay(pageId, railMode);
         }
     }
+
+    bool extraInfoWanted()
+    {
+        return s_hooks != NULL && s_hooks->infoWanted != NULL && s_hooks->infoWanted();
+    }
+
+    void extraInfoStep(bool previousRan)
+    {
+        if (s_hooks != NULL && s_hooks->infoStep != NULL)
+        {
+            s_hooks->infoStep(previousRan);
+        }
+    }
+
+    void extraInfoDraw()
+    {
+        if (s_hooks != NULL && s_hooks->infoDraw != NULL)
+        {
+            s_hooks->infoDraw();
+        }
+    }
+
+    void extraInfoReset()
+    {
+        if (s_hooks != NULL && s_hooks->infoReset != NULL)
+        {
+            s_hooks->infoReset();
+        }
+    }
+
+    void extraInfoApplyPreset(int side)
+    {
+        if (s_hooks != NULL && s_hooks->infoApplyPreset != NULL)
+        {
+            s_hooks->infoApplyPreset(side);
+        }
+    }
 }
 }

@@ -174,7 +174,7 @@ namespace extra {
         "Bind D-Pad Right to save a quick savestate or disable it.",
         "Open Training Lab directly with Start or with Z in Pause.",
         "Allow L+R+D-Pad Down to open the P+ Code Menu in Training.",
-        "Switch live between Category Rail (C) and Top Tabs (A) layout."
+        "Switch live between Category Rail and Top Tabs layout."
     };
 
     static const char* const kDebugDesc[] = {

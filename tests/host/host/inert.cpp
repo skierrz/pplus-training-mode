@@ -73,13 +73,6 @@ namespace lab {
     }
 }
 
-namespace ui {
-    // src/main/ui/info_display.cpp.
-    void applyInfoPreset(int)
-    {
-    }
-}
-
 namespace cpu {
     // src/main/cpu/options.cpp.
     char g_freezeCpuLabel[32] = "";

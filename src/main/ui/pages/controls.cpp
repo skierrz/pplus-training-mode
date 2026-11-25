@@ -13,7 +13,7 @@ namespace pages {
     static const char* const kDpadLeft[] = {"Load State", "None"};
     static const char* const kDpadRight[] = {"Save State", "None"};
     static const char* const kMenuButton[] = {"Z in Pause", "Start"};
-    static const char* const kMenuStyle[] = {"Rail (C)", "Tabs (A)"};
+    static const char* const kMenuStyle[] = {"Category Rail", "Top Tabs"};
     TM_STATIC_ASSERT(TM_COUNT(kMenuStyle) == main::kMenuStyleCount, tm_menu_style_labels_match);
 
     static const Option kRows[] = {

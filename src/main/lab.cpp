@@ -946,9 +946,9 @@ namespace lab {
         }
         applyOverlays(live);
         display::step(m, s_st.open);
-        if (ui::infoWanted())
+        if (main::extraInfoWanted())
         {
-            ui::infoStep(s_prevRan);
+            main::extraInfoStep(s_prevRan);
         }
         // A game held by ProjectPunch's pause or frame advance (the same
         // stop bit) runs no step: the tracker, match timer and frame counts
@@ -1368,7 +1368,7 @@ namespace lab {
     // Info panels and OSD messages hide while the lab menu or pause is open.
     void onRender(u32 call, const game::MatchState& m)
     {
-        bool info = m.running && !s_st.open && !m.paused && ui::infoWanted();
+        bool info = m.running && !s_st.open && !m.paused && main::extraInfoWanted();
         bool messages = m.running && !m.paused && !s_st.open && osd::visible();
         // Z opens the lab menu from Training's pause in both modes; the hint
         // shows only where that is the way in.
@@ -1405,7 +1405,7 @@ namespace lab {
                 if (info)
                 {
                     TM_PERF_SCOPE(kInfoDraw);
-                    ui::drawInfo();
+                    main::extraInfoDraw();
                 }
                 if (ledge)
                 {
@@ -1457,7 +1457,7 @@ namespace lab {
         osd::reset();
         game::advantageReset(onAdvantage);
         game::techniquesReset(onTechnique);
-        ui::infoReset();
+        main::extraInfoReset();
         memset(s_playerShieldHit, 0, sizeof(s_playerShieldHit));
         s_st.hold = 0;
     }
@@ -1478,7 +1478,7 @@ namespace lab {
         osd::reset();
         game::advantageReset(onAdvantage);
         game::techniquesReset(onTechnique);
-        ui::infoReset();
+        main::extraInfoReset();
         main::extraDiReset();
         main::extraComboReset();
         main::extraHeatmapReset();

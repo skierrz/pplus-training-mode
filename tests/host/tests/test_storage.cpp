@@ -492,7 +492,7 @@ TEST(settings_file, a_controls_area_without_allow_code_menu_reads_blocked_defaul
 }
 
 // An older settings file whose Controls area ends before menuStyle (9 bytes)
-// migrates cleanly to 0 = Rail (C), while Tabs (A) (1) round-trips cleanly.
+// migrates cleanly to 0 = Category Rail, while Top Tabs (1) round-trips cleanly.
 TEST(settings_file, a_controls_area_without_menu_style_defaults_to_rail_c)
 {
     CHECK_EQ(1, static_cast<int>(main::kSettingsVersion));
@@ -514,14 +514,14 @@ TEST(settings_file, a_controls_area_without_menu_style_defaults_to_rail_c)
     CHECK_EQ(offsetof(main::ControlSettings, reserved), controls->used);
     CHECK_EQ(10u, controls->used);
 
-    // Current file preserves menuStyle = Tabs (A) across a reboot.
+    // Current file preserves menuStyle = Top Tabs across a reboot.
     boot();
     CHECK_EQ(static_cast<int>(main::kMenuStyleTabs), static_cast<int>(main::settings().controls.menuStyle));
     CHECK_EQ(1, static_cast<int>(main::settings().controls.allowCodeMenu));
     storage::detach();
 
     // Truncate kAreaControls to its pre-menuStyle length (9 bytes): loads
-    // as Rail (C) (0) while keeping allowCodeMenu = 1 and earlier fields.
+    // as Category Rail (0) while keeping allowCodeMenu = 1 and earlier fields.
     controls = areaEntry(newest, storage::kAreaControls);
     REQUIRE(controls != NULL);
     controls->used = offsetof(main::ControlSettings, menuStyle);
