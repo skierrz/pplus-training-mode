@@ -13,6 +13,7 @@ namespace extra {
             kStWait = 0x00,
             kStWalk = 0x01,
             kStWalkBrake = 0x02,
+            kStJumpSquat = 0x0A,
             kStJump = 0x0B,
             kStJumpAerial = 0x0C,
             kStFly = 0x0D,
@@ -336,6 +337,7 @@ namespace extra {
             st.hmnGuardWindow = 0;
             st.techEngaged = false;
             st.shieldEngaged = false;
+            st.oosCountered = false;
             st.shieldDropDone = false;
             st.ledgetechDone = false;
             st.slideOffArmed = false;
@@ -1177,6 +1179,13 @@ namespace extra {
             }
             else if (st.shieldEngaged)
             {
+                bool cpuOosAction = isAttackOrSpecial(in.cpuStatus) || in.cpuStatus == kStGuardOff
+                                    || (in.cpuStatus >= 0x1E && in.cpuStatus <= 0x20)
+                                    || in.cpuStatus == kStJumpSquat || in.cpuStatus == kStJump;
+                if (cpuOosAction)
+                {
+                    st.oosCountered = true;
+                }
                 bool activeExchange = in.hmnHitstun > 0 || in.hmnHitlag > 0 || in.cpuHitstun > 0 || in.cpuHitlag > 0
                                       || isAttackOrSpecial(in.cpuStatus) || isAttackOrSpecial(in.hmnStatus)
                                       || cpuGuardDmg;
@@ -1184,7 +1193,7 @@ namespace extra {
                 {
                     st.graceFrames = 0;
                 }
-                else if (!isGuardStatus(in.cpuStatus) || in.cpuStatus == kStGuardOff)
+                else if (st.oosCountered || !isGuardStatus(in.cpuStatus) || in.cpuStatus == kStGuardOff)
                 {
                     st.graceFrames++;
                     if (autoReset && st.graceFrames >= kShieldGraceFrames)

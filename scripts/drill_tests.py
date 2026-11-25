@@ -367,6 +367,7 @@ def run(emu, opts, taken, notes, state):
     nav.press_until(emu, "return to CSS from stage select", ["B"],
                     lambda: nav.scene(emu)[0] == "scSelctCharacter", 300, every=20)
     state["visits"] += 1
+    state["stage_bounces"] = state.get("stage_bounces", 0) + 1
     wait_count(emu, "the list to stay closed after backing out of stage select",
                r"\] drills: list stays closed", 1, 300)
     emu.advance(15)
@@ -439,8 +440,9 @@ def analyse(log, opts, state):
     if L.rx(r"\[{name}\] drills: test start refused").search(log):
         return "the direct start was refused"
     exits = L.rx(r"\[{name}\] drills: detached, exit code (\d+)").findall(log)
-    if exits.count("1") != state["matches"]:
-        return f"expected {state['matches']} clean detaches into matches, saw {exits}"
+    expected_exits = state["matches"] + state.get("stage_bounces", 0)
+    if exits.count("1") != expected_exits:
+        return f"expected {expected_exits} clean detaches into matches/stage-select, saw {exits}"
     return ""
 
 
@@ -1139,8 +1141,8 @@ def run_wii_inmatch(emu, notes, state, taken):
     state["step"] = "wii-inmatch: switch Menu Open to Z in Pause"
     wii_set_extension(emu, "classic", PAD_TYPE_CLASSIC)
     wii_menu_open(emu, classic, "wii-inmatch: Classic open for Controls")
-    # Lab row 0 -> row 8 (Controls; row 7 is Offline VS Displays): 8 Downs, then A enters Controls.
-    for _ in range(8):
+    # Lab row 0 -> row 9 (Controls; row 8 is Offline VS Displays): 9 Downs, then A enters Controls.
+    for _ in range(9):
         wii_press(emu, classic["down"], frames=9, after=10)
     wii_press(emu, classic["confirm"], frames=9, after=10)
     # Controls row 0 -> row 7 (Menu Open): 7 Downs, then Left to switch Start (1) -> Z in Pause (0).
@@ -1182,9 +1184,9 @@ def run_wii_inmatch(emu, notes, state, taken):
     wii_press(emu, classic["zl"], frames=10, after=12)
     wait_count(emu, "wii-inmatch: reopen Lab Menu to restore Start mode",
                r"\] lab: menu opened by port 5 \(Z in pause\)", n_open + 1, 180)
-    # Leave Rail into Lab (row 0), down 7 to Controls, confirm, down 7 to Menu Open, Right restores Start (1).
+    # Leave Rail into Lab (row 0), down 9 to Controls, confirm, down 7 to Menu Open, Right restores Start (1).
     wii_press(emu, classic["confirm"], frames=9, after=10)
-    for _ in range(7):
+    for _ in range(9):
         wii_press(emu, classic["down"], frames=9, after=10)
     wii_press(emu, classic["confirm"], frames=9, after=10)
     for _ in range(7):

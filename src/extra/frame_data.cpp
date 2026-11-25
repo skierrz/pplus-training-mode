@@ -208,7 +208,7 @@ namespace extra {
     };
 
     struct ShieldHoldSlot {
-        s8 attackerEntry;
+        int attackerEntry;
         bool attackerSub;
         s16 attackerStatus;
         u8 holdFrames;
@@ -1618,7 +1618,7 @@ namespace extra {
                     if (h.attackerEntry < 0 || (hasLag && !bestHitlag)
                         || (hasLag == bestHitlag && d2 < bestDistSq))
                     {
-                        h.attackerEntry = static_cast<s8>(refs[i].entryId);
+                        h.attackerEntry = refs[i].entryId;
                         h.attackerSub = sub != 0;
                         h.attackerStatus = static_cast<s16>(av.status);
                         bestDistSq = d2;

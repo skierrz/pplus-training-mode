@@ -1240,4 +1240,30 @@ TEST(scenario_presets, edgeguard_side_control_ledgetech_options_shield_drop_and_
     stepScenarioCpu(ci, cs, co);
     CHECK_EQ(static_cast<u32>(cpu::button::kAttack), co.buttons);
     CHECK(fabsf(co.stickX) < 0.01f && fabsf(co.stickY) < 0.01f);
+
+    // 6. Unified Shield Pressure / OoS auto-resets after CPU Up-B returns to Guard.
+    ScenarioState stOos;
+    scenarioStateInit(stOos);
+    ScenarioConfig oosCfg = makeCfg(kScenarioShieldPressure);
+    oosCfg.oosAction = kOosUpB;
+    cpu::CpuOptions oosCpu = makeCustomCpuOpts();
+    main::ComboTrainerSettings oosCombo = makeCustomComboCfg();
+    ScenarioStepInput oosIn = makeIdleInput(bf);
+    ScenarioStepAction oosAct;
+    stepScenario(stOos, oosCfg, oosIn, oosCpu, oosCombo, oosAct); // initial warp
+    CHECK_EQ(1u, stOos.resetCount);
+    oosIn.cpuStatus = 0x1D; // GuardDamage
+    oosIn.cpuShieldStun = 6;
+    stepScenario(stOos, oosCfg, oosIn, oosCpu, oosCombo, oosAct);
+    oosIn.cpuStatus = 0x114; // SpecialHi (Up B OoS)
+    oosIn.cpuShieldStun = 0;
+    stepScenario(stOos, oosCfg, oosIn, oosCpu, oosCombo, oosAct);
+    CHECK(stOos.oosCountered);
+    oosIn.cpuStatus = 0x1B; // Back in Guard (Behavior Shield)
+    for (int f = 0; f < 40 && !oosAct.warpHmn; f++)
+    {
+        stepScenario(stOos, oosCfg, oosIn, oosCpu, oosCombo, oosAct);
+    }
+    CHECK(oosAct.warpHmn);
+    CHECK_EQ(2u, stOos.resetCount);
 }

@@ -1,12 +1,12 @@
 #include "extra/tech_sparkle.h"
 
+#include <ec/ec_mgr.h>
 #include <ef/ef_id.h>
 #include <mt/mt_vector.h>
-#include <so/effect/so_effect_module_impl.h>
-#include <so/so_module_accesser.h>
 #include <string.h>
 
 #include "extra/tech_sparkle_core.h"
+#include "main/game/body.h"
 #include "main/game/fighters.h"
 #include "main/game/match.h"
 #include "main/game/tracker.h"
@@ -43,54 +43,40 @@ namespace extra {
 
         void killLastHandles()
         {
-            game::FighterRef refs[game::kMaxFighters];
-            int n = game::listFighters(refs, game::kMaxFighters);
-            for (int i = 0; i < n; i++)
+            if (game::isRam(g_ecMgr))
             {
-                int p = refs[i].playerNo;
-                if (p < 0 || p >= game::kMaxFighters || s_lastHandles[p] == 0)
+                for (int p = 0; p < game::kMaxFighters; p++)
                 {
-                    continue;
+                    if (s_lastHandles[p] != 0)
+                    {
+                        g_ecMgr->killEffect(s_lastHandles[p], 1, 1);
+                    }
                 }
-                const soModuleEnumeration* m = game::fighterModules(refs[i].fighter);
-                if (m != NULL && game::isRam(m->m_effectModule))
-                {
-                    m->m_effectModule->kill(static_cast<int>(s_lastHandles[p]), true, true);
-                }
-                s_lastHandles[p] = 0;
             }
             memset(s_lastHandles, 0, sizeof(s_lastHandles));
         }
 
         // Spawns a strictly non-looping (emitLife == 1) native ef_common burst
-        // in world space via soEffectModule::req (verified in P+ 3.2.1
-        // COMMON3.PAC EFLS/REFF and DoubleCherry.asm:378).
+        // in world space via g_ecMgr->setEffect (direct RSBE01.lst symbol,
+        // zero vtable dispatch).
         void spawnCueEffect(const game::Tracked& t, int p, u8 cue, s32 frame)
         {
-            if (game::outOfPlay(t.cur.status, true))
+            if (game::outOfPlay(t.cur.status, true) || !game::isRam(g_ecMgr))
             {
                 return;
             }
-            const soModuleEnumeration* m = game::fighterModules(t.fighter);
-            if (m == NULL || !game::isRam(m->m_effectModule))
-            {
-                return;
-            }
-            game::FighterRef ref;
-            ref.entryId = t.entryId;
-            ref.playerNo = t.playerNo;
-            ref.fighter = t.fighter;
-            ref.partner = NULL;
-            game::FighterState st;
-            if (!game::readState(ref, st))
+            game::Body body;
+            if (!game::readBody(t.fighter, body))
             {
                 return;
             }
             EfID efId = cue == kSparklePerfectWavedash ? ef_ptc_common_spflash : ef_ptc_common_smash_flash;
             float yOff = cue == kSparklePerfectWavedash ? 6.0f : 5.0f;
             float scale = 0.85f;
-            Vec3f pos(st.x, st.y + yOff, 0.0f);
-            u32 handle = m->m_effectModule->req(efId, &pos, NULL, scale, 0, -1);
+            Vec3f pos(body.x, body.y + yOff, 0.0f);
+            Vec3f rot(0.0f, 0.0f, 0.0f);
+            Vec3f scl(scale, scale, scale);
+            u32 handle = g_ecMgr->setEffect(efId, &pos, &rot, &scl);
             s_lastHandles[p] = handle;
             s_debug.lastPlayer = static_cast<s8>(p);
             s_debug.lastCue = cue;
@@ -106,15 +92,21 @@ namespace extra {
                 s_debug.shorthopSparks++;
             }
         }
+#pragma dont_inline on
+        void resetAllSlots()
+        {
+            for (int i = 0; i < game::kMaxFighters; i++)
+            {
+                techSparkleResetSlot(s_slots[i]);
+            }
+        }
+#pragma dont_inline reset
     }
 
     void techSparkleReset()
     {
         killLastHandles();
-        for (int i = 0; i < game::kMaxFighters; i++)
-        {
-            techSparkleResetSlot(s_slots[i]);
-        }
+        resetAllSlots();
     }
 
     void techSparkleAttach()
@@ -125,10 +117,7 @@ namespace extra {
         s_debug.lastPlayer = -1;
         s_debug.lastFrame = kTsNoFrame;
         memset(s_lastHandles, 0, sizeof(s_lastHandles));
-        for (int i = 0; i < game::kMaxFighters; i++)
-        {
-            techSparkleResetSlot(s_slots[i]);
-        }
+        resetAllSlots();
         TM_LOG("tech_sparkle: debug block at %08x\n", &s_debug);
     }
 
@@ -149,10 +138,7 @@ namespace extra {
         {
             if (mode == main::kTechSparkleOff)
             {
-                for (int i = 0; i < game::kMaxFighters; i++)
-                {
-                    techSparkleResetSlot(s_slots[i]);
-                }
+                resetAllSlots();
             }
             return;
         }

@@ -122,7 +122,7 @@ namespace game {
         gfScene* scene = currentScene();
         const void* info = sceneIs(scene, "scMelee") ? reinterpret_cast<const void*>(wordAt(scene, kSceneInfoOperator))
                                                      : NULL;
-        return isRam(info) && wordAt(info, kInfoVtable) == kInfoTrainingVtable && wordAt(info, kInfoState) != kStateRunning;
+        return isRam(info) && wordAt(info, kInfoVtable) == kInfoTrainingVtable && wordAt(info, kInfoState) == kStateWait;
     }
 #pragma force_active reset
 

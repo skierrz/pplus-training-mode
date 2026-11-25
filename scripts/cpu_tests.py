@@ -2964,10 +2964,12 @@ def o_oos_techniques(r):
     lab.open_menu()
     lab.main_to(LT.MAIN_CPU)
     lab.tap(["A"])
-    lab.down(COUNTER_SHIELD_ROW)
+    lab.down(CPU_COUNTERS_ROW)
+    lab.tap(["A"])
+    lab.down(2)  # Shield Counter (row 2 of CPU > Counters & Reversals)
     lab.tap(stick=LT.RIGHT)
     got = r.opt.get("counterShield")
-    lab.back_to_main(1)
+    lab.back_to_main(2)
     lab.close_menu()
     want = SHIELD_DJC if name in DJC_CHARACTERS else (SHIELD_FLOAT if name in FLOAT_CHARACTERS else SHIELD_SHFFL)
     res.row("menu: Right on Counter Action (Shield) from Random", want, got, got == want)
@@ -6014,7 +6016,7 @@ def o_shield_timing_multihit(r):
     # 1. Single-hit Down Tilt: Full Move must counter on the EXACT same frame as First Gap.
     single_catch = {}
     for label, st_mode in (("First Gap", 0), ("Full Move", 1)):
-        r.load("near", on(behavior=BEHAVIOR["Shield"], infiniteShields=SHIELDS["On"],
+        r.load("near", on(behavior=BEHAVIOR["Shield"], infiniteShields=SHIELDS["On"], shieldHealth=60,
                           counterShield=SHIELD_ACTIONS["Grab"], shieldTiming=st_mode), percent=0)
 
         def dtilt(i, rows):
@@ -6038,7 +6040,7 @@ def o_shield_timing_multihit(r):
     #      and executes Grab after the final hit.
     mh = {}
     for label, st_mode in (("First Gap", 0), ("Full Move", 1)):
-        r.load("near", on(behavior=BEHAVIOR["Shield"], infiniteShields=SHIELDS["On"],
+        r.load("near", on(behavior=BEHAVIOR["Shield"], infiniteShields=SHIELDS["On"], shieldHealth=60,
                           counterShield=SHIELD_ACTIONS["Grab"], shieldTiming=st_mode), percent=0)
 
         def mk_fair(i, rows):
@@ -6062,17 +6064,20 @@ def o_shield_timing_multihit(r):
         stun = first(rows, 25, lambda x: x[CPU]["status"] == STATUS["Guard_Damage"])
         catch = first(rows, stun, lambda x: x[CPU]["status"] == STATUS["Catch"]) if stun is not None else None
         dmg = rows[-1][CPU]["damage"] - rows[25][CPU]["damage"]
-        mh[label] = {"stun": stun, "catch": catch, "pulses": pulses, "dmg": dmg}
-        res.note(f"MK Fair {label}: stun={stun} pulses={pulses} catch={catch} dmg={dmg:.1f}; "
+        took_hit = any(row[CPU]["status"] in HIT or row[CPU]["hitstun"] > 0 for row in rows[25:])
+        mh[label] = {"stun": stun, "catch": catch, "pulses": pulses, "dmg": dmg, "took_hit": took_hit}
+        res.note(f"MK Fair {label}: stun={stun} pulses={pulses} catch={catch} dmg={dmg:.1f} hit={took_hit}; "
                  f"statuses {statuses(rows[25:])[:18]}")
 
     fg, fm = mh["First Gap"], mh["Full Move"]
-    res.row("MK Fair Full Move: blocks >=2 hits, 0 dmg, counters Grab", "pulses>=2 dmg=0 Catch",
-            f"pulses={fm['pulses']} dmg={fm['dmg']:.1f} catch={fm['catch']}",
-            fm["pulses"] >= 2 and fm["dmg"] < 0.1 and fm["catch"] is not None)
+    res.row("MK Fair Full Move: blocks >=2 hits, 0 dmg, counters Grab", "pulses>=2 dmg=0 hit=0 Catch",
+            f"pulses={fm['pulses']} dmg={fm['dmg']:.1f} hit={fm['took_hit']} catch={fm['catch']}",
+            fm["pulses"] >= 2 and fm["dmg"] < 0.1 and not fm["took_hit"] and fm["catch"] is not None)
     res.row("MK Fair First Gap vs Full Move: distinct behavior", "FG hit or earlier Catch",
-            f"FG(dmg={fg['dmg']:.1f},catch={fg['catch']}) vs FM(dmg={fm['dmg']:.1f},catch={fm['catch']})",
-            fg["dmg"] > 0.5 or (fg["catch"] is not None and fm["catch"] is not None and fg["catch"] < fm["catch"]))
+            f"FG(hit={fg['took_hit']},dmg={fg['dmg']:.1f},catch={fg['catch']}) vs "
+            f"FM(hit={fm['took_hit']},dmg={fm['dmg']:.1f},catch={fm['catch']})",
+            fg["took_hit"] or fg["dmg"] > 0.5
+            or (fg["catch"] is not None and fm["catch"] is not None and fg["catch"] < fm["catch"]))
     return res
 
 

@@ -610,6 +610,11 @@ namespace extra {
                     findPlayerRef(refs, n, s_placedPlayer[slot], target);
                 }
                 setFighterCorrect(target, act.restoreCorrectKind[slot]);
+                if (act.restoreCorrectKind[slot] == kCorrectAir)
+                {
+                    bool spendDj = slot == 0 && cfg.preset == kScenarioLedgetech && cfg.ledgetechDj == kLtDjSpent;
+                    refreshAirResources(target, spendDj);
+                }
             }
         }
 

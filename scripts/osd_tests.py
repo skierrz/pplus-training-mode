@@ -92,6 +92,7 @@ SPEED = "0"
 # box's centre for each, 640x480 space (src/main/ui/osd_place.h): HUD above
 # the damage readout; Sides and the top rows at the configured screen-space spots.
 S_OSD_POSITION = 88
+S_OSD_HIT_ADV = 90
 S_OSD_BG_COLOR, S_OSD_BG_ALPHA = 110, 111
 S_TECH_SPARKLE = 117
 TS_MAGIC = 0x544D5453  # "TMTS" (src/extra/tech_sparkle.cpp)
@@ -1242,36 +1243,35 @@ def sc_tech_sparkle(r, name):
 
     js = jump_squat(r, 0)
     # 1. Mode 1 (Perfect Wavedash): Frame-1 wavedash spawns spflash (0x7D) and captures D3D shot.
+    # Note: each r.play(r.states["control"], ...) loads the Dolphin savestate where
+    # s_debug counters are 0, so we assert exact post-run counts from that clean baseline.
     fr_wd = {1: (J, 0.0, 0.0), js + 1: (B_GUARD, *DOWN_RIGHT), js + 2: (0, *DOWN_RIGHT)}
-    ts_before = read_ts()
     r.play(r.states["control"], {0: (fr_wd, js + 2)}, extra=24,
            settings=[(S_TECH_SPARKLE, "01")], shot="osds-tech-sparkle-wd", osd_player=1)
     ts_wd = read_ts()
-    if (ts_wd["wavedashSparks"] <= ts_before["wavedashSparks"]
+    if (ts_wd["wavedashSparks"] != 1
             or ts_wd["lastCue"] != 1
             or ts_wd["lastEffectId"] != TS_EF_SPFLASH
             or ts_wd["lastHandle"] == 0):
-        raise OsdError(f"{name}: perfect wavedash sparkle failed: before={ts_before} after={ts_wd}")
+        raise OsdError(f"{name}: perfect wavedash sparkle failed: after={ts_wd}")
 
     # 2. Mode 2 (Shorthop): 1-frame jump tap spawns smash_flash (0x10) on Jump takeoff.
     fr_sh = {1: (J, 0.0, 0.0)}
-    ts_before_sh = read_ts()
     r.play(r.states["control"], {0: (fr_sh, 1)}, extra=js + 8,
            settings=[(S_TECH_SPARKLE, "02")])
     ts_sh = read_ts()
-    if (ts_sh["shorthopSparks"] <= ts_before_sh["shorthopSparks"]
+    if (ts_sh["shorthopSparks"] != 1
             or ts_sh["lastCue"] != 2
             or ts_sh["lastEffectId"] != TS_EF_SMASH_FLASH
             or ts_sh["lastHandle"] == 0):
-        raise OsdError(f"{name}: shorthop sparkle failed: before={ts_before_sh} after={ts_sh}")
+        raise OsdError(f"{name}: shorthop sparkle failed: after={ts_sh}")
 
-    # 3. Mode 0 (Off): Frame-1 wavedash spawns zero additional sparkles.
-    ts_before_off = read_ts()
+    # 3. Mode 0 (Off): Frame-1 wavedash spawns zero sparkles.
     r.play(r.states["control"], {0: (fr_wd, js + 2)}, extra=18,
            settings=[(S_TECH_SPARKLE, "00")])
     ts_off = read_ts()
-    if ts_off["wavedashSparks"] != ts_before_off["wavedashSparks"]:
-        raise OsdError(f"{name}: Off mode spawned sparkle: {ts_before_off} -> {ts_off}")
+    if ts_off["wavedashSparks"] != 0 or ts_off["shorthopSparks"] != 0:
+        raise OsdError(f"{name}: Off mode spawned sparkle: after={ts_off}")
 
     # 4. Savestate safety: immediately load state right after spawning a sparkle.
     emu.h.call("load_state", path=r.states["control"])
@@ -1533,7 +1533,10 @@ def sc_actoolag(r, kind, delay, name, shot=False, turn=False, from_wait=False):
         for n in range(e, act):
             fr[n] = (0, back, 0.0)
     fr[act] = (J, 0.0, 0.0)
+    # Suppress Hit Advantage (default On in v2) so hitting Fox with Nair does
+    # not push Post-Lag up a slot before check_color samples slot 0.
     rows, text = r.play(r.states["control"], {0: (fr, act + 1)}, extra=10,
+                        settings=[(S_OSD_HIT_ADV, "00")],
                         shot=("osds-" + name) if shot else None, osd_player=1, stop_after_osd=False)
     got_land, got_st, got_before = landing_of(rows, land)
     if got_land != land or got_st != status:

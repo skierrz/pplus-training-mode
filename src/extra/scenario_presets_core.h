@@ -271,6 +271,7 @@ namespace extra {
         u8 hmnGuardWindow;
         bool techEngaged;
         bool shieldEngaged;
+        bool oosCountered;
         bool shieldDropDone;
         bool ledgetechDone;
         bool slideOffArmed;

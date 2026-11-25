@@ -516,6 +516,7 @@ namespace extra {
         m->m_postureModule->updateRotYLr();
     }
 
+#pragma dont_inline on
     static void warpSingle(Fighter* f, float x, float y, bool falling, bool setNoclip, float lr)
     {
         const soModuleEnumeration* m = game::fighterModules(f);
@@ -595,6 +596,7 @@ namespace extra {
             m->m_groundModule->setCorrect(soGroundShapeImpl::Correct_None, 0);
         }
     }
+#pragma dont_inline reset
 
     namespace {
         enum {
@@ -624,6 +626,7 @@ namespace extra {
             {0xFF, kAirRuleInt, 4, 0},       // wall jump past frame
             {0xFF, kAirRuleInt, 11, 0},      // no attach wall frame
             {0xFF, kAirRuleInt, 12, 0},      // attach wall count
+            {0xFF, kAirRuleInt, 53, 0},      // Brawl common air-special lockout counter (0x808E0F30)
             {0xFF, kAirRuleInt, 62, 0},      // AirLassoHang tether count
             {0xFF, kAirRuleInt, 79, 0},      // 5-ledge-grab invuln counter
             {0xFF, kAirRuleInt, 81, 0},      // P+ AGT counter
@@ -687,6 +690,33 @@ namespace extra {
             }
             int jumpVal = grounded ? 0 : (spendDoubleJump ? maxJumps : 1);
             w->setInt(jumpVal, kLaBasicBase + 1);
+            // Stop any lingering CallEveryFrame (thread 9) PSA loop from an
+            // interrupted special (e.g. Snake's Cypher 0x28768 which otherwise
+            // re-sets LA-Bit[61] on the next frame after warping mid-Up-B).
+            // Verified against RSBE01/P+ 3.2.1 soAnimCmdModuleImpl::notifyEventAnimCmd
+            // 0x0D01 handler (0x8077D540 -> vtable +0x24 = 0x8077C618).
+            if (game::isRam(m->m_animCmdModule) && game::isRam(f->m_moduleAccesser))
+            {
+                const u32* vt = *reinterpret_cast<const u32* const*>(m->m_animCmdModule);
+                if (game::isRam(vt))
+                {
+                    typedef void (*ResetInterpFn)(void*, int, const void*, soModuleAccesser*);
+                    ResetInterpFn fn = reinterpret_cast<ResetInterpFn>(vt[0x24 / 4]);
+                    if (game::isRam(reinterpret_cast<const void*>(fn)))
+                    {
+                        fn(m->m_animCmdModule, soAnimCmdControlUnitKind::InfiniteLoop, NULL, f->m_moduleAccesser);
+                    }
+                }
+            }
+            // Re-enable air-special and air-escape transition terms disabled by
+            // an interrupted special's PSA 02090200 UnableTransitionTerm (e.g.
+            // Snake disables 0x2773 in kGroupAirSpecial and 0x274C in
+            // kGroupAirEscape until landing/reset).
+            if (!grounded && game::isRam(m->m_statusModule))
+            {
+                m->m_statusModule->enableTransitionTermAll(game::kGroupAirSpecial);
+                m->m_statusModule->enableTransitionTermAll(game::kGroupAirEscape);
+            }
             const u32 count = static_cast<u32>(sizeof(kAirRules) / sizeof(kAirRules[0]));
             for (u32 i = 0; i < count; i++)
             {
@@ -731,35 +761,38 @@ namespace extra {
         }
     }
 
-    void placeStanding(const game::FighterRef& ref, float x, float y, bool setNoclip, float damage, float lr)
+#pragma dont_inline on
+    static void placePair(const game::FighterRef& ref, float x, float y, bool falling, bool setNoclip, float damage,
+                          float lr)
     {
-        warpSingle(ref.fighter, x, y, false, setNoclip, lr);
-        if (ref.fighter != NULL)
+        Fighter* fs[2] = {ref.fighter, (ref.partner != NULL && ref.partner != ref.fighter) ? ref.partner : NULL};
+        for (int i = 0; i < 2; i++)
         {
-            refreshAirSingle(ref.fighter, game::fighterKind(ref.entryId, false), true, false);
-        }
-        if (ref.partner != NULL && ref.partner != ref.fighter)
-        {
-            warpSingle(ref.partner, x, y, false, setNoclip, lr);
-            refreshAirSingle(ref.partner, game::fighterKind(ref.entryId, true), true, false);
+            if (fs[i] == NULL)
+            {
+                continue;
+            }
+            warpSingle(fs[i], x, y, falling, setNoclip, lr);
+            if (!falling)
+            {
+                refreshAirSingle(fs[i], game::fighterKind(ref.entryId, i != 0), true, false);
+            }
         }
         if (damage >= 0.0f)
         {
             game::setDamage(ref, damage);
         }
     }
+#pragma dont_inline reset
+
+    void placeStanding(const game::FighterRef& ref, float x, float y, bool setNoclip, float damage, float lr)
+    {
+        placePair(ref, x, y, false, setNoclip, damage, lr);
+    }
 
     void placeFalling(const game::FighterRef& ref, float x, float y, bool setNoclip, float damage, float lr)
     {
-        warpSingle(ref.fighter, x, y, true, setNoclip, lr);
-        if (ref.partner != NULL && ref.partner != ref.fighter)
-        {
-            warpSingle(ref.partner, x, y, true, setNoclip, lr);
-        }
-        if (damage >= 0.0f)
-        {
-            game::setDamage(ref, damage);
-        }
+        placePair(ref, x, y, true, setNoclip, damage, lr);
     }
 
     void setFighterFacing(const game::FighterRef& ref, float lr)

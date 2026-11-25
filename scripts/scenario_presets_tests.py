@@ -973,6 +973,8 @@ def scenario_ledgetech_cypher_dj_and_pause(r, sb):
             str(cypher_reps), cypher_reps == [True, True])
 
     # 2. P1 Double Jump = Spent: pressing X in air must NOT enter Jump_Aerial (0x0C).
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(2)
     sb.set_menu(SCEN_LEDGETECH, auto_reset=0, side=SIDE_RIGHT,
                 lt_spawn=LT_SPAWN_CLOSE_LOW, lt_dj=LT_DJ_SPENT, lt_atk=LT_ATK_DTILT)
     r.emu.advance(4)
@@ -987,11 +989,16 @@ def scenario_ledgetech_cypher_dj_and_pause(r, sb):
             f"sawDj={saw_dj}", not saw_dj)
 
     # 3. Brawl Training Pause -> unpause preserves active Ledgetech & triggers reset.
+    # Re-warp Snake alive before pausing so KO respawn sleep does not defer the reset.
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(2)
+    sb.set_menu(SCEN_LEDGETECH, auto_reset=1, side=SIDE_RIGHT,
+                lt_spawn=LT_SPAWN_CLOSE_LOW, lt_dj=LT_DJ_AVAIL, lt_atk=LT_ATK_DTILT)
+    r.emu.advance(4)
     resets_pre_pause = sb.read()["resetCount"]
     nav.pause_training(r.emu)
     r.emu.advance(12)
-    nav.press_until(r.emu, "unpause Brawl Training pause", ["B"],
-                    lambda: not nav.training_paused(r.emu), 120, every=10)
+    nav.resume_training(r.emu)
     r.emu.advance(8)
     d_post_pause = sb.read()
     res.row("Brawl Training Pause preserves & resets Ledgetech", "preset=6 resets+",
