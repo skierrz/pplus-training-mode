@@ -431,5 +431,26 @@ namespace main {
             s_hooks->infoApplyPreset(side);
         }
     }
+
+    void extraInputViewerDraw(const game::MatchState& match, bool menuOpen)
+    {
+        if (s_hooks != NULL && s_hooks->inputViewerDraw != NULL)
+        {
+            s_hooks->inputViewerDraw(match, menuOpen);
+        }
+    }
+
+    bool extraDrawColoredHitboxes(Fighter* fighter)
+    {
+        return s_hooks != NULL && s_hooks->drawColoredHitboxes != NULL && s_hooks->drawColoredHitboxes(fighter);
+    }
+
+    void extraDiCompassDraw(const game::MatchState& match, bool menuOpen)
+    {
+        if (s_hooks != NULL && s_hooks->diCompassDraw != NULL)
+        {
+            s_hooks->diCompassDraw(match, menuOpen);
+        }
+    }
 }
 }

@@ -9,6 +9,16 @@ struct gfPadStatus;
 // button hiding runs.
 namespace tm {
 namespace display {
+    // Live buttons, sticks, analog triggers, and controller type for the extra
+    // module's multi-controller input viewer (ports 0-3 GCC, 4-7 Wii).
+    struct ViewerPad {
+        u32 buttons;
+        s8 sx, sy, cx, cy;
+        u8 lTrig, rTrig;
+        u8 controllerType;
+        u8 connected;
+    };
+
     // The game pads, once per game step (lab.cpp).
     void inputCapture(const gfPadStatus* pads);
     // Port `port`'s sticks as last captured (main x, y, C-stick x, y; pad
@@ -17,6 +27,8 @@ namespace display {
     // Same as inputStick, also returning gfPadStatus::m_controllerType (0 GCC,
     // 1 Classic, 2 Wiimote, 3 Nunchuk) in `*controllerType` when non-NULL.
     bool inputStickWithType(int port, s8* out, u8* controllerType);
+    // Full live pad snapshot for the extra module's input viewer.
+    bool inputViewerPad(int port, ViewerPad& out);
 
     // One port's pad as a fighter's controls were last made from it: the game's
     // copy in ipSwitch::update (the stub's fighter-pad hook, before the lab

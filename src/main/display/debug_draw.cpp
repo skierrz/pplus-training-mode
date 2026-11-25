@@ -2,7 +2,9 @@
 
 #include <gf/gf_camera.h>
 
+#include "main/extra.h"
 #include "main/game/fighters.h"
+#include "main/settings.h"
 #include "shared/game/mem.h"
 #include "shared/log.h"
 
@@ -200,7 +202,12 @@ namespace display {
         }
         if (attack != NULL && slotOf(attack, 0, kSlotAttack) == kAttackDraw)
         {
-            callWithR31(attack, accesser, kAttackDraw);
+            bool colored = main::settings().display.hitboxColorMode != main::kHitboxColorDefault
+                           && main::extraDrawColoredHitboxes(fighter);
+            if (!colored)
+            {
+                callWithR31(attack, accesser, kAttackDraw);
+            }
         }
     }
 

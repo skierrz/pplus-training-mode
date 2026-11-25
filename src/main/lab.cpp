@@ -1423,6 +1423,11 @@ namespace lab {
                     gfx::textBox(kSlotHint, ui::layout::kHintX, ui::layout::kHintY, text, kYellow, kBox, 0.5f, false);
                 }
                 display::render2d(m, s_st.open);
+                if (!m.paused && !s_st.open)
+                {
+                    main::extraInputViewerDraw(m, s_st.open);
+                    main::extraDiCompassDraw(m, s_st.open);
+                }
                 if (s_st.open)
                 {
                     TM_PERF_SCOPE(kMenuDraw);

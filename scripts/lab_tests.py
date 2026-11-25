@@ -93,7 +93,7 @@ CONTROLS_MENU_BUTTON, CONTROLS_CODE_MENU, CONTROLS_MENU_STYLE = 7, 8, 9
 OSD_ROWS = 22
 CPU_INFINITE_SHIELDS_HEALTH = 16
 DISPLAY_HMN_INFO, DISPLAY_CPU_INFO = 14, 15
-DISPLAY_ROWS = 18  # Display page rows (Match HUD .. Theme)
+DISPLAY_ROWS = 21  # Display page rows (Match HUD .. DI Vector)
 PRESETS = {"none": 0, "state": 1, "ledge": 2, "damage": 3, "debug": 4}
 SIZES = {"small": 0, "medium": 1, "large": 2}
 # main::Settings offsets (src/main/settings.h; the module checks them at build time).

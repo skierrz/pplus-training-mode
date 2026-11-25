@@ -101,6 +101,28 @@ namespace main {
     enum DpadUp { kUpTaunt = 0, kUpNone };
     enum DpadDown { kDownNone = 0, kDownFrameAdvance };
 
+    // Display > Hitbox Colors.
+    enum HitboxColorMode {
+        kHitboxColorDefault = 0,
+        kHitboxColorProperty,
+        kHitboxColorPriority,
+        kHitboxColorModeCount
+    };
+
+    // Display > DI Vector.
+    enum DiVectorMode {
+        kDiVectorLive = 0,
+        kDiVectorNone,
+        kDiVectorIn,
+        kDiVectorOut,
+        kDiVectorUpIn,
+        kDiVectorUpOut,
+        kDiVectorDownIn,
+        kDiVectorDownOut,
+        kDiVectorSurvival,
+        kDiVectorModeCount
+    };
+
     // Display Options page and the Debug page.
     struct DisplaySettings {
         u8 debugOverlay; // 0/1
@@ -115,7 +137,10 @@ namespace main {
         u8 heatmapOpacity;     // 20-100 (%)
         u8 heatmapColorFrames; // 1-30 (frames per color band)
         u8 grabVisualizer;     // display::Who (0 Off, 1 P1, 2 CPU, 3 Both)
-        u8 reserved[4];
+        u8 inputViewer;        // display::Who (0 Off, 1 P1, 2 CPU, 3 Both)
+        u8 hitboxColorMode;    // HitboxColorMode (0 Default, 1 Property, 2 Priority)
+        u8 diVectorMode;       // DiVectorMode (0 Live Stick, 1..8 presets)
+        u8 reserved[1];
     };
 
     // HMN / CPU Info Display pages, one per side.
@@ -409,6 +434,9 @@ namespace main {
     TM_STATIC_ASSERT(offsetof(Settings, display.heatmap) == 47, tm_settings_display_heatmap_at_47);
     TM_STATIC_ASSERT(offsetof(Settings, display.heatmapColorFrames) == 50, tm_settings_display_heatmap_color_at_50);
     TM_STATIC_ASSERT(offsetof(Settings, display.grabVisualizer) == 51, tm_settings_display_grab_viz_at_51);
+    TM_STATIC_ASSERT(offsetof(Settings, display.inputViewer) == 52, tm_settings_display_input_viewer_at_52);
+    TM_STATIC_ASSERT(offsetof(Settings, display.hitboxColorMode) == 53, tm_settings_display_hitbox_color_at_53);
+    TM_STATIC_ASSERT(offsetof(Settings, display.diVectorMode) == 54, tm_settings_display_di_vector_at_54);
     TM_STATIC_ASSERT(offsetof(Settings, info) == 56, tm_settings_info_at_56);
     TM_STATIC_ASSERT(offsetof(Settings, osd) == 88, tm_settings_osd_at_88);
     TM_STATIC_ASSERT(offsetof(Settings, osd.bgColor) == 110, tm_settings_osd_bg_color_at_110);

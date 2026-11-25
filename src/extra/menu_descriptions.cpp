@@ -103,7 +103,10 @@ namespace extra {
         "Configure live frame and physics telemetry rows for Player 1.",
         "Configure live frame and physics telemetry rows for the CPU.",
         "Show the ledgedash frame timeline bar and GALINT readout.",
-        "Customize on-screen notification background color and opacity."
+        "Customize on-screen notification background color and opacity.",
+        "Show live multi-controller sticks, triggers, and buttons.",
+        "Color active hitboxes by property or priority ID.",
+        "Preview preset DI angles on the live DI compass and arc."
     };
 
     static const char* const kOsdDesc[] = {

@@ -90,6 +90,7 @@ BASE_FRAME = 120           # match frame the base state is built from
 S_FRAME_ADVANCE = 11
 S_CAMERA, S_SPEED, S_STALING = 16, 17, 18
 S_HUD, S_HITBOXES, S_MODELS, S_ENV, S_STAGE, S_EFFECTS = 41, 42, 43, 44, 45, 46
+S_INPUT_VIEWER, S_HITBOX_COLORS, S_DI_VECTOR = 52, 53, 54
 S_CPU_CONTROL, S_CPU_BEHAVIOR, S_CPU_TDI, S_CPU_SDI = 123, 124, 125, 126  # cpu::CpuOptions
 # P1 Color Overlays (main::OverlaySettings at +248: preset, then the 17
 # groups), its Wait row, and Display page row indices (src/main/ui/pages/display_options.cpp).
@@ -99,7 +100,8 @@ SHOW_COLLISION, PLAY_SOUND = 10, 12
 OVERLAY_SOUND = re.compile(r"overlays: P(\d) play sound, group (\d+) \(handle (-?\d+)\)")
 WAIT, JUMP_SQUAT = 0x0, 0xA
 DEFAULTS = {S_CAMERA: 0, S_SPEED: 0, S_STALING: 1, S_HUD: 1, S_HITBOXES: 0,
-            S_MODELS: 3, S_ENV: 0, S_STAGE: 1, S_EFFECTS: 1, S_FRAME_ADVANCE: 0}
+            S_MODELS: 3, S_ENV: 0, S_STAGE: 1, S_EFFECTS: 1, S_FRAME_ADVANCE: 0,
+            S_INPUT_VIEWER: 0, S_HITBOX_COLORS: 0, S_DI_VECTOR: 0}
 # CPU Control Lab, Behavior Stand, TDI None, no SDI (cpu_settings.h).
 CPU_STILL = {S_CPU_CONTROL: 1, S_CPU_BEHAVIOR: 0, S_CPU_TDI: 4, S_CPU_SDI: 0}
 RATES = [60, 50, 40, 30, 15]
@@ -1241,8 +1243,116 @@ def sc_together(r):
         raise DisplayError(f"{len(bad)} comparisons failed: " + "; ".join(bad))
 
 
+def sc_wave3_viz(r):
+    """Wave 3A visual tool backends: Multi-Controller Input Viewer (GCC + Wii),
+    P+-native Hitbox Color Modes (Property + Priority), and Live DI Vector Picker
+    (pure-GX 2D unit-circle DI compass + predicted trajectory)."""
+    e = r.emu
+    log = e.log_text()
+    m_iv = re.findall(r"input_viewer: debug block at ([0-9a-fA-F]{8})", log)
+    m_hc = re.findall(r"hitbox_colors: debug block at ([0-9a-fA-F]{8}); shape (ok|off), bubble (ok|off)", log)
+    m_dp = re.findall(r"di: trace byte at [0-9a-fA-F]{8}; picker block at ([0-9a-fA-F]{8});", log)
+    r.check(bool(m_iv) and bool(m_hc) and bool(m_dp), "wave3-viz: debug blocks logged",
+            f"iv={m_iv[-1:] if m_iv else []}, hc={m_hc[-1:] if m_hc else []}, dp={m_dp[-1:] if m_dp else []}")
+    iv_addr = int(m_iv[-1], 16)
+    hc_addr = int(m_hc[-1][0], 16)
+    dp_addr = int(m_dp[-1], 16)
+    r.check(m_hc[-1][1] == "ok" and m_hc[-1][2] == "ok", "wave3-viz: hitbox color shape & bubble hooks ok",
+            f"shape={m_hc[-1][1]}, bubble={m_hc[-1][2]}")
+
+    # 1. Input Viewer: GCC live presses + analog stick + trigger bar, plus Wii Classic layout.
+    r.load(running=False)
+    r.hold()
+    iv_off = r.snap("display-wave3-iv-off")
+    r.set(S_INPUT_VIEWER, 3)  # Both (P1 + CPU)
+    e.hold(0, buttons=["A", "Y", "Z"], stick=(215, 200), cstick=(128, 35), l=120, r=0)
+    e.advance(6)
+    iv_gc = r.snap("display-wave3-input-viewer-gc")
+    iv_raw = e.read(iv_addr, 32)
+    iv_magic, iv_cards, _ = struct.unpack_from(">III", iv_raw, 0)
+    iv_btn0 = struct.unpack_from(">I", iv_raw, 0x0C)[0]
+    iv_sx0 = struct.unpack_from(">b", iv_raw, 0x14)[0]
+    iv_sy0 = struct.unpack_from(">b", iv_raw, 0x16)[0]
+    iv_lt0 = iv_raw[0x18]
+    iv_type0 = iv_raw[0x1C]
+    iv_box = (460, 20, 612, 150)
+    iv_px, _ = changed(iv_off, iv_gc, rect=iv_box)
+    r.check(iv_magic == 0x544D4956 and iv_cards == 2 and iv_type0 == 0
+            and (iv_btn0 & 0x0910) == 0x0910 and iv_sx0 > 40 and iv_lt0 >= 90 and iv_px > 500,
+            "wave3-viz: Input Viewer GCC live buttons, stick, trigger bar and 2 cards",
+            f"cards={iv_cards}, type={iv_type0}, btn={iv_btn0:#x}, stick=({iv_sx0},{iv_sy0}), L={iv_lt0}, px={iv_px}")
+
+    # Wii Classic Controller layout verification & screenshot (overrideType = 1).
+    e.h.call("write_mem", addr=iv_addr + 0x1E, hex="01")
+    e.hold(0, buttons=["A", "B", "X", "R"], stick=(45, 205), cstick=(210, 128), l=0, r=150)
+    e.advance(4)
+    iv_wii = r.snap("display-wave3-input-viewer-wii")
+    iv_wii_type = e.u8(iv_addr + 0x1C)
+    wii_px, _ = changed(iv_gc, iv_wii, rect=iv_box)
+    e.h.call("write_mem", addr=iv_addr + 0x1E, hex="ff")
+    e.neutral(0)
+    r.set(S_INPUT_VIEWER, 0)
+    r.unhold()
+    r.check(iv_wii_type == 1 and wii_px > 200, "wave3-viz: Input Viewer Wii Classic layout renders cleanly",
+            f"type={iv_wii_type}, diff_vs_gc={wii_px} px")
+
+    # 2. Hitbox Color Modes: Mario's multi-part F-Smash (Sweetspot vs Sourspot in Property; ID 0..2 in Priority).
+    at = smash_until_hit(r)
+    r.hold()
+    r.set(S_HITBOXES, 3)  # Both fighters so GX state restore across fighter loop is verified too!
+    r.set(S_HITBOX_COLORS, 0)
+    hc_def = r.snap("display-wave3-hitbox-default")
+    r.set(S_HITBOX_COLORS, 1)  # Property
+    hc_prop = r.snap("display-wave3-hitbox-property")
+    hc_raw_p = e.read(hc_addr, 0x3C)
+    hc_parts_p = struct.unpack_from(">I", hc_raw_p, 0x10)[0]
+    hc_cols_p = list(struct.unpack_from(">8I", hc_raw_p, 0x1C))[:min(hc_parts_p, 8)]
+
+    r.set(S_HITBOX_COLORS, 2)  # Priority
+    hc_prio = r.snap("display-wave3-hitbox-priority")
+    hc_raw_r = e.read(hc_addr, 0x3C)
+    hc_parts_r = struct.unpack_from(">I", hc_raw_r, 0x10)[0]
+    hc_cols_r = list(struct.unpack_from(">8I", hc_raw_r, 0x1C))[:min(hc_parts_r, 8)]
+
+    prop_diff, _ = changed(hc_def, hc_prop, rect=FIGHTERS)
+    prio_diff, _ = changed(hc_prop, hc_prio, rect=FIGHTERS)
+    r.check(hc_parts_p >= 2 and len(set(hc_cols_p)) >= 2 and prop_diff > 150,
+            "wave3-viz: Hitbox Colors Property distinguishes multi-part attack hitboxes",
+            f"frame={at}, parts={hc_parts_p}, colors={[hex(c) for c in hc_cols_p]}, diff={prop_diff} px")
+    r.check(hc_parts_r >= 2 and len(set(hc_cols_r)) >= 2 and prio_diff > 100,
+            "wave3-viz: Hitbox Colors Priority assigns distinct colors per priority ID",
+            f"parts={hc_parts_r}, colors={[hex(c) for c in hc_cols_r]}, diff={prio_diff} px")
+
+    # 3. Live DI Vector Picker: pure-GX 2D unit-circle DI compass + predicted trajectory during hitlag.
+    r.set(S_HITBOXES, 0)
+    r.set(S_HITBOX_COLORS, 0)
+    di_off = r.snap("display-wave3-di-off")
+    r.set(S_DI, 1)
+    r.set(S_DI_VECTOR, 1)  # No DI
+    di_none = r.snap("display-wave3-di-none")
+    r.set(S_DI_VECTOR, 8)  # Survival
+    e.hold(0, stick=(210, 60))
+    e.advance(4)
+    di_surv = r.snap("display-wave3-di-picker")
+    dp_raw = e.read(dp_addr, 32)
+    dp_magic, dp_drawn, _, dp_mode, dp_lx, dp_ly, dp_dx, dp_dy = struct.unpack_from(">IIIIffff", dp_raw, 0)
+    dot = abs(dp_lx * dp_dx + dp_ly * dp_dy)
+    compass_box = (518, 20, 612, 112)
+    compass_px, _ = changed(di_off, di_surv, rect=compass_box)
+    arc_px, _ = changed(di_none, di_surv, rect=(160, 40, 500, 360))
+    e.neutral(0)
+    r.set(S_DI, 0)
+    r.set(S_DI_VECTOR, 0)
+    r.unhold()
+    r.check(dp_magic == 0x544D4450 and dp_drawn == 1 and dp_mode == 8 and dot < 0.05 and compass_px > 250
+            and arc_px > 40,
+            "wave3-viz: DI Vector Picker compass and Survival trajectory active",
+            f"drawn={dp_drawn}, mode={dp_mode}, launch=({dp_lx:.2f},{dp_ly:.2f}), di=({dp_dx:.2f},{dp_dy:.2f}), "
+            f"dot={dot:.3f}, compass_px={compass_px}, arc_px={arc_px}")
+
+
 SCENARIOS = ["layers", "effects", "hitboxes", "overlay-collision", "overlay-sound", "collision", "models",
-             "staling", "speed", "camera", "together", "four", "restore"]
+             "staling", "speed", "camera", "wave3-viz", "together", "four", "restore"]
 
 
 def make_base(r, states, aspect=None):
@@ -1297,7 +1407,7 @@ def cmd_test_display(rest):
     fns = {"layers": sc_layers, "effects": sc_effects, "hitboxes": sc_hitboxes,
            "overlay-collision": sc_overlay_collision, "overlay-sound": sc_overlay_sound, "collision": sc_collision,
            "models": sc_models, "staling": sc_staling, "speed": sc_speed, "camera": sc_camera,
-           "together": sc_together, "four": sc_four, "restore": sc_restore}
+           "wave3-viz": sc_wave3_viz, "together": sc_together, "four": sc_four, "restore": sc_restore}
     try:
         with E.harness_run(backend, E.DETERMINISTIC_ARGS) as (proc, emu):
             log_path = emu.log_path

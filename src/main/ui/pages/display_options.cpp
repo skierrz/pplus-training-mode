@@ -6,6 +6,10 @@ namespace tm {
 namespace ui {
 namespace pages {
     static const char* const kWho[] = {"Off", "P1", "CPU", "Both"};
+    static const char* const kHitboxColors[] = {"Default", "Property", "Priority"};
+    static const char* const kDiVectors[] = {
+        "Live Stick", "No DI", "In", "Out", "Up-In", "Up-Out", "Down-In", "Down-Out", "Survival"
+    };
 
     static const Option kRows[] = {
         TM_TOGGLE("Match HUD", display.hud, 1, NULL),
@@ -31,7 +35,13 @@ namespace pages {
         TM_MENU("P1 Info Display", P_HMN_INFO),
         TM_MENU("CPU Info Display", P_CPU_INFO),
         TM_MENU("Ledgedash HUD", P_LEDGEDASH_HUD),
-        TM_MENU("Theme", P_THEME)
+        TM_MENU("Theme", P_THEME),
+        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(display.inputViewer), 0, TM_COUNT(kWho) - 1, 0,
+               "Input Viewer", kWho, NULL, main::extraLoaded),
+        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(display.hitboxColorMode), 0, TM_COUNT(kHitboxColors) - 1, 0,
+               "Hitbox Colors", kHitboxColors, NULL, main::extraLoaded),
+        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(display.diVectorMode), 0, TM_COUNT(kDiVectors) - 1, 0,
+               "DI Vector", kDiVectors, NULL, main::extraLoaded)
     };
 
     extern const Page kDisplayOptions = TM_PAGE("Display", kRows);

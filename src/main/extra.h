@@ -97,6 +97,12 @@ namespace main {
         void (*infoDraw)();
         void (*infoReset)();
         void (*infoApplyPreset)(int side);
+        // Multi-controller Input Viewer (extra/input_viewer.h).
+        void (*inputViewerDraw)(const game::MatchState& match, bool menuOpen);
+        // P+-native Hitbox Color Modes (extra/hitbox_colors.h).
+        bool (*drawColoredHitboxes)(Fighter* fighter);
+        // Live DI Vector Picker 2D unit-circle compass (extra/di_display.cpp).
+        void (*diCompassDraw)(const game::MatchState& match, bool menuOpen);
     };
 
     // What the match module asks of the Scenario Presets engine.
@@ -250,5 +256,11 @@ namespace main {
     void extraInfoDraw();
     void extraInfoReset();
     void extraInfoApplyPreset(int side);
+    // Multi-controller Input Viewer (extra/input_viewer.h).
+    void extraInputViewerDraw(const game::MatchState& match, bool menuOpen);
+    // P+-native Hitbox Color Modes (extra/hitbox_colors.h).
+    bool extraDrawColoredHitboxes(Fighter* fighter);
+    // Live DI Vector Picker 2D unit-circle compass (extra/di_display.cpp).
+    void extraDiCompassDraw(const game::MatchState& match, bool menuOpen);
 }
 }

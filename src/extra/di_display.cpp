@@ -8,6 +8,7 @@
 // Long form: docs/internals-extra.md, "DI Display".
 #include "extra/di_display.h"
 #include "extra/di_cstick_core.h"
+#include "extra/di_picker_core.h"
 
 #include <GX/GXTypes.h>
 #include <ft/ft_entry.h>
@@ -19,6 +20,7 @@
 #include <so/so_value_accesser.h>
 #include <so/stop/so_stop_module_impl.h>
 #include <st/st_utility.h>
+#include <string.h>
 
 #include "main/cpu/driver.h"
 #include "main/cpu/fighter_input.h"
@@ -27,6 +29,10 @@
 #include "main/display/input_display.h"
 #include "main/game/fighters.h"
 #include "main/gfx/draw.h"
+#include "main/gfx/text.h"
+#include "main/settings.h"
+#include "main/ui/hud_layout.h"
+#include "main/ui/style.h"
 #include "shared/game/mem.h"
 #include "shared/game/stick.h"
 #include "shared/log.h"
@@ -144,6 +150,44 @@ namespace extra {
         bool valid;
     };
     static CStickTrack s_cstick[game::kMaxFighters];
+
+    // Active fighter launch + DI state recorded during diDraw() for the 2D unit-circle DI compass.
+    struct DiCompassState {
+        bool active;
+        bool inHitlag;
+        u8 mode;
+        float launchX, launchY;
+        float diX, diY;
+        float liveX, liveY;
+    };
+    static DiCompassState s_compass;
+
+    // RAM debug block for live Dolphin verification ("TMDP").
+    struct DiPickerDebugBlock {
+        u32 magic;        // 0x00 "TMDP"
+        u32 compassDrawn; // 0x04
+        u32 totalDrawn;   // 0x08
+        u32 mode;         // 0x0C
+        float launchX;    // 0x10
+        float launchY;    // 0x14
+        float diX;        // 0x18
+        float diY;        // 0x1C
+    };
+    static DiPickerDebugBlock s_pickerDebug;
+
+    static const float kCompassCosQ[5] = {1.0f, 0.92388f, 0.70711f, 0.38268f, 0.0f};
+    static void compassPoint16(int idx, float& ox, float& oy)
+    {
+        int i = idx & 15;
+        int q = i >> 2;
+        int k = i & 3;
+        float a = kCompassCosQ[k];
+        float b = kCompassCosQ[4 - k];
+        if (q == 0) { ox = a; oy = b; }
+        else if (q == 1) { ox = -b; oy = a; }
+        else if (q == 2) { ox = -a; oy = -b; }
+        else { ox = b; oy = -a; }
+    }
 
     // The stick threshold and the Code Menu's values (in this order from
     // 0x80B88350, then the decay) and the blast zones, read once per drawing.
@@ -874,7 +918,10 @@ namespace extra {
         s_body.ground = m->m_situationModule->getKind() != Situation_Air;
         s_body.floor = s_body.ground || (hitlag > 0 && floorAt(s.x, feet) && s.y - feet < kOnFloor);
         Stick st = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, kCStickNone, false, false};
+        u8 diMode = main::settings().display.diVectorMode;
         bool own = hitlag > 0 && readStick(ref, partner, hitlag, st);
+        float stageCenterX = (s_env.left + s_env.right) * 0.5f;
+        float facing = s.vx >= 0.0f ? 1.0f : -1.0f;
         int player = ref.playerNo + (partner ? 4 : 0);
         s_body.trace = g_diTrace == player + 1;
         if (s_body.trace)
@@ -885,12 +932,49 @@ namespace extra {
         if (hitlag <= 0)
         {
             // Launched: the speeds already carry the DI.
+            if (!s_compass.active)
+            {
+                Stick liveSt = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, kCStickNone, false, false};
+                readStick(ref, partner, 0, liveSt);
+                DiVectorResult dv = resolveDiVector(diMode, s.vx, s.vy, s.x, stageCenterX, facing, liveSt.x, liveSt.y);
+                s_compass.active = true;
+                s_compass.inHitlag = false;
+                s_compass.mode = diMode;
+                s_compass.launchX = s.vx;
+                s_compass.launchY = s.vy;
+                s_compass.diX = dv.dx;
+                s_compass.diY = dv.dy;
+                s_compass.liveX = liveSt.x;
+                s_compass.liveY = liveSt.y;
+            }
             drawPath(s, kWidthMain, kBlue, 'l');
             return;
         }
-        drawPath(s, own ? kWidthThin : kWidthMain, own ? kGrey : kBlue, 'n');
-        if (!own)
+        bool hasPreview = own || diMode != main::kDiVectorLive;
+        drawPath(s, hasPreview ? kWidthThin : kWidthMain, hasPreview ? kGrey : kBlue, 'n');
+        if (!hasPreview)
         {
+            return;
+        }
+        if (diMode != main::kDiVectorLive)
+        {
+            float launchVx = s.vx;
+            float launchVy = s.vy;
+            DiVectorResult dv = resolveDiVector(diMode, launchVx, launchVy, s.x, stageCenterX, facing, st.x, st.y);
+            applyDi(s, dv.dx, dv.dy);
+            if (!s_compass.active || !s_compass.inHitlag)
+            {
+                s_compass.active = true;
+                s_compass.inHitlag = true;
+                s_compass.mode = diMode;
+                s_compass.launchX = launchVx;
+                s_compass.launchY = launchVy;
+                s_compass.diX = dv.dx;
+                s_compass.diY = dv.dy;
+                s_compass.liveX = st.x;
+                s_compass.liveY = st.y;
+            }
+            drawPath(s, kWidthMain, kBlue, 'p');
             return;
         }
         float mul = sdiMul(m);
@@ -922,7 +1006,21 @@ namespace extra {
             sink = s_body.floor && preview.asdiY < 0.0f ? -preview.asdiY * s_env.asdi * mul : 0.0f;
             shift(s, preview.asdiX, preview.asdiY, s_env.asdi * mul);
         }
+        float launchVx = s.vx;
+        float launchVy = s.vy;
         applyDi(s, preview.tdiX, preview.tdiY);
+        if (!s_compass.active || !s_compass.inHitlag)
+        {
+            s_compass.active = true;
+            s_compass.inHitlag = true;
+            s_compass.mode = diMode;
+            s_compass.launchX = launchVx;
+            s_compass.launchY = launchVy;
+            s_compass.diX = preview.tdiX;
+            s_compass.diY = preview.tdiY;
+            s_compass.liveX = st.x;
+            s_compass.liveY = st.y;
+        }
         if (s.vy + s.accel < sink)
         {
             // Stays on its floor (smash DI down moves it no lower).
@@ -937,6 +1035,8 @@ namespace extra {
 #ifdef TM_EXPERIMENTS
         experiments::rayProbeRun();
 #endif
+        s_compass.active = false;
+        s_compass.inHitlag = false;
         if (!m.running || !readEnv())
         {
             return;
@@ -1021,8 +1121,163 @@ namespace extra {
         }
     }
 
+    void diCompassDraw(const game::MatchState& m, bool menuOpen)
+    {
+        s_pickerDebug.compassDrawn = 0;
+        const main::Settings& set = main::settings();
+        u8 mode = set.display.diVectorMode;
+        if (!m.running || m.paused || menuOpen || set.general.diDisplay == 0)
+        {
+            return;
+        }
+        if (!s_compass.active && mode == main::kDiVectorLive)
+        {
+            return;
+        }
+
+        float launchX = s_compass.launchX;
+        float launchY = s_compass.launchY;
+        float diX = s_compass.diX;
+        float diY = s_compass.diY;
+        float liveX = s_compass.liveX;
+        float liveY = s_compass.liveY;
+        if (!s_compass.active)
+        {
+            // Reference 45 deg preview launch when inspecting a preset while idle.
+            launchX = 0.70710678f;
+            launchY = 0.70710678f;
+            liveX = 0.0f;
+            liveY = 0.0f;
+            game::FighterRef human;
+            if (game::findFighter(false, human))
+            {
+                const u8* cfg = reinterpret_cast<const u8*>(ipPadConfig::getInstance());
+                int port = humanPort(human, cfg);
+                s8 raw[4];
+                if (display::inputStickWithType(port, raw, NULL))
+                {
+                    game::mainStick(raw[0], raw[1], &liveX, &liveY);
+                }
+            }
+            DiVectorResult dv = resolveDiVector(mode, launchX, launchY, 0.0f, 0.0f, 1.0f, liveX, liveY);
+            diX = dv.dx;
+            diY = dv.dy;
+        }
+
+        // Count active Input Viewer slots so the compass stacks cleanly below them.
+        int viewerSlots = 0;
+        if (set.display.inputViewer != display::kWhoNone)
+        {
+            game::FighterRef refs[game::kMaxFighters];
+            int n = game::listFighters(refs, game::kMaxFighters);
+            for (int i = 0; i < n && viewerSlots < 2; i++)
+            {
+                bool cpu = display::cpuPlayer(refs[i]);
+                if ((set.display.inputViewer & (cpu ? display::kWhoCpu : display::kWhoHuman)) != 0)
+                {
+                    viewerSlots++;
+                }
+            }
+        }
+
+        ui::layout::Box b = ui::layout::diCompassBox(ui::layout::topBand(), viewerSlots, gfx::widescreen());
+        float xs = gfx::xScale();
+        float x = b.x0;
+        float y = b.y0;
+        float w = b.x1 - b.x0;
+        float h = b.y1 - b.y0;
+        float px = ui::style::w(1.5f);
+
+        // Sleek dark-teal Brawl/P+ card frame matching the Input Viewer.
+        gfx::fillRect(x, y, w, h, 0x050C12E4u);
+        gfx::fillRect(x + px, y + 1.5f, w - 2.0f * px, h - 3.0f, 0x3A5868D8u);
+        gfx::fillGradV(x + 2.0f * px, y + 3.0f, w - 4.0f * px, h - 6.0f, 0x132632DCu, 0x09141CE0u);
+        gfx::fillRect(x + px, y + 1.5f, w - 2.0f * px, 2.5f, 0x2BB7ABFFu);
+        gfx::fillRect(x + px, y + 1.5f, w - 2.0f * px, 1.0f, 0x8EF5EA90u);
+
+        char label[16];
+        diVectorShortLabel(mode, label);
+        float scale = ui::style::scaleForCap(6.5f);
+        float tx = x + ui::style::w(5.0f);
+        float ty = ui::style::textYForCap(y + 6.0f, scale);
+        gfx::text(tx + 0.8f, ty + 0.8f, label, 0x000000C8u, scale);
+        gfx::text(tx, ty, label, 0xE2EEF4FFu, scale);
+
+        // Unit-circle compass centered inside the lower body of the card.
+        float cx = (b.x0 + b.x1) * 0.5f;
+        float cy = b.y0 + 16.0f + (h - 19.0f) * 0.5f;
+        float ry = 24.0f;
+        float rx = ry * xs;
+
+        gfx::fillEllipse(cx, cy, rx, ry, 0x060E14D0u);
+        gfx::lineBegin(GX_LINES, 4, 6);
+        gfx::vertex(cx - rx, cy, 0x3A586888u);
+        gfx::vertex(cx + rx, cy, 0x3A586888u);
+        gfx::vertex(cx, cy - ry, 0x3A586888u);
+        gfx::vertex(cx, cy + ry, 0x3A586888u);
+
+        gfx::lineBegin(GX_LINESTRIP, 17, 10);
+        for (int i = 0; i < 17; i++)
+        {
+            float ux, uy;
+            compassPoint16(i, ux, uy);
+            gfx::vertex(cx + ux * rx, cy - uy * ry, 0x5A96A8F0u);
+        }
+
+        // Launch direction arrow (amber-gold).
+        float lLen = root(launchX * launchX + launchY * launchY);
+        if (lLen > 0.001f)
+        {
+            float ux = launchX / lLen;
+            float uy = launchY / lLen;
+            float tipX = cx + ux * rx * 0.88f;
+            float tipY = cy - uy * ry * 0.88f;
+            gfx::lineBegin(GX_LINES, 2, 14);
+            gfx::vertex(cx, cy, 0xF59E0BFFu);
+            gfx::vertex(tipX, tipY, 0xF59E0BFFu);
+
+            float head = 5.0f;
+            float bx = tipX - ux * head * xs;
+            float by = tipY + uy * head;
+            float perpX = -uy * 3.0f * xs;
+            float perpY = -ux * 3.0f;
+            gfx::fillTri(tipX, tipY, bx + perpX, by + perpY, bx - perpX, by - perpY, 0xF59E0BFFu);
+        }
+
+        // Active DI vector ray (electric cyan).
+        float dLen = root(diX * diX + diY * diY);
+        if (dLen > 0.01f)
+        {
+            float dTipX = cx + diX * rx * 0.90f;
+            float dTipY = cy - diY * ry * 0.90f;
+            gfx::lineBegin(GX_LINES, 2, 16);
+            gfx::vertex(cx, cy, 0x22D3EEFFu);
+            gfx::vertex(dTipX, dTipY, 0x22D3EEFFu);
+            gfx::fillEllipse(dTipX, dTipY, 3.0f * xs, 3.0f, 0x22D3EEFFu);
+        }
+
+        // Live stick dot (crisp white with dark rim).
+        float lStickX = liveX;
+        float lStickY = liveY;
+        clampLength(lStickX, lStickY, 1.0f);
+        float dotX = cx + lStickX * rx * 0.85f;
+        float dotY = cy - lStickY * ry * 0.85f;
+        gfx::fillEllipse(dotX, dotY, 3.2f * xs, 3.2f, 0x050C12E8u);
+        gfx::fillEllipse(dotX, dotY, 2.3f * xs, 2.3f, 0xFFFFFFFFu);
+
+        s_pickerDebug.compassDrawn = 1;
+        s_pickerDebug.totalDrawn++;
+        s_pickerDebug.mode = mode;
+        s_pickerDebug.launchX = launchX;
+        s_pickerDebug.launchY = launchY;
+        s_pickerDebug.diX = diX;
+        s_pickerDebug.diY = diY;
+    }
+
     void diReset()
     {
+        s_compass.active = false;
+        s_compass.inHitlag = false;
         for (int i = 0; i < game::kMaxFighters; i++)
         {
             s_trails[i].n = 0;
@@ -1037,6 +1292,8 @@ namespace extra {
     void diAttach()
     {
         diReset();
+        memset(&s_pickerDebug, 0, sizeof(s_pickerDebug));
+        s_pickerDebug.magic = 0x544D4450u; // "TMDP"
         g_diTrace = 0;
         typedef bool (*RayFn)(Vec3f*, Vec3f*, Vec3f*, Vec3f*, bool, grCollision*, bool, u8);
         const u32* code = reinterpret_cast<const u32*>(static_cast<RayFn>(&stRayCheck));
@@ -1045,7 +1302,8 @@ namespace extra {
         {
             s_rays = s_rays && (kRayWords[i] == 0 || code[i] == kRayWords[i]);
         }
-        TM_LOG("di: trace byte at %08x; stage rays %s\n", &g_diTrace, s_rays ? "ok" : "not as expected: off");
+        TM_LOG("di: trace byte at %08x; picker block at %08x; stage rays %s\n", &g_diTrace, &s_pickerDebug,
+               s_rays ? "ok" : "not as expected: off");
     }
 }
 }
