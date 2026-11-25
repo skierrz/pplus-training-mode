@@ -1262,3 +1262,46 @@ TEST(menu, display_font_cmapped_and_fallback_characters)
     CHECK(dispRuns >= 3);
     CHECK(fallbackRuns >= 3);
 }
+
+TEST(menu, compressed_option_descriptions_decode_all_pages_and_bounds)
+{
+    const ui::MenuDef& menu = ui::labMenu();
+    for (int p = 0; p < menu.pageCount; p++)
+    {
+        const ui::Page& page = *menu.pages[p];
+        for (int r = 0; r < page.count; r++)
+        {
+            const char* d = extra::optionDesc(static_cast<u8>(p), static_cast<u8>(r));
+            REQUIRE(d != NULL);
+            size_t len = strlen(d);
+            CHECK(len > 10 && len < 120);
+            CHECK_EQ('.', d[len - 1]);
+            for (size_t i = 0; i < len; i++)
+            {
+                u8 ch = static_cast<u8>(d[i]);
+                CHECK(ch >= 0x20 && ch <= 0x7E);
+            }
+        }
+        CHECK(extra::optionDesc(static_cast<u8>(p), static_cast<u8>(page.count)) == NULL);
+    }
+    // Category rail entries (pageId == P_COUNT) and out-of-range page/row bounds.
+    int railTotal = menu.categoryCount + menu.utilityCount;
+    for (int rc = 0; rc < railTotal; rc++)
+    {
+        const char* d = extra::optionDesc(static_cast<u8>(ui::pages::P_COUNT), static_cast<u8>(rc));
+        REQUIRE(d != NULL);
+        CHECK(strlen(d) > 10);
+    }
+    CHECK(extra::optionDesc(static_cast<u8>(ui::pages::P_COUNT), static_cast<u8>(railTotal)) == NULL);
+    CHECK(extra::optionDesc(static_cast<u8>(ui::pages::P_COUNT + 1), 0) == NULL);
+
+    // Exact verbatim spot checks across shared and unique strings.
+    CHECK(strcmp(extra::optionDesc(ui::pages::P_GENERAL, 0),
+                 "Freeze gameplay and step one frame per advance press.") == 0);
+    CHECK(strcmp(extra::optionDesc(ui::pages::P_GENERAL, 10),
+                 "Switch directly to Brawl's built-in Training pause menu.") == 0);
+    CHECK(strcmp(extra::optionDesc(ui::pages::P_STAGE_CAST, 33),
+                 "Force Olimar pluck to pull Red, Yellow, Blue, White, or Purple.") == 0);
+    CHECK(strcmp(extra::optionDesc(ui::pages::P_COUNT, 9),
+                 "End this session and return to the Character Select Screen.") == 0);
+}
