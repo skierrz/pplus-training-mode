@@ -498,6 +498,12 @@ namespace cpu {
 
     class Brain : public Source {
     public:
+        static void* operator new(size_t, void* p)
+        {
+            return p;
+        }
+        static void operator delete(void*, void*) {}
+
         int slot;
         int state;
         bool shieldKind; // the counter follows a hit on shield
@@ -2946,14 +2952,14 @@ namespace cpu {
                 {
                     s_heap = static_cast<OptionsHeap*>(p);
                     memset(s_heap, 0, sizeof(*s_heap));
-                    // Copy a live stack Brain prototype so every allocated Brain
-                    // holds the exact Source/Brain vtable pointer.
-                    Brain proto;
+                    // Placement-construct each Brain over zeroed memory so MWCC
+                    // writes only the Source/Brain vtable pointer without
+                    // copying uninitialized stack bytes over fields reset() skips.
                     for (int i = 0; i < kMaxSlots; i++)
                     {
-                        memcpy(&s_heap->brains[i], &proto, sizeof(Brain));
-                        memcpy(&s_heap->saved[0].brains[i], &proto, sizeof(Brain));
-                        memcpy(&s_heap->saved[1].brains[i], &proto, sizeof(Brain));
+                        new (&s_heap->brains[i]) Brain;
+                        new (&s_heap->saved[0].brains[i]) Brain;
+                        new (&s_heap->saved[1].brains[i]) Brain;
                     }
                     s_brains = s_heap->brains;
                     s_saved = s_heap->saved;
@@ -2970,6 +2976,9 @@ namespace cpu {
         {
             s_brains[i].slot = i;
             s_brains[i].player = -1;
+            s_brains[i].noReaction = false;
+            s_brains[i].revAction = 0;
+            s_brains[i].revDelay = 0;
             s_brains[i].reset();
             s_portChanged[i] = false;
             s_origPort[i] = static_cast<s8>(controllerOf(i));

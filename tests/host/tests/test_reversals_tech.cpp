@@ -190,7 +190,7 @@ TEST(reversals_tech, configured_reversals_all_four_triggers_and_off_passthrough)
     CHECK_EQ(4, act);
     CHECK_EQ(20, del);
 
-    // P1 fix: multiReversal == 1 with empty Slot 2 (action == 0) and no extra Slots 3..4
+    // P1 fix: multiReversal == 1 with empty Slot 2 (action == 0) or 0% weight and no extra Slots 3..4
     // MUST return false (pass-through so Per-Hit Counters and On-Getup 0-delay stay untouched).
     cpu::CpuOptions emptySlot2 = opts;
     for (int t = 0; t < cpu::kRevTriggerCount; t++)
@@ -199,6 +199,11 @@ TEST(reversals_tech, configured_reversals_all_four_triggers_and_off_passthrough)
         CHECK(!pickConfiguredReversal(t, emptySlot2, NULL, 0, act, del));
         CHECK(!pickConfiguredReversal(t, emptySlot2, NULL, 99, act, del));
     }
+    cpu::CpuOptions zeroWeightSlot2 = opts;
+    zeroWeightSlot2.revSlot2Action[cpu::kRevOnHit] = 13;
+    zeroWeightSlot2.revSlot2Weight[cpu::kRevOnHit] = 0;
+    CHECK(!pickConfiguredReversal(cpu::kRevOnHit, zeroWeightSlot2, NULL, 0, act, del));
+    CHECK(!pickConfiguredReversal(cpu::kRevOnHit, zeroWeightSlot2, NULL, 99, act, del));
 
     // P1 fix: On-Ledge with Ledge Option == Default (0) + Slot 2 Roll at 50% weight
     // must weigh Default (50%, returns false with action 0 so stepLedge latches Default)

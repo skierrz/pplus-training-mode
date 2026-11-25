@@ -146,7 +146,7 @@ namespace extra {
         {
             return false;
         }
-        if (opts.revSlot2Action[trigger] != 0)
+        if (opts.revSlot2Action[trigger] != 0 && clampRevWeight(opts.revSlot2Weight[trigger]) > 0)
         {
             return true;
         }

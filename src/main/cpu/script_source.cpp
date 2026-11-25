@@ -23,7 +23,7 @@ namespace cpu {
 
         bool valid() const
         {
-            return block->playerNo >= 0 && block->stepCount != 0 && block->stepCount <= kScriptSteps;
+            return block != NULL && block->playerNo >= 0 && block->stepCount != 0 && block->stepCount <= kScriptSteps;
         }
 
         virtual bool wants(const Owner& who)
