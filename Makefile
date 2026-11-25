@@ -275,7 +275,7 @@ endif
 .PHONY: all clean tools negative sd-folder install run test-load test-match test-stress \
         test-reject test-lab test-displays test-osds test-drills test-cpu test-recovery-combo test-stage3f test-scenarios \
         test-display test-controls test-di test-frames test-savestate test-record test-storage \
-        test-card test-extra-heaps test-fighter-sets test-fighter-sets-no-extra test-fighter-swap test-big-file test-sounds test-rng test-fighter-mechanics test-stage-options test-stage3d test-stage5d test-stage4a-core test-stage4a-hover-ps test-stage4a-pplus-tech test-grab-visualizer test-psa-inspector test-hud-theme-meter test-match-hud test-code-menu test-boot test-harness test-perf match-baseline \
+        test-card test-extra-heaps test-fighter-sets test-fighter-sets-no-extra test-fighter-swap test-big-file test-sounds test-rng test-fighter-mechanics test-stage-options test-stage3d test-stage5d test-stage4a-core test-stage4a-hover-ps test-stage4a-pplus-tech test-stage4c test-grab-visualizer test-psa-inspector test-hud-theme-meter test-match-hud test-code-menu test-boot test-harness test-perf match-baseline \
         match-compare check-host
 
 all: $(BUILT_REL)
@@ -540,6 +540,10 @@ test-stage4a-pplus-tech: install
 # SKILL_DRILLS_UI_ARGS, e.g. SKILL_DRILLS_UI_ARGS="--only boot-menu ledgedash-hud".
 test-skill-drills-ui: install
 	$(Q)$(EMU) test-skill-drills-ui $(REL) $(SKILL_DRILLS_UI_ARGS)
+
+# STAGE4C_ARGS, e.g. STAGE4C_ARGS="--only cancel-sprint flow-course snake-recovery".
+test-stage4c: install
+	$(Q)$(EMU) test-stage4c $(REL) $(STAGE4C_ARGS)
 
 # GRAB_VIZ_ARGS, e.g. GRAB_VIZ_ARGS="--only off-noop standard-grab".
 test-grab-visualizer: install

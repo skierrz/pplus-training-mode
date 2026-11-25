@@ -1803,6 +1803,9 @@ def main():
     if cmd == "test-skill-drills-ui" and rest:
         import skill_drills_ui_tests
         return skill_drills_ui_tests.cmd_test_skill_drills_ui(rest)
+    if cmd == "test-stage4c" and rest:
+        import stage4c_tests
+        return stage4c_tests.cmd_test_stage4c(rest)
     if cmd == "test-grab-visualizer" and rest:
         import grab_visualizer_tests
         return grab_visualizer_tests.cmd_test_grab_visualizer(rest)

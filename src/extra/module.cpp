@@ -4,6 +4,7 @@
 #include <types.h>
 
 #include "extra/adaptive_cpu.h"
+#include "extra/challenge_backends.h"
 #include "extra/character_rng.h"
 #include "extra/combo_trainer.h"
 #include "extra/di_display.h"
@@ -128,6 +129,7 @@ namespace extra {
         coreDrillEnginesFrame();
         hoverPsFrame();
         pplusTechFrame();
+        challengeBackendsFrame();
         drillHudFrame();
         techTrackerFrame();
         timingMeterFrame();
@@ -141,6 +143,7 @@ namespace extra {
         coreDrillEnginesSavestateReset();
         hoverPsResetTransient();
         pplusTechReset();
+        challengeBackendsReset();
         drillHudSavestateReset();
         techTrackerReset();
         timingMeterReset();
@@ -185,6 +188,7 @@ namespace extra {
         coreDrillEnginesAttach();
         hoverPsAttach();
         pplusTechAttach();
+        challengeBackendsAttach();
         techTrackerAttach();
         adaptiveCpuAttach();
         scenarioPresetsAttach();
@@ -224,6 +228,7 @@ namespace extra {
         inputViewerDetach();
         uiAssetsDetach();
         techTrackerDetach();
+        challengeBackendsDetach();
         pplusTechDetach();
         fighterSwapDetach();
         // Restore any active Scenario Preset settings snapshot before unloading.
