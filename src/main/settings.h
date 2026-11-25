@@ -64,7 +64,8 @@ namespace main {
         u8 moveStaling;           // 0/1
         u8 diDisplay;             // 0/1
         u8 playerInfiniteShields; // cpu::InfiniteShields (Off / On Until Hit / On)
-        u8 reserved[3];
+        u8 offlineVersus;         // 0/1: opt-in read-only displays in local offline Versus
+        u8 reserved[2];
     };
 
     // Controls > Menu Style.
@@ -442,6 +443,10 @@ namespace main {
     TM_STATIC_ASSERT(offsetof(Settings, osd.bgColor) == 110, tm_settings_osd_bg_color_at_110);
     TM_STATIC_ASSERT(offsetof(Settings, osd.bgAlpha) == 111, tm_settings_osd_bg_alpha_at_111);
     TM_STATIC_ASSERT(offsetof(Settings, general.playerInfiniteShields) == 20, tm_settings_player_infinite_shields_at_20);
+    TM_STATIC_ASSERT(offsetof(Settings, general.offlineVersus) == 21, tm_settings_offline_versus_at_21);
+    TM_STATIC_ASSERT(offsetof(Settings, general.offlineVersus) == block::kOfflineVersusOffset,
+                     tm_settings_offline_versus_matches_block_layout);
+    TM_STATIC_ASSERT(kSettingsMagic == block::kSettingsMagic, tm_settings_magic_matches_block_layout);
     TM_STATIC_ASSERT(offsetof(Settings, controls.dpadLeft) == 27, tm_settings_dpad_left_at_27);
     TM_STATIC_ASSERT(offsetof(Settings, controls.dpadRight) == 28, tm_settings_dpad_right_at_28);
     TM_STATIC_ASSERT(offsetof(Settings, controls.decrementButton) == 29, tm_settings_decrement_at_29);

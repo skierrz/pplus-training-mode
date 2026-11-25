@@ -28,7 +28,8 @@ namespace pages {
                lab::resetAllPressed, NULL),
         TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagTabsOnly, 0, 0, 0, 0, "Brawl Training Menu", NULL,
                lab::openTrainingMenu, NULL),
-        TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagTabsOnly, 0, 0, 0, 0, "Return to CSS", NULL, lab::exitMatch, NULL)
+        TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagTabsOnly, 0, 0, 0, 0, "Return to CSS", NULL, lab::exitMatch, NULL),
+        TM_TOGGLE("Offline VS Displays", general.offlineVersus, 0, NULL)
     };
 
     extern const Page kGeneral = TM_PAGE("Lab", kRows);

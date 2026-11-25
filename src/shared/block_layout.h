@@ -24,7 +24,11 @@ namespace block {
         kStorageHandoff = 592,
         kStorageHandoffEnd = 640,
         kDrillSession = 640,
-        kDrillSessionEnd = kSize
+        kDrillSessionEnd = kSize,
+        // Mirrored from main::Settings so the stub can read the opt-in toggle
+        // from its resident settings block without depending on main/settings.h.
+        kSettingsMagic = 0x544D5354, // "TMST"
+        kOfflineVersusOffset = 21    // offsetof(main::Settings, general.offlineVersus)
     };
 }
 }

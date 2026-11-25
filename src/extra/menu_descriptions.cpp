@@ -18,7 +18,8 @@ namespace extra {
         "Open diagnostics and frame telemetry overlay toggles.",
         "Restore all Training Lab settings to default values.",
         "Switch directly to Brawl's built-in Training pause menu.",
-        "End this session and return to the Character Select Screen."
+        "End this session and return to the Character Select Screen.",
+        "Show read-only OSDs and info panels in local offline Versus."
     };
 
     static const char* const kScenariosDesc[] = {

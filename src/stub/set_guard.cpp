@@ -33,6 +33,7 @@
 #include "shared/drill_session.h"
 #include "shared/game/heap.h"
 #include "shared/game/mem.h"
+#include "shared/game/scene.h"
 #include "shared/log.h"
 #include "stub/dispatch.h"
 #include "stub/hook_entry.h"
@@ -187,6 +188,10 @@ namespace stub {
 
     extern "C" void tmDrillGuardBody(const u8* loader, u8* player)
     {
+        if (!game::trainingGameMode())
+        {
+            return;
+        }
         if (loader::extraHeap() < 0 || !game::isRam(loader) || !game::isRam(player) || player[1] == kAbsent)
         {
             return;
@@ -220,6 +225,10 @@ namespace stub {
 
     extern "C" void tmSetGuardBody(const u8* loader, u8* player)
     {
+        if (!game::trainingGameMode())
+        {
+            return;
+        }
         s32 heap = loader::extraHeap();
         if (heap < Heaps::OverlayFighter1 || heap > Heaps::OverlayFighter4 || !game::isRam(player))
         {

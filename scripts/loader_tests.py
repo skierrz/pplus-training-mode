@@ -832,12 +832,164 @@ def boot_versus_match(backend):
     return None
 
 
+def boot_offline_vs_readonly(backend):
+    """Opt-in Offline VS Displays: enable general.offlineVersus and osd.wavedash
+    through the real Lab Menu in Training, exit to a 2P local offline Versus
+    match, verify match + extra attach in read-only mode (zero CPU/savestate/
+    record/code-menu/display mutations, active tracker + Wavedash OSD, Start
+    opens normal Versus pause instead of Lab Menu), exit cleanly, and verify
+    zero heap leaks on unload."""
+    with E.harness_run(backend, E.FOUR_PADS_ARGS, allow_null=True) as (proc, emu):
+        for p in range(4):
+            emu.neutral(p)
+        nav.enter_training_match(emu, p1="mario", cpu="fox", stage="final_destination")
+        emu.advance(15)
+        log = E.read_log(emu.log_path)
+        m_set = rx(r"\[{name}\] main: attached in scMelee / sqTraining; settings v\d+ at ([0-9a-f]{{8}})").search(log)
+        if m_set is None:
+            return "could not read settings block address from Training attach log"
+        settings_addr = int(m_set.group(1), 16)
+        if emu.u8(settings_addr + 21) != 0:
+            return f"general.offlineVersus was not 0 by default ({emu.u8(settings_addr + 21)})"
+
+        # Open Lab Menu via Start, navigate to Offline VS Displays (row 12,
+        # 9 Downs from row 0 in Rail mode), and toggle it ON.
+        pos_menu = len(log)
+        emu.press(0, ["START"], frames=3, after=8)
+        emu.wait_for("Lab Menu open in Training",
+                     lambda: "lab: menu opened by port 1 (Start)" in E.read_log(emu.log_path)[pos_menu:],
+                     180, every=2)
+        for _ in range(9):
+            emu.press(0, ["DDOWN"], frames=2, after=5)
+        emu.press(0, ["DRIGHT"], frames=2, after=6)
+        if emu.u8(settings_addr + 21) != 1:
+            return f"Offline VS Displays toggle did not set byte +21 to 1 (got {emu.u8(settings_addr + 21)})"
+
+        # Enable OSD Menu > Wavedash (rail 5 -> row 1) through the real menu.
+        emu.press(0, ["B"], frames=2, after=6)
+        for _ in range(5):
+            emu.press(0, ["DDOWN"], frames=2, after=5)
+        emu.press(0, ["A"], frames=2, after=6)
+        emu.press(0, ["DDOWN"], frames=2, after=5)
+        emu.press(0, ["DRIGHT"], frames=2, after=6)
+        if emu.u8(settings_addr + 92) != 1:
+            return f"Wavedash OSD toggle did not set byte +92 to 1 (got {emu.u8(settings_addr + 92)})"
+
+        # Exit Training cleanly via Lab Menu left rail > Return to CSS (rail 9).
+        emu.press(0, ["B"], frames=2, after=6)
+        for _ in range(4):
+            emu.press(0, ["DDOWN"], frames=2, after=5)
+        emu.press(0, ["A"], frames=2, after=6)
+        emu.wait_for("Training CSS after Return to CSS",
+                     lambda: nav.scene(emu)[0] == "scSelctCharacter", 600, every=5)
+        emu.advance(25)
+
+        # Back out of Training CSS -> Main Menu -> Versus -> Brawl (sqVsMelee).
+        nav.close_drill_list(emu)
+        emu.advance(15)
+        emu.hold(0, buttons=["B"])
+        emu.wait_for("Main Menu from Training CSS",
+                     lambda: nav.scene(emu)[0] == "muMenuMain", 600, every=5)
+        emu.neutral(0)
+        emu.advance(25)
+        emu.press(0, ["B"], frames=3, after=25)
+        emu.press(0, stick=(28, 128), frames=3, after=15)
+        emu.press(0, ["A"], frames=3, after=25)
+        emu.press(0, ["A"], frames=3, after=25)
+        emu.wait_for("Versus CSS (sqVsMelee)",
+                     lambda: nav.scene(emu)[0] == "scSelctCharacter" and nav.scene(emu)[1] == "sqVsMelee",
+                     600, every=5)
+        emu.advance(30)
+        for port in (0, 1):
+            a = nav.css_area(emu, port)
+            if not a or a["kind"] == 0:
+                emu.press(port, ["A"])
+                emu.wait_for(f"Versus P{port + 1} join",
+                             lambda p=port: (nav.css_area(emu, p) or {}).get("kind") in (1, 2), 120, every=2)
+        emu.advance(10)
+        if nav.css_area(emu, 0)["held"]:
+            nav.drop_own_token(emu, 0, "mario")
+        if nav.css_area(emu, 1)["held"]:
+            nav.drop_own_token(emu, 1, "fox")
+
+        pos_vs = len(E.read_log(emu.log_path))
+        nav.press_until(emu, "Versus stage select", ["START"], lambda: nav.scene(emu)[0] == "scSelStage", 600)
+        nav.pick_stage(emu, "final_destination")
+        nav.wait_match_start(emu)
+        emu.advance(20)
+
+        vs_log = E.read_log(emu.log_path)[pos_vs:]
+        if not rx(LOADED).search(vs_log):
+            return "match module did not load in opted-in 2P offline Versus"
+        if not rx(EXTRA_LOADED).search(vs_log):
+            return "extra module did not load in opted-in 2P offline Versus"
+        if not rx(r"\[{name}\] main: read-only offline Versus displays attached").search(vs_log):
+            return "missing read-only offline Versus attach log line"
+        if not rx(r"\[{name}\] extra: attached \(read-only VS\)").search(vs_log):
+            return "missing extra read-only VS attach log line"
+        for forbidden in (r"code menu:", r"savestate:", r"cpu:", r"record:", r"display: layers"):
+            if rx(rf"\[{{name}}\] {forbidden}").search(vs_log):
+                return f"mutating subsystem logged in read-only Versus: {forbidden}"
+
+        # Perform a wavedash on P1 (Mario: 4f jumpsquat) and confirm the tracker + OSD fires.
+        emu.hold(0, buttons=["X"])
+        emu.advance(2)
+        emu.neutral(0)
+        emu.advance(3)
+        emu.hold(0, buttons=["L"], stick=(210, 72))
+        emu.advance(6)
+        emu.neutral(0)
+        emu.advance(30)
+        vs_log = E.read_log(emu.log_path)[pos_vs:]
+        m_osd = rx(r"\[{name}\] osd: P1 id 0: (Wavedash:[^\r\n]*)").search(vs_log)
+        if m_osd is None:
+            return "Wavedash OSD did not post in read-only offline Versus"
+
+        # Start must open normal Versus pause (freezing game_frame), NOT Lab Menu.
+        emu.press(0, ["START"], frames=3, after=15)
+        f_pause_1 = nav.game_frame(emu)
+        emu.advance(20)
+        f_pause_2 = nav.game_frame(emu)
+        vs_log = E.read_log(emu.log_path)[pos_vs:]
+        if rx(r"\[{name}\] lab: menu opened").search(vs_log):
+            return "Start opened the Lab Menu in read-only offline Versus"
+        if f_pause_2 != f_pause_1:
+            return f"Start did not open normal Versus pause (game_frame {f_pause_1} -> {f_pause_2})"
+        emu.press(0, ["START"], frames=3, after=15)
+        emu.advance(20)
+        f_resume = nav.game_frame(emu)
+        if f_resume <= f_pause_2:
+            return f"Versus did not unpause on second Start (game_frame stayed {f_resume})"
+
+        # Finish Versus cleanly and verify zero heap leaks on unload.
+        seen = nav.finish_versus_by_falling(emu, 2)
+        if nav.scene(emu)[1] != "sqVsMelee":
+            return f"returned to {nav.scene(emu)[:2]} (scenes {seen}), not Versus CSS"
+        emu.advance(30)
+        vs_log = E.read_log(emu.log_path)[pos_vs:]
+        unload_steps = [
+            ("extra unloaded at baseline", EXTRA_UNLOADED.replace("(yes|NO)", "yes")),
+            ("main detaching", r"\[{name}\] main: detaching"),
+            ("match unloaded at baseline", UNLOADED.replace("(yes|NO)", "yes")),
+        ]
+        found, ok = check_sequence(vs_log, unload_steps)
+        if not ok:
+            missing = [lbl for lbl, hit in found if hit is None]
+            return f"clean Versus unload checks failed: missing {missing}"
+        bad = problems(vs_log)
+        if bad:
+            return f"problem lines in read-only Versus log: {bad[:3]}"
+        print(f"  Offline VS read-only: MTCH+XTRA loaded, OSD '{m_osd.group(1)}', "
+              f"Start paused ({f_pause_1}=={f_pause_2} -> {f_resume}), clean unload back to baseline ok")
+    return None
+
+
 def cmd_test_boot(rest):
     ap = argparse.ArgumentParser(prog="emu.py test-boot")
     ap.add_argument("rel")
-    ap.add_argument("--only", nargs="+", choices=("cases", "multi", "versus"))
+    ap.add_argument("--only", nargs="+", choices=("cases", "multi", "versus", "offline-vs-readonly"))
     opts = ap.parse_args(rest)
-    want = set(opts.only) if opts.only else {"cases", "multi", "versus"}
+    want = set(opts.only) if opts.only else {"cases", "multi", "versus", "offline-vs-readonly"}
     backend = E.headless_backend()
     if "cases" in want:
         for port, held, seq, line in BOOT_CASES:
@@ -861,6 +1013,14 @@ def cmd_test_boot(rest):
             why = boot_versus_match(backend)
         except (OSError, HarnessError, Timeout, ValueError, nav.NavError) as e:
             why = f"versus match: {e}"
+        if why:
+            print(f"test-boot: FAIL ({why})")
+            return 1
+    if "offline-vs-readonly" in want:
+        try:
+            why = boot_offline_vs_readonly(backend)
+        except (OSError, HarnessError, Timeout, ValueError, nav.NavError) as e:
+            why = f"offline-vs-readonly: {e}"
         if why:
             print(f"test-boot: FAIL ({why})")
             return 1

@@ -1,71 +1,91 @@
 // Which module loads in which scene, and into which heap.
 #include "stub/load_policy.h"
 
+#include <gm/gm_global.h>
+
+#include "shared/game/mem.h"
 #include "shared/game/scene.h"
 #include "shared/interface.h"
+#include "stub/dispatch.h"
+#include "stub/load_policy_core.h"
 
 namespace tm {
 namespace policy {
-    // Match modules: OverlayMenu, which holds menu modules and was unused in
-    // every match scene measured (Training with 1 and 3 CPUs and items; 2-
-    // and 4-player Versus through the results screen).
-    static const Heaps::HeapType kMatchHeap = Heaps::OverlayMenu;
+    // Match/menu modules: OverlayMenu (unused in Training and 2P/4P Versus).
+    static const Heaps::HeapType kOverlayMenu = Heaps::OverlayMenu;
 
-    // The extra module:
-    //  - every Training match (about 3.5 ms more load than the
-    //    match module alone, in Dolphin);
-    //  - after the match module and only if it loaded (it links against it);
-    //    unloaded first;
-    //  - into OverlayFighter4, only while that heap is empty. Each different
-    //    character takes the lowest free of four heap sets, set n loading its
-    //    code module into OverlayFighter(n+1). Training's extra CPUs copy its
-    //    one CPU character, so Training alone uses at most two sets (make
-    //    test-extra-heaps); four different characters (Versus, or P+'s Code
-    //    Menu in Training) use the fourth, which set_guard.cpp refuses while
-    //    this module is loaded.
+    // Extra module: Training and opted-in 2P/3P local offline Versus only;
+    // 4P Versus skips extra so OverlayFighter1..4 stay untouched.
 #ifdef TM_EXTRA_HEAP
     static const Heaps::HeapType kExtraHeap = static_cast<Heaps::HeapType>(TM_EXTRA_HEAP);
 #else
     static const Heaps::HeapType kExtraHeap = Heaps::OverlayFighter4;
 #endif
 
-    // Training matches only; TM_LOAD_ANY_MATCH (EXPERIMENTS builds with
-    // ANY_MATCH=1) loads in every offline match, to measure that case.
-    static bool matchWanted()
-    {
-#ifdef TM_LOAD_ANY_MATCH
-        return true;
-#else
-        return game::trainingGameMode();
-#endif
-    }
-
-    // The menu module, for Training's character select:
-    // OverlayMenu, since that scene allocates hundreds of blocks in
-    // MenuInstance and nothing else used OverlayMenu there (measured).
-    static const Heaps::HeapType kMenuHeap = Heaps::OverlayMenu;
+    // P+ 3.2.1 ground-truth addresses for Netplay, Replay, and player slots:
+    //  - 0x80550000: MultiGCT filename pointer ("BOOST.GCT" offline in
+    //    Source/Project+/MultiGCT.asm:4-9 vs "NETBOOST.GCT" in
+    //    Source/Netplay/Net-MultiGCT.asm:7-12).
+    //  - 0x80023B88: v-sync branch patched to nop (0x60000000) by
+    //    Source/Extras/Netplay.asm:4-5.
+    //  - 0x805BBFC0: 1 while viewing a replay (Source/LegacyTE/Replays.asm:360-362).
+    //  - modeMelee + 0x98 + i*0x5C, byte +1 != 3 for active players i = 0..3.
+    enum {
+        kMultiGctPtr = 0x80550000,
+        kNetplayVsyncAddr = 0x80023B88,
+        kNetplayVsyncNop = 0x60000000,
+        kReplayFlagAddr = 0x805BBFC0,
+        kModeMeleeGameMode = 0x8,
+        kPlayersOffset = 0x98,
+        kPlayerStride = 0x5C,
+        kPlayerAbsent = 3
+    };
 
     u32 forSceneStart(const gfScene* scene, Placement out[kMaxPlacements])
     {
-        if (game::sceneIs(scene, "scMelee") && matchWanted())
+        out[0].heap = kOverlayMenu;
+        out[0].onlyIfEmpty = false;
+        if (game::sceneIs(scene, "scMelee"))
         {
             out[0].kind = iface::kKindMatch;
-            out[0].heap = kMatchHeap;
-            out[0].onlyIfEmpty = false;
-            if (!game::trainingGameMode())
-            {
-                return 1;
-            }
             out[1].kind = iface::kKindExtra;
             out[1].heap = kExtraHeap;
             out[1].onlyIfEmpty = true;
-            return 2;
+            if (!game::isRam(g_GameGlobal) || !game::isRam(g_GameGlobal->m_modeMelee))
+            {
+                return kPlanNone;
+            }
+            const u8* mode = reinterpret_cast<const u8*>(g_GameGlobal->m_modeMelee);
+            u32 gm = mode[kModeMeleeGameMode] >> 2;
+            if (gm == kTrainingGameMode)
+            {
+                return kPlanMatchAndExtra;
+            }
+            const u8* block = dispatch::table().services.settings();
+            const char* gct = *reinterpret_cast<const char* const*>(kMultiGctPtr);
+            if (gm != kMeleeGameMode || block == NULL
+                || *reinterpret_cast<const u32*>(block + block::kSettings) != block::kSettingsMagic
+                || block[block::kOfflineVersusOffset] == 0 || !game::sequenceIs("sqVsMelee")
+                || (game::isRam(gct) && gct[0] == 'N' && gct[1] == 'E' && gct[2] == 'T')
+                || *reinterpret_cast<const u32*>(kNetplayVsyncAddr) == kNetplayVsyncNop
+                || *reinterpret_cast<const u32*>(kReplayFlagAddr) == 1u)
+            {
+#ifdef TM_LOAD_ANY_MATCH
+                return kPlanMatchOnly;
+#else
+                return kPlanNone;
+#endif
+            }
+            u32 active = 0;
+            for (u32 i = 0; i < 4; i++)
+            {
+                active += (mode[kPlayersOffset + i * kPlayerStride + 1] != kPlayerAbsent);
+            }
+            return active <= kMaxVsPlayersForExtra ? kPlanMatchAndExtra : kPlanMatchOnly;
         }
-        if (game::sceneIs(scene, "scSelctCharacter") && game::inTraining())
+        if (game::sceneIs(scene, "scSelctCharacter") && game::sequenceIs("sqTraining"))
         {
             out[0].kind = iface::kKindMenu;
-            out[0].heap = kMenuHeap;
-            out[0].onlyIfEmpty = false;
             return 1;
         }
         return 0;
