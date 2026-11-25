@@ -663,7 +663,8 @@ TEST(text_fit, lab_menu_pages)
     main::settings().controls.menuStyle = main::kMenuStyleRail;
     static const int kStagePresets[] = {
         extra::kPresetGenericMoving, extra::kPresetLuigisMansion, extra::kPresetDelfinoSecret,
-        extra::kPresetSmashville,    extra::kPresetDeadLine,      extra::kPresetYoshisStory
+        extra::kPresetSmashville,    extra::kPresetDeadLine,      extra::kPresetYoshisStory,
+        extra::kPresetYoshisIsland
     };
     const ui::Page& stagePage = *menu.pages[ui::pages::P_STAGE_CAST];
     const ui::Option& platRow = stagePage.options[3];

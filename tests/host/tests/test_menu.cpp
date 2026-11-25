@@ -596,7 +596,7 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[5].max);
 
     const ui::Page& sc = ui::pages::kStageCast;
-    REQUIRE(sc.count == 33);
+    REQUIRE(sc.count == 34);
     CHECK(strcmp(sc.options[0].name, "Fighter Swap") == 0);
     CHECK_EQ(ui::pages::P_FIGHTER_SWAP, sc.options[0].max);
     CHECK(strcmp(sc.options[1].name, "Show Inactive") == 0);

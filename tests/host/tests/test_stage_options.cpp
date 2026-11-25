@@ -85,6 +85,23 @@ TEST(stage_options, dynamic_stage_classification_and_visibility)
     CHECK_EQ(extra::kPresetDeadLine, extra::classifyStagePreset(dead));
     CHECK_EQ(4, extra::presetPlatformMax(extra::kPresetDeadLine));
 
+    // Yoshi's Island Brawl (st_crayon_noshyguy_ht.rel + support clouds ModelData[80]).
+    extra::StageDetectInput yi = empty;
+    yi.modCrayon = true;
+    yi.hasCrayonClouds80 = true;
+    p = extra::classifyStagePreset(yi);
+    CHECK_EQ(extra::kPresetYoshisIsland, p);
+    CHECK(extra::presetAnyOption(p));
+    CHECK(extra::presetHasHazards(p));
+    CHECK(extra::presetHasPlatforms(p));
+    CHECK(!extra::presetHasFod(p));
+    CHECK_EQ(4, extra::presetPlatformMax(p));
+
+    // Yoshi's Island without ModelData[80] (e.g. Hazards OFF entry or static alt) stays None.
+    extra::StageDetectInput yiStatic = empty;
+    yiStatic.modCrayon = true;
+    CHECK_EQ(extra::kPresetNone, extra::classifyStagePreset(yiStatic));
+
     // Delfino's Secret (PlatformLeft + PlatformCenter) vs Luigi's Mansion (PlatformLeft only).
     extra::StageDetectInput delfino = empty;
     delfino.hasPlatformLeft = true;
@@ -160,6 +177,13 @@ TEST(stage_options, platform_presets_clamping_and_hazards_resolution)
     CHECK_NEAR(3000.0f, extra::platformTargetFrame(extra::kPresetDeadLine, 3, false), 0.001f);
     CHECK_NEAR(6000.0f, extra::platformTargetFrame(extra::kPresetDeadLine, 4, false), 0.001f);
 
+    // Yoshi's Island Brawl Left Out / Right Out / Hidden (2880f timedGhosts).
+    CHECK(extra::platformTargetFrame(extra::kPresetYoshisIsland, 0, false) < 0.0f);
+    CHECK(extra::platformTargetFrame(extra::kPresetYoshisIsland, 1, false) < 0.0f);
+    CHECK_NEAR(1020.0f, extra::platformTargetFrame(extra::kPresetYoshisIsland, 2, false), 0.001f);
+    CHECK_NEAR(2460.0f, extra::platformTargetFrame(extra::kPresetYoshisIsland, 3, false), 0.001f);
+    CHECK_NEAR(0.0f, extra::platformTargetFrame(extra::kPresetYoshisIsland, 4, false), 0.001f);
+
     // Hazard tri-state resolution.
     CHECK(!extra::resolveHazardOff(main::kStageHazardDefault, false));
     CHECK(extra::resolveHazardOff(main::kStageHazardDefault, true));
@@ -172,7 +196,7 @@ TEST(stage_options, restore_global_hazard_off_guard)
     // Dirty exit on hazard stages must restore initialHazardOff in both directions.
     static const int kHazardPresets[] = {
         extra::kPresetFod, extra::kPresetDreamLand, extra::kPresetSmashville,
-        extra::kPresetGreenHill, extra::kPresetDeadLine
+        extra::kPresetGreenHill, extra::kPresetDeadLine, extra::kPresetYoshisIsland
     };
     for (u32 i = 0; i < sizeof(kHazardPresets) / sizeof(kHazardPresets[0]); i++)
     {
@@ -211,8 +235,15 @@ TEST(stage_options, restore_global_hazard_off_guard)
 TEST(stage_options, platform_row_swaps_choices_and_restores_defaults)
 {
     const ui::Page& page = *ui::labMenu().pages[ui::pages::P_STAGE_CAST];
-    CHECK_EQ(33, page.count);
+    CHECK_EQ(34, page.count);
     CHECK(strcmp(page.options[3].name, "Platforms") == 0);
+
+    main::setStagePlatformRowPreset(extra::kPresetYoshisIsland);
+    CHECK_EQ(4, page.options[3].max);
+    const char* const* yi = static_cast<const char* const*>(page.options[3].data);
+    CHECK(strcmp(yi[2], "Left Out") == 0);
+    CHECK(strcmp(yi[3], "Right Out") == 0);
+    CHECK(strcmp(yi[4], "Hidden") == 0);
 
     main::setStagePlatformRowPreset(extra::kPresetLuigisMansion);
     CHECK_EQ(3, page.options[3].max);

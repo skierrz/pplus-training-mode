@@ -90,6 +90,9 @@ namespace extra {
         kVarIvysaurSolarbeam = 0x1100001B, // LA-Float[27]
 
         // R.O.B. (FitRobot.pac): Air Boosts, Exhausted flag, Gyro, Robo Beam timer.
+        // P+ 3.2.1 status 0x114 (SpecialHi) transitions directly to 0x118 (subaction 0x1d2),
+        // consuming LA-Basic[75] (3 discrete air boosts) and LA-Bit[111] exclusively; Brawl's
+        // legacy fuel tank LA-Float[21] (FT_ROBOT.REL) is unused in P+ 3.2.1.
         kVarRobAirBoosts = 0x1000004B,     // LA-Basic[75], 0..3
         kVarRobBoostExhausted = 0x1200006F, // LA-Bit[111]
         kVarRobGyro = 0x11000014,          // LA-Float[20], 0.0..90.0 (IC-Float[4047])
@@ -207,9 +210,33 @@ namespace extra {
         case kFtDedede:
         case kFtSnake:
         case kFtGanondorf:
+        case kFtOlimar:
             return true;
         default:
             return false;
+        }
+    }
+
+    // Computes Olimar's Pikmin pluck weights ({Red, Yellow, Blue, White, Purple})
+    // for FitPikmin.pac pullOutParam row 0 (data+0x7C -> +0x08..+0x18).
+    // P+ 3.2.1 hooks 0x80a6bbdc (RSBE01.TXT:2963) so all non-HRC ground types use
+    // row 0, and 0x80a6b864 draws from these five weights (falling back to
+    // LA-Basic[64] when all other weights are 0, so consecutive plucks stay locked).
+    inline void olimarPikminWeights(u8 rawChoice, const float orig[5], float out[5])
+    {
+        int choice = clampChoice(rawChoice, main::kOlimarPikminCount);
+        if (choice == main::kPikminDefault)
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                out[i] = orig[i];
+            }
+            return;
+        }
+        int target = choice - 1;
+        for (int i = 0; i < 5; i++)
+        {
+            out[i] = (i == target) ? 1.0f : 0.0f;
         }
     }
 

@@ -176,7 +176,8 @@ namespace extra {
         "Keep Snake Tranquilizer ammo stocked with unlimited shots.",
         "Allow Snake unlimited Cypher uses without landing resets.",
         "Grant Ganondorf unlimited aerial float duration.",
-        "Force Ice Climbers Nana grab throws in a chosen direction."
+        "Force Ice Climbers Nana grab throws in a chosen direction.",
+        "Force Olimar pluck to pull Red, Yellow, Blue, White, or Purple."
     };
 
     static const char* const kControlsDesc[] = {

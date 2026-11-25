@@ -42,9 +42,11 @@ CHARS = {
     "king_dedede": (0x23, 0x1F),
     "snake": (0x2A, 0x26),
     "ganondorf": (0x16, 0x14),
+    "olimar": (0x1A, 0x18),
 }
 
-# main::Settings offsets for FighterMechanicsSettings (offset 404).
+# main::Settings offsets for CharacterRngSettings (292) & FighterMechanicsSettings (404).
+S_GNW_HAMMER = 294
 S_FM = 404
 S_PEACH_FLOAT = S_FM + 0
 S_GNW_BUCKET = S_FM + 1
@@ -68,6 +70,8 @@ S_DEDEDE_WADDLE = S_FM + 18
 S_SNAKE_TRANQ = S_FM + 19
 S_SNAKE_CYPHER = S_FM + 20
 S_GANON_FLOAT = S_FM + 21
+S_NANA_THROW = S_FM + 22
+S_OLIMAR_PIKMIN = S_FM + 23
 
 RIGHT, LEFT, UP, DOWN, NEUTRAL = CT.RIGHT, CT.LEFT, CT.UP, CT.DOWN, CT.NEUTRAL
 
@@ -78,6 +82,13 @@ DEDEDE_FOUND_RE = re.compile(
 DEDEDE_DETACH_RE = re.compile(
     r"fighter mech: detach Dedede Waddle weights ([0-9a-f]{8}) \(put back 35\.0/10\.0/4\.0/0\.0,"
 )
+OLIMAR_FOUND_RE = re.compile(
+    r"fighter mech: Olimar Pikmin weights at ([0-9a-f]{8}) "
+    r"\(gid=0 spd=1\.0 1\.0/1\.0/1\.0/1\.0/1\.0\): ok"
+)
+OLIMAR_DETACH_RE = re.compile(
+    r"fighter mech: detach Olimar Pikmin weights ([0-9a-f]{8}) \(put back 1\.0/1\.0/1\.0/1\.0/1\.0,"
+)
 
 
 def set_u8(emu, settings_addr, offset, value):
@@ -87,6 +98,7 @@ def set_u8(emu, settings_addr, offset, value):
 
 def clear_fm(emu, settings_addr):
     emu.h.call("write_mem", addr=settings_addr + S_FM, hex="00" * 32)
+    emu.h.call("write_mem", addr=settings_addr + S_GNW_HAMMER, hex="00")
     CT.wait_game_frames(emu, 2)
 
 
@@ -198,7 +210,25 @@ def sc_gnw(emu, notes):
     after_cnt = round(p1.la_float(19), 1)
     if dmg < 15.0 or after_cnt != 3.0:
         fails.append(f"bucket spill: dmg={dmg} after_cnt={after_cnt}")
-    notes.append(f"gnw bucket: readings={readings} spill_dmg={dmg} refill={after_cnt}")
+
+    # Savestate preservation: Default preserves saved full bucket after spill;
+    # locked Bucket=2 and Judge=9 re-apply immediately on quick savestate load.
+    set_u8(emu, settings, S_GNW_BUCKET, 0)
+    CT.dpad_save(emu)
+    CT.fire_and_measure_damage(emu, p1, cpu, buttons=("B",), stick=DOWN, hold_f=4, wait_f=60)
+    ss_spent = round(p1.la_float(19), 1)
+    CT.dpad_load(emu)
+    ss_def = round(p1.la_float(19), 1)
+    set_u8(emu, settings, S_GNW_BUCKET, 3)   # 2
+    set_u8(emu, settings, S_GNW_HAMMER, 9)   # Judge 9 -> LA-Basic[67] == 8
+    CT.dpad_load(emu)
+    ss_lock = (round(p1.la_float(19), 1), p1.la_int(67))
+    if ss_spent != 0.0 or ss_def != 3.0 or ss_lock != (2.0, 8):
+        fails.append(f"gnw savestate: spent={ss_spent} def_load={ss_def} lock_load={ss_lock}")
+    notes.append(
+        f"gnw bucket: readings={readings} spill_dmg={dmg} refill={after_cnt} "
+        f"ss(def={ss_def}, lock={ss_lock})"
+    )
     return fails
 
 
@@ -255,9 +285,26 @@ def sc_samus(emu, notes):
     if any(c != 0 for c in bomb_counts):
         fails.append(f"air bombs: LA-Basic[67]={bomb_counts}")
 
+    # 4. Savestate preservation: Default preserves saved Full charge after firing;
+    # locked Half re-applies on quick savestate load.
+    set_u8(emu, settings, S_SAMUS_AIR_BOMBS, 0)
+    set_u8(emu, settings, S_SAMUS_CHARGE, 3)  # Full (7)
+    set_u8(emu, settings, S_SAMUS_CHARGE, 0)  # Default (leave 7 intact)
+    CT.dpad_save(emu)
+    CT.fire_and_measure_damage(emu, p1, cpu, buttons=("B",), hold_f=4, wait_f=50)
+    ss_spent = p1.la_int(65)
+    CT.dpad_load(emu)
+    ss_def = p1.la_int(65)
+    set_u8(emu, settings, S_SAMUS_CHARGE, 2)  # Half (4)
+    CT.dpad_load(emu)
+    ss_lock = p1.la_int(65)
+    if ss_spent != 0 or ss_def != 7 or ss_lock != 4:
+        fails.append(f"samus savestate: spent={ss_spent} def={ss_def} lock={ss_lock}")
+
     notes.append(
         f"samus: charge lvls={(lvl_e, lvl_h, lvl_f)} dmgs={(dmg_e, dmg_h, dmg_f)}; "
-        f"beam vars={(beam_p, beam_i)} usmash={(dmg_p, dmg_i)}; air_bombs={bomb_counts}"
+        f"beam vars={(beam_p, beam_i)} usmash={(dmg_p, dmg_i)}; air_bombs={bomb_counts}; "
+        f"ss(def={ss_def}, lock={ss_lock})"
     )
     return fails
 
@@ -313,10 +360,25 @@ def sc_mewtwo(emu, notes):
     if st2 != 0x120 or flag2 != 1 or rem2 < 55 or used2 != 0:
         fails.append(f"hover 2nd midair: st={st2:#x} flag={flag2} rem={rem2} used={used2}")
 
+    # 3. Savestate preservation: Default preserves saved Full Shadow Ball; locked Half enforces 3.
+    set_u8(emu, settings, S_MEWTWO_HOVER, 0)
+    set_u8(emu, settings, S_MEWTWO_BALL, 3)
+    set_u8(emu, settings, S_MEWTWO_BALL, 0)
+    CT.dpad_save(emu)
+    CT.fire_and_measure_damage(emu, p1, cpu, buttons=("B",), hold_f=4, wait_f=50)
+    ss_spent = p1.la_int(65)
+    CT.dpad_load(emu)
+    ss_def = p1.la_int(65)
+    set_u8(emu, settings, S_MEWTWO_BALL, 2)
+    CT.dpad_load(emu)
+    ss_lock = p1.la_int(65)
+    if ss_spent != -1 or ss_def != 6 or ss_lock != 3:
+        fails.append(f"mewtwo savestate: spent={ss_spent} def={ss_def} lock={ss_lock}")
+
     notes.append(
         f"mewtwo: ball lvls={(lvl_e, lvl_h, lvl_f)} dmgs={(dmg_e, dmg_h, dmg_f)}; "
         f"hover 1st@80f(st={st_hold:#x}, bit97={flag_hold}, rem={rem_hold}, bit115={used_hold}, exit={st_exit:#x}) "
-        f"2nd(st={st2:#x}, bit97={flag2}, rem={rem2}, bit115={used2})"
+        f"2nd(st={st2:#x}, bit97={flag2}, rem={rem2}, bit115={used2}); ss(def={ss_def}, lock={ss_lock})"
     )
     return fails
 
@@ -344,7 +406,23 @@ def sc_lucario(emu, notes):
     if lvl_e != (0, -1, -1) or lvl_f != (16, 4, 4) or not (dmg_f > dmg_e + 5.0):
         fails.append(f"sphere: lvls={(lvl_e, lvl_f)} dmgs={(dmg_e, dmg_f)}")
 
-    notes.append(f"lucario: aura={auras}; sphere lvls={(lvl_e, lvl_f)} dmgs={(dmg_e, dmg_f)}")
+    # 3. Savestate preservation: Default restores saved Aura=120 + Full Sphere; locked overrides re-apply.
+    set_u8(emu, settings, S_LUCARIO_AURA, 3)    # 120.0
+    set_u8(emu, settings, S_LUCARIO_SPHERE, 2)  # Full (4)
+    set_u8(emu, settings, S_LUCARIO_AURA, 0)
+    set_u8(emu, settings, S_LUCARIO_SPHERE, 0)
+    CT.dpad_save(emu)
+    fire_two_tap(emu, p1, cpu, direct_start_shoot=True)
+    CT.dpad_load(emu)
+    ss_def = (round(p1.la_float(27), 1), p1.la_int(65))
+    set_u8(emu, settings, S_LUCARIO_AURA, 2)    # 60.0
+    set_u8(emu, settings, S_LUCARIO_SPHERE, 1)  # Empty (-1)
+    CT.dpad_load(emu)
+    ss_lock = (round(p1.la_float(27), 1), p1.la_int(65))
+    if ss_def != (120.0, 4) or ss_lock != (60.0, -1):
+        fails.append(f"lucario savestate: def={ss_def} lock={ss_lock}")
+
+    notes.append(f"lucario: aura={auras}; sphere lvls={(lvl_e, lvl_f)} dmgs={(dmg_e, dmg_f)}; ss(def={ss_def}, lock={ss_lock})")
     return fails
 
 
@@ -370,7 +448,21 @@ def sc_wario(emu, notes):
         fails.append(f"waft vars: {readings}")
     if not (dmgs[0] < dmgs[1] < dmgs[2]):
         fails.append(f"waft dmgs: {dmgs}")
-    notes.append(f"wario waft: vars={readings} dmgs={dmgs}")
+
+    # Savestate preservation: Default preserves saved Half waft after spending; Full re-applies on load.
+    set_u8(emu, settings, S_WARIO_WAFT, 2)  # Half (stage 2)
+    set_u8(emu, settings, S_WARIO_WAFT, 0)  # Default
+    CT.dpad_save(emu)
+    CT.fire_and_measure_damage(emu, p1, cpu, buttons=("B",), stick=DOWN, hold_f=3, wait_f=60)
+    ss_spent = p1.la_int(66)
+    CT.dpad_load(emu)
+    ss_def = p1.la_int(66)
+    set_u8(emu, settings, S_WARIO_WAFT, 3)  # Full (stage 3)
+    CT.dpad_load(emu)
+    ss_lock = (p1.la_int(66), p1.la_bit(63))
+    if ss_spent != 0 or ss_def != 2 or ss_lock != (3, 1):
+        fails.append(f"wario savestate: spent={ss_spent} def={ss_def} lock={ss_lock}")
+    notes.append(f"wario waft: vars={readings} dmgs={dmgs} ss(def={ss_def}, lock={ss_lock})")
     return fails
 
 
@@ -468,7 +560,29 @@ def sc_rob(emu, notes):
     if any(b != (3, 0) for b in boosts):
         fails.append(f"rob boosts: {boosts}")
 
-    notes.append(f"rob: boosts={boosts}; gyro={(g_e, g_f)}/{(dmg_e, dmg_f)}; beam vars={beam_vars} dmgs={beam_dmgs}")
+    # 4. Savestate preservation: Default preserves saved Super Beam & Full Gyro after firing;
+    # locked AirBoosts + Normal Beam re-apply on quick savestate load.
+    set_u8(emu, settings, S_ROB_BOOSTS, 0)
+    set_u8(emu, settings, S_ROB_GYRO, 2)
+    set_u8(emu, settings, S_ROB_BEAM, 3)
+    set_u8(emu, settings, S_ROB_GYRO, 0)
+    set_u8(emu, settings, S_ROB_BEAM, 0)
+    CT.dpad_save(emu)
+    CT.fire_and_measure_damage(emu, p1, cpu, buttons=("B",), hold_f=3, wait_f=45)
+    ss_spent = round(p1.la_float(19), 1)
+    CT.dpad_load(emu)
+    ss_def = (round(p1.la_float(19), 1), round(p1.la_float(20), 1))
+    set_u8(emu, settings, S_ROB_BOOSTS, 1)
+    set_u8(emu, settings, S_ROB_BEAM, 2)
+    CT.dpad_load(emu)
+    ss_lock = (p1.la_int(75), round(p1.la_float(19), 1))
+    if ss_spent > 100.0 or ss_def[0] < 890.0 or ss_def[1] < 88.0 or ss_lock[0] != 3 or not (298.0 <= ss_lock[1] <= 305.0):
+        fails.append(f"rob savestate: spent={ss_spent} def={ss_def} lock={ss_lock}")
+
+    notes.append(
+        f"rob: boosts={boosts}; gyro={(g_e, g_f)}/{(dmg_e, dmg_f)}; beam vars={beam_vars} dmgs={beam_dmgs}; "
+        f"ss(def={ss_def}, lock={ss_lock})"
+    )
     return fails
 
 
@@ -499,9 +613,31 @@ def sc_lucas(emu, notes):
             f"lucas offense: serial={serial_before}->{serial_after} "
             f"off={off_state}({dmg_off}) on={on_state}({dmg_on})"
         )
+
+    # Savestate preservation under Default + Off re-apply: save while Charged,
+    # switch to Default, spend Offense Up by whiffing F-Smash away from CPU
+    # (Subr@0x28544 refunds RA-Bit[107] on hit, whereas a whiff consumes it to 0),
+    # then quick-load -> Default preserves (1, 120.0) and Off re-applies (0, 0.0).
+    CT.dpad_load(emu)
+    set_u8(emu, settings, S_LUCAS_OFFENSE, 2)
+    set_u8(emu, settings, S_LUCAS_OFFENSE, 0)
+    CT.dpad_save(emu)
+    away = LEFT if cpu.posture()["x"] >= p1.posture()["x"] else RIGHT
+    CT.run_pad_script(emu, [CT._pad_step(cstick=away, hold=4)])
+    CT.wait_cond(emu, "Lucas AttackS4 whiff", lambda: p1.status() in (0x2A, 0x2B, 0x2C), timeout=30, step=1)
+    CT.wait_idle(emu, p1, 120)
+    ss_spent = p1.ra_bit(107)
+    CT.dpad_load(emu)
+    ss_def = (p1.ra_bit(107), round(p1.la_float(61), 1))
+    set_u8(emu, settings, S_LUCAS_OFFENSE, 1)  # Off
+    CT.dpad_load(emu)
+    ss_off = (p1.ra_bit(107), round(p1.la_float(61), 1))
+    if ss_spent != 0 or ss_def != (1, 120.0) or ss_off != (0, 0.0):
+        fails.append(f"lucas savestate: spent={ss_spent} def={ss_def} off={ss_off}")
+
     notes.append(
         f"lucas: serial={serial_before}->{serial_after} "
-        f"off={off_state} fsmash={dmg_off}; charged={on_state} fsmash={dmg_on}"
+        f"off={off_state} fsmash={dmg_off}; charged={on_state} fsmash={dmg_on}; ss(def={ss_def}, off={ss_off})"
     )
     return fails
 
@@ -572,20 +708,26 @@ def sc_dedede(emu, notes):
     w_doo = read_weights()
     set_u8(emu, settings, S_DEDEDE_WADDLE, 1)  # Waddle Dee
     w_dee = read_weights()
-    set_u8(emu, settings, S_DEDEDE_WADDLE, 3)  # Leave patched on Gordo before leaving Training!
+    set_u8(emu, settings, S_DEDEDE_WADDLE, 3)  # Leave patched on Gordo before savestate + exit!
+    CT.dpad_save(emu)
+    CT.dpad_load(emu)
+    w_ss = read_weights()
+    cd_ss = p1.la_int(65)
 
     # Exit match and verify detach restores original bytes (35, 10, 4, 0) in log.
     nav.finish_training(emu)
     detached = DEDEDE_DETACH_RE.findall(emu.log_text()[pos:])
     if w_gordo != [0.0, 0.0, 100.0, 0.0] or w_doo != [0.0, 100.0, 0.0, 0.0] or w_dee != [100.0, 0.0, 0.0, 0.0]:
         fails.append(f"weights: dee={w_dee} doo={w_doo} gordo={w_gordo}")
+    if w_ss != [0.0, 0.0, 100.0, 0.0] or cd_ss != 0:
+        fails.append(f"dedede savestate: weights={w_ss} cd={cd_ss}")
     if cd_gordo != 0 or cd_after != 0 or dmg_gordo < 12.0:
         fails.append(f"gordo throw: cd=({cd_gordo},{cd_after}) dmg={dmg_gordo}")
     if not detached:
         fails.append("detach did not log restoring Dedede weights")
     notes.append(
         f"dedede: addr={w_addr:#x} dee={w_dee} doo={w_doo} gordo={w_gordo} "
-        f"gordo_dmg={dmg_gordo} cd={cd_after} detach_restored={bool(detached)}"
+        f"gordo_dmg={dmg_gordo} cd={cd_after} ss_ok={w_ss == [0.0, 0.0, 100.0, 0.0]} detach_restored={bool(detached)}"
     )
     return fails
 
@@ -670,6 +812,82 @@ def sc_ganondorf(emu, notes):
     return fails
 
 
+def sc_olimar(emu, notes):
+    pos = len(emu.log_text())
+    settings, p1, _ = prepare(emu, "olimar")
+    fails = []
+
+    # Validate FitPikmin.pac pullOutParam row-0 discovery.
+    set_u8(emu, settings, S_OLIMAR_PIKMIN, 5)  # Purple
+    found = OLIMAR_FOUND_RE.findall(emu.log_text()[pos:])
+    if not found:
+        fails.append("Olimar Pikmin weights table not validated in log")
+        notes.append("olimar: weights table NOT found")
+        return fails
+    w_addr = int(found[-1], 16)
+
+    def read_weights():
+        return [round(v, 1) for v in struct.unpack(">5f", emu.read(w_addr, 20))]
+
+    # Save quick lab savestate while Olimar has 3 Pikmin (1 free pluck slot), then
+    # reload and pluck all 5 colors (Red=0, Yellow=1, Blue=2, White=3, Purple=4).
+    set_u8(emu, settings, S_OLIMAR_PIKMIN, 0)
+    w_def = read_weights()
+    CT.dpad_save(emu)
+
+    plucked = []
+    for choice in (1, 2, 3, 4, 5):
+        CT.dpad_load(emu)
+        set_u8(emu, settings, S_OLIMAR_PIKMIN, choice)
+        emu.hold(0, buttons=["B"])
+        CT.wait_game_frames(emu, 4)
+        emu.neutral(0)
+        CT.wait_idle(emu, p1, 80)
+        plucked.append(p1.la_int(64))
+
+    # Consecutive identical plucks: Olimar starts with 3 Pikmin (P+ cap is 4).
+    # Walk to the left ledge, throw 1 Pikmin offstage so it dies (leaving 2 Pikmin
+    # and 2 open pluck slots), then pluck Purple twice in a row. This verifies
+    # 0x80a6b9a0's f30==0 fallback to LA-Basic[64] keeps consecutive plucks locked.
+    CT.dpad_load(emu)
+    set_u8(emu, settings, S_OLIMAR_PIKMIN, 5)  # Purple (4)
+    w_purple = read_weights()
+    emu.hold(0, stick=LEFT)
+    CT.wait_cond(emu, "Olimar near left ledge", lambda: p1.posture()["x"] < -70.0, timeout=120, step=2)
+    emu.neutral(0)
+    CT.wait_idle(emu, p1, 60)
+    art0 = p1.active_articles()
+    emu.hold(0, buttons=["B"], stick=LEFT)
+    CT.wait_game_frames(emu, 4)
+    emu.neutral(0)
+    CT.wait_idle(emu, p1, 60)
+    CT.wait_cond(emu, "thrown Pikmin dies offstage", lambda: p1.active_articles() < art0, timeout=240, step=2)
+    consec = []
+    for _ in range(2):
+        emu.hold(0, buttons=["B"])
+        CT.wait_game_frames(emu, 4)
+        emu.neutral(0)
+        CT.wait_idle(emu, p1, 80)
+        consec.append((p1.la_int(64), p1.la_int(65)))
+
+    # Leave patched on Purple and exit Training: detach must restore 1.0/1.0/1.0/1.0/1.0.
+    nav.finish_training(emu)
+    detached = OLIMAR_DETACH_RE.findall(emu.log_text()[pos:])
+
+    if w_def != [1.0, 1.0, 1.0, 1.0, 1.0] or w_purple != [0.0, 0.0, 0.0, 0.0, 1.0]:
+        fails.append(f"olimar weights: def={w_def} purple={w_purple}")
+    if plucked != [0, 1, 2, 3, 4]:
+        fails.append(f"olimar 5-color pluck: got LA-Basic[64]={plucked}, want [0,1,2,3,4]")
+    if consec[-1] != (4, 4):
+        fails.append(f"olimar consecutive purple plucks: {consec} (want last (4, 4))")
+    if not detached:
+        fails.append("detach did not log restoring Olimar Pikmin weights")
+    notes.append(
+        f"olimar: addr={w_addr:#x} def={w_def} plucked={plucked} consec={consec} detach_restored={bool(detached)}"
+    )
+    return fails
+
+
 SCENARIOS = [
     ("peach", sc_peach),
     ("gnw", sc_gnw),
@@ -686,6 +904,7 @@ SCENARIOS = [
     ("dedede", sc_dedede),
     ("snake", sc_snake),
     ("ganondorf", sc_ganondorf),
+    ("olimar", sc_olimar),
 ]
 
 

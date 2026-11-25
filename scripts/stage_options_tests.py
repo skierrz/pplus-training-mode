@@ -89,8 +89,11 @@ SCENARIOS = [
     "fountain-of-dreams",
     "smashville",
     "green-hill-zone",
+    "dead-line",
     "dream-land",
     "delfino-secret",
+    "yoshis-story",
+    "yoshis-island",
     "final-destination",
 ]
 
@@ -136,6 +139,24 @@ def ground_paused(e, g):
 
 def ground_coll_enabled(e, g):
     return (e.u8(g + GROUND_FLAGS_6C) & 0x20) != 0
+
+
+def ground_visible(e, g):
+    return (e.u8(g + GROUND_FLAGS_6C) & 0x80) != 0
+
+
+def find_moving_coll_ground(e):
+    st = stage_ptr(e)
+    if not st:
+        return None
+    g = e.ptr(st + STAGE_HEAD_GROUND)
+    for _ in range(64):
+        if not g:
+            break
+        if ground_frame(e, g, 0) is not None and ground_coll_bboxes(e, g):
+            return g
+        g = e.ptr(g + GROUND_NEXT)
+    return None
 
 
 def ground_coll_bboxes(e, target_ground):
@@ -665,6 +686,260 @@ def test_delfino(t):
     t.end_stage()
 
 
+def test_dead_line(t):
+    e, r = t.e, t.r
+    preset, ss_addr = t.start_stage(0x44)
+    t.check(preset == 5, "dl2-detect", f"detected preset {preset} (want 5)")
+    g80 = find_ground(e, 80)
+    t.check(g80 is not None, "dl2-ground", f"ModelData[80]={g80}")
+
+    # Close (2, f=0), Far (3, f=3000), Mid (4, f=6000) + Freeze & Cycle.
+    r.set(S_STAGE_HAZARDS, 1)
+    r.set(S_STAGE_PLATFORM, 2)
+    step_frames(e, 4)
+    u_base = stage_instance_usage(e)
+    f_close = ground_frame(e, g80, 0)
+    b_close = ground_coll_bboxes(e, g80)
+    r.set(S_STAGE_PLATFORM, 3)
+    step_frames(e, 4)
+    f_far = ground_frame(e, g80, 0)
+    b_far = ground_coll_bboxes(e, g80)
+    r.set(S_STAGE_PLATFORM, 4)
+    step_frames(e, 4)
+    f_mid = ground_frame(e, g80, 0)
+    t.check(abs(f_close - 0.0) < 0.1 and abs(f_far - 3000.0) < 0.1 and abs(f_mid - 6000.0) < 0.1
+            and ground_paused(e, g80) and len(b_close) >= 2 and len(b_far) >= 2,
+            "dl2-presets", f"frames=({f_close:.1f},{f_far:.1f},{f_mid:.1f}) joints=({len(b_close)},{len(b_far)})")
+
+    # Live Hazards OFF / ON swaps anim 0 <-> 1 without StageInstance heap leak.
+    r.set(S_STAGE_HAZARDS, 2)
+    step_frames(e, 4)
+    a_off = e.u8(g80 + GHZ_CUR_ANIM)
+    r.set(S_STAGE_HAZARDS, 1)
+    step_frames(e, 4)
+    a_on = e.u8(g80 + GHZ_CUR_ANIM)
+    u_after = stage_instance_usage(e)
+    t.check(a_off == 1 and a_on == 0 and u_after == u_base,
+            "dl2-haz-no-leak", f"anim off={a_off} on={a_on} heap {u_base}->{u_after}")
+
+    # Savestate re-apply & no kErrResources.
+    if ss_addr is not None:
+        r.set(S_STAGE_PLATFORM, 2)
+        step_frames(e, 4)
+        res_s = ss_trigger(e, ss_addr, 1)
+        r.set(S_STAGE_PLATFORM, 3)
+        step_frames(e, 2)
+        res_l = ss_trigger(e, ss_addr, 2)
+        step_frames(e, 3)
+        f_re = ground_frame(e, g80, 0)
+        t.check(res_s[0] == "saved" and res_l[0] == "loaded" and abs(f_re - 3000.0) < 0.1,
+                "dl2-savestate-reapply", f"save={res_s} load={res_l} frame={f_re:.2f}")
+
+    # Cycle advances frame.
+    r.set(S_STAGE_PLATFORM, 0)
+    step_frames(e, 2)
+    fa = ground_frame(e, g80, 0)
+    step_frames(e, 15)
+    fb = ground_frame(e, g80, 0)
+    t.check(abs(fb - fa) > 10.0 and not ground_paused(e, g80), "dl2-cycle", f"frame {fa:.2f}->{fb:.2f}")
+
+    t.end_stage()
+
+
+def test_yoshis_story(t):
+    e, r = t.e, t.r
+    preset, ss_addr = t.start_stage(0x2A)
+    t.check(preset == 8, "ys-detect", f"detected preset {preset} (want 8)")
+    g = find_moving_coll_ground(e)
+    t.check(g is not None, "ys-ground", f"Randall Ground at {g:#x}" if g else "missing")
+
+    def randall_x():
+        boxes = ground_coll_bboxes(e, g)
+        # STGYOSHISTORY COLL[2] binds both the static main stage (width ~119)
+        # and Randall (width ~11.9) to the same Ground; pick Randall's joint.
+        narrow = [b for b in boxes if (b[2] - b[1]) < 30.0]
+        if not narrow:
+            return 999.0
+        return 0.5 * (narrow[0][1] + narrow[0][2])
+
+    # Left Out (2, f=0), Right Out (3, f=600), Hidden (4, f=340).
+    r.set(S_STAGE_PLATFORM, 2)
+    step_frames(e, 4)
+    fl = ground_frame(e, g, 0)
+    xl = randall_x()
+
+    r.set(S_STAGE_PLATFORM, 3)
+    step_frames(e, 4)
+    fr = ground_frame(e, g, 0)
+    xr = randall_x()
+
+    r.set(S_STAGE_PLATFORM, 4)
+    step_frames(e, 4)
+    fh = ground_frame(e, g, 0)
+    xh = randall_x()
+
+    t.check(abs(fl - 0.0) < 0.1 and xl < -45.0 and abs(fr - 600.0) < 0.1 and xr > 45.0
+            and abs(fh - 340.0) < 0.1 and abs(xh) < 45.0 and ground_paused(e, g),
+            "ys-randall-presets",
+            f"L(f={fl:.1f},x={xl:.1f}) R(f={fr:.1f},x={xr:.1f}) H(f={fh:.1f},x={xh:.1f})")
+
+    # Savestate re-apply (Left Out saved -> switch to Right Out -> load -> Right Out) & Freeze preserve.
+    if ss_addr is not None:
+        r.set(S_STAGE_PLATFORM, 2)
+        step_frames(e, 4)
+        res_s = ss_trigger(e, ss_addr, 1)
+        r.set(S_STAGE_PLATFORM, 3)
+        step_frames(e, 2)
+        res_l = ss_trigger(e, ss_addr, 2)
+        step_frames(e, 3)
+        f_re = ground_frame(e, g, 0)
+        t.check(res_s[0] == "saved" and res_l[0] == "loaded" and abs(f_re - 600.0) < 0.1,
+                "ys-savestate-reapply", f"save={res_s} load={res_l} frame={f_re:.2f}")
+
+        r.set(S_STAGE_PLATFORM, 0)
+        step_frames(e, 20)
+        r.set(S_STAGE_PLATFORM, 1)
+        step_frames(e, 2)
+        f_frz = ground_frame(e, g, 0)
+        res_s2 = ss_trigger(e, ss_addr, 1)
+        r.set(S_STAGE_PLATFORM, 0)
+        step_frames(e, 20)
+        r.set(S_STAGE_PLATFORM, 1)
+        res_l2 = ss_trigger(e, ss_addr, 2)
+        step_frames(e, 4)
+        f_rest = ground_frame(e, g, 0)
+        t.check(res_s2[0] == "saved" and res_l2[0] == "loaded" and abs(f_rest - f_frz) < 1.5 and ground_paused(e, g),
+                "ys-savestate-freeze", f"saved f={f_frz:.2f} restored f={f_rest:.2f}")
+
+    # Cycle advances frame.
+    r.set(S_STAGE_PLATFORM, 0)
+    step_frames(e, 2)
+    fa = ground_frame(e, g, 0)
+    step_frames(e, 15)
+    fb = ground_frame(e, g, 0)
+    t.check(abs(fb - fa) > 10.0 and not ground_paused(e, g), "ys-cycle", f"frame {fa:.2f}->{fb:.2f}")
+
+    t.end_stage()
+
+
+def test_yoshis_island(t):
+    e, r = t.e, t.r
+    preset, ss_addr = t.start_stage(0x0D)
+    haz_pre = nav.melee_setup(e)["hazard_off"]
+    t.check(preset == 10, "yi-detect", f"detected preset {preset} (want 10)")
+    g80 = find_ground(e, 80)
+    g81 = find_ground(e, 81)
+    t.check(g80 is not None and g81 is not None, "yi-grounds", f"80={g80} 81={g81}")
+
+    def cloud_ys():
+        # Returns (left_y, right_y) from COLL[3] joints on ModelData[80].
+        boxes = ground_coll_bboxes(e, g80)
+        left_y = next((0.5 * (b[3] + b[4]) for b in boxes if 0.5 * (b[1] + b[2]) < 0.0), -999.0)
+        right_y = next((0.5 * (b[3] + b[4]) for b in boxes if 0.5 * (b[1] + b[2]) > 0.0), -999.0)
+        return left_y, right_y
+
+    # Left Out (2, f=1020), Right Out (3, f=2460), Hidden (4, f=0) with g81 synced.
+    r.set(S_STAGE_HAZARDS, 1)
+    r.set(S_STAGE_PLATFORM, 2)
+    step_frames(e, 4)
+    u_base = stage_instance_usage(e)
+    fl80, fl81 = ground_frame(e, g80, 3), ground_frame(e, g81, 0)
+    ly_l, ry_l = cloud_ys()
+
+    r.set(S_STAGE_PLATFORM, 3)
+    step_frames(e, 4)
+    fr80, fr81 = ground_frame(e, g80, 3), ground_frame(e, g81, 0)
+    ly_r, ry_r = cloud_ys()
+
+    r.set(S_STAGE_PLATFORM, 4)
+    step_frames(e, 4)
+    fh80, fh81 = ground_frame(e, g80, 3), ground_frame(e, g81, 0)
+    ly_h, ry_h = cloud_ys()
+
+    t.check(abs(fl80 - 1020.0) < 0.1 and abs(fl81 - 1020.0) < 0.1 and ly_l > -20.0 and ry_l < -150.0
+            and abs(fr80 - 2460.0) < 0.1 and abs(fr81 - 2460.0) < 0.1 and ry_r > -20.0 and ly_r < -150.0
+            and abs(fh80 - 0.0) < 0.1 and abs(fh81 - 0.0) < 0.1 and ly_h < -150.0 and ry_h < -150.0,
+            "yi-cloud-presets",
+            f"L({fl80:.0f}/{fl81:.0f}, y={ly_l:.1f}/{ry_l:.1f}) "
+            f"R({fr80:.0f}/{fr81:.0f}, y={ly_r:.1f}/{ry_r:.1f}) "
+            f"H({fh80:.0f}/{fh81:.0f}, y={ly_h:.1f}/{ry_h:.1f})")
+
+    # Freeze & Cycle.
+    r.set(S_STAGE_PLATFORM, 0)
+    step_frames(e, 2)
+    fa = ground_frame(e, g80, 3)
+    step_frames(e, 15)
+    fb = ground_frame(e, g80, 3)
+    r.set(S_STAGE_PLATFORM, 1)
+    step_frames(e, 2)
+    fc0 = ground_frame(e, g80, 3)
+    step_frames(e, 15)
+    fc1 = ground_frame(e, g80, 3)
+    t.check(abs(fb - fa) > 10.0 and abs(fc1 - fc0) < 0.05 and ground_paused(e, g80) and ground_paused(e, g81),
+            "yi-cycle-freeze", f"cycle {fa:.1f}->{fb:.1f} freeze {fc0:.1f}->{fc1:.1f}")
+
+    # Live Hazards OFF hides g80/g81, disables collision, parks at f=0; Hazards ON restores both.
+    r.set(S_STAGE_PLATFORM, 2)  # Left Out active underneath
+    r.set(S_STAGE_HAZARDS, 2)   # Hazards OFF
+    step_frames(e, 4)
+    off_coll = ground_coll_enabled(e, g80)
+    off_vis = (ground_visible(e, g80), ground_visible(e, g81))
+    off_fr = ground_frame(e, g80, 3)
+    haz_off_flag = nav.melee_setup(e)["hazard_off"]
+    t.check((not off_coll) and off_vis == (False, False) and abs(off_fr - 0.0) < 0.1 and haz_off_flag == 1,
+            "yi-haz-off", f"coll={off_coll} vis={off_vis} f={off_fr:.1f} flag={haz_off_flag}")
+
+    r.set(S_STAGE_HAZARDS, 1)   # Hazards ON -> restores Left Out (f=1020)
+    step_frames(e, 4)
+    on_coll = ground_coll_enabled(e, g80)
+    on_vis = (ground_visible(e, g80), ground_visible(e, g81))
+    on_fr = ground_frame(e, g80, 3)
+    haz_on_flag = nav.melee_setup(e)["hazard_off"]
+    t.check(on_coll and on_vis == (True, True) and abs(on_fr - 1020.0) < 0.1 and haz_on_flag == 0,
+            "yi-haz-on", f"coll={on_coll} vis={on_vis} f={on_fr:.1f} flag={haz_on_flag}")
+
+    # Repeated toggles -> zero StageInstance leak!
+    for _ in range(3):
+        r.set(S_STAGE_HAZARDS, 2)
+        step_frames(e, 4)
+        r.set(S_STAGE_HAZARDS, 1)
+        step_frames(e, 4)
+    u_after = stage_instance_usage(e)
+    t.check(u_after == u_base, "yi-no-heap-leak", f"StageInstance blocks/bytes {u_base} -> {u_after}")
+
+    # Savestate preservation: save Left Out -> switch to Right Out -> load -> Right Out re-applied;
+    # and Hazards OFF stays OFF after load.
+    if ss_addr is not None:
+        r.set(S_STAGE_HAZARDS, 1)
+        r.set(S_STAGE_PLATFORM, 2)
+        step_frames(e, 4)
+        res_s = ss_trigger(e, ss_addr, 1)
+        r.set(S_STAGE_PLATFORM, 3)
+        step_frames(e, 2)
+        res_l = ss_trigger(e, ss_addr, 2)
+        step_frames(e, 3)
+        f_re = ground_frame(e, g80, 3)
+        r.set(S_STAGE_HAZARDS, 2)
+        step_frames(e, 2)
+        res_l2 = ss_trigger(e, ss_addr, 2)
+        step_frames(e, 3)
+        coll_l2 = ground_coll_enabled(e, g80)
+        t.check(res_s[0] == "saved" and res_l[0] == "loaded" and abs(f_re - 2460.0) < 0.1
+                and res_l2[0] == "loaded" and not coll_l2,
+                "yi-savestate", f"save={res_s} load1={res_l} f={f_re:.1f} load2={res_l2} coll_off={coll_l2}")
+
+    # Dirty exit with Hazards OFF must restore global m_isHazardOff back to 0.
+    r.set(S_STAGE_HAZARDS, 2)
+    step_frames(e, 4)
+    haz_forced = nav.melee_setup(e)["hazard_off"]
+    t.end_stage(reset_settings=False)
+    haz_after = nav.melee_setup(e)["hazard_off"]
+    reset_stage_settings(r)
+    t.check(haz_pre == 0 and haz_forced == 1 and haz_after == haz_pre,
+            "yi-exit-restores-hazard-flag",
+            f"m_isHazardOff pre={haz_pre} forced={haz_forced} after_exit={haz_after}")
+
+
 def test_final_destination(t):
     e, r = t.e, t.r
     preset, _ = t.start_stage(0x02)
@@ -701,8 +976,11 @@ DISPATCH = {
     "fountain-of-dreams": test_fod,
     "smashville": test_smashville,
     "green-hill-zone": test_ghz,
+    "dead-line": test_dead_line,
     "dream-land": test_dream_land,
     "delfino-secret": test_delfino,
+    "yoshis-story": test_yoshis_story,
+    "yoshis-island": test_yoshis_island,
     "final-destination": test_final_destination,
 }
 

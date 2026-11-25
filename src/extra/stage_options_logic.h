@@ -20,6 +20,7 @@ namespace extra {
         kPresetDelfinoSecret, // Delfino's Secret (3600f MAIN-2Phase)
         kPresetYoshisStory,   // Yoshi's Story (1199f Randall)
         kPresetGenericMoving, // Any other stage with animated COLL platforms
+        kPresetYoshisIsland,  // Yoshi's Island Brawl (st_crayon_noshyguy_ht.rel, 2880f support clouds)
         kPresetCount
     };
 
@@ -31,6 +32,7 @@ namespace extra {
         bool modDreamLand;        // st_dreamland64_ht loaded
         bool modSmashville;       // st_smashville_ht loaded
         bool modGreenHill;        // st_greenhill_ht loaded
+        bool modCrayon;           // st_crayon_noshyguy_ht loaded
         bool hasSpout80;          // Ground m_mdlIndex == 80 present
         bool hasSpout81;          // Ground m_mdlIndex == 81 present
         bool hasWhispy2;          // Ground m_mdlIndex == 2 present
@@ -38,6 +40,7 @@ namespace extra {
         bool hasAshiba81;         // Ground m_mdlIndex == 81 present
         bool hasGhzPendulum;      // Ground m_mdlIndex == 80 has bone "furiko3" or "dai"
         bool hasDeadLinePlats;    // Ground m_mdlIndex == 80 has bone "pCube2"
+        bool hasCrayonClouds80;   // Ground m_mdlIndex == 80 has bones "AKumoAMKasure01" & "AKumoAMKasure01r"
         bool hasPlatformLeft;     // A Ground has bone "PlatformLeft" (3600f CHR0)
         bool hasPlatformCenter;   // Same Ground also has bone "PlatformCenter"
         bool hasRandall;          // A Ground has bone "Randall"
@@ -66,6 +69,10 @@ namespace extra {
         {
             return kPresetDeadLine;
         }
+        if (in.modCrayon && in.hasCrayonClouds80)
+        {
+            return kPresetYoshisIsland;
+        }
         if (in.hasPlatformLeft && in.hasPlatformCenter)
         {
             return kPresetDelfinoSecret;
@@ -88,14 +95,14 @@ namespace extra {
     inline bool presetHasHazards(int preset)
     {
         return preset == kPresetFod || preset == kPresetDreamLand || preset == kPresetSmashville
-               || preset == kPresetGreenHill || preset == kPresetDeadLine;
+               || preset == kPresetGreenHill || preset == kPresetDeadLine || preset == kPresetYoshisIsland;
     }
 
     inline bool presetHasPlatforms(int preset)
     {
         return preset == kPresetSmashville || preset == kPresetGreenHill || preset == kPresetDeadLine
                || preset == kPresetLuigisMansion || preset == kPresetDelfinoSecret || preset == kPresetYoshisStory
-               || preset == kPresetGenericMoving;
+               || preset == kPresetGenericMoving || preset == kPresetYoshisIsland;
     }
 
     inline bool presetHasFod(int preset)
@@ -123,6 +130,7 @@ namespace extra {
         case kPresetGreenHill:
         case kPresetDeadLine:
         case kPresetYoshisStory:
+        case kPresetYoshisIsland:
             return 4; // Cycle, Freeze, + 3 positions
         default:
             return 0;
@@ -234,6 +242,14 @@ namespace extra {
             if (mode == 2) return 0.0f;
             if (mode == 3) return 600.0f;
             if (mode == 4) return 340.0f;
+            return -1.0f;
+        case kPresetYoshisIsland:
+            // timedGhosts / BlarggwichIndicator (2880f, STGYOSHISISLAND.pac BRES[80]/[81]):
+            // f1020 Left Cloud Out (X=-101.1, Y=-10.6), f2460 Right Cloud Out (X=+101.1, Y=-10.6),
+            // f0 Both Hidden (Y=-177.1).
+            if (mode == 2) return 1020.0f;
+            if (mode == 3) return 2460.0f;
+            if (mode == 4) return 0.0f;
             return -1.0f;
         default:
             return -1.0f;

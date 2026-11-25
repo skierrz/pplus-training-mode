@@ -211,6 +211,8 @@ namespace extra {
             return kind == kFtGanondorf;
         case main::kRngIceClimbers:
             return kind == kFtPopo && livePartner;
+        case main::kRngOlimar:
+            return kind == kFtOlimar;
         default:
             return false;
         }
