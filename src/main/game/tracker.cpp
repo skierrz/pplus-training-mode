@@ -15,7 +15,14 @@
 #include <so/status/so_status_event_presenter.h>
 #include <so/status/so_status_module_impl.h>
 #include <so/stop/so_stop_module_impl.h>
+#include <stddef.h>
 #include <string.h>
+#ifdef __MWERKS__
+#include <gf/gf_heap_manager.h>
+#include <gf/gf_memory_pool.h>
+#include <memory.h>
+#include "shared/game/heap.h"
+#endif
 
 #include "main/game/body.h"
 #include "main/game/fighters.h"
@@ -66,6 +73,13 @@ namespace game {
     };
 
     struct Slot {
+        void* operator new(size_t, void* p)
+        {
+            return p;
+        }
+        void operator delete(void*, void*)
+        {
+        }
         Tracked t;
         StatusWatch status;
         AnimWatch anim;
@@ -89,7 +103,12 @@ namespace game {
         u32 animEvents;
     };
 
-    static Slot s_slots[kMaxTracked];
+#ifdef __MWERKS__
+    static Slot* s_slots = NULL;
+#else
+    static Slot s_slotsStatic[kMaxTracked];
+    static Slot* s_slots = s_slotsStatic;
+#endif
     static RemoveWatch s_removeWatch;
     static soEventManager* s_removeManager = NULL;
     static s16 s_removeManageId = -1;
@@ -223,7 +242,7 @@ namespace game {
         {
             s->actionable = 1;
         }
-        if (s_statusListener != NULL)
+        if (s_statusListener != NULL && s_slots != NULL)
         {
             s_statusListener(static_cast<int>(s - s_slots), e);
         }
@@ -540,7 +559,7 @@ namespace game {
 
     void RemoveWatch::notifyEventRemoveEntry(int entryId)
     {
-        if (!s_removeRegistered)
+        if (!s_removeRegistered || s_slots == NULL)
         {
             return;
         }
@@ -556,6 +575,10 @@ namespace game {
 
     static int findSlot(int entryId, bool partner)
     {
+        if (s_slots == NULL)
+        {
+            return -1;
+        }
         for (int i = 0; i < kMaxTracked; i++)
         {
             if (s_slots[i].t.used && s_slots[i].t.entryId == entryId && s_slots[i].t.partner == partner)
@@ -568,6 +591,10 @@ namespace game {
 
     static int freeSlot()
     {
+        if (s_slots == NULL)
+        {
+            return -1;
+        }
         for (int i = 0; i < kMaxTracked; i++)
         {
             if (!s_slots[i].t.used)
@@ -634,6 +661,10 @@ namespace game {
 
     static void sync(bool live)
     {
+        if (s_slots == NULL)
+        {
+            return;
+        }
         bool seen[kMaxTracked];
         for (int i = 0; i < kMaxTracked; i++)
         {
@@ -805,6 +836,10 @@ namespace game {
     // (a projectile's hit, whose fighter's attack did not connect).
     static void attributeHits()
     {
+        if (s_slots == NULL)
+        {
+            return;
+        }
         for (int d = 0; d < kMaxTracked; d++)
         {
             Tracked& def = s_slots[d].t;
@@ -857,6 +892,10 @@ namespace game {
     // (scripts/display_tests.py); `at`: the callback that handed it over.
     static void trace(const char* at)
     {
+        if (s_slots == NULL)
+        {
+            return;
+        }
         for (int i = 0; i < kMaxTracked; i++)
         {
             const Tracked& t = s_slots[i].t;
@@ -894,7 +933,7 @@ namespace game {
     static void handOver(bool render)
     {
         countOwed();
-        if (!s_pending)
+        if (!s_pending || s_slots == NULL)
         {
             return;
         }
@@ -975,26 +1014,63 @@ namespace game {
         s_removeManageId = -1;
         s_removeWatch.m_manageID = -1;
         s_removeWatch.m_sendID = -1;
+        g_trackerTrace = 0;
+        TM_LOG("tracker: trace byte at %08x\n", &g_trackerTrace);
+#ifdef __MWERKS__
+        if (s_slots == NULL)
+        {
+            u32 need = (static_cast<u32>(sizeof(Slot) * kMaxTracked) + 31u) & ~31u;
+            HeapUsage u;
+            if (heapUsage(Heaps::Network, u) && u.largest >= need)
+            {
+                void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
+                if (isRam(p))
+                {
+                    memset(p, 0, need);
+                    s_slots = static_cast<Slot*>(p);
+                    for (int i = 0; i < kMaxTracked; i++)
+                    {
+                        new (&s_slots[i]) Slot;
+                    }
+                }
+            }
+        }
+        if (s_slots == NULL)
+        {
+            s_healthy = false;
+            TM_LOG("tracker: slots alloc failed (%u B in Network)\n",
+                   static_cast<unsigned>(sizeof(Slot) * kMaxTracked));
+            return;
+        }
+#endif
         for (int i = 0; i < kMaxTracked; i++)
         {
             s_slots[i].registered = false;
             clearSlot(s_slots[i]);
         }
-        g_trackerTrace = 0;
-        TM_LOG("tracker: trace byte at %08x\n", &g_trackerTrace);
     }
 
     void trackerDetach()
     {
-        for (int i = 0; i < kMaxTracked; i++)
+        if (s_slots != NULL)
         {
-            if (s_slots[i].t.used)
+            for (int i = 0; i < kMaxTracked; i++)
             {
-                unregisterSlot(s_slots[i], "match ending", true);
-                clearSlot(s_slots[i]);
+                if (s_slots[i].t.used)
+                {
+                    unregisterSlot(s_slots[i], "match ending", true);
+                    clearSlot(s_slots[i]);
+                }
             }
         }
         unregisterRemoveWatch("match ending", true);
+#ifdef __MWERKS__
+        if (s_slots != NULL)
+        {
+            free(s_slots);
+            s_slots = NULL;
+        }
+#endif
         countOwed();
         TM_LOG("tracker: %u registrations, %u removals, %u lost, %u moved, %d frames, %u with changes not kept\n",
                s_registrations, s_removals, s_lost, s_sendChanges, s_frame, s_eventsLost);
@@ -1007,15 +1083,22 @@ namespace game {
 
     void trackerSuspend()
     {
-        for (int i = 0; i < kMaxTracked; i++)
+        if (s_slots != NULL)
         {
-            unregisterSlot(s_slots[i], "savestate", false);
+            for (int i = 0; i < kMaxTracked; i++)
+            {
+                unregisterSlot(s_slots[i], "savestate", false);
+            }
         }
         unregisterRemoveWatch("savestate", false);
     }
 
     void trackerResume(bool forget)
     {
+        if (s_slots == NULL)
+        {
+            return;
+        }
         if (forget)
         {
             for (int i = 0; i < kMaxTracked; i++)
@@ -1039,6 +1122,10 @@ namespace game {
 
     int trackedCount()
     {
+        if (s_slots == NULL)
+        {
+            return 0;
+        }
         int n = 0;
         for (int i = 0; i < kMaxTracked; i++)
         {
@@ -1049,7 +1136,7 @@ namespace game {
 
     const Tracked* tracked(int i)
     {
-        return i >= 0 && i < kMaxTracked && s_slots[i].t.used ? &s_slots[i].t : NULL;
+        return s_slots != NULL && i >= 0 && i < kMaxTracked && s_slots[i].t.used ? &s_slots[i].t : NULL;
     }
 
 #ifdef TM_MODULE_MAIN
@@ -1066,6 +1153,10 @@ namespace game {
 
     int trackedIndex(const Tracked* t)
     {
+        if (s_slots == NULL)
+        {
+            return -1;
+        }
         for (int i = 0; i < kMaxTracked; i++)
         {
             if (&s_slots[i].t == t)

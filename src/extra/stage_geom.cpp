@@ -15,6 +15,7 @@
 #include <st/stage.h>
 #include <string.h>
 
+#include "extra/net_alloc.h"
 #include "main/cpu/view.h"
 #include "main/display/display.h"
 #include "main/game/status_ids.h"
@@ -29,14 +30,22 @@ namespace extra {
         kHitstunLaBasic = 0x10000038 // LA-Basic[0x38] (fighters.cpp)
     };
 
-    static StageGeometry s_cache;
+    static StageGeometry* s_cache = NULL;
     static s32 s_cacheFrame = -1000;
     static bool s_cacheValid = false;
     static bool s_cacheHasPlatforms = false;
 
     void stageGeomAttach()
     {
+        freeNetPtr(s_cache);
+        s_cache = allocNetArray<StageGeometry>(1);
         stageGeomReset();
+    }
+
+    void stageGeomDetach()
+    {
+        stageGeomReset();
+        freeNetPtr(s_cache);
     }
 
     void stageGeomReset()
@@ -348,14 +357,14 @@ namespace extra {
     bool queryStageGeometry(StageGeometry& out, bool forceRefresh, bool includePlatforms)
     {
         s32 now = game::trackerFrame();
-        if (!forceRefresh && s_cacheValid && now >= s_cacheFrame && now - s_cacheFrame < kCacheFrames)
+        if (s_cache != NULL && !forceRefresh && s_cacheValid && now >= s_cacheFrame && now - s_cacheFrame < kCacheFrames)
         {
             if (includePlatforms && !s_cacheHasPlatforms)
             {
-                probePassThroughPlatforms(s_cache);
+                probePassThroughPlatforms(*s_cache);
                 s_cacheHasPlatforms = true;
             }
-            out = s_cache;
+            out = *s_cache;
             return true;
         }
 
@@ -417,10 +426,13 @@ namespace extra {
             }
         }
 
-        s_cache = g;
-        s_cacheFrame = now;
-        s_cacheValid = g.floor.valid;
-        s_cacheHasPlatforms = g.floor.valid && includePlatforms;
+        if (s_cache != NULL)
+        {
+            *s_cache = g;
+            s_cacheFrame = now;
+            s_cacheValid = g.floor.valid;
+            s_cacheHasPlatforms = g.floor.valid && includePlatforms;
+        }
         out = g;
         return g.floor.valid;
     }

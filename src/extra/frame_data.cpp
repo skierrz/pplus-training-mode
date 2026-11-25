@@ -19,6 +19,9 @@
 #include "main/game/tracker.h"
 #include "main/settings.h"
 #include "main/ui/osd.h"
+#ifdef __MWERKS__
+#include "extra/net_alloc.h"
+#endif
 #include "shared/game/mem.h"
 #include "shared/log.h"
 
@@ -214,8 +217,17 @@ namespace extra {
         u8 holdFrames;
     };
 
-    static Slot s_slots[game::kMaxTracked];
-    static ShieldHoldSlot s_shieldHold[game::kMaxFighters];
+    struct FrameDataNet {
+        Slot slots[game::kMaxTracked];
+        ShieldHoldSlot shieldHold[game::kMaxFighters];
+    };
+
+#ifdef __MWERKS__
+    static FrameDataNet* s_net = NULL;
+#else
+    static FrameDataNet s_hostNet;
+    static FrameDataNet* s_net = &s_hostNet;
+#endif
     static u32 s_walks = 0;
     u8 g_fdTrace = 0;
 
@@ -1286,7 +1298,7 @@ namespace extra {
 
     static Slot* slotOf(Fighter* fighter)
     {
-        if (fighter == NULL)
+        if (fighter == NULL || s_net == NULL)
         {
             return NULL;
         }
@@ -1295,13 +1307,13 @@ namespace extra {
             const game::Tracked* t = game::tracked(i);
             if (t != NULL && t->fighter == fighter)
             {
-                if (s_slots[i].fighter != fighter)
+                if (s_net->slots[i].fighter != fighter)
                 {
-                    s_slots[i].fighter = fighter;
-                    s_slots[i].rec.flags = 0;
-                    s_slots[i].pending.have = false;
+                    s_net->slots[i].fighter = fighter;
+                    s_net->slots[i].rec.flags = 0;
+                    s_net->slots[i].pending.have = false;
                 }
-                return &s_slots[i];
+                return &s_net->slots[i];
             }
         }
         return NULL;
@@ -1576,11 +1588,11 @@ namespace extra {
 
     bool frameDataShieldHoldFullMove(int defenderPlayerNo, int defenderEntryId, const cpu::View& v, bool newHit)
     {
-        if (defenderPlayerNo < 0 || defenderPlayerNo >= game::kMaxFighters)
+        if (s_net == NULL || defenderPlayerNo < 0 || defenderPlayerNo >= game::kMaxFighters)
         {
             return false;
         }
-        ShieldHoldSlot& h = s_shieldHold[defenderPlayerNo];
+        ShieldHoldSlot& h = s_net->shieldHold[defenderPlayerNo];
         if (newHit)
         {
             clearShieldHoldSlot(h);
@@ -1699,8 +1711,12 @@ namespace extra {
     // attacker's hit on shield (a later L-cancel: Mario's neutral air 8 off).
     static void predict(int d, s32 now)
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
         const game::Tracked* def = game::tracked(d);
-        Slot& slot = s_slots[d];
+        Slot& slot = s_net->slots[d];
         if (def == NULL || !(def->cur.hitReceived || def->cur.shieldReceived) || def->lastReceived.frame != now)
         {
             return;
@@ -1764,11 +1780,11 @@ namespace extra {
 
     bool frameDataMeasured(const game::Advantage& r)
     {
-        if (r.defender < 0 || r.defender >= game::kMaxTracked)
+        if (s_net == NULL || r.defender < 0 || r.defender >= game::kMaxTracked)
         {
             return false;
         }
-        Pending& p = s_slots[r.defender].pending;
+        Pending& p = s_net->slots[r.defender].pending;
         bool mine = p.have && p.attacker == r.attacker && p.hitFrame == r.hitFrame;
         if (!mine || p.why != NULL)
         {
@@ -1848,15 +1864,19 @@ namespace extra {
 
     void frameDataFrame()
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
         s32 now = game::trackerFrame();
         for (int i = 0; i < game::kMaxTracked; i++)
         {
             const game::Tracked* t = game::tracked(i);
             if (t == NULL)
             {
-                s_slots[i].fighter = NULL;
-                s_slots[i].rec.flags = 0;
-                s_slots[i].pending.have = false;
+                s_net->slots[i].fighter = NULL;
+                s_net->slots[i].rec.flags = 0;
+                s_net->slots[i].pending.have = false;
                 continue;
             }
             Slot* s = slotOf(t->fighter);
@@ -1871,7 +1891,7 @@ namespace extra {
             // A value that was shown and never measured (the advantage
             // tracker gives an exchange up after 180 frames): by then its
             // message is long gone; the log says so.
-            Pending& p = s_slots[d].pending;
+            Pending& p = s_net->slots[d].pending;
             if (p.have && p.shown && now - p.hitFrame > kGiveUp)
             {
                 TM_LOG("advantage check: slot %d on shield predicted %+d measured none (given up)\n", d, p.value);
@@ -1894,23 +1914,35 @@ namespace extra {
 
     void frameDataReset()
     {
-        memset(s_slots, 0, sizeof(s_slots));
+        if (s_net == NULL)
+        {
+            return;
+        }
+        memset(s_net->slots, 0, sizeof(s_net->slots));
         for (int i = 0; i < game::kMaxFighters; i++)
         {
-            clearShieldHoldSlot(s_shieldHold[i]);
+            clearShieldHoldSlot(s_net->shieldHold[i]);
         }
     }
 
     void frameDataAttach()
     {
-        memset(s_slots, 0, sizeof(s_slots));
-        for (int i = 0; i < game::kMaxFighters; i++)
-        {
-            clearShieldHoldSlot(s_shieldHold[i]);
-        }
+#ifdef __MWERKS__
+        freeNetPtr(s_net);
+        s_net = allocNetArray<FrameDataNet>(1);
+#endif
+        frameDataReset();
         s_walks = 0;
         g_fdTrace = 0;
         TM_LOG("fd: trace byte at %08x, record %u bytes\n", &g_fdTrace, static_cast<u32>(sizeof(FrameRecord)));
+    }
+
+    void frameDataDetach()
+    {
+        frameDataReset();
+#ifdef __MWERKS__
+        freeNetPtr(s_net);
+#endif
     }
 }
 }

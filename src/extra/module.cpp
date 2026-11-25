@@ -38,6 +38,7 @@
 #include "extra/ui_assets.h"
 #include "main/extra.h"
 #include "main/game/match.h"
+#include "main/game/status_names.h"
 #include "main/game/tracker.h"
 #include "main/gfx/text.h"
 #include "main/lab.h"
@@ -199,6 +200,7 @@ namespace extra {
         s_vsReadOnly = !game::trainingGameMode();
         if (s_vsReadOnly)
         {
+            game::statusNamesAttach();
             frameDataAttach();
             heatmapAttach();
             psaInspectorAttach();
@@ -207,6 +209,8 @@ namespace extra {
             TM_LOG("extra: attached (read-only VS) v%s\n", main::kModule.buildVersion);
             return true;
         }
+        game::statusNamesAttach();
+        menuDescAttach();
         stageGeomAttach();
         pplusRecoveryAttach();
         reversalSlotsAttach();
@@ -245,6 +249,8 @@ namespace extra {
         {
             psaInspectorDetach();
             heatmapDetach();
+            frameDataDetach();
+            game::statusNamesDetach();
             main::setExtraHooks(NULL);
             s_vsReadOnly = false;
             TM_LOG("extra: detaching\n");
@@ -267,6 +273,8 @@ namespace extra {
         scenarioPresetsDetach();
         // Project+'s own Draw DI is put back as it was.
         diHideDrawDi(false);
+        diDetach();
+        frameDataDetach();
         // Peach's item odds go back to the file's value.
         characterRngDetach();
         stageOptionsDetach();
@@ -275,6 +283,10 @@ namespace extra {
         adaptiveCpuDetach();
         coreDrillEnginesDetach();
         hoverPsDetach();
+        comboTrainerDetach();
+        stageGeomDetach();
+        menuDescDetach();
+        game::statusNamesDetach();
         main::setExtraHooks(NULL);
         TM_LOG("extra: detaching\n");
     }

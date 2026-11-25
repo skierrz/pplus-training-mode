@@ -9,6 +9,7 @@
 #include "extra/drill_hover_ps_engines.h"
 #include "extra/drill_hud_core.h"
 #include "extra/drill_pplus_tech_engines.h"
+#include "extra/net_alloc.h"
 #include "extra/ui_assets.h"
 #include "main/game/fighters.h"
 #include "main/game/freeze.h"
@@ -72,10 +73,15 @@ namespace extra {
             u8 pausedByUs;
         };
 
-        static Runtime s_rt;
+        static Runtime* s_rtPtr = NULL;
 
         void syncDebug()
         {
+            if (s_rtPtr == NULL)
+            {
+                return;
+            }
+            Runtime& s_rt = *s_rtPtr;
             s_rt.debug.magic = kDrillHudDebugMagic;
             s_rt.debug.version = kDrillHudDebugVersion;
             memcpy(&s_rt.debug.activeDrill, &s_rt.st.activeDrill, 14);
@@ -85,7 +91,7 @@ namespace extra {
         // Double-framed Brawl/P+ panel: dark outer frame, 2px accent border, dark gradient body.
         void drawPanel(float ox, float oy, float w, float h, u32 accent, u32 top, u32 bot)
         {
-            float xs = s_rt.xs;
+            float xs = s_rtPtr->xs;
             float bw = w * xs;
             gfx::fillRect(ox, oy, bw, h, 0x060D12F2u);
             gfx::fillRect(ox + 2.0f * xs, oy + 2.0f, bw - 4.0f * xs, h - 4.0f, accent);
@@ -102,7 +108,7 @@ namespace extra {
             float sx = sc;
             if (fl & kClamp152)
             {
-                float mw = 152.0f * s_rt.xs;
+                float mw = 152.0f * s_rtPtr->xs;
                 if (tw > mw && tw > 0.0f)
                 {
                     sx = sc * mw / tw;
@@ -124,6 +130,7 @@ namespace extra {
 
         void drawPips(float x, float y, float totalW, float h)
         {
+            Runtime& s_rt = *s_rtPtr;
             float step = totalW * 0.1f;
             float pw = step - 2.0f * s_rt.xs;
             for (int k = 0; k < kDrillSetReps; k++, x += step)
@@ -135,6 +142,7 @@ namespace extra {
 
         void drawLiveHud()
         {
+            Runtime& s_rt = *s_rtPtr;
             DrillHudState& st = s_rt.st;
             float xs = s_rt.xs;
             float ox = 320.0f - 148.0f * xs;
@@ -172,6 +180,7 @@ namespace extra {
 
         void drawEndModal()
         {
+            Runtime& s_rt = *s_rtPtr;
             DrillHudState& st = s_rt.st;
             float xs = s_rt.xs;
             float ox = 320.0f - 192.0f * xs;
@@ -267,7 +276,13 @@ namespace extra {
 
     void drillHudAttach()
     {
-        memset(&s_rt, 0, sizeof(s_rt));
+        freeNetPtr(s_rtPtr);
+        s_rtPtr = allocNetArray<Runtime>(1);
+        if (s_rtPtr == NULL)
+        {
+            return;
+        }
+        Runtime& s_rt = *s_rtPtr;
         s_rt.fresh = 1;
         s_rt.sess = drills::sessionIn(main::services().settings());
 
@@ -284,6 +299,11 @@ namespace extra {
 
     void drillHudDetach()
     {
+        if (s_rtPtr == NULL)
+        {
+            return;
+        }
+        Runtime& s_rt = *s_rtPtr;
         if (s_rt.pausedByUs)
         {
             game::setGameplayPaused(false);
@@ -291,15 +311,24 @@ namespace extra {
         }
         s_rt.st.modalOpen = 0;
         syncDebug();
+        freeNetPtr(s_rtPtr);
     }
 
     void drillHudSavestateReset()
     {
-        s_rt.synced = 0;
+        if (s_rtPtr != NULL)
+        {
+            s_rtPtr->synced = 0;
+        }
     }
 
     void drillHudFrame()
     {
+        if (s_rtPtr == NULL)
+        {
+            return;
+        }
+        Runtime& s_rt = *s_rtPtr;
         DrillHudState& st = s_rt.st;
         bool saveBest = false;
         if (s_rt.debug.forceComplete)
@@ -394,6 +423,11 @@ namespace extra {
 
     u32 drillHudHook(u32 phase, gfPadStatus* pads)
     {
+        if (s_rtPtr == NULL)
+        {
+            return 0u;
+        }
+        Runtime& s_rt = *s_rtPtr;
         DrillHudState& st = s_rt.st;
         if (pads == NULL)
         {
@@ -519,11 +553,12 @@ namespace extra {
 
     void drillHudDraw(const game::MatchState& match)
     {
-        if (!match.running || match.paused || lab::menuOpen() || !isValidSkillDrill(s_rt.st.activeDrill)
-            || gfx::lineHeight(0.5f) <= 0.0f)
+        if (s_rtPtr == NULL || !match.running || match.paused || lab::menuOpen()
+            || !isValidSkillDrill(s_rtPtr->st.activeDrill) || gfx::lineHeight(0.5f) <= 0.0f)
         {
             return;
         }
+        Runtime& s_rt = *s_rtPtr;
         s_rt.xs = ui::layout::xsOf(gfx::widescreen());
         if (s_rt.st.modalOpen)
         {
@@ -538,12 +573,12 @@ namespace extra {
 
     u8 drillHudActiveId()
     {
-        return s_rt.st.activeDrill;
+        return s_rtPtr != NULL ? s_rtPtr->st.activeDrill : static_cast<u8>(drills::kDrillNone);
     }
 
     bool drillHudModalOpen()
     {
-        return s_rt.st.modalOpen != 0;
+        return s_rtPtr != NULL && s_rtPtr->st.modalOpen != 0;
     }
 }
 }

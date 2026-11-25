@@ -122,13 +122,24 @@ namespace game {
     void trackerSuspend();
     void trackerResume(bool forget);
 
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    s32 x_trackerFrame();
+    const Tracked* x_tracked(int i);
+#endif
+
     // Frames finished since the match module was attached; in the frame
     // listener, the frame being handed over. Reads the same wherever the
     // frame was handed over (docs/internals.md, "Frame hand-over").
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
+    inline s32 trackerFrame() { return x_trackerFrame(); }
+    int trackedCount();
+    inline const Tracked* tracked(int i) { return x_tracked(i); }
+#else
     s32 trackerFrame();
     int trackedCount();
     // Slot i (0..kMaxTracked-1); NULL if unused.
     const Tracked* tracked(int i);
+#endif
     // The main (non-partner) fighter of an entry, or NULL.
     const Tracked* trackedEntry(int entryId);
     int trackedIndex(const Tracked* t);

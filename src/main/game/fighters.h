@@ -34,6 +34,27 @@ namespace game {
         int shieldStun;     // shield stun frames left, 0 when not in GuardDamage
     };
 
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    int x_listFighters(FighterRef* out, int max);
+    bool x_findFighter(bool cpu, FighterRef& out);
+    bool x_readState(const FighterRef& ref, FighterState& out);
+    const soModuleEnumeration* x_fighterModules(Fighter* fighter);
+    int x_fighterKind(int entryId, bool partner);
+    int x_fighterStatus(const soModuleEnumeration* m);
+    bool x_outOfPlay(int status, bool platform);
+#endif
+
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
+    inline int listFighters(FighterRef* out, int max) { return x_listFighters(out, max); }
+    inline bool findFighter(bool cpu, FighterRef& out) { return x_findFighter(cpu, out); }
+    inline bool readState(const FighterRef& ref, FighterState& out) { return x_readState(ref, out); }
+    inline const soModuleEnumeration* fighterModules(Fighter* fighter) { return x_fighterModules(fighter); }
+    inline int fighterKind(int entryId, bool partner = false) { return x_fighterKind(entryId, partner); }
+    inline int fighterStatus(const soModuleEnumeration* m) { return x_fighterStatus(m); }
+    int fighterHitstun(const soModuleEnumeration* m);
+    int fighterShieldStun(const soModuleEnumeration* m, int status);
+    inline bool outOfPlay(int status, bool platform = true) { return x_outOfPlay(status, platform); }
+#else
     // Fills out[0..n) with the match's fighters in entry order, skipping
     // entries whose fighter or owner is not readable yet. Returns n.
     int listFighters(FighterRef* out, int max);
@@ -60,6 +81,7 @@ namespace game {
     // Standby always, Rebirth (the revival platform, where it can be driven
     // and placed again) unless `platform` is false.
     bool outOfPlay(int status, bool platform = true);
+#endif
 
     // Which players are CPUs, from the match setup (the operation type says
     // "human" for a CPU whose AI is off). `fallback` while it is unreadable.

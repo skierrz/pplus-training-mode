@@ -14,6 +14,7 @@ namespace tm {
 namespace extra {
     // Checks the game data the display reads (once per attach).
     void diAttach();
+    void diDetach();
     // From the render hook while a match runs, in the main camera.
     void diDraw(const game::MatchState& m);
     // Savestate loaded: the smash DI trails of the left timeline go.

@@ -613,6 +613,9 @@ namespace cpu {
 }
 
 namespace osd {
+    void attach() {}
+    void detach() {}
+
     // src/main/ui/osd.cpp: the message is kept for the test, not drawn.
     Message* post(int player, int id, gfx::Rgba, const char* format, ...)
     {

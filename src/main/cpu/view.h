@@ -46,7 +46,16 @@ namespace cpu {
 
     // No hitlag or stun, and a free status or an action interrupt group
     // of its situation enabled.
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    bool x_canAct(const View& v);
+#ifndef TM_EXTRA_THUNK_IMPL
+    inline bool canAct(const View& v) { return x_canAct(v); }
+#else
     bool canAct(const View& v);
+#endif
+#else
+    bool canAct(const View& v);
+#endif
 
     // From the extra module's frame data service: 0 if it can act now, k
     // if its interrupts open during the k-th coming frame, -1 if unknown or

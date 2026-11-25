@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include "extra/di_picker_core.h"
+#include "extra/hud_draw.h"
+#include "extra/net_alloc.h"
 #include "extra/psa_inspector_core.h"
 #include "main/display/display.h"
 #include "main/game/fighters.h"
@@ -65,7 +67,7 @@ namespace extra {
         typedef s32 (*VSizeFn)(const void*);
         typedef const void* (*VAtFn)(const void*, s32);
 
-        PsaDebugBlock s_debug;
+        PsaDebugBlock* s_debug = NULL;
 
         float floatAt(const void* base, u32 offset)
         {
@@ -84,14 +86,18 @@ namespace extra {
 
         void clearSnapshot()
         {
-            u32 calls = s_debug.drawCalls;
-            memset(&s_debug, 0, sizeof(s_debug));
-            s_debug.magic = kPsaDebugMagic;
-            s_debug.drawCalls = calls;
-            s_debug.playerNo = -1;
-            s_debug.status = -1;
-            s_debug.subaction = -1;
-            s_debug.secondaryKind = -1;
+            if (s_debug == NULL)
+            {
+                return;
+            }
+            u32 calls = s_debug->drawCalls;
+            memset(s_debug, 0, sizeof(*s_debug));
+            s_debug->magic = kPsaDebugMagic;
+            s_debug->drawCalls = calls;
+            s_debug->playerNo = -1;
+            s_debug->status = -1;
+            s_debug->subaction = -1;
+            s_debug->secondaryKind = -1;
         }
 
         bool selectTargetFighter(u8 target, const game::FighterRef* refs, int count, game::FighterRef& out)
@@ -190,26 +196,30 @@ namespace extra {
 
         bool sampleFighter(const game::FighterRef& ref)
         {
+            if (s_debug == NULL)
+            {
+                return false;
+            }
             clearSnapshot();
-            s_debug.playerNo = ref.playerNo;
+            s_debug->playerNo = ref.playerNo;
 
             const soModuleEnumeration* m = game::fighterModules(ref.fighter);
             if (m == NULL)
             {
                 return false;
             }
-            s_debug.status = game::fighterStatus(m);
+            s_debug->status = game::fighterStatus(m);
 
             const void* motion = m->m_motionModule;
             if (alignedRam(motion))
             {
-                s_debug.animFrame = floatAt(motion, kMotionFrameOff);
-                s_debug.fsmRate = floatAt(motion, kMotionRateOff);
-                s_debug.subaction = static_cast<s32>(game::wordAt(motion, kMotionKindOff));
-                s_debug.secondaryKind = static_cast<s32>(game::wordAt(motion, kMotionSecKindOff));
-                if (s_debug.secondaryKind != -1)
+                s_debug->animFrame = floatAt(motion, kMotionFrameOff);
+                s_debug->fsmRate = floatAt(motion, kMotionRateOff);
+                s_debug->subaction = static_cast<s32>(game::wordAt(motion, kMotionKindOff));
+                s_debug->secondaryKind = static_cast<s32>(game::wordAt(motion, kMotionSecKindOff));
+                if (s_debug->secondaryKind != -1)
                 {
-                    s_debug.secondaryRate = floatAt(motion, kMotionSecRateOff);
+                    s_debug->secondaryRate = floatAt(motion, kMotionSecRateOff);
                 }
             }
 
@@ -251,13 +261,13 @@ namespace extra {
                 PsaThreadSnapshot snap;
                 readThread(unit, i, snap);
                 int slot = (snap.id < kPsaThreadCount) ? static_cast<int>(snap.id) : static_cast<int>(i);
-                s_debug.threads[slot] = snap;
+                s_debug->threads[slot] = snap;
                 if (snap.active != 0)
                 {
                     activeCount++;
                 }
             }
-            s_debug.activeThreadCount = activeCount;
+            s_debug->activeThreadCount = activeCount;
             return true;
         }
 
@@ -280,12 +290,6 @@ namespace extra {
             return slots;
         }
 
-        void drawShadowText(float x, float y, const char* text, gfx::Rgba color, float scale)
-        {
-            gfx::text(x + 0.8f, y + 0.8f, text, 0x000000C8u, scale);
-            gfx::text(x, y, text, color, scale);
-        }
-
         void drawCard(const ui::layout::Box& b, bool isCpu)
         {
             float xs = gfx::xScale();
@@ -293,7 +297,7 @@ namespace extra {
             float y = b.y0;
             float bw = b.x1 - b.x0;
             int shown[kPsaDisplayRows];
-            int rowCount = psaSelectDisplayThreads(s_debug.threads, shown, kPsaDisplayRows);
+            int rowCount = psaSelectDisplayThreads(s_debug->threads, shown, kPsaDisplayRows);
             int fitRows = rowCount > 0 ? rowCount : 1;
             float maxBh = b.y1 - b.y0;
             float bh = 34.0f + static_cast<float>(fitRows) * 11.8f + 4.0f;
@@ -301,14 +305,8 @@ namespace extra {
             {
                 bh = maxBh;
             }
-            float px = 1.5f * xs;
 
-            // Native P+ dark-teal card frame matching Input Viewer & DI Compass.
-            gfx::fillRect(x, y, bw, bh, 0x050C12E4u);
-            gfx::fillRect(x + px, y + 1.5f, bw - 2.0f * px, bh - 3.0f, 0x3A5868D8u);
-            gfx::fillGradV(x + 2.0f * px, y + 3.0f, bw - 4.0f * px, bh - 6.0f, 0x132632DCu, 0x09141CE0u);
-            gfx::fillRect(x + px, y + 1.5f, bw - 2.0f * px, 2.5f, isCpu ? 0x4E86B8FFu : 0xD83838FFu);
-            gfx::fillRect(x + px, y + 1.5f, bw - 2.0f * px, 1.0f, 0xFFFFFF40u);
+            drawHudCard(x, y, bw, bh, xs, isCpu ? 0x4E86B8FFu : 0xD83838FFu, 0xFFFFFF40u);
 
             // Header divider below Act/Sub/AnimFrame line.
             gfx::fillRect(x + 4.0f * xs, y + 27.5f, bw - 8.0f * xs, 1.0f, 0x2A4C58C0u);
@@ -316,18 +314,18 @@ namespace extra {
             // Header line 1: PSA target + FSM rate.
             char title[16];
             char fsm[20];
-            psaFormatTitle(isCpu, s_debug.playerNo, title, sizeof(title));
-            psaFormatFsm(s_debug.fsmRate, fsm, sizeof(fsm));
+            psaFormatTitle(isCpu, s_debug->playerNo, title, sizeof(title));
+            psaFormatFsm(s_debug->fsmRate, fsm, sizeof(fsm));
             float hdrScale = ui::style::scaleForCap(6.5f);
             float hdrY = ui::style::textYForCap(y + 6.5f, hdrScale);
             drawShadowText(x + 6.0f * xs, hdrY, title, isCpu ? 0x9AD0F8FFu : 0xFFB0B0FFu, hdrScale);
-            gfx::Rgba fsmCol = psaFsmIsModified(s_debug.fsmRate) ? 0xFFD300FFu : 0xF1F5F9FFu;
+            gfx::Rgba fsmCol = psaFsmIsModified(s_debug->fsmRate) ? 0xFFD300FFu : 0xF1F5F9FFu;
             drawShadowText(x + 92.0f * xs, hdrY, fsm, fsmCol, hdrScale);
 
             // Header line 2: Action / Subaction / AnimFrame (+ secondary rate if active).
             char subLine[40];
-            psaFormatSubHeader(s_debug.status, s_debug.subaction, s_debug.animFrame, s_debug.secondaryKind,
-                               s_debug.secondaryRate, subLine, sizeof(subLine));
+            psaFormatSubHeader(s_debug->status, s_debug->subaction, s_debug->animFrame, s_debug->secondaryKind,
+                               s_debug->secondaryRate, subLine, sizeof(subLine));
             float subScale = ui::style::scaleForCap(6.0f);
             float subY = ui::style::textYForCap(y + 17.5f, subScale);
             drawShadowText(x + 6.0f * xs, subY, subLine, 0xB8CDD6FFu, subScale);
@@ -349,7 +347,7 @@ namespace extra {
             for (int r = 0; r < rowCount; r++)
             {
                 int idx = shown[r];
-                const PsaThreadSnapshot& th = s_debug.threads[idx];
+                const PsaThreadSnapshot& th = s_debug->threads[idx];
                 float ry = ui::style::textYForCap(y + 31.5f + static_cast<float>(r) * 11.8f, rowScale);
 
                 char frameBuf[12];
@@ -381,27 +379,38 @@ namespace extra {
 
     void psaInspectorAttach()
     {
-        memset(&s_debug, 0, sizeof(s_debug));
-        s_debug.magic = kPsaDebugMagic;
-        s_debug.playerNo = -1;
-        s_debug.status = -1;
-        s_debug.subaction = -1;
-        s_debug.secondaryKind = -1;
-        TM_LOG("psa: debug block at %08x\n", &s_debug);
+        freeNetPtr(s_debug);
+        s_debug = allocNetArray<PsaDebugBlock>(1);
+        if (s_debug == NULL)
+        {
+            return;
+        }
+        memset(s_debug, 0, sizeof(*s_debug));
+        s_debug->magic = kPsaDebugMagic;
+        s_debug->playerNo = -1;
+        s_debug->status = -1;
+        s_debug->subaction = -1;
+        s_debug->secondaryKind = -1;
+        TM_LOG("psa: debug block at %08x\n", s_debug);
     }
 
     void psaInspectorDetach()
     {
         clearSnapshot();
+        freeNetPtr(s_debug);
     }
 
     void psaInspectorDraw(const game::MatchState& match, bool menuOpen)
     {
+        if (s_debug == NULL)
+        {
+            return;
+        }
         u8 target = main::settings().display.psaInspector;
         if (!match.running || match.paused || menuOpen || target == main::kPsaOff || target >= main::kPsaTargetCount)
         {
-            s_debug.playerNo = -1;
-            s_debug.activeThreadCount = 0;
+            s_debug->playerNo = -1;
+            s_debug->activeThreadCount = 0;
             return;
         }
         game::FighterRef refs[game::kMaxFighters];
@@ -421,7 +430,7 @@ namespace extra {
         ui::layout::Box box = ui::layout::psaInspectorBox(ui::layout::topBand(), viewerSlots, hasCompass,
                                                           gfx::widescreen());
         drawCard(box, target == main::kPsaCpu);
-        s_debug.drawCalls++;
+        s_debug->drawCalls++;
     }
 }
 }

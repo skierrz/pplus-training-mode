@@ -118,6 +118,7 @@ namespace extra {
     };
 
     void frameDataAttach();
+    void frameDataDetach();
     void frameDataReset();
     // Once per finished tracker frame: refreshes the records, and works out
     // the frame advantage of a hit that landed in that frame; a hit on

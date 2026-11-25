@@ -4,6 +4,9 @@
 
 namespace tm {
 namespace game {
+    void statusNamesAttach();
+    void statusNamesDetach();
+
     // The name of a status kind ("Wait", "GuardDamage", "SpecialN"), or NULL
     // for a fighter's own statuses past the shared ones.
     const char* statusName(int status);

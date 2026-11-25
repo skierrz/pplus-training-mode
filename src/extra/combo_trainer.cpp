@@ -8,6 +8,8 @@
 #include <string.h>
 
 #include "extra/frame_data.h"
+#include "extra/hud_draw.h"
+#include "extra/net_alloc.h"
 #include "extra/pplus_recovery.h"
 #include "extra/scenario_presets.h"
 #include "extra/stage_geom.h"
@@ -61,64 +63,75 @@ namespace extra {
         ComboDebugSlot slots[game::kMaxFighters];
     };
 
-    static ComboSlotState s_slots[game::kMaxFighters];
-    static ComboMeterValues s_meters[game::kMaxFighters];
-    static bool s_meterValid[game::kMaxFighters];
-    static u32 s_rng = 0x51A7F3C9u;
-    static ComboDebugBlock s_debug;
-
-    // 16-point unit circle for neutral world-space DI indicator ring.
-    static const float kRing[17][2] = {
-        {1.0000f, 0.0000f},  {0.9239f, 0.3827f},  {0.7071f, 0.7071f},  {0.3827f, 0.9239f},
-        {0.0000f, 1.0000f},  {-0.3827f, 0.9239f}, {-0.7071f, 0.7071f}, {-0.9239f, 0.3827f},
-        {-1.0000f, 0.0000f}, {-0.9239f, -0.3827f},{-0.7071f, -0.7071f},{-0.3827f, -0.9239f},
-        {0.0000f, -1.0000f}, {0.3827f, -0.9239f}, {0.7071f, -0.7071f}, {0.9239f, -0.3827f},
-        {1.0000f, 0.0000f}
+    struct ComboNet {
+        ComboSlotState slots[game::kMaxFighters];
+        ComboMeterValues meters[game::kMaxFighters];
+        bool meterValid[game::kMaxFighters];
+        ComboDebugBlock debug;
     };
+
+    static ComboNet* s_net = NULL;
+    static u32 s_rng = 0x51A7F3C9u;
 
     void comboTrainerReset()
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
         game::FighterRef refs[game::kMaxFighters];
         int n = game::listFighters(refs, game::kMaxFighters);
         for (int i = 0; i < n; i++)
         {
             int p = refs[i].playerNo;
-            if (p >= 0 && p < game::kMaxFighters && s_slots[p].restoreCorrect)
+            if (p >= 0 && p < game::kMaxFighters && s_net->slots[p].restoreCorrect)
             {
-                setFighterCorrect(refs[i], s_slots[p].restoreCorrectKind);
+                setFighterCorrect(refs[i], s_net->slots[p].restoreCorrectKind);
             }
         }
         for (int i = 0; i < game::kMaxFighters; i++)
         {
-            comboSlotReset(s_slots[i]);
-            memset(&s_meters[i], 0, sizeof(s_meters[i]));
-            s_meterValid[i] = false;
+            comboSlotReset(s_net->slots[i]);
+            memset(&s_net->meters[i], 0, sizeof(s_net->meters[i]));
+            s_net->meterValid[i] = false;
         }
-        memset(&s_debug, 0, sizeof(s_debug));
-        s_debug.magic = kComboDebugMagic;
+        memset(&s_net->debug, 0, sizeof(s_net->debug));
+        s_net->debug.magic = kComboDebugMagic;
     }
 
     void comboTrainerAttach()
     {
-        comboTrainerReset();
+        freeNetPtr(s_net);
+        s_net = allocNetArray<ComboNet>(1);
         s_rng = game::frameCounter() | 1u;
-        TM_LOG("combo: debug block at %08x\n", &s_debug);
+        if (s_net == NULL)
+        {
+            return;
+        }
+        comboTrainerReset();
+        TM_LOG("combo: debug block at %08x\n", &s_net->debug);
+    }
+
+    void comboTrainerDetach()
+    {
+        comboTrainerReset();
+        freeNetPtr(s_net);
     }
 
     const ComboMeterValues* comboTrainerMeters(int playerNo)
     {
-        if (playerNo < 0 || playerNo >= game::kMaxFighters || !s_meterValid[playerNo])
+        if (s_net == NULL || playerNo < 0 || playerNo >= game::kMaxFighters || !s_net->meterValid[playerNo])
         {
             return NULL;
         }
-        return &s_meters[playerNo];
+        return &s_net->meters[playerNo];
     }
 
     static void copyDebugSlot(int p, Fighter* f)
     {
-        ComboDebugSlot& d = s_debug.slots[p];
-        const ComboSlotState& st = s_slots[p];
-        const ComboMeterValues& mv = s_meters[p];
+        ComboDebugSlot& d = s_net->debug.slots[p];
+        const ComboSlotState& st = s_net->slots[p];
+        const ComboMeterValues& mv = s_net->meters[p];
         d.resetCount = st.resetCount;
         d.recoveryResets = st.recoveryResets;
         d.lastCorrectWritten = st.lastCorrectWritten;
@@ -146,11 +159,15 @@ namespace extra {
 
     void comboTrainerFrame()
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
         const main::ComboTrainerSettings& cfg = main::settings().comboTrainer;
-        s_debug.frame = game::frameCounter();
+        s_net->debug.frame = game::frameCounter();
         for (int i = 0; i < game::kMaxFighters; i++)
         {
-            s_meterValid[i] = false;
+            s_net->meterValid[i] = false;
         }
 
         game::FighterRef refs[game::kMaxFighters];
@@ -208,14 +225,14 @@ namespace extra {
             }
 
             // Compute all 7 meters for every fighter (human and CPU).
-            computeComboMeters(cfg.enabledMeters, in, s_slots[p], s_meters[p]);
-            s_meterValid[p] = true;
+            computeComboMeters(cfg.enabledMeters, in, s_net->slots[p], s_net->meters[p]);
+            s_net->meterValid[p] = true;
 
             // Reset / noclip / recovery-trainer actions apply only to CPU fighters.
             if (ref.cpu)
             {
                 ComboStepAction act;
-                stepComboTrainer(cfg, in, s_slots[p], act);
+                stepComboTrainer(cfg, in, s_net->slots[p], act);
                 if (act.restoreCorrect)
                 {
                     setFighterCorrect(ref, act.restoreCorrectKind);
@@ -223,8 +240,8 @@ namespace extra {
                 if (act.doWarp)
                 {
                     s_rng ^= game::frameCounter() * 0x9E3779B9u;
-                    float wx = s_slots[p].anchorX;
-                    float wy = s_slots[p].anchorY;
+                    float wx = s_net->slots[p].anchorX;
+                    float wy = s_net->slots[p].anchorY;
                     if (act.pickOffstagePos && haveGeom)
                     {
                         sampleRecoveryCandidate(geom, s_rng, wx, wy, scenarioPresetsEdgeguardSide());
@@ -285,7 +302,9 @@ namespace extra {
         gfx::lineBegin(GX_LINESTRIP, 17, 10);
         for (int i = 0; i < 17; i++)
         {
-            gfx::vertex(cx + kRing[i][0] * r, cy + kRing[i][1] * r, 0xD8D8D8CC);
+            float ux, uy;
+            unitPoint16(i, ux, uy);
+            gfx::vertex(cx + ux * r, cy + uy * r, 0xD8D8D8CC);
         }
         gfx::lineBegin(GX_LINES, 2, 16);
         gfx::vertex(cx, cy, 0xFFFFFFFF);
@@ -295,7 +314,7 @@ namespace extra {
     void comboTrainerDraw(const game::MatchState& match)
     {
         const main::ComboTrainerSettings& cfg = main::settings().comboTrainer;
-        if (!match.running || match.paused || cfg.enabledMeters == 0)
+        if (s_net == NULL || !match.running || match.paused || cfg.enabledMeters == 0)
         {
             return;
         }
@@ -304,11 +323,11 @@ namespace extra {
         for (int i = 0; i < n; i++)
         {
             int p = refs[i].playerNo;
-            if (p < 0 || p >= game::kMaxFighters || !s_meterValid[p])
+            if (p < 0 || p >= game::kMaxFighters || !s_net->meterValid[p])
             {
                 continue;
             }
-            const ComboMeterValues& mv = s_meters[p];
+            const ComboMeterValues& mv = s_net->meters[p];
             if (mv.activeMask == 0)
             {
                 continue;

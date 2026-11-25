@@ -208,7 +208,16 @@ namespace layout {
     }
 
     void setLabBand(const Box& band);
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    Box x_topBand();
+#ifndef TM_EXTRA_THUNK_IMPL
+    inline Box topBand() { return x_topBand(); }
+#else
     Box topBand();
+#endif
+#else
+    Box topBand();
+#endif
 
     // ---- Multi-controller Input Viewer (extra/input_viewer.cpp) ----
     // Right-aligned column strictly inside the 5% CRT safe area (x <= 608,

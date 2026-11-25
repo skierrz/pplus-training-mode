@@ -29,6 +29,16 @@ namespace game {
         u8 invFrames;      // body invincibility frames left (up to 255)
     };
 
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    bool x_readBody(Fighter* fighter, Body& out);
+    s32 x_instanceInt(const soModuleEnumeration* m, u32 index);
+#endif
+
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
+    inline bool readBody(Fighter* fighter, Body& out) { return x_readBody(fighter, out); }
+    void readWorkValues(const soModuleEnumeration* m, u32& flags, s32& lCancel);
+    inline s32 instanceInt(const soModuleEnumeration* m, u32 index) { return x_instanceInt(m, index); }
+#else
     bool readBody(Fighter* fighter, Body& out);
 
     // The status work's flag word 0 and P+'s L-cancel counter, as in Body
@@ -37,6 +47,7 @@ namespace game {
 
     // Instance work ("LA") int `index`, 0 if not readable.
     s32 instanceInt(const soModuleEnumeration* m, u32 index);
+#endif
 
     // Project+'s extra data block of the fighter (body.cpp), or NULL.
     const void* extraInfo(const soModuleEnumeration* m);

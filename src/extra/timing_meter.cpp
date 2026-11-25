@@ -6,6 +6,7 @@
 
 #include "extra/combo_trainer.h"
 #include "extra/frame_data.h"
+#include "extra/net_alloc.h"
 #include "main/game/body.h"
 #include "main/game/fighters.h"
 #include "main/game/motion.h"
@@ -48,13 +49,21 @@ namespace extra {
         TimingMeterDebugSlot slots[game::kMaxFighters];
     };
 
-    static TimingSlotState s_slots[game::kMaxFighters];
-    static TimingMeterDebugBlock s_debug;
+    struct TimingMeterNet {
+        TimingSlotState slots[game::kMaxFighters];
+        TimingMeterDebugBlock debug;
+    };
+
+    static TimingMeterNet* s_net = NULL;
 
     static void syncDebugSlot(int p, s16 actIn)
     {
-        const TimingSlotState& st = s_slots[p];
-        TimingMeterDebugSlot& d = s_debug.slots[p];
+        if (s_net == NULL)
+        {
+            return;
+        }
+        const TimingSlotState& st = s_net->slots[p];
+        TimingMeterDebugSlot& d = s_net->debug.slots[p];
         d.active = st.view.phase;
         d.kind = st.view.phase != kTmPhaseHidden ? st.view.kind : st.lastKind;
         d.outcome = st.lastOutcome;
@@ -70,39 +79,54 @@ namespace extra {
 
     void timingMeterReset()
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
         for (int i = 0; i < game::kMaxFighters; i++)
         {
-            tmResetSlot(s_slots[i]);
+            tmResetSlot(s_net->slots[i]);
         }
-        memset(&s_debug, 0, sizeof(s_debug));
-        s_debug.magic = kTimingMeterDebugMagic;
-        s_debug.version = kTimingMeterDebugVersion;
+        memset(&s_net->debug, 0, sizeof(s_net->debug));
+        s_net->debug.magic = kTimingMeterDebugMagic;
+        s_net->debug.version = kTimingMeterDebugVersion;
     }
 
     void timingMeterAttach()
     {
+        freeNetPtr(s_net);
+        s_net = allocNetArray<TimingMeterNet>(1);
+        if (s_net == NULL)
+        {
+            return;
+        }
         timingMeterReset();
-        TM_LOG("timing_meter: debug block at %08x\n", &s_debug);
+        TM_LOG("timing_meter: debug block at %08x\n", &s_net->debug);
     }
 
     void timingMeterDetach()
     {
         timingMeterReset();
+        freeNetPtr(s_net);
     }
 
     void timingMeterFrame()
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
         u8 mode = main::settings().osd.timingMeter;
         s32 f = game::trackerFrame();
-        s_debug.frame = static_cast<u32>(f >= 0 ? f : 0);
-        s_debug.mode = mode;
+        s_net->debug.frame = static_cast<u32>(f >= 0 ? f : 0);
+        s_net->debug.mode = mode;
 
         if (mode == main::kTimingMeterOff)
         {
             for (int i = 0; i < game::kMaxFighters; i++)
             {
-                s_slots[i].view.phase = kTmPhaseHidden;
-                s_debug.slots[i].active = kTmPhaseHidden;
+                s_net->slots[i].view.phase = kTmPhaseHidden;
+                s_net->debug.slots[i].active = kTmPhaseHidden;
             }
             return;
         }
@@ -153,7 +177,7 @@ namespace extra {
                 in.events[k].lCancel = t->events[k].lCancel;
             }
 
-            tmStepSlot(s_slots[p], in);
+            tmStepSlot(s_net->slots[p], in);
             syncDebugSlot(p, in.actIn);
         }
     }
@@ -228,7 +252,7 @@ namespace extra {
     void timingMeterDraw(const game::MatchState& match)
     {
         u8 mode = main::settings().osd.timingMeter;
-        if (!match.running || match.paused || mode == main::kTimingMeterOff)
+        if (s_net == NULL || !match.running || match.paused || mode == main::kTimingMeterOff)
         {
             return;
         }
@@ -241,7 +265,7 @@ namespace extra {
             {
                 continue;
             }
-            const TimingBarView& v = s_slots[p].view;
+            const TimingBarView& v = s_net->slots[p].view;
             if (v.phase == kTmPhaseHidden)
             {
                 continue;
@@ -255,9 +279,9 @@ namespace extra {
             float cx = top.m_x;
             float cy = top.m_y + 10.5f + comboMeterClearance(p);
             drawOverheadBar(cx, cy, v);
-            s_debug.slots[p].worldX = cx;
-            s_debug.slots[p].worldY = cy;
-            s_debug.slots[p].drawCount++;
+            s_net->debug.slots[p].worldX = cx;
+            s_net->debug.slots[p].worldY = cy;
+            s_net->debug.slots[p].drawCount++;
         }
     }
 }

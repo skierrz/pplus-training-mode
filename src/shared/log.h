@@ -6,7 +6,14 @@
 // name. The format must be a string literal and should end in "\n".
 // The modules log through the stub's log service (see interface.h); the
 // extra module through the match module's services(), which it links to.
-#if (defined(TM_MODULE_MAIN) || defined(TM_MODULE_EXTRA)) && defined(TM_PERF)
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+namespace tm {
+namespace extra {
+    void logf(const char* fmt, ...);
+}
+}
+#define TM_LOG(...) ::tm::extra::logf(__VA_ARGS__)
+#elif (defined(TM_MODULE_MAIN) || defined(TM_MODULE_EXTRA)) && defined(TM_PERF)
 #include "main/services.h"
 #include "shared/perf.h"
 // Counted (shared/perf.h): a line costs its formatting on a console.

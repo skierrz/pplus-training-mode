@@ -9,6 +9,8 @@
 #include "extra/di_display.h"
 #include "extra/di_cstick_core.h"
 #include "extra/di_picker_core.h"
+#include "extra/hud_draw.h"
+#include "extra/net_alloc.h"
 
 #include <GX/GXTypes.h>
 #include <ft/ft_entry.h>
@@ -139,7 +141,6 @@ namespace extra {
         s32 n;
         float xy[kTrail][2];
     };
-    static Trail s_trails[game::kMaxFighters];
 
     // Per-fighter raw C-stick tracking (fallback if ipPadConfig state bytes are
     // unreadable; cleared in diReset() and on entry change / hitlag end).
@@ -149,7 +150,6 @@ namespace extra {
         s8 prevCx, prevCy;
         bool valid;
     };
-    static CStickTrack s_cstick[game::kMaxFighters];
 
     // Active fighter launch + DI state recorded during diDraw() for the 2D unit-circle DI compass.
     struct DiCompassState {
@@ -160,7 +160,6 @@ namespace extra {
         float diX, diY;
         float liveX, liveY;
     };
-    static DiCompassState s_compass;
 
     // RAM debug block for live Dolphin verification ("TMDP").
     struct DiPickerDebugBlock {
@@ -173,21 +172,15 @@ namespace extra {
         float diX;        // 0x18
         float diY;        // 0x1C
     };
-    static DiPickerDebugBlock s_pickerDebug;
 
-    static const float kCompassCosQ[5] = {1.0f, 0.92388f, 0.70711f, 0.38268f, 0.0f};
-    static void compassPoint16(int idx, float& ox, float& oy)
-    {
-        int i = idx & 15;
-        int q = i >> 2;
-        int k = i & 3;
-        float a = kCompassCosQ[k];
-        float b = kCompassCosQ[4 - k];
-        if (q == 0) { ox = a; oy = b; }
-        else if (q == 1) { ox = -b; oy = a; }
-        else if (q == 2) { ox = -a; oy = -b; }
-        else { ox = b; oy = -a; }
-    }
+    struct DiNet {
+        Trail trails[game::kMaxFighters];
+        CStickTrack cstick[game::kMaxFighters];
+        DiCompassState compass;
+        DiPickerDebugBlock pickerDebug;
+    };
+
+    static DiNet* s_net = NULL;
 
     // The stick threshold and the Code Menu's values (in this order from
     // 0x80B88350, then the decay) and the blast zones, read once per drawing.
@@ -380,15 +373,15 @@ namespace extra {
                 {
                     out.cstickMode = (controllerType == kPadGcc || controllerType == kPadClassic) ? kCStickSmash
                                                                                                    : kCStickNone;
-                    if (!partner && ref.playerNo >= 0 && ref.playerNo < game::kMaxFighters)
+                    if (s_net != NULL && !partner && ref.playerNo >= 0 && ref.playerNo < game::kMaxFighters)
                     {
-                        CStickTrack& ct = s_cstick[ref.playerNo];
+                        CStickTrack& ct = s_net->cstick[ref.playerNo];
                         out.cstickWasActive = ct.valid && cstickActiveRaw(ct.prevCx, ct.prevCy);
                     }
                 }
-                if (!partner && ref.playerNo >= 0 && ref.playerNo < game::kMaxFighters)
+                if (s_net != NULL && !partner && ref.playerNo >= 0 && ref.playerNo < game::kMaxFighters)
                 {
-                    CStickTrack& ct = s_cstick[ref.playerNo];
+                    CStickTrack& ct = s_net->cstick[ref.playerNo];
                     if (ct.entryId != ref.entryId || !ct.valid || ct.lastHitlag != hitlag)
                     {
                         ct.entryId = ref.entryId;
@@ -960,9 +953,9 @@ namespace extra {
                 t->n++;
             }
         }
-        if (!partner && ref.playerNo >= 0 && ref.playerNo < game::kMaxFighters)
+        if (s_net != NULL && !partner && ref.playerNo >= 0 && ref.playerNo < game::kMaxFighters)
         {
-            CStickTrack& ct = s_cstick[ref.playerNo];
+            CStickTrack& ct = s_net->cstick[ref.playerNo];
             if (ct.entryId != ref.entryId || hitlag <= 0)
             {
                 ct.entryId = ref.entryId;
@@ -1032,20 +1025,20 @@ namespace extra {
         if (hitlag <= 0)
         {
             // Launched: the speeds already carry the DI.
-            if (!s_compass.active)
+            if (s_net != NULL && !s_net->compass.active)
             {
                 Stick liveSt = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, kCStickNone, false, false};
                 readStick(ref, partner, 0, liveSt);
                 DiVectorResult dv = resolveDiVector(diMode, s.vx, s.vy, s.x, stageCenterX, facing, liveSt.x, liveSt.y);
-                s_compass.active = true;
-                s_compass.inHitlag = false;
-                s_compass.mode = diMode;
-                s_compass.launchX = s.vx;
-                s_compass.launchY = s.vy;
-                s_compass.diX = dv.dx;
-                s_compass.diY = dv.dy;
-                s_compass.liveX = liveSt.x;
-                s_compass.liveY = liveSt.y;
+                s_net->compass.active = true;
+                s_net->compass.inHitlag = false;
+                s_net->compass.mode = diMode;
+                s_net->compass.launchX = s.vx;
+                s_net->compass.launchY = s.vy;
+                s_net->compass.diX = dv.dx;
+                s_net->compass.diY = dv.dy;
+                s_net->compass.liveX = liveSt.x;
+                s_net->compass.liveY = liveSt.y;
             }
             drawPath(s, kWidthMain, kBlue, 'l');
             return;
@@ -1062,17 +1055,17 @@ namespace extra {
             float launchVy = s.vy;
             DiVectorResult dv = resolveDiVector(diMode, launchVx, launchVy, s.x, stageCenterX, facing, st.x, st.y);
             applyDi(s, dv.dx, dv.dy);
-            if (!s_compass.active || !s_compass.inHitlag)
+            if (s_net != NULL && (!s_net->compass.active || !s_net->compass.inHitlag))
             {
-                s_compass.active = true;
-                s_compass.inHitlag = true;
-                s_compass.mode = diMode;
-                s_compass.launchX = launchVx;
-                s_compass.launchY = launchVy;
-                s_compass.diX = dv.dx;
-                s_compass.diY = dv.dy;
-                s_compass.liveX = st.x;
-                s_compass.liveY = st.y;
+                s_net->compass.active = true;
+                s_net->compass.inHitlag = true;
+                s_net->compass.mode = diMode;
+                s_net->compass.launchX = launchVx;
+                s_net->compass.launchY = launchVy;
+                s_net->compass.diX = dv.dx;
+                s_net->compass.diY = dv.dy;
+                s_net->compass.liveX = st.x;
+                s_net->compass.liveY = st.y;
             }
             drawPath(s, kWidthMain, kBlue, 'p');
             return;
@@ -1109,17 +1102,17 @@ namespace extra {
         float launchVx = s.vx;
         float launchVy = s.vy;
         applyDi(s, preview.tdiX, preview.tdiY);
-        if (!s_compass.active || !s_compass.inHitlag)
+        if (s_net != NULL && (!s_net->compass.active || !s_net->compass.inHitlag))
         {
-            s_compass.active = true;
-            s_compass.inHitlag = true;
-            s_compass.mode = diMode;
-            s_compass.launchX = launchVx;
-            s_compass.launchY = launchVy;
-            s_compass.diX = preview.tdiX;
-            s_compass.diY = preview.tdiY;
-            s_compass.liveX = st.x;
-            s_compass.liveY = st.y;
+            s_net->compass.active = true;
+            s_net->compass.inHitlag = true;
+            s_net->compass.mode = diMode;
+            s_net->compass.launchX = launchVx;
+            s_net->compass.launchY = launchVy;
+            s_net->compass.diX = preview.tdiX;
+            s_net->compass.diY = preview.tdiY;
+            s_net->compass.liveX = st.x;
+            s_net->compass.liveY = st.y;
         }
         if (s.vy + s.accel < sink)
         {
@@ -1135,8 +1128,11 @@ namespace extra {
 #ifdef TM_EXPERIMENTS
         experiments::rayProbeRun();
 #endif
-        s_compass.active = false;
-        s_compass.inHitlag = false;
+        if (s_net != NULL)
+        {
+            s_net->compass.active = false;
+            s_net->compass.inHitlag = false;
+        }
         if (!m.running || !readEnv())
         {
             return;
@@ -1149,7 +1145,7 @@ namespace extra {
             u32 start = OSGetTick();
             experiments::g_rayCount = 0;
 #endif
-            fighter(refs[i], refs[i].fighter, false, &s_trails[i]);
+            fighter(refs[i], refs[i].fighter, false, s_net != NULL ? &s_net->trails[i] : NULL);
 #ifdef TM_EXPERIMENTS
             if (experiments::g_rayProbe.ecb & 2)
             {
@@ -1224,15 +1220,21 @@ namespace extra {
     bool diCompassVisible(const game::MatchState& m, bool menuOpen)
     {
         const main::Settings& set = main::settings();
-        if (!m.running || !m.training || m.paused || menuOpen || set.general.diDisplay == 0)
+        if (s_net == NULL || !m.running || !m.training || m.paused || menuOpen || set.general.diDisplay == 0)
         {
             return false;
         }
-        return s_compass.active || set.display.diVectorMode != main::kDiVectorLive;
+        return s_net->compass.active || set.display.diVectorMode != main::kDiVectorLive;
     }
 
     void diCompassDraw(const game::MatchState& m, bool menuOpen)
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
+        DiCompassState& s_compass = s_net->compass;
+        DiPickerDebugBlock& s_pickerDebug = s_net->pickerDebug;
         s_pickerDebug.compassDrawn = 0;
         const main::Settings& set = main::settings();
         u8 mode = set.display.diVectorMode;
@@ -1296,14 +1298,8 @@ namespace extra {
         float y = b.y0;
         float w = b.x1 - b.x0;
         float h = b.y1 - b.y0;
-        float px = ui::style::w(1.5f);
 
-        // Sleek dark-teal Brawl/P+ card frame matching the Input Viewer.
-        gfx::fillRect(x, y, w, h, 0x050C12E4u);
-        gfx::fillRect(x + px, y + 1.5f, w - 2.0f * px, h - 3.0f, 0x3A5868D8u);
-        gfx::fillGradV(x + 2.0f * px, y + 3.0f, w - 4.0f * px, h - 6.0f, 0x132632DCu, 0x09141CE0u);
-        gfx::fillRect(x + px, y + 1.5f, w - 2.0f * px, 2.5f, 0x2BB7ABFFu);
-        gfx::fillRect(x + px, y + 1.5f, w - 2.0f * px, 1.0f, 0x8EF5EA90u);
+        drawHudCard(x, y, w, h, xs, 0x2BB7ABFFu, 0x8EF5EA90u);
 
         // Unit-circle compass centered inside the lower body of the card.
         float cx = (b.x0 + b.x1) * 0.5f;
@@ -1322,7 +1318,7 @@ namespace extra {
         for (int i = 0; i < 17; i++)
         {
             float ux, uy;
-            compassPoint16(i, ux, uy);
+            unitPoint16(i, ux, uy);
             gfx::vertex(cx + ux * rx, cy - uy * ry, 0x5A96A8F0u);
         }
 
@@ -1373,8 +1369,7 @@ namespace extra {
         float scale = ui::style::scaleForCap(6.5f);
         float tx = x + ui::style::w(5.0f);
         float ty = ui::style::textYForCap(y + 6.0f, scale);
-        gfx::text(tx + 0.8f, ty + 0.8f, label, 0x000000C8u, scale);
-        gfx::text(tx, ty, label, 0xE2EEF4FFu, scale);
+        drawShadowText(tx, ty, label, 0xE2EEF4FFu, scale);
 
         s_pickerDebug.compassDrawn = 1;
         s_pickerDebug.totalDrawn++;
@@ -1387,24 +1382,33 @@ namespace extra {
 
     void diReset()
     {
-        s_compass.active = false;
-        s_compass.inHitlag = false;
+        if (s_net == NULL)
+        {
+            return;
+        }
+        s_net->compass.active = false;
+        s_net->compass.inHitlag = false;
         for (int i = 0; i < game::kMaxFighters; i++)
         {
-            s_trails[i].n = 0;
-            s_cstick[i].entryId = -1;
-            s_cstick[i].lastHitlag = 0;
-            s_cstick[i].prevCx = 0;
-            s_cstick[i].prevCy = 0;
-            s_cstick[i].valid = false;
+            s_net->trails[i].n = 0;
+            s_net->cstick[i].entryId = -1;
+            s_net->cstick[i].lastHitlag = 0;
+            s_net->cstick[i].prevCx = 0;
+            s_net->cstick[i].prevCy = 0;
+            s_net->cstick[i].valid = false;
         }
     }
 
     void diAttach()
     {
+        freeNetPtr(s_net);
+        s_net = allocNetArray<DiNet>(1);
         diReset();
-        memset(&s_pickerDebug, 0, sizeof(s_pickerDebug));
-        s_pickerDebug.magic = 0x544D4450u; // "TMDP"
+        if (s_net != NULL)
+        {
+            memset(&s_net->pickerDebug, 0, sizeof(s_net->pickerDebug));
+            s_net->pickerDebug.magic = 0x544D4450u; // "TMDP"
+        }
         g_diTrace = 0;
         typedef bool (*RayFn)(Vec3f*, Vec3f*, Vec3f*, Vec3f*, bool, grCollision*, bool, u8);
         const u32* code = reinterpret_cast<const u32*>(static_cast<RayFn>(&stRayCheck));
@@ -1413,8 +1417,17 @@ namespace extra {
         {
             s_rays = s_rays && (kRayWords[i] == 0 || code[i] == kRayWords[i]);
         }
-        TM_LOG("di: trace byte at %08x; picker block at %08x; stage rays %s\n", &g_diTrace, &s_pickerDebug,
-               s_rays ? "ok" : "not as expected: off");
+        if (s_net != NULL)
+        {
+            TM_LOG("di: trace byte at %08x; picker block at %08x; stage rays %s\n", &g_diTrace, &s_net->pickerDebug,
+                   s_rays ? "ok" : "not as expected: off");
+        }
+    }
+
+    void diDetach()
+    {
+        diReset();
+        freeNetPtr(s_net);
     }
 }
 }

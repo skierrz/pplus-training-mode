@@ -17,6 +17,7 @@
 #include "extra/fighter_swap_core.h"
 #include "extra/frame_data.h"
 #include "extra/hitbox_heatmap.h"
+#include "extra/net_alloc.h"
 #include "extra/pplus_recovery.h"
 #include "extra/scenario_presets.h"
 #include "main/cpu/driver.h"
@@ -119,7 +120,14 @@ namespace extra {
         };
         TM_STATIC_ASSERT(sizeof(FighterSwapDebugBlock) == 0x20, tm_fighter_swap_debug_block_size);
 
-        const char* s_rosterNames[kFighterSwapCount];
+        struct FighterSwapNet {
+            const char* rosterNames[kFighterSwapCount];
+            PendingSlot pending[game::kMaxFighters];
+            FighterSwapDebugBlock debug;
+            ui::pages::ScenarioMenuState savedScenarioMenu;
+        };
+
+        FighterSwapNet* s_net = NULL;
         bool s_costumeHelperOk = false;
         bool s_altCostumeOk = false;
         bool s_synced = false;
@@ -128,10 +136,7 @@ namespace extra {
         u32 s_settleFrames = 0;
         u32 s_waitFrames = 0;
         u32 s_lastGameFrame = 0;
-        PendingSlot s_pending[game::kMaxFighters];
-        FighterSwapDebugBlock s_debug;
         bool s_hadActiveScenario = false;
-        ui::pages::ScenarioMenuState s_savedScenarioMenu;
 
         bool codeMatches(u32 addr, const u32* words, int count)
         {
@@ -270,13 +275,16 @@ namespace extra {
             int n = entry != NULL ? queryNumColors(entry->cssIcon) : 1;
             int maxIdx = n > 0 ? n - 1 : 0;
             main::setFighterSwapCostumeMax(side, maxIdx);
-            if (side == 0)
+            if (s_net != NULL)
             {
-                s_debug.p1MaxCostume = static_cast<u8>(maxIdx);
-            }
-            else
-            {
-                s_debug.cpuMaxCostume = static_cast<u8>(maxIdx);
+                if (side == 0)
+                {
+                    s_net->debug.p1MaxCostume = static_cast<u8>(maxIdx);
+                }
+                else
+                {
+                    s_net->debug.cpuMaxCostume = static_cast<u8>(maxIdx);
+                }
             }
             if (resetOnFighterChange && s_prevSelection[side] != 0xFF && s_prevSelection[side] != rosterIdx)
             {
@@ -291,12 +299,16 @@ namespace extra {
 
         void syncMenuToLive()
         {
+            if (s_net == NULL)
+            {
+                return;
+            }
             u8* players = modePlayers();
             int p1Slot = -1;
             int cpuSlot = -1;
             findTargetSlots(players, p1Slot, cpuSlot);
-            s_debug.p1Slot = static_cast<s8>(p1Slot);
-            s_debug.cpuSlot = static_cast<s8>(cpuSlot);
+            s_net->debug.p1Slot = static_cast<s8>(p1Slot);
+            s_net->debug.cpuSlot = static_cast<s8>(cpuSlot);
             ui::pages::FighterSwapMenuState* st = ui::pages::fighterSwapMenuState();
             int slots[2] = {p1Slot, cpuSlot};
             u8* fighters[2] = {&st->p1Fighter, &st->cpuFighter};
@@ -347,8 +359,11 @@ namespace extra {
 
         void recordRefusal(u8 code, const char* why)
         {
-            s_debug.refusalCount++;
-            s_debug.lastRefusal = code;
+            if (s_net != NULL)
+            {
+                s_net->debug.refusalCount++;
+                s_net->debug.lastRefusal = code;
+            }
             TM_LOG("swap: refused: %s\n", why);
             storage::notice(storage::kNoticeError, "%s", refuseNoticeText(code));
             ui::menuSound(game::kSoundError);
@@ -357,17 +372,15 @@ namespace extra {
         bool canSwapNow()
         {
             game::MatchState m = game::matchState();
-            return m.running && m.training && !drillActive() && !s_swapInProgress && !savestate::loadingFiles();
+            return s_net != NULL && m.running && m.training && !drillActive() && !s_swapInProgress
+                   && !savestate::loadingFiles();
         }
     }
 
     void fighterSwapAttach()
     {
-        const FighterSwapEntry* roster = fighterSwapRoster();
-        for (int i = 0; i < kFighterSwapCount; i++)
-        {
-            s_rosterNames[i] = roster[i].name;
-        }
+        freeNetPtr(s_net);
+        s_net = allocNetArray<FighterSwapNet>(1);
         s_costumeHelperOk = codeMatches(kGetNumColorAddr, kGetNumColorWords, 4)
                             && codeMatches(kGetColorFileAddr, kGetColorFileWords, 4);
         s_altCostumeOk = codeMatches(kAltCostumeMarkerAddr, kAltCostumeWords, 4);
@@ -379,19 +392,27 @@ namespace extra {
         s_settleFrames = 0;
         s_waitFrames = 0;
         s_lastGameFrame = 0;
-        memset(s_pending, 0, sizeof(s_pending));
-        memset(&s_debug, 0, sizeof(s_debug));
-        s_debug.magic = kDebugMagic;
-        s_debug.scratchAddr = reinterpret_cast<u32>(ui::pages::fighterSwapMenuState());
-        s_debug.costumeHelperOk = s_costumeHelperOk ? 1 : 0;
-        s_debug.altCostumeOk = s_altCostumeOk ? 1 : 0;
-        s_debug.p1Slot = -1;
-        s_debug.cpuSlot = -1;
         memset(ui::pages::fighterSwapMenuState(), 0, sizeof(ui::pages::FighterSwapMenuState));
-        main::setFighterSwapLabels(s_rosterNames, kFighterSwapCount - 1);
         main::setFighterSwapCostumeMax(0, 0);
         main::setFighterSwapCostumeMax(1, 0);
-        TM_LOG("swap: debug block %08x; costumes %s, alt %s\n", &s_debug, s_costumeHelperOk ? "ok" : "fallback",
+        if (s_net == NULL)
+        {
+            main::setFighterSwapLabels(NULL, 0);
+            return;
+        }
+        const FighterSwapEntry* roster = fighterSwapRoster();
+        for (int i = 0; i < kFighterSwapCount; i++)
+        {
+            s_net->rosterNames[i] = roster[i].name;
+        }
+        s_net->debug.magic = kDebugMagic;
+        s_net->debug.scratchAddr = reinterpret_cast<u32>(ui::pages::fighterSwapMenuState());
+        s_net->debug.costumeHelperOk = s_costumeHelperOk ? 1 : 0;
+        s_net->debug.altCostumeOk = s_altCostumeOk ? 1 : 0;
+        s_net->debug.p1Slot = -1;
+        s_net->debug.cpuSlot = -1;
+        main::setFighterSwapLabels(s_net->rosterNames, kFighterSwapCount - 1);
+        TM_LOG("swap: debug block %08x; costumes %s, alt %s\n", &s_net->debug, s_costumeHelperOk ? "ok" : "fallback",
                s_altCostumeOk ? "ok" : "off");
     }
 
@@ -400,28 +421,32 @@ namespace extra {
         s_swapInProgress = false;
         s_hadActiveScenario = false;
         s_synced = false;
-        s_debug.inProgress = 0;
         main::setFighterSwapLabels(NULL, 0);
         main::setFighterSwapCostumeMax(0, 0);
         main::setFighterSwapCostumeMax(1, 0);
+        freeNetPtr(s_net);
     }
 
     void fighterSwapTick(const game::MatchState& match)
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
         if (!lab::menuOpen())
         {
             s_synced = false;
         }
         if (!s_swapInProgress)
         {
-            s_debug.inProgress = 0;
+            s_net->debug.inProgress = 0;
             return;
         }
-        s_debug.inProgress = 1;
+        s_net->debug.inProgress = 1;
         if (!match.running || !match.training)
         {
             s_swapInProgress = false;
-            s_debug.inProgress = 0;
+            s_net->debug.inProgress = 0;
             return;
         }
         // Only advance swap completion tracking on simulated unpaused frames.
@@ -444,14 +469,14 @@ namespace extra {
             int n = game::listFighters(refs, game::kMaxFighters);
             for (int p = 0; p < game::kMaxFighters; p++)
             {
-                if (!s_pending[p].active)
+                if (!s_net->pending[p].active)
                 {
                     continue;
                 }
                 bool foundNew = false;
                 for (int i = 0; i < n; i++)
                 {
-                    if (refs[i].playerNo == p && refs[i].entryId != s_pending[p].oldEntryId
+                    if (refs[i].playerNo == p && refs[i].entryId != s_net->pending[p].oldEntryId
                         && game::fighterModules(refs[i].fighter) != NULL)
                     {
                         foundNew = true;
@@ -471,14 +496,14 @@ namespace extra {
             if (++s_settleFrames >= kSwapSettleFrames)
             {
                 s_swapInProgress = false;
-                s_debug.inProgress = 0;
-                s_debug.completedCount++;
-                memset(s_pending, 0, sizeof(s_pending));
+                s_net->debug.inProgress = 0;
+                s_net->debug.completedCount++;
+                memset(s_net->pending, 0, sizeof(s_net->pending));
                 TM_LOG("swap: complete after %u frames\n", s_waitFrames);
                 if (s_hadActiveScenario)
                 {
                     s_hadActiveScenario = false;
-                    scenarioPresetsRestoreAfterSwap(s_savedScenarioMenu);
+                    scenarioPresetsRestoreAfterSwap(s_net->savedScenarioMenu);
                 }
             }
         }
@@ -488,9 +513,9 @@ namespace extra {
             if (s_waitFrames >= kSwapTimeoutFrames)
             {
                 s_swapInProgress = false;
-                s_debug.inProgress = 0;
+                s_net->debug.inProgress = 0;
                 s_hadActiveScenario = false;
-                memset(s_pending, 0, sizeof(s_pending));
+                memset(s_net->pending, 0, sizeof(s_net->pending));
                 TM_LOG("swap: wait timed out after %u frames\n", s_waitFrames);
             }
         }
@@ -522,6 +547,12 @@ namespace extra {
 
     void fighterSwapApply()
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
+        FighterSwapDebugBlock& s_debug = s_net->debug;
+        PendingSlot* s_pending = s_net->pending;
         if (drillActive())
         {
             recordRefusal(kRefuseDrill, "drill active");
@@ -635,7 +666,7 @@ namespace extra {
         s_hadActiveScenario = curScen->preset != ui::pages::kPresetOff;
         if (s_hadActiveScenario)
         {
-            s_savedScenarioMenu = *curScen;
+            s_net->savedScenarioMenu = *curScen;
         }
         scenarioPresetsPrepareSwap();
         record::prepareSwap();
@@ -659,7 +690,7 @@ namespace extra {
         characterRngPrepareSwap();
 
         // ---- 2. Write gmPlayerInitData / gmSelCharData for every changed player ----
-        memset(s_pending, 0, sizeof(s_pending));
+        memset(s_net->pending, 0, sizeof(s_net->pending));
         u8* sel = selCharData();
         for (int p = 0; p < game::kMaxFighters; p++)
         {

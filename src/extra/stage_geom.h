@@ -12,6 +12,7 @@ class Fighter;
 namespace tm {
 namespace extra {
     void stageGeomAttach();
+    void stageGeomDetach();
     void stageGeomReset();
 
     // Reads live blast zones from CameraController + 0x158, falling back to

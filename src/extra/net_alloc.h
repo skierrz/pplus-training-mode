@@ -7,8 +7,24 @@
 // excluded from savestates) so MEM1 OverlayFighter4 stays reserved for code.
 namespace tm {
 namespace extra {
+#ifdef __MWERKS__
     void* allocNetZero(u32 bytes);
     void freeNetRaw(void* ptr);
+    void* freeNetNull(void* ptr);
+    void logf(const char* fmt, ...);
+#else
+    inline void* allocNetZero(u32)
+    {
+        return NULL;
+    }
+    inline void freeNetRaw(void*)
+    {
+    }
+    inline void* freeNetNull(void*)
+    {
+        return NULL;
+    }
+#endif
 
     template <typename T>
     inline T* allocNetArray(u32 count)
@@ -19,11 +35,7 @@ namespace extra {
     template <typename T>
     inline void freeNetPtr(T*& ptr)
     {
-        if (ptr != NULL)
-        {
-            freeNetRaw(ptr);
-            ptr = NULL;
-        }
+        ptr = static_cast<T*>(freeNetNull(ptr));
     }
 }
 }

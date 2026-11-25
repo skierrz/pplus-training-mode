@@ -1564,7 +1564,7 @@ namespace lab {
         game::techniquesAttach();
         game::techniquesReset(onTechnique);
         game::setFrameListener(onTrackerFrame);
-        osd::reset();
+        osd::attach();
         osdSettingsChanged();
         s_menuFresh = true;
         if (!s_vsReadOnly)
@@ -1584,12 +1584,14 @@ namespace lab {
     {
         if (s_vsReadOnly)
         {
+            osd::detach();
             game::techniquesDetach();
             game::trackerDetach();
             s_vsReadOnly = false;
             return;
         }
         display::detach();
+        osd::detach();
         game::overlaysClear();
         game::techniquesDetach();
         game::trackerDetach();

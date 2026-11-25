@@ -10,6 +10,7 @@
 namespace tm {
 namespace extra {
     void comboTrainerAttach();
+    void comboTrainerDetach();
     void comboTrainerReset();
     void comboTrainerFrame();
     void comboTrainerDraw(const game::MatchState& match);

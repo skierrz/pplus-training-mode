@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "extra/fighter_swap_core.h"
+#include "extra/net_alloc.h"
 #include "extra/ui_assets_core.h"
 #include "main/gfx/draw.h"
 #include "main/ui/menu.h"
@@ -55,20 +56,29 @@ namespace extra {
             {0.0f, 0.0f, 1.0f, 1.0f}
         };
 
-        const u8* s_infoBrres = NULL;
-        CiAsset s_sheets[kUiSheetCount];
-        StockSlotCache s_stockCache[2];
+        struct UiAssetsNet {
+            const u8* infoBrres;
+            CiAsset sheets[kUiSheetCount];
+            StockSlotCache stockCache[2];
+        };
+
+        UiAssetsNet* s_net = NULL;
 
         void clearCaches()
         {
-            s_infoBrres = NULL;
-            memset(s_sheets, 0, sizeof(s_sheets));
-            memset(s_stockCache, 0, sizeof(s_stockCache));
+            if (s_net != NULL)
+            {
+                memset(s_net, 0, sizeof(*s_net));
+            }
         }
 
         // Resolves and caches the 3 CI8 button sheets from resident info_training BRRES.
         void refreshInfoSheets()
         {
+            if (s_net == NULL)
+            {
+                return;
+            }
             const u8* mngr = *reinterpret_cast<const u8* const*>(kIfMngrAddr);
             const u8* brres = NULL;
             if (game::isRam(mngr))
@@ -79,12 +89,12 @@ namespace extra {
                     brres = candidate;
                 }
             }
-            if (brres == s_infoBrres)
+            if (brres == s_net->infoBrres)
             {
                 return;
             }
-            s_infoBrres = brres;
-            memset(s_sheets, 0, sizeof(s_sheets));
+            s_net->infoBrres = brres;
+            memset(s_net->sheets, 0, sizeof(s_net->sheets));
             if (brres == NULL)
             {
                 return;
@@ -101,16 +111,16 @@ namespace extra {
             }
             for (int i = 0; i < kUiSheetCount; i++)
             {
-                if (brresFindCiAsset(view, kSheetNames[i], s_sheets[i]))
+                if (brresFindCiAsset(view, kSheetNames[i], s_net->sheets[i]))
                 {
                     u16 expW = 0;
                     u16 expH = 0;
-                    bool okSize = uiIconSheetExpectedSize(i, expW, expH) && s_sheets[i].tex.width == expW
-                                  && s_sheets[i].tex.height == expH;
-                    bool okTlut = s_sheets[i].tex.gxFmt != kGxTfC14X2 && s_sheets[i].plt.entryCount <= 256u;
+                    bool okSize = uiIconSheetExpectedSize(i, expW, expH) && s_net->sheets[i].tex.width == expW
+                                  && s_net->sheets[i].tex.height == expH;
+                    bool okTlut = s_net->sheets[i].tex.gxFmt != kGxTfC14X2 && s_net->sheets[i].plt.entryCount <= 256u;
                     if (!okSize || !okTlut)
                     {
-                        s_sheets[i].valid = false;
+                        s_net->sheets[i].valid = false;
                     }
                 }
             }
@@ -140,7 +150,11 @@ namespace extra {
         // Resolves (with per-slot caching) a fighter's stock icon from StockFaceTex.brres.
         const CiAsset* resolveStockIcon(int slot, const BrresView& view, u8 gmKind, u8 costumeIdx)
         {
-            StockSlotCache& cache = s_stockCache[slot];
+            if (s_net == NULL)
+            {
+                return NULL;
+            }
+            StockSlotCache& cache = s_net->stockCache[slot];
             if (cache.resolved && cache.brres == view.base && cache.gmKind == gmKind
                 && cache.costumeIdx == costumeIdx)
             {
@@ -243,17 +257,20 @@ namespace extra {
 
     void uiAssetsAttach()
     {
+        freeNetPtr(s_net);
+        s_net = allocNetArray<UiAssetsNet>(1);
         clearCaches();
     }
 
     void uiAssetsDetach()
     {
         clearCaches();
+        freeNetPtr(s_net);
     }
 
     bool uiAssetsDrawIcon(u8 iconId, float x, float y, float w, float h, u32 rgba)
     {
-        if (w <= 0.0f || h <= 0.0f)
+        if (s_net == NULL || w <= 0.0f || h <= 0.0f)
         {
             return false;
         }
@@ -263,7 +280,7 @@ namespace extra {
             return false;
         }
         refreshInfoSheets();
-        const CiAsset& sheet = s_sheets[rect->sheet];
+        const CiAsset& sheet = s_net->sheets[rect->sheet];
         if (!sheet.valid)
         {
             return false;

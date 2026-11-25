@@ -14,6 +14,7 @@
 #include "extra/drill_hover_ps_engines.h"
 #include "extra/drill_hud.h"
 #include "extra/drill_pplus_tech_engines.h"
+#include "extra/net_alloc.h"
 #include "extra/pplus_recovery.h"
 #include "extra/scenario_presets_core.h"
 #include "extra/stage_geom.h"
@@ -76,9 +77,13 @@ namespace extra {
     };
     TM_STATIC_ASSERT(sizeof(ScenarioDebugBlock) == 0x50, tm_scenario_debug_block_size);
 
-    static ScenarioState s_state;
-    static ScenarioCpuState s_cpuState;
-    static ScenarioDebugBlock s_debug;
+    struct ScenarioNet {
+        ScenarioState state;
+        ScenarioCpuState cpuState;
+        ScenarioDebugBlock debug;
+    };
+
+    static ScenarioNet* s_net = NULL;
     static s8 s_placedPlayer[2] = {-1, -1};
     static bool s_wasPaused = false;
     static bool s_resumeFromPause = false;
@@ -120,6 +125,12 @@ namespace extra {
 
     static void syncDebugBlock(Fighter* hmn, Fighter* cpu)
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
+        ScenarioState& s_state = s_net->state;
+        ScenarioDebugBlock& s_debug = s_net->debug;
         ScenarioConfig cfg = readMenuConfig();
         s_debug.magic = kScenarioDebugMagic;
         s_debug.frame = game::frameCounter();
@@ -211,13 +222,19 @@ namespace extra {
 
     void scenarioPresetsAttach()
     {
-        scenarioStateInit(s_state);
-        scenarioCpuStateReset(s_cpuState);
+        freeNetPtr(s_net);
+        s_net = allocNetArray<ScenarioNet>(1);
         s_placedPlayer[0] = -1;
         s_placedPlayer[1] = -1;
         s_wasPaused = false;
         s_resumeFromPause = false;
         initScratchDefaults();
+        if (s_net == NULL)
+        {
+            return;
+        }
+        scenarioStateInit(s_net->state);
+        scenarioCpuStateReset(s_net->cpuState);
         drills::Session* sess = drills::sessionIn(main::services().settings());
         if (sess != NULL && sess->pendingScenario >= kScenarioComboLab && sess->pendingScenario < kScenarioCount)
         {
@@ -226,9 +243,9 @@ namespace extra {
             ui::pages::scenarioMenuState()->preset = p;
             TM_LOG("scenarios: armed preset %u from menu session\n", p);
         }
-        memset(&s_debug, 0, sizeof(s_debug));
+        memset(&s_net->debug, 0, sizeof(s_net->debug));
         syncDebugBlock(NULL, NULL);
-        TM_LOG("scenarios: debug block %08x\n", &s_debug);
+        TM_LOG("scenarios: debug block %08x\n", &s_net->debug);
     }
 
     // Clears lingering respawn or ledge intangibility/invincibility when a
@@ -280,12 +297,16 @@ namespace extra {
 
     void scenarioPresetsDetach()
     {
-        main::Settings& s = main::settings();
-        u16 prevHmn = s.general.playerPercent;
-        u16 prevCpu = s.cpu.percent;
-        restoreScenarioSnapshot(s_state, s.cpu.options, s.comboTrainer, &s.general, &s.cpu);
-        applyPercentsIfChanged(prevHmn, prevCpu, s);
-        s_state.activePreset = kScenarioOff;
+        if (s_net != NULL)
+        {
+            main::Settings& s = main::settings();
+            u16 prevHmn = s.general.playerPercent;
+            u16 prevCpu = s.cpu.percent;
+            restoreScenarioSnapshot(s_net->state, s.cpu.options, s.comboTrainer, &s.general, &s.cpu);
+            applyPercentsIfChanged(prevHmn, prevCpu, s);
+            s_net->state.activePreset = kScenarioOff;
+            freeNetPtr(s_net);
+        }
         s_placedPlayer[0] = -1;
         s_placedPlayer[1] = -1;
         s_wasPaused = false;
@@ -294,6 +315,12 @@ namespace extra {
 
     void scenarioPresetsPrepareSwap()
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
+        ScenarioState& s_state = s_net->state;
+        ScenarioCpuState& s_cpuState = s_net->cpuState;
         ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
         bool wasActive = s_state.activePreset != kScenarioOff || m->preset != kScenarioOff || s_state.snapshotActive;
         if (s_state.restoreCorrect[0] || s_state.restoreCorrect[1])
@@ -334,10 +361,12 @@ namespace extra {
 
     void scenarioPresetsRestoreAfterSwap(const ui::pages::ScenarioMenuState& saved)
     {
-        if (saved.preset == kScenarioOff || saved.preset >= kScenarioCount)
+        if (s_net == NULL || saved.preset == kScenarioOff || saved.preset >= kScenarioCount)
         {
             return;
         }
+        ScenarioState& s_state = s_net->state;
+        ScenarioCpuState& s_cpuState = s_net->cpuState;
         *ui::pages::scenarioMenuState() = saved;
         main::Settings& s = main::settings();
         u16 prevHmn = s.general.playerPercent;
@@ -352,13 +381,13 @@ namespace extra {
 
     void scenarioPresetsOnRender(const game::MatchState& match)
     {
-        if (!match.running || game::trainingEnding())
+        if (s_net == NULL || !match.running || game::trainingEnding())
         {
             s_wasPaused = false;
             s_resumeFromPause = false;
             return;
         }
-        if (s_wasPaused && !match.paused && s_state.activePreset != kScenarioOff)
+        if (s_wasPaused && !match.paused && s_net->state.activePreset != kScenarioOff)
         {
             s_resumeFromPause = true;
         }
@@ -367,6 +396,12 @@ namespace extra {
 
     static void cycleShieldDropPlatform()
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
+        ScenarioState& s_state = s_net->state;
+        ScenarioCpuState& s_cpuState = s_net->cpuState;
         ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
         if (s_state.activePreset != kScenarioShieldDrop && m->preset != kScenarioShieldDrop)
         {
@@ -411,6 +446,12 @@ namespace extra {
 
     void scenarioPresetsCall(int call)
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
+        ScenarioState& s_state = s_net->state;
+        ScenarioCpuState& s_cpuState = s_net->cpuState;
         main::Settings& s = main::settings();
         switch (call)
         {
@@ -448,7 +489,7 @@ namespace extra {
 
     int scenarioPresetsEdgeguardSide()
     {
-        if (s_state.activePreset != kScenarioEdgeguard)
+        if (s_net == NULL || s_net->state.activePreset != kScenarioEdgeguard)
         {
             return kScenarioSideRandom;
         }
@@ -458,6 +499,13 @@ namespace extra {
 
     void scenarioPresetsFrame()
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
+        ScenarioState& s_state = s_net->state;
+        ScenarioCpuState& s_cpuState = s_net->cpuState;
+        ScenarioDebugBlock& s_debug = s_net->debug;
         ScenarioConfig cfg = readMenuConfig();
         // Fast path when Off: zero per-frame fighter reads, writes, or overrides.
         if (cfg.preset == kScenarioOff && s_state.activePreset == kScenarioOff && !s_state.restoreCorrect[0]
@@ -713,10 +761,12 @@ namespace extra {
     bool scenarioPresetsCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out,
                                 u32 lastButtons)
     {
-        if (!who.cpu || f == NULL)
+        if (s_net == NULL || !who.cpu || f == NULL)
         {
             return false;
         }
+        ScenarioState& s_state = s_net->state;
+        ScenarioCpuState& s_cpuState = s_net->cpuState;
         const bool psDrill = (s_state.activePreset == kScenarioOff)
                              && (drillHudActiveId() == drills::kDrillPowershield)
                              && !drillHudModalOpen();
@@ -797,7 +847,11 @@ namespace extra {
 
     void scenarioPresetsSavedView(main::Settings& out)
     {
-        projectScenarioSavedView(s_state, out.cpu.options, out.comboTrainer, &out.general, &out.cpu);
+        if (s_net == NULL)
+        {
+            return;
+        }
+        projectScenarioSavedView(s_net->state, out.cpu.options, out.comboTrainer, &out.general, &out.cpu);
     }
 }
 }

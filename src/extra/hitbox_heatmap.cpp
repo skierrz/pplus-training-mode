@@ -77,11 +77,15 @@ namespace extra {
             float originY;
         };
 
-        HeatmapDebugBlock s_debug;
-        HeatmapRing* s_ring = NULL;
-        u8 s_framesAfterActionable[kHeatmapMaxFighters];
-        bool s_boundsOverwrite[kHeatmapMaxFighters];
-        bool s_playerWanted[kHeatmapMaxFighters];
+        struct HeatmapNet {
+            HeatmapRing ring;
+            HeatmapDebugBlock debug;
+            u8 framesAfterActionable[kHeatmapMaxFighters];
+            bool boundsOverwrite[kHeatmapMaxFighters];
+            bool playerWanted[kHeatmapMaxFighters];
+        };
+
+        HeatmapNet* s_net = NULL;
 
         // Verifies a non-fighter gfTask is a StageObject of `expectedKind`
         // (StageObject_Weapon or StageObject_Item) BEFORE reading its
@@ -184,19 +188,19 @@ namespace extra {
                     collIdentityMatrix34(e.scaleMatrix);
                 }
 
-                if (s_ring != NULL)
+                if (s_net != NULL)
                 {
-                    s_ring->push(e);
-                }
-
-                if (updateBounds && playerSlot < kHeatmapMaxFighters)
-                {
-                    if (s_boundsOverwrite[playerSlot])
+                    s_net->ring.push(e);
+                    if (updateBounds && playerSlot < kHeatmapMaxFighters)
                     {
-                        boundsReset(s_debug.bounds[playerSlot]);
-                        s_boundsOverwrite[playerSlot] = false;
+                        if (s_net->boundsOverwrite[playerSlot])
+                        {
+                            boundsReset(s_net->debug.bounds[playerSlot]);
+                            s_net->boundsOverwrite[playerSlot] = false;
+                        }
+                        boundsAccumulateCapsule(s_net->debug.bounds[playerSlot], originX, originY, e.pos1, e.pos2,
+                                                effectiveR);
                     }
-                    boundsAccumulateCapsule(s_debug.bounds[playerSlot], originX, originY, e.pos1, e.pos2, effectiveR);
                 }
             }
         }
@@ -254,9 +258,9 @@ namespace extra {
                     int slot = ownerSlotByTaskId(slots, ownerTaskId);
                     if (slot >= 0)
                     {
-                        if (slots[slot].wanted)
+                        if (slots[slot].wanted && s_net != NULL)
                         {
-                            sampleAttackModule(m, static_cast<u8>(slot), s_framesAfterActionable[slot], true,
+                            sampleAttackModule(m, static_cast<u8>(slot), s_net->framesAfterActionable[slot], true,
                                                slots[slot].originX, slots[slot].originY);
                         }
                     }
@@ -272,48 +276,53 @@ namespace extra {
 
     void heatmapReset()
     {
-        if (s_ring != NULL)
+        if (s_net == NULL)
         {
-            s_ring->clear();
+            return;
         }
+        s_net->ring.clear();
         for (int p = 0; p < kHeatmapMaxFighters; p++)
         {
-            s_framesAfterActionable[p] = 0;
-            s_boundsOverwrite[p] = true;
-            s_playerWanted[p] = false;
-            boundsReset(s_debug.bounds[p]);
+            s_net->framesAfterActionable[p] = 0;
+            s_net->boundsOverwrite[p] = true;
+            s_net->playerWanted[p] = false;
+            boundsReset(s_net->debug.bounds[p]);
         }
-        s_debug.ringCount = 0;
-        s_debug.drawCalls = 0;
-        s_debug.boundsDrawn = 0;
-        s_debug.resets++;
+        s_net->debug.ringCount = 0;
+        s_net->debug.drawCalls = 0;
+        s_net->debug.boundsDrawn = 0;
+        s_net->debug.resets++;
     }
 
     void heatmapAttach()
     {
-        freeNetPtr(s_ring);
-        s_ring = allocNetArray<HeatmapRing>(1);
-        memset(&s_debug, 0, sizeof(s_debug));
-        s_debug.magic = kDebugMagic;
+        freeNetPtr(s_net);
+        s_net = allocNetArray<HeatmapNet>(1);
+        if (s_net == NULL)
+        {
+            return;
+        }
+        memset(&s_net->debug, 0, sizeof(s_net->debug));
+        s_net->debug.magic = kDebugMagic;
         bool shapeOk = collShapeSupported();
         bool bubbleOk = collBubbleSupported();
-        s_debug.shapeOk = shapeOk ? 1u : 0u;
-        s_debug.bubbleOk = bubbleOk ? 1u : 0u;
+        s_net->debug.shapeOk = shapeOk ? 1u : 0u;
+        s_net->debug.bubbleOk = bubbleOk ? 1u : 0u;
         heatmapReset();
-        s_debug.resets = 0;
-        TM_LOG("heatmap: debug block at %08x; shape %s, bubble %s\n", &s_debug, shapeOk ? "ok" : "off",
+        s_net->debug.resets = 0;
+        TM_LOG("heatmap: debug block at %08x; shape %s, bubble %s\n", &s_net->debug, shapeOk ? "ok" : "off",
                bubbleOk ? "ok" : "off");
     }
 
     void heatmapDetach()
     {
         heatmapReset();
-        freeNetPtr(s_ring);
+        freeNetPtr(s_net);
     }
 
     void heatmapTick()
     {
-        if (s_ring == NULL)
+        if (s_net == NULL)
         {
             return;
         }
@@ -323,25 +332,25 @@ namespace extra {
             bool anyBounds = false;
             for (int p = 0; p < kHeatmapMaxFighters; p++)
             {
-                anyBounds = anyBounds || s_debug.bounds[p].valid != 0;
+                anyBounds = anyBounds || s_net->debug.bounds[p].valid != 0;
             }
-            if (s_ring->count > 0 || anyBounds)
+            if (s_net->ring.count > 0 || anyBounds)
             {
                 heatmapReset();
             }
             return;
         }
 
-        if (s_ring->count > 0)
+        if (s_net->ring.count > 0)
         {
-            s_ring->tickAge();
+            s_net->ring.tickAge();
         }
 
         FighterSlotInfo slots[kHeatmapMaxFighters];
         memset(slots, 0, sizeof(slots));
         for (int p = 0; p < kHeatmapMaxFighters; p++)
         {
-            s_playerWanted[p] = false;
+            s_net->playerWanted[p] = false;
         }
 
         game::FighterRef refs[game::kMaxFighters];
@@ -356,7 +365,7 @@ namespace extra {
             FighterSlotInfo& info = slots[p];
             info.present = true;
             info.wanted = whoMatches(d.heatmap, refs[i].cpu);
-            s_playerWanted[p] = info.wanted;
+            s_net->playerWanted[p] = info.wanted;
             info.mainTaskId = game::isRam(refs[i].fighter) ? refs[i].fighter->m_taskId : 0;
             info.partnerTaskId = (refs[i].partner != NULL && game::isRam(refs[i].partner))
                                      ? refs[i].partner->m_taskId
@@ -367,49 +376,54 @@ namespace extra {
             {
                 int status = game::fighterStatus(m);
                 float animFrame = game::isRam(m->m_motionModule) ? m->m_motionModule->getFrame() : 0.0f;
-                s_framesAfterActionable[p] = stepActionableGroundFrames(s_framesAfterActionable[p], status, animFrame);
+                s_net->framesAfterActionable[p] =
+                    stepActionableGroundFrames(s_net->framesAfterActionable[p], status, animFrame);
                 if (isHeatmapResetStatus(status, animFrame))
                 {
-                    s_boundsOverwrite[p] = true;
+                    s_net->boundsOverwrite[p] = true;
                 }
                 if (game::isRam(m->m_postureModule))
                 {
                     info.originX = collFloatAt(m->m_postureModule, kPosturePos);
                     info.originY = collFloatAt(m->m_postureModule, kPosturePos + 4);
                 }
-                if (info.wanted && s_debug.shapeOk)
+                if (info.wanted && s_net->debug.shapeOk)
                 {
-                    sampleAttackModule(m, static_cast<u8>(p), s_framesAfterActionable[p], true, info.originX,
+                    sampleAttackModule(m, static_cast<u8>(p), s_net->framesAfterActionable[p], true, info.originX,
                                        info.originY);
                 }
             }
-            if (refs[i].partner != NULL && refs[i].partner != refs[i].fighter && info.wanted && s_debug.shapeOk)
+            if (refs[i].partner != NULL && refs[i].partner != refs[i].fighter && info.wanted && s_net->debug.shapeOk)
             {
                 const soModuleEnumeration* pm = game::fighterModules(refs[i].partner);
                 if (pm != NULL)
                 {
-                    sampleAttackModule(pm, static_cast<u8>(p), s_framesAfterActionable[p], true, info.originX,
+                    sampleAttackModule(pm, static_cast<u8>(p), s_net->framesAfterActionable[p], true, info.originX,
                                        info.originY);
                 }
             }
         }
 
-        if (s_debug.shapeOk)
+        if (s_net->debug.shapeOk)
         {
             sampleCategoryTasks(gfTask::Category_Weapon, StageObject_Weapon, d.heatmap, slots);
             sampleCategoryTasks(gfTask::Category_Item, StageObject_Item, d.heatmap, slots);
         }
 
-        s_debug.ringCount = s_ring->count;
-        s_debug.totalSampled = s_ring->totalPushed;
+        s_net->debug.ringCount = s_net->ring.count;
+        s_net->debug.totalSampled = s_net->ring.totalPushed;
     }
 
     void heatmapDraw(const game::MatchState& match)
     {
-        s_debug.drawCalls = 0;
-        s_debug.boundsDrawn = 0;
+        if (s_net == NULL)
+        {
+            return;
+        }
+        s_net->debug.drawCalls = 0;
+        s_net->debug.boundsDrawn = 0;
         const main::DisplaySettings& d = main::settings().display;
-        if (!match.running || match.paused || d.heatmap == display::kWhoNone || s_ring == NULL)
+        if (!match.running || match.paused || d.heatmap == display::kWhoNone)
         {
             return;
         }
@@ -424,17 +438,17 @@ namespace extra {
         u8 alpha = opacityPercentToAlpha(d.heatmapOpacity);
         u8 step = clampColorFrames(d.heatmapColorFrames);
 
-        if (s_debug.bubbleOk && s_ring->count > 0)
+        if (s_net->debug.bubbleOk && s_net->ring.count > 0)
         {
-            int idx = static_cast<int>(s_ring->head);
+            int idx = static_cast<int>(s_net->ring.head);
             u16 drawn = 0;
-            u16 total = s_ring->count;
+            u16 total = s_net->ring.count;
             int lastOffset = -1;
             u32 c1 = 0;
             u32 c2 = 0;
             for (int k = 0; k < kHeatmapRing && drawn < total; k++)
             {
-                const HeatmapEntry& e = s_ring->entries[idx];
+                const HeatmapEntry& e = s_net->ring.entries[idx];
                 if (++idx >= kHeatmapRing)
                 {
                     idx = 0;
@@ -451,7 +465,7 @@ namespace extra {
                 }
                 collDrawBubble(static_cast<double>(e.radius), e.scaleMatrix, e.pos1, e.pos2, c1, c2, viewMtx);
                 drawn++;
-                s_debug.drawCalls++;
+                s_net->debug.drawCalls++;
             }
             // kBubble alters GX TEV/blend/matrix state; restore main camera GX
             // and invalidate our 2D/line GX cache for any subsequent draws.
@@ -463,8 +477,8 @@ namespace extra {
         {
             for (int p = 0; p < kHeatmapMaxFighters; p++)
             {
-                const HitboxBounds& b = s_debug.bounds[p];
-                if (!b.valid || !s_playerWanted[p])
+                const HitboxBounds& b = s_net->debug.bounds[p];
+                if (!b.valid || !s_net->playerWanted[p])
                 {
                     continue;
                 }
@@ -474,18 +488,18 @@ namespace extra {
                 gfx::vertex(b.worldXMax, b.worldYMax, kBoundsColor);
                 gfx::vertex(b.worldXMin, b.worldYMax, kBoundsColor);
                 gfx::vertex(b.worldXMin, b.worldYMin, kBoundsColor);
-                s_debug.boundsDrawn++;
+                s_net->debug.boundsDrawn++;
             }
         }
     }
 
     const HitboxBounds* heatmapBounds(int playerNo)
     {
-        if (playerNo < 0 || playerNo >= kHeatmapMaxFighters)
+        if (s_net == NULL || playerNo < 0 || playerNo >= kHeatmapMaxFighters)
         {
             return NULL;
         }
-        return &s_debug.bounds[playerNo];
+        return &s_net->debug.bounds[playerNo];
     }
 }
 }

@@ -74,6 +74,8 @@ namespace osd {
 
     struct Message;
 
+    void attach();
+    void detach();
     void reset();
 
     // An osd::Position (osd_place.h); any other value falls back to HUD.

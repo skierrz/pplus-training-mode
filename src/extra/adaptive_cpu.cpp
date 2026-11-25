@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "extra/adaptive_cpu_core.h"
+#include "extra/hud_draw.h"
 #include "extra/net_alloc.h"
 #include "extra/stage_geom.h"
 #include "main/cpu/actions.h"
@@ -43,15 +44,19 @@ namespace extra {
         u32 hudDraws;       // 0x30: Habit Readout HUD render calls
     };
 
-    static MovementTracker* s_trackers = NULL;
-    static PatternManager s_patterns;
-    static int s_prevStatus[game::kMaxFighters];
-    static u8 s_prevRps[game::kMaxFighters];
-    static u16 s_neutralCooldown[game::kMaxFighters];
-    static u32 s_mixCounter[game::kMaxFighters];
-    static int s_primaryOpponent[game::kMaxFighters];
-    static int s_telemetryPlayer = 0;
-    static AdaptiveDebugBlock s_debug;
+    struct AdaptiveNet {
+        MovementTracker trackers[game::kMaxFighters];
+        PatternManager patterns;
+        int prevStatus[game::kMaxFighters];
+        u8 prevRps[game::kMaxFighters];
+        u16 neutralCooldown[game::kMaxFighters];
+        u32 mixCounter[game::kMaxFighters];
+        int primaryOpponent[game::kMaxFighters];
+        int telemetryPlayer;
+        AdaptiveDebugBlock debug;
+    };
+
+    static AdaptiveNet* s_net = NULL;
 
     static u8 clampU8Float(float v)
     {
@@ -73,63 +78,76 @@ namespace extra {
 
     void adaptiveCpuReset()
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
         for (int i = 0; i < game::kMaxFighters; i++)
         {
-            if (s_trackers != NULL)
-            {
-                s_trackers[i].reset();
-            }
-            s_prevStatus[i] = -1;
-            s_prevRps[i] = kRpsNull;
-            s_neutralCooldown[i] = 0;
-            s_mixCounter[i] = 0;
-            s_primaryOpponent[i] = -1;
+            s_net->trackers[i].reset();
+            s_net->prevStatus[i] = -1;
+            s_net->prevRps[i] = kRpsNull;
+            s_net->neutralCooldown[i] = 0;
+            s_net->mixCounter[i] = 0;
+            s_net->primaryOpponent[i] = -1;
         }
-        s_patterns.clearAll();
-        s_telemetryPlayer = 0;
-        memset(&s_debug, 0, sizeof(s_debug));
-        s_debug.magic = kAdaptiveDebugMagic;
+        s_net->patterns.clearAll();
+        s_net->telemetryPlayer = 0;
+        memset(&s_net->debug, 0, sizeof(s_net->debug));
+        s_net->debug.magic = kAdaptiveDebugMagic;
     }
 
     void adaptiveCpuAttach()
     {
-        freeNetPtr(s_trackers);
-        s_trackers = allocNetArray<MovementTracker>(game::kMaxFighters);
+        freeNetPtr(s_net);
+        s_net = allocNetArray<AdaptiveNet>(1);
+        if (s_net == NULL)
+        {
+            return;
+        }
         adaptiveCpuReset();
-        TM_LOG("adaptive: debug block at %08x\n", &s_debug);
+        TM_LOG("adaptive: debug block at %08x\n", &s_net->debug);
     }
 
     void adaptiveCpuDetach()
     {
         adaptiveCpuReset();
-        freeNetPtr(s_trackers);
+        freeNetPtr(s_net);
     }
 
     static void updateDebugTelemetry(u8 mode)
     {
-        int p = s_telemetryPlayer;
+        if (s_net == NULL)
+        {
+            return;
+        }
+        int p = s_net->telemetryPlayer;
         if (p < 0 || p >= game::kMaxFighters)
         {
             p = 0;
         }
-        s_debug.magic = kAdaptiveDebugMagic;
-        s_debug.mode = mode;
-        s_debug.samples = s_trackers != NULL ? s_trackers[p].sampleCount() : 0;
-        s_debug.p1CurrentMov = s_trackers != NULL ? s_trackers[p].currentMov() : 0;
-        s_debug.p1RpsCount = s_patterns.count(p);
-        s_debug.p1DominantRps = s_patterns.dominantRps(p);
-        s_debug.p1Confidence = s_patterns.confidence(p);
-        s_debug.p1AttackProb = s_trackers != NULL ? s_trackers[p].approxChance(kMovAttack) : 0.0f;
-        s_debug.p1ShieldProb = s_trackers != NULL ? s_trackers[p].approxChance(kMovShield) : 0.0f;
-        s_debug.p1GrabProb = s_trackers != NULL ? s_trackers[p].approxChance(kMovGrab) : 0.0f;
+        s_net->debug.magic = kAdaptiveDebugMagic;
+        s_net->debug.mode = mode;
+        s_net->debug.samples = s_net->trackers[p].sampleCount();
+        s_net->debug.p1CurrentMov = s_net->trackers[p].currentMov();
+        s_net->debug.p1RpsCount = s_net->patterns.count(p);
+        s_net->debug.p1DominantRps = s_net->patterns.dominantRps(p);
+        s_net->debug.p1Confidence = s_net->patterns.confidence(p);
+        s_net->debug.p1AttackProb = s_net->trackers[p].approxChance(kMovAttack);
+        s_net->debug.p1ShieldProb = s_net->trackers[p].approxChance(kMovShield);
+        s_net->debug.p1GrabProb = s_net->trackers[p].approxChance(kMovGrab);
     }
 
     void adaptiveCpuFrame()
     {
-        u8 mode = main::settings().cpu.options.adaptiveMode;
-        if (mode == cpu::kAdaptiveOff || s_trackers == NULL)
+        if (s_net == NULL)
         {
-            s_debug.mode = cpu::kAdaptiveOff;
+            return;
+        }
+        u8 mode = main::settings().cpu.options.adaptiveMode;
+        if (mode == cpu::kAdaptiveOff)
+        {
+            s_net->debug.mode = cpu::kAdaptiveOff;
             return;
         }
 
@@ -142,9 +160,9 @@ namespace extra {
         for (int i = 0; i < game::kMaxFighters; i++)
         {
             valid[i] = false;
-            if (s_neutralCooldown[i] > 0)
+            if (s_net->neutralCooldown[i] > 0)
             {
-                s_neutralCooldown[i]--;
+                s_net->neutralCooldown[i]--;
             }
         }
 
@@ -167,10 +185,10 @@ namespace extra {
 
         if (humanSlot >= 0)
         {
-            s_telemetryPlayer = humanSlot;
+            s_net->telemetryPlayer = humanSlot;
         }
 
-        bool telemetryDirty = (s_debug.mode != mode);
+        bool telemetryDirty = (s_net->debug.mode != mode);
 
         for (int i = 0; i < n; i++)
         {
@@ -182,15 +200,15 @@ namespace extra {
             const game::FighterState& st = states[p];
             if (game::outOfPlay(st.status, true))
             {
-                s_prevStatus[p] = st.status;
-                s_prevRps[p] = kRpsNull;
+                s_net->prevStatus[p] = st.status;
+                s_net->prevRps[p] = kRpsNull;
                 continue;
             }
 
             // Advance duration timer; only perform rayCheckGround + updateData
             // on an actual status transition or 254-frame timer rollover.
-            bool rolled = s_trackers[p].incrementTimer();
-            bool transitioned = (st.status != s_prevStatus[p]);
+            bool rolled = s_net->trackers[p].incrementTimer();
+            bool transitioned = (st.status != s_net->prevStatus[p]);
             if (!transitioned && !rolled)
             {
                 continue;
@@ -220,21 +238,21 @@ namespace extra {
                     }
                 }
             }
-            s_primaryOpponent[p] = opp;
+            s_net->primaryOpponent[p] = opp;
 
-            u8 ownAtk = clampU8Float(s_trackers[p].cachedChance(kMovAttack) * 200.0f);
-            u8 ownShd = clampU8Float(s_trackers[p].cachedChance(kMovShield) * 200.0f);
+            u8 ownAtk = clampU8Float(s_net->trackers[p].cachedChance(kMovAttack) * 200.0f);
+            u8 ownShd = clampU8Float(s_net->trackers[p].cachedChance(kMovShield) * 200.0f);
 
             if (transitioned)
             {
-                s_trackers[p].trackStatus(st.status);
+                s_net->trackers[p].trackStatus(st.status);
                 u8 rps = statusToRps(st.status);
-                if (rps != kRpsNull && rps != s_prevRps[p])
+                if (rps != kRpsNull && rps != s_net->prevRps[p])
                 {
-                    s_patterns.pushNew(p, rps);
+                    s_net->patterns.pushNew(p, rps);
                 }
-                s_prevRps[p] = rps;
-                s_prevStatus[p] = st.status;
+                s_net->prevRps[p] = rps;
+                s_net->prevStatus[p] = st.status;
             }
 
             float hitY = 0.0f;
@@ -242,10 +260,10 @@ namespace extra {
             u8 yDist = hasFloor ? clampU8Float(st.y - hitY) : 255;
             u8 xPosByte = clampU8Float(st.x + 128.0f);
             u8 xDistByte = opp >= 0 ? clampU8Float(bestDist) : 255;
-            s8 oppMov = opp >= 0 ? static_cast<s8>(s_trackers[opp].currentMov()) : static_cast<s8>(-1);
+            s8 oppMov = opp >= 0 ? static_cast<s8>(s_net->trackers[opp].currentMov()) : static_cast<s8>(-1);
 
-            s_trackers[p].updateData(yDist, xPosByte, xDistByte, ownAtk, ownShd, oppMov);
-            if (p == s_telemetryPlayer)
+            s_net->trackers[p].updateData(yDist, xPosByte, xDistByte, ownAtk, ownShd, oppMov);
+            if (p == s_net->telemetryPlayer)
             {
                 telemetryDirty = true;
             }
@@ -260,39 +278,34 @@ namespace extra {
     int adaptiveCpuBias(int cpuPlayerNo, int list, bool inCounter, float opponentDist, bool commit)
     {
         u8 mode = main::settings().cpu.options.adaptiveMode;
-        if (mode != cpu::kAdaptiveActive || cpuPlayerNo < 0 || cpuPlayerNo >= game::kMaxFighters)
+        if (s_net == NULL || mode != cpu::kAdaptiveActive || cpuPlayerNo < 0 || cpuPlayerNo >= game::kMaxFighters)
         {
             return -1;
         }
-        int opp = s_primaryOpponent[cpuPlayerNo];
+        int opp = s_net->primaryOpponent[cpuPlayerNo];
         if (opp < 0 || opp >= game::kMaxFighters || opp == cpuPlayerNo)
         {
-            opp = s_telemetryPlayer;
+            opp = s_net->telemetryPlayer;
         }
         if (opp < 0 || opp >= game::kMaxFighters || opp == cpuPlayerNo)
         {
             return -1;
         }
 
-        u8 dom = s_patterns.dominantRps(opp);
-        float conf = s_patterns.confidence(opp);
+        u8 dom = s_net->patterns.dominantRps(opp);
+        float conf = s_net->patterns.confidence(opp);
         return selectAdaptiveAction(mode, dom, conf, list, inCounter, false, opponentDist, kNeutralEngageRange, commit,
-                                    s_mixCounter[cpuPlayerNo], s_neutralCooldown[cpuPlayerNo], kNeutralBiasCooldown,
-                                    s_debug.biasAction, s_debug.biasTriggers);
-    }
-
-    static void drawHudText(float x, float y, const char* s, gfx::Rgba col, float scale)
-    {
-        gfx::text(x + 0.8f, y + 0.8f, s, 0x000000C8u, scale);
-        gfx::text(x, y, s, col, scale);
+                                    s_net->mixCounter[cpuPlayerNo], s_net->neutralCooldown[cpuPlayerNo],
+                                    kNeutralBiasCooldown, s_net->debug.biasAction, s_net->debug.biasTriggers);
     }
 
     void adaptiveCpuDraw(const game::MatchState& match)
     {
         const main::Settings& s = main::settings();
         u8 mode = s.cpu.options.adaptiveMode;
-        if (!match.running || match.paused || lab::menuOpen() || s.cpu.options.control != cpu::kControlLab
-            || mode == cpu::kAdaptiveOff || s_trackers == NULL || gfx::lineHeight(0.5f) <= 0.0f)
+        if (s_net == NULL || !match.running || match.paused || lab::menuOpen()
+            || s.cpu.options.control != cpu::kControlLab || mode == cpu::kAdaptiveOff
+            || gfx::lineHeight(0.5f) <= 0.0f)
         {
             return;
         }
@@ -304,28 +317,23 @@ namespace extra {
         ui::layout::Box b = ui::layout::adaptiveHudBox(ui::layout::topBand(), vSlots, hasComp, hasPsa, wide);
 
         AdaptiveHudView v;
-        adaptiveBuildHudView(mode, s_patterns, s_telemetryPlayer, static_cast<u8>(s_debug.biasAction), v);
+        adaptiveBuildHudView(mode, s_net->patterns, s_net->telemetryPlayer, static_cast<u8>(s_net->debug.biasAction),
+                             v);
 
         float x = b.x0;
         float y = b.y0;
         float bw = b.x1 - b.x0;
         float bh = b.y1 - b.y0;
-        float px = 1.5f * xs;
         bool activeMode = mode == cpu::kAdaptiveActive;
         u32 accent = activeMode ? 0xFFD300FFu : 0x35B8C8FFu;
 
-        // Native P+ dark-teal card frame matching PSA Inspector & Input Viewer.
-        gfx::fillRect(x, y, bw, bh, 0x050C12E4u);
-        gfx::fillRect(x + px, y + 1.5f, bw - 2.0f * px, bh - 3.0f, 0x3A5868D8u);
-        gfx::fillGradV(x + 2.0f * px, y + 3.0f, bw - 4.0f * px, bh - 6.0f, 0x132632DCu, 0x09141CE0u);
-        gfx::fillRect(x + px, y + 1.5f, bw - 2.0f * px, 2.5f, accent);
-        gfx::fillRect(x + px, y + 1.5f, bw - 2.0f * px, 1.0f, 0xFFFFFF40u);
+        drawHudCard(x, y, bw, bh, xs, accent, 0xFFFFFF40u);
         gfx::fillRect(x + 4.0f * xs, y + 15.0f, bw - 8.0f * xs, 1.0f, 0x2A4C58C0u);
 
         float hdrScale = ui::style::scaleForCap(6.4f);
         float hdrY = ui::style::textYForCap(y + 6.2f, hdrScale);
-        drawHudText(x + 5.5f * xs, hdrY, activeMode ? "ADAPTIVE" : "HABIT TRACK",
-                    activeMode ? 0xFFE24AFFu : 0x7CE6E0FFu, hdrScale);
+        drawShadowText(x + 5.5f * xs, hdrY, activeMode ? "ADAPTIVE" : "HABIT TRACK",
+                       activeMode ? 0xFFE24AFFu : 0x7CE6E0FFu, hdrScale);
 
         char badge[16];
         if (v.rpsCount > 0)
@@ -338,7 +346,7 @@ namespace extra {
         }
         float bwText = gfx::textWidth(badge, hdrScale);
         gfx::Rgba badgeCol = v.confident ? 0xFFD300FFu : (v.rpsCount > 0 ? 0xB8D8E4FFu : 0x6E8694FFu);
-        drawHudText(x + bw - 5.5f * xs - bwText, hdrY, badge, badgeCol, hdrScale);
+        drawShadowText(x + bw - 5.5f * xs - bwText, hdrY, badge, badgeCol, hdrScale);
 
         static const char* const kBarLabels[3] = {"ATK", "GRB", "DEF"};
         static const gfx::Rgba kBarCols[3] = {0xFF6B54FFu, 0xFFD300FFu, 0x38B8FFFFu};
@@ -350,7 +358,7 @@ namespace extra {
         {
             float ry = y + 18.0f + static_cast<float>(r) * 9.0f;
             float ty = ui::style::textYForCap(ry, rowScale);
-            drawHudText(x + 5.5f * xs, ty, kBarLabels[r], 0xC6D8E0FFu, rowScale);
+            drawShadowText(x + 5.5f * xs, ty, kBarLabels[r], 0xC6D8E0FFu, rowScale);
             gfx::fillRect(barX, ry + 0.4f, barW, 5.2f, 0x0A151CE8u);
             if (pcts[r] > 0)
             {
@@ -360,7 +368,7 @@ namespace extra {
             char pctBuf[8];
             snprintf(pctBuf, sizeof(pctBuf), "%u%%", static_cast<unsigned>(pcts[r]));
             float pw = gfx::textWidth(pctBuf, rowScale);
-            drawHudText(x + bw - 5.5f * xs - pw, ty, pctBuf, 0xE6F2F8FFu, rowScale);
+            drawShadowText(x + bw - 5.5f * xs - pw, ty, pctBuf, 0xE6F2F8FFu, rowScale);
         }
 
         char foot[28];
@@ -390,8 +398,8 @@ namespace extra {
             }
         }
         float footY = ui::style::textYForCap(y + 46.0f, rowScale);
-        drawHudText(x + 5.5f * xs, footY, foot, footCol, rowScale);
-        s_debug.hudDraws++;
+        drawShadowText(x + 5.5f * xs, footY, foot, footCol, rowScale);
+        s_net->debug.hudDraws++;
     }
 }
 }

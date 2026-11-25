@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "extra/di_cstick_core.h"
+#include "extra/hud_draw.h"
 #include "extra/input_viewer_core.h"
 #include "extra/ui_assets.h"
 #include "main/cpu/driver.h"
@@ -50,23 +51,6 @@ namespace extra {
         };
 
         InputViewerDebugBlock s_debug;
-
-        // First-quadrant cosine values for 16-segment circle (step 22.5 deg;
-        // every 2nd step gives the 8-segment octagon).
-        const float kCosQ[5] = {1.0f, 0.92388f, 0.70711f, 0.38268f, 0.0f};
-
-        void unitPoint16(int idx, float& ox, float& oy)
-        {
-            int i = idx & 15;
-            int q = i >> 2;
-            int k = i & 3;
-            float a = kCosQ[k];
-            float b = kCosQ[4 - k];
-            if (q == 0) { ox = a; oy = b; }
-            else if (q == 1) { ox = -b; oy = a; }
-            else if (q == 2) { ox = -a; oy = -b; }
-            else { ox = b; oy = -a; }
-        }
 
         float floatAt(const void* base, u32 offset)
         {
@@ -165,20 +149,15 @@ namespace extra {
             float y = b.y0;
             float bw = b.x1 - b.x0;
             float bh = b.y1 - b.y0;
-            float px = 1.5f * xs;
 
-            gfx::fillRect(x, y, bw, bh, 0x050C12E4u);
-            gfx::fillRect(x + px, y + 1.5f, bw - 2.0f * px, bh - 3.0f, 0x3A5868D8u);
-            gfx::fillGradV(x + 2.0f * px, y + 3.0f, bw - 4.0f * px, bh - 6.0f, 0x132632DCu, 0x09141CE0u);
-            gfx::fillRect(x + px, y + 1.5f, bw - 2.0f * px, 2.5f, cpu ? 0x4E86B8FFu : 0xD83838FFu);
+            drawHudCard(x, y, bw, bh, xs, cpu ? 0x4E86B8FFu : 0xD83838FFu, 0u);
 
             char tag[8];
             viewerTagText(playerNo, cpu, tag);
             float scale = ui::style::scaleForCap(6.5f);
             float tx = x + bw * 0.5f - (cpu ? 10.0f : 6.0f) * xs;
             float ty = ui::style::textYForCap(y + 5.0f, scale);
-            gfx::text(tx + 0.8f, ty + 0.8f, tag, 0x000000C8u, scale);
-            gfx::text(tx, ty, tag, cpu ? 0x9AD0F8FFu : 0xFFB0B0FFu, scale);
+            drawShadowText(tx, ty, tag, cpu ? 0x9AD0F8FFu : 0xFFB0B0FFu, scale);
 
             for (int t = 0; t < 2; t++)
             {

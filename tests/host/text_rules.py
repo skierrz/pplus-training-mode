@@ -99,6 +99,7 @@ NOT_DRAWN_FILES = [
     (r"extra/stage_options\.cpp$", "stage module and bone names matched in RAM"),
     (r"extra/fighter_swap\.cpp$", "swap refusal reasons for the log"),
     (r"extra/ui_assets\.cpp$", "BRRES texture and palette names matched in RAM"),
+    (r"extra/net_alloc\.cpp$", "logging format wrapper"),
 ]
 
 # ---- longest values ------------------------------------------------------------
@@ -179,9 +180,42 @@ NUMBERS = {
 # the argument's text) -> the words, or a callable (sources) -> words.
 
 
+def _decode_lz77_ascii(comp):
+    out = bytearray()
+    i = 0
+    n = len(comp)
+    while i < n:
+        b = comp[i]
+        i += 1
+        if (b & 0x80) == 0:
+            out.append(b)
+        elif (b & 0x40) == 0:
+            ln = ((b >> 3) & 7) + 3
+            dist = (((b & 7) << 8) | comp[i]) + 1
+            i += 1
+            for _ in range(ln):
+                out.append(out[-dist])
+        else:
+            ln = (b & 0x3F) + 3
+            dist = ((comp[i] << 8) | comp[i + 1]) + 1
+            i += 2
+            for _ in range(ln):
+                out.append(out[-dist])
+    return bytes(out)
+
+
 def status_names(sources):
-    blob = [l for l in sources["main/game/status_names.cpp"].literals if "kNames" in l.stmt]
-    names = [n for n in blob[0].text.split("\0") if n]
+    src_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                            "src", "main", "game", "status_names.cpp")
+    text = open(src_path, "r", encoding="utf-8").read()
+    m = re.search(r"kNamesLz77\[[^\]]*\]\s*=\s*\{([^}]+)\}", text)
+    if m:
+        comp = bytes(int(tok, 0) for tok in re.findall(r"0x[0-9A-Fa-f]+|\d+", m.group(1)))
+        raw = _decode_lz77_ascii(comp).decode("ascii")
+        names = [n for n in raw.split("\0") if n]
+    else:
+        blob = [l for l in sources["main/game/status_names.cpp"].literals if "kNames" in l.stmt]
+        names = [n for n in blob[0].text.split("\0") if n]
     names += [l.text for l in sources["main/game/status_names.cpp"].arrays.get("kSpecialNames", [])]
     return names + ["0xFFF"]
 
@@ -866,7 +900,7 @@ def adaptive_cpu_cpp(c, src):
             continue
         if lit.var == "kBarLabels":
             c.item("fit", lit, lit.text, scale_for_cap(6.0), 0, 23.0, 0.0)
-        elif lit.name == "drawHudText":
+        elif lit.name in ("drawHudText", "drawShadowText"):
             c.item("fit", lit, lit.text, scale_for_cap(6.4), 0, 72.0, 0.0)
         elif lit.name == "strcpy":
             if lit.text == "WAITING":

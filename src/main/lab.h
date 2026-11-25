@@ -27,14 +27,26 @@ namespace lab {
     void onFighterInput(const iface::FighterInput* call);
     // From the render hook, inside nothing: opens its own 2D pass if needed.
     void onRender(u32 call, const game::MatchState& match);
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    bool x_menuOpen();
+    void x_applyPercent(int side);
+#endif
     // True while the lab menu is open (other displays hide then).
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
+    inline bool menuOpen() { return x_menuOpen(); }
+#else
     bool menuOpen();
+#endif
     // True when Frame Advance is active and sideways Wii Remote '-' is bound to
     // Frame Advance or Frame Decrement (gates out sideways - + D-pad chords).
     bool minusBoundToFrameAdvance(const game::MatchState& match);
 
     // Menu actions.
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
+    inline void applyPercent(int side) { x_applyPercent(side); }
+#else
     void applyPercent(int side);
+#endif
     void closeMenu();
     void frameAdvanceChanged();
     void osdSettingsChanged();

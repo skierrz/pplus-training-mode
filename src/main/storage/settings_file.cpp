@@ -2,6 +2,12 @@
 
 #include <memory.h>
 #include <stddef.h>
+#ifdef __MWERKS__
+#include <gf/gf_heap_manager.h>
+#include <gf/gf_memory_pool.h>
+#include "shared/game/heap.h"
+#include "shared/game/mem.h"
+#endif
 
 #include "main/extra.h"
 #include "main/settings.h"
@@ -59,8 +65,39 @@ namespace storage {
 
     static State* s_state = NULL;
     static Job s_job;
-    // Single file buffer used for builds, writes, and holding the newest loaded file.
-    static u8 s_file[kFileCap] __attribute__((aligned(32)));
+    // Single 32-byte aligned file buffer used for builds, writes, and holding
+    // the newest loaded file (allocated in Heaps::Network on console).
+#ifdef __MWERKS__
+    static u8* s_file = NULL;
+#else
+    static u8 s_fileStatic[kFileCap];
+    static u8* s_file = s_fileStatic;
+#endif
+
+    static void ensureFileBuf()
+    {
+#ifdef __MWERKS__
+        if (s_file != NULL)
+        {
+            return;
+        }
+        u32 need = (static_cast<u32>(kFileCap) + 31u) & ~31u;
+        game::HeapUsage u;
+        if (game::heapUsage(Heaps::Network, u) && u.largest >= need)
+        {
+            void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
+            if (game::isRam(p))
+            {
+                memset(p, 0, need);
+                s_file = static_cast<u8*>(p);
+            }
+        }
+        if (s_file == NULL)
+        {
+            TM_LOG("storage: settings file buffer alloc failed (%u B in Network)\n", need);
+        }
+#endif
+    }
 
     enum Phase { kIdle, kFolder, kWrite };
     static int s_phase = kIdle;
@@ -87,9 +124,13 @@ namespace storage {
     // the checksum of its areas, which is what "changed" compares.
     static u32 build(u32& view)
     {
+        if (s_file == NULL)
+        {
+            return 0;
+        }
         Settings saved;
         savedView(saved);
-        memset(s_file, 0, sizeof(s_file));
+        memset(s_file, 0, kFileCap);
         FileHeader* h = reinterpret_cast<FileHeader*>(s_file);
         SettingsHead* head = reinterpret_cast<SettingsHead*>(s_file + sizeof(FileHeader));
         u32 at = sizeof(FileHeader) + sizeof(SettingsHead);
@@ -123,6 +164,10 @@ namespace storage {
     {
         int status = 0;
         sequence = 0;
+        if (s_file == NULL)
+        {
+            return kNoMemory;
+        }
         u8* buf = allocReadBuffer(kFileCap);
         if (buf == NULL)
         {
@@ -191,6 +236,10 @@ namespace storage {
 
     static void load()
     {
+        if (s_file == NULL)
+        {
+            return;
+        }
         int results[2];
         u32 seqs[2];
         int best = -1;
@@ -280,7 +329,16 @@ namespace storage {
         s_state = blockState(block);
         s_phase = kIdle;
         s_again = false;
-        if (s_state == NULL || s_state->magic == kStateMagic)
+        if (s_state == NULL)
+        {
+            return;
+        }
+        ensureFileBuf();
+        if (s_state->magic == kStateMagic)
+        {
+            return;
+        }
+        if (s_file == NULL)
         {
             return;
         }
@@ -294,6 +352,10 @@ namespace storage {
 
     static void startSave()
     {
+        if (s_file == NULL)
+        {
+            return;
+        }
         if (s_state->newerOnCard)
         {
             TM_LOG("storage: settings not saved: newer format on the card\n");
@@ -390,28 +452,41 @@ namespace storage {
 
     void settingsDetach()
     {
-        if (s_phase == kIdle)
+        bool dmaBusy = false;
+        if (s_phase != kIdle)
         {
-            return;
+            // Finish what was started: the folder, then the write.
+            int status = 0;
+            int r = s_job.wait(kWaitMs, status);
+            if (s_phase == kFolder && r != kBusy && s_file != NULL)
+            {
+                s_phase = kWrite;
+                s_job.write(kNames[s_pendingSlot], s_file, s_pendingSize);
+                r = s_job.wait(kWaitMs, status);
+            }
+            if (r == kOk && s_state != NULL)
+            {
+                s_state->slot = s_pendingSlot;
+                s_state->sequence = s_pendingSequence;
+                s_state->baseline = s_pendingView;
+                s_state->force = 0;
+            }
+            dmaBusy = (r == kBusy);
+            TM_LOG("storage: settings write finished at detach: %s (status %d)\n", resultText(r), status);
+            s_phase = kIdle;
         }
-        // Finish what was started: the folder, then the write.
-        int status = 0;
-        int r = s_job.wait(kWaitMs, status);
-        if (s_phase == kFolder && r != kBusy)
+#ifdef __MWERKS__
+        if (s_file != NULL)
         {
-            s_phase = kWrite;
-            s_job.write(kNames[s_pendingSlot], s_file, s_pendingSize);
-            r = s_job.wait(kWaitMs, status);
+            if (!dmaBusy)
+            {
+                free(s_file);
+            }
+            s_file = NULL;
         }
-        if (r == kOk && s_state != NULL)
-        {
-            s_state->slot = s_pendingSlot;
-            s_state->sequence = s_pendingSequence;
-            s_state->baseline = s_pendingView;
-            s_state->force = 0;
-        }
-        TM_LOG("storage: settings write finished at detach: %s (status %d)\n", resultText(r), status);
-        s_phase = kIdle;
+#else
+        (void)dmaBusy;
+#endif
     }
 }
 }

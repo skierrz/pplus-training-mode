@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate BPE-compressed src/extra/menu_descriptions.cpp from readable tables.
+"""Generate LZ77-compressed src/extra/menu_descriptions.cpp from readable tables.
 
 Usage:
   python scripts/gen_menu_descriptions.py          # regenerate menu_descriptions.cpp
@@ -416,61 +416,94 @@ PAGE_TABLES = [
     ("kRailDesc", "P_COUNT (Category Rail entries)"),
 ]
 
-def build_bpe(strings, max_pairs=128):
-    seqs = [list(s.encode("ascii")) for s in strings]
-    for s, seq in zip(strings, seqs):
-        for b in seq:
-            if b < 0x20 or b >= 0x7F:
-                raise ValueError(f"Non-printable ASCII byte {b:#x} in {s!r}")
-    pairs = []
-    for tok in range(0x80, 0x80 + max_pairs):
-        counts = {}
-        for seq in seqs:
-            for i in range(len(seq) - 1):
-                p = (seq[i], seq[i + 1])
-                counts[p] = counts.get(p, 0) + 1
-        if not counts:
-            break
-        best_p, best_c = max(counts.items(), key=lambda kv: (kv[1], -kv[0][0], -kv[0][1]))
-        if best_c <= 2:
-            break
-        pairs.append(best_p)
-        a, b = best_p
-        next_seqs = []
-        for seq in seqs:
-            out = []
-            i = 0
-            n = len(seq)
-            while i < n:
-                if i + 1 < n and seq[i] == a and seq[i + 1] == b:
-                    out.append(tok)
-                    i += 2
-                else:
-                    out.append(seq[i])
-                    i += 1
-            next_seqs.append(out)
-        seqs = next_seqs
-    return pairs, seqs
+def encode_lz77_ascii(raw):
+    from collections import defaultdict
+    for b in raw:
+        if b >= 0x80:
+            raise ValueError(f"Non-ASCII byte {b:#x} in menu descriptions")
+    n = len(raw)
+    trigrams = defaultdict(list)
+    matches = [[] for _ in range(n)]
+    for i in range(n - 2):
+        tg = raw[i:i + 3]
+        lst = trigrams[tg]
+        best_short = {}
+        best_long = {}
+        limit = min(66, n - i)
+        for p in reversed(lst):
+            dist = i - p
+            if dist > 65536:
+                break
+            l = 3
+            while l < limit and raw[p + l] == raw[i + l]:
+                l += 1
+            if dist <= 2048:
+                l2 = min(l, 10)
+                if l2 not in best_short:
+                    best_short[l2] = dist
+            if l not in best_long:
+                best_long[l] = dist
+        for l, d in best_short.items():
+            matches[i].append((2, l, d))
+        for l, d in best_long.items():
+            matches[i].append((3, l, d))
+        lst.append(i)
+    dp = [10**9] * (n + 1)
+    choice = [None] * n
+    dp[n] = 0
+    for i in range(n - 1, -1, -1):
+        dp[i] = 1 + dp[i + 1]
+        choice[i] = (1, 1, raw[i])
+        for cost, l, d in matches[i]:
+            max_ll = 10 if cost == 2 else l
+            for ll in range(3, min(l, max_ll) + 1):
+                c = cost + dp[i + ll]
+                if c < dp[i]:
+                    dp[i] = c
+                    choice[i] = (cost, ll, d)
+    out = bytearray()
+    i = 0
+    while i < n:
+        cost, l, d = choice[i]
+        if cost == 1:
+            out.append(d)
+            i += 1
+        elif cost == 2:
+            dm = d - 1
+            out.append(0x80 | ((l - 3) << 3) | (dm >> 8))
+            out.append(dm & 0xFF)
+            i += l
+        else:
+            dm = d - 1
+            out.append(0xC0 | (l - 3))
+            out.append((dm >> 8) & 0xFF)
+            out.append(dm & 0xFF)
+            i += l
+    return bytes(out)
 
 
-def decode_one(stream, offset, pairs):
-    out = []
-    max_sp = 0
-    i = offset
-    while stream[i] != 0:
-        stack = [stream[i]]
+def decode_lz77_ascii(comp):
+    out = bytearray()
+    i = 0
+    n = len(comp)
+    while i < n:
+        b = comp[i]
         i += 1
-        while stack:
-            if len(stack) > max_sp:
-                max_sp = len(stack)
-            c = stack.pop()
-            if c < 0x80:
-                out.append(chr(c))
-            else:
-                a, b = pairs[c - 0x80]
-                stack.append(b)
-                stack.append(a)
-    return "".join(out), max_sp
+        if (b & 0x80) == 0:
+            out.append(b)
+        elif (b & 0x40) == 0:
+            ln = ((b >> 3) & 7) + 3
+            dist = (((b & 7) << 8) | comp[i]) + 1
+            i += 1
+            for _ in range(ln):
+                out.append(out[-dist])
+        else:
+            ln = (b & 0x3F) + 3
+            dist = ((comp[i] << 8) | comp[i + 1]) + 1
+            i += 2
+            for _ in range(ln):
+                out.append(out[-dist])
+    return bytes(out)
 
 
 def format_u8_array(values, indent="        ", per_line=16):
@@ -483,67 +516,30 @@ def format_u8_array(values, indent="        ", per_line=16):
     return "\n".join(rows)
 
 
-def format_u16_array(values, indent="        ", per_line=12):
-    rows = []
-    for i in range(0, len(values), per_line):
-        chunk = values[i:i + per_line]
-        rows.append(indent + ", ".join(str(v) for v in chunk) + ",")
-    if rows:
-        rows[-1] = rows[-1].rstrip(",")
-    return "\n".join(rows)
-
-
 def generate_cpp():
     uniq_tables = []
     for t, _ in PAGE_TABLES:
         if t not in uniq_tables:
             uniq_tables.append(t)
 
-    uniq_strings = []
-    str_to_id = {}
-    for t in uniq_tables:
-        for s in TABLES[t]:
-            if s not in str_to_id:
-                str_to_id[s] = len(uniq_strings)
-                uniq_strings.append(s)
-
-    pairs, seqs = build_bpe(uniq_strings, 128)
-
-    stream = []
-    str_offsets = []
-    for seq in seqs:
-        str_offsets.append(len(stream))
-        stream.extend(seq)
-        stream.append(0)
-    if len(stream) > 65535:
-        raise ValueError(f"Compressed stream {len(stream)} exceeds u16 offset range")
-
-    max_len = max(len(s) for s in uniq_strings)
-    if max_len >= 127:
-        raise ValueError(f"Description length {max_len} exceeds 127-byte decode buffer")
-
-    max_stack = 0
-    for s, off in zip(uniq_strings, str_offsets):
-        decoded, sp = decode_one(stream, off, pairs)
-        if decoded != s:
-            raise AssertionError(f"BPE round-trip mismatch: {decoded!r} != {s!r}")
-        if sp > max_stack:
-            max_stack = sp
-    if max_stack > 32:
-        raise ValueError(f"BPE stack depth {max_stack} exceeds 32")
-
-    row_offsets = []
+    row_strings = []
     table_span = {}
     for t in uniq_tables:
-        start = len(row_offsets)
+        start = len(row_strings)
         for s in TABLES[t]:
-            row_offsets.append(str_offsets[str_to_id[s]])
+            for ch in s:
+                b = ord(ch)
+                if b < 0x20 or b >= 0x7F:
+                    raise ValueError(f"Non-printable ASCII byte {b:#x} in {s!r}")
+            row_strings.append(s)
         table_span[t] = (start, len(TABLES[t]))
 
-    pair_bytes = []
-    for a, b in pairs:
-        pair_bytes.append(a)
-        pair_bytes.append(b)
+    raw = b"".join(s.encode("ascii") + b"\x00" for s in row_strings)
+    if len(raw) > 65535:
+        raise ValueError(f"Raw stream {len(raw)} exceeds u16 offset range")
+    comp = encode_lz77_ascii(raw)
+    if decode_lz77_ascii(comp) != raw:
+        raise AssertionError("LZ77 round-trip mismatch in menu descriptions")
 
     page_rows = []
     for idx, (t, cmt) in enumerate(PAGE_TABLES):
@@ -554,6 +550,10 @@ def generate_cpp():
     cpp = f"""// Generated by scripts/gen_menu_descriptions.py - edit descriptions there.
 #include "extra/menu_descriptions.h"
 
+#include "extra/lz77_ascii.h"
+#ifdef __MWERKS__
+#include "extra/net_alloc.h"
+#endif
 #include "main/ui/pages/pages.h"
 
 namespace tm {{
@@ -566,25 +566,19 @@ namespace extra {{
     }};
 
     enum {{
-        kBpeFirst = 0x80,
-        kBpePairCount = {len(pairs)},
-        kDescBufSize = 128,
-        kBpeStackSize = 32
+        kRowCount = {len(row_strings)},
+        kRawBytes = {len(raw)},
+        kCompBytes = {len(comp)}
     }};
 
-    // 128-pair BPE dictionary: token (0x80 + i) expands to pair (2*i, 2*i + 1).
-    static const u8 kBpePairs[kBpePairCount * 2] = {{
-{format_u8_array(pair_bytes)}
+    struct MenuDescNet {{
+        char text[kRawBytes];
+        u16 offsets[kRowCount];
     }};
 
-    // Packed NUL-terminated BPE-encoded unique description strings ({len(stream)} B vs {sum(len(s) + 1 for s in uniq_strings)} B raw).
-    static const u8 kDescStream[{len(stream)}] = {{
-{format_u8_array(stream)}
-    }};
-
-    // Byte offset into kDescStream for every row of each unique description table.
-    static const u16 kRowOffsets[{len(row_offsets)}] = {{
-{format_u16_array(row_offsets)}
+    // ASCII bit-7 LZ77 packed NUL-terminated description strings ({len(comp)} B vs {len(raw)} B raw).
+    static const u8 kDescLz77[kCompBytes] = {{
+{format_u8_array(comp)}
     }};
 
     // Indexed by ui::pages::PageId, plus P_COUNT for Category Rail entries.
@@ -592,11 +586,58 @@ namespace extra {{
 {chr(10).join(page_rows)}
     }};
 
-    static char s_descBuf[kDescBufSize];
+#ifdef __MWERKS__
+    static MenuDescNet* s_net = NULL;
+#else
+    static MenuDescNet s_hostNet;
+    static MenuDescNet* s_net = NULL;
+#endif
+
+    static bool populate(MenuDescNet* net)
+    {{
+        if (net == NULL)
+        {{
+            return false;
+        }}
+        u32 n = decompressLz77Ascii(kDescLz77, kCompBytes, net->text, kRawBytes);
+        return n == kRawBytes && indexPackedStrings(net->text, n, net->offsets, kRowCount);
+    }}
+
+    void menuDescAttach()
+    {{
+#ifdef __MWERKS__
+        freeNetPtr(s_net);
+        s_net = allocNetArray<MenuDescNet>(1);
+        if (!populate(s_net))
+        {{
+            freeNetPtr(s_net);
+        }}
+#else
+        if (s_net == NULL && populate(&s_hostNet))
+        {{
+            s_net = &s_hostNet;
+        }}
+#endif
+    }}
+
+    void menuDescDetach()
+    {{
+#ifdef __MWERKS__
+        freeNetPtr(s_net);
+#else
+        s_net = NULL;
+#endif
+    }}
 
     const char* optionDesc(u8 pageId, u8 row)
     {{
-        if (pageId > P_COUNT)
+#ifndef __MWERKS__
+        if (s_net == NULL)
+        {{
+            menuDescAttach();
+        }}
+#endif
+        if (s_net == NULL || pageId > P_COUNT)
         {{
             return NULL;
         }}
@@ -605,33 +646,7 @@ namespace extra {{
         {{
             return NULL;
         }}
-        const u8* p = kDescStream + kRowOffsets[t.start + row];
-        u8 stack[kBpeStackSize];
-        u32 out = 0;
-        while (*p != 0 && out + 1 < kDescBufSize)
-        {{
-            u32 sp = 0;
-            stack[sp++] = *p++;
-            while (sp > 0 && out + 1 < kDescBufSize)
-            {{
-                u8 c = stack[--sp];
-                if (c < kBpeFirst)
-                {{
-                    s_descBuf[out++] = static_cast<char>(c);
-                }}
-                else
-                {{
-                    u32 idx = static_cast<u32>(c - kBpeFirst);
-                    if (idx < kBpePairCount && sp + 2 <= kBpeStackSize)
-                    {{
-                        stack[sp++] = kBpePairs[idx * 2 + 1];
-                        stack[sp++] = kBpePairs[idx * 2];
-                    }}
-                }}
-            }}
-        }}
-        s_descBuf[out] = '\\0';
-        return s_descBuf;
+        return s_net->text + s_net->offsets[t.start + row];
     }}
 }}
 }}

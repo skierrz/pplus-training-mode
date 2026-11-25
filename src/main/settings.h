@@ -575,7 +575,16 @@ namespace main {
 
     // The settings in the stub's block, reset to the defaults if the block
     // does not hold this layout. Valid while attached.
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    Settings& x_settings();
+#ifndef TM_EXTRA_THUNK_IMPL
+    inline Settings& settings() { return x_settings(); }
+#else
     Settings& settings();
+#endif
+#else
+    Settings& settings();
+#endif
 
     // Checks the block's header, resets it if needed, and clamps every
     // value to its option's range. Returns true if the block was reset.

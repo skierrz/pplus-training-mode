@@ -3,6 +3,13 @@
 #include <cstdarg>
 #include <cstdio>
 #include <string.h>
+#ifdef __MWERKS__
+#include <gf/gf_heap_manager.h>
+#include <gf/gf_memory_pool.h>
+#include <memory.h>
+#include "shared/game/heap.h"
+#include "shared/game/mem.h"
+#endif
 
 #include "main/extra.h"
 #include "main/game/freeze.h"
@@ -45,10 +52,56 @@ namespace osd {
         char text[kMaxLines][kLineChars + 1];
     };
 
-    static Message s_messages[kPlayers * kPerPlayer];
+#ifdef __MWERKS__
+    static Message* s_messages = NULL;
+#else
+    static Message s_messagesStatic[kPlayers * kPerPlayer];
+    static Message* s_messages = s_messagesStatic;
+#endif
+
+    void attach()
+    {
+#ifdef __MWERKS__
+        if (s_messages == NULL)
+        {
+            u32 need = (static_cast<u32>(sizeof(Message) * kPlayers * kPerPlayer) + 31u) & ~31u;
+            game::HeapUsage u;
+            if (game::heapUsage(Heaps::Network, u) && u.largest >= need)
+            {
+                void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
+                if (game::isRam(p))
+                {
+                    memset(p, 0, need);
+                    s_messages = static_cast<Message*>(p);
+                }
+            }
+            if (s_messages == NULL)
+            {
+                TM_LOG("osd: messages alloc failed (%u B in Network)\n", need);
+            }
+        }
+#endif
+        reset();
+    }
+
+    void detach()
+    {
+        reset();
+#ifdef __MWERKS__
+        if (s_messages != NULL)
+        {
+            free(s_messages);
+            s_messages = NULL;
+        }
+#endif
+    }
 
     void reset()
     {
+        if (s_messages == NULL)
+        {
+            return;
+        }
         for (int i = 0; i < kPlayers * kPerPlayer; i++)
         {
             s_messages[i].used = false;
@@ -82,6 +135,10 @@ namespace osd {
     // places by age, starting a glide for every message whose place changed.
     static void restack(int player, s32 now)
     {
+        if (s_messages == NULL)
+        {
+            return;
+        }
         Message* order[kPerPlayer];
         int n = 0;
         for (int i = 0; i < kPlayers * kPerPlayer; i++)
@@ -120,7 +177,7 @@ namespace osd {
 
     Message* post(int player, int id, gfx::Rgba color, const char* format, ...)
     {
-        if (player < 0 || player >= kPlayers)
+        if (s_messages == NULL || player < 0 || player >= kPlayers)
         {
             return NULL;
         }
@@ -224,6 +281,10 @@ namespace osd {
 
     bool visible()
     {
+        if (s_messages == NULL)
+        {
+            return false;
+        }
         s32 now = game::trackerFrame();
         for (int i = 0; i < kPlayers * kPerPlayer; i++)
         {
@@ -318,6 +379,10 @@ namespace osd {
 
     void draw()
     {
+        if (s_messages == NULL)
+        {
+            return;
+        }
         float unit = gfx::lineHeight(1.0f);
         if (unit <= 0.0f)
         {

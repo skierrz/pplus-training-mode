@@ -4,6 +4,8 @@
 #include <so/work/so_work_manage_module_impl.h>
 #include <string.h>
 
+#include "extra/net_alloc.h"
+
 #include "main/game/body.h"
 #include "main/game/fighters.h"
 #include "main/game/tracker.h"
@@ -20,44 +22,59 @@ namespace extra {
             kLaStartTurnFrame = 55 // LA-Basic[55] (0x10000037)
         };
 
-        TechTrackerBlock s_block;
-        TechWatch s_watches[game::kMaxTracked];
+        struct TechTrackerNet {
+            TechTrackerBlock block;
+            TechWatch watches[game::kMaxTracked];
+        };
+
+        TechTrackerNet* s_net = NULL;
         s32 s_prevFrame = game::kNoFrame;
         u32 s_resetCount = 0;
 
         void resetAll(bool countReset)
         {
+            if (s_net == NULL)
+            {
+                return;
+            }
             for (int i = 0; i < game::kMaxTracked; i++)
             {
-                techWatchReset(s_watches[i]);
+                techWatchReset(s_net->watches[i]);
             }
             if (countReset)
             {
                 s_resetCount++;
             }
-            memset(&s_block, 0, sizeof(s_block));
-            s_block.magic = kTechTrackerMagic;
-            s_block.version = kTechTrackerVersion;
-            s_block.resetCount = s_resetCount;
+            memset(&s_net->block, 0, sizeof(s_net->block));
+            s_net->block.magic = kTechTrackerMagic;
+            s_net->block.version = kTechTrackerVersion;
+            s_net->block.resetCount = s_resetCount;
             for (int p = 0; p < kTechTrackerMaxPlayers; p++)
             {
-                techSlotStatsReset(s_block.slots[p]);
+                techSlotStatsReset(s_net->block.slots[p]);
             }
         }
     }
 
     void techTrackerAttach()
     {
+        freeNetPtr(s_net);
+        s_net = allocNetArray<TechTrackerNet>(1);
         s_resetCount = 0;
         s_prevFrame = game::kNoFrame;
+        if (s_net == NULL)
+        {
+            return;
+        }
         resetAll(false);
-        TM_LOG("tech_tracker: debug block at %08x\n", &s_block);
+        TM_LOG("tech_tracker: debug block at %08x\n", &s_net->block);
     }
 
     void techTrackerDetach()
     {
         s_prevFrame = game::kNoFrame;
         resetAll(false);
+        freeNetPtr(s_net);
     }
 
     void techTrackerReset()
@@ -68,13 +85,17 @@ namespace extra {
 
     void techTrackerFrame()
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
         const s32 f = game::trackerFrame();
         if (s_prevFrame != game::kNoFrame && f <= s_prevFrame)
         {
             resetAll(true);
         }
         s_prevFrame = f;
-        s_block.frame = static_cast<u32>(f >= 0 ? f : 0);
+        s_net->block.frame = static_cast<u32>(f >= 0 ? f : 0);
 
         const bool postOsd = main::settings().cpu.options.techTrackerOsd != 0;
 
@@ -133,8 +154,8 @@ namespace extra {
             }
 
             const char* label = NULL;
-            TechSlotStats& stats = s_block.slots[t->playerNo];
-            if (stepFighterTech(in, s_watches[i], stats, label) && postOsd && label != NULL)
+            TechSlotStats& stats = s_net->block.slots[t->playerNo];
+            if (stepFighterTech(in, s_net->watches[i], stats, label) && postOsd && label != NULL)
             {
                 osd::post(t->playerNo, osd::kIdPPlusTech, osd::kGreen, "%s\nCount: %u", label, stats.successes);
                 stats.osdPosted++;
@@ -144,7 +165,7 @@ namespace extra {
 
     const TechTrackerBlock* techTrackerBlock()
     {
-        return &s_block;
+        return s_net != NULL ? &s_net->block : NULL;
     }
 }
 }

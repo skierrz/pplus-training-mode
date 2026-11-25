@@ -36,7 +36,16 @@ namespace ui {
     };
 
     enum { kScratchBytes = 56, kShowInactiveScratchOffset = 32 };
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    u8* x_menuScratch();
+#ifndef TM_EXTRA_THUNK_IMPL
+    inline u8* menuScratch() { return x_menuScratch(); }
+#else
     u8* menuScratch();
+#endif
+#else
+    u8* menuScratch();
+#endif
     extern bool g_showInactiveRows;
 
     // A choice label starting with this character is listed but not built yet:
