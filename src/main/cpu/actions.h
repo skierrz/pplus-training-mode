@@ -54,7 +54,11 @@ namespace cpu {
         kForFloat = 0x10,
         // Needs an aerial jump left; without one, wiggles out of tumble or
         // does nothing instead of retrying X.
-        kNeedsJump = 0x20
+        kNeedsJump = 0x20,
+        // Timed SHFFL (short hop + aerial + fastfall) and FFL (air aerial +
+        // fastfall) actions expanded using CpuOptions::shfflTiming.
+        kForShffl = 0x40,
+        kForFfl = 0x80
     };
 
     struct Action {

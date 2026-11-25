@@ -138,6 +138,7 @@ STATUS = {
     "Wait": 0x00, "Walk": 0x01, "Dash": 0x03, "Run": 0x04, "Turn": 0x06, "Turn_Dash": 0x07, "Turn_Run": 0x08,
     "Jump_Squat": 0x0A, "Jump": 0x0B, "Jump_Aerial": 0x0C, "Fall": 0x0E, "Fall_Aerial": 0x0F,
     "Fall_Special": 0x10, "Squat": 0x11, "Squat_Wait": 0x12, "Squat_Rv": 0x15, "Landing": 0x16, "Landing_Light": 0x17,
+    "Landing_Attack_Air": 0x18, "Landing_Fall_Special": 0x19,
     "Guard_On": 0x1A, "Guard": 0x1B, "Guard_Off": 0x1C, "Guard_Damage": 0x1D,
     "Escape": 0x1E, "Escape_F": 0x1F, "Escape_B": 0x20, "Escape_Air": 0x21,
     "Attack": 0x24, "Attack_Dash": 0x26, "Attack_S3": 0x27, "Attack_Hi3": 0x28, "Attack_Lw3": 0x29,
@@ -171,7 +172,9 @@ CPU_FIELDS = {"control": 0, "behavior": 1, "tdi": 2, "sdiAmount": 3, "sdiDir": 4
               "controlledBy": 26, "techSound": 27, "techTrap": 28, "techLockout": 29, "missTechWait": 30,
               "advHit": 31, "advLogic": 32, "advGround": 33, "advAir": 34, "advShield": 35,
               "advDelayGround": 36, "advDelayAir": 37, "advDelayShield": 38, "recovery": 39,
-              "ledgeOption": 40, "clatterEscape": 41, "adaptiveMode": 42, "dualStickSdi": 43}
+              "ledgeOption": 40, "clatterEscape": 41, "adaptiveMode": 42, "dualStickSdi": 43,
+              "autoLCancel": 44, "shfflTiming": 45}
+SHFFL_TIMING = {"Frame-Perfect": 0, "Early": 1, "Normal": 2, "Late": 3, "Random": 4}
 RECOVERY = {"Game": 0, "PPlusAI": 1, "Off": 2}
 BEHAVIOR = {"Stand": 0, "Shield": 1, "Crouch": 2, "Jump": 3, "Perfect Shield": 4}
 # Indices of the rows' labels (src/main/cpu/cpu_settings.h, ui/pages/cpu_options.cpp).
@@ -180,9 +183,13 @@ ASDI = {"Auto": 0, "Away": 1, "Towards": 2, "Left": 3, "Right": 4, "Up": 5, "Dow
 ANGLE = {"Neutral": 0, "Up": 1, "Towards": 2, "Down": 3, "Away": 4}
 MASH = {"None": 0, "Medium": 1, "High": 2, "Perfect": 3}
 SDI = {"Auto": 0, "Random": 1, "Away": 2, "Towards": 3, "Left": 4, "Right": 5, "Up": 6, "Down": 7}
-GROUND = {"None": 0, "Spotdodge": 1, "Shield": 2, "Grab": 3, "Up Smash": 8, "Jab": 13}
-AIR_ACTIONS = {"None": 0, "Airdodge": 1, "Jump Neutral": 4, "Tumble Fastfall": 16, "Wiggle Fastfall": 17}
-SHIELD_ACTIONS = {"None": 0, "Grab": 1}
+GROUND = {"None": 0, "Spotdodge": 1, "Shield": 2, "Grab": 3, "Up Smash": 8, "Jab": 13,
+          "Short Hop": 18, "Full Hop": 19,
+          "SHFFL Nair": 51, "SHFFL Fair": 52, "SHFFL Bair": 53, "SHFFL Uair": 54, "SHFFL Dair": 55}
+AIR_ACTIONS = {"None": 0, "Airdodge": 1, "Jump Neutral": 4, "Tumble Fastfall": 16, "Wiggle Fastfall": 17,
+               "FFL Nair": 29, "FFL Fair": 30, "FFL Bair": 31, "FFL Uair": 32, "FFL Dair": 33}
+SHIELD_ACTIONS = {"None": 0, "Grab": 1,
+                  "SHFFL Nair": 44, "SHFFL Fair": 45, "SHFFL Bair": 46, "SHFFL Uair": 47, "SHFFL Dair": 48}
 LAB, TRAINING = 1, 0  # CPU Control
 # CPU Options rows (main's tree plus CPU Control) and Tech Options rows.
 CPU_CONTROL_ROW, CPU_TECH_ROW, CPU_BEHAVIOR_ROW = 2, 3, 8
@@ -304,7 +311,8 @@ class Game:
 
     def _extra_read(self, m):
         e = self.emu
-        out = {"tilt": None, "mash": None, "kb": None, "psbit": 0, "psdrop": 0, "reflect": False}
+        out = {"tilt": None, "mash": None, "kb": None, "psbit": 0, "psdrop": 0, "reflect": False,
+               "lcancel": s32(e.read(m["ints"] + 90 * 4, 4), 0)}
         la, sw = struct.unpack(">2I", e.read(m["work"] + 0x20, 8))
         if e.is_ram(la):
             la_bits, la_n = struct.unpack(">2I", e.read(la + 0x1C, 8))
@@ -959,7 +967,8 @@ def on(**kw):
             "getup": GETUP["Stand"], "techChance": [25, 25, 25, 25], "getupChance": [25, 25, 25, 25],
             "asdi": 0, "shieldAngle": 0, "grabEscape": 0, "grabRelease": 0, "controlledBy": 0, "techTrap": 0,
             "techLockout": 0, "missTechWait": 0, "recovery": RECOVERY["Off"],
-            "ledgeOption": 0, "clatterEscape": 0, "adaptiveMode": 0, "dualStickSdi": 0}
+            "ledgeOption": 0, "clatterEscape": 0, "adaptiveMode": 0, "dualStickSdi": 0,
+            "autoLCancel": 1, "shfflTiming": 0}
     base.update(kw)
     return base
 
@@ -2846,8 +2855,8 @@ def o_actions_shield(r, only=None):
 DJC_CHARACTERS = {"ness", "lucas", "mewtwo"}
 FLOAT_CHARACTERS = {"peach", "mewtwo", "ganondorf"}
 AERIALS = ("Neutral Air", "Forward Air", "Back Air", "Up Air", "Down Air")
-SHIELD_DJC, SHIELD_FLOAT = 34, 39
-GROUND_DJC, GROUND_FLOAT = 41, 46
+SHIELD_DJC, SHIELD_FLOAT, SHIELD_SHFFL = 34, 39, 44
+GROUND_DJC, GROUND_FLOAT, GROUND_SHFFL = 41, 46, 51
 SPIN_SHINE = {"fox", "falco", "wolf", "ness", "lucas"}
 COUNTER_SHIELD_ROW = 12  # CPU Options, CPU Control Lab
 
@@ -2959,7 +2968,7 @@ def o_oos_techniques(r):
     got = r.opt.get("counterShield")
     lab.back_to_main(1)
     lab.close_menu()
-    want = SHIELD_DJC if name in DJC_CHARACTERS else (SHIELD_FLOAT if name in FLOAT_CHARACTERS else 33)
+    want = SHIELD_DJC if name in DJC_CHARACTERS else (SHIELD_FLOAT if name in FLOAT_CHARACTERS else SHIELD_SHFFL)
     res.row("menu: Right on Counter Action (Shield) from Random", want, got, got == want)
     r.opt.set(control=TRAINING, counterShield=0)
     for base, kind, have in ((GROUND_DJC, "djc", name in DJC_CHARACTERS),
@@ -5728,6 +5737,269 @@ def o_air_jump_fly(r):
     return res
 
 
+def o_auto_lcancel(r):
+    """CPU Auto L-Cancel (default On, toggleable Off):
+    1) SHFFL Dair with Auto L-Cancel On sets LA-Basic[90] > 0 before landing
+       and halves Landing_Attack_Air (0x18) frames vs Auto L-Cancel Off.
+    2) Out-of-shield SHFFL Dair with Auto L-Cancel On also halves landing lag.
+    3) Full Hop empty fall with Auto L-Cancel On injects zero Guard presses and
+       never triggers Escape_Air (0x21) or Air_Lasso (0x7F)."""
+    res = Result("CPU Auto L-Cancel")
+    en = r.g.entry(CPU)
+    ai = r.g.inputs(en)[0]
+
+    def run_shffl(auto_lc, action=GROUND["SHFFL Dair"]):
+        r.load("start", on(autoLCancel=auto_lc, shfflTiming=SHFFL_TIMING["Frame-Perfect"]), percent=0)
+        guards = []
+
+        def each(i, rows):
+            if i == 2:
+                r.cue.op(CueBlock.CUE, 0, action, 0)
+            guards.append(bool(r.g.pad(ai)["buttons"] & GUARD))
+
+        rows = r.record(95, players=(CPU, P1), each=each, extras=True)
+        atk = first(rows, 2, lambda x: x[CPU]["status"] == STATUS["Attack_Air"])
+        land = first(rows, atk or 2, lambda x: not x[CPU]["air"]) if atk is not None else None
+        air_lc = [x["x"]["lcancel"] for x in rows[atk:land] if x[CPU]["status"] == STATUS["Attack_Air"]] if (
+            atk is not None and land is not None) else []
+        lag = sum(1 for x in rows[land:] if x[CPU]["status"] == STATUS["Landing_Attack_Air"]) if land is not None else 0
+        bad = [sname(x[CPU]["status"]) for x in rows
+               if x[CPU]["status"] in (STATUS["Escape_Air"], STATUS["Air_Lasso"])]
+        return rows, atk, land, max(air_lc) if air_lc else -999, lag, bad, guards
+
+    _, atk_on, land_on, lc_on, lag_on, bad_on, _ = run_shffl(1)
+    _, atk_off, land_off, lc_off, lag_off, bad_off, _ = run_shffl(0)
+    res.note(f"SHFFL Dair On: atk {atk_on}, land {land_on}, max LA-Basic[90]={lc_on}, lag={lag_on}f, bad={bad_on}")
+    res.note(f"SHFFL Dair Off: atk {atk_off}, land {land_off}, max LA-Basic[90]={lc_off}, lag={lag_off}f, bad={bad_off}")
+    res.row("SHFFL Dair Auto L-Cancel On sets LA-Basic[90] and halves lag",
+            f"lc > 0, lag <= {lag_off // 2 + 1}, no Escape_Air/Air_Lasso",
+            f"lc={lc_on}, lag {lag_on}f vs {lag_off}f, bad={bad_on}",
+            lc_on > 0 and lag_on > 0 and lag_off >= 12 and lag_on <= lag_off // 2 + 1
+            and lag_on < lag_off - 4 and not bad_on)
+    res.row("SHFFL Dair Auto L-Cancel Off leaves LA-Basic[90] <= 0 and full lag",
+            "lc <= 0, full lag, no Escape_Air/Air_Lasso",
+            f"lc={lc_off}, lag={lag_off}f, bad={bad_off}",
+            lc_off <= 0 and lag_off >= 12 and not bad_off)
+
+    # Out-of-shield SHFFL Dair: On halves Landing_Attack_Air lag vs Off.
+    oos_lags, oos_lc = {}, {}
+    for auto_lc in (1, 0):
+        rows, stun, end = shield_run(r, on(behavior=BEHAVIOR["Shield"], counterShield=SHIELD_ACTIONS["SHFFL Dair"],
+                                           autoLCancel=auto_lc, shfflTiming=SHFFL_TIMING["Frame-Perfect"]))
+        atk = first(rows, end or 0, lambda x: x[CPU]["status"] == STATUS["Attack_Air"]) if end is not None else None
+        land = first(rows, atk or 0, lambda x: not x[CPU]["air"]) if atk is not None else None
+        lc_vals = [x["x"]["lcancel"] for x in rows[atk:land] if x[CPU]["status"] == STATUS["Attack_Air"]] if (
+            atk is not None and land is not None) else []
+        oos_lc[auto_lc] = max(lc_vals) if lc_vals else -999
+        oos_lags[auto_lc] = (sum(1 for x in rows[land:] if x[CPU]["status"] == STATUS["Landing_Attack_Air"])
+                             if land is not None else 0)
+    res.note(f"OoS SHFFL Dair: On lc={oos_lc[1]} lag={oos_lags[1]}f vs Off lc={oos_lc[0]} lag={oos_lags[0]}f")
+    res.row("OoS SHFFL Dair: Auto L-Cancel On halves landing lag vs Off",
+            f"lc > 0, lag_on <= {oos_lags[0] // 2 + 1}",
+            f"lc={oos_lc[1]}/{oos_lc[0]}, lag={oos_lags[1]}f/{oos_lags[0]}f",
+            oos_lc[1] > 0 and oos_lc[0] <= 0 and oos_lags[1] > 0 and oos_lags[0] >= 12
+            and oos_lags[1] <= oos_lags[0] // 2 + 1)
+
+    # Empty Full Hop with Auto L-Cancel On: never presses Guard or airdodges in Fall.
+    r.load("start", on(autoLCancel=1), percent=0)
+    fh_guards = []
+
+    def fh_each(i, rows):
+        if i == 2:
+            r.cue.op(CueBlock.CUE, 0, GROUND["Full Hop"], 0)
+        fh_guards.append(bool(r.g.pad(ai)["buttons"] & GUARD))
+
+    fh_rows = r.record(80, players=(CPU, P1), each=fh_each, extras=True)
+    fh_air = any(x[CPU]["air"] and x[CPU]["status"] in (STATUS["Jump"], STATUS["Fall"]) for x in fh_rows)
+    fh_landed = any(not x[CPU]["air"] for x in fh_rows[15:])
+    fh_bad = [sname(x[CPU]["status"]) for x in fh_rows
+              if x[CPU]["status"] in (STATUS["Escape_Air"], STATUS["Air_Lasso"])]
+    fh_guard_cnt = sum(1 for g in fh_guards[2:] if g)
+    res.row("Full Hop empty fall with Auto L-Cancel On: zero Guard / Escape_Air",
+            "air arc + landing, 0 Guard, 0 Escape_Air/Air_Lasso",
+            f"air={fh_air}, landed={fh_landed}, guards={fh_guard_cnt}, bad={fh_bad}",
+            fh_air and fh_landed and fh_guard_cnt == 0 and not fh_bad)
+    return res
+
+
+def o_shffl_timing(r):
+    """SHFFL Timing presets (Frame-Perfect / Early / Normal / Late / Random):
+    verifies exact frame-offset ordering from takeoff, real fastfall vy jump,
+    clean Landing_Attack_Air with Auto L-Cancel, and clean Wait recovery."""
+    res = Result("SHFFL Timing presets")
+
+    def run_preset(timing_name, action=GROUND["SHFFL Dair"]):
+        r.load("start", on(autoLCancel=1, shfflTiming=SHFFL_TIMING[timing_name]), percent=0)
+
+        def each(i, rows):
+            if i == 2:
+                r.cue.op(CueBlock.CUE, 0, action, 0)
+
+        rows = r.record(95, players=(CPU, P1), each=each, extras=True)
+        sq = first(rows, 2, lambda x: x[CPU]["status"] == STATUS["Jump_Squat"])
+        takeoff = first(rows, sq or 2, lambda x: x[CPU]["air"]) if sq is not None else None
+        atk = first(rows, takeoff or 2, lambda x: x[CPU]["status"] == STATUS["Attack_Air"]) if takeoff is not None else None
+        land = first(rows, takeoff or 2, lambda x: not x[CPU]["air"]) if takeoff is not None else None
+        vys = [rows[k][CPU]["y"] - rows[k - 1][CPU]["y"] for k in range(1, len(rows))]
+        ff = None
+        if takeoff is not None and land is not None:
+            for k in range(takeoff + 1, land):
+                if vys[k - 1] - vys[k - 2] < -0.3:
+                    ff = k
+                    break
+        land_st = sname(rows[land][CPU]["status"]) if land is not None else None
+        lc_vals = [x["x"]["lcancel"] for x in rows[atk:land] if x[CPU]["status"] == STATUS["Attack_Air"]] if (
+            atk is not None and land is not None) else []
+        wait_back = first(rows, land + 1, lambda x: x[CPU]["status"] == STATUS["Wait"]) if land is not None else None
+        post_bad = ([sname(x[CPU]["status"]) for x in rows[wait_back:]
+                     if x[CPU]["status"] in (STATUS["Jump_Squat"], STATUS["Squat"], STATUS["Squat_Wait"])]
+                    if wait_back is not None else ["no_wait"])
+        return {
+            "takeoff": takeoff, "atk": atk, "atk_off": (atk - takeoff) if (atk is not None and takeoff is not None) else None,
+            "ff": ff, "ff_off": (ff - takeoff) if (ff is not None and takeoff is not None) else None,
+            "land": land, "land_st": land_st, "max_lc": max(lc_vals) if lc_vals else -999,
+            "wait_back": wait_back, "post_bad": post_bad
+        }
+
+    m = {}
+    for name in ("Frame-Perfect", "Early", "Normal", "Late", "Random"):
+        m[name] = run_preset(name)
+        d = m[name]
+        res.note(f"{name:<13}: takeoff={d['takeoff']}, atk=+{d['atk_off']}, ff=+{d['ff_off']}, "
+                 f"land={d['land']} ({d['land_st']}), lc={d['max_lc']}, wait={d['wait_back']}, post_bad={d['post_bad']}")
+
+    fp, ea, no, la, ra = m["Frame-Perfect"], m["Early"], m["Normal"], m["Late"], m["Random"]
+    res.row("Frame-Perfect SHFFL: frame-1 aerial (+0), fastfall, L-cancelled landing",
+            "atk +0, ff present, Landing_Attack_Air, lc > 0, clean Wait",
+            f"atk +{fp['atk_off']}, ff +{fp['ff_off']}, {fp['land_st']}, lc={fp['max_lc']}, post={fp['post_bad']}",
+            fp["atk_off"] == 0 and fp["ff"] is not None and fp["land_st"] == "Landing_Attack_Air"
+            and fp["max_lc"] > 0 and not fp["post_bad"])
+    res.row("Early & Normal SHFFL: monotonic aerial delays (0 < Early < Normal) + fastfall",
+            "Early +2, Normal +4, both fastfall and land cleanly",
+            f"Early +{ea['atk_off']} (ff +{ea['ff_off']}), Normal +{no['atk_off']} (ff +{no['ff_off']})",
+            ea["atk_off"] == 2 and no["atk_off"] == 4 and ea["ff"] is not None and no["ff"] is not None
+            and ea["land_st"] == "Landing_Attack_Air" and no["land_st"] == "Landing_Attack_Air"
+            and not ea["post_bad"] and not no["post_bad"])
+    res.row("Late SHFFL: apex late aerial (+late > Normal), immediate fastfall & L-cancel",
+            "atk > +4, ff right after atk, Landing_Attack_Air, lc > 0, clean Wait",
+            f"atk +{la['atk_off']}, ff +{la['ff_off']}, {la['land_st']}, lc={la['max_lc']}, post={la['post_bad']}",
+            la["atk_off"] is not None and la["atk_off"] > 4 and la["ff"] is not None
+            and la["ff"] >= la["atk"] and la["ff"] <= la["atk"] + 2
+            and la["land_st"] == "Landing_Attack_Air" and la["max_lc"] > 0 and not la["post_bad"])
+    res.row("Random SHFFL: executes valid Attack_Air + fastfall + clean Wait",
+            "Attack_Air, fastfall, Landing_Attack_Air, clean Wait",
+            f"atk +{ra['atk_off']}, ff +{ra['ff_off']}, {ra['land_st']}, post={ra['post_bad']}",
+            ra["atk_off"] is not None and ra["ff"] is not None and ra["land_st"] == "Landing_Attack_Air"
+            and not ra["post_bad"])
+    return res
+
+
+def o_ffl_air(r):
+    """Air counter FFL (Fastfall L-Cancel aerial): Mario's Up Smash at 50%
+    launches Fox straight up onstage so hitstun ends in air above FD.
+    Verifies Attack_Air + real fastfall + L-cancelled landing to Wait, with
+    Late starting strictly later than Frame-Perfect."""
+    res = Result("Air counter FFL (Frame-Perfect vs Late)")
+
+    out = {}
+    for name in ("Frame-Perfect", "Late"):
+        rows, h = r.hit_run("near", USMASH, 180,
+                            on(counterAir=AIR_ACTIONS["FFL Dair"], autoLCancel=1,
+                               shfflTiming=SHFFL_TIMING[name]),
+                            percent=50, extras=True)
+        end = first(rows, h + 1, lambda x: x[CPU]["hitstun"] == 0 and x[CPU]["hitlag"] == 0)
+        atk = first(rows, h + 1, lambda x: x[CPU]["status"] == STATUS["Attack_Air"])
+        land = first(rows, atk or (h + 1), lambda x: not x[CPU]["air"]) if atk is not None else None
+        vys = [rows[k][CPU]["y"] - rows[k - 1][CPU]["y"] for k in range(1, len(rows))]
+        ff = None
+        if atk is not None and land is not None:
+            for k in range(atk + 1, land):
+                if vys[k - 1] - vys[k - 2] < -0.3:
+                    ff = k
+                    break
+        lc_vals = [x["x"]["lcancel"] for x in rows[atk:land] if x[CPU]["status"] == STATUS["Attack_Air"]] if (
+            atk is not None and land is not None) else []
+        wait_back = first(rows, land + 1, lambda x: x[CPU]["status"] == STATUS["Wait"]) if land is not None else None
+        bad = [sname(x[CPU]["status"]) for x in rows[h:]
+               if x[CPU]["status"] in (STATUS["Escape_Air"], STATUS["Air_Lasso"])]
+        out[name] = {
+            "hit": h, "end": end, "atk": atk, "atk_off": (atk - h) if atk is not None else None,
+            "ff": ff, "land": land, "land_st": sname(rows[land][CPU]["status"]) if land is not None else None,
+            "max_lc": max(lc_vals) if lc_vals else -999,
+            "wait_back": wait_back, "bad": bad
+        }
+        d = out[name]
+        res.note(f"{name:<13}: hit={h}, end={end}, atk=+{d['atk_off']}, ff={ff}, "
+                 f"land={land} ({d['land_st']}), lc={d['max_lc']}, wait={wait_back}, bad={bad}")
+
+    fp, la = out["Frame-Perfect"], out["Late"]
+    res.row("FFL Dair Frame-Perfect: Attack_Air, fastfall, L-cancelled landing to Wait",
+            "Attack_Air, fastfall, Landing_Attack_Air, lc > 0, Wait",
+            f"atk +{fp['atk_off']}, ff={fp['ff']}, land={fp['land_st']}, lc={fp['max_lc']}, wait={fp['wait_back']}",
+            fp["atk"] is not None and fp["ff"] is not None and fp["land_st"] == "Landing_Attack_Air"
+            and fp["max_lc"] > 0 and fp["wait_back"] is not None and not fp["bad"])
+    res.row("FFL Dair Late: starts strictly later than Frame-Perfect + fastfall + Wait",
+            f"atk > +{fp['atk_off']}, fastfall, Landing_Attack_Air, lc > 0, Wait",
+            f"atk +{la['atk_off']}, ff={la['ff']}, land={la['land_st']}, lc={la['max_lc']}, wait={la['wait_back']}",
+            la["atk_off"] is not None and fp["atk_off"] is not None and la["atk_off"] > fp["atk_off"]
+            and la["ff"] is not None and la["land_st"] == "Landing_Attack_Air"
+            and la["max_lc"] > 0 and la["wait_back"] is not None and not la["bad"])
+    return res
+
+
+def o_auto_lcancel_tether(r):
+    """Tether character (Link) safety check: Auto L-Cancel On halves
+    Landing_Attack_Air lag on SHFFL Dair with zero accidental Air_Lasso (0x7F)
+    or Escape_Air (0x21), and Full Hop empty fall emits zero Guard / Zair."""
+    res = Result("Auto L-Cancel tether safety (Link)")
+    emu = r.emu
+    r.drv.play(CPU, [NEUTRAL_STEP], loop=True)
+    set_training_option(emu, "Attack")
+    emu.h.call("pause")
+    emu.step(frames=20)
+    r.states.save(emu, "tether-start")
+    emu.h.call("resume")
+
+    en = r.g.entry(CPU)
+    ai = r.g.inputs(en)[0]
+
+    def run_link(auto_lc, action):
+        r.load("tether-start", on(autoLCancel=auto_lc, shfflTiming=SHFFL_TIMING["Frame-Perfect"]), percent=0)
+        guards = []
+
+        def each(i, rows):
+            if i == 2:
+                r.cue.op(CueBlock.CUE, 0, action, 0)
+            guards.append(bool(r.g.pad(ai)["buttons"] & GUARD))
+
+        rows = r.record(110, players=(CPU, P1), each=each, extras=True)
+        atk = first(rows, 2, lambda x: x[CPU]["status"] == STATUS["Attack_Air"])
+        land = first(rows, atk or 2, lambda x: not x[CPU]["air"]) if atk is not None else None
+        lc_vals = [x["x"]["lcancel"] for x in rows[atk:land] if x[CPU]["status"] == STATUS["Attack_Air"]] if (
+            atk is not None and land is not None) else []
+        lag = sum(1 for x in rows[land:] if x[CPU]["status"] == STATUS["Landing_Attack_Air"]) if land is not None else 0
+        bad = [sname(x[CPU]["status"]) for x in rows
+               if x[CPU]["status"] in (STATUS["Escape_Air"], STATUS["Air_Lasso"])]
+        return rows, atk, land, max(lc_vals) if lc_vals else -999, lag, bad, sum(1 for g in guards[2:] if g)
+
+    _, atk_on, land_on, lc_on, lag_on, bad_on, _ = run_link(1, GROUND["SHFFL Dair"])
+    _, atk_off, land_off, lc_off, lag_off, bad_off, _ = run_link(0, GROUND["SHFFL Dair"])
+    fh_rows, _, _, _, _, fh_bad, fh_guards = run_link(1, GROUND["Full Hop"])
+    fh_fall = any(x[CPU]["status"] == STATUS["Fall"] for x in fh_rows)
+    res.note(f"Link SHFFL Dair On: atk={atk_on}, land={land_on}, lc={lc_on}, lag={lag_on}f, bad={bad_on}")
+    res.note(f"Link SHFFL Dair Off: atk={atk_off}, land={land_off}, lc={lc_off}, lag={lag_off}f, bad={bad_off}")
+    res.row("Link SHFFL Dair Auto L-Cancel On halves lag with zero Zair/Airdodge",
+            f"lc > 0, lag <= {lag_off // 2 + 1}, 0 Air_Lasso/Escape_Air",
+            f"lc={lc_on}, lag {lag_on}f vs {lag_off}f, bad={bad_on}",
+            lc_on > 0 and lc_off <= 0 and lag_on > 0 and lag_off >= 14
+            and lag_on <= lag_off // 2 + 1 and lag_on < lag_off - 5 and not bad_on and not bad_off)
+    res.row("Link Full Hop empty fall with Auto L-Cancel On: zero Guard / Zair / Airdodge",
+            "Fall seen, 0 Guard, 0 Air_Lasso/Escape_Air",
+            f"Fall={fh_fall}, guards={fh_guards}, bad={fh_bad}",
+            fh_fall and fh_guards == 0 and not fh_bad)
+    return res
+
+
 MEASURE = [("oos-probe", m_oos_probe)]
 
 SCENARIOS = [("c1", c1_shield), ("c2", c2_jump), ("c3", c3_sequence), ("c4", c4_stick), ("c5", c5_silence),
@@ -5758,6 +6030,7 @@ SCENARIOS = [("c1", c1_shield), ("c2", c2_jump), ("c3", c3_sequence), ("c4", c4_
              ("wall-tech", o_wall_tech), ("percent-lock", o_percent_lock),
              ("throw-behavior", o_throw_behavior), ("counter-tumble", o_counter_tumble),
              ("after-tech-counter", o_after_tech_counter),
+             ("auto-lcancel", o_auto_lcancel), ("shffl-timing", o_shffl_timing), ("ffl-air", o_ffl_air),
              ("oos-techniques", o_oos_techniques), ("finish", o_finish)]
 # Run in a second match, against an Ice Climbers CPU.
 NANA = ("nana", o_nana)
@@ -5774,6 +6047,7 @@ THROW_LAYDOWN = ("throw-laydown", o_throw_laydown)
 TECH_SLIP = ("tech-slip", o_tech_slip)
 TECH_INVIS_MARIO = ("tech-invis-mario", o_tech_invis)
 TECH_INVIS_SHEIK = ("tech-invis-sheik", o_tech_invis_sheik)
+AUTO_LCANCEL_TETHER = ("auto-lcancel-tether", o_auto_lcancel_tether)
 # The P+ character techniques against characters that have them, and Wolf.
 OOS_OTHERS = [(f"oos-techniques-{c}", o_oos_techniques) for c in ("wolf", "ness", "lucas", "peach", "mewtwo", "ganondorf", "yoshi")]
 # Projectile / thrown-item powershield scenarios in their own matches.
@@ -5802,6 +6076,7 @@ SHARD_UNITS = (
     + [PS_FOX[0], PS_ITEM[0]]
     + [spec[0] for spec, _, _ in PS_CHARS]
     + [TECH_INVIS_SHEIK[0]]
+    + [AUTO_LCANCEL_TETHER[0]]
     + [TECH_INVIS_MARIO[0]]
 )
 # Seconds per scenario (for --shard balancing; unlisted scenarios take the mean).
@@ -5817,7 +6092,9 @@ SECONDS = {
     "move-freeze": 20, "grab": 38, "grab-airborne": 16, "advanced": 22,
     "tech-wait": 10, "tech-trap": 114, "tech-lockout": 116, "tech-damage-air": 20, "tech-edge": 18, "tech-drift": 35, "wall-tech": 25,
     "percent-lock": 4,
-    "throw-behavior": 20, "counter-tumble": 25, "after-tech-counter": 12, "oos-techniques": 25, "finish": 3,
+    "throw-behavior": 20, "counter-tumble": 25, "after-tech-counter": 12,
+    "auto-lcancel": 18, "shffl-timing": 20, "ffl-air": 16, "auto-lcancel-tether": 20,
+    "oos-techniques": 25, "finish": 3,
     "nana": 8, "tech-stage": 47, "place-platforms": 17, "tech-ray-edge": 20, "air-jump-fly": 20,
     "throw-laydown": 20, "tech-slip": 35,
     "oos-techniques-wolf": 25, "oos-techniques-ness": 25, "oos-techniques-lucas": 25,
@@ -5935,6 +6212,7 @@ def cmd_test_cpu(rest):
                 others += [(PS_ITEM, "peach", "fox", "final_destination")]
                 others += [(spec, p1, cpu, "final_destination") for spec, p1, cpu in PS_CHARS]
                 others += [(TECH_INVIS_SHEIK, "mario", "zelda", "final_destination")]
+                others += [(AUTO_LCANCEL_TETHER, "mario", "link", "final_destination")]
                 others += [(TECH_INVIS_MARIO, "mario", "mario", "final_destination")]
                 for (name, fn), p1, cpu, stage in others:
                     if not wanted(name):

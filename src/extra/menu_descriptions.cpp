@@ -58,7 +58,9 @@ namespace extra {
         "Select native Game AI, PPlusAI offstage recovery, or Off.",
         "Choose how the CPU gets up after grabbing a stage ledge.",
         "Set CPU mash speed for escaping buries, sleep, and freeze.",
-        "Track your habits and adapt CPU counter responses over time."
+        "Track your habits and adapt CPU counter responses over time.",
+        "Automatically L-cancel CPU aerial attacks before landing.",
+        "Set aerial and fastfall timing for CPU SHFFL and FFL actions."
     };
 
     static const char* const kRecordingDesc[] = {

@@ -131,8 +131,8 @@ TEST(fighter_swap, costume_clamping_and_live_index_lookup)
 TEST(fighter_swap, counter_ft_kind_matches_djc_and_float_fighters)
 {
     // Verify DJC/Float counter compatibility mapping matches cpu/actions.cpp.
-    const cpu::Action* djc = cpu::action(cpu::kListGround, cpu::actionCount(cpu::kListGround) - 10);
-    const cpu::Action* flt = cpu::action(cpu::kListGround, cpu::actionCount(cpu::kListGround) - 5);
+    const cpu::Action* djc = cpu::action(cpu::kListGround, 41);
+    const cpu::Action* flt = cpu::action(cpu::kListGround, 46);
     REQUIRE(djc != NULL && (djc->flags & cpu::kForDjc) != 0);
     REQUIRE(flt != NULL && (flt->flags & cpu::kForFloat) != 0);
 

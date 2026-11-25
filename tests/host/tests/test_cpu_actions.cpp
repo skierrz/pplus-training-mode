@@ -29,8 +29,8 @@ namespace {
 
 TEST(cpu_actions, fits_kind_for_float_and_djc)
 {
-    const int groundFloat0 = actionCount(kListGround) - 5;
-    const int shieldFloat0 = actionCount(kListShield) - 5;
+    const int groundFloat0 = 46;
+    const int shieldFloat0 = 39;
     const int lists[2] = {kListGround, kListShield};
     const int floatStarts[2] = {groundFloat0, shieldFloat0};
 
@@ -76,10 +76,11 @@ TEST(cpu_actions, action_for_returns_ganon_float_scripts_vs_peach_mewtwo)
         button::kAttack | button::kSmash | button::kCStick
     };
 
+    const int floatStarts[2] = {46, 39};
     for (int l = 0; l < 2; l++)
     {
         int list = lists[l];
-        int float0 = actionCount(list) - 5;
+        int float0 = floatStarts[l];
 
         // Non-technique action passes through identically for all fighters.
         const Action* plain = action(list, 1);

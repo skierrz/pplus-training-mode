@@ -33,6 +33,8 @@ namespace pages {
     "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5", "Slot 6", "Random Slot"
 #define TM_DJC_LABELS NA "DJC Nair", NA "DJC Fair", NA "DJC Bair", NA "DJC Uair", NA "DJC Dair"
 #define TM_FLOAT_LABELS NA "Float Nair", NA "Float Fair", NA "Float Bair", NA "Float Uair", NA "Float Dair"
+#define TM_SHFFL_LABELS "SHFFL Nair", "SHFFL Fair", "SHFFL Bair", "SHFFL Uair", "SHFFL Dair"
+#define TM_FFL_LABELS "FFL Nair", "FFL Fair", "FFL Bair", "FFL Uair", "FFL Dair"
 
     // Indexed to match cpu/actions.cpp action tables.
     extern const char* kCounterGround[kCounterGroundSize] = {
@@ -40,22 +42,24 @@ namespace pages {
         "Down Smash", "Forward Smash", "Roll Away", "Roll Toward", "Jab", "Forward Tilt", "Up Tilt", "Down Tilt",
         "Dash Attack", "Short Hop", "Full Hop", "Wavedash Away", "Wavedash Toward", "Wavedash Down", "Dash Back",
         "Dash Through", TM_PLAY_SLOT_LABELS, "Side B Away", "Roll Random", "SH Nair", "SH Fair",
-        "SH Bair", "SH Uair", "SH Dair", "Random Custom", "Random", TM_DJC_LABELS, TM_FLOAT_LABELS};
+        "SH Bair", "SH Uair", "SH Dair", "Random Custom", "Random", TM_DJC_LABELS, TM_FLOAT_LABELS, TM_SHFFL_LABELS};
     extern const char* const kCounterAir[kCounterAirSize] = {
         "None", "Airdodge", "Jump Away", "Jump Toward", "Jump Neutral", "Up B Away", "Up B Toward",
         "Neutral B", "Side B Away", "Side B Toward", "Down B", "Nair", "Fair", "Bair",
         "Uair", "Dair", "Tumble Fastfall", "Wiggle Fastfall", DROPPED "Ledge", DROPPED "Wait",
-        TM_PLAY_SLOT_LABELS, "Random Custom", "Random"};
+        TM_PLAY_SLOT_LABELS, "Random Custom", "Random", TM_FFL_LABELS};
     extern const char* kCounterShield[kCounterShieldSize] = {
         "None", "Grab", "Short Hop", "Full Hop", "Spotdodge", "Roll Away", "Roll Toward", "Up B",
         DROPPED "Side B Away", DROPPED "Side B Toward", "Down B", DROPPED "Neutral B", "Up Smash",
         DROPPED "Down Smash", DROPPED "Forward Smash", "SH Nair", "SH Fair", "SH Bair", "SH Uair",
         "SH Dair", "Wavedash Away", DROPPED "Shield Drop",
         TM_PLAY_SLOT_LABELS, "Wavedash Toward", "Wavedash Down", "Roll Random", "Random Custom", "Random",
-        TM_DJC_LABELS, TM_FLOAT_LABELS};
+        TM_DJC_LABELS, TM_FLOAT_LABELS, TM_SHFFL_LABELS};
 #undef TM_PLAY_SLOT_LABELS
 #undef TM_DJC_LABELS
 #undef TM_FLOAT_LABELS
+#undef TM_SHFFL_LABELS
+#undef TM_FFL_LABELS
 
     bool counterLabels()
     {
@@ -91,6 +95,7 @@ namespace pages {
     static const char* const kRecovery[] = {"Game AI", "PPlusAI", "Off"};
     static const char* const kLedgeOption[] = {"Default", "Neutral", "Roll", "Attack", "Jump", "Drop", "Random"};
     static const char* const kAdaptiveMode[] = {"Off", "Track", "Adaptive"};
+    static const char* const kShfflTiming[] = {"Frame-Perfect", "Early", "Normal", "Late", "Random"};
 
     static bool comboTrainerAvailable()
     {
@@ -148,7 +153,9 @@ namespace pages {
         TM_CPU_CHOICE("Ledge Option", cpu.options.ledgeOption, kLedgeOption, cpu::kLedgeDefault),
         TM_CPU_CHOICE("Clatter Escape", cpu.options.clatterEscape, kGrabEscape, cpu::kMashNone),
         TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(cpu.options.adaptiveMode), 0, TM_COUNT(kAdaptiveMode) - 1,
-               cpu::kAdaptiveOff, "Adaptive CPU", kAdaptiveMode, NULL, comboTrainerAvailable)
+               cpu::kAdaptiveOff, "Adaptive CPU", kAdaptiveMode, NULL, comboTrainerAvailable),
+        TM_CPU_TOGGLE("Auto L-Cancel", cpu.options.autoLCancel, 1),
+        TM_CPU_CHOICE("SHFFL Timing", cpu.options.shfflTiming, kShfflTiming, cpu::kShfflFramePerfect)
     };
 
 #undef TM_CPU_FUNC

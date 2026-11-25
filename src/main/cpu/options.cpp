@@ -9,6 +9,7 @@
 #include <ft/ft_manager.h>
 #include <so/ground/so_ground_module_impl.h>
 #include <so/so_module_accesser.h>
+#include <so/work/so_work_manage_module_impl.h>
 #include <string.h>
 
 #include "main/cpu/actions.h"
@@ -19,6 +20,7 @@
 #include "main/cpu/lab_data.h"
 #include "main/cpu/ledge_logic.h"
 #include "main/cpu/sdi_logic.h"
+#include "main/cpu/shffl_core.h"
 #include "main/cpu/tech_logic.h"
 #include "main/cpu/view.h"
 #include "main/display/display.h"
@@ -258,6 +260,18 @@ namespace cpu {
     static bool guardStatus(int s)
     {
         return s == game::kStatusGuardOn || s == game::kStatusGuard || s == game::kStatusGuardDamage;
+    }
+
+    // LA-Basic[90] (0x1000005A): P+'s 7-frame L-Cancel window (Source/Project+/L-Cancel.asm:49,98,146,188).
+    static int readLCancelTimer(Fighter* fighter)
+    {
+        enum { kLCancelTimer = 0x1000005A };
+        const soModuleEnumeration* m = game::fighterModules(fighter);
+        if (m == NULL || !game::isRam(m->m_workManageModule))
+        {
+            return 0;
+        }
+        return m->m_workManageModule->getInt(kLCancelTimer);
     }
 
     // ---- Move CPU, Freeze CPU ---------------------------------------------------
@@ -518,6 +532,8 @@ namespace cpu {
         int tries;
         int stepFrames;
         bool scriptHeld; // a release frame was put in front of it
+        bool scriptAirStarted;
+        Step shfflBuf[kMaxShfflSteps];
         float randomSide;
         // shield
         int tiltFrames;
@@ -571,6 +587,7 @@ namespace cpu {
             tries = 0;
             stepFrames = 0;
             scriptHeld = false;
+            scriptAirStarted = false;
             randomSide = 1.0f;
             tiltFrames = 0;
             powershield = 0;
@@ -648,6 +665,7 @@ namespace cpu {
         {
             script = steps;
             stepFrames = 0;
+            scriptAirStarted = false;
             if (!again)
             {
                 randomSide = rndBelow(2) == 0 ? toward : -toward;
@@ -759,12 +777,19 @@ namespace cpu {
                 out.buttons = lastButtons(slot) & ~release;
                 return true;
             }
+            if (v.air)
+            {
+                scriptAirStarted = true;
+            }
+            const bool isShfflScript = script >= shfflBuf && script < shfflBuf + kMaxShfflSteps;
             while (script->frames != 0)
             {
                 const Step& s = *script;
-                // Landed: a fall or fastfall can no longer come, so the action
-                // is over (and not tried again), and the tech or get-up can act.
-                if ((s.until == kUntilFalling || s.until == kUntilFastfall) && havePrev && prevAir && !v.air)
+                // Landed: a fall, fastfall, or SHFFL/FFL air phase can no
+                // longer continue, so the action is over cleanly.
+                const bool airWait = s.until == kUntilFalling || s.until == kUntilFastfall;
+                if ((!v.air && scriptAirStarted && (isShfflScript || airWait))
+                    || (airWait && !v.air && v.status != game::kStatusJumpSquat))
                 {
                     TM_LOG("cpu: P%d landed while waiting to fall (status %x): action over, frame %u\n",
                            player + 1, v.status, frameOf(slot));
@@ -1017,8 +1042,9 @@ namespace cpu {
         }
 
         // Frames until the fighter lands, if within `lead`; -1 otherwise.
-        // docs/internals.md, "CPU tech timing".
-        int framesToLand(int lead = kTechLead, float lift = 0.0f)
+        // `fallbackGround`: when false, only real ground rays count (no
+        // phantom `groundY` plane offstage). docs/internals.md, "CPU tech timing".
+        int framesToLand(int lead = kTechLead, float lift = 0.0f, bool fallbackGround = true)
         {
             float x = v.x, y = v.y, vx = v.vx, vy = v.vy;
             // At the fall speed cap the speed no longer grows.
@@ -1056,7 +1082,7 @@ namespace cpu {
                     float rayDx = 0.0f, rayDy = 0.0f;
                     groundRayDir(static_cast<float>(kRayDown), rayDx, rayDy);
                     bool found = groundBetween(f, nx, b, rayDx, rayDy, ground) && ground <= b + 0.5f;
-                    if (!found && groundKnown)
+                    if (!found && fallbackGround && groundKnown)
                     {
                         ground = groundY;
                         found = true;
@@ -1637,6 +1663,39 @@ namespace cpu {
             return true;
         }
 
+        // Injects a fresh Guard press during active non-IASA AttackAir (0x33)
+        // when approaching landing to trigger P+'s 7-frame L-Cancel window.
+        void applyAutoLCancel(Frame& out)
+        {
+            const CpuOptions& c = opts();
+            if (c.autoLCancel == 0 || v.status != game::kStatusAttackAirFirst || !v.air)
+            {
+                return;
+            }
+            const float lift = ecbLift();
+            float ground = 0.0f;
+            bool hasGround = groundBetween(f, v.x, v.y + lift + 0.5f, 0.0f, -24.0f, ground);
+            float height = hasGround ? ((v.y + lift) - ground) : 999.0f;
+            AutoLCancelInput in;
+            in.enabled = true;
+            in.status = v.status;
+            in.air = v.air;
+            in.canActNow = canAct(v) || (v.groups & kAutoLCancelUnsafeGroups) != 0;
+            in.actInFrames = framesUntilActionable(f);
+            in.hitlag = v.hitlag;
+            in.lCancelTimer = readLCancelTimer(f);
+            in.prevGuardHeld = (lastButtons(slot) & kGuard) != 0;
+            in.attackPressed = (out.buttons & kAttack) != 0;
+            in.vy = v.vy;
+            in.framesToLand = framesToLand(kAutoLCancelLead, lift, false);
+            in.hasGround = hasGround;
+            in.heightAboveGround = height;
+            if (shouldAutoLCancel(in))
+            {
+                out.buttons |= kGuard;
+            }
+        }
+
         // Starts action `a` (NULL: none) from this frame.
         void start(Frame& out, const Action* a)
         {
@@ -1661,7 +1720,16 @@ namespace cpu {
             playSlot = -1;
             pending = a;
             tries = 0;
-            startScript(a->steps);
+            const Step* steps = a->steps;
+            if ((a->flags & (kForShffl | kForFfl)) != 0)
+            {
+                const bool isShffl = (a->flags & kForShffl) != 0;
+                const Step& aerial = isShffl ? a->steps[2] : a->steps[0];
+                buildShfflScript(shfflBuf, kMaxShfflSteps, aerial, isShffl, opts().shfflTiming,
+                                 static_cast<u32>(rndBelow(4)));
+                steps = shfflBuf;
+            }
+            startScript(steps);
             runScript(out);
         }
 
@@ -2314,6 +2382,7 @@ namespace cpu {
         }
 
         // A cue that starts has this frame, whatever the state.
+        bool playingRec = false;
         switch (cueNow(out, who, q) ? -1 : state)
         {
         case -1:
@@ -2480,7 +2549,12 @@ namespace cpu {
             }
             break;
         case kAfter:
-            if (runPlay(out) || runScript(out))
+            if (runPlay(out))
+            {
+                playingRec = true;
+                break;
+            }
+            if (runScript(out))
             {
                 break;
             }
@@ -2545,6 +2619,10 @@ namespace cpu {
         default:
             state = kIdle;
             break;
+        }
+        if (!playingRec && playSlot < 0 && !q.hold)
+        {
+            applyAutoLCancel(out);
         }
         if ((out.buttons & kGuard) != 0 && (lastButtons(slot) & kGuard) == 0)
         {

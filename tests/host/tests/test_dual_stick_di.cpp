@@ -411,7 +411,7 @@ TEST(dual_stick_di, cpu_hitlag_cadence_single_vs_dual_stick)
 
 TEST(dual_stick_di, settings_layout_menu_row_and_storage_round_trip)
 {
-    CHECK_EQ(44u, sizeof(cpu::CpuOptions));
+    CHECK_EQ(46u, sizeof(cpu::CpuOptions));
     CHECK_EQ(64u, sizeof(main::CpuSettings));
     CHECK_EQ(436u, sizeof(main::Settings));
 
@@ -422,7 +422,9 @@ TEST(dual_stick_di, settings_layout_menu_row_and_storage_round_trip)
     CHECK(strcmp(page.options[8].name, "Dual-Stick SDI") == 0);
     CHECK_EQ(ui::kKindToggle, page.options[8].kind);
     CHECK_EQ(0, page.options[8].def);
-    CHECK(strcmp(page.options[page.count - 1].name, "Adaptive CPU") == 0);
+    CHECK(strcmp(page.options[27].name, "Adaptive CPU") == 0);
+    CHECK(strcmp(page.options[page.count - 2].name, "Auto L-Cancel") == 0);
+    CHECK(strcmp(page.options[page.count - 1].name, "SHFFL Timing") == 0);
 
     host::card::reset();
     bootStorage();
