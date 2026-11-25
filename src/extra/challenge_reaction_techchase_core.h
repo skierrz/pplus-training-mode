@@ -67,12 +67,15 @@ namespace extra {
         kRtStCaptureWait = 0x3E,
         kRtStCaptureCut = 0x40,
         kRtStCaptureThrown = 0x42,
+        kRtStDamageFirst = 0x43,
+        kRtStDamageFlyRoll = 0x46,
         kRtStDamageFall = 0x49,
         kRtStDownFirst = 0x4A,
         kRtStDownWaitCont = 0x4E,
         kRtStDownStand = 0x51,
         kRtStDownStandFb = 0x52,
         kRtStDownStandAttack = 0x53,
+        kRtStDamageSong = 0x54,
         kRtStPassive = 0x60,
         kRtStPassiveFb = 0x61,
         kRtStCliffWait = 0x75,
@@ -152,12 +155,25 @@ namespace extra {
         return kTcToolNone;
     }
 
+    inline bool tcIsKnockdownOrTech(s16 s)
+    {
+        return chInRange(s, kRtStDownFirst, kRtStDownWaitCont)
+               || chInRange(s, kRtStDownStand, kRtStDownStandAttack)
+               || chInRange(s, kRtStPassive, kRtStPassiveFb);
+    }
+
+    inline bool tcIsReCatchStatus(s16 s)
+    {
+        return chInRange(s, kRtStCapturePulled, kRtStCaptureThrown)
+               || chInRange(s, kRtStDamageFirst, kRtStDamageFlyRoll)
+               || s == kRtStDamageSong;
+    }
+
     inline bool tcIsVulnerableStatus(s16 s)
     {
         return chInRange(s, kRtStCapturePulled, kRtStCaptureThrown)
-               || chInRange(s, kRtStDamageFall, kRtStDownWaitCont)
-               || chInRange(s, kRtStDownStand, kRtStDownStandAttack)
-               || chInRange(s, kRtStPassive, kRtStPassiveFb);
+               || s == kRtStDamageFall
+               || tcIsKnockdownOrTech(s);
     }
 
     inline u8 rtClassifyOpponentCue(s16 s, s16 prev, s16 mk, float lr, float vx)
@@ -280,9 +296,12 @@ namespace extra {
                 const int oevN = ov.eventCount < kChallengeMaxEvents ? static_cast<int>(ov.eventCount) : kChallengeMaxEvents;
                 for (int k = 0; k < oevN; k++)
                 {
-                    u8 cue = rtClassifyOpponentCue(ov.events[k].status, ov.events[k].prev,
-                                                   ov.events[k].motionKind != -1 ? ov.events[k].motionKind : ov.motionKind,
-                                                   ov.lr, ov.vx);
+                    // StatusEvent::motionKind is captured before Brawl sets the
+                    // new status's subaction; prefer ov.motionKind when it matches.
+                    s16 mk = (ov.events[k].status == ov.status && ov.motionKind != -1)
+                                 ? ov.motionKind
+                                 : ov.events[k].motionKind;
+                    u8 cue = rtClassifyOpponentCue(ov.events[k].status, ov.events[k].prev, mk, ov.lr, ov.vx);
                     if (cue != kCueNone && (!st.out.rlCueActive || (cue != kCueAttackStartup && st.cueKind == kCueAttackStartup)))
                     {
                         st.out.rlCueActive = 1;
@@ -299,9 +318,9 @@ namespace extra {
                 {
                     st.out.rlCueActive = 0;
                 }
-                else
+                else if (in.frame > st.cueFrame)
                 {
-                    bool resp = (in.frame > st.cueFrame && in.actionable && in.triggerButtons != 0);
+                    bool resp = (in.actionable && in.triggerButtons != 0);
                     for (int k = 0; k < evN && !resp; k++)
                     {
                         resp = (tcClassifyEscapeTool(in.events[k].status) != kTcToolNone
@@ -318,6 +337,8 @@ namespace extra {
 
         // --- Part B: Universal Techchase Escape ---
         bool enteredVuln = false;
+        bool enteredReCatch = false;
+        bool enteredKdTech = false;
         u8 tool = kTcToolNone;
         for (int k = 0; k < evN; k++)
         {
@@ -325,6 +346,14 @@ namespace extra {
             if (tcIsVulnerableStatus(s))
             {
                 enteredVuln = true;
+            }
+            if (tcIsReCatchStatus(s))
+            {
+                enteredReCatch = true;
+            }
+            if (tcIsKnockdownOrTech(s))
+            {
+                enteredKdTech = true;
             }
             if (tool == kTcToolNone)
             {
@@ -334,6 +363,14 @@ namespace extra {
         if (!enteredVuln && st.out.tcPhase == kTcPhaseIdle && tcIsVulnerableStatus(in.status))
         {
             enteredVuln = true;
+        }
+        if (!enteredReCatch && tcIsReCatchStatus(in.status))
+        {
+            enteredReCatch = true;
+        }
+        if (!enteredKdTech && tcIsKnockdownOrTech(in.status))
+        {
+            enteredKdTech = true;
         }
 
         if (st.out.tcPhase == kTcPhaseIdle && enteredVuln)
@@ -349,7 +386,15 @@ namespace extra {
         }
         if (st.out.tcPhase == kTcPhaseActionableWait)
         {
-            bool caught = enteredVuln || in.hitstun > 0;
+            bool caught = enteredReCatch || in.hitstun > 0;
+            if (!caught && enteredKdTech)
+            {
+                // Landing from Damage_Fall into Down/Passive without being
+                // hit or grabbed returns cleanly to Vulnerable (not caught).
+                st.out.tcPhase = kTcPhaseVulnerable;
+                st.firstActionableFrame = kChallengeNoFrame;
+                return;
+            }
             if (!caught && tool == kTcToolNone)
             {
                 tool = tcClassifyEscapeTool(in.status);
@@ -378,7 +423,9 @@ namespace extra {
                 st.out.tcCaughtCount++;
                 st.out.tcStreak = 0;
                 st.out.tcLastTool = kTcToolNone;
-                st.out.tcPhase = (caught && enteredVuln) ? static_cast<u8>(kTcPhaseVulnerable) : static_cast<u8>(kTcPhaseIdle);
+                st.out.tcPhase = (caught && (enteredVuln || tcIsVulnerableStatus(in.status)))
+                                     ? static_cast<u8>(kTcPhaseVulnerable)
+                                     : static_cast<u8>(kTcPhaseIdle);
                 st.tcCompletedThisFrame = 1;
             }
             if (st.tcCompletedThisFrame)

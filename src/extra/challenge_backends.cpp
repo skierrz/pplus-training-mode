@@ -72,6 +72,25 @@ namespace extra {
                        : NULL;
         }
 
+        void mirrorSlot(const ChallengeSlot& slot, s32 f)
+        {
+            ChallengeDebugSlot* dp = debugSlotFor(slot);
+            if (dp == NULL)
+            {
+                return;
+            }
+            dp->used = 1;
+            dp->playerNo = slot.playerNo;
+            dp->ftKind = slot.ftKind >= 0 ? static_cast<u8>(slot.ftKind) : 0xFFu;
+            dp->pad0 = 0;
+            dp->frame = static_cast<u32>(f >= 0 ? f : 0);
+            memcpy(&dp->cs, &slot.cs.out, sizeof(dp->cs));
+            memcpy(&dp->fc, &slot.fc.out, sizeof(dp->fc));
+            memcpy(&dp->rt, &slot.rt.out, sizeof(dp->rt));
+            memcpy(&dp->rf, &slot.rf.out, sizeof(dp->rf));
+            memcpy(&dp->snk, &slot.snk.out, sizeof(dp->snk));
+        }
+
         void resetSlot(int idx, bool full)
         {
             ChallengeSlot& slot = s_net->slots[idx];
@@ -209,6 +228,10 @@ namespace extra {
         for (int i = 0; i < game::kMaxTracked; i++)
         {
             resetSlot(i, false);
+            if (s_net->slots[i].active)
+            {
+                mirrorSlot(s_net->slots[i], 0);
+            }
         }
         s_net->debug.resetCount = s_resetCount;
     }
@@ -231,6 +254,7 @@ namespace extra {
         int refCount = game::listFighters(refs, game::kMaxFighters);
 
         StageGeometry geom;
+        memset(&geom, 0, sizeof(geom));
         bool haveGeom = queryStageGeometry(geom, false, true);
 
         ChallengeFrame* frames = s_net->frames;
@@ -290,20 +314,7 @@ namespace extra {
                 snakeRecoveryStep(slot.snk, geom, cf);
             }
 
-            ChallengeDebugSlot* dp = debugSlotFor(slot);
-            if (dp != NULL)
-            {
-                dp->used = 1;
-                dp->playerNo = slot.playerNo;
-                dp->ftKind = slot.ftKind >= 0 ? static_cast<u8>(slot.ftKind) : 0xFFu;
-                dp->pad0 = 0;
-                dp->frame = static_cast<u32>(f >= 0 ? f : 0);
-                memcpy(&dp->cs, &slot.cs.out, sizeof(dp->cs));
-                memcpy(&dp->fc, &slot.fc.out, sizeof(dp->fc));
-                memcpy(&dp->rt, &slot.rt.out, sizeof(dp->rt));
-                memcpy(&dp->rf, &slot.rf.out, sizeof(dp->rf));
-                memcpy(&dp->snk, &slot.snk.out, sizeof(dp->snk));
-            }
+            mirrorSlot(slot, f);
         }
     }
 

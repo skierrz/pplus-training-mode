@@ -126,8 +126,15 @@ namespace extra {
 
         float dx = in.x - lip.x;
         float dy = in.y - lip.y;
-        if (!onLedge && dx * dx <= kRecNearLedgeHorizWindow * kRecNearLedgeHorizWindow
-            && (!st.sawPeakNearLip || dy > st.maxHeightAboveLip))
+        // Only grade the final actionable approach into the lip window: clear
+        // peak height while launched in hitstun or outside the 18-unit zone.
+        if (in.hitstun > 0 || (in.airborne && !onLedge && dx * dx > kRecNearLedgeHorizWindow * kRecNearLedgeHorizWindow))
+        {
+            st.sawPeakNearLip = 0;
+            st.maxHeightAboveLip = -1000.0f;
+        }
+        else if (!onLedge && dx * dx <= kRecNearLedgeHorizWindow * kRecNearLedgeHorizWindow
+                 && (!st.sawPeakNearLip || dy > st.maxHeightAboveLip))
         {
             st.sawPeakNearLip = 1;
             st.maxHeightAboveLip = dy;
@@ -168,14 +175,24 @@ namespace extra {
         st.out.recLastHeightDelta = delta;
         st.out.recLastGrabs = in.ledgeGrabs;
         st.out.recLastXlu = xlu;
-        (&st.out.recSweetspots)[grade - 1]++;
-        if (grade == kRecGradeSweetspot)
+        switch (grade)
         {
+        case kRecGradeSweetspot:
+            st.out.recSweetspots++;
             chBumpStreak(st.out.recStreak, st.out.recBestStreak);
-        }
-        else
-        {
+            break;
+        case kRecGradeHighOvershoot:
+            st.out.recHighCount++;
             st.out.recStreak = 0;
+            break;
+        case kRecGradeNoInvulnLimit:
+            st.out.recNoInvulnCount++;
+            st.out.recStreak = 0;
+            break;
+        default:
+            st.out.recSdCount++;
+            st.out.recStreak = 0;
+            break;
         }
         st.offstageActive = 0;
         st.recCompletedThisFrame = 1;

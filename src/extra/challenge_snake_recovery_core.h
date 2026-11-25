@@ -161,8 +161,11 @@ namespace extra {
 
         float dmgDelta = st.hasPrevDamage ? (in.damage - st.prevDamage) : 0.0f;
         int dm = dmgDelta > 0.0f ? static_cast<int>(dmgDelta) : 0;
+        // Require flinch/hitstun AND cleared LA-Bit[61] so non-flinching damage
+        // (lasers, heavy-armor hits <10%, menu percent edits) cannot count.
         if (in.airborne && !grabbed && !in.opponentDealtHit
-            && (dm >= 1 || (st.prevLockout && !st.out.cypherLockout && enteredAirDmg))
+            && (enteredAirDmg || in.hitstun > 0) && !st.out.cypherLockout
+            && (dm >= 1 || st.prevLockout)
             && (st.prevLockout || st.out.cypherStacks || st.out.offstage))
         {
             u8 kind = kSnakeSelfHitOther;

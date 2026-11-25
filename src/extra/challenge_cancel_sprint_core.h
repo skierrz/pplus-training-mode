@@ -108,11 +108,11 @@ namespace extra {
     inline const CancelSpec* cancelSprintSpec(int ftKind)
     {
         static const CancelSpec kSpecs[7] = {
-            {kCsFtFox,     kCancelKindShine,  {kCsStSpecialLw, kCsStSpacieShineLoop, kCsStSpacieShineHit, 0},              kCsStSpacieShineLoop, 0, 2},
-            {kCsFtFalco,   kCancelKindShine,  {kCsStSpecialLw, kCsStFalcoShineHit, 0, 0},                                  kCsStSpecialLw,       3, 1},
-            {kCsFtWolf,    kCancelKindShine,  {kCsStSpecialLw, kCsStSpacieShineLoop, kCsStSpacieShineHit, 0},              kCsStSpacieShineLoop, 0, 2},
+            {kCsFtFox,     kCancelKindShine,  {kCsStSpecialLw, kCsStSpacieShineLoop, kCsStSpacieShineHit, 0},              kCsStSpacieShineLoop, 0, 0xFF},
+            {kCsFtFalco,   kCancelKindShine,  {kCsStSpecialLw, kCsStFalcoShineHit, 0, 0},                                  kCsStSpecialLw,       3, 0xFF},
+            {kCsFtWolf,    kCancelKindShine,  {kCsStSpecialLw, kCsStSpacieShineLoop, kCsStSpacieShineHit, 0},              kCsStSpacieShineLoop, 0, 0xFF},
             {kCsFtNess,    kCancelKindMagnet, {kCsStSpecialLw, kCsStNessMagnetHold, kCsStNessMagnetHit, kCsStNessMagnetEnd}, kCsStNessMagnetHold, 2, 3},
-            {kCsFtLucas,   kCancelKindMagnet, {kCsStSpecialLw, kCsStLucasMagnetHold, kCsStLucasMagnetHit, kCsStLucasMagnetEnd}, kCsStLucasMagnetEnd, 1, 2},
+            {kCsFtLucas,   kCancelKindMagnet, {kCsStSpecialLw, kCsStLucasMagnetHold, kCsStLucasMagnetHit, kCsStLucasMagnetEnd}, kCsStLucasMagnetEnd, 1, 0xFF},
             {kCsFtMewtwo,  kCancelKindHover,  {kCsStMewtwoHover, 0, 0, 0},                                                 kCsStMewtwoHover,     0, 0xFF},
             {kCsFtLucario, kCancelKindAsc,    {kCsStLucarioCharge, kCsStLucarioChargeMax, 0, 0},                           kCsStLucarioCharge,   0, 1}
         };
@@ -186,10 +186,18 @@ namespace extra {
                 st.statusEnterFrame = in.frame;
             }
 
-            bool inMove = false;
-            for (int m = 0; m < 4 && !inMove; m++)
+            // Only start a new attempt from true entry statuses (st[0], plus
+            // 0x118 max-charge for Lucario). Continuation/hit statuses such as
+            // Falco 0x118 (shared with Fire Bird End) only continue an active attempt.
+            bool isEntry = (static_cast<s16>(sp->st[0]) == s)
+                           || (kind == kCancelKindAsc && static_cast<s16>(sp->st[1]) == s);
+            bool inMove = isEntry;
+            if (!inMove && st.out.active)
             {
-                inMove = (sp->st[m] != 0 && static_cast<s16>(sp->st[m]) == s);
+                for (int m = 1; m < 4 && !inMove; m++)
+                {
+                    inMove = (sp->st[m] != 0 && static_cast<s16>(sp->st[m]) == s);
+                }
             }
 
             if (inMove && !st.out.active)

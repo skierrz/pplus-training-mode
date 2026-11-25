@@ -24,7 +24,6 @@ real GameCube controller input + live RAM "TM4X" debug block:
                        with zero heap leak.
 """
 import argparse
-import os
 import re
 import struct
 import sys
@@ -104,12 +103,6 @@ def s32(b, o):
 
 def f32(b, o):
     return struct.unpack_from(">f", b, o)[0]
-
-
-def state_path(name):
-    p = os.path.join(os.path.dirname(os.path.abspath(E.env("SD_IMAGE"))), "states", f"stage4c-{name}.sav")
-    os.makedirs(os.path.dirname(p), exist_ok=True)
-    return p
 
 
 def step(emu, n=1):

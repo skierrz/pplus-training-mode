@@ -787,3 +787,352 @@ TEST(stage4c, debug_block_layout_and_multi_slot_independence)
     CHECK_EQ(1u, slots[2].out.totalCancels);
     CHECK_EQ(1u, slots[3].out.totalCancels);
 }
+
+TEST(stage4c, regressions_cancel_sprint_falco_upb_and_reflect_hitlag)
+{
+    const u32 kJumpGrp = 1u << kCsGroupJumpGround;
+
+    // 1a. Falco Fire Bird End shares action 0x118 with Shine Reflect Hit:
+    // 0x114 -> 0x117 -> 0x118 -> 0x10 must NEVER start or miss a Shine attempt.
+    CancelSprintState falco;
+    cancelSprintResetAll(falco);
+    {
+        ChallengeFrame in = makeFrame(10, kCsFtFalco, 0x114);
+        addEv(in, 0x0E, 0x114);
+        CHECK(!cancelSprintStep(falco, in));
+        in = makeFrame(25, kCsFtFalco, 0x117);
+        addEv(in, 0x114, 0x117);
+        CHECK(!cancelSprintStep(falco, in));
+        in = makeFrame(40, kCsFtFalco, kCsStFalcoShineHit);
+        addEv(in, 0x117, kCsStFalcoShineHit);
+        CHECK(!cancelSprintStep(falco, in));
+        CHECK_EQ(0, falco.out.active);
+        in = makeFrame(46, kCsFtFalco, 0x10);
+        addEv(in, kCsStFalcoShineHit, 0x10);
+        CHECK(!cancelSprintStep(falco, in));
+        CHECK_EQ(0u, falco.out.attempts);
+        CHECK_EQ(0u, falco.out.totalCancels);
+    }
+
+    // 1b. Fox Shine reflect hit-lag (0x11B) does not enable jump cancel;
+    // windowOpenFrame must wait until 0x11A opens (not premature on 0x11B).
+    CancelSprintState fox;
+    cancelSprintResetAll(fox);
+    {
+        ChallengeFrame in = makeFrame(10, kCsFtFox, kCsStSpecialLw, 0);
+        addEv(in, 0x00, kCsStSpecialLw);
+        cancelSprintStep(fox, in);
+        in = makeFrame(12, kCsFtFox, kCsStSpacieShineHit, 0);
+        addEv(in, kCsStSpecialLw, kCsStSpacieShineHit);
+        cancelSprintStep(fox, in);
+        CHECK_EQ(1, fox.out.active);
+        CHECK_EQ(0, fox.windowOpen);
+        in = makeFrame(16, kCsFtFox, kCsStJumpSquat, kJumpGrp);
+        addEv(in, kCsStSpacieShineHit, kCsStSpacieShineLoop);
+        addEv(in, kCsStSpacieShineLoop, kCsStJumpSquat);
+        CHECK(cancelSprintStep(fox, in));
+        CHECK_EQ(1u, fox.out.totalCancels);
+        CHECK_EQ(1u, fox.out.lastFrames);
+        CHECK_EQ(1u, fox.out.perfectCount);
+    }
+
+    // 1c. Lucas Magnet hit-lag (0x120) must not open window before 0x121.
+    CancelSprintState lucas;
+    cancelSprintResetAll(lucas);
+    {
+        ChallengeFrame in = makeFrame(20, kCsFtLucas, kCsStSpecialLw, 0);
+        addEv(in, 0x00, kCsStSpecialLw);
+        cancelSprintStep(lucas, in);
+        in = makeFrame(24, kCsFtLucas, kCsStLucasMagnetHold, 0);
+        addEv(in, kCsStSpecialLw, kCsStLucasMagnetHold);
+        cancelSprintStep(lucas, in);
+        in = makeFrame(26, kCsFtLucas, kCsStLucasMagnetHit, 0);
+        addEv(in, kCsStLucasMagnetHold, kCsStLucasMagnetHit);
+        cancelSprintStep(lucas, in);
+        CHECK_EQ(0, lucas.windowOpen);
+        in = makeFrame(30, kCsFtLucas, kCsStLucasMagnetEnd, 0);
+        addEv(in, kCsStLucasMagnetHit, kCsStLucasMagnetEnd);
+        cancelSprintStep(lucas, in);
+        in = makeFrame(31, kCsFtLucas, kCsStJumpSquat, kJumpGrp);
+        addEv(in, kCsStLucasMagnetEnd, kCsStJumpSquat);
+        CHECK(cancelSprintStep(lucas, in));
+        CHECK_EQ(1u, lucas.out.lastFrames);
+        CHECK_EQ(1u, lucas.out.perfectCount);
+    }
+}
+
+TEST(stage4c, regressions_reaction_lab_and_techchase_accuracy)
+{
+    u16 ring[kReactionRingCap];
+    ReactionTechchaseState st;
+    reactionTechchaseResetAll(st, ring, kReactionRingCap);
+
+    // 2a & 2b. Stale StatusEvent::motionKind = 0x29 (Damage_Fall) while live
+    // ov.motionKind = 0xC0 (Passive_Stand_B), facing right with positive launch
+    // vx -> must use 0xC0 (rolling LEFT) AND same-frame dash on P1 must NOT
+    // push a bogus 1f sample.
+    ChallengeFrame frames[2];
+    frames[0] = makeFrame(10, kCsFtFox, kRtStDash);
+    frames[0].entryId = 0;
+    frames[0].actionable = 1;
+    frames[0].triggerButtons = 1u;
+    addEv(frames[0], 0x00, kRtStDash);
+
+    frames[1] = makeFrame(10, kCsFtFox, kRtStPassiveFb, 0, kRtMotPassiveStandB);
+    frames[1].entryId = 1;
+    frames[1].lr = 1.0f;
+    frames[1].vx = 1.8f; // opposite roll direction
+    addEv(frames[1], kRtStDamageFall, kRtStPassiveFb, 0x29); // stale Damage_Fall subaction
+
+    reactionTechchaseStep(st, frames, 2, 0);
+    CHECK_EQ(1, st.out.rlCueActive);
+    CHECK_EQ(kCueTechRollLeft, st.cueKind);
+    CHECK_EQ(0u, st.out.rlCount); // no same-frame 1f false sample
+
+    // Real response 12 frames later produces an exact 12f sample.
+    frames[0] = makeFrame(22, kCsFtFox, kRtStJumpSquat);
+    frames[0].entryId = 0;
+    frames[0].actionable = 1;
+    addEv(frames[0], 0x00, kRtStJumpSquat);
+    frames[1] = makeFrame(22, kCsFtFox, 0x00);
+    frames[1].entryId = 1;
+    reactionTechchaseStep(st, frames, 2, 0);
+    CHECK_EQ(1u, st.out.rlCount);
+    CHECK_EQ(12u, st.out.rlLastFrames);
+    CHECK_EQ(kCueTechRollLeft, st.out.rlLastCueKind);
+
+    // 3. Techchase: Damage_Fall actionable -> lands into Passive_Fb (no hit/grab)
+    // must return to kTcPhaseVulnerable WITHOUT incrementing tcCaughtCount or
+    // resetting tcStreak; subsequent escape after tech increments streak.
+    st.out.tcStreak = 2;
+    st.out.tcBestStreak = 2;
+    frames[0] = makeFrame(50, kCsFtFox, kRtStDamageFall);
+    frames[0].entryId = 0;
+    frames[0].hitstun = 4;
+    addEv(frames[0], 0x45, kRtStDamageFall);
+    frames[1] = makeFrame(50, kCsFtFox, 0x00);
+    frames[1].entryId = 1;
+    reactionTechchaseStep(st, frames, 2, 0);
+    CHECK_EQ(kTcPhaseVulnerable, st.out.tcPhase);
+
+    // Hitstun ends in Damage_Fall -> actionable wait.
+    frames[0] = makeFrame(54, kCsFtFox, kRtStDamageFall);
+    frames[0].entryId = 0;
+    frames[0].hitstun = 0;
+    frames[0].actionable = 1;
+    frames[1].frame = 54;
+    reactionTechchaseStep(st, frames, 2, 0);
+    CHECK_EQ(kTcPhaseActionableWait, st.out.tcPhase);
+
+    // Defender lands and tech-rolls (0x61) without being hit/grabbed -> NOT caught!
+    frames[0] = makeFrame(56, kCsFtFox, kRtStPassiveFb);
+    frames[0].entryId = 0;
+    frames[0].hitstun = 0;
+    frames[0].actionable = 0;
+    addEv(frames[0], kRtStDamageFall, kRtStPassiveFb);
+    frames[1].frame = 56;
+    reactionTechchaseStep(st, frames, 2, 0);
+    CHECK_EQ(kTcPhaseVulnerable, st.out.tcPhase);
+    CHECK_EQ(0u, st.out.tcCaughtCount);
+    CHECK_EQ(2u, st.out.tcStreak);
+
+    // Tech roll ends -> frame-0 spotdodge escape -> streak bumps to 3!
+    frames[0] = makeFrame(70, kCsFtFox, kRtStEscape);
+    frames[0].entryId = 0;
+    frames[0].actionable = 1;
+    addEv(frames[0], kRtStPassiveFb, kRtStEscape);
+    frames[1].frame = 70;
+    reactionTechchaseStep(st, frames, 2, 0);
+    CHECK_EQ(1u, st.out.tcEscapes);
+    CHECK_EQ(3u, st.out.tcStreak);
+    CHECK_EQ(0u, st.out.tcCaughtCount);
+
+    // True re-grab (0x3D) during ActionableWait DOES count as caught and breaks streak.
+    frames[0] = makeFrame(90, kCsFtFox, kRtStPassive);
+    frames[0].entryId = 0;
+    addEv(frames[0], kRtStDamageFall, kRtStPassive);
+    frames[1].frame = 90;
+    reactionTechchaseStep(st, frames, 2, 0);
+    frames[0] = makeFrame(100, kCsFtFox, 0x00);
+    frames[0].entryId = 0;
+    frames[0].actionable = 1;
+    frames[1].frame = 100;
+    reactionTechchaseStep(st, frames, 2, 0);
+    CHECK_EQ(kTcPhaseActionableWait, st.out.tcPhase);
+    frames[0] = makeFrame(102, kCsFtFox, kRtStCapturePulled);
+    frames[0].entryId = 0;
+    addEv(frames[0], 0x00, kRtStCapturePulled);
+    frames[1].frame = 102;
+    reactionTechchaseStep(st, frames, 2, 0);
+    CHECK_EQ(1u, st.out.tcCaughtCount);
+    CHECK_EQ(0u, st.out.tcStreak);
+    CHECK_EQ(kTcPhaseVulnerable, st.out.tcPhase);
+}
+
+TEST(stage4c, regressions_recovery_snake_and_flow_course)
+{
+    StageGeometry fd = makeFdGeom();
+
+    // 4. Recovery Sweetspot: outward launch high over lip (hitstun > 0) and
+    // jumping out past 18 units must NOT poison peak height for low sweetspot.
+    RecoveryFloorhugState rf;
+    recoveryFloorhugResetAll(rf);
+    {
+        ChallengeFrame in = makeFrame(10, kCsFtFox, 0x45);
+        in.airborne = 1;
+        in.hitstun = 20;
+        in.x = 90.0f;
+        in.y = 26.0f; // high above lip during outward launch
+        recoverySweetspotStep(rf, fd, in);
+        CHECK_EQ(1, rf.offstageActive);
+        CHECK_EQ(0, rf.sawPeakNearLip);
+
+        // Actionable high jump going outward, then crossing outside 18-unit zone.
+        in = makeFrame(30, kCsFtFox, 0x0C);
+        in.airborne = 1;
+        in.hitstun = 0;
+        in.x = 92.0f;
+        in.y = 20.0f;
+        recoverySweetspotStep(rf, fd, in);
+        CHECK_EQ(1, rf.sawPeakNearLip);
+
+        in = makeFrame(36, kCsFtFox, 0x0E);
+        in.airborne = 1;
+        in.x = 112.0f; // |dx| = 27 > 18 -> resets peak
+        in.y = 5.0f;
+        recoverySweetspotStep(rf, fd, in);
+        CHECK_EQ(0, rf.sawPeakNearLip);
+
+        // Clean low approach into lip and Cliff_Wait (0x75) -> Sweetspot!
+        in = makeFrame(46, kCsFtFox, 0x114);
+        in.airborne = 1;
+        in.x = 89.0f;
+        in.y = -3.0f;
+        recoverySweetspotStep(rf, fd, in);
+        in = makeFrame(50, kCsFtFox, kRecStCliffWait);
+        in.ledgeGrabs = 1;
+        in.xluFrames = 31;
+        in.x = 85.0f;
+        in.y = -1.0f;
+        addEv(in, kRecStCliffCatch, kRecStCliffWait);
+        CHECK(recoverySweetspotStep(rf, fd, in));
+        CHECK_EQ(kRecGradeSweetspot, rf.out.recLastGrade);
+        CHECK_EQ(1u, rf.out.recSweetspots);
+    }
+
+    // 5. Snake Infinite Recovery: non-flinching Fox laser (+3%) and heavy-armor
+    // absorbed hit (+8%) with cypherLockout == 1 must NOT count as refresh!
+    SnakeRecoveryState snk;
+    snakeRecoveryResetAll(snk);
+    {
+        ChallengeFrame in = makeFrame(10, kSnkFtSnake, kSnkStCypherHang);
+        in.airborne = 1;
+        in.cypherLockout = 1;
+        in.cypherStacks = 1.0f;
+        in.damage = 20.0f;
+        in.x = 110.0f;
+        in.y = -20.0f;
+        addEv(in, kSnkStCypherStart, kSnkStCypherHang);
+        snakeRecoveryStep(snk, fd, in);
+
+        // Fox laser (non-flinching, kByElimination -> opponentDealtHit = 0, hitstun = 0).
+        in = makeFrame(18, kSnkFtSnake, kSnkStCypherHang);
+        in.airborne = 1;
+        in.cypherLockout = 1;
+        in.cypherStacks = 1.0f;
+        in.damage = 23.0f;
+        in.x = 110.0f;
+        in.y = -15.0f;
+        CHECK(!snakeRecoveryStep(snk, fd, in));
+        CHECK_EQ(0u, snk.out.refreshCount);
+
+        // <10% hit absorbed by Cypher Hang heavy armor (still locked, no hitstun).
+        in = makeFrame(24, kSnkFtSnake, kSnkStCypherHang);
+        in.airborne = 1;
+        in.cypherLockout = 1;
+        in.cypherStacks = 1.0f;
+        in.damage = 31.0f;
+        in.x = 110.0f;
+        in.y = -10.0f;
+        CHECK(!snakeRecoveryStep(snk, fd, in));
+        CHECK_EQ(0u, snk.out.refreshCount);
+
+        // Real C4 self-hit (+15%, Damage_Fly + hitstun > 0, LA-Bit[61] cleared) -> counts!
+        in = makeFrame(35, kSnkFtSnake, kSnkStDamageFly);
+        in.airborne = 1;
+        in.hitstun = 18;
+        in.cypherLockout = 0;
+        in.cypherStacks = 1.0f;
+        in.damage = 46.0f;
+        in.x = 112.0f;
+        in.y = -25.0f;
+        addEv(in, kSnkStC4Detonate, kSnkStDamageFly);
+        CHECK(snakeRecoveryStep(snk, fd, in));
+        CHECK_EQ(1u, snk.out.refreshCount);
+        CHECK_EQ(kSnakeSelfHitC4, snk.out.lastSelfHitKind);
+    }
+
+    // 6a & 6b. Flow Course: missed airdodge followed by Up-B LandingFallSpecial
+    // must NOT false-positive Gate 1; moving platforms update Gate 1 live; and
+    // Gate 3 opposite-edge target is preserved while running on Gate 3.
+    StageGeometry sv = makeFdGeom();
+    sv.platformCount = 1;
+    sv.platforms[0].leftX = -20.0f;
+    sv.platforms[0].rightX = 20.0f;
+    sv.platforms[0].y = 25.0f;
+    sv.platforms[0].valid = true;
+
+    FlowCourseState fc;
+    flowCourseResetAll(fc);
+    flowCourseSetGeometry(fc, sv);
+    CHECK_NEAR(0.0f, fc.gates[kFlowGateWaveland].minX + 23.0f, 0.01f);
+
+    // Move Smashville platform horizontally to [30, 70] -> Gate 1 updates live!
+    sv.platforms[0].leftX = 30.0f;
+    sv.platforms[0].rightX = 70.0f;
+    sv.platforms[0].y = 28.0f;
+    flowCourseSetGeometry(fc, sv);
+    CHECK_NEAR(27.0f, fc.gates[kFlowGateWaveland].minX, 0.01f);
+    CHECK_NEAR(73.0f, fc.gates[kFlowGateWaveland].maxX, 0.01f);
+    CHECK_NEAR(28.0f, fc.gates[kFlowGateWaveland].y, 0.01f);
+
+    // Advance Gate 0 -> Gate 1.
+    ChallengeFrame in = makeFrame(10, kCsFtFox, kFcStTurnDash);
+    in.x = 0.0f;
+    addEv(in, kFcStDash, kFcStTurnDash);
+    CHECK(flowCourseStep(fc, in));
+    CHECK_EQ(1, fc.out.activeGate);
+    CHECK_NEAR(50.0f, fc.out.gateX, 0.01f);
+    CHECK_NEAR(28.0f, fc.out.gateY, 0.01f);
+
+    // Missed mid-air airdodge -> Fall -> Up-B -> LandingFallSpecial on platform:
+    // sawEscapeAir must have been cleared, so Gate 1 must NOT advance.
+    in = makeFrame(20, kCsFtFox, kFcStEscapeAir);
+    in.airborne = 1;
+    in.x = 50.0f;
+    in.y = 45.0f;
+    addEv(in, 0x0B, kFcStEscapeAir);
+    flowCourseStep(fc, in);
+    in = makeFrame(35, kCsFtFox, 0x114);
+    in.airborne = 1;
+    in.x = 50.0f;
+    in.y = 32.0f;
+    addEv(in, 0x0E, 0x114);
+    flowCourseStep(fc, in);
+    in = makeFrame(42, kCsFtFox, kFcStLandingFallSpecial);
+    in.x = 50.0f;
+    in.y = 28.0f;
+    addEv(in, 0x114, kFcStLandingFallSpecial);
+    CHECK(!flowCourseStep(fc, in));
+    CHECK_EQ(1, fc.out.activeGate);
+
+    // Preserve Gate 3 opposite-edge bounds when platform visibility toggles mid-Gate 3.
+    fc.out.activeGate = kFlowGateEdgeBurst;
+    fc.out.running = 1;
+    fc.gates[kFlowGateEdgeBurst].minX = sv.floor.rightX - fc.edgeWidth;
+    fc.gates[kFlowGateEdgeBurst].maxX = sv.floor.rightX;
+    sv.platformCount = 0; // e.g., Fountain of Dreams platform disappears
+    flowCourseSetGeometry(fc, sv);
+    CHECK_NEAR(sv.floor.rightX, fc.gates[kFlowGateEdgeBurst].maxX, 0.01f);
+    CHECK_NEAR(sv.floor.rightX - fc.edgeWidth, fc.gates[kFlowGateEdgeBurst].minX, 0.01f);
+}

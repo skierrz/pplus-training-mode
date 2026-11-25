@@ -116,32 +116,6 @@ namespace extra {
         {
             return;
         }
-        if (st.layoutValid && st.floorLeftX == lx && st.floorRightX == rx
-            && (st.out.hasPlatformGate != 0) == (g.platformCount > 0))
-        {
-            return;
-        }
-        const float fy = g.floor.centerY;
-        st.layoutValid = 1;
-        st.floorLeftX = lx;
-        st.floorRightX = rx;
-        float ew = span * 0.22f;
-        st.edgeWidth = ew < 16.0f ? 16.0f : ew;
-
-        static const float kSpec[4][3] = {
-            {0.25f, 0.75f, 6.0f},  // Gate 0: center dash-dance
-            {0.15f, 0.85f, 6.0f},  // Gate 1: flat fallback wavedash
-            {0.10f, 0.90f, 40.0f}, // Gate 2: RAR takeoff
-            {0.00f, 0.22f, 12.0f}  // Gate 3: edge burst
-        };
-        for (int i = 0; i < 4; i++)
-        {
-            st.gates[i].minX = lx + span * kSpec[i][0];
-            st.gates[i].maxX = lx + span * kSpec[i][1];
-            st.gates[i].y = fy;
-            st.gates[i].tolY = kSpec[i][2];
-        }
-        st.gates[3].maxX = lx + st.edgeWidth;
 
         const StagePlatform* best = NULL;
         int np = g.platformCount < kMaxStagePlatforms ? g.platformCount : kMaxStagePlatforms;
@@ -154,15 +128,60 @@ namespace extra {
                 best = &p;
             }
         }
-        st.out.hasPlatformGate = best != NULL ? 1 : 0;
+
+        const u8 hasPlat = best != NULL ? 1u : 0u;
+        const bool floorChanged = !st.layoutValid || st.floorLeftX != lx || st.floorRightX != rx
+                                  || st.out.hasPlatformGate != hasPlat;
+        const bool keepGate3 = st.layoutValid && st.out.running && st.out.activeGate == kFlowGateEdgeBurst;
+
+        if (floorChanged)
+        {
+            const float fy = g.floor.centerY;
+            st.layoutValid = 1;
+            st.floorLeftX = lx;
+            st.floorRightX = rx;
+            st.out.hasPlatformGate = hasPlat;
+            float ew = span * 0.22f;
+            st.edgeWidth = ew < 16.0f ? 16.0f : ew;
+
+            static const float kSpec[4][3] = {
+                {0.25f, 0.75f, 6.0f},  // Gate 0: center dash-dance
+                {0.15f, 0.85f, 6.0f},  // Gate 1: flat fallback wavedash
+                {0.10f, 0.90f, 40.0f}, // Gate 2: RAR takeoff
+                {0.00f, 0.22f, 12.0f}  // Gate 3: edge burst
+            };
+            int nGates = keepGate3 ? 3 : 4;
+            for (int i = 0; i < nGates; i++)
+            {
+                st.gates[i].minX = lx + span * kSpec[i][0];
+                st.gates[i].maxX = lx + span * kSpec[i][1];
+                st.gates[i].y = fy;
+                st.gates[i].tolY = kSpec[i][2];
+            }
+            if (!keepGate3)
+            {
+                st.gates[3].maxX = lx + st.edgeWidth;
+            }
+        }
+
+        bool platUpdated = false;
         if (best != NULL)
         {
-            st.gates[1].minX = best->leftX - 3.0f;
-            st.gates[1].maxX = best->rightX + 3.0f;
-            st.gates[1].y = best->y;
-            st.gates[1].tolY = 5.0f;
+            float pMin = best->leftX - 3.0f;
+            float pMax = best->rightX + 3.0f;
+            if (floorChanged || st.gates[1].minX != pMin || st.gates[1].maxX != pMax || st.gates[1].y != best->y)
+            {
+                st.gates[1].minX = pMin;
+                st.gates[1].maxX = pMax;
+                st.gates[1].y = best->y;
+                st.gates[1].tolY = 5.0f;
+                platUpdated = true;
+            }
         }
-        fcSetTarget(st);
+        if (floorChanged || platUpdated)
+        {
+            fcSetTarget(st);
+        }
     }
 
     inline bool flowCourseStep(FlowCourseState& st, const ChallengeFrame& in)
@@ -199,6 +218,7 @@ namespace extra {
             {
             case kFcStTurnDash:
                 flags |= 1u;
+                st.sawEscapeAir = 0;
                 st.rarStage = 0;
                 break;
             case kFcStEscapeAir:
@@ -210,9 +230,11 @@ namespace extra {
                 {
                     flags |= 2u;
                 }
+                st.sawEscapeAir = 0;
                 st.rarStage = 0;
                 break;
             case kFcStTurnRun:
+                st.sawEscapeAir = 0;
                 if (p == kFcStRun || (p == kFcStRunBrake && in.frame - st.lastRunFrame <= 4))
                 {
                     st.rarStage = 1;
@@ -224,9 +246,11 @@ namespace extra {
                 }
                 break;
             case kFcStJumpSquat:
+                st.sawEscapeAir = 0;
                 st.rarStage = (p == kFcStTurnRun && st.rarStage == 1) ? 2 : 0;
                 break;
             case kFcStJump:
+                st.sawEscapeAir = 0;
                 if (p == kFcStJumpSquat && st.rarStage == 2 && facing != st.rarRunFacing)
                 {
                     flags |= 4u;
@@ -234,6 +258,7 @@ namespace extra {
                 st.rarStage = 0;
                 break;
             default:
+                st.sawEscapeAir = 0;
                 st.rarStage = 0;
                 break;
             }
@@ -241,6 +266,10 @@ namespace extra {
         if (in.status == kFcStEscapeAir)
         {
             st.sawEscapeAir = 1;
+        }
+        else if (!in.airborne && in.status != kFcStLandingFallSpecial)
+        {
+            st.sawEscapeAir = 0;
         }
 
         const u8 g = st.out.activeGate;
