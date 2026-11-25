@@ -181,6 +181,32 @@ namespace layout {
     // united with the Ledgedash HUD bar and header (when `ledgeCells > 0`).
     Box labBand(bool timer, int ledgeCells, bool wide);
 
+    // ---- Live Skill Drill HUD & End-Screen Modal (extra/drill_hud.cpp) ----
+    // Centered top-band header bar strictly inside the 5% CRT safe area on
+    // both 4:3 and 16:9. Width 296 clears 4:3 Input Viewer (470..608) and
+    // 16:9 Large Info Display (25.5..202.5) without stepping them down, and
+    // height 40 (y 24..64) stays above Brawl's timer bottom (65).
+    static const float kDrillHudWidth = 296.0f;
+    static const float kDrillHudHeight = 40.0f;
+    static const float kDrillHudTop = 24.0f;
+
+    inline Box drillHudBox(bool wide)
+    {
+        float w = kDrillHudWidth * xsOf(wide);
+        return box(320.0f - w * 0.5f, kDrillHudTop, w, kDrillHudHeight);
+    }
+
+    // Centered End-Screen Summary Modal (5% CRT safe on 4:3 and 16:9).
+    static const float kDrillModalWidth = 384.0f;
+    static const float kDrillModalTop = 104.0f;
+    static const float kDrillModalHeight = 272.0f;
+
+    inline Box drillModalBox(bool wide)
+    {
+        float w = kDrillModalWidth * xsOf(wide);
+        return box(320.0f - w * 0.5f, kDrillModalTop, w, kDrillModalHeight);
+    }
+
     void setLabBand(const Box& band);
     Box topBand();
 

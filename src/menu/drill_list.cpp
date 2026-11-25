@@ -1,5 +1,6 @@
 #include "menu/drill_list.h"
 
+#include <cstdio>
 #include <gf/gf_pad_status.h>
 #ifdef __MWERKS__
 #include <GX/GXGeometry.h>
@@ -35,13 +36,14 @@ namespace list {
     enum LauncherRowKind {
         kRowLab,
         kRowScenario,
-        kRowRecordings
+        kRowRecordings,
+        kRowSkillDrill
     };
 
     struct LauncherRow {
         const char* name;
         u8 kind;
-        u8 scenarioId; // extra::ScenarioId when kind == kRowScenario, else 0
+        u8 targetId; // extra::ScenarioId (kRowScenario) or drills::DrillId (kRowSkillDrill)
         const char* desc[3];
         const char* chipA;
         const char* chipB;
@@ -204,12 +206,91 @@ namespace list {
             "SD Card",
             ".tmr Replay",
             "Loads match directly"
+        },
+        {
+            "Ledgedash",
+            kRowSkillDrill,
+            drills::kDrillLedgedash,
+            {
+                "Drill P+ ledgedashes, GALINT,",
+                "Tourney Winner avoidance, and",
+                "the 5-ledge-grab invuln limit."
+            },
+            "Any Fighter",
+            "10-Rep Set",
+            "Score: GALINT > 0 reps"
+        },
+        {
+            "Wavedash / Waveland",
+            kRowSkillDrill,
+            drills::kDrillWavedash,
+            {
+                "Practice frame-1 wavedashes and",
+                "platform wavelands with angle,",
+                "slide, and miss timing feedback."
+            },
+            "Any Fighter",
+            "10-Rep Set",
+            "Score: clean slide reps"
+        },
+        {
+            "L-Cancel",
+            kRowSkillDrill,
+            drills::kDrillLCancel,
+            {
+                "Hit P+'s 7-frame L-cancel window",
+                "on whiff, hit, or shield. Flags",
+                "Auto L-Cancel when active."
+            },
+            "Any Fighter",
+            "10-Rep Set",
+            "Score: manual L-cancel reps"
+        },
+        {
+            "Float / Hover & DJC",
+            kRowSkillDrill,
+            drills::kDrillHoverFloat,
+            {
+                "Practice Peach Float Cancels,",
+                "Mewtwo Hover Cancels, and",
+                "instant Double-Jump Cancels."
+            },
+            "Peach/Mewtwo/DJC",
+            "10-Rep Set",
+            "Score: clean FC/HC/DJC reps"
+        },
+        {
+            "P+ Powershield",
+            kRowSkillDrill,
+            drills::kDrillPowershield,
+            {
+                "Land P+'s 2-frame physical or",
+                "projectile powershields and",
+                "5-frame PS-Drop punishes."
+            },
+            "Any Fighter",
+            "10-Rep Set",
+            "Score: PS & reflect reps"
+        },
+        {
+            "RAR / DACUS / B-Rev",
+            kRowSkillDrill,
+            drills::kDrillPPlusTech,
+            {
+                "Execute Reverse Aerial Rush,",
+                "DACUS / Gatling cancels, and",
+                "B-Reverse or Wavebounce techs."
+            },
+            "Any Fighter",
+            "10-Rep Set",
+            "Score: clean P+ tech reps"
         }
     };
 
     static const u8 kAllModeIndices[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
     static const u8 kOffenseIndices[] = {1, 2, 3, 4, 9};
     static const u8 kDefenseIndices[] = {5, 6, 7, 8, 10};
+    static const u8 kSkillDrillIndices[] = {12, 13, 14, 15, 16, 17};
 
     struct LauncherSection {
         const char* name;
@@ -220,7 +301,9 @@ namespace list {
     static const LauncherSection kSections[] = {
         {"All Modes", kAllModeIndices, static_cast<int>(sizeof(kAllModeIndices) / sizeof(kAllModeIndices[0]))},
         {"Offense", kOffenseIndices, static_cast<int>(sizeof(kOffenseIndices) / sizeof(kOffenseIndices[0]))},
-        {"Defense", kDefenseIndices, static_cast<int>(sizeof(kDefenseIndices) / sizeof(kDefenseIndices[0]))}
+        {"Defense", kDefenseIndices, static_cast<int>(sizeof(kDefenseIndices) / sizeof(kDefenseIndices[0]))},
+        {"Skill Drills", kSkillDrillIndices,
+         static_cast<int>(sizeof(kSkillDrillIndices) / sizeof(kSkillDrillIndices[0]))}
     };
     enum { kSectionCount = static_cast<int>(sizeof(kSections) / sizeof(kSections[0])) };
 
@@ -259,14 +342,14 @@ namespace list {
     static const float kBannerRightBot = 420.0f;
     static const float kBannerTitleX = 40.0f;
     static const float kBannerTitleCap = 16.0f;
-    static const float kBannerPillLeftX = 256.0f;
+    static const float kBannerPillLeftX = 250.0f;
     static const float kBannerPillW = 24.0f;
     static const float kBannerPillH = 18.0f;
     static const float kBannerPillCap = 9.5f;
-    static const float kBannerSecSlotL = 284.0f;
-    static const float kBannerSecSlotR = 380.0f;
+    static const float kBannerSecSlotL = 278.0f;
+    static const float kBannerSecSlotR = 386.0f;
     static const float kBannerSecCap = 10.0f;
-    static const float kBannerPillRightX = 384.0f;
+    static const float kBannerPillRightX = 390.0f;
 
     static const float kColLeft = 36.0f;
     static const float kColBarRight = 294.0f;
@@ -524,9 +607,20 @@ namespace list {
         }
         if (r.kind == kRowScenario)
         {
-            session().pendingScenario = r.scenarioId;
+            session().pendingScenario = r.targetId;
             session().drill = drills::kDrillNone;
-            TM_LOG("drills: scenario %u (%s) armed\n", r.scenarioId, r.name);
+            TM_LOG("drills: scenario %u (%s) armed\n", r.targetId, r.name);
+            close(r.name);
+            sound(game::kSoundConfirm);
+            rebuildIfNeeded();
+            return;
+        }
+        if (r.kind == kRowSkillDrill)
+        {
+            session().drill = r.targetId;
+            session().pendingScenario = 0;
+            session().drillRan = 0;
+            TM_LOG("drills: skill drill %u (%s) armed\n", r.targetId, r.name);
             close(r.name);
             sound(game::kSoundConfirm);
             rebuildIfNeeded();
@@ -999,6 +1093,33 @@ namespace list {
             gfx::text(contentX, textYForCap(302.0f, capScale), row.caption, kCardMuted, capScale);
         }
 
+        if (row.kind == kRowSkillDrill && row.targetId > 0 && row.targetId < drills::kBestSlots)
+        {
+            u16 best = session().best[row.targetId];
+            char bestText[20];
+            if (best == 0)
+            {
+                snprintf(bestText, sizeof(bestText), "Best: --");
+            }
+            else if (best <= 10)
+            {
+                snprintf(bestText, sizeof(bestText), "Best: %u/10", static_cast<unsigned>(best));
+            }
+            else
+            {
+                snprintf(bestText, sizeof(bestText), "Best: %u", static_cast<unsigned>(best));
+            }
+            float barY = 326.0f;
+            float barH = 26.0f;
+            drawBevelBar(contentX, barY, contentW, barH, kRowFillTop, kRowFillBot, kRowSheen, kLabBevelDark);
+            float bScale = scaleForCap(kCardChipCap);
+            float textY = textYForCap(barY + (barH - kCardChipCap) * 0.5f, bScale);
+            gfx::text(contentX + w(10.0f), textY, "Personal Best", kCardMuted, bScale);
+            float bw = boldWidth(bestText, bScale);
+            boldText(contentX + contentW - w(10.0f) - bw, textY, bestText, best > 0 ? kLabFocusGold : kCardMuted,
+                     bScale, bScale);
+        }
+
         if (s_starting)
         {
             float startScale = scaleForCap(kRowCap);
@@ -1150,9 +1271,10 @@ namespace list {
             s_stickWait[i] = false;
             s_waitRelease[i] = false;
         }
+        bool fromDrill = session().drillRan != 0;
         session().drill = drills::kDrillNone;
         session().drillRan = 0;
-        if (!session().labChosen)
+        if (!session().labChosen || fromDrill)
         {
             int port = training::controllingPort();
             if (port >= 0)

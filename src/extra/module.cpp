@@ -10,6 +10,7 @@
 #include "extra/di_picker_core.h"
 #include "extra/drill_core_engines.h"
 #include "extra/drill_hover_ps_engines.h"
+#include "extra/drill_hud.h"
 #include "extra/drill_pplus_tech_engines.h"
 #include "extra/fighter_swap.h"
 #include "extra/frame_data.h"
@@ -95,6 +96,12 @@ namespace extra {
             describe(line);
             TM_LOG("%s (render call %u)\n", line, call);
         }
+        if (!s_vsReadOnly && (drillHudHook(0, NULL) & 1u) != 0u)
+        {
+            gfx::begin();
+            drillHudDraw(match);
+            gfx::end();
+        }
 #ifdef TM_EXTRA_PROOF
         // Off by default (make EXTRA_PROOF=1): the line would change the
         // screenshots the other tests compare.
@@ -121,6 +128,7 @@ namespace extra {
         coreDrillEnginesFrame();
         hoverPsFrame();
         pplusTechFrame();
+        drillHudFrame();
         techTrackerFrame();
         timingMeterFrame();
         heatmapTick();
@@ -133,6 +141,7 @@ namespace extra {
         coreDrillEnginesSavestateReset();
         hoverPsResetTransient();
         pplusTechReset();
+        drillHudSavestateReset();
         techTrackerReset();
         timingMeterReset();
     }
@@ -148,7 +157,7 @@ namespace extra {
         optionDesc,        uiAssetsDrawIcon,   uiAssetsDrawPageOverlay,
         ui::infoWanted,    ui::infoStep,       ui::drawInfo,       ui::infoReset,
         ui::applyInfoPreset, inputViewerDraw,  drawColoredHitboxes, diCompassDraw,
-        reversalSlotsPick, psaInspectorDraw,   timingMeterDraw
+        reversalSlotsPick, psaInspectorDraw,   timingMeterDraw,    drillHudHook
     };
 
     static bool attach(iface::Interface* iface)
@@ -191,6 +200,7 @@ namespace extra {
         hitboxColorsAttach();
         psaInspectorAttach();
         timingMeterAttach();
+        drillHudAttach();
         main::setExtraHooks(&kHooks);
         TM_LOG("extra: attached next to match module v%s\n", main::kModule.buildVersion);
         return true;
@@ -207,6 +217,7 @@ namespace extra {
             TM_LOG("extra: detaching\n");
             return;
         }
+        drillHudDetach();
         timingMeterDetach();
         psaInspectorDetach();
         hitboxColorsDetach();

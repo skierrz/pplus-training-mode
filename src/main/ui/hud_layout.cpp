@@ -5,10 +5,16 @@ namespace ui {
 namespace layout {
     static Box s_labBand = {0.0f, 0.0f, 0.0f, 0.0f};
 
+#ifdef TM_MODULE_MAIN
+#pragma force_active on
+#endif
     void setLabBand(const Box& band)
     {
         s_labBand = band;
     }
+#ifdef TM_MODULE_MAIN
+#pragma force_active reset
+#endif
 
     Box frameBarBox(int cells, bool wide)
     {

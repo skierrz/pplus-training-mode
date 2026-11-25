@@ -479,5 +479,14 @@ namespace main {
             s_hooks->timingMeterDraw(match);
         }
     }
+
+    u32 extraDrill(u32 phase, gfPadStatus* pads)
+    {
+        if (s_hooks != NULL && s_hooks->drillHook != NULL)
+        {
+            return s_hooks->drillHook(phase, pads);
+        }
+        return 0u;
+    }
 }
 }

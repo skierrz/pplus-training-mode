@@ -6,6 +6,7 @@
 #include "main/game/match.h"
 
 class Fighter;
+struct gfPadStatus;
 
 // The match module's side of the extra module (kind "extra", src/extra/).
 // The extra module is linked against this one and calls it directly; this
@@ -109,6 +110,9 @@ namespace main {
         void (*psaInspectorDraw)(const game::MatchState& match, bool menuOpen);
         // Overhead 3D Timing Helper Meter (extra/timing_meter.h).
         void (*timingMeterDraw)(const game::MatchState& match);
+        // Native Skill Drill HUD & End-Screen Modal (extra/drill_hud.h).
+        // pads != NULL: handle pad phase, return 1 if consumed; pads == NULL: bit 0 active, bit 1 modal open.
+        u32 (*drillHook)(u32 phase, gfPadStatus* pads);
     };
 
     // What the match module asks of the Scenario Presets engine.
@@ -276,5 +280,7 @@ namespace main {
     void extraPsaInspectorDraw(const game::MatchState& match, bool menuOpen);
     // Overhead 3D Timing Helper Meter (extra/timing_meter.h).
     void extraTimingMeterDraw(const game::MatchState& match);
+    // Native Skill Drill HUD & End-Screen Modal (extra/drill_hud.h).
+    u32 extraDrill(u32 phase, gfPadStatus* pads);
 }
 }
