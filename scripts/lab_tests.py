@@ -91,8 +91,8 @@ CPU_PERCENT_ROW, CPU_LOCK_ROW = 0, 1
 CPU_DEFENSE_ROW, CPU_SHIELD_HEALTH_ROW = 8, 1
 INFO_PRESET, INFO_SIZE = 0, 1
 CONTROLS_MENU_BUTTON, CONTROLS_CODE_MENU, CONTROLS_MENU_STYLE = 7, 8, 9
-OSD_POWERSHIELD = 12  # visible row at default (OSD Preset at 0; Advantage Tolerance hidden)
-OSD_ROWS = 24         # visible OSD rows at default (25 total minus hidden Advantage Tolerance)
+OSD_POWERSHIELD = 14  # visible row at default (OSD Preset=Essentials; Advantage Tolerance visible at 12)
+OSD_ROWS = 26         # visible OSD rows at default (all 26 rows visible under Essentials defaults)
 DISPLAY_HMN_INFO, DISPLAY_CPU_INFO, DISPLAY_DEBUG = 13, 14, 17  # visible Display rows at default
 DISPLAY_ROWS = 18     # visible Display rows at default (Hitbox Colors, Heatmap*, DI Vector hidden)
 DEBUG_OVERLAY_ROW = 1  # Display > Advanced / Debug: 0 PSA Debugger, 1 Debug Overlay

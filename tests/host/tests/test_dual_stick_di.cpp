@@ -411,12 +411,12 @@ TEST(dual_stick_di, cpu_hitlag_cadence_single_vs_dual_stick)
 
 TEST(dual_stick_di, settings_layout_menu_row_and_storage_round_trip)
 {
-    CHECK_EQ(60u, sizeof(cpu::CpuOptions));
+    CHECK_EQ(61u, sizeof(cpu::CpuOptions));
     CHECK_EQ(64u, sizeof(main::CpuSettings));
     CHECK_EQ(436u, sizeof(main::Settings));
 
     // Dual-Stick SDI lives on CPU > DI & SDI (P_CPU_DI, row 3); counters live on P_CPU_COUNTERS;
-    // P+ Tech OSD lives on P_OSD_MENU (row 3).
+    // P+ Tech OSD lives on P_OSD_MENU (row 5).
     const ui::Page& diPage = ui::pages::kCpuDi;
     REQUIRE(diPage.count == 5);
     CHECK(strcmp(diPage.options[3].name, "Dual-Stick SDI") == 0);
@@ -425,15 +425,17 @@ TEST(dual_stick_di, settings_layout_menu_row_and_storage_round_trip)
     CHECK(strcmp(diPage.options[4].name, "ASDI Direction") == 0);
 
     const ui::Page& cntPage = ui::pages::kCpuCounters;
-    REQUIRE(cntPage.count == 9);
-    CHECK(strcmp(cntPage.options[5].name, "Reversal Slots") == 0);
-    CHECK(strcmp(cntPage.options[6].name, "Adaptive CPU") == 0);
-    CHECK(strcmp(cntPage.options[7].name, "Auto L-Cancel") == 0);
-    CHECK(strcmp(cntPage.options[8].name, "SHFFL Timing") == 0);
+    REQUIRE(cntPage.count == 10);
+    CHECK(strcmp(cntPage.options[3].name, "Shield Timing") == 0);
+    CHECK(strcmp(cntPage.options[6].name, "Reversal Slots") == 0);
+    CHECK(strcmp(cntPage.options[7].name, "Adaptive CPU") == 0);
+    CHECK(strcmp(cntPage.options[8].name, "Auto L-Cancel") == 0);
+    CHECK(strcmp(cntPage.options[9].name, "SHFFL Timing") == 0);
 
     const ui::Page& osdPage = ui::pages::kOsdMenu;
-    REQUIRE(osdPage.count == 25);
-    CHECK(strcmp(osdPage.options[4].name, "P+ Tech OSD") == 0);
+    REQUIRE(osdPage.count == 26);
+    CHECK(strcmp(osdPage.options[4].name, "Tech Sparkle") == 0);
+    CHECK(strcmp(osdPage.options[5].name, "P+ Tech OSD") == 0);
 
     host::card::reset();
     bootStorage();

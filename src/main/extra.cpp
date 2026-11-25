@@ -263,6 +263,12 @@ namespace main {
         return s_hooks != NULL && s_hooks->advantageMeasured(r);
     }
 
+    bool extraShieldHoldFullMove(int defenderPlayerNo, int defenderEntryId, const cpu::View& v, bool newHit)
+    {
+        return s_hooks != NULL && s_hooks->shieldHoldFullMove != NULL
+               && s_hooks->shieldHoldFullMove(defenderPlayerNo, defenderEntryId, v, newHit);
+    }
+
     bool extraPPlusRecovery(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons)
     {
         return s_hooks != NULL && s_hooks->pplusRecovery != NULL

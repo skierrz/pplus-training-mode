@@ -337,7 +337,7 @@ TEST(osd_theme, menu_accent_palettes_and_info_theme_v2)
 
 TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
 {
-    CHECK_EQ(1, static_cast<int>(main::kSettingsVersion));
+    CHECK_EQ(2, static_cast<int>(main::kSettingsVersion));
     CHECK_EQ(32u, sizeof(main::OsdSettings));
     CHECK_EQ(436u, sizeof(Settings));
     CHECK_EQ(110u, offsetof(Settings, osd.bgColor));
@@ -347,49 +347,54 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     CHECK_EQ(114u, offsetof(Settings, osd.infoBgAlpha));
     CHECK_EQ(115u, offsetof(Settings, osd.timingMeter));
     CHECK_EQ(116u, offsetof(Settings, osd.preset));
+    CHECK_EQ(117u, offsetof(Settings, osd.techSparkle));
     CHECK_EQ(22u, offsetof(main::OsdSettings, bgColor));
-    CHECK_EQ(29u, offsetof(main::OsdSettings, reserved));
+    CHECK_EQ(30u, offsetof(main::OsdSettings, reserved));
 
     // Boot clean and verify defaults.
     bootStorage();
+    CHECK_EQ(4, static_cast<int>(main::settings().osd.maxMessages));
     CHECK_EQ(static_cast<int>(main::kOsdBgTeal), static_cast<int>(main::settings().osd.bgColor));
     CHECK_EQ(static_cast<int>(main::kDefaultOsdAlpha), static_cast<int>(main::settings().osd.bgAlpha));
     CHECK_EQ(static_cast<int>(main::kMenuAccentTeal), static_cast<int>(main::settings().osd.menuAccent));
     CHECK_EQ(static_cast<int>(main::kInfoBgDefault), static_cast<int>(main::settings().osd.infoBgColor));
     CHECK_EQ(static_cast<int>(main::kInfoAlphaDefault), static_cast<int>(main::settings().osd.infoBgAlpha));
     CHECK_EQ(static_cast<int>(main::kTimingMeterOff), static_cast<int>(main::settings().osd.timingMeter));
+    CHECK_EQ(static_cast<int>(main::kTechSparkleWavedash), static_cast<int>(main::settings().osd.techSparkle));
 
-    // Save custom Theme v2 + timing meter + pre-existing OSD settings and verify round-trip.
-    main::settings().osd.wavedash = 1;
-    main::settings().osd.maxMessages = 4;
+    // Save custom Theme v2 + timing meter + tech sparkle + pre-existing OSD settings and verify round-trip.
+    main::settings().osd.wavedash = 0;
+    main::settings().osd.maxMessages = 3;
     main::settings().osd.bgColor = main::kOsdBgCrimson;
     main::settings().osd.bgAlpha = 2;
     main::settings().osd.menuAccent = main::kMenuAccentCrimson;
     main::settings().osd.infoBgColor = main::kInfoBgViolet;
     main::settings().osd.infoBgAlpha = main::kInfoAlpha20;
     main::settings().osd.timingMeter = main::kTimingMeterAll;
+    main::settings().osd.techSparkle = main::kTechSparkleBoth;
     saveStorage();
     storage::detach();
 
     REQUIRE(host::card::has(kFileA));
     storage::AreaEntry* osdArea = findAreaEntry(kFileA, storage::kAreaOsd);
     REQUIRE(osdArea != NULL);
-    CHECK_EQ(29u, osdArea->used);
+    CHECK_EQ(30u, osdArea->used);
 
     bootStorage();
     CHECK_LOG("16 areas, 0 with new fields, 0 at defaults, 0 unknown");
-    CHECK_EQ(1, static_cast<int>(main::settings().osd.wavedash));
-    CHECK_EQ(4, static_cast<int>(main::settings().osd.maxMessages));
+    CHECK_EQ(0, static_cast<int>(main::settings().osd.wavedash));
+    CHECK_EQ(3, static_cast<int>(main::settings().osd.maxMessages));
     CHECK_EQ(static_cast<int>(main::kOsdBgCrimson), static_cast<int>(main::settings().osd.bgColor));
     CHECK_EQ(2, static_cast<int>(main::settings().osd.bgAlpha));
     CHECK_EQ(static_cast<int>(main::kMenuAccentCrimson), static_cast<int>(main::settings().osd.menuAccent));
     CHECK_EQ(static_cast<int>(main::kInfoBgViolet), static_cast<int>(main::settings().osd.infoBgColor));
     CHECK_EQ(static_cast<int>(main::kInfoAlpha20), static_cast<int>(main::settings().osd.infoBgAlpha));
     CHECK_EQ(static_cast<int>(main::kTimingMeterAll), static_cast<int>(main::settings().osd.timingMeter));
+    CHECK_EQ(static_cast<int>(main::kTechSparkleBoth), static_cast<int>(main::settings().osd.techSparkle));
     storage::detach();
 
     // Simulate Theme v1 SD file where kAreaOsd had used == 24 (ending after bgAlpha):
-    // must preserve bgColor/bgAlpha and default Theme v2 + timingMeter fields to 0.
+    // must preserve bgColor/bgAlpha and default Theme v2 + timingMeter + techSparkle fields.
     osdArea = findAreaEntry(kFileA, storage::kAreaOsd);
     REQUIRE(osdArea != NULL);
     osdArea->used = 24;
@@ -403,6 +408,7 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     CHECK_EQ(static_cast<int>(main::kInfoBgDefault), static_cast<int>(main::settings().osd.infoBgColor));
     CHECK_EQ(static_cast<int>(main::kInfoAlphaDefault), static_cast<int>(main::settings().osd.infoBgAlpha));
     CHECK_EQ(static_cast<int>(main::kTimingMeterOff), static_cast<int>(main::settings().osd.timingMeter));
+    CHECK_EQ(static_cast<int>(main::kTechSparkleWavedash), static_cast<int>(main::settings().osd.techSparkle));
     storage::detach();
 
     // Simulate pre3 SD file where kAreaOsd had used == 22 (ending after maxMessages):
@@ -416,8 +422,8 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     bootStorage();
     CHECK_LOG("16 areas, 1 with new fields, 0 at defaults, 0 unknown");
     CHECK_LOG("storage: notice: Lab settings from an older version: new ones at defaults");
-    CHECK_EQ(1, static_cast<int>(main::settings().osd.wavedash));
-    CHECK_EQ(4, static_cast<int>(main::settings().osd.maxMessages));
+    CHECK_EQ(0, static_cast<int>(main::settings().osd.wavedash));
+    CHECK_EQ(3, static_cast<int>(main::settings().osd.maxMessages));
     CHECK_EQ(static_cast<int>(main::kOsdBgTeal), static_cast<int>(main::settings().osd.bgColor));
     CHECK_EQ(static_cast<int>(main::kDefaultOsdAlpha), static_cast<int>(main::settings().osd.bgAlpha));
     CHECK_EQ(static_cast<int>(main::kMenuAccentTeal), static_cast<int>(main::settings().osd.menuAccent));

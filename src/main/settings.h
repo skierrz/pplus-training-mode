@@ -21,7 +21,7 @@ namespace tm {
 namespace main {
     enum {
         kSettingsMagic = 0x544D5354, // "TMST"
-        kSettingsVersion = 1,
+        kSettingsVersion = 2,
         kInfoRows = 8
     };
 
@@ -229,6 +229,15 @@ namespace main {
         kOsdPresetCount
     };
 
+    // OSDs > Tech Sparkle (clean-room native ef_common visual cue).
+    enum TechSparkleMode {
+        kTechSparkleOff = 0,
+        kTechSparkleWavedash,
+        kTechSparkleShorthop,
+        kTechSparkleBoth,
+        kTechSparkleCount
+    };
+
     // OSD Menu page.
     struct OsdSettings {
         u8 position;           // osd::Position
@@ -253,15 +262,16 @@ namespace main {
         u8 boostGrab;
         u8 grabBreakout;
         u8 itemThrow;
-        u8 maxMessages; // 1-6 per player (osd::kPerPlayer)
+        u8 maxMessages; // 1-6 per player (osd::kPerPlayer, default 4)
         u8 bgColor;     // OsdBgColor (0..6, default kOsdBgTeal)
         u8 bgAlpha;     // 0..10 (0%..100% in 10% steps, default 5 = 50%)
         u8 menuAccent;  // MenuAccent (0..3, default kMenuAccentTeal)
         u8 infoBgColor; // InfoBgColor (0..6, default kInfoBgDefault)
         u8 infoBgAlpha; // InfoAlpha (0..6, default kInfoAlphaDefault = 80%)
         u8 timingMeter; // TimingMeterMode (0..4, default kTimingMeterOff)
-        u8 preset;      // OsdPreset (0..4, default kOsdPresetCustom)
-        u8 reserved[3];
+        u8 preset;      // OsdPreset (0..4, default kOsdPresetEssentials)
+        u8 techSparkle; // TechSparkleMode (0..3, default kTechSparkleWavedash)
+        u8 reserved[2];
     };
 
     // CPU Options and its subpages (Tech, Advanced Counter).
@@ -269,7 +279,6 @@ namespace main {
         u16 percent;    // 0-999
         u8 lockPercent; // 0/1
         cpu::CpuOptions options; // the lab's CPU control (main/cpu/cpu_settings.h)
-        u8 reserved[61 - sizeof(cpu::CpuOptions)];
     };
 
     // Recording, savestates and their subpages. Choice values are the
@@ -532,6 +541,7 @@ namespace main {
     TM_STATIC_ASSERT(offsetof(Settings, osd.infoBgAlpha) == 114, tm_settings_osd_info_bg_alpha_at_114);
     TM_STATIC_ASSERT(offsetof(Settings, osd.timingMeter) == 115, tm_settings_osd_timing_meter_at_115);
     TM_STATIC_ASSERT(offsetof(Settings, osd.preset) == 116, tm_settings_osd_preset_at_116);
+    TM_STATIC_ASSERT(offsetof(Settings, osd.techSparkle) == 117, tm_settings_osd_tech_sparkle_at_117);
     TM_STATIC_ASSERT(offsetof(Settings, general.playerInfiniteShields) == 20, tm_settings_player_infinite_shields_at_20);
     TM_STATIC_ASSERT(offsetof(Settings, general.offlineVersus) == 21, tm_settings_offline_versus_at_21);
     TM_STATIC_ASSERT(offsetof(Settings, general.offlineVersus) == block::kOfflineVersusOffset,

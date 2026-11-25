@@ -64,10 +64,10 @@ COLOR_NONE, COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_CYAN, COLOR_ORANGE, COLOR_
 
 # Lab menu rows (src/main/ui/pages/display_options.cpp, osd_menu.cpp; visible indices at default).
 DISPLAY_HMN_OVERLAYS, DISPLAY_LEDGE_HUD, DISPLAY_THEME = 11, 15, 2
-OSD_ROWS = {"wavedash": 5, "lcancel": 6, "ledgedash": 7, "actoos": 8,
-            "dashback": 11, "powershield": 12, "actoolag": 13, "actooairborne": 14,
-            "actoohitstun": 15, "jumpcancel": 16, "fastfall": 17, "boostgrab": 18,
-            "sdi": 19, "lockout": 20, "combo": 21, "grabbreakout": 22, "itemthrow": 23}
+OSD_ROWS = {"wavedash": 6, "lcancel": 7, "ledgedash": 8, "actoos": 9,
+            "dashback": 13, "powershield": 14, "actoolag": 15, "actooairborne": 16,
+            "actoohitstun": 17, "jumpcancel": 18, "fastfall": 19, "boostgrab": 20,
+            "sdi": 21, "lockout": 22, "combo": 23, "grabbreakout": 24, "itemthrow": 25}
 # Rows not built yet: the cursor skips them.
 OSD_UNBUILT = ()
 

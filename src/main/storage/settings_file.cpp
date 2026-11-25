@@ -234,6 +234,21 @@ namespace storage {
         memcpy(&before, &s, sizeof(Settings));
         const FileHeader* h = reinterpret_cast<const FileHeader*>(s_file);
         const SettingsHead* head = reinterpret_cast<const SettingsHead*>(s_file + sizeof(FileHeader));
+        if (head->layout > main::kSettingsVersion)
+        {
+            s_state->newerOnCard = 1;
+            TM_LOG("storage: settings layout %u newer than %u: not used\n", head->layout, main::kSettingsVersion);
+            notice(kNoticeWarn, "Lab settings are from a newer version: not used");
+            return;
+        }
+        if (head->layout < main::kSettingsVersion)
+        {
+            s_state->force = 1;
+            TM_LOG("storage: settings layout %u older than %u: updated to new defaults\n", head->layout,
+                   main::kSettingsVersion);
+            notice(kNoticeOk, "Updated lab settings to new defaults");
+            return;
+        }
         AreaStats stats;
         if (!readAreas(s_file, h->size, sizeof(FileHeader) + sizeof(SettingsHead), head->areaCount,
                        reinterpret_cast<u8*>(&s), kAllAreas, stats))

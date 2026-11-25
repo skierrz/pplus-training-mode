@@ -85,13 +85,15 @@ SET = {"playerPercent": 8, "lockPlayerPercent": 10, "frameAdvance": 11, "ledgeHu
        "wavedash": 92, "lCancel": 93, "actOos": 94, "cpuPercent": 120, "cpuLock": 122,
        "cpuControl": 123, "shieldHealth": 133, "hmnMode": 186}
 # What the first boot sets through the menu, and what the next boot must find.
-PERSISTED = {"cameraMode": 1, "moveStaling": 0, "wavedash": 1, "lCancel": 1,
+# Under v2 Essentials defaults, Wavedash / L-Cancel / Act OoS default On (1),
+# so save toggles Act OoS Off (0) to verify persisted Off overrides too.
+PERSISTED = {"cameraMode": 1, "moveStaling": 0, "wavedash": 1, "lCancel": 1, "actOos": 0,
              "advanceButton": 2, "advanceDelay": 40}
 SESSION_SET = {"frameAdvance": 1, "playerPercent": 5, "lockPlayerPercent": 1, "gameSpeed": 1, "cpuControl": 1}
 # CPU Control starts on Lab (1); the file holds 0 for it, which a load must not take.
 SESSION_DEFAULTS = {"frameAdvance": 0, "playerPercent": 0, "lockPlayerPercent": 0, "gameSpeed": 0, "cpuControl": 1}
-DEFAULTS = {"cameraMode": 0, "moveStaling": 1, "wavedash": 0, "lCancel": 0,
-            "advanceButton": 0, "advanceDelay": 30, "ledgeHud": 0}
+DEFAULTS = {"cameraMode": 0, "moveStaling": 1, "wavedash": 1, "lCancel": 1,
+            "advanceButton": 0, "advanceDelay": 30, "ledgeHud": 1}
 HALF = {"playerPercent", "cpuPercent"}
 # Areas (src/main/storage/areas.h) and where they start in main::Settings.
 AREA_AT = {1: 8, 2: 24, 3: 40, 4: 56, 5: 72, 6: 88, 7: 120, 8: 184, 9: 248, 10: 268, 11: 288, 12: 296, 13: 292,
@@ -100,7 +102,7 @@ AREA_COUNT = len(AREA_AT)
 AREA_GENERAL, AREA_CONTROLS, AREA_OSD = 1, 2, 6
 SETTINGS_MAGIC, RECORDING_MAGIC = 0x544D5346, 0x544D5246
 # OSD Menu rows (src/main/ui/pages/osd_menu.cpp).
-OSD_WAVEDASH, OSD_LCANCEL, OSD_ACT_OOS = 5, 6, 8
+OSD_WAVEDASH, OSD_LCANCEL, OSD_ACT_OOS = 6, 7, 9
 CONTROLS_HOLD_DELAY = 1
 AREA_CPU = 7
 
@@ -194,7 +196,7 @@ def settings_value(parsed, name):
     return None
 
 
-def build_settings(areas, sequence, fmt=1, layout=1):
+def build_settings(areas, sequence, fmt=1, layout=2):
     """A settings file: `areas` [(id, generation, bytes)]."""
     at = 40 + 8 * len(areas)
     table, body = b"", b""
@@ -403,6 +405,8 @@ def menu_changes(emu, lab, base, res, ctx):
     lab.toggle_on(SET["wavedash"])
     lab.down(OSD_LCANCEL - OSD_WAVEDASH)
     lab.toggle_on(SET["lCancel"])
+    lab.down(OSD_ACT_OOS - OSD_LCANCEL)
+    lab.toggle_off(SET["actOos"])
     lab.back_to_main(1)
     lab.up(LT.MAIN_OSD)
     lab.go_controls()
@@ -559,7 +563,7 @@ def s_load(emu, ctx):
     m = re.search(r"storage: settings loaded from ([^\r\n]*)", log)
     res.row("settings read at the first match", f"from settings-a.bin, save 1, {AREA_COUNT} areas, nothing migrated",
             m.group(1) if m else None,
-            m is not None and m.group(1).startswith(f"settings-a.bin (save 1, layout 1): {AREA_COUNT} areas, 0 with "
+            m is not None and m.group(1).startswith(f"settings-a.bin (save 1, layout 2): {AREA_COUNT} areas, 0 with "
                                                      "new fields, 0 at defaults, 0 unknown"))
     lab = LT.Lab(emu, [])
     base = lab.find_settings()
@@ -735,7 +739,7 @@ def prepare_migrate(ctx):
     # generation; an area this version does not know.
     gen, general = areas[AREA_GENERAL]
     general = bytearray(general[:8])
-    general[SET["ledgeHud"] - AREA_AT[AREA_GENERAL]] = 1
+    general[SET["ledgeHud"] - AREA_AT[AREA_GENERAL]] = 0
     older = []
     for aid in sorted(areas):
         g, b = areas[aid]
@@ -853,14 +857,14 @@ def s_migrate(emu, ctx):
     copied = AREA_COUNT - 2
     res.row("the older file migrated", f"settings-b.bin: {copied} areas, 1 with new fields, 2 at defaults, 1 unknown",
             m.group(1) if m else None,
-            m is not None and m.group(1).startswith(f"settings-b.bin (save 6, layout 1): {copied} areas, 1 with new "
+            m is not None and m.group(1).startswith(f"settings-b.bin (save 6, layout 2): {copied} areas, 1 with new "
                                                      "fields, 2 at defaults, 1 unknown"))
     res.row("its message", "Lab settings from an older version: new ones at defaults",
             bool(re.search(r"notice: Lab settings from an older version", log)),
             bool(re.search(r"notice: Lab settings from an older version", log)))
     lab = LT.Lab(emu, [])
     base = lab.find_settings()
-    want = {"ledgeHud": 1, "cameraMode": DEFAULTS["cameraMode"], "moveStaling": DEFAULTS["moveStaling"],
+    want = {"ledgeHud": 0, "cameraMode": DEFAULTS["cameraMode"], "moveStaling": DEFAULTS["moveStaling"],
             "wavedash": DEFAULTS["wavedash"], "lCancel": DEFAULTS["lCancel"],
             "advanceButton": DEFAULTS["advanceButton"], "advanceDelay": DEFAULTS["advanceDelay"]}
     got = read_settings(emu, base, want)
@@ -956,7 +960,7 @@ def s_errors(emu, ctx):
     lab.main_to(LT.MAIN_OSD)
     lab.tap(["A"])
     lab.down(OSD_WAVEDASH)
-    lab.toggle_on(SET["wavedash"])
+    lab.toggle_off(SET["wavedash"])
     lab.back_to_main(1)
     pos = lab.log_pos()
     lab.close_menu()
@@ -966,7 +970,7 @@ def s_errors(emu, ctx):
     skipped = "storage: settings not saved: newer format on the card" in log_after
     res.row("a change, menu closed", "not saved (newer format on card); change kept in RAM",
             f"{w.group(0) if w else 'no write'}, skipped={skipped}, wavedash={emu.u8(base + SET['wavedash'])}",
-            w is None and skipped and emu.u8(base + SET["wavedash"]) == 1)
+            w is None and skipped and emu.u8(base + SET["wavedash"]) == 0)
     return res
 
 

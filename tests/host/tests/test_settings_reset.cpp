@@ -73,7 +73,7 @@ namespace {
         s.general.playerPercent = 123;
         s.general.lockPlayerPercent = 1;
         s.general.frameAdvance = 1;
-        s.general.ledgeHud = 1;
+        s.general.ledgeHud = 0;
         s.general.ledgeMaxFrames = 42;
         s.general.ledgeGalint = 0;
         s.general.ledgePanel = 0;
@@ -121,18 +121,18 @@ namespace {
 
         // Area 6: OSD
         s.osd.position = osd::kPositionTopLeft;
-        s.osd.frameAdvantage = 1;
-        s.osd.frameAdvantageOnHit = 1;
+        s.osd.frameAdvantage = 0;
+        s.osd.frameAdvantageOnHit = 0;
         s.osd.advantageTolerance = 4;
-        s.osd.wavedash = 1;
-        s.osd.lCancel = 1;
-        s.osd.actOos = 1;
+        s.osd.wavedash = 0;
+        s.osd.lCancel = 0;
+        s.osd.actOos = 0;
         s.osd.actOoLag = 1;
         s.osd.jumpCancel = 1;
         s.osd.fastfall = 1;
         s.osd.comboCounter = 1;
         s.osd.sdi = 1;
-        s.osd.ledgedashInfo = 1;
+        s.osd.ledgedashInfo = 0;
         s.osd.actOoHitstun = 1;
         s.osd.actOoAirborne = 1;
         s.osd.dashback = 1;
@@ -142,6 +142,8 @@ namespace {
         s.osd.grabBreakout = 1;
         s.osd.itemThrow = 1;
         s.osd.maxMessages = 3;
+        s.osd.preset = main::kOsdPresetCustom;
+        s.osd.techSparkle = main::kTechSparkleOff;
 
         // Area 7: CPU
         s.cpu.percent = 77;
@@ -185,7 +187,8 @@ namespace {
         s.cpu.options.advDelayGround = 6;
         s.cpu.options.advDelayAir = 7;
         s.cpu.options.advDelayShield = 8;
-        s.cpu.options.recovery = cpu::kRecoveryPPlusAi;
+        s.cpu.options.recovery = cpu::kRecoveryGame;
+        s.cpu.options.shieldTiming = cpu::kShieldTimingFirstGap;
         s.cpu.options.ledgeOption = cpu::kLedgeRoll;
         s.cpu.options.clatterEscape = cpu::kMashMedium;
         s.cpu.options.adaptiveMode = cpu::kAdaptiveActive;

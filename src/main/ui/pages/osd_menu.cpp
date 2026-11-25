@@ -19,6 +19,10 @@ namespace pages {
     static const char* const kOsdPresets[] = {"Custom", "Essentials", "Movement", "Defense", "All Off"};
     TM_STATIC_ASSERT(TM_COUNT(kOsdPresets) == main::kOsdPresetCount, tm_osd_presets_match);
 
+    // In main::TechSparkleMode order (main/settings.h).
+    static const char* const kTechSparkle[] = {"Off", "Perfect Wavedash", "Shorthop", "Both"};
+    TM_STATIC_ASSERT(TM_COUNT(kTechSparkle) == main::kTechSparkleCount, tm_tech_sparkle_labels_match);
+
     static void osdRowEdited()
     {
         main::settings().osd.preset = main::kOsdPresetCustom;
@@ -76,20 +80,22 @@ namespace pages {
 
     static const Option kRows[] = {
         // Layout & meta controls.
-        TM_CHOICE("OSD Preset", osd.preset, kOsdPresets, main::kOsdPresetCustom, osdPresetChanged),
+        TM_CHOICE("OSD Preset", osd.preset, kOsdPresets, main::kOsdPresetEssentials, osdPresetChanged),
         TM_CHOICE("OSD Position", osd.position, kPosition, osd::kPositionSides, lab::osdSettingsChanged),
-        TM_INT("Max OSDs", osd.maxMessages, 1, osd::kPerPlayer, osd::kPerPlayer, "%d", NULL),
+        TM_INT("Max OSDs", osd.maxMessages, 1, osd::kPerPlayer, 4, "%d", NULL),
         TM_ROW(kKindChoice, 0, TM_FIELD(osd.timingMeter), 0, TM_COUNT(kTimingMeter) - 1, main::kTimingMeterOff,
                "Overhead Timing Bar", kTimingMeter, NULL, main::extraLoaded),
+        TM_ROW(kKindChoice, 0, TM_FIELD(osd.techSparkle), 0, TM_COUNT(kTechSparkle) - 1, main::kTechSparkleWavedash,
+               "Tech Sparkle", kTechSparkle, NULL, main::extraLoaded),
         TM_ROW(kKindToggle, 0, TM_FIELD(cpu.options.techTrackerOsd), 0, 1, 0, "P+ Tech OSD", NULL, osdRowEdited,
                main::extraLoaded),
-        // Highest-use P+ competitive OSDs.
-        TM_TOGGLE("Wavedash", osd.wavedash, 0, osdRowEdited),
-        TM_TOGGLE("L-Cancel", osd.lCancel, 0, osdRowEdited),
-        TM_TOGGLE("Ledgedash Info", osd.ledgedashInfo, 0, osdRowEdited),
-        TM_TOGGLE("Act OoS Frame", osd.actOos, 0, osdRowEdited),
-        TM_TOGGLE("Shield Advantage", osd.frameAdvantage, 0, osdRowEdited),
-        TM_TOGGLE("Hit Advantage", osd.frameAdvantageOnHit, 0, osdRowEdited),
+        // Highest-use P+ competitive OSDs (Essentials defaults On).
+        TM_TOGGLE("Wavedash", osd.wavedash, 1, osdRowEdited),
+        TM_TOGGLE("L-Cancel", osd.lCancel, 1, osdRowEdited),
+        TM_TOGGLE("Ledgedash Info", osd.ledgedashInfo, 1, osdRowEdited),
+        TM_TOGGLE("Act OoS Frame", osd.actOos, 1, osdRowEdited),
+        TM_TOGGLE("Shield Advantage", osd.frameAdvantage, 1, osdRowEdited),
+        TM_TOGGLE("Hit Advantage", osd.frameAdvantageOnHit, 1, osdRowEdited),
         TM_ROW(kKindInt, kFlagHideWhenDisabled, TM_FIELD(osd.advantageTolerance), 0, 5, 1, "Advantage Tolerance",
                "%df", lab::osdSettingsChanged, advToleranceEnabled),
         // Remaining technique & defensive OSDs.

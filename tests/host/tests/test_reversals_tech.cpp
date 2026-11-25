@@ -448,13 +448,13 @@ TEST(reversals_tech, tech_tracker_detectors_cover_verified_pplus_families)
 
 TEST(reversals_tech, sd_migration_from_46_byte_cpu_options_and_round_trip)
 {
-    CHECK_EQ(60u, sizeof(cpu::CpuOptions));
+    CHECK_EQ(61u, sizeof(cpu::CpuOptions));
     CHECK_EQ(64u, sizeof(main::CpuSettings));
     CHECK_EQ(436u, sizeof(main::Settings));
-    CHECK_EQ(1u, sizeof(main::settings().cpu.reserved));
 
-    // Streamlined CPU & OSD menu placement: Counters & Reversals hosts Auto L-Cancel,
-    // SHFFL Timing, and Reversal Slots; OSDs hosts P+ Tech OSD at row 4.
+    // Streamlined CPU & OSD menu placement: Counters & Reversals hosts Shield Timing,
+    // Auto L-Cancel, SHFFL Timing, and Reversal Slots; OSDs hosts Tech Sparkle at row 4
+    // and P+ Tech OSD at row 5.
     const ui::Page& cpuPage = ui::pages::kCpuOptions;
     REQUIRE(cpuPage.count == 14);
     CHECK(strcmp(cpuPage.options[2].name, "CPU Load Random %") == 0);
@@ -462,18 +462,22 @@ TEST(reversals_tech, sd_migration_from_46_byte_cpu_options_and_round_trip)
     CHECK_EQ(static_cast<int>(ui::pages::P_CPU_COUNTERS), static_cast<int>(cpuPage.options[6].max));
 
     const ui::Page& countersPage = ui::pages::kCpuCounters;
-    REQUIRE(countersPage.count == 9);
-    CHECK(strcmp(countersPage.options[5].name, "Reversal Slots") == 0);
-    CHECK_EQ(ui::kKindMenu, countersPage.options[5].kind);
-    CHECK_EQ(static_cast<int>(ui::pages::P_REVERSALS), static_cast<int>(countersPage.options[5].max));
-    CHECK(strcmp(countersPage.options[7].name, "Auto L-Cancel") == 0);
-    CHECK(strcmp(countersPage.options[8].name, "SHFFL Timing") == 0);
+    REQUIRE(countersPage.count == 10);
+    CHECK(strcmp(countersPage.options[3].name, "Shield Timing") == 0);
+    CHECK_EQ(static_cast<int>(cpu::kShieldTimingFullMove), static_cast<int>(countersPage.options[3].def));
+    CHECK(strcmp(countersPage.options[6].name, "Reversal Slots") == 0);
+    CHECK_EQ(ui::kKindMenu, countersPage.options[6].kind);
+    CHECK_EQ(static_cast<int>(ui::pages::P_REVERSALS), static_cast<int>(countersPage.options[6].max));
+    CHECK(strcmp(countersPage.options[8].name, "Auto L-Cancel") == 0);
+    CHECK(strcmp(countersPage.options[9].name, "SHFFL Timing") == 0);
 
     const ui::Page& osdPage = ui::pages::kOsdMenu;
-    REQUIRE(osdPage.count == 25);
-    CHECK(strcmp(osdPage.options[4].name, "P+ Tech OSD") == 0);
-    CHECK_EQ(ui::kKindToggle, osdPage.options[4].kind);
-    CHECK_EQ(0, osdPage.options[4].def);
+    REQUIRE(osdPage.count == 26);
+    CHECK(strcmp(osdPage.options[4].name, "Tech Sparkle") == 0);
+    CHECK_EQ(static_cast<int>(main::kTechSparkleWavedash), static_cast<int>(osdPage.options[4].def));
+    CHECK(strcmp(osdPage.options[5].name, "P+ Tech OSD") == 0);
+    CHECK_EQ(ui::kKindToggle, osdPage.options[5].kind);
+    CHECK_EQ(0, osdPage.options[5].def);
 
     // P_REVERSALS has 15 rows (including live Slot 1 primary readout) and every row has a description in extra.
     const ui::Page& revPage = ui::pages::kReversalSlots;
@@ -553,7 +557,7 @@ TEST(reversals_tech, sd_migration_from_46_byte_cpu_options_and_round_trip)
         }
     }
     REQUIRE(cpuArea != NULL);
-    CHECK_EQ(63u, static_cast<u32>(cpuArea->used));
+    CHECK_EQ(64u, static_cast<u32>(cpuArea->used));
     const u32 preRevUsed = offsetof(main::CpuSettings, options) + offsetof(cpu::CpuOptions, multiReversal);
     CHECK_EQ(49u, preRevUsed);
     cpuArea->used = static_cast<u8>(preRevUsed);
@@ -566,9 +570,11 @@ TEST(reversals_tech, sd_migration_from_46_byte_cpu_options_and_round_trip)
     CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.dualStickSdi));
     CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.autoLCancel));
     CHECK_EQ(static_cast<int>(cpu::kShfflNormal), static_cast<int>(main::settings().cpu.options.shfflTiming));
-    // New reversal slot and tech OSD fields cleanly migrated to defaults:
+    // New reversal slot, tech OSD, and shieldTiming fields cleanly migrated to defaults:
     CHECK_EQ(0, static_cast<int>(main::settings().cpu.options.multiReversal));
     CHECK_EQ(0, static_cast<int>(main::settings().cpu.options.techTrackerOsd));
+    CHECK_EQ(static_cast<int>(cpu::kShieldTimingFullMove),
+             static_cast<int>(main::settings().cpu.options.shieldTiming));
     for (int t = 0; t < cpu::kRevTriggerCount; t++)
     {
         CHECK_EQ(0, static_cast<int>(main::settings().cpu.options.revSlot2Action[t]));

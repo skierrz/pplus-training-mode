@@ -89,13 +89,17 @@ namespace extra {
         u8 rateCount;
         u8 rule;        // StatusRule (frame_data.cpp)
         u8 end[2];      // FdEnd on the ground, in the air
+        u8 hitWaves;    // distinct offensive hitbox waves opened (counts past kFdMaxHit)
+        u8 reservedPad;
         s16 endStatus[2];
         u16 commands;   // commands the walk read
         s16 status;     // what was walked
         s16 motionKind;
         float openTime; // first Allow Interrupt or action group enabled by the subaction script; below 0: none
         u32 openGroups; // bit g: interrupt group g; bit 31: Allow Interrupt (every group of the situation)
-        float throwTime; // the throw's release; below 0: none
+        float throwTime;  // the throw's release; below 0: none
+        float lastHitOn;  // script time of the last offensive hitbox wave start; below 0: none
+        float lastHitOff; // script time the last offensive hitbox wave closed; below 0: until status end
         FdWindow hit[kFdMaxHit];
         FdWindow body[kFdMaxBody];
         FdRate rate[kFdMaxRate];
@@ -124,6 +128,32 @@ namespace extra {
     // The match module's hook: the frames as above, -1 when unknown or not
     // certain; `how` receives main::ExtraActHow.
     int framesUntilActionable(Fighter* fighter, int* how);
+    // Pure predicate: true when the walked subaction record indicates another
+    // hitbox wave or ongoing rehit/loop hit is still ahead of `clock`.
+    inline bool frameDataMoreHits(const FrameRecord& rec, float clock, bool subStarted, bool activeRehit)
+    {
+        if ((rec.flags & kFdValid) == 0)
+        {
+            return false;
+        }
+        if (activeRehit || (rec.flags & kFdLoop) != 0)
+        {
+            return rec.lastHitOff < 0.0f || !subStarted || clock < rec.lastHitOff;
+        }
+        if (rec.hitWaves < 2)
+        {
+            return false;
+        }
+        float endT = rec.lastHitOff >= 0.0f ? rec.lastHitOff : rec.lastHitOn;
+        if (endT < 0.0f)
+        {
+            return false;
+        }
+        return !subStarted || clock < endT;
+    }
+    // Live hook for CPU Shield Timing (Full Move): latches attacker on `newHit`
+    // and returns true while the shielding CPU should hold guard through gaps.
+    bool frameDataShieldHoldFullMove(int defenderPlayerNo, int defenderEntryId, const cpu::View& v, bool newHit);
     // The fighter's record, or NULL if it is not tracked.
     const FrameRecord* frameRecord(Fighter* fighter);
     // Frames from now until the subaction script's clock reaches

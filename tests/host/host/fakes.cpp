@@ -600,6 +600,18 @@ namespace record {
     }
 }
 
+namespace cpu {
+    bool readView(Fighter*, View&)
+    {
+        return false;
+    }
+
+    bool canAct(const View&)
+    {
+        return false;
+    }
+}
+
 namespace osd {
     // src/main/ui/osd.cpp: the message is kept for the test, not drawn.
     Message* post(int player, int id, gfx::Rgba, const char* format, ...)

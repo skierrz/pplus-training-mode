@@ -101,6 +101,7 @@ namespace pages {
     static const char* const kLedgeOption[] = {"Default", "Neutral", "Roll", "Attack", "Jump", "Drop", "Random"};
     static const char* const kAdaptiveMode[] = {"Off", "Track", "Adaptive"};
     static const char* const kShfflTiming[] = {"Frame-Perfect", "Early", "Normal", "Late", "Random"};
+    static const char* const kShieldTiming[] = {"First Gap", "Full Move"};
 
 #pragma dont_inline on
     static bool cpuExtraAvailable()
@@ -190,7 +191,7 @@ namespace pages {
         TM_MENU_IF("Counters & Reversals", P_CPU_COUNTERS, cpuLabControl),
         TM_MENU_IF("Tech & Getup", P_TECH, cpuLabControl),
         TM_MENU_IF("Shield & Grab", P_CPU_DEFENSE, cpuLabControl),
-        TM_CPU_CHOICE("Recovery", cpu.options.recovery, kRecovery, cpu::kRecoveryGame),
+        TM_CPU_CHOICE("Recovery", cpu.options.recovery, kRecovery, cpu::kRecoveryPPlusAi),
         TM_CPU_CHOICE("Ledge Option", cpu.options.ledgeOption, kLedgeOption, cpu::kLedgeDefault),
         TM_CPU_FUNC("Move CPU", moveCpu, cpu::g_moveCpuLabel),
         TM_CPU_FUNC("Freeze CPU", freezeCpu, cpu::g_freezeCpuLabel),
@@ -214,6 +215,7 @@ namespace pages {
         TM_COUNTER_CHOICE("Ground Counter", cpu.options.counterGround, kCounterGround, 13),
         TM_COUNTER_CHOICE("Air Counter", cpu.options.counterAir, kCounterAir, 1),
         TM_COUNTER_CHOICE("Shield Counter", cpu.options.counterShield, kCounterShield, 1),
+        TM_CPU_CHOICE("Shield Timing", cpu.options.shieldTiming, kShieldTiming, cpu::kShieldTimingFullMove),
         TM_CPU_INT("Counter Delay", cpu.options.counterDelay, 0, 99, 0, "%df"),
         TM_MENU_IF("Per-Hit Counters", P_ADVANCED_COUNTER, cpuLabControl),
         TM_MENU_IF("Reversal Slots", P_REVERSALS, cpuExtraAvailable),

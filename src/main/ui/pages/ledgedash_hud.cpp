@@ -10,7 +10,7 @@ namespace pages {
 
     // ProjectPunch's ledgedash frame bar settings (range 30..64, default 50).
     static const Option kRows[] = {
-        TM_TOGGLE("Enable", general.ledgeHud, 0, NULL),
+        TM_TOGGLE("Enable", general.ledgeHud, 1, NULL),
         TM_ROW(::tm::ui::kKindInt, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(general.ledgeMaxFrames), 30, 64, 50,
                "Max Frames", "%df", NULL, ledgeHudEnabled),
         TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(general.ledgeGalint), 0, 1, 1,

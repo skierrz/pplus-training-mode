@@ -60,6 +60,7 @@ namespace main {
         int (*actIn)(Fighter* fighter, int* how);
         void (*frameData)();
         bool (*advantageMeasured)(const game::Advantage& r);
+        bool (*shieldHoldFullMove)(int defenderPlayerNo, int defenderEntryId, const cpu::View& v, bool newHit);
         // The Character RNG page (extra/character_rng.h): a CharacterRngCall.
         bool (*characterRng)(int call);
         // The Stage Options page (extra/stage_options.h): a StageOptionsCall.
@@ -228,6 +229,10 @@ namespace main {
     // when the hit landed and has dealt with this one (the same: nothing
     // more; another: posted as the measured value).
     bool extraAdvantageMeasured(const game::Advantage& r);
+    // CPU Shield Timing (Full Move): latches the attacker on `newHit` and
+    // returns true while the shielding CPU should keep holding guard for
+    // remaining hits of an ongoing multi-hit / rehit move.
+    bool extraShieldHoldFullMove(int defenderPlayerNo, int defenderEntryId, const cpu::View& v, bool newHit);
     // PPlusAI recovery engine (extra/pplus_recovery.h). Returns false when
     // extra is absent or recovery is not active.
     bool extraPPlusRecovery(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons);

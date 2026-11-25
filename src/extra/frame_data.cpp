@@ -1,6 +1,7 @@
 #include "extra/frame_data.h"
 
 #include <ft/fighter.h>
+#include <so/collision/so_collision_attack_module_impl.h>
 #include <so/motion/so_motion_module_impl.h>
 #include <so/situation/so_situation_module_impl.h>
 #include <so/so_module_accesser.h>
@@ -10,6 +11,8 @@
 #include <so/work/so_work_manage_module_impl.h>
 #include <string.h>
 
+#include "main/cpu/shield_timing_logic.h"
+#include "main/cpu/view.h"
 #include "main/game/fighters.h"
 #include "main/game/motion.h"
 #include "main/game/status_ids.h"
@@ -137,6 +140,7 @@ namespace extra {
     struct State {
         float t;      // script time at which the commands being read run
         u32 hitMask;  // offensive collision ids out
+        bool hitActive; // offensive hitbox wave open (tracks past kFdMaxHit)
         s8 hitOpen;   // open window indices, -1 if none
         s8 catchOpen;
         s8 bodyOpen;
@@ -203,7 +207,15 @@ namespace extra {
         Pending pending; // the hit this fighter took last
     };
 
+    struct ShieldHoldSlot {
+        s8 attackerEntry;
+        bool attackerSub;
+        s16 attackerStatus;
+        u8 holdFrames;
+    };
+
     static Slot s_slots[game::kMaxTracked];
+    static ShieldHoldSlot s_shieldHold[game::kMaxFighters];
     static u32 s_walks = 0;
     u8 g_fdTrace = 0;
 
@@ -400,6 +412,16 @@ namespace extra {
 
     static void hitOn(State& st, FrameRecord& rec, u8 kind)
     {
+        if (kind == kFdHit && !st.hitActive)
+        {
+            st.hitActive = true;
+            if (rec.hitWaves < 255)
+            {
+                rec.hitWaves++;
+            }
+            rec.lastHitOn = st.t;
+            rec.lastHitOff = kNoTime;
+        }
         s8& open = kind == kFdHit ? st.hitOpen : st.catchOpen;
         if (open >= 0)
         {
@@ -441,6 +463,11 @@ namespace extra {
         open = -1;
         if (kind == kFdHit)
         {
+            if (st.hitActive)
+            {
+                st.hitActive = false;
+                rec.lastHitOff = st.t;
+            }
             st.hitMask = 0;
         }
     }
@@ -603,6 +630,8 @@ namespace extra {
         memset(&rec, 0, sizeof(rec));
         rec.openTime = kNoTime;
         rec.throwTime = kNoTime;
+        rec.lastHitOn = kNoTime;
+        rec.lastHitOff = kNoTime;
         rec.endStatus[0] = rec.endStatus[1] = -1;
     }
 
@@ -610,6 +639,7 @@ namespace extra {
     {
         st.t = 0.0f;
         st.hitMask = 0;
+        st.hitActive = false;
         st.hitOpen = st.catchOpen = st.bodyOpen = -1;
         st.bodyState = 0;
         st.termStatus = -1;
@@ -763,6 +793,10 @@ namespace extra {
         bool same = true;
         bool windows = true;
         float latest = st.t;
+        u8 maxBranchWaves = 0;
+        float maxBranchOn = kNoTime;
+        float maxBranchOff = kNoTime;
+        bool branchOpenEnd = false;
         for (int i = 0; i < count; i++)
         {
             State s2 = st;
@@ -773,6 +807,25 @@ namespace extra {
                 ended = walk(alts[i].start, alts[i].end, depth + 1, b, s2, r2);
             }
             keepEnd(found[i], r2);
+            if (r2.hitWaves > maxBranchWaves)
+            {
+                maxBranchWaves = r2.hitWaves;
+            }
+            if (r2.lastHitOn > maxBranchOn)
+            {
+                maxBranchOn = r2.lastHitOn;
+            }
+            if (r2.hitWaves > 0)
+            {
+                if (r2.lastHitOff < 0.0f)
+                {
+                    branchOpenEnd = true;
+                }
+                else if (r2.lastHitOff > maxBranchOff)
+                {
+                    maxBranchOff = r2.lastHitOff;
+                }
+            }
             bool critical = !ended || r2.openTime >= 0.0f || r2.rateCount > 0
                             || (r2.flags & (kFdUncertain | kFdOverflow)) != 0;
             if (i == 0)
@@ -823,6 +876,23 @@ namespace extra {
         else
         {
             rec.flags |= kFdCond;
+            if (maxBranchWaves > 0)
+            {
+                int sum = static_cast<int>(rec.hitWaves) + static_cast<int>(maxBranchWaves);
+                rec.hitWaves = static_cast<u8>(sum > 255 ? 255 : sum);
+                if (maxBranchOn > rec.lastHitOn)
+                {
+                    rec.lastHitOn = maxBranchOn;
+                }
+                if (branchOpenEnd)
+                {
+                    rec.lastHitOff = kNoTime;
+                }
+                else if (maxBranchOff > rec.lastHitOff)
+                {
+                    rec.lastHitOff = maxBranchOff;
+                }
+            }
             st.t = latest;
         }
         mergeEnds(rec, found, count);
@@ -1457,6 +1527,138 @@ namespace extra {
         return a.certain ? a.frames : -1;
     }
 
+    static bool hasActiveRehit(const soModuleEnumeration* m)
+    {
+        if (m == NULL || !game::isRam(m->m_collisionAttackModule))
+        {
+            return false;
+        }
+        soCollisionAttackModule* attack = m->m_collisionAttackModule;
+        u32 n = attack->getPartSize();
+        if (n > 32)
+        {
+            n = 32;
+        }
+        for (u32 i = 0; i < n; i++)
+        {
+            if (!attack->isAttack(i, false))
+            {
+                continue;
+            }
+            const soCollisionAttackData* data = attack->getData(i, false);
+            if (game::isRam(data) && data->m_serialHitFrame > 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static bool attackerHasMoreHits(Fighter* attacker)
+    {
+        Slot* s = slotOf(attacker);
+        Live v;
+        if (s == NULL || !readLive(attacker, v))
+        {
+            return false;
+        }
+        ensure(*s, v);
+        return frameDataMoreHits(s->rec, v.clock, v.subCurrent != v.subStart, hasActiveRehit(v.modules));
+    }
+
+    static void clearShieldHoldSlot(ShieldHoldSlot& h)
+    {
+        h.attackerEntry = -1;
+        h.attackerSub = false;
+        h.attackerStatus = -1;
+        h.holdFrames = 0;
+    }
+
+    bool frameDataShieldHoldFullMove(int defenderPlayerNo, int defenderEntryId, const cpu::View& v, bool newHit)
+    {
+        if (defenderPlayerNo < 0 || defenderPlayerNo >= game::kMaxFighters)
+        {
+            return false;
+        }
+        ShieldHoldSlot& h = s_shieldHold[defenderPlayerNo];
+        if (newHit)
+        {
+            clearShieldHoldSlot(h);
+            game::FighterRef refs[game::kMaxFighters];
+            int n = game::listFighters(refs, game::kMaxFighters);
+            float bestDistSq = cpu::kFullMoveMaxDistSq + 1.0f;
+            bool bestHitlag = false;
+            for (int i = 0; i < n; i++)
+            {
+                if (refs[i].entryId == defenderEntryId)
+                {
+                    continue;
+                }
+                for (int sub = 0; sub < 2; sub++)
+                {
+                    Fighter* cand = sub == 0 ? refs[i].fighter : refs[i].partner;
+                    cpu::View av;
+                    if (cand == NULL || !cpu::readView(cand, av) || !cpu::isAttackerMoveStatus(av.status)
+                        || av.hitstun > 0 || av.damageHitlag)
+                    {
+                        continue;
+                    }
+                    float dx = av.x - v.x;
+                    float dy = av.y - v.y;
+                    float d2 = dx * dx + dy * dy;
+                    if (d2 > cpu::kFullMoveMaxDistSq)
+                    {
+                        continue;
+                    }
+                    bool hasLag = av.hitlag > 0;
+                    if (!hasLag && !attackerHasMoreHits(cand))
+                    {
+                        continue;
+                    }
+                    if (h.attackerEntry < 0 || (hasLag && !bestHitlag)
+                        || (hasLag == bestHitlag && d2 < bestDistSq))
+                    {
+                        h.attackerEntry = static_cast<s8>(refs[i].entryId);
+                        h.attackerSub = sub != 0;
+                        h.attackerStatus = static_cast<s16>(av.status);
+                        bestDistSq = d2;
+                        bestHitlag = hasLag;
+                    }
+                }
+            }
+            return false;
+        }
+        if (h.attackerEntry < 0)
+        {
+            return false;
+        }
+        Fighter* att = cpu::fighterOf(h.attackerEntry, h.attackerSub);
+        cpu::View av;
+        cpu::ShieldHoldInput in;
+        in.shieldTiming = main::settings().cpu.options.shieldTiming;
+        in.attackerReadable = att != NULL && cpu::readView(att, av);
+        in.latchedStatus = h.attackerStatus;
+        in.attackerStatus = in.attackerReadable ? av.status : -1;
+        in.attackerHitstun = in.attackerReadable ? av.hitstun : 0;
+        in.attackerDamageHitlag = in.attackerReadable ? av.damageHitlag : false;
+        in.attackerCanAct = in.attackerReadable ? cpu::canAct(av) : true;
+        in.attackerHasMoreHits = in.attackerReadable ? attackerHasMoreHits(att) : false;
+        float dx = in.attackerReadable ? (av.x - v.x) : 999.0f;
+        float dy = in.attackerReadable ? (av.y - v.y) : 999.0f;
+        in.distSq = dx * dx + dy * dy;
+        in.holdFrames = h.holdFrames;
+        if (cpu::shouldHoldFullMoveShield(in))
+        {
+            if (h.holdFrames < cpu::kFullMoveMaxHold)
+            {
+                h.holdFrames++;
+            }
+            return true;
+        }
+        clearShieldHoldSlot(h);
+        return false;
+    }
+
     const FrameRecord* frameRecord(Fighter* fighter)
     {
         Slot* s = slotOf(fighter);
@@ -1693,11 +1895,19 @@ namespace extra {
     void frameDataReset()
     {
         memset(s_slots, 0, sizeof(s_slots));
+        for (int i = 0; i < game::kMaxFighters; i++)
+        {
+            clearShieldHoldSlot(s_shieldHold[i]);
+        }
     }
 
     void frameDataAttach()
     {
         memset(s_slots, 0, sizeof(s_slots));
+        for (int i = 0; i < game::kMaxFighters; i++)
+        {
+            clearShieldHoldSlot(s_shieldHold[i]);
+        }
         s_walks = 0;
         g_fdTrace = 0;
         TM_LOG("fd: trace byte at %08x, record %u bytes\n", &g_fdTrace, static_cast<u32>(sizeof(FrameRecord)));

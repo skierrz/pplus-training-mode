@@ -41,8 +41,14 @@ namespace cpu {
     enum TechTrap { kTrapOff, kTrapEarliest, kTrapLatest };
     enum TechLockout { kLockoutEarliest, kLockoutLatest };
     enum CounterLogic { kLogicDefault, kLogicDisable, kLogicCustom };
-    // CPU offstage recovery mode: native Game AI (default), PPlusAI in extra, or Off.
+    // CPU offstage recovery mode: native Game AI, PPlusAI in extra (default), or Off.
     enum Recovery { kRecoveryGame = 0, kRecoveryPPlusAi = 1, kRecoveryOff = 2, kRecoveryCount = 3 };
+    // Multihit guard release timing for Shield Counter (CPU > Counters & Reversals).
+    enum ShieldTiming {
+        kShieldTimingFirstGap = 0,
+        kShieldTimingFullMove = 1,
+        kShieldTimingCount = 2
+    };
     // CPU on-ledge reversal / getup option on Cliff_Wait (0x75).
     enum LedgeOption {
         kLedgeDefault = 0,
@@ -133,8 +139,9 @@ namespace cpu {
         u8 revSlot2Delay[kRevTriggerCount];  // Slot 2 delay (0..30f) per ReversalTrigger
         u8 revSlot2Weight[kRevTriggerCount]; // Slot 2 weight (0..100%) vs Slot 1 (100 - weight)
         u8 techTrackerOsd; // 0 Off, 1 On (44-fighter P+ tech tracker OSD callouts)
+        u8 shieldTiming;   // ShieldTiming (0 First Gap, 1 Full Move [default])
     };
-    TM_STATIC_ASSERT(sizeof(CpuOptions) == 60, tm_cpu_options_is_60_bytes);
+    TM_STATIC_ASSERT(sizeof(CpuOptions) == 61, tm_cpu_options_is_61_bytes);
 
     // One Advanced Counter page: Counter Logic, and per list (ground, air,
     // shield) the action index and its delay.

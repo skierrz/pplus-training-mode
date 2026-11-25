@@ -2322,6 +2322,10 @@ namespace cpu {
                 state = kShieldStun;
                 shieldKind = true;
                 powershield = 0;
+                if (c.shieldTiming == kShieldTimingFullMove)
+                {
+                    main::extraShieldHoldFullMove(who.playerNo, who.entryId, v, true);
+                }
             }
             else if (handedCounter)
             {
@@ -2513,6 +2517,11 @@ namespace cpu {
             shieldTilt(out);
             if (canAct(v))
             {
+                if (c.shieldTiming == kShieldTimingFullMove
+                    && main::extraShieldHoldFullMove(who.playerNo, who.entryId, v, false))
+                {
+                    break;
+                }
                 state = kCounter;
                 counter(out, who);
             }

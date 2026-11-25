@@ -33,6 +33,7 @@
 #include "extra/scenario_presets.h"
 #include "extra/stage_geom.h"
 #include "extra/stage_options.h"
+#include "extra/tech_sparkle.h"
 #include "extra/timing_meter.h"
 #include "extra/ui_assets.h"
 #include "main/extra.h"
@@ -152,6 +153,7 @@ namespace extra {
 #endif
         drillHudFrame();
         techTrackerFrame();
+        techSparkleFrame();
         timingMeterFrame();
         heatmapTick();
         adaptiveCpuFrame();
@@ -168,16 +170,17 @@ namespace extra {
 #endif
         drillHudSavestateReset();
         techTrackerReset();
+        techSparkleReset();
         timingMeterReset();
     }
 
     static const main::ExtraHooks kHooks = {
         onRender,          alterRow,           alterEdited,        diDraw,
         diReset,           diHideDrawDi,       framesUntilActionable, onFrame,
-        frameDataMeasured, characterRng,       stageOptions,       pplusRecoveryStep,
-        pplusRecoveryReset, comboTrainerDraw,  onComboReset,       heatmapDraw,
-        heatmapReset,      adaptiveCpuBias,    adaptiveCpuReset,   scenarioPresetsCall,
-        scenarioPresetsCpuStep, scenarioPresetsSavedView, grabVizDraw,
+        frameDataMeasured, frameDataShieldHoldFullMove, characterRng, stageOptions,
+        pplusRecoveryStep, pplusRecoveryReset, comboTrainerDraw,   onComboReset,
+        heatmapDraw,       heatmapReset,       adaptiveCpuBias,    adaptiveCpuReset,
+        scenarioPresetsCall, scenarioPresetsCpuStep, scenarioPresetsSavedView, grabVizDraw,
         fighterSwapRow,    fighterSwapChanged, fighterSwapApply,   fighterSwapBusy,
         optionDesc,        uiAssetsDrawIcon,   uiAssetsDrawPageOverlay,
         ui::infoWanted,    ui::infoStep,       ui::drawInfo,       ui::infoReset,
@@ -227,6 +230,7 @@ namespace extra {
         inputViewerAttach();
         hitboxColorsAttach();
         psaInspectorAttach();
+        techSparkleAttach();
         timingMeterAttach();
         drillHudAttach();
         main::setExtraHooks(&kHooks);
@@ -247,6 +251,7 @@ namespace extra {
         }
         drillHudDetach();
         timingMeterDetach();
+        techSparkleDetach();
         psaInspectorDetach();
         hitboxColorsDetach();
         inputViewerDetach();

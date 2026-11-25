@@ -29,7 +29,7 @@ namespace storage {
         TM_AREA(kAreaInfoHmn, info[0], InfoSettings),
         TM_AREA(kAreaInfoCpu, info[1], InfoSettings),
         TM_AREA(kAreaOsd, osd, OsdSettings),
-        TM_AREA(kAreaCpu, cpu, CpuSettings),
+        {kAreaCpu, 1, offsetof(Settings, cpu), sizeof(main::CpuSettings), sizeof(main::CpuSettings)},
         TM_AREA(kAreaRecording, recording, RecordingSettings),
         TM_AREA(kAreaOverlayHmn, overlay[0], OverlaySettings),
         TM_AREA(kAreaOverlayCpu, overlay[1], OverlaySettings),

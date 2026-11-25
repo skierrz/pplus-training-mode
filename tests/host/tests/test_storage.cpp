@@ -106,7 +106,7 @@ namespace {
     // fields it does not.
     void choose(Settings& s)
     {
-        s.general.ledgeHud = 1;
+        s.general.ledgeHud = 0;
         s.general.ledgeMaxFrames = 48;
         s.general.cameraMode = 1;
         s.general.diDisplay = 1;
@@ -117,8 +117,9 @@ namespace {
         s.display.grabVisualizer = 1;
         s.info[0].size = main::kInfoLarge;
         s.info[1].rows[3] = 2;
-        s.osd.wavedash = 1;
+        s.osd.wavedash = 0;
         s.osd.advantageTolerance = 3;
+        s.osd.techSparkle = main::kTechSparkleBoth;
         s.recording.randomPercent[1] = 25;
         s.overlay[1].groups[4] = 1;
         s.techInvis.mode = main::kTechInvisAll;
@@ -127,7 +128,8 @@ namespace {
         s.characterRng.peachSmash = main::kSmashFryingPan;
         s.fighterMechanics.samusBeam = main::kBeamIce;
         s.fighterMechanics.mewtwoHover = main::kMechAlways;
-        s.cpu.options.recovery = cpu::kRecoveryPPlusAi;
+        s.cpu.options.recovery = cpu::kRecoveryGame;
+        s.cpu.options.shieldTiming = cpu::kShieldTimingFirstGap;
         s.cpu.options.ledgeOption = cpu::kLedgeRoll;
         s.cpu.options.clatterEscape = cpu::kMashHigh;
         s.cpu.options.adaptiveMode = cpu::kAdaptiveTrack;
@@ -241,7 +243,7 @@ TEST(settings_file, written_then_read_gives_the_same_settings)
     storage::detach();
 
     boot();
-    CHECK_LOG("storage: settings loaded from settings-a.bin (save 1, layout 1): 16 areas, 0 with new fields, "
+    CHECK_LOG("storage: settings loaded from settings-a.bin (save 1, layout 2): 16 areas, 0 with new fields, "
               "0 at defaults, 0 unknown");
     CHECK(!storage::noticeActive());
     CHECK_SETTINGS(afterReboot(chosen, defaults), main::settings());
@@ -394,12 +396,12 @@ TEST(settings_file, a_newer_format_is_not_used_and_not_overwritten)
     CHECK_SETTINGS(defaults, main::settings());
     int writes = host::card::writes();
     host::log::clear();
-    main::settings().general.ledgeHud = 1;
+    main::settings().general.ledgeHud = 0;
     closeMenu();
     CHECK_EQ(writes, host::card::writes());
     CHECK(!host::card::has(kFileB));
     CHECK(memcmp(newer, host::card::data(kFileA), size) == 0);
-    CHECK_EQ(1, main::settings().general.ledgeHud);
+    CHECK_EQ(0, main::settings().general.ledgeHud);
     CHECK(!host::log::contains("storage: notice: Lab settings are from a newer version"));
     // Even Reset Lab Settings must not write while a newer format is on the card.
     storage::settingsReset();
@@ -419,11 +421,81 @@ TEST(settings_file, a_newer_format_is_not_used_and_not_overwritten)
     CHECK_LOG("storage: notice: Lab settings are from a newer version: not used");
     CHECK_SETTINGS(defaults, main::settings());
     writes = host::card::writes();
-    main::settings().general.ledgeHud = 1;
+    main::settings().general.ledgeHud = 0;
     closeMenu();
     CHECK_EQ(writes, host::card::writes());
     CHECK(memcmp(older, host::card::data(kFileA), size) == 0);
     CHECK(memcmp(newer, host::card::data(kFileB), size) == 0);
+    storage::detach();
+}
+
+// Upgrading from a pre-v2 (layout 1) SD card file cleanly adopts the fresh v2
+// defaults, posts a calm informational toast, and rewrites layout 2 on the
+// next menu close without requiring any manual change. A layout > kSettingsVersion
+// file is refused without overwriting.
+TEST(settings_file, layout_1_auto_upgrades_to_v2_defaults_and_newer_layout_is_refused)
+{
+    Settings defaults, chosen;
+    saveChosen(defaults, chosen);
+    storage::detach();
+
+    // Verify fresh v2 out-of-the-box defaults.
+    CHECK_EQ(2, static_cast<int>(main::kSettingsVersion));
+    CHECK_EQ(static_cast<int>(main::kOsdPresetEssentials), static_cast<int>(defaults.osd.preset));
+    CHECK_EQ(4, static_cast<int>(defaults.osd.maxMessages));
+    CHECK_EQ(1, static_cast<int>(defaults.osd.wavedash));
+    CHECK_EQ(1, static_cast<int>(defaults.osd.lCancel));
+    CHECK_EQ(1, static_cast<int>(defaults.osd.ledgedashInfo));
+    CHECK_EQ(1, static_cast<int>(defaults.osd.actOos));
+    CHECK_EQ(1, static_cast<int>(defaults.osd.frameAdvantage));
+    CHECK_EQ(1, static_cast<int>(defaults.osd.frameAdvantageOnHit));
+    CHECK_EQ(static_cast<int>(main::kTechSparkleWavedash), static_cast<int>(defaults.osd.techSparkle));
+    CHECK_EQ(static_cast<int>(cpu::kRecoveryPPlusAi), static_cast<int>(defaults.cpu.options.recovery));
+    CHECK_EQ(static_cast<int>(cpu::kShieldTimingFullMove), static_cast<int>(defaults.cpu.options.shieldTiming));
+    CHECK_EQ(1, static_cast<int>(defaults.general.ledgeHud));
+
+    // Rewrite settings-a.bin as an older layout 1 file holding non-default chosen values.
+    storage::SettingsHead* head =
+        reinterpret_cast<storage::SettingsHead*>(host::card::data(kFileA) + sizeof(storage::FileHeader));
+    CHECK_EQ(2, static_cast<int>(head->layout));
+    head->layout = 1;
+    reseal(kFileA);
+
+    boot();
+    CHECK_LOG("storage: settings layout 1 older than 2: updated to new defaults");
+    CHECK_LOG("storage: notice: Updated lab settings to new defaults");
+    CHECK_SETTINGS(defaults, main::settings());
+
+    // Closing the menu with zero edits writes the clean layout 2 file to slot B.
+    int writesBefore = host::card::writes();
+    closeMenu();
+    CHECK(host::card::writes() > writesBefore);
+    REQUIRE(host::card::has(kFileB));
+    CHECK_EQ(2, static_cast<int>(header(kFileB)->sequence));
+    storage::SettingsHead* headB =
+        reinterpret_cast<storage::SettingsHead*>(host::card::data(kFileB) + sizeof(storage::FileHeader));
+    CHECK_EQ(2, static_cast<int>(headB->layout));
+    storage::detach();
+
+    // Next boot loads layout 2 cleanly with zero notice.
+    boot();
+    CHECK_LOG("storage: settings loaded from settings-b.bin (save 2, layout 2)");
+    CHECK(!storage::noticeActive());
+    CHECK_SETTINGS(defaults, main::settings());
+    storage::detach();
+
+    // Layout > kSettingsVersion (same format 1): refused cleanly and never overwritten.
+    headB = reinterpret_cast<storage::SettingsHead*>(host::card::data(kFileB) + sizeof(storage::FileHeader));
+    headB->layout = main::kSettingsVersion + 1;
+    reseal(kFileB);
+
+    boot();
+    CHECK_LOG("storage: notice: Lab settings are from a newer version: not used");
+    CHECK_SETTINGS(defaults, main::settings());
+    writesBefore = host::card::writes();
+    main::settings().general.ledgeHud = 0;
+    closeMenu();
+    CHECK_EQ(writesBefore, host::card::writes());
     storage::detach();
 }
 
@@ -452,6 +524,7 @@ TEST(settings_file, an_area_from_an_older_version_keeps_new_fields_at_their_defa
     expected.general.diDisplay = defaults.general.diDisplay;
     expected.general.playerInfiniteShields = defaults.general.playerInfiniteShields;
     expected.osd.itemThrow = defaults.osd.itemThrow;
+    expected.osd.techSparkle = defaults.osd.techSparkle;
     CHECK(chosen.general.diDisplay != defaults.general.diDisplay);
     CHECK_SETTINGS(expected, main::settings());
     storage::detach();
@@ -461,7 +534,7 @@ TEST(settings_file, an_area_from_an_older_version_keeps_new_fields_at_their_defa
 // (blocked default), and a saved 1 (allowed) round-trips through kAreaControls.
 TEST(settings_file, a_controls_area_without_allow_code_menu_reads_blocked_default)
 {
-    CHECK_EQ(1, static_cast<int>(main::kSettingsVersion));
+    CHECK_EQ(2, static_cast<int>(main::kSettingsVersion));
     Settings defaults, chosen;
     saveChosen(defaults, chosen);
     CHECK_EQ(0, static_cast<int>(defaults.controls.allowCodeMenu));
@@ -498,7 +571,7 @@ TEST(settings_file, a_controls_area_without_allow_code_menu_reads_blocked_defaul
 // migrates cleanly to 0 = Category Rail, while Top Tabs (1) round-trips cleanly.
 TEST(settings_file, a_controls_area_without_menu_style_defaults_to_rail_c)
 {
-    CHECK_EQ(1, static_cast<int>(main::kSettingsVersion));
+    CHECK_EQ(2, static_cast<int>(main::kSettingsVersion));
     CHECK_EQ(16u, sizeof(main::ControlSettings));
     CHECK_EQ(436u, sizeof(main::Settings));
     CHECK_EQ(33u, offsetof(main::Settings, controls.menuStyle));
@@ -544,7 +617,7 @@ TEST(settings_file, a_controls_area_without_menu_style_defaults_to_rail_c)
 // keeps the default On Until Hit (1), while Off (0) and On (2) round-trip.
 TEST(settings_file, general_area_without_player_infinite_shields_defaults_to_until_hit)
 {
-    CHECK_EQ(1, static_cast<int>(main::kSettingsVersion));
+    CHECK_EQ(2, static_cast<int>(main::kSettingsVersion));
     CHECK_EQ(16u, sizeof(main::GeneralSettings));
     Settings defaults, chosen;
     saveChosen(defaults, chosen);
@@ -789,7 +862,7 @@ TEST(settings_file, combo_trainer_gen1_legacy_save_resets_to_safe_defaults)
 TEST(settings_file, a_locked_or_full_card)
 {
     boot();
-    main::settings().general.ledgeHud = 1;
+    main::settings().general.ledgeHud = 0;
     host::card::setLocked(true);
     closeMenu();
     CHECK_LOG("storage: notice: Lab settings not saved: the file could not be written");
@@ -815,7 +888,7 @@ TEST(settings_file, a_locked_or_full_card)
     host::card::setFull(false);
     boot();
     CHECK_LOG("storage: settings files: a done (1), b the file is damaged (0)");
-    CHECK_EQ(1, main::settings().general.ledgeHud);
+    CHECK_EQ(0, main::settings().general.ledgeHud);
     CHECK(main::settings().general.ledgeMaxFrames != 40);
     storage::detach();
 }
@@ -824,7 +897,7 @@ TEST(settings_file, a_slow_card_and_a_second_close_while_writing)
 {
     boot();
     host::card::setDelay(3);
-    main::settings().general.ledgeHud = 1;
+    main::settings().general.ledgeHud = 0;
     storage::settingsMenuClosed();
     frames(2);
     CHECK_EQ(0, host::card::fileCount()); // the folder request is still running
@@ -848,7 +921,7 @@ TEST(settings_file, detach_finishes_a_save)
 {
     boot();
     host::card::setDelay(5);
-    main::settings().general.ledgeHud = 1;
+    main::settings().general.ledgeHud = 0;
     storage::settingsMenuClosed();
     frames(1);
     storage::detach();

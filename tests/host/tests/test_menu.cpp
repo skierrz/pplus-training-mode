@@ -630,7 +630,8 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
 
     const ui::Page& osdP = ui::pages::kOsdMenu;
     CHECK(strcmp(osdP.options[0].name, "OSD Preset") == 0);
-    CHECK(strcmp(osdP.options[9].name, "Shield Advantage") == 0);
+    CHECK(strcmp(osdP.options[4].name, "Tech Sparkle") == 0);
+    CHECK(strcmp(osdP.options[10].name, "Shield Advantage") == 0);
 
     const ui::Page& scen = ui::pages::kScenarios;
     REQUIRE(scen.count == 6);
@@ -692,8 +693,12 @@ namespace {
     void noSettings(main::Settings&)
     {
     }
+    bool noShieldHold(int, int, const cpu::View&, bool)
+    {
+        return false;
+    }
     const main::ExtraHooks kNoHooks = {NULL, yes, nothing, noMatch, nothing, noFlag,
-                                       noActIn, nothing, noAdvantage, yesCall, yesCall,
+                                       noActIn, nothing, noAdvantage, noShieldHold, yesCall, yesCall,
                                        noRecovery, noSlot, noMatch, nothing, noMatch, nothing,
                                        noAdaptiveBias, nothing, noSlot, noRecovery, noSettings, noMatch,
                                        yes, nothing, nothing, no, extra::optionDesc};
@@ -983,7 +988,7 @@ namespace {
         return call == main::kRngAny || call == main::kRngPeach;
     }
     const main::ExtraHooks kSmashvillePeachHooks = {
-        NULL, yes, nothing, noMatch, nothing, noFlag, noActIn, nothing, noAdvantage,
+        NULL, yes, nothing, noMatch, nothing, noFlag, noActIn, nothing, noAdvantage, noShieldHold,
         peachOnlyRng, smashvilleStage, noRecovery, noSlot, noMatch, nothing, noMatch,
         nothing, noAdaptiveBias, nothing, noSlot, noRecovery, noSettings, noMatch,
         yes, nothing, nothing, no, extra::optionDesc
@@ -1407,18 +1412,18 @@ TEST(lab_menu, progressive_disclosure_hides_child_rows_until_parent_enabled)
     ui::menuStep(menu, st, inDown);
     CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_RECORDING]));
 
-    // 4. OSDs: Advantage Tolerance (row 11) hidden when Shield Advantage & Hit Advantage are both Off.
+    // 4. OSDs: Advantage Tolerance (row 12) hidden when Shield Advantage & Hit Advantage are both Off.
     const u8 osdPath[] = {ui::pages::P_OSD_MENU};
     REQUIRE(ui::menuJump(menu, st, osdPath, 1));
     main::settings().osd.frameAdvantage = 0;
     main::settings().osd.frameAdvantageOnHit = 0;
-    st.cursor[ui::pages::P_OSD_MENU] = 10; // Hit Advantage
+    st.cursor[ui::pages::P_OSD_MENU] = 11; // Hit Advantage
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(12, static_cast<int>(st.cursor[ui::pages::P_OSD_MENU])); // skips row 11 Advantage Tolerance
+    CHECK_EQ(13, static_cast<int>(st.cursor[ui::pages::P_OSD_MENU])); // skips row 12 Advantage Tolerance
     main::settings().osd.frameAdvantage = 1;
-    st.cursor[ui::pages::P_OSD_MENU] = 10;
+    st.cursor[ui::pages::P_OSD_MENU] = 11;
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(11, static_cast<int>(st.cursor[ui::pages::P_OSD_MENU]));
+    CHECK_EQ(12, static_cast<int>(st.cursor[ui::pages::P_OSD_MENU]));
 
     // 5. Combo Trainer: Fixed Damage (row 7) hidden when Reset Damage == Use CPU %.
     const u8 comboPath[] = {ui::pages::P_SCENARIOS, ui::pages::P_COMBO_TRAINER};
@@ -1448,12 +1453,11 @@ TEST(lab_menu, ux9_osd_presets_reversal_slot1_and_random_percent_mirrors)
     ui::menuReset(menu, st);
     ui::MenuInput pressRight = {0, 0, 0, 1, false, false};
 
-    // 1. OSD Preset: Essentials / Movement / Defense / All Off and auto-reset to Custom on manual edit.
+    // 1. OSD Preset: defaults to Essentials (all 6 core OSDs On, Max OSDs 4) and resets to Custom on manual edit.
     const u8 osdPath[] = {ui::pages::P_OSD_MENU};
     REQUIRE(ui::menuJump(menu, st, osdPath, 1));
-    CHECK_EQ(static_cast<int>(main::kOsdPresetCustom), static_cast<int>(main::settings().osd.preset));
-    ui::menuStep(menu, st, pressRight); // Essentials
     CHECK_EQ(static_cast<int>(main::kOsdPresetEssentials), static_cast<int>(main::settings().osd.preset));
+    CHECK_EQ(4, static_cast<int>(main::settings().osd.maxMessages));
     CHECK_EQ(1, static_cast<int>(main::settings().osd.wavedash));
     CHECK_EQ(1, static_cast<int>(main::settings().osd.lCancel));
     CHECK_EQ(1, static_cast<int>(main::settings().osd.ledgedashInfo));
@@ -1462,11 +1466,17 @@ TEST(lab_menu, ux9_osd_presets_reversal_slot1_and_random_percent_mirrors)
     CHECK_EQ(1, static_cast<int>(main::settings().osd.frameAdvantageOnHit));
     CHECK_EQ(0, static_cast<int>(main::settings().osd.fastfall));
 
-    // Manually toggling Wavedash (row 5) resets preset back to Custom.
-    st.cursor[ui::pages::P_OSD_MENU] = 5;
+    // Manually toggling Wavedash (row 6) resets preset back to Custom.
+    st.cursor[ui::pages::P_OSD_MENU] = 6;
     ui::menuStep(menu, st, pressRight);
     CHECK_EQ(0, static_cast<int>(main::settings().osd.wavedash));
     CHECK_EQ(static_cast<int>(main::kOsdPresetCustom), static_cast<int>(main::settings().osd.preset));
+
+    // Stepping OSD Preset right from Custom re-applies Essentials.
+    st.cursor[ui::pages::P_OSD_MENU] = 0;
+    ui::menuStep(menu, st, pressRight);
+    CHECK_EQ(static_cast<int>(main::kOsdPresetEssentials), static_cast<int>(main::settings().osd.preset));
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.wavedash));
 
     // Movement and Defense presets turn on their targeted OSD groups.
     ui::setOptionValue(menu, ui::pages::kOsdMenu.options[0], main::kOsdPresetMovement);
