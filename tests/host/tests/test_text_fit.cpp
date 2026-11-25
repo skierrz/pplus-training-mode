@@ -914,6 +914,10 @@ TEST(text_fit, drill_list)
                 list::s_row = i;
                 list::s_scroll = i >= list::kVisibleRows ? i - list::kVisibleRows + 1 : 0;
                 list::s_starting = false;
+                if (r.kind == list::kRowSkillDrill && r.targetId < drills::kBestSlots)
+                {
+                    menu::session().best[r.targetId] = (i % 2 == 0) ? 10 : 0;
+                }
                 drawList();
 
                 const canvas::Run* banner = runOf("TRAINING MODE");
@@ -1618,9 +1622,10 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
         canvas::Bounds wb = canvas::bounds();
         Box watermarkBox = {wb.x0, wb.y0, wb.x1, wb.y1};
 
-        // Sweep: Timer vs Ledgedash (30 & 64) x Info (Small 8+8, Med 8+2, Large 8+8)
+        // Sweep: Timer vs Ledgedash (30 & 64) vs Live Skill Drill HUD
+        //        x Info (Small 8+8, Med 8+2, Large 8+8)
         //        x Input Viewer (0, 1, 2) x DI Compass (0, 1) x PSA Card (0, 1).
-        static const int kLedgeModes[3] = {0, 30, 64};
+        static const int kTopModes[4] = {0, 30, 64, -1}; // -1 = Live Skill Drill HUD
         struct InfoCfg {
             int size;
             int hmnRows;
@@ -1632,10 +1637,15 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
             {main::kInfoLarge, 8, 8}
         };
 
-        for (int li = 0; li < 3; li++)
+        Box modalBox = drillModalBox(wide);
+        CHECK(modalBox.x0 >= safe.x0 - kTol && modalBox.x1 <= safe.x1 + kTol);
+        CHECK(modalBox.y0 >= safe.y0 - kTol && modalBox.y1 <= safe.y1 + kTol);
+
+        for (int li = 0; li < 4; li++)
         {
-            int ledge = kLedgeModes[li];
-            Box band = labBand(ledge == 0, ledge, wide);
+            int ledge = kTopModes[li];
+            bool drillHud = (ledge < 0);
+            Box band = drillHud ? drillHudBox(wide) : labBand(ledge == 0, ledge, wide);
 
             for (int ii = 0; ii < 3; ii++)
             {
@@ -1655,7 +1665,12 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                         {
                             HudPiece pieces[16];
                             int count = 0;
-                            if (ledge == 0)
+                            if (drillHud)
+                            {
+                                pieces[count].name = "drill-hud";
+                                pieces[count++].rect = drillHudBox(wide);
+                            }
+                            else if (ledge == 0)
                             {
                                 pieces[count].name = "timer";
                                 pieces[count++].rect = timerRoom(wide);
@@ -1762,8 +1777,8 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                             }
 
                             // 4. Lower OSD stacks (HUD & Sides, 3 typical messages for P1+CPU)
-                            //    never collide with Timer, Ledgedash HUD, Viewer, Compass, or PSA.
-                            if (ii == 1 && ledge == 0)
+                            //    never collide with Timer, Ledgedash HUD, Drill HUD, Viewer, Compass, or PSA.
+                            if (ii == 1 && (ledge == 0 || drillHud))
                             {
                                 for (int pos = osd_real::kPositionHud; pos <= osd_real::kPositionSides; pos++)
                                 {
@@ -1801,6 +1816,6 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
             }
         }
     }
-    CHECK_EQ(2 * 3 * 3 * 3 * 2 * 2, combosChecked);
+    CHECK_EQ(2 * 4 * 3 * 3 * 2 * 2, combosChecked);
     NOTE("%d multi-HUD 4:3/16:9 combinations verified with 0 overlaps", combosChecked);
 }

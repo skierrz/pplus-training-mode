@@ -976,6 +976,10 @@ namespace lab {
 
     void onPads(u32 phase, gfPadStatus* pads)
     {
+        if (!s_vsReadOnly && !s_st.exiting && !s_st.open && main::extraDrill(phase, pads) != 0u)
+        {
+            return;
+        }
         if (phase == iface::kPadsSystem)
         {
             onSystemPads(pads);
@@ -1379,16 +1383,17 @@ namespace lab {
         // Z opens the lab menu from Training's pause in both modes; the hint
         // shows only where that is the way in.
         bool hint = !ro && m.running && m.training && m.paused && !s_st.open && !startOpensMenu();
-        bool ledge = m.running && !m.paused && !s_st.open && ui::ledgedashHudVisible();
         bool hud = ro || display::hudShown();
+        setLayout(hud);
+        bool drillHud = !ro && m.running && !m.paused && !s_st.open && (main::extraDrill(2, NULL) & 1u) != 0u;
+        bool ledge = m.running && !m.paused && !s_st.open && !drillHud && ui::ledgedashHudVisible();
         // Training leaves Brawl's own timer off: it is turned on here instead
-        // (ui/match_hud.cpp), hidden while the Ledgedash HUD is shown.
-        bool timer = !ro && m.running && hud && !ui::ledgedashHudVisible() && (!m.paused || s_st.open);
+        // (ui/match_hud.cpp), hidden while the Ledgedash HUD or Skill Drill HUD is shown.
+        bool timer = !ro && m.running && hud && !drillHud && !ui::ledgedashHudVisible() && (!m.paused || s_st.open);
         if (timer)
         {
             ui::showMatchTimer(game::trackerFrame());
         }
-        setLayout(hud);
         if (m.running)
         {
             if (!ro)
@@ -1468,7 +1473,7 @@ namespace lab {
     bool savestateBusy()
     {
         return s_st.open || s_st.exiting || s_st.startState != kStartIdle || s_st.catchUp > 0
-               || game::categoriesPaused() || main::extraFighterSwapBusy();
+               || game::categoriesPaused() || main::extraFighterSwapBusy() || (main::extraDrill(0, NULL) & 2u) != 0u;
     }
 
     // Only the extra module (fighter_swap) calls this: keep exported.

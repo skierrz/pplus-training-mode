@@ -537,6 +537,10 @@ test-stage4a-hover-ps: install
 test-stage4a-pplus-tech: install
 	$(Q)$(EMU) test-stage4a-pplus-tech $(REL) $(STAGE4A_PPLUS_TECH_ARGS)
 
+# SKILL_DRILLS_UI_ARGS, e.g. SKILL_DRILLS_UI_ARGS="--only boot-menu ledgedash-hud".
+test-skill-drills-ui: install
+	$(Q)$(EMU) test-skill-drills-ui $(REL) $(SKILL_DRILLS_UI_ARGS)
+
 # GRAB_VIZ_ARGS, e.g. GRAB_VIZ_ARGS="--only off-noop standard-grab".
 test-grab-visualizer: install
 	$(Q)$(EMU) test-grab-visualizer $(REL) $(GRAB_VIZ_ARGS)

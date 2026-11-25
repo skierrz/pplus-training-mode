@@ -18,7 +18,13 @@ namespace drills {
     // Drill identifiers (0: none). Stable: they index best[].
     enum DrillId {
         kDrillNone = 0,
-        kDrillIdCount
+        kDrillLedgedash = 1,
+        kDrillWavedash = 2,
+        kDrillLCancel = 3,
+        kDrillHoverFloat = 4,
+        kDrillPowershield = 5,
+        kDrillPPlusTech = 6,
+        kDrillIdCount = 7
     };
 
     enum {

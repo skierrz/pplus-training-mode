@@ -125,6 +125,35 @@ NUMBERS = {
     ("psa_inspector_core.h", "w%.1f"): ["99.9"],
     ("psa_inspector_core.h", "a%.1f"): ["99.9"],
     ("psa_inspector_core.h", "%02X:%02X"): ["FF", "FF"],
+    ("drill_hud_core.h", "%+df"): ["+31"],
+    ("drill_hud_core.h", "%d / 10"): ["10"],
+    ("drill_hud_core.h", "Frame %d/7"): ["7"],
+    ("drill_hud_core.h", "%d clean"): ["10"],
+    ("drill_hud_core.h", "%d"): ["99"],
+    ("drill_hud_core.h", "%u / %u / %u"): ["10", "10", "10"],
+    ("drill_hud_core.h", "GALINT +%df"): ["31"],
+    ("drill_hud_core.h", "GRAB %d/5 (NO INVULN)"): ["9"],
+    ("drill_hud_core.h", "GALINT %df"): ["-24"],
+    ("drill_hud_core.h", "WAVELAND f%d"): ["99"],
+    ("drill_hud_core.h", "WAVEDASH f%d"): ["99"],
+    ("drill_hud_core.h", "LATE +%df"): ["10"],
+    ("drill_hud_core.h", "L-CANCEL f%d/7"): ["7"],
+    ("drill_hud_core.h", "EARLY -%df"): ["30"],
+    ("drill_hud_core.h", "INSTANT DJC f%d"): ["2"],
+    ("drill_hud_core.h", "LOW DJC f%d"): ["6"],
+    ("drill_hud_core.h", "LATE DJC f%d"): ["99"],
+    ("drill_hud_core.h", "POWERSHIELD f%d"): ["3"],
+    ("drill_hud_core.h", "PS REFLECT f%d"): ["3"],
+    ("drill_hud_core.h", "EARLY PS %df"): ["-10"],
+    ("drill_hud_core.h", "LATE PS +%df"): ["10"],
+    ("drill_hud_core.h", "PS-DROP f%d"): ["5"],
+    ("drill_hud.cpp", "REP %u/10  HIT %u"): ["10", "10"],
+    ("drill_hud.cpp", "STK %u  BEST %u"): ["10", "10"],
+    ("drill_hud.cpp", "STK %u  BEST --"): ["10"],
+    ("drill_hud.cpp", "%s DRILL"): ["FLOAT / HOVER"],
+    ("drill_hud.cpp", "%u / 10  (%u%%)"): ["10", "100"],
+    ("drill_hud.cpp", "%u / 10"): ["10"],
+    ("drill_hud.cpp", "%u"): ["10"],
     ("savestate.cpp", "%u:%02u ago"): ["99", "59"],
     ("recording_file.cpp", "%s-%d%s"): [None, "99", None],
     ("info_display.cpp", "%s: %.0f/%.0f"): [None, "999", "999"],
@@ -798,6 +827,66 @@ def psa_inspector_cpp(c, src):
             c.take(lit)
 
 
+def drill_hud_core_h(c, src):
+    # Live Skill Drill HUD (kDrillHudWidth = 296) and End-Screen Modal (kDrillModalWidth = 384).
+    for lit in src.literals:
+        if c.taken(lit):
+            continue
+        if lit.func == "drillHudTitle":
+            c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 126.0, 0.0)
+        elif lit.func == "drillHighlightLabel":
+            c.item("fit", lit, lit.text, scale_for_cap(10.0), 0, 185.0, 0.0)
+        elif lit.func == "drillHudFormatHighlight":
+            if lit.name == "snprintf" and lit.arg == 2:
+                for t in c.expand(lit, 2):
+                    c.item("fit", lit, t, scale_for_cap(10.0), 0, 144.0, 0.0)
+                    c.buffer(lit, t, 24.0)
+            else:
+                for t in c.expand(lit, 0):
+                    c.item("fit", lit, t, scale_for_cap(10.0), 0, 144.0, 0.0)
+                    c.buffer(lit, t, 24.0)
+        elif lit.func in ("drillHudInit", "drillHudClearSet", "drillHudStep", "drillHudPoll"):
+            if lit.name == "snprintf" and lit.arg == 2:
+                pass
+            else:
+                for t in c.expand(lit, 0):
+                    c.item("squeeze", lit, t, scale_for_cap(8.0), 0, 152.0, 0.0)
+                    c.buffer(lit, t, 28.0)
+        else:
+            continue
+        c.take(lit)
+
+
+def drill_hud_cpp(c, src):
+    for lit in src.literals:
+        if c.taken(lit):
+            continue
+        if lit.var in ("kPromptLabels", "kPromptGlyphs"):
+            c.item("fit", lit, lit.text, scale_for_cap(9.5), 0, 110.0, 0.0)
+        elif lit.func == "drawLiveHud" and lit.name == "snprintf" and lit.arg == 2:
+            is_meta = lit.text.startswith("STK")
+            cap = 7.5 if is_meta else 8.0
+            room = 112.0 if is_meta else 136.0
+            for t in c.expand(lit, 2):
+                c.item("fit", lit, t, scale_for_cap(cap), 0, room, 0.0)
+                c.buffer(lit, t, 24.0)
+        elif lit.func == "drawEndModal":
+            if lit.name == "snprintf" and lit.arg == 2:
+                is_score = "%%" in lit.text
+                is_title = "DRILL" in lit.text
+                cap = 20.0 if is_score else (13.0 if is_title else 10.0)
+                room = 344.0 if (is_score or is_title) else 144.0
+                buf = 28.0 if (is_score or is_title) else 24.0
+                for t in c.expand(lit, 2):
+                    c.item("fit", lit, t, scale_for_cap(cap), 0, room, 0.0)
+                    c.buffer(lit, t, buf)
+            else:
+                c.item("fit", lit, lit.text, scale_for_cap(10.0), 0, 185.0, 0.0)
+        else:
+            continue
+        c.take(lit)
+
+
 def read_sources(root):
     """Every source under `root` (the mod's src/), scanned."""
     from text_scan import scan
@@ -867,6 +956,8 @@ HANDLERS = [
     ("extra/pplus_tech_tracker_core.h", walked),
     ("extra/psa_inspector_core.h", psa_inspector_core_h),
     ("extra/psa_inspector.cpp", psa_inspector_cpp),
+    ("extra/drill_hud_core.h", drill_hud_core_h),
+    ("extra/drill_hud.cpp", drill_hud_cpp),
     ("main/savestate/savestate.cpp", savestate),
     ("main/game/pad_inmatch.cpp", pad_inmatch_cpp),
     ("main/lab.cpp", lab_cpp),

@@ -953,11 +953,16 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     CHECK_EQ(10, static_cast<int>(menu::session().pendingScenario));
     CHECK(host::log::contains("drills: scenario 10 (P+ Multi-Hit SDI) armed"));
 
-    // Reopen, cycle R -> All Modes (Page 0), select row 0 (Training Lab) -> clears pendingScenario to 0!
+    // Reopen, cycle R -> Skill Drills (Page 3) -> All Modes (Page 0), select row 0 (Training Lab) -> clears pendingScenario to 0!
     setPadInput(pads[0], 0);
     stepFrame(pads);
     setPadInput(pads[0], game::kPadL | game::kPadR);
     stepFrame(pads);
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+    setPadInput(pads[0], game::kPadR);
+    stepFrame(pads);
+    CHECK(host::log::contains("drills: page Skill Drills"));
     setPadInput(pads[0], 0);
     stepFrame(pads);
     setPadInput(pads[0], game::kPadR);
@@ -1037,4 +1042,60 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
         CHECK(host::log::contains("drills: page All Modes"));
         menu::list::detach();
     }
+}
+
+TEST(drill_list, skill_drills_section_arms_drill_and_shows_personal_best)
+{
+    gfPadStatus pads[iface::kPadCount];
+    initPads(pads, 1u << 0);
+    host::fakes::setMenuPort(0);
+    host::fakes::setTrainingSelectRunning(true);
+    menu::list::attach();
+    stepFrame(pads);
+
+    // L from All Modes wraps directly to Page 3 (Skill Drills).
+    setPadInput(pads[0], game::kPadL);
+    stepFrame(pads);
+    CHECK(host::log::contains("drills: page Skill Drills"));
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+
+    // Details card shows Personal Best placeholder when best == 0.
+    host::canvas::clear();
+    menu::list::onRender(0);
+    CHECK(canvasDrew("Skill Drills"));
+    CHECK(canvasDrew("Ledgedash"));
+    CHECK(canvasDrew("Personal Best"));
+    CHECK(canvasDrew("Best: --"));
+
+    // Select Ledgedash (row 0 of Skill Drills) -> arms drill 1, clears scenario, closes list.
+    setPadInput(pads[0], kButtonA);
+    stepFrame(pads);
+    CHECK(host::log::contains("drills: skill drill 1 (Ledgedash) armed"));
+    CHECK_EQ(static_cast<int>(drills::kDrillLedgedash), static_cast<int>(menu::session().drill));
+    CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
+    CHECK_EQ(0, static_cast<int>(menu::session().drillRan));
+    CHECK_EQ(3, static_cast<int>(menu::session().page));
+    CHECK_EQ(0, static_cast<int>(menu::session().row));
+
+    // Detach into match (exitCode == 1) preserves armed drill for extra/drill_hud.cpp.
+    gfSceneManager::getInstance()->unk1 = 1;
+    menu::list::detach();
+    CHECK_EQ(static_cast<int>(drills::kDrillLedgedash), static_cast<int>(menu::session().drill));
+
+    // Simulate match finishing with score 8/10 -> returning to CSS auto-opens launcher
+    // on Skill Drills row 0 showing "Best: 8/10" and clears drill/drillRan.
+    menu::session().drillRan = 1;
+    menu::session().best[drills::kDrillLedgedash] = 8;
+    host::log::clear();
+    menu::attachSession(host::fakes::block());
+    menu::list::attach();
+    CHECK(host::log::contains("drills: list opened (auto) for port 1, row 0 Ledgedash"));
+    CHECK_EQ(static_cast<int>(drills::kDrillNone), static_cast<int>(menu::session().drill));
+    CHECK_EQ(0, static_cast<int>(menu::session().drillRan));
+
+    host::canvas::clear();
+    menu::list::onRender(0);
+    CHECK(canvasDrew("Best: 8/10"));
+    menu::list::detach();
 }
