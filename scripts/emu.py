@@ -1803,6 +1803,9 @@ def main():
     if cmd == "test-grab-visualizer" and rest:
         import grab_visualizer_tests
         return grab_visualizer_tests.cmd_test_grab_visualizer(rest)
+    if cmd == "test-hud-theme-meter" and rest:
+        import hud_theme_meter_tests
+        return hud_theme_meter_tests.cmd_test_hud_theme_meter(rest)
     if cmd == "test-match-hud" and rest:
         import match_hud_tests
         return match_hud_tests.cmd_test_match_hud(rest)

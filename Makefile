@@ -275,7 +275,7 @@ endif
 .PHONY: all clean tools negative sd-folder install run test-load test-match test-stress \
         test-reject test-lab test-displays test-osds test-drills test-cpu test-recovery-combo test-stage3f test-scenarios \
         test-display test-controls test-di test-frames test-savestate test-record test-storage \
-        test-card test-extra-heaps test-fighter-sets test-fighter-sets-no-extra test-fighter-swap test-big-file test-sounds test-rng test-fighter-mechanics test-stage-options test-stage3d test-stage5d test-stage4a-core test-stage4a-hover-ps test-stage4a-pplus-tech test-grab-visualizer test-match-hud test-code-menu test-boot test-harness test-perf match-baseline \
+        test-card test-extra-heaps test-fighter-sets test-fighter-sets-no-extra test-fighter-swap test-big-file test-sounds test-rng test-fighter-mechanics test-stage-options test-stage3d test-stage5d test-stage4a-core test-stage4a-hover-ps test-stage4a-pplus-tech test-grab-visualizer test-hud-theme-meter test-match-hud test-code-menu test-boot test-harness test-perf match-baseline \
         match-compare check-host
 
 all: $(BUILT_REL)
@@ -540,6 +540,10 @@ test-stage4a-pplus-tech: install
 # GRAB_VIZ_ARGS, e.g. GRAB_VIZ_ARGS="--only off-noop standard-grab".
 test-grab-visualizer: install
 	$(Q)$(EMU) test-grab-visualizer $(REL) $(GRAB_VIZ_ARGS)
+
+# HUD_THEME_METER_ARGS, e.g. HUD_THEME_METER_ARGS="--only theme-v2-persist".
+test-hud-theme-meter: install
+	$(Q)$(EMU) test-hud-theme-meter $(REL) $(HUD_THEME_METER_ARGS)
 
 # PERF_ARGS, e.g. PERF_ARGS="--only idle fight --frames 300". Needs PERF=1.
 test-perf: install
