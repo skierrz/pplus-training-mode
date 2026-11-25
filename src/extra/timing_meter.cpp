@@ -158,11 +158,11 @@ namespace extra {
         }
     }
 
-    // Extra vertical clearance above Combo Trainer's active floating meters.
+    // Extra vertical clearance above active floating meters.
     static float comboMeterClearance(int p)
     {
         const main::ComboTrainerSettings& cfg = main::settings().comboTrainer;
-        if (!cfg.enabled || cfg.enabledMeters == 0)
+        if (cfg.enabledMeters == 0)
         {
             return 0.0f;
         }

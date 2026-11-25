@@ -1,6 +1,9 @@
 #include "main/game/techniques.h"
 
+#include <gf/gf_heap_manager.h>
+#include <gf/gf_memory_pool.h>
 #include <math.h>
+#include <memory.h>
 #include <so/so_module_accesser.h>
 #include <so/work/so_work_manage_module_impl.h>
 #include <string.h>
@@ -8,7 +11,9 @@
 #include "main/game/fighters.h"
 #include "main/game/status_ids.h"
 #include "main/game/tracker.h"
+#include "shared/game/heap.h"
 #include "shared/game/mem.h"
+#include "shared/log.h"
 
 // Technique timings worked out from the trackers' frames and passed to the
 // sink; changes no game state. What each technique is and how it is timed:
@@ -151,8 +156,12 @@ namespace game {
         u8 cells[kLedgeCells];
     };
 
-    static Watch s_watch[kMaxTracked];
-    static TechniqueState s_state[kMaxTracked];
+    struct TechniqueNet {
+        Watch watch[kMaxTracked];
+        TechniqueState state[kMaxTracked];
+    };
+
+    static TechniqueNet* s_net = NULL;
     static Ledgedash s_ledge;      // human player only (Ledgedash HUD)
     static Ledgedash s_ledgeEvent; // last kTechGalint emitter (human or CPU)
     static TechniqueSink s_sink = NULL;
@@ -173,13 +182,48 @@ namespace game {
         w.lastIntangible = kNoFrame;
     }
 
+    void techniquesAttach()
+    {
+        if (s_net == NULL)
+        {
+            u32 need = (static_cast<u32>(sizeof(TechniqueNet)) + 31u) & ~31u;
+            HeapUsage u;
+            if (heapUsage(Heaps::Network, u) && u.largest >= need)
+            {
+                void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
+                if (isRam(p))
+                {
+                    memset(p, 0, need);
+                    s_net = static_cast<TechniqueNet*>(p);
+                }
+            }
+            if (s_net == NULL)
+            {
+                TM_LOG("techniques: alloc failed (%u bytes in Network)\n", static_cast<unsigned>(need));
+            }
+        }
+    }
+
+    void techniquesDetach()
+    {
+        if (s_net != NULL)
+        {
+            free(s_net);
+            s_net = NULL;
+        }
+        s_sink = NULL;
+    }
+
     void techniquesReset(TechniqueSink sink)
     {
         s_sink = sink;
-        for (int i = 0; i < kMaxTracked; i++)
+        if (s_net != NULL)
         {
-            clearWatch(s_watch[i]);
-            s_state[i].valid = false;
+            for (int i = 0; i < kMaxTracked; i++)
+            {
+                clearWatch(s_net->watch[i]);
+                s_net->state[i].valid = false;
+            }
         }
         s_ledge.done = kNoFrame;
         s_ledge.count = 0;
@@ -189,7 +233,7 @@ namespace game {
 
     const TechniqueState* techniqueState(int i)
     {
-        return i >= 0 && i < kMaxTracked && s_state[i].valid ? &s_state[i] : NULL;
+        return s_net != NULL && i >= 0 && i < kMaxTracked && s_net->state[i].valid ? &s_net->state[i] : NULL;
     }
 
     const Ledgedash& lastLedgedash()
@@ -553,7 +597,7 @@ namespace game {
     static void fastfall(Watch& w, const Tracked& t, int i, s32 f)
     {
         int s = t.cur.status;
-        TechniqueState& st = s_state[i];
+        TechniqueState& st = s_net->state[i];
         if (!t.cur.airborne || t.cur.hitstun > 0)
         {
             w.fallStart = kNoFrame;
@@ -1022,14 +1066,18 @@ namespace game {
 
     void techniquesFrame()
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
         s32 f = trackerFrame();
         FighterRef refs[kMaxFighters];
         int n = listFighters(refs, kMaxFighters);
         for (int i = 0; i < kMaxTracked; i++)
         {
             const Tracked* t = tracked(i);
-            Watch& w = s_watch[i];
-            TechniqueState& st = s_state[i];
+            Watch& w = s_net->watch[i];
+            TechniqueState& st = s_net->state[i];
             if (t == NULL || t->cur.frame != f)
             {
                 if (w.valid)

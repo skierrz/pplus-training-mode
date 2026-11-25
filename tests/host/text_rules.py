@@ -167,6 +167,8 @@ NUMBERS = {
     ("info_display.cpp", "State: 0x%X"): ["FFF"],
     ("info_display.cpp", "Subaction: 0x%X %d/%d"): ["FFF", "999", "999"],
     ("status_names.cpp", "0x%X"): ["FFF"],
+    ("adaptive_cpu.cpp", "READ %u%%"): ["100"],
+    ("adaptive_cpu.cpp", "%u%%"): ["100"],
     # Players 1 to 4, frames of the match, state numbers up to 0xFFF.
     ("debug_overlay.cpp", "adv P%d>P%d %s %+d: hit %d, A %d %X<%X, D %d %X<%X, x%d"):
         ["4", "4", None, "-99", "99999", "99999", "FFF", "FFF", "99999", "FFF", "FFF", "99"],
@@ -232,6 +234,8 @@ WORDS = {
     ("settings_file.cpp", "resultText(s_job.result())"): file_results,
     ("pplus_tech_tracker.cpp", "label"): array("extra/pplus_tech_tracker_core.h", "kTable"),
     ("fighter_swap.cpp", "refuseNoticeText(code)"): returned("extra/fighter_swap.cpp", "refuseNoticeText"),
+    ("adaptive_cpu.cpp", "adaptiveBiasLabel(v.biasAction)"): returned("extra/adaptive_cpu_core.h", "adaptiveBiasLabel"),
+    ("adaptive_cpu.cpp", "adaptiveRpsLabel(v.dominantRps)"): returned("extra/adaptive_cpu_core.h", "adaptiveRpsLabel"),
 }
 
 # ---- restated layouts ----------------------------------------------------------
@@ -682,6 +686,17 @@ def cpu_options(c, src):
             c.take(lit)
 
 
+def cpu_options_page(c, src):
+    # Dynamic Slot 1 (Primary) label buffer in P_REVERSALS (28 bytes).
+    for lit in src.literals:
+        if c.taken(lit):
+            continue
+        if lit.func in ("stripMarker", "revEnabled") or "s_revSlot1Label" in lit.stmt:
+            c.item("menu-value", lit, lit.text)
+            c.buffer(lit, lit.text, 28.0)
+            c.take(lit)
+
+
 def status_names_cpp(c, src):
     # Words of the info display's State row and the state messages.
     for lit in src.literals:
@@ -832,6 +847,52 @@ def psa_inspector_cpp(c, src):
             c.take(lit)
 
 
+def adaptive_cpu_core_h(c, src):
+    # Habit Readout HUD RPS & counter-bias labels (drawn via adaptive_cpu.cpp footer).
+    for lit in src.literals:
+        if c.taken(lit):
+            continue
+        if lit.func in ("adaptiveRpsLabel", "adaptiveBiasLabel"):
+            c.item("fit", lit, lit.text, scale_for_cap(6.0), 0, 127.0, 0.0)
+            c.take(lit)
+
+
+def adaptive_cpu_cpp(c, src):
+    # Compact Habit Readout HUD card (kAdaptiveHudWidth = 138, inner width 127 px).
+    for lit in src.literals:
+        if c.taken(lit):
+            continue
+        if lit.func != "adaptiveCpuDraw":
+            continue
+        if lit.var == "kBarLabels":
+            c.item("fit", lit, lit.text, scale_for_cap(6.0), 0, 23.0, 0.0)
+        elif lit.name == "drawHudText":
+            c.item("fit", lit, lit.text, scale_for_cap(6.4), 0, 72.0, 0.0)
+        elif lit.name == "strcpy":
+            if lit.text == "WAITING":
+                c.item("fit", lit, lit.text, scale_for_cap(6.4), 0, 56.0, 0.0)
+                c.buffer(lit, lit.text, 16.0)
+            else:
+                c.item("fit", lit, lit.text, scale_for_cap(6.0), 0, 127.0, 0.0)
+                c.buffer(lit, lit.text, 28.0)
+        elif lit.name == "snprintf" and lit.arg == 2:
+            if lit.text == "READ %u%%":
+                for t in c.expand(lit, 2):
+                    c.item("fit", lit, t, scale_for_cap(6.4), 0, 56.0, 0.0)
+                    c.buffer(lit, t, 16.0)
+            elif lit.text == "%u%%":
+                for t in c.expand(lit, 2):
+                    c.item("fit", lit, t, scale_for_cap(6.0), 0, 29.0, 0.0)
+                    c.buffer(lit, t, 8.0)
+            else:
+                for t in c.expand(lit, 2):
+                    c.item("fit", lit, t, scale_for_cap(6.0), 0, 127.0, 0.0)
+                    c.buffer(lit, t, 28.0)
+        else:
+            continue
+        c.take(lit)
+
+
 def drill_hud_core_h(c, src):
     # Live Skill Drill HUD (kDrillHudWidth = 296) and End-Screen Modal (kDrillModalWidth = 384).
     for lit in src.literals:
@@ -961,6 +1022,8 @@ HANDLERS = [
     ("extra/pplus_tech_tracker_core.h", walked),
     ("extra/psa_inspector_core.h", psa_inspector_core_h),
     ("extra/psa_inspector.cpp", psa_inspector_cpp),
+    ("extra/adaptive_cpu_core.h", adaptive_cpu_core_h),
+    ("extra/adaptive_cpu.cpp", adaptive_cpu_cpp),
     ("extra/drill_hud_core.h", drill_hud_core_h),
     ("extra/drill_hud.cpp", drill_hud_cpp),
     ("main/savestate/savestate.cpp", savestate),
@@ -969,6 +1032,7 @@ HANDLERS = [
     ("main/ui/watermark.cpp", watermark),
     ("main/ui/match_hud.cpp", match_hud),
     ("main/cpu/options.cpp", cpu_options),
+    ("main/ui/pages/cpu_options.cpp", cpu_options_page),
     ("main/game/status_names.cpp", status_names_cpp),
     ("main/storage/file_io.cpp", file_io),
     ("main/storage/recording_file.cpp", recording_file),

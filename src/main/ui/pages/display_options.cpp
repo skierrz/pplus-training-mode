@@ -58,6 +58,7 @@ namespace pages {
         TM_MENU("P1 Info Display", P_HMN_INFO),
         TM_MENU("CPU Info Display", P_CPU_INFO),
         TM_MENU("Ledgedash HUD", P_LEDGEDASH_HUD),
+        TM_MENU_IF("Floating Meters", P_COMBO_METERS, main::extraLoaded),
         TM_MENU("Advanced / Debug", P_DEBUG)
     };
 

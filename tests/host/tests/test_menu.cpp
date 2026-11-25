@@ -579,17 +579,24 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
         CHECK(!(lab.options[i].kind == ui::kKindMenu && lab.options[i].max == ui::pages::P_OSD_MENU));
         CHECK(!(lab.options[i].name != NULL && strcmp(lab.options[i].name, "OSD Menu") == 0));
     }
-    REQUIRE(lab.count == 12);
-    CHECK(strcmp(lab.options[7].name, "Offline VS Displays") == 0);
-    CHECK((lab.options[7].flags & ui::kFlagTabsOnly) == 0);
-    CHECK(strcmp(lab.options[8].name, "Controls") == 0);
-    CHECK_EQ(ui::pages::P_CONTROLS, lab.options[8].max);
-    CHECK((lab.options[9].flags & ui::kFlagTabsOnly) != 0);
+    REQUIRE(lab.count == 13);
+    CHECK(strcmp(lab.options[3].name, "P1 Load Random %") == 0);
+    CHECK_EQ(static_cast<u16>(offsetof(main::Settings, recording.randomPercent[0])), lab.options[3].offset);
+    CHECK(strcmp(lab.options[8].name, "Offline VS Displays") == 0);
+    CHECK((lab.options[8].flags & ui::kFlagTabsOnly) == 0);
+    CHECK(strcmp(lab.options[9].name, "Controls") == 0);
+    CHECK_EQ(ui::pages::P_CONTROLS, lab.options[9].max);
     CHECK((lab.options[10].flags & ui::kFlagTabsOnly) != 0);
     CHECK((lab.options[11].flags & ui::kFlagTabsOnly) != 0);
+    CHECK((lab.options[12].flags & ui::kFlagTabsOnly) != 0);
+
+    const ui::Page& ctrls = ui::pages::kControls;
+    CHECK(strcmp(ctrls.options[0].name, "Advance Button") == 0);
+    CHECK(strcmp(ctrls.options[1].name, "Hold Repeat Delay") == 0);
+    CHECK(strcmp(ctrls.options[2].name, "Rewind Button") == 0);
 
     const ui::Page& disp = ui::pages::kDisplayOptions;
-    REQUIRE(disp.count == 22);
+    REQUIRE(disp.count == 23);
     CHECK(strcmp(disp.options[1].name, "Input Viewer") == 0);
     CHECK(strcmp(disp.options[2].name, "Theme") == 0);
     CHECK_EQ(ui::pages::P_THEME, disp.options[2].max);
@@ -599,8 +606,10 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK(strcmp(disp.options[10].name, "DI Display") == 0);
     CHECK(strcmp(disp.options[11].name, "DI Vector") == 0);
     CHECK((disp.options[11].flags & ui::kFlagHideWhenDisabled) != 0);
-    CHECK(strcmp(disp.options[21].name, "Advanced / Debug") == 0);
-    CHECK_EQ(ui::pages::P_DEBUG, disp.options[21].max);
+    CHECK(strcmp(disp.options[21].name, "Floating Meters") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_METERS, disp.options[21].max);
+    CHECK(strcmp(disp.options[22].name, "Advanced / Debug") == 0);
+    CHECK_EQ(ui::pages::P_DEBUG, disp.options[22].max);
 
     const ui::Page& dbg = ui::pages::kDebug;
     REQUIRE(dbg.count == 2);
@@ -608,11 +617,20 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK(strcmp(dbg.options[1].name, "Debug Overlay") == 0);
 
     const ui::Page& cpuP = ui::pages::kCpuOptions;
-    REQUIRE(cpuP.count == 13);
-    CHECK_EQ(ui::pages::P_CPU_DI, cpuP.options[4].max);
-    CHECK_EQ(ui::pages::P_CPU_COUNTERS, cpuP.options[5].max);
-    CHECK_EQ(ui::pages::P_TECH, cpuP.options[6].max);
-    CHECK_EQ(ui::pages::P_CPU_DEFENSE, cpuP.options[7].max);
+    REQUIRE(cpuP.count == 14);
+    CHECK(strcmp(cpuP.options[2].name, "CPU Load Random %") == 0);
+    CHECK_EQ(static_cast<u16>(offsetof(main::Settings, recording.randomPercent[1])), cpuP.options[2].offset);
+    CHECK_EQ(ui::pages::P_CPU_DI, cpuP.options[5].max);
+    CHECK_EQ(ui::pages::P_CPU_COUNTERS, cpuP.options[6].max);
+    CHECK_EQ(ui::pages::P_TECH, cpuP.options[7].max);
+    CHECK_EQ(ui::pages::P_CPU_DEFENSE, cpuP.options[8].max);
+
+    const ui::Page& defP = ui::pages::kCpuDefense;
+    CHECK(strcmp(defP.options[defP.count - 1].name, "Status Mash") == 0);
+
+    const ui::Page& osdP = ui::pages::kOsdMenu;
+    CHECK(strcmp(osdP.options[0].name, "OSD Preset") == 0);
+    CHECK(strcmp(osdP.options[9].name, "Shield Advantage") == 0);
 
     const ui::Page& scen = ui::pages::kScenarios;
     REQUIRE(scen.count == 6);
@@ -840,23 +858,25 @@ TEST(menu, bit_flag_toggles_default_and_preserve_sibling_bits)
     bootLab();
     const ui::MenuDef& menu = ui::labMenu();
     const ui::Page& combo = ui::pages::kComboTrainer;
-    REQUIRE(combo.count >= 10);
-    CHECK(combo.options[9].name != NULL && strcmp(combo.options[9].name, "Floating Meters") == 0);
-    CHECK_EQ(ui::kKindMenu, combo.options[9].kind);
-    CHECK_EQ(ui::pages::P_COMBO_METERS, combo.options[9].max);
+    REQUIRE(combo.count == 11);
+    CHECK(combo.options[10].name != NULL && strcmp(combo.options[10].name, "Floating Meters") == 0);
+    CHECK_EQ(ui::kKindMenu, combo.options[10].kind);
+    CHECK_EQ(ui::pages::P_COMBO_METERS, combo.options[10].max);
+    CHECK_EQ(1, static_cast<int>(main::settings().comboTrainer.noclip));
+    CHECK_EQ(static_cast<int>(main::kComboDmgCpu), static_cast<int>(main::settings().comboTrainer.fixedDamageMode));
 
     const ui::Page& meters = ui::pages::kComboMeters;
     CHECK_EQ(7, static_cast<int>(meters.count));
-    CHECK_EQ(static_cast<int>(main::kMeterAll), static_cast<int>(main::settings().comboTrainer.enabledMeters));
+    CHECK_EQ(0, static_cast<int>(main::settings().comboTrainer.enabledMeters));
 
-    // Verify defaultAll produces 0x7F and every bit reads back normalized as 1.
-    main::settings().comboTrainer.enabledMeters = 0;
+    // Verify defaultAll produces 0x00 (safe fresh install) and every bit reads back normalized as 0.
+    main::settings().comboTrainer.enabledMeters = main::kMeterAll;
     ui::defaultAll(menu);
-    CHECK_EQ(0x7F, static_cast<int>(main::settings().comboTrainer.enabledMeters));
+    CHECK_EQ(0, static_cast<int>(main::settings().comboTrainer.enabledMeters));
     for (int i = 0; i < meters.count; i++)
     {
         CHECK((meters.options[i].flags & ui::kFlagBit) != 0);
-        CHECK_EQ(1, ui::optionValue(menu, meters.options[i]));
+        CHECK_EQ(0, ui::optionValue(menu, meters.options[i]));
     }
 
     // Toggling any single bit leaves the other 6 bits intact, and clampAll preserves partial masks.
@@ -864,6 +884,7 @@ TEST(menu, bit_flag_toggles_default_and_preserve_sibling_bits)
         main::kMeterHitlag, main::kMeterHitstun, main::kMeterShieldstun, main::kMeterDi,
         main::kMeterIasa,   main::kMeterLedgeIntang, main::kMeterIntang
     };
+    main::settings().comboTrainer.enabledMeters = main::kMeterAll;
     for (int i = 0; i < 7; i++)
     {
         const ui::Option& o = meters.options[i];
@@ -883,14 +904,14 @@ TEST(menu, bit_flag_toggles_default_and_preserve_sibling_bits)
         CHECK_EQ(0x7F, static_cast<int>(main::settings().comboTrainer.enabledMeters));
     }
 
-    // Stepping through P_COMBO_METERS with A and Right flips individual bits cleanly.
-    main::settings().cpu.options.control = cpu::kControlLab;
-    main::settings().comboTrainer.enabled = 1;
+    // Floating Meters is accessible from Display even with Combo Trainer Off, and flips individual bits cleanly.
+    main::settings().comboTrainer.enabled = 0;
+    main::settings().comboTrainer.enabledMeters = main::kMeterAll;
     main::setExtraHooks(&kNoHooks);
     ui::MenuState st;
     ui::menuReset(menu, st);
-    const u8 path[] = {ui::pages::P_SCENARIOS, ui::pages::P_COMBO_TRAINER, ui::pages::P_COMBO_METERS};
-    REQUIRE(ui::menuJump(menu, st, path, 3));
+    const u8 dispMeterPath[] = {ui::pages::P_DISPLAY, ui::pages::P_COMBO_METERS};
+    REQUIRE(ui::menuJump(menu, st, dispMeterPath, 2));
     CHECK_EQ(ui::pages::P_COMBO_METERS, ui::currentPage(st));
 
     ui::MenuInput pressA = {0, 0, 0, 0, true, false};
@@ -1174,35 +1195,35 @@ TEST(lab_menu, rail_hides_tabs_only_utilities_and_clamps_on_live_style_switch)
     ui::MenuInput inDown = {0, 1, 0, 0, false, false, false, false};
     ui::MenuInput noop = {0, 0, 0, 0, false, false, false, false};
 
-    // Draft C (Rail): Lab has 9 visible rows (0..8); rows 9..11 (kFlagTabsOnly) are omitted.
+    // Draft C (Rail): Lab has 10 visible rows (0..9); rows 10..12 (kFlagTabsOnly) are omitted.
     main::settings().controls.menuStyle = main::kMenuStyleRail;
     for (int i = 0; i < 15; i++)
     {
         ui::menuStep(menu, st, inDown);
     }
-    CHECK_EQ(8, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
+    CHECK_EQ(9, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
     host::canvas::clear();
     ui::menuDraw(menu, st);
     CHECK(menuCanvasDrew("Offline VS Displays"));
     CHECK(menuCanvasDrew("Controls"));
     CHECK(!menuCanvasDrew("Brawl Training Menu"));
 
-    // Live switch to Draft A (Tabs): all 12 rows appear including Reset / Brawl Training / Return to CSS.
+    // Live switch to Draft A (Tabs): all 13 rows appear including Reset / Brawl Training / Return to CSS.
     main::settings().controls.menuStyle = main::kMenuStyleTabs;
     for (int i = 0; i < 5; i++)
     {
         ui::menuStep(menu, st, inDown);
     }
-    CHECK_EQ(11, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
+    CHECK_EQ(12, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
     host::canvas::clear();
     ui::menuDraw(menu, st);
     CHECK(menuCanvasDrew("Brawl Training Menu"));
     CHECK(menuCanvasDrew("Return to CSS"));
 
-    // Live switch back to Draft C (Rail) while row 11 is highlighted: cursor clamps cleanly to row 8.
+    // Live switch back to Draft C (Rail) while row 12 is highlighted: cursor clamps cleanly to row 9.
     main::settings().controls.menuStyle = main::kMenuStyleRail;
     ui::menuStep(menu, st, noop);
-    CHECK_EQ(8, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
+    CHECK_EQ(9, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
     (void)inUp;
     storage::detach();
 }
@@ -1326,7 +1347,7 @@ TEST(menu, compressed_option_descriptions_decode_all_pages_and_bounds)
     // Exact verbatim spot checks across shared and unique strings.
     CHECK(strcmp(extra::optionDesc(ui::pages::P_GENERAL, 0),
                  "Freeze gameplay and step one frame per advance press.") == 0);
-    CHECK(strcmp(extra::optionDesc(ui::pages::P_GENERAL, 10),
+    CHECK(strcmp(extra::optionDesc(ui::pages::P_GENERAL, 11),
                  "Switch directly to Brawl's built-in Training pause menu.") == 0);
     CHECK(strcmp(extra::optionDesc(ui::pages::P_STAGE_CAST, 33),
                  "Force Olimar pluck to pull Red, Yellow, Blue, White, or Purple.") == 0);
@@ -1386,18 +1407,116 @@ TEST(lab_menu, progressive_disclosure_hides_child_rows_until_parent_enabled)
     ui::menuStep(menu, st, inDown);
     CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_RECORDING]));
 
-    // 4. OSDs: Advantage Tolerance (row 10) hidden when Frame Advantage & Hit Advantage are both Off.
+    // 4. OSDs: Advantage Tolerance (row 11) hidden when Shield Advantage & Hit Advantage are both Off.
     const u8 osdPath[] = {ui::pages::P_OSD_MENU};
     REQUIRE(ui::menuJump(menu, st, osdPath, 1));
     main::settings().osd.frameAdvantage = 0;
     main::settings().osd.frameAdvantageOnHit = 0;
-    st.cursor[ui::pages::P_OSD_MENU] = 9; // Hit Advantage
+    st.cursor[ui::pages::P_OSD_MENU] = 10; // Hit Advantage
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(11, static_cast<int>(st.cursor[ui::pages::P_OSD_MENU])); // skips row 10 Advantage Tolerance
+    CHECK_EQ(12, static_cast<int>(st.cursor[ui::pages::P_OSD_MENU])); // skips row 11 Advantage Tolerance
     main::settings().osd.frameAdvantage = 1;
-    st.cursor[ui::pages::P_OSD_MENU] = 9;
+    st.cursor[ui::pages::P_OSD_MENU] = 10;
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(10, static_cast<int>(st.cursor[ui::pages::P_OSD_MENU]));
+    CHECK_EQ(11, static_cast<int>(st.cursor[ui::pages::P_OSD_MENU]));
+
+    // 5. Combo Trainer: Fixed Damage (row 7) hidden when Reset Damage == Use CPU %.
+    const u8 comboPath[] = {ui::pages::P_SCENARIOS, ui::pages::P_COMBO_TRAINER};
+    main::settings().cpu.options.control = cpu::kControlLab;
+    main::settings().comboTrainer.enabled = 1;
+    main::settings().comboTrainer.fixPosition = 1;
+    main::settings().comboTrainer.fixedDamageMode = main::kComboDmgCpu;
+    REQUIRE(ui::menuJump(menu, st, comboPath, 2));
+    st.cursor[ui::pages::P_COMBO_TRAINER] = 6; // Reset Damage
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(8, static_cast<int>(st.cursor[ui::pages::P_COMBO_TRAINER])); // skips row 7 Fixed Damage
+    main::settings().comboTrainer.fixedDamageMode = main::kComboDmgCustom;
+    st.cursor[ui::pages::P_COMBO_TRAINER] = 6;
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(7, static_cast<int>(st.cursor[ui::pages::P_COMBO_TRAINER]));
+
+    main::setExtraHooks(NULL);
+    storage::detach();
+}
+
+TEST(lab_menu, ux9_osd_presets_reversal_slot1_and_random_percent_mirrors)
+{
+    bootLab();
+    main::setExtraHooks(&kNoHooks);
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+    ui::MenuInput pressRight = {0, 0, 0, 1, false, false};
+
+    // 1. OSD Preset: Essentials / Movement / Defense / All Off and auto-reset to Custom on manual edit.
+    const u8 osdPath[] = {ui::pages::P_OSD_MENU};
+    REQUIRE(ui::menuJump(menu, st, osdPath, 1));
+    CHECK_EQ(static_cast<int>(main::kOsdPresetCustom), static_cast<int>(main::settings().osd.preset));
+    ui::menuStep(menu, st, pressRight); // Essentials
+    CHECK_EQ(static_cast<int>(main::kOsdPresetEssentials), static_cast<int>(main::settings().osd.preset));
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.wavedash));
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.lCancel));
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.ledgedashInfo));
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.actOos));
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.frameAdvantage));
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.frameAdvantageOnHit));
+    CHECK_EQ(0, static_cast<int>(main::settings().osd.fastfall));
+
+    // Manually toggling Wavedash (row 5) resets preset back to Custom.
+    st.cursor[ui::pages::P_OSD_MENU] = 5;
+    ui::menuStep(menu, st, pressRight);
+    CHECK_EQ(0, static_cast<int>(main::settings().osd.wavedash));
+    CHECK_EQ(static_cast<int>(main::kOsdPresetCustom), static_cast<int>(main::settings().osd.preset));
+
+    // Movement and Defense presets turn on their targeted OSD groups.
+    ui::setOptionValue(menu, ui::pages::kOsdMenu.options[0], main::kOsdPresetMovement);
+    ui::pages::kOsdMenu.options[0].onChange();
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.actOoLag));
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.fastfall));
+    CHECK_EQ(0, static_cast<int>(main::settings().osd.powershield));
+
+    ui::setOptionValue(menu, ui::pages::kOsdMenu.options[0], main::kOsdPresetDefense);
+    ui::pages::kOsdMenu.options[0].onChange();
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.powershield));
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.sdi));
+    CHECK_EQ(0, static_cast<int>(main::settings().osd.wavedash));
+
+    // All Off clears every individual OSD toggle.
+    st.cursor[ui::pages::P_OSD_MENU] = 0;
+    ui::setOptionValue(menu, ui::pages::kOsdMenu.options[0], main::kOsdPresetAllOff);
+    ui::pages::kOsdMenu.options[0].onChange();
+    CHECK_EQ(0, static_cast<int>(main::settings().osd.lCancel));
+    CHECK_EQ(0, static_cast<int>(main::settings().osd.frameAdvantage));
+    CHECK_EQ(0, static_cast<int>(main::settings().osd.powershield));
+    CHECK_EQ(0, static_cast<int>(main::settings().osd.lockoutTimers));
+
+    // 2. Reversal Slots: row 2 dynamically shows active Slot 1 (Primary) for each trigger.
+    const ui::Page& rev = ui::pages::kReversalSlots;
+    REQUIRE(rev.count == 15);
+    CHECK_EQ(ui::kKindInfo, rev.options[2].kind);
+    CHECK(strcmp(rev.options[2].name, "Slot 1 (Primary)") == 0);
+    CHECK(strcmp(rev.options[3].name, "Slot 2 Action") == 0);
+    CHECK(strcmp(rev.options[4].name, "Slot 2 Delay") == 0);
+    CHECK(strcmp(rev.options[5].name, "Slot 2 Chance") == 0);
+    main::settings().cpu.options.control = cpu::kControlLab;
+    main::settings().cpu.options.multiReversal = 1;
+    main::settings().cpu.options.counterGround = 1; // Shield
+    main::settings().cpu.options.counterShield = 2; // Grab
+    main::settings().cpu.options.getup = 1;         // Stand
+    main::settings().cpu.options.ledgeOption = 1;   // Neutral Getup
+    for (int trig = 0; trig < 4; trig++)
+    {
+        ui::menuScratch()[rev.options[1].offset] = static_cast<u8>(trig);
+        CHECK(rev.options[2].enabled());
+        const char* s1 = static_cast<const char*>(rev.options[2].data);
+        CHECK(s1 != NULL && s1[0] != '\0');
+    }
+
+    // 3. P1 / CPU Load Random % mirrors recording.randomPercent[0..1] directly.
+    ui::setOptionValue(menu, ui::pages::kGeneral.options[3], 15);
+    ui::setOptionValue(menu, ui::pages::kCpuOptions.options[2], 25);
+    CHECK_EQ(15, static_cast<int>(main::settings().recording.randomPercent[0]));
+    CHECK_EQ(25, static_cast<int>(main::settings().recording.randomPercent[1]));
 
     main::setExtraHooks(NULL);
     storage::detach();

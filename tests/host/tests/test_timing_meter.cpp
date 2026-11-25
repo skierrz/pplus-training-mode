@@ -246,7 +246,7 @@ TEST(timing_meter, osd_menu_row_and_description)
     main::loadSettings(block);
     const ui::MenuDef& menu = ui::labMenu();
     const ui::Page& osdPage = *menu.pages[ui::pages::P_OSD_MENU];
-    const int meterRow = 2;
+    const int meterRow = 3;
     CHECK_STR("Overhead Timing Bar", osdPage.options[meterRow].name);
     CHECK_EQ(static_cast<int>(ui::kKindChoice), static_cast<int>(osdPage.options[meterRow].kind));
     CHECK_EQ(static_cast<int>(main::kTimingMeterCount - 1), static_cast<int>(osdPage.options[meterRow].max));

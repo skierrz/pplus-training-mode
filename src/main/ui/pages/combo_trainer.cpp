@@ -5,6 +5,9 @@
 namespace tm {
 namespace ui {
 namespace pages {
+    static const char* const kResetDamageMode[] = {"Use CPU %", "Custom %"};
+    TM_STATIC_ASSERT(TM_COUNT(kResetDamageMode) == main::kComboDmgModeCount, tm_combo_dmg_mode_labels_match);
+
     static bool comboActive()
     {
         return cpuLabControl() && main::extraLoaded();
@@ -37,9 +40,14 @@ namespace pages {
         return comboFixPosChildEnabled() && main::settings().comboTrainer.randomizePosition != 0;
     }
 
-    static bool comboFixedDmgEnabled()
+    static bool comboDamageSourceEnabled()
     {
         return comboAnyResetEnabled() && main::settings().comboTrainer.randomizeDamage == 0;
+    }
+
+    static bool comboFixedDmgEnabled()
+    {
+        return comboDamageSourceEnabled() && main::settings().comboTrainer.fixedDamageMode == main::kComboDmgCustom;
     }
 
 #define TM_COMBO_TOGGLE(name, f, def, en) \
@@ -47,19 +55,22 @@ namespace pages {
 #define TM_COMBO_INT(name, f, lo, hi, def, format, en) \
     TM_ROW(::tm::ui::kKindInt, TM_HALF(f) | TM_SIGNED(lo), TM_FIELD(f), lo, hi, def, name, format, NULL, en)
 #define TM_COMBO_BIT(name, f, bit) \
-    TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagBit, TM_FIELD(f), (bit), 1, 1, name, NULL, NULL, comboOptionEnabled)
+    TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagBit, TM_FIELD(f), (bit), 1, 0, name, NULL, NULL, main::extraLoaded)
 
     static const Option kRows[] = {
         TM_COMBO_TOGGLE("Enabled", comboTrainer.enabled, 0, comboActive),
-        TM_COMBO_TOGGLE("Noclip Reset", comboTrainer.noclip, 0, comboAnyResetEnabled),
+        TM_COMBO_TOGGLE("Noclip Reset", comboTrainer.noclip, 1, comboAnyResetEnabled),
         TM_COMBO_TOGGLE("Fix Position", comboTrainer.fixPosition, 0, comboFixPosEligible),
         TM_COMBO_TOGGLE("Random Position", comboTrainer.randomizePosition, 0, comboFixPosChildEnabled),
         TM_COMBO_TOGGLE("Random On Ground", comboTrainer.randOnGround, 0, comboRandGroundEnabled),
         TM_COMBO_TOGGLE("Random Damage", comboTrainer.randomizeDamage, 0, comboAnyResetEnabled),
-        TM_COMBO_INT("Fixed Damage", comboTrainer.fixedDamage, 0, 999, 0, "%d%%", comboFixedDmgEnabled),
+        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(comboTrainer.fixedDamageMode), 0, TM_COUNT(kResetDamageMode) - 1,
+               main::kComboDmgCpu, "Reset Damage", kResetDamageMode, NULL, comboDamageSourceEnabled),
+        TM_ROW(::tm::ui::kKindInt, TM_HALF(comboTrainer.fixedDamage) | ::tm::ui::kFlagHideWhenDisabled,
+               TM_FIELD(comboTrainer.fixedDamage), 0, 999, 0, "Fixed Damage", "%d%%", NULL, comboFixedDmgEnabled),
         TM_COMBO_INT("Timer Adjust", comboTrainer.comboTimerAdjustment, -60, 60, 0, "%+df", comboFixPosChildEnabled),
         TM_COMBO_TOGGLE("Recovery Trainer", comboTrainer.recoveryTrainer, 0, comboOptionEnabled),
-        TM_MENU_IF("Floating Meters", P_COMBO_METERS, comboOptionEnabled)
+        TM_MENU_IF("Floating Meters", P_COMBO_METERS, main::extraLoaded)
     };
 
     static const Option kMeterRows[] = {

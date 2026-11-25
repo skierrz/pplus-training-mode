@@ -244,7 +244,7 @@ namespace layout {
     // Right-aligned below any active Input Viewer cards (or below `band`).
     static const float kCompassRight = 608.0f;
     static const float kCompassWidth = 82.0f;
-    static const float kCompassHeight = 78.0f;
+    static const float kCompassHeight = 72.0f;
 
     inline Box diCompassBox(const Box& band, int viewerSlots, bool wide)
     {
@@ -292,6 +292,34 @@ namespace layout {
         return box(x0, y0, w, kPsaHeight);
     }
 
+    // ---- Adaptive CPU Habit Readout HUD (extra/adaptive_cpu.cpp) ----
+    // Compact native Brawl/P+ dark-teal card showing live RPS habit rates, read
+    // confidence, and active counter bias in both Track and Adaptive modes.
+    static const float kAdaptiveHudWidth = 138.0f;
+    static const float kAdaptiveHudHeight = 56.0f;
+
+    inline Box adaptiveHudBox(const Box& band, int viewerSlots, bool hasCompass, bool hasPsa, bool wide)
+    {
+        float xs = xsOf(wide);
+        float w = kAdaptiveHudWidth * xs;
+        if (hasPsa)
+        {
+            Box psa = psaInspectorBox(band, viewerSlots, hasCompass, wide);
+            float ax = (viewerSlots == 0 && hasCompass) ? psa.x0 : (psa.x1 - w);
+            return box(ax, psa.y1 + kViewerGap, w, kAdaptiveHudHeight);
+        }
+        float x1 = kViewerRight;
+        if (viewerSlots > 0 || hasCompass)
+        {
+            float rightW = viewerSlots > 0 ? (kViewerWidth * xs) : (kCompassWidth * xs);
+            x1 = kViewerRight - rightW - kStepGap;
+        }
+        float x0 = x1 - w;
+        Box probe = {x0, kViewerTop, x1, kViewerTop + 1.0f};
+        float y0 = (meetsX(probe, band) && band.y1 > kViewerTop) ? (band.y1 + kStepGap) : kViewerTop;
+        return box(x0, y0, w, kAdaptiveHudHeight);
+    }
+
     // Bottom y of the active P1 + CPU Info Display stack (0 when both hidden).
     inline float infoStackBottom(const Box& band, int hmnRows, int hmnSize, int cpuRows, int cpuSize, bool wide)
     {
@@ -311,8 +339,9 @@ namespace layout {
         return bottom;
     }
 
-    // Bottom y of active right-hand Lab overlays (Input Viewer, DI Compass, PSA card).
-    inline float rightColumnBottom(const Box& band, int viewerSlots, bool hasCompass, bool hasPsa, bool wide)
+    // Bottom y of active right-hand Lab overlays (Input Viewer, DI Compass, PSA card, Adaptive HUD).
+    inline float rightColumnBottom(const Box& band, int viewerSlots, bool hasCompass, bool hasPsa, bool wide,
+                                   bool hasAdaptive = false)
     {
         float bottom = 0.0f;
         if (viewerSlots > 0)
@@ -337,6 +366,14 @@ namespace layout {
             if (psa.y1 > bottom)
             {
                 bottom = psa.y1;
+            }
+        }
+        if (hasAdaptive)
+        {
+            Box adap = adaptiveHudBox(band, viewerSlots, hasCompass, hasPsa, wide);
+            if (adap.y1 > bottom)
+            {
+                bottom = adap.y1;
             }
         }
         return bottom;

@@ -415,11 +415,11 @@ TEST(settings_reset, reset_settings_page_resets_only_target_page)
     Settings dirty = defaults;
     populateAllAreasNonDefault(dirty);
 
-    // P_COMBO_METERS: resets enabledMeters to 0x7F without touching other comboTrainer or page settings.
+    // P_COMBO_METERS: resets enabledMeters to 0x00 (safe fresh default) without touching other comboTrainer or page settings.
     main::settings() = dirty;
     CHECK(main::resetSettingsPage(ui::pages::P_COMBO_METERS));
     Settings expected = dirty;
-    expected.comboTrainer.enabledMeters = main::kMeterAll;
+    expected.comboTrainer.enabledMeters = 0;
     CHECK_BYTES("P_COMBO_METERS", &expected, &main::settings(), sizeof(Settings));
 
     // P_COMBO_TRAINER: resets rows 0..8 without touching enabledMeters (on P_COMBO_METERS) or other pages.
@@ -499,7 +499,7 @@ TEST(settings_reset, reset_settings_option_resets_single_row_and_preserves_sibli
     Settings dirty = defaults;
     populateAllAreasNonDefault(dirty);
 
-    // Resetting each kFlagBit row on P_COMBO_METERS restores ONLY that single bit.
+    // Resetting each kFlagBit row on P_COMBO_METERS restores ONLY that single bit to default 0.
     static const u8 kBits[7] = {
         main::kMeterHitlag, main::kMeterHitstun, main::kMeterShieldstun, main::kMeterDi,
         main::kMeterIasa,   main::kMeterLedgeIntang, main::kMeterIntang
@@ -507,23 +507,23 @@ TEST(settings_reset, reset_settings_option_resets_single_row_and_preserves_sibli
     for (int r = 0; r < 7; r++)
     {
         main::settings() = dirty;
-        main::settings().comboTrainer.enabledMeters = 0x00;
+        main::settings().comboTrainer.enabledMeters = main::kMeterAll;
         CHECK(main::resetSettingsOption(ui::pages::P_COMBO_METERS, r));
-        CHECK_EQ(static_cast<int>(kBits[r]), static_cast<int>(main::settings().comboTrainer.enabledMeters));
+        CHECK_EQ(static_cast<int>(main::kMeterAll & ~kBits[r]),
+                 static_cast<int>(main::settings().comboTrainer.enabledMeters));
 
         // Sibling bits already set stay set; sibling bits already clear stay clear.
-        const u8 initial = static_cast<u8>((main::kMeterAll & ~kBits[r]) & ~kBits[(r + 1) % 7]);
+        const u8 initial = static_cast<u8>(kBits[r] | kBits[(r + 1) % 7]);
         main::settings().comboTrainer.enabledMeters = initial;
         CHECK(main::resetSettingsOption(ui::pages::P_COMBO_METERS, r));
-        CHECK_EQ(static_cast<int>(initial | kBits[r]), static_cast<int>(main::settings().comboTrainer.enabledMeters));
+        CHECK_EQ(static_cast<int>(kBits[(r + 1) % 7]), static_cast<int>(main::settings().comboTrainer.enabledMeters));
     }
 
     // Corrupt bit 7 is cleared by sanitizeSettings while valid sibling bits remain intact.
     main::settings() = dirty;
-    main::settings().comboTrainer.enabledMeters = static_cast<u8>(0x80u | main::kMeterHitlag);
-    CHECK(main::resetSettingsOption(ui::pages::P_COMBO_METERS, 1)); // Hitstun
-    CHECK_EQ(static_cast<int>(main::kMeterHitlag | main::kMeterHitstun),
-             static_cast<int>(main::settings().comboTrainer.enabledMeters));
+    main::settings().comboTrainer.enabledMeters = static_cast<u8>(0x80u | main::kMeterHitlag | main::kMeterHitstun);
+    CHECK(main::resetSettingsOption(ui::pages::P_COMBO_METERS, 1)); // Hitstun -> default 0
+    CHECK_EQ(static_cast<int>(main::kMeterHitlag), static_cast<int>(main::settings().comboTrainer.enabledMeters));
 
     // Standard halfword, signed byte, choice, and toggle rows reset individually.
     main::settings() = dirty;
@@ -533,7 +533,7 @@ TEST(settings_reset, reset_settings_option_resets_single_row_and_preserves_sibli
     CHECK_BYTES("single u16 option", &expected, &main::settings(), sizeof(Settings));
 
     main::settings() = dirty;
-    CHECK(main::resetSettingsOption(ui::pages::P_COMBO_TRAINER, 7)); // Timer Adjust (s8)
+    CHECK(main::resetSettingsOption(ui::pages::P_COMBO_TRAINER, 8)); // Timer Adjust (s8)
     expected = dirty;
     expected.comboTrainer.comboTimerAdjustment = defaults.comboTrainer.comboTimerAdjustment;
     CHECK_BYTES("single s8 option", &expected, &main::settings(), sizeof(Settings));
@@ -558,8 +558,8 @@ TEST(settings_reset, reset_settings_option_resets_single_row_and_preserves_sibli
     memset(scratchBefore, 0x6B, sizeof(scratchBefore));
     memcpy(ui::menuScratch(), scratchBefore, sizeof(scratchBefore));
 
-    CHECK(!main::resetSettingsOption(ui::pages::P_GENERAL, 8));    // Controls (kKindMenu)
-    CHECK(!main::resetSettingsOption(ui::pages::P_GENERAL, 9));    // Reset Settings (kKindFunc)
+    CHECK(!main::resetSettingsOption(ui::pages::P_GENERAL, 9));    // Controls (kKindMenu)
+    CHECK(!main::resetSettingsOption(ui::pages::P_GENERAL, 10));   // Reset Settings (kKindFunc)
     CHECK(!main::resetSettingsOption(ui::pages::P_STAGE_CAST, 1)); // Show Inactive (kFlagScratch)
     CHECK(!main::resetSettingsOption(ui::pages::P_SCENARIOS, 0));  // kFlagScratch
     CHECK(!main::resetSettingsOption(ui::pages::P_ALTER_INPUTS, 0));

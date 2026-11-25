@@ -64,10 +64,10 @@ COLOR_NONE, COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_CYAN, COLOR_ORANGE, COLOR_
 
 # Lab menu rows (src/main/ui/pages/display_options.cpp, osd_menu.cpp; visible indices at default).
 DISPLAY_HMN_OVERLAYS, DISPLAY_LEDGE_HUD, DISPLAY_THEME = 11, 15, 2
-OSD_ROWS = {"wavedash": 4, "lcancel": 5, "ledgedash": 6, "actoos": 7,
-            "dashback": 10, "powershield": 11, "actoolag": 12, "actooairborne": 13,
-            "actoohitstun": 14, "jumpcancel": 15, "fastfall": 16, "boostgrab": 17,
-            "sdi": 18, "lockout": 19, "combo": 20, "grabbreakout": 21, "itemthrow": 22}
+OSD_ROWS = {"wavedash": 5, "lcancel": 6, "ledgedash": 7, "actoos": 8,
+            "dashback": 11, "powershield": 12, "actoolag": 13, "actooairborne": 14,
+            "actoohitstun": 15, "jumpcancel": 16, "fastfall": 17, "boostgrab": 18,
+            "sdi": 19, "lockout": 20, "combo": 21, "grabbreakout": 22, "itemthrow": 23}
 # Rows not built yet: the cursor skips them.
 OSD_UNBUILT = ()
 
@@ -105,10 +105,15 @@ def squeeze_of(shot):
     return 0.75 if w * 3 > h * 4 + 8 else 1.0
 
 
-def osd_spot(position, player, squeeze):
+def osd_spot(position, player, squeeze, player_count=2):
     half_w = 124.0 * squeeze / 2
     if position == POS_SIDES:
-        x, y = SIDES_X[player - 1], SIDES_Y
+        if player_count <= 2 and player <= 2:
+            margin = 32.0 if squeeze >= 1.0 else 12.0
+            x = (margin + half_w) if player == 1 else (640.0 - margin - half_w)
+        else:
+            x = SIDES_X[player - 1]
+        y = SIDES_Y
     elif position == POS_TOP_LEFT:
         margin = 32.0 if squeeze >= 1.0 else 12.0
         x, y = margin + half_w, TOP_Y[player - 1]
@@ -1161,6 +1166,7 @@ def sc_osd_position(r, position, name):
     lab.open_menu()
     lab.main_to(LT.MAIN_OSD)
     lab.tap(["A"])
+    lab.down(1)  # OSD Position (row 1; row 0 is OSD Preset)
     lab.set_choice(S_OSD_POSITION, position)
     r.shots.append(emu.screenshot("osds-menu-" + name))
     lab.close_menu()

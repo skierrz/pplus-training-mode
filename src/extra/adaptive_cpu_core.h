@@ -831,5 +831,113 @@ namespace extra {
         }
         return actionIdx;
     }
+
+    // Compact live Habit Readout HUD view model (Track & Adaptive modes).
+    struct AdaptiveHudView {
+        u8 mode;          // cpu::AdaptiveMode
+        u8 atkPct;        // 0..100 weighted RPS Attack share
+        u8 grabPct;       // 0..100 weighted RPS Grab share
+        u8 defPct;        // 0..100 weighted RPS Defend share
+        u8 confidencePct; // 0..100 dominant read confidence
+        u8 dominantRps;   // RpsOption
+        u8 biasAction;    // AdaptiveBiasAction (live/predicted counter bias)
+        bool confident;   // confidence >= kAdaptiveConfidenceThreshold
+        u32 rpsCount;     // total RPS samples seen
+    };
+
+    inline const char* adaptiveRpsLabel(u8 rps)
+    {
+        switch (rps)
+        {
+        case kRpsAttack:
+            return "Attack";
+        case kRpsGrab:
+            return "Grab";
+        case kRpsDefend:
+            return "Defend";
+        default:
+            return "Balanced";
+        }
+    }
+
+    inline const char* adaptiveBiasLabel(u8 bias)
+    {
+        switch (bias)
+        {
+        case kBiasShield:
+            return "Shield";
+        case kBiasSpotdodge:
+            return "Spotdodge";
+        case kBiasGrab:
+            return "Grab";
+        case kBiasJab:
+            return "Jab";
+        case kBiasJump:
+            return "Short Hop";
+        default:
+            return "None";
+        }
+    }
+
+    inline void adaptiveBuildHudView(u8 mode, const PatternManager& patterns, int player, u8 lastBiasAction,
+                                     AdaptiveHudView& out)
+    {
+        out.mode = mode;
+        out.atkPct = 0;
+        out.grabPct = 0;
+        out.defPct = 0;
+        out.confidencePct = 0;
+        out.dominantRps = kRpsNull;
+        out.biasAction = kBiasNone;
+        out.confident = false;
+        out.rpsCount = patterns.count(player);
+        if (mode == cpu::kAdaptiveOff)
+        {
+            return;
+        }
+        int atk = 0, grab = 0, def = 0;
+        patterns.runCalc(player, kPatternLen, atk, grab, def);
+        int total = atk + grab + def;
+        if (total > 0)
+        {
+            int ap = (atk * 100 + total / 2) / total;
+            int gp = (grab * 100 + total / 2) / total;
+            int dp = 100 - ap - gp;
+            if (dp < 0)
+            {
+                if (ap >= gp)
+                {
+                    ap += dp;
+                }
+                else
+                {
+                    gp += dp;
+                }
+                dp = 0;
+            }
+            out.atkPct = static_cast<u8>(ap);
+            out.grabPct = static_cast<u8>(gp);
+            out.defPct = static_cast<u8>(dp);
+        }
+        out.dominantRps = patterns.dominantRps(player);
+        float conf = patterns.confidence(player);
+        int cp = static_cast<int>(conf * 100.0f + 0.5f);
+        if (cp < 0)
+        {
+            cp = 0;
+        }
+        else if (cp > 100)
+        {
+            cp = 100;
+        }
+        out.confidencePct = static_cast<u8>(cp);
+        out.confident = conf >= kAdaptiveConfidenceThreshold;
+        if (mode == cpu::kAdaptiveActive && out.confident)
+        {
+            out.biasAction = lastBiasAction != kBiasNone
+                                 ? lastBiasAction
+                                 : chooseAdaptiveBias(mode, out.dominantRps, conf, false, 0u);
+        }
+    }
 }
 }

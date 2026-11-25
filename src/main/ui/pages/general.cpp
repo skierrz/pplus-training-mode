@@ -1,5 +1,6 @@
 #include "main/extra.h"
 #include "main/lab.h"
+#include "main/savestate/settings.h"
 #include "main/ui/pages/pages.h"
 
 namespace tm {
@@ -18,6 +19,7 @@ namespace pages {
         TM_TOGGLE("Frame Advance", general.frameAdvance, 0, lab::frameAdvanceChanged),
         TM_INT("P1 Damage", general.playerPercent, 0, 999, 0, "%d%%", humanPercent),
         TM_TOGGLE("Lock P1 Damage", general.lockPlayerPercent, 0, humanPercent),
+        TM_INT("P1 Load Random %", recording.randomPercent[0], 0, savestate::kMaxRandomPercent, 0, "%d%%", NULL),
         TM_CHOICE("P1 Infinite Shield", general.playerInfiniteShields, kInfiniteShields, cpu::kShieldsUntilHit, NULL),
         TM_CHOICE("Game Speed", general.gameSpeed, kGameSpeed, 0, NULL),
         TM_CHOICE("Camera", general.cameraMode, kCamera, 0, NULL),

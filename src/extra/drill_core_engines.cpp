@@ -43,8 +43,12 @@ namespace extra {
             LcCoreState lc;
         };
 
-        static CoreDrillSlot* s_slots = NULL;
-        static CoreDrillDebugBlock s_debug;
+        struct CoreDrillNet {
+            CoreDrillSlot slots[game::kMaxTracked];
+            CoreDrillDebugBlock debug;
+        };
+
+        static CoreDrillNet* s_net = NULL;
         static s32 s_prevFrame = game::kNoFrame;
         static bool s_autoLCancel = false;
         static bool s_inputBuffer3f = false;
@@ -136,7 +140,11 @@ namespace extra {
 
         static void syncDebugSlot(int idx, const game::Tracked* t, const CoreDrillSlot& slot)
         {
-            CoreDrillDebugSlot& d = s_debug.slots[idx];
+            if (s_net == NULL)
+            {
+                return;
+            }
+            CoreDrillDebugSlot& d = s_net->debug.slots[idx];
             if (t == NULL || !slot.active)
             {
                 memset(&d, 0, sizeof(d));
@@ -244,55 +252,55 @@ namespace extra {
 
     void coreDrillEnginesAttach()
     {
-        freeNetPtr(s_slots);
-        s_slots = allocNetArray<CoreDrillSlot>(game::kMaxTracked);
-        if (s_slots != NULL)
-        {
-            for (int i = 0; i < game::kMaxTracked; i++)
-            {
-                resetSlotAll(s_slots[i]);
-            }
-        }
+        freeNetPtr(s_net);
+        s_net = allocNetArray<CoreDrillNet>(1);
         s_prevFrame = game::kNoFrame;
         s_autoLCancel = false;
         s_inputBuffer3f = false;
-        memset(&s_debug, 0, sizeof(s_debug));
-        s_debug.magic = kCoreDrillDebugMagic;
-        s_debug.version = kCoreDrillDebugVersion;
-        s_debug.slotSize = static_cast<u32>(sizeof(CoreDrillDebugSlot));
-        s_debug.maxSlots = static_cast<u8>(game::kMaxTracked);
-        for (int i = 0; i < game::kMaxTracked; i++)
+        if (s_net != NULL)
         {
-            s_debug.slots[i].playerNo = -1;
+            for (int i = 0; i < game::kMaxTracked; i++)
+            {
+                resetSlotAll(s_net->slots[i]);
+            }
+            memset(&s_net->debug, 0, sizeof(s_net->debug));
+            s_net->debug.magic = kCoreDrillDebugMagic;
+            s_net->debug.version = kCoreDrillDebugVersion;
+            s_net->debug.slotSize = static_cast<u32>(sizeof(CoreDrillDebugSlot));
+            s_net->debug.maxSlots = static_cast<u8>(game::kMaxTracked);
+            for (int i = 0; i < game::kMaxTracked; i++)
+            {
+                s_net->debug.slots[i].playerNo = -1;
+            }
+            TM_LOG("drill4c: debug block at %08x\n", &s_net->debug);
         }
-        TM_LOG("drill4c: debug block at %08x\n", &s_debug);
     }
 
     void coreDrillEnginesDetach()
     {
-        freeNetPtr(s_slots);
+        freeNetPtr(s_net);
         s_prevFrame = game::kNoFrame;
         s_autoLCancel = false;
         s_inputBuffer3f = false;
-        memset(&s_debug, 0, sizeof(s_debug));
     }
 
     void coreDrillEnginesSavestateReset()
     {
-        if (s_slots != NULL)
-        {
-            for (int i = 0; i < game::kMaxTracked; i++)
-            {
-                resetSlotTransient(s_slots[i]);
-            }
-        }
         s_prevFrame = game::kNoFrame;
-        s_debug.savestateResets++;
+        if (s_net == NULL)
+        {
+            return;
+        }
+        for (int i = 0; i < game::kMaxTracked; i++)
+        {
+            resetSlotTransient(s_net->slots[i]);
+        }
+        s_net->debug.savestateResets++;
     }
 
     void coreDrillEnginesFrame()
     {
-        if (s_slots == NULL)
+        if (s_net == NULL)
         {
             return;
         }
@@ -304,9 +312,9 @@ namespace extra {
         s_prevFrame = f;
 
         readPPlusRuleFlags(s_autoLCancel, s_inputBuffer3f);
-        s_debug.frame = static_cast<u32>(f >= 0 ? f : 0);
-        s_debug.autoLCancelActive = s_autoLCancel ? 1 : 0;
-        s_debug.inputBuffer3fActive = s_inputBuffer3f ? 1 : 0;
+        s_net->debug.frame = static_cast<u32>(f >= 0 ? f : 0);
+        s_net->debug.autoLCancelActive = s_autoLCancel ? 1 : 0;
+        s_net->debug.inputBuffer3fActive = s_inputBuffer3f ? 1 : 0;
 
         game::FighterRef refs[game::kMaxFighters];
         int refCount = game::listFighters(refs, game::kMaxFighters);
@@ -318,7 +326,7 @@ namespace extra {
         for (int i = 0; i < game::kMaxTracked; i++)
         {
             const game::Tracked* t = game::tracked(i);
-            CoreDrillSlot& slot = s_slots[i];
+            CoreDrillSlot& slot = s_net->slots[i];
 
             if (t == NULL)
             {
@@ -487,29 +495,29 @@ namespace extra {
 
     const LedgeCoreState* coreDrillLedgeState(int tracked)
     {
-        if (s_slots == NULL || tracked < 0 || tracked >= game::kMaxTracked || !s_slots[tracked].active)
+        if (s_net == NULL || tracked < 0 || tracked >= game::kMaxTracked || !s_net->slots[tracked].active)
         {
             return NULL;
         }
-        return &s_slots[tracked].ledge;
+        return &s_net->slots[tracked].ledge;
     }
 
     const WdCoreState* coreDrillWavedashState(int tracked)
     {
-        if (s_slots == NULL || tracked < 0 || tracked >= game::kMaxTracked || !s_slots[tracked].active)
+        if (s_net == NULL || tracked < 0 || tracked >= game::kMaxTracked || !s_net->slots[tracked].active)
         {
             return NULL;
         }
-        return &s_slots[tracked].wd;
+        return &s_net->slots[tracked].wd;
     }
 
     const LcCoreState* coreDrillLCancelState(int tracked)
     {
-        if (s_slots == NULL || tracked < 0 || tracked >= game::kMaxTracked || !s_slots[tracked].active)
+        if (s_net == NULL || tracked < 0 || tracked >= game::kMaxTracked || !s_net->slots[tracked].active)
         {
             return NULL;
         }
-        return &s_slots[tracked].lc;
+        return &s_net->slots[tracked].lc;
     }
 
     bool coreDrillAutoLCancelActive()

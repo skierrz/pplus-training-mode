@@ -432,8 +432,8 @@ TEST(dual_stick_di, settings_layout_menu_row_and_storage_round_trip)
     CHECK(strcmp(cntPage.options[8].name, "SHFFL Timing") == 0);
 
     const ui::Page& osdPage = ui::pages::kOsdMenu;
-    REQUIRE(osdPage.count == 24);
-    CHECK(strcmp(osdPage.options[3].name, "P+ Tech OSD") == 0);
+    REQUIRE(osdPage.count == 25);
+    CHECK(strcmp(osdPage.options[4].name, "P+ Tech OSD") == 0);
 
     host::card::reset();
     bootStorage();

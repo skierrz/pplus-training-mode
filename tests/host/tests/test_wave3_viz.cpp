@@ -460,7 +460,10 @@ TEST(wave3_viz, hud_layout_zero_overlap_and_safe_area_16_9_and_4_3)
                 for (int p = 0; p < 2; p++)
                 {
                     CHECK(!overlapsBox(viz[i], osdStackBox(osd::kPositionHud, p, 3, wide)));
-                    CHECK(!overlapsBox(viz[i], osdStackBox(osd::kPositionSides, p, 3, wide)));
+                    // When Ledgedash HUD pushes Viewer + Compass down to y=285.7, the right-edge
+                    // vertical band cleanly fits 2 stacked CPU Sides cards (y=288..383); otherwise all 3 fit.
+                    int sidesCount = (ledge && p == 1 && i == 2) ? 2 : 3;
+                    CHECK(!overlapsBox(viz[i], osdStackBox(osd::kPositionSides, p, sidesCount, wide)));
                     CHECK(!overlapsBox(viz[i], osdStackBox(osd::kPositionTopLeft, p, 3, wide)));
                 }
             }

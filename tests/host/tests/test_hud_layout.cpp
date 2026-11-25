@@ -83,10 +83,10 @@ namespace {
     }
 
     // `count` messages of player `player`'s stack (osd.cpp drawMessage).
-    Box osdStack(int position, int player, int count, bool wide, float floorY = 0.0f)
+    Box osdStack(int position, int player, int count, bool wide, float floorY = 0.0f, int playerCount = 2)
     {
         float xs = wide ? 0.75f : 1.0f;
-        osd::StackPlace at = osd::stackPlace(position, player, xs, floorY);
+        osd::StackPlace at = osd::stackPlace(position, player, xs, floorY, 0.0f, playerCount);
         float w = osd::kBoxWidth * xs;
         Box all = layout::none();
         for (int slot = 0; slot < count; slot++)
@@ -351,7 +351,7 @@ namespace {
         float osdFloor = id == kRecording ? layout::recBarOsdFloor() : 0.0f;
         for (int p = 0; p < players; p++)
         {
-            s.add(kStacks[position][p], osdStack(position, p, e.messages, wide, osdFloor));
+            s.add(kStacks[position][p], osdStack(position, p, e.messages, wide, osdFloor, players));
             s.add(kDamage[p], brawlDamage(p, wide), kBrawl);
         }
         canvas::clear();
@@ -429,16 +429,14 @@ namespace {
         {"*", "*", "most", "info-cpu", "osd-hud-p1", "six messages"},
         {"*", "*", "most", "info-cpu", "osd-hud-p2", "six messages"},
         {"*", "*", "most", "info-cpu", "osd-sides-p1", "six messages"},
-        {"*", "*", "most", "info-cpu", "osd-sides-p2", "six messages"},
+        {"lab-4p", "*", "most", "info-cpu", "osd-sides-p2", "six messages"},
         {"*", "*", "most", "info-hmn", "osd-hud-p1", "six messages"},
         {"*", "*", "most", "info-hmn", "osd-hud-p2", "six messages"},
         {"*", "*", "most", "info-hmn", "osd-sides-p1", "six messages"},
-        {"*", "*", "most", "info-hmn", "osd-sides-p2", "six messages"},
+        {"lab-4p", "*", "most", "info-hmn", "osd-sides-p2", "six messages"},
         {"lab-paused", "*", "*", "watermark", "brawl-pause-help", "the pause"},
         {"lab", "*", "*", "osd-hud-p2", "notice", "transient notice"},
-        {"lab", "*", "*", "osd-sides-p2", "notice", "transient notice"},
         {"lab-recording", "*", "*", "osd-hud-p2", "rec-message", "transient refusal"},
-        {"lab-recording", "*", "*", "osd-sides-p2", "rec-message", "transient refusal"},
         {NULL, NULL, NULL, NULL, NULL, NULL}
     };
     enum { kKnownCount = sizeof(kKnown) / sizeof(kKnown[0]) };

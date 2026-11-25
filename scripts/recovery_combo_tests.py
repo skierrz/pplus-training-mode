@@ -124,11 +124,12 @@ def write_cpu_recovery(emu, settings_base, mode):
 
 def write_combo_settings(emu, settings_base, *, enabled=0, noclip=0, fix_pos=0, rand_pos=0,
                          rand_ground=1, rand_dmg=0, recovery_trainer=0, timer_adj=0,
-                         fixed_dmg=0, enabled_meters=METER_ALL):
-    payload = struct.pack(">BBBBBBBbHB5s",
+                         fixed_dmg=0, enabled_meters=METER_ALL, fixed_dmg_mode=0):
+    payload = struct.pack(">BBBBBBBbHBB4s",
                           int(enabled), int(noclip), int(fix_pos), int(rand_pos),
                           int(rand_ground), int(rand_dmg), int(recovery_trainer),
-                          int(timer_adj), int(fixed_dmg), int(enabled_meters), b"\x00" * 5)
+                          int(timer_adj), int(fixed_dmg), int(enabled_meters),
+                          int(fixed_dmg_mode), b"\x00" * 4)
     emu.h.call("write_mem", addr=settings_base + SET_COMBO, hex=payload.hex())
 
 
@@ -351,7 +352,7 @@ def scenario_combo_reset_noclip(r, cb):
     r.opt.cpu_percent(0, False)
     write_combo_settings(r.emu, r.opt.base, enabled=1, noclip=1, fix_pos=1,
                          rand_pos=0, rand_ground=1, rand_dmg=0, recovery_trainer=0,
-                         timer_adj=0, fixed_dmg=35, enabled_meters=METER_ALL)
+                         timer_adj=0, fixed_dmg=35, enabled_meters=METER_ALL, fixed_dmg_mode=1)
     r.emu.advance(12)
     wait_cpu_grounded_center(r)
     # Wait out any residual respawn invincibility from a preceding KO scenario.

@@ -249,11 +249,12 @@ namespace osd {
         return n;
     }
 
-    static void drawMessage(Message& m, s32 now, float scale, float floorY, float topY, const ThemeColors& t)
+    static void drawMessage(Message& m, s32 now, float scale, float floorY, float topY, int playerCount,
+                            const ThemeColors& t)
     {
         float xs = gfx::xScale();
         float w = kBoxWidth * xs;
-        StackPlace at = stackPlace(s_position, m.player, xs, floorY, topY);
+        StackPlace at = stackPlace(s_position, m.player, xs, floorY, topY, playerCount);
         float slot = place(m, now);
         float cx = at.x + slot * at.dx;
         float cy = at.y + slot * at.dy;
@@ -364,9 +365,27 @@ namespace osd {
                 int vSlots = training ? inputViewerSlotCount(s.display.inputViewer) : 0;
                 bool hasComp = training && s.general.diDisplay != 0 && s.display.diVectorMode != main::kDiVectorLive;
                 bool hasPsa = s.display.psaInspector != main::kPsaOff;
-                rightBot = rightColumnBottom(band, vSlots, hasComp, hasPsa, wide);
+                bool hasAdaptive = training && s.cpu.options.adaptiveMode != cpu::kAdaptiveOff;
+                rightBot = rightColumnBottom(band, vSlots, hasComp, hasPsa, wide, hasAdaptive);
             }
             topY = osdTopStartY(s_position == kPositionTopRight, band, infoBot, rightBot);
+        }
+        int playerCount = 2;
+        for (int i = 0; i < game::kMaxTracked; i++)
+        {
+            const game::Tracked* tr = game::tracked(i);
+            if (tr != NULL && tr->playerNo >= 2)
+            {
+                playerCount = 4;
+                break;
+            }
+        }
+        for (int i = 0; i < kPlayers * kPerPlayer && playerCount <= 2; i++)
+        {
+            if (s_messages[i].used && s_messages[i].player >= 2)
+            {
+                playerCount = 4;
+            }
         }
         s32 now = game::trackerFrame();
         for (int p = 0; p < kPlayers; p++)
@@ -380,7 +399,7 @@ namespace osd {
                     Message& m = s_messages[i];
                     if (m.used && m.player == p && m.slot == slot)
                     {
-                        drawMessage(m, now, scale, floorY, topY, theme);
+                        drawMessage(m, now, scale, floorY, topY, playerCount, theme);
                     }
                 }
             }

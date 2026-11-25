@@ -239,7 +239,8 @@ namespace extra {
                     }
                     else if (act.applyFixedDamage)
                     {
-                        dmg = static_cast<float>(cfg.fixedDamage);
+                        dmg = static_cast<float>(cfg.fixedDamageMode != main::kComboDmgCpu ? cfg.fixedDamage
+                                                                                           : main::settings().cpu.percent);
                     }
                     if (act.warpFalling)
                     {
@@ -292,7 +293,7 @@ namespace extra {
     void comboTrainerDraw(const game::MatchState& match)
     {
         const main::ComboTrainerSettings& cfg = main::settings().comboTrainer;
-        if (!match.running || match.paused || !cfg.enabled || cfg.enabledMeters == 0)
+        if (!match.running || match.paused || cfg.enabledMeters == 0)
         {
             return;
         }

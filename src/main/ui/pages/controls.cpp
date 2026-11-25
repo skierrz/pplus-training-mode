@@ -17,9 +17,9 @@ namespace pages {
     TM_STATIC_ASSERT(TM_COUNT(kMenuStyle) == main::kMenuStyleCount, tm_menu_style_labels_match);
 
     static const Option kRows[] = {
-        TM_CHOICE("Frame Advance", controls.advanceButton, kAdvanceButton, main::kAdvanceL, NULL),
-        TM_INT("Advance Hold", controls.advanceDelay, 5, 60, 30, "%df", NULL),
-        TM_CHOICE("Frame Rewind", controls.decrementButton, kDecrementButton, main::kDecrementNone, NULL),
+        TM_CHOICE("Advance Button", controls.advanceButton, kAdvanceButton, main::kAdvanceL, NULL),
+        TM_INT("Hold Repeat Delay", controls.advanceDelay, 5, 60, 30, "%df", NULL),
+        TM_CHOICE("Rewind Button", controls.decrementButton, kDecrementButton, main::kDecrementNone, NULL),
         TM_CHOICE("D-Pad Up", controls.dpadUp, kDpadUp, main::kUpTaunt, NULL),
         TM_CHOICE("D-Pad Down", controls.dpadDown, kDpadDown, main::kDownNone, NULL),
         TM_CHOICE("D-Pad Left", controls.dpadLeft, kDpadLeft, savestate::kLeftLoadState, NULL),

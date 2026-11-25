@@ -170,6 +170,10 @@ namespace extra {
                 comboCfg.noclip = 1;
                 comboCfg.comboTimerAdjustment = 0;
                 comboCfg.recoveryTrainer = 0;
+                if (comboCfg.enabledMeters == 0)
+                {
+                    comboCfg.enabledMeters = main::kMeterAll;
+                }
                 cpuOpts.control = cpu::kControlLab;
                 cpuOpts.behavior = cpu::kBehaviorStand;
                 cpuOpts.tdi = cpu::kTdiRandom;

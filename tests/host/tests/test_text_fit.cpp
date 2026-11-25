@@ -1705,6 +1705,8 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                     {
                         for (int hasPsa = 0; hasPsa <= 1; hasPsa++)
                         {
+                            for (int hasAdap = 0; hasAdap <= 1; hasAdap++)
+                            {
                             HudPiece pieces[16];
                             int count = 0;
                             if (drillHud)
@@ -1743,6 +1745,11 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                                 pieces[count].name = "psa-card";
                                 pieces[count++].rect = psaInspectorBox(band, vSlots, hasComp != 0, wide);
                             }
+                            if (hasAdap)
+                            {
+                                pieces[count].name = "adaptive-hud";
+                                pieces[count++].rect = adaptiveHudBox(band, vSlots, hasComp != 0, hasPsa != 0, wide);
+                            }
                             pieces[count].name = "rec-bar";
                             pieces[count++].rect = recBar;
                             pieces[count].name = "notice";
@@ -1759,8 +1766,8 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                                 {
                                     host::test::fail(
                                         __FILE__, __LINE__,
-                                        "%s (ledge=%d info=%d v=%d comp=%d psa=%d): %s leaves 5%% CRT safe area",
-                                        aspect, ledge, ii, vSlots, hasComp, hasPsa, pieces[p].name);
+                                        "%s (ledge=%d info=%d v=%d comp=%d psa=%d adap=%d): %s leaves 5%% CRT safe area",
+                                        aspect, ledge, ii, vSlots, hasComp, hasPsa, hasAdap, pieces[p].name);
                                 }
                             }
 
@@ -1777,16 +1784,17 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                                     {
                                         host::test::fail(
                                             __FILE__, __LINE__,
-                                            "%s (ledge=%d info=%d v=%d comp=%d psa=%d): %s overlaps %s by %.1f x %.1f",
-                                            aspect, ledge, ii, vSlots, hasComp, hasPsa, pieces[p].name, pieces[q].name,
-                                            dx, dy);
+                                            "%s (ledge=%d info=%d v=%d comp=%d psa=%d adap=%d): %s overlaps %s by %.1f x %.1f",
+                                            aspect, ledge, ii, vSlots, hasComp, hasPsa, hasAdap, pieces[p].name,
+                                            pieces[q].name, dx, dy);
                                     }
                                 }
                             }
 
                             // 3. Stepped TopLeft and TopRight P1 OSD card clears top band,
-                            //    same-side HUD column, PSA card, and Brawl damage row (y 397).
-                            float rightBot = rightColumnBottom(band, vSlots, hasComp != 0, hasPsa != 0, wide);
+                            //    same-side HUD column, PSA card, Adaptive HUD, and Brawl damage row (y 397).
+                            float rightBot =
+                                rightColumnBottom(band, vSlots, hasComp != 0, hasPsa != 0, wide, hasAdap != 0);
                             float topL = osdTopStartY(false, band, infoBot, rightBot);
                             float topR = osdTopStartY(true, band, infoBot, rightBot);
                             osd_real::StackPlace spL = osd_real::stackPlace(osd_real::kPositionTopLeft, 0, xs, 0.0f, topL);
@@ -1801,7 +1809,7 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                             CHECK(osdR.x0 >= safe.x0 - kTol && osdR.x1 <= safe.x1 + kTol);
                             CHECK(osdR.y0 >= safe.y0 - kTol && osdR.y1 <= 397.0f + kTol);
 
-                            // TopLeft P1 OSD clears band, info panels, viewer, compass, psa, watermark.
+                            // TopLeft P1 OSD clears band, info panels, viewer, compass, psa, adaptive, watermark.
                             for (int p = 0; p < count; p++)
                             {
                                 if (strcmp(pieces[p].name, "rec-bar") == 0 || strcmp(pieces[p].name, "notice") == 0)
@@ -1821,7 +1829,7 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                             // 4. Lower OSD stacks (HUD & Sides, 3 typical messages for P1+CPU)
                             //    clear P1's Brawl bottom-HUD portrait zone (y >= 397) at BOTH
                             //    settled and mid-glide (kEnterFrom) frames, and never collide
-                            //    with Timer, Ledgedash HUD, Drill HUD, Viewer, Compass, or PSA.
+                            //    with Timer, Ledgedash HUD, Drill HUD, Viewer, Compass, PSA, or Adaptive HUD.
                             if (ii == 1 && (ledge == 0 || drillHud))
                             {
                                 for (int pos = osd_real::kPositionHud; pos <= osd_real::kPositionSides; pos++)
@@ -1836,10 +1844,15 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                                         CHECK(settledBottom <= 385.0f + kTol);
                                         CHECK(glideBottom <= 389.0f + kTol);
 
-                                        // With rec bar: even frame-0 glide-in stays above rec-bar top (365).
-                                        osd_real::StackPlace sp = osd_real::stackPlace(pos, pl, xs, recBarOsdFloor());
-                                        float recGlideBottom = sp.y + osd_real::kEnterFrom * sp.dy + hh;
-                                        CHECK(recGlideBottom <= recBar.y0 + kTol);
+                                        // With rec bar (recordings cannot run inside Skill Drills):
+                                        // even frame-0 glide-in stays above rec-bar top (365).
+                                        float floor = drillHud ? 0.0f : recBarOsdFloor();
+                                        osd_real::StackPlace sp = osd_real::stackPlace(pos, pl, xs, floor);
+                                        if (!drillHud)
+                                        {
+                                            float recGlideBottom = sp.y + osd_real::kEnterFrom * sp.dy + hh;
+                                            CHECK(recGlideBottom <= recBar.y0 + kTol);
+                                        }
 
                                         Box stack = none();
                                         for (int sl = 0; sl < 3; sl++)
@@ -1851,7 +1864,8 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                                         }
                                         for (int p = 0; p < count; p++)
                                         {
-                                            if (strcmp(pieces[p].name, "notice") == 0)
+                                            if (strcmp(pieces[p].name, "notice") == 0
+                                                || (drillHud && strcmp(pieces[p].name, "rec-bar") == 0))
                                             {
                                                 continue;
                                             }
@@ -1866,12 +1880,13 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                                 }
                             }
                             combosChecked++;
+                            }
                         }
                     }
                 }
             }
         }
     }
-    CHECK_EQ(2 * 4 * 3 * 3 * 2 * 2, combosChecked);
+    CHECK_EQ(2 * 4 * 3 * 3 * 2 * 2 * 2, combosChecked);
     NOTE("%d multi-HUD 4:3/16:9 combinations verified with 0 overlaps", combosChecked);
 }

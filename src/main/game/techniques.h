@@ -109,6 +109,8 @@ namespace game {
         bool canFastfall;
     };
 
+    void techniquesAttach();
+    void techniquesDetach();
     void techniquesReset(TechniqueSink sink);
     // Once per finished tracker frame, after the trackers' frame.
     void techniquesFrame();

@@ -1417,7 +1417,7 @@ namespace lab {
                     TM_PERF_SCOPE(kRender3d);
                     display::render3d(m);
                 }
-                if (!m.paused && settings().comboTrainer.enabled && settings().comboTrainer.enabledMeters != 0)
+                if (!m.paused && settings().comboTrainer.enabledMeters != 0)
                 {
                     display::debugDrawBegin();
                     main::extraComboDraw(m);
@@ -1543,6 +1543,7 @@ namespace lab {
         memset(s_playerShieldHit, 0, sizeof(s_playerShieldHit));
         game::trackerAttach();
         game::advantageReset(onAdvantage);
+        game::techniquesAttach();
         game::techniquesReset(onTechnique);
         game::setFrameListener(onTrackerFrame);
         osd::reset();
@@ -1565,12 +1566,14 @@ namespace lab {
     {
         if (s_vsReadOnly)
         {
+            game::techniquesDetach();
             game::trackerDetach();
             s_vsReadOnly = false;
             return;
         }
         display::detach();
         game::overlaysClear();
+        game::techniquesDetach();
         game::trackerDetach();
         game::setFrozen(false);
         game::setGameplayPaused(false);

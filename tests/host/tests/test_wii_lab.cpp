@@ -93,6 +93,8 @@ namespace game {
     void advantageSetTolerance(u8) {}
     void advantageReset(void (*)(const Advantage&)) {}
     void advantageFrame() {}
+    void techniquesAttach() {}
+    void techniquesDetach() {}
     void techniquesReset(void (*)(const Technique&)) {}
     void techniquesFrame() {}
     const Ledgedash& lastLedgedashEvent()
@@ -268,8 +270,8 @@ TEST(wii_lab, classic_nunchuk_sideways_open_nav_close_and_pause_hints)
     CHECK(lab_uut::menuOpen());
     CHECK_EQ(0u, pads[4].m_buttonsCurrentFrame.bits); // hidden while open
 
-    // Neutral, move down 8 to Controls (row 7 is Offline VS Displays) and press A to enter Controls (depth 1).
-    for (int i = 0; i < 8; i++)
+    // Neutral, move down 9 to Controls (row 8 is Offline VS Displays) and press A to enter Controls (depth 1).
+    for (int i = 0; i < 9; i++)
     {
         setPad(pads[4], 0);
         stepBoth(pads);

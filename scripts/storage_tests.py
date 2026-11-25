@@ -100,7 +100,7 @@ AREA_COUNT = len(AREA_AT)
 AREA_GENERAL, AREA_CONTROLS, AREA_OSD = 1, 2, 6
 SETTINGS_MAGIC, RECORDING_MAGIC = 0x544D5346, 0x544D5246
 # OSD Menu rows (src/main/ui/pages/osd_menu.cpp).
-OSD_WAVEDASH, OSD_LCANCEL, OSD_ACT_OOS = 4, 5, 7
+OSD_WAVEDASH, OSD_LCANCEL, OSD_ACT_OOS = 5, 6, 8
 CONTROLS_HOLD_DELAY = 1
 AREA_CPU = 7
 
@@ -390,11 +390,11 @@ def menu_changes(emu, lab, base, res, ctx):
     lab.set_int(SET["playerPercent"], SESSION_SET["playerPercent"])
     lab.down(1)                         # Lock P1 Damage (row 2)
     lab.toggle_on(SET["lockPlayerPercent"])
-    lab.down(2)                         # Game Speed (row 4)
+    lab.down(3)                         # Game Speed (row 5; skips P1 Load Random % & P1 Infinite Shield)
     tap_until(lab, "gameSpeed", base, SESSION_SET["gameSpeed"], LT.RIGHT)
-    lab.down(1)                         # Camera (row 5)
+    lab.down(1)                         # Camera (row 6)
     tap_until(lab, "cameraMode", base, PERSISTED["cameraMode"], LT.RIGHT)
-    lab.down(1)                         # Move Staling (row 6)
+    lab.down(1)                         # Move Staling (row 7)
     lab.toggle_off(SET["moveStaling"])
     lab.back_to_main(1)
     lab.main_to(LT.MAIN_OSD)
@@ -431,7 +431,7 @@ def menu_changes(emu, lab, base, res, ctx):
     lab.set_int(SET["playerPercent"], 0)
     lab.down(1)                         # Lock P1 Damage (row 2)
     lab.toggle_off(SET["lockPlayerPercent"])
-    lab.down(2)                         # Game Speed (row 4)
+    lab.down(3)                         # Game Speed (row 5)
     tap_until(lab, "gameSpeed", base, 0, LT.LEFT)
     lab.back_to_main(1)
     pos = lab.log_pos()

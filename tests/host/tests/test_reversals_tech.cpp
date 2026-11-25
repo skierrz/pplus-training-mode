@@ -454,11 +454,12 @@ TEST(reversals_tech, sd_migration_from_46_byte_cpu_options_and_round_trip)
     CHECK_EQ(1u, sizeof(main::settings().cpu.reserved));
 
     // Streamlined CPU & OSD menu placement: Counters & Reversals hosts Auto L-Cancel,
-    // SHFFL Timing, and Reversal Slots; OSDs hosts P+ Tech OSD at row 3.
+    // SHFFL Timing, and Reversal Slots; OSDs hosts P+ Tech OSD at row 4.
     const ui::Page& cpuPage = ui::pages::kCpuOptions;
-    REQUIRE(cpuPage.count == 13);
-    CHECK(strcmp(cpuPage.options[5].name, "Counters & Reversals") == 0);
-    CHECK_EQ(static_cast<int>(ui::pages::P_CPU_COUNTERS), static_cast<int>(cpuPage.options[5].max));
+    REQUIRE(cpuPage.count == 14);
+    CHECK(strcmp(cpuPage.options[2].name, "CPU Load Random %") == 0);
+    CHECK(strcmp(cpuPage.options[6].name, "Counters & Reversals") == 0);
+    CHECK_EQ(static_cast<int>(ui::pages::P_CPU_COUNTERS), static_cast<int>(cpuPage.options[6].max));
 
     const ui::Page& countersPage = ui::pages::kCpuCounters;
     REQUIRE(countersPage.count == 9);
@@ -469,14 +470,14 @@ TEST(reversals_tech, sd_migration_from_46_byte_cpu_options_and_round_trip)
     CHECK(strcmp(countersPage.options[8].name, "SHFFL Timing") == 0);
 
     const ui::Page& osdPage = ui::pages::kOsdMenu;
-    REQUIRE(osdPage.count == 24);
-    CHECK(strcmp(osdPage.options[3].name, "P+ Tech OSD") == 0);
-    CHECK_EQ(ui::kKindToggle, osdPage.options[3].kind);
-    CHECK_EQ(0, osdPage.options[3].def);
+    REQUIRE(osdPage.count == 25);
+    CHECK(strcmp(osdPage.options[4].name, "P+ Tech OSD") == 0);
+    CHECK_EQ(ui::kKindToggle, osdPage.options[4].kind);
+    CHECK_EQ(0, osdPage.options[4].def);
 
-    // P_REVERSALS has 14 rows and every row has a description in extra.
+    // P_REVERSALS has 15 rows (including live Slot 1 primary readout) and every row has a description in extra.
     const ui::Page& revPage = ui::pages::kReversalSlots;
-    REQUIRE(revPage.count == 14);
+    REQUIRE(revPage.count == 15);
     for (int r = 0; r < revPage.count; r++)
     {
         const char* desc = extra::optionDesc(ui::pages::P_REVERSALS, static_cast<u8>(r));

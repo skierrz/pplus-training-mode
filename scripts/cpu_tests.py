@@ -192,7 +192,7 @@ SHIELD_ACTIONS = {"None": 0, "Grab": 1,
                   "SHFFL Nair": 44, "SHFFL Fair": 45, "SHFFL Bair": 46, "SHFFL Uair": 47, "SHFFL Dair": 48}
 LAB, TRAINING = 1, 0  # CPU Control
 # CPU Options rows (src/main/ui/pages/cpu_options.cpp) and Tech & Getup rows.
-CPU_CONTROL_ROW, CPU_BEHAVIOR_ROW, CPU_COUNTERS_ROW, CPU_TECH_ROW = 2, 3, 5, 6
+CPU_CONTROL_ROW, CPU_BEHAVIOR_ROW, CPU_COUNTERS_ROW, CPU_TECH_ROW = 3, 4, 6, 7
 TECH_INVIS_ROW, TECH_DELAY_ROW, TECH_SOUND_ROW, TECH_IN_PLACE_ROW = 2, 3, 4, 6
 SET_TECH_INVIS, SET_TECH_DELAY = 288, 289
 # P+'s first distinguishable tech frame per character (src/main/game/tech_frames.cpp).
@@ -4093,7 +4093,7 @@ def o_tdi_angles(r):
 
 # ---- lab menu helpers -----------------------------------------------------------------
 
-CPU_ROWS = {"counters": 5, "move": 10, "freeze": 11, "controlled by": 12}
+CPU_ROWS = {"counters": 6, "move": 11, "freeze": 12, "controlled by": 13}
 COUNTERS_ADVANCED_ROW = 4
 
 

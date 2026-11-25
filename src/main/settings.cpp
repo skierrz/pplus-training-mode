@@ -64,6 +64,8 @@ namespace main {
             TM_CLAMP(stageOptions.platformMode, 0, kStagePlatMaxChoices - 1),
             TM_CLAMP(stageOptions.fodLeft, 0, kFodHeightCount - 1),
             TM_CLAMP(stageOptions.fodRight, 0, kFodHeightCount - 1),
+            TM_CLAMP(osd.preset, 0, kOsdPresetCount - 1),
+            TM_CLAMP(comboTrainer.fixedDamageMode, 0, kComboDmgModeCount - 1),
         };
 #undef TM_CLAMP
         u8* raw = reinterpret_cast<u8*>(&s);

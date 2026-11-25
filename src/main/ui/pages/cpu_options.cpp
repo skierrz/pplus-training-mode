@@ -4,8 +4,11 @@
 #include "main/extra.h"
 #include "main/game/fighters.h"
 #include "main/lab.h"
+#include "main/savestate/settings.h"
 #include "main/ui/pages/cpu_rows.h"
 #include "main/ui/pages/pages.h"
+
+#include <string.h>
 
 #define NA TM_UNAVAILABLE_LABEL
 #define DROPPED TM_DROPPED_LABEL
@@ -176,10 +179,11 @@ namespace pages {
 #define TM_CPU_FUNC(name, onSelect, label) \
     TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, name, label, onSelect, cpuLabControl)
 
-    // Top-level CPU page: 13 core controls + 4 focused subpages.
+    // Top-level CPU page: 14 core controls + 4 focused subpages.
     static const Option kRows[] = {
         TM_INT("CPU Damage", cpu.percent, 0, 999, 0, "%d%%", cpuPercent),
         TM_TOGGLE("Lock CPU Damage", cpu.lockPercent, 0, cpuPercent),
+        TM_INT("CPU Load Random %", recording.randomPercent[1], 0, savestate::kMaxRandomPercent, 0, "%d%%", NULL),
         TM_CHOICE("CPU Control", cpu.options.control, kControl, cpu::kControlLab, NULL),
         TM_CPU_CHOICE("Idle Behavior", cpu.options.behavior, kBehavior, 0),
         TM_MENU_IF("DI & SDI", P_CPU_DI, cpuLabControl),
@@ -229,7 +233,7 @@ namespace pages {
         TM_CPU_TOGGLE("No Knockback", cpu.options.intangible, 0),
         TM_CPU_CHOICE("Grab Mash", cpu.options.grabEscape, kGrabEscape, 0),
         TM_CPU_CHOICE("Grab Release", cpu.options.grabRelease, kGrabRelease, 0),
-        TM_CPU_CHOICE("Clatter Escape", cpu.options.clatterEscape, kGrabEscape, cpu::kMashNone)
+        TM_CPU_CHOICE("Status Mash", cpu.options.clatterEscape, kGrabEscape, cpu::kMashNone)
     };
 
 #undef TM_CPU_FUNC
@@ -250,11 +254,47 @@ namespace pages {
 
     static const char* const kRevTriggers[] = {"On-Hit", "On-Shield", "On-Getup", "On-Ledge"};
     static const char* const kRevGetup[] = {"None", "Stand", "Away", "Toward", "Attack"};
+    static const char* const kRevSlot1Getup[] = {"Random", "Stand", "Away", "Toward", "Attack"};
     static const char* const kRevLedge[] = {"None", "Neutral", "Roll", "Attack", "Jump", "Drop"};
+    static char s_revSlot1Label[28] = "Jab";
+
+    static const char* stripMarker(const char* s)
+    {
+        if (s != NULL && (s[0] == TM_UNAVAILABLE_LABEL[0] || s[0] == TM_DROPPED_LABEL[0]))
+        {
+            return s + 1;
+        }
+        return s != NULL ? s : "None";
+    }
 
     static bool revEnabled()
     {
-        return cpuExtraAvailable() && main::settings().cpu.options.multiReversal != 0;
+        if (!cpuExtraAvailable() || main::settings().cpu.options.multiReversal == 0)
+        {
+            return false;
+        }
+        const cpu::CpuOptions& c = main::settings().cpu.options;
+        u8 trig = menuScratch()[kRevTriggerScratchOffset];
+        const char* src = "None";
+        if (trig == cpu::kRevOnHit && c.counterGround < kCounterGroundSize)
+        {
+            src = stripMarker(kCounterGround[c.counterGround]);
+        }
+        else if (trig == cpu::kRevOnShield && c.counterShield < kCounterShieldSize)
+        {
+            src = stripMarker(kCounterShield[c.counterShield]);
+        }
+        else if (trig == cpu::kRevOnGetup && c.getup < TM_COUNT(kRevSlot1Getup))
+        {
+            src = kRevSlot1Getup[c.getup];
+        }
+        else if (trig == cpu::kRevOnLedge && c.ledgeOption < TM_COUNT(kLedgeOption))
+        {
+            src = kLedgeOption[c.ledgeOption];
+        }
+        strncpy(s_revSlot1Label, src, sizeof(s_revSlot1Label) - 1);
+        s_revSlot1Label[sizeof(s_revSlot1Label) - 1] = '\0';
+        return true;
     }
 
 #pragma dont_inline on
@@ -271,19 +311,21 @@ namespace pages {
 
 #define TM_REV_ACT(idx, labels, count, gate)                                                                     \
     TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.revSlot2Action[idx]), 0, \
-           (count) - 1, 0, "Action", labels, NULL, gate)
+           (count) - 1, 0, "Slot 2 Action", labels, NULL, gate)
 #define TM_REV_DELAY(idx, gate)                                                                              \
     TM_ROW(::tm::ui::kKindInt, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.revSlot2Delay[idx]), 0, \
-           30, 0, "Delay", "%df", NULL, gate)
+           30, 0, "Slot 2 Delay", "%df", NULL, gate)
 #define TM_REV_WEIGHT(idx, gate)                                                                              \
     TM_ROW(::tm::ui::kKindInt, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.revSlot2Weight[idx]), 0, \
-           100, 50, "Weight", "%d%%", NULL, gate)
+           100, 50, "Slot 2 Chance", "%d%%", NULL, gate)
 
     static const Option kRevRows[] = {
         TM_ROW(::tm::ui::kKindToggle, 0, TM_FIELD(cpu.options.multiReversal), 0, 1, 0, "Enabled", NULL, NULL,
                cpuExtraAvailable),
         TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,
                kRevTriggerScratchOffset, 0, TM_COUNT(kRevTriggers) - 1, 0, "Trigger", kRevTriggers, NULL, revEnabled),
+        TM_ROW(::tm::ui::kKindInfo, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, "Slot 1 (Primary)", s_revSlot1Label,
+               NULL, revEnabled),
         TM_REV_ACT(cpu::kRevOnHit, kCounterGround, kCounterGroundSize, revTrig0),
         TM_REV_DELAY(cpu::kRevOnHit, revTrig0),
         TM_REV_WEIGHT(cpu::kRevOnHit, revTrig0),

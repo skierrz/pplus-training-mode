@@ -48,8 +48,12 @@ namespace osd {
     // highest allowed bottom edge for lower-screen stacks (HUD / Sides) so they
     // clear elements like the recording seek bar. `topY`: when positive, lowest
     // allowed top edge for TopLeft / TopRight rows so they clear top HUD panels.
+    // `playerCount`: in 1v1 (<= 2), Sides anchors P1 to the outer left CRT-safe
+    // edge and P2 to the outer right CRT-safe edge so Sides is visibly distinct
+    // from HUD; in 3P/4P (> 2), Sides uses the four evenly spaced columns.
     // Unknown positions fall back to HUD.
-    inline StackPlace stackPlace(int position, int player, float xs, float floorY = 0.0f, float topY = 0.0f)
+    inline StackPlace stackPlace(int position, int player, float xs, float floorY = 0.0f, float topY = 0.0f,
+                                 int playerCount = 2)
     {
         StackPlace s;
         s.dx = 0.0f;
@@ -62,7 +66,15 @@ namespace osd {
         float halfH = kBoxHeight * 0.5f;
         if (position == kPositionSides)
         {
-            s.x = kSidesX[player];
+            if (playerCount <= 2 && player < 2)
+            {
+                float marginX = xs >= 1.0f ? ui::layout::kSafeMarginX : 12.0f;
+                s.x = (player == 0) ? (marginX + halfW) : (640.0f - marginX - halfW);
+            }
+            else
+            {
+                s.x = kSidesX[player];
+            }
             s.y = kSidesY;
         }
         else if (position == kPositionTopLeft || position == kPositionTopRight)

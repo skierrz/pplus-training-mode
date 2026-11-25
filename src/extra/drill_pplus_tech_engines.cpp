@@ -79,8 +79,12 @@ namespace extra {
             s8 attackerSlot;
         };
 
-        SlotEngine* s_engines = NULL;
-        PPlusTechDebugBlock s_debug;
+        struct PPlusTechNet {
+            SlotEngine engines[game::kMaxTracked];
+            PPlusTechDebugBlock debug;
+        };
+
+        PPlusTechNet* s_net = NULL;
         u32 s_resetCount = 0;
         s32 s_prevFrame = game::kNoFrame;
 
@@ -170,29 +174,30 @@ namespace extra {
 
         void clearDebugSlot(int playerNo)
         {
-            if (playerNo >= 0 && playerNo < kPPlusTechDebugSlots)
+            if (s_net != NULL && playerNo >= 0 && playerNo < kPPlusTechDebugSlots)
             {
-                memset(&s_debug.slots[playerNo], 0, sizeof(s_debug.slots[playerNo]));
+                memset(&s_net->debug.slots[playerNo], 0, sizeof(s_net->debug.slots[playerNo]));
             }
         }
 
         void clearAllTransient(bool countReset)
         {
-            if (s_engines != NULL)
-            {
-                for (int i = 0; i < game::kMaxTracked; i++)
-                {
-                    resetSlotEngine(s_engines[i]);
-                }
-            }
             if (countReset)
             {
                 s_resetCount++;
             }
-            memset(&s_debug, 0, sizeof(s_debug));
-            s_debug.magic = kPPlusTechDebugMagic;
-            s_debug.version = kPPlusTechDebugVersion;
-            s_debug.resetCount = s_resetCount;
+            if (s_net == NULL)
+            {
+                return;
+            }
+            for (int i = 0; i < game::kMaxTracked; i++)
+            {
+                resetSlotEngine(s_net->engines[i]);
+            }
+            memset(&s_net->debug, 0, sizeof(s_net->debug));
+            s_net->debug.magic = kPPlusTechDebugMagic;
+            s_net->debug.version = kPPlusTechDebugVersion;
+            s_net->debug.resetCount = s_resetCount;
         }
 
         bool readSlotSnap(int i, s32 f, SlotSnap& out)
@@ -270,11 +275,11 @@ namespace extra {
 
         void mirrorToDebugSlot(int playerNo, const SlotEngine& e)
         {
-            if (playerNo < 0 || playerNo >= kPPlusTechDebugSlots)
+            if (s_net == NULL || playerNo < 0 || playerNo >= kPPlusTechDebugSlots)
             {
                 return;
             }
-            PPlusTechDebugSlot& d = s_debug.slots[playerNo];
+            PPlusTechDebugSlot& d = s_net->debug.slots[playerNo];
 
             // Engine 1: RAR
             d.rarAttempts = e.rar.attempts;
@@ -352,19 +357,22 @@ namespace extra {
 
     void pplusTechAttach()
     {
-        freeNetPtr(s_engines);
-        s_engines = allocNetArray<SlotEngine>(game::kMaxTracked);
+        freeNetPtr(s_net);
+        s_net = allocNetArray<PPlusTechNet>(1);
         s_resetCount = 0;
         s_prevFrame = game::kNoFrame;
         clearAllTransient(false);
-        TM_LOG("pplus_tech: debug block at %08x\n", &s_debug);
+        if (s_net != NULL)
+        {
+            TM_LOG("pplus_tech: debug block at %08x\n", &s_net->debug);
+        }
     }
 
     void pplusTechDetach()
     {
         s_prevFrame = game::kNoFrame;
         clearAllTransient(false);
-        freeNetPtr(s_engines);
+        freeNetPtr(s_net);
     }
 
     void pplusTechReset()
@@ -375,7 +383,7 @@ namespace extra {
 
     void pplusTechFrame()
     {
-        if (s_engines == NULL)
+        if (s_net == NULL)
         {
             return;
         }
@@ -385,7 +393,7 @@ namespace extra {
             clearAllTransient(true);
         }
         s_prevFrame = f;
-        s_debug.frame = static_cast<u32>(f >= 0 ? f : 0);
+        s_net->debug.frame = static_cast<u32>(f >= 0 ? f : 0);
 
         SlotSnap snaps[game::kMaxTracked];
         for (int i = 0; i < game::kMaxTracked; i++)
@@ -398,7 +406,7 @@ namespace extra {
         for (int i = 0; i < game::kMaxTracked; i++)
         {
             slotChanged[i] = false;
-            SlotEngine& e = s_engines[i];
+            SlotEngine& e = s_net->engines[i];
             const SlotSnap& sn = snaps[i];
             if (!sn.valid)
             {
@@ -443,7 +451,7 @@ namespace extra {
         {
             for (int k = 0; k < game::kMaxTracked; k++)
             {
-                SlotEngine& e = s_engines[k];
+                SlotEngine& e = s_net->engines[k];
                 if (!e.active)
                 {
                     continue;
@@ -473,7 +481,7 @@ namespace extra {
             {
                 continue;
             }
-            SlotEngine& e = s_engines[i];
+            SlotEngine& e = s_net->engines[i];
             const SlotSnap& sn = snaps[i];
             const game::Tracked& t = *sn.t;
 
@@ -658,42 +666,42 @@ namespace extra {
 
     const RarState* pplusTechRar(int trackedSlot)
     {
-        return (s_engines != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_engines[trackedSlot].active)
-                   ? &s_engines[trackedSlot].rar
+        return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_net->engines[trackedSlot].active)
+                   ? &s_net->engines[trackedSlot].rar
                    : NULL;
     }
 
     const DacusState* pplusTechDacus(int trackedSlot)
     {
-        return (s_engines != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_engines[trackedSlot].active)
-                   ? &s_engines[trackedSlot].dacus
+        return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_net->engines[trackedSlot].active)
+                   ? &s_net->engines[trackedSlot].dacus
                    : NULL;
     }
 
     const BReverseState* pplusTechBReverse(int trackedSlot)
     {
-        return (s_engines != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_engines[trackedSlot].active)
-                   ? &s_engines[trackedSlot].brev
+        return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_net->engines[trackedSlot].active)
+                   ? &s_net->engines[trackedSlot].brev
                    : NULL;
     }
 
     const FootstoolAgtState* pplusTechFootstoolAgt(int trackedSlot)
     {
-        return (s_engines != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_engines[trackedSlot].active)
-                   ? &s_engines[trackedSlot].fa
+        return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_net->engines[trackedSlot].active)
+                   ? &s_net->engines[trackedSlot].fa
                    : NULL;
     }
 
     const FloorhugState* pplusTechFloorhug(int trackedSlot)
     {
-        return (s_engines != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_engines[trackedSlot].active)
-                   ? &s_engines[trackedSlot].fh
+        return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_net->engines[trackedSlot].active)
+                   ? &s_net->engines[trackedSlot].fh
                    : NULL;
     }
 
     const PPlusTechDebugBlock* pplusTechDebugBlock()
     {
-        return &s_debug;
+        return s_net != NULL ? &s_net->debug : NULL;
     }
 }
 }

@@ -464,3 +464,44 @@ TEST(stage3f_adaptive, peek_commit_semantics_and_guard_neutral_gating)
     CHECK_EQ(1, selectAdaptiveAction(kAdaptiveActive, kRpsAttack, 0.80f, 2, true, true, 15.0f, 65.0f, false, mix,
                                      cooldown, 28, biasAction, biasTriggers)); // Grab OoS
 }
+
+TEST(stage3f, adaptive_hud_view_and_layout_box)
+{
+    PatternManager pm;
+    pm.clearAll();
+    AdaptiveHudView v;
+
+    // Off mode zeroes view.
+    adaptiveBuildHudView(kAdaptiveOff, pm, 0, kBiasNone, v);
+    CHECK_EQ(0u, v.rpsCount);
+    CHECK_EQ(0, static_cast<int>(v.atkPct + v.grabPct + v.defPct));
+
+    // Track mode with zero samples -> waiting state.
+    adaptiveBuildHudView(kAdaptiveTrack, pm, 0, kBiasNone, v);
+    CHECK_EQ(0u, v.rpsCount);
+    CHECK(!v.confident);
+    CHECK_EQ(static_cast<int>(kBiasNone), static_cast<int>(v.biasAction));
+
+    // Feed heavy Attack habit -> percentages sum to 100%, confident read, Adaptive shows Shield/Spotdodge bias.
+    for (int i = 0; i < 10; i++)
+    {
+        pm.pushNew(0, (i % 5 == 0) ? kRpsGrab : kRpsAttack);
+    }
+    adaptiveBuildHudView(kAdaptiveTrack, pm, 0, kBiasShield, v);
+    CHECK_EQ(10u, v.rpsCount);
+    CHECK_EQ(100, static_cast<int>(v.atkPct + v.grabPct + v.defPct));
+    CHECK(v.atkPct > v.grabPct && v.atkPct >= 70);
+    CHECK_EQ(static_cast<int>(kRpsAttack), static_cast<int>(v.dominantRps));
+    CHECK(v.confident);
+    CHECK_EQ(static_cast<int>(kBiasNone), static_cast<int>(v.biasAction)); // Track never fires bias
+
+    adaptiveBuildHudView(kAdaptiveActive, pm, 0, kBiasNone, v);
+    CHECK(v.confident);
+    CHECK(v.biasAction == kBiasShield || v.biasAction == kBiasSpotdodge);
+    CHECK(strcmp(adaptiveRpsLabel(kRpsAttack), "Attack") == 0);
+    CHECK(strcmp(adaptiveRpsLabel(kRpsGrab), "Grab") == 0);
+    CHECK(strcmp(adaptiveRpsLabel(kRpsDefend), "Defend") == 0);
+    CHECK(strcmp(adaptiveBiasLabel(kBiasShield), "Shield") == 0);
+    CHECK(strcmp(adaptiveBiasLabel(kBiasSpotdodge), "Spotdodge") == 0);
+    CHECK(strcmp(adaptiveBiasLabel(kBiasJump), "Short Hop") == 0);
+}

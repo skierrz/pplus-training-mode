@@ -55,7 +55,7 @@ INFO_ROWS = {"state": 2, "stateframe": 3, "subaction": 30, "actionable": 32, "hi
              "airborne": 33, "lasthit": 34, "hitstun": 16, "shield": 18}
 # Lab menu rows (src/main/ui/pages/display_options.cpp, osd_menu.cpp).
 MAIN_OSD, MAIN_DISPLAY = LT.MAIN_OSD, LT.MAIN_DISPLAY
-OSD_POSITION, OSD_ADVANTAGE, OSD_ADVANTAGE_HIT = 0, 8, 9
+OSD_POSITION, OSD_ADVANTAGE, OSD_ADVANTAGE_HIT = 1, 9, 10
 ID_FRAME_ADVANTAGE, ID_FRAME_ADVANTAGE_HIT = 14, 19
 SET_OSD_POSITION = LT.SET_OSD_POSITION
 STOP_HITLAG = 0x10  # soStopModuleImpl: hitlag frames left
@@ -268,7 +268,8 @@ class Runner:
         # positive green, zero white, negative red.
         colour = GREEN if value > 0 else RED if value < 0 else WHITE
         half = BOX_W * squeeze / 2
-        cx = SIDES_X[player - 1]
+        margin = 32.0 if squeeze >= 1.0 else 12.0
+        cx = (margin + half) if player == 1 else (640.0 - margin - half)
 
         def count(x0, x1):
             n = 0
@@ -370,7 +371,7 @@ class Runner:
         lab.tap(["A"])
         if lab.setting(SET_OSD_POSITION) != 1:
             raise DisplayError(f"OSD Position is {lab.setting(SET_OSD_POSITION)}, wanted the default Sides")
-        lab.down(OSD_ADVANTAGE - OSD_POSITION)
+        lab.down(OSD_ADVANTAGE)
         lab.toggle_on(SET_ON_SHIELD)
         lab.down(OSD_ADVANTAGE_HIT - OSD_ADVANTAGE)
         lab.toggle_on(SET_ON_HIT)

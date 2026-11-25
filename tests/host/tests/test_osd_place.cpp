@@ -27,15 +27,25 @@ TEST(osd_place, hud_and_sides_align_and_step_upward)
             CHECK_EQ(0.0f, h.dx);
             CHECK_EQ(-osd::kPitch, h.dy);
 
-            osd::StackPlace s = osd::stackPlace(osd::kPositionSides, p, xs[k]);
+            // 4-player Sides keeps the four evenly spaced columns.
+            osd::StackPlace s4 = osd::stackPlace(osd::kPositionSides, p, xs[k], 0.0f, 0.0f, 4);
             float sx = osd::kSidesX[p];
             if (sx < minX) sx = minX;
             if (sx > maxX) sx = maxX;
-            CHECK_NEAR(sx, s.x, 0.001f);
-            CHECK_EQ(osd::kSidesY, s.y);
-            CHECK_EQ(0.0f, s.dx);
-            CHECK_EQ(-osd::kPitch, s.dy);
+            CHECK_NEAR(sx, s4.x, 0.001f);
+            CHECK_EQ(osd::kSidesY, s4.y);
+            CHECK_EQ(0.0f, s4.dx);
+            CHECK_EQ(-osd::kPitch, s4.dy);
         }
+        // 1v1 Sides pushes P1 to the outer left edge and P2 to the outer right edge,
+        // making Sides visibly distinct from HUD in both 4:3 and 16:9.
+        float marginX = xs[k] >= 1.0f ? ui::layout::kSafeMarginX : 12.0f;
+        osd::StackPlace s1 = osd::stackPlace(osd::kPositionSides, 0, xs[k], 0.0f, 0.0f, 2);
+        osd::StackPlace s2 = osd::stackPlace(osd::kPositionSides, 1, xs[k], 0.0f, 0.0f, 2);
+        osd::StackPlace h2 = osd::stackPlace(osd::kPositionHud, 1, xs[k], 0.0f, 0.0f, 2);
+        CHECK_NEAR(marginX + half, s1.x, 0.001f);
+        CHECK_NEAR(640.0f - marginX - half, s2.x, 0.001f);
+        CHECK(s2.x - h2.x >= 250.0f);
     }
 }
 
@@ -158,12 +168,12 @@ TEST(osd_place, all_positions_fit_on_screen_and_stay_apart_in_43_and_169)
         {
             for (int p = 0; p < 4; p++)
             {
-                osd::StackPlace s = osd::stackPlace(pos, p, xs[k]);
+                osd::StackPlace s = osd::stackPlace(pos, p, xs[k], 0.0f, 0.0f, 4);
                 CHECK(s.x - halfW >= 0.0f && s.x + halfW <= 640.0f);
                 CHECK(s.y - halfH >= 0.0f && s.y + halfH <= 480.0f);
                 if (p > 0)
                 {
-                    osd::StackPlace prev = osd::stackPlace(pos, p - 1, xs[k]);
+                    osd::StackPlace prev = osd::stackPlace(pos, p - 1, xs[k], 0.0f, 0.0f, 4);
                     CHECK(s.x - prev.x >= 2.0f * halfW);
                 }
             }

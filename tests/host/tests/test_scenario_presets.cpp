@@ -554,16 +554,18 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK_EQ(static_cast<int>(kScenarioSideRight), static_cast<int>(clean.side));
     CHECK_EQ(static_cast<int>(kMultiHitUpAir), static_cast<int>(clean.multiHitMove));
 
-    // Lab (kGeneral) places Offline VS Displays at row 7 and Controls at row 8;
-    // Debug moved into Display > Advanced / Debug (row 21).
+    // Lab (kGeneral) places Offline VS Displays at row 8 and Controls at row 9;
+    // Display exposes Floating Meters at row 21 and Advanced / Debug at row 22.
     const ui::Page& gen = ui::pages::kGeneral;
-    REQUIRE(gen.count == 12);
-    CHECK(strcmp(gen.options[7].name, "Offline VS Displays") == 0);
-    CHECK(strcmp(gen.options[8].name, "Controls") == 0);
+    REQUIRE(gen.count == 13);
+    CHECK(strcmp(gen.options[8].name, "Offline VS Displays") == 0);
+    CHECK(strcmp(gen.options[9].name, "Controls") == 0);
     const ui::Page& disp = ui::pages::kDisplayOptions;
-    REQUIRE(disp.count == 22);
-    CHECK(strcmp(disp.options[21].name, "Advanced / Debug") == 0);
-    CHECK_EQ(ui::pages::P_DEBUG, disp.options[21].max);
+    REQUIRE(disp.count == 23);
+    CHECK(strcmp(disp.options[21].name, "Floating Meters") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_METERS, disp.options[21].max);
+    CHECK(strcmp(disp.options[22].name, "Advanced / Debug") == 0);
+    CHECK_EQ(ui::pages::P_DEBUG, disp.options[22].max);
     const ui::Page& scen = ui::pages::kScenarios;
     REQUIRE(scen.count == 6);
     CHECK(strcmp(scen.options[0].name, "Preset") == 0);

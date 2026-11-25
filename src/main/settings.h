@@ -219,6 +219,16 @@ namespace main {
         kTimingMeterCount
     };
 
+    // OSDs > OSD Preset (1-click competitive toggle bundles).
+    enum OsdPreset {
+        kOsdPresetCustom = 0,
+        kOsdPresetEssentials,
+        kOsdPresetMovement,
+        kOsdPresetDefense,
+        kOsdPresetAllOff,
+        kOsdPresetCount
+    };
+
     // OSD Menu page.
     struct OsdSettings {
         u8 position;           // osd::Position
@@ -250,7 +260,8 @@ namespace main {
         u8 infoBgColor; // InfoBgColor (0..6, default kInfoBgDefault)
         u8 infoBgAlpha; // InfoAlpha (0..6, default kInfoAlphaDefault = 80%)
         u8 timingMeter; // TimingMeterMode (0..4, default kTimingMeterOff)
-        u8 reserved[4];
+        u8 preset;      // OsdPreset (0..4, default kOsdPresetCustom)
+        u8 reserved[3];
     };
 
     // CPU Options and its subpages (Tech, Advanced Counter).
@@ -388,6 +399,13 @@ namespace main {
         kMeterAll = 0x7F
     };
 
+    // Combo Trainer non-random reset damage source.
+    enum ComboDamageMode {
+        kComboDmgCpu = 0,    // mirror CPU > CPU Damage
+        kComboDmgCustom = 1, // apply ComboTrainerSettings::fixedDamage
+        kComboDmgModeCount
+    };
+
     // Combo Trainer backend settings (src/extra/combo_trainer.*).
     struct ComboTrainerSettings {
         u8 enabled;              // 0/1
@@ -398,9 +416,10 @@ namespace main {
         u8 randomizeDamage;      // 0/1: randomize CPU damage (0-99%) on reset
         u8 recoveryTrainer;      // 0/1: loop offstage recovery spawns with PPlusAI
         s8 comboTimerAdjustment; // -60..60 frame offset on hitstun reset timer
-        u16 fixedDamage;         // 0..999 fixed damage applied on reset
-        u8 enabledMeters;        // 7-bit ComboMeterBit mask
-        u8 reserved[5];
+        u16 fixedDamage;         // 0..999 fixed damage applied on reset when fixedDamageMode == Custom
+        u8 enabledMeters;        // 7-bit ComboMeterBit mask (independent of comboTrainer.enabled)
+        u8 fixedDamageMode;      // ComboDamageMode (0 Use CPU %, 1 Custom %)
+        u8 reserved[4];
     };
 
     // Fighter Mechanics (extra/fighter_mechanics.*): per-fighter charge,
@@ -512,6 +531,7 @@ namespace main {
     TM_STATIC_ASSERT(offsetof(Settings, osd.infoBgColor) == 113, tm_settings_osd_info_bg_color_at_113);
     TM_STATIC_ASSERT(offsetof(Settings, osd.infoBgAlpha) == 114, tm_settings_osd_info_bg_alpha_at_114);
     TM_STATIC_ASSERT(offsetof(Settings, osd.timingMeter) == 115, tm_settings_osd_timing_meter_at_115);
+    TM_STATIC_ASSERT(offsetof(Settings, osd.preset) == 116, tm_settings_osd_preset_at_116);
     TM_STATIC_ASSERT(offsetof(Settings, general.playerInfiniteShields) == 20, tm_settings_player_infinite_shields_at_20);
     TM_STATIC_ASSERT(offsetof(Settings, general.offlineVersus) == 21, tm_settings_offline_versus_at_21);
     TM_STATIC_ASSERT(offsetof(Settings, general.offlineVersus) == block::kOfflineVersusOffset,

@@ -1308,7 +1308,7 @@ namespace extra {
         // Unit-circle compass centered inside the lower body of the card.
         float cx = (b.x0 + b.x1) * 0.5f;
         float cy = b.y0 + 16.0f + (h - 19.0f) * 0.5f;
-        float ry = 24.0f;
+        float ry = 22.0f;
         float rx = ry * xs;
 
         gfx::fillEllipse(cx, cy, rx, ry, 0x060E14D0u);

@@ -16,10 +16,10 @@ namespace extra {
     struct HoverPsState {
         FloatDjcSlot floatDjc[kHoverPsMaxSlots];
         PsSlot ps[kHoverPsMaxSlots];
+        HoverPsDebugBlock debug;
     };
 
     static HoverPsState* s_state = NULL;
-    static HoverPsDebugBlock s_debug;
     static s32 s_lastFrame = game::kNoFrame;
     static const Fighter* s_lastFighter[kHoverPsMaxSlots];
     static int s_lastEntryId[kHoverPsMaxSlots];
@@ -38,7 +38,7 @@ namespace extra {
         {
             return;
         }
-        HoverPsDebugSlot& d = s_debug.slots[i];
+        HoverPsDebugSlot& d = s_state->debug.slots[i];
         const FloatDjcSlot& fd = s_state->floatDjc[i];
         const PsSlot& ps = s_state->ps[i];
 
@@ -130,30 +130,34 @@ namespace extra {
             }
             clearSlotIdentity(i);
         }
-        memset(&s_debug, 0, sizeof(s_debug));
-        s_debug.magic = kHoverPsDebugMagic;
-        s_debug.version = kHoverPsDebugVersion;
-        for (int i = 0; i < kHoverPsMaxSlots; i++)
+        if (s_state != NULL)
         {
-            syncDebugSlot(i, NULL, -1, -1);
+            memset(&s_state->debug, 0, sizeof(s_state->debug));
+            s_state->debug.magic = kHoverPsDebugMagic;
+            s_state->debug.version = kHoverPsDebugVersion;
+            for (int i = 0; i < kHoverPsMaxSlots; i++)
+            {
+                syncDebugSlot(i, NULL, -1, -1);
+            }
         }
     }
 
     void hoverPsResetTransient()
     {
         s_lastFrame = game::kNoFrame;
+        if (s_state == NULL)
+        {
+            return;
+        }
         for (int i = 0; i < kHoverPsMaxSlots; i++)
         {
-            if (s_state != NULL)
-            {
-                floatDjcResetTransient(s_state->floatDjc[i]);
-                psResetTransient(s_state->ps[i]);
-            }
-            s_debug.slots[i].inFloat = 0;
-            s_debug.slots[i].floatAerialActive = 0;
-            s_debug.slots[i].guardArmed = 0;
+            floatDjcResetTransient(s_state->floatDjc[i]);
+            psResetTransient(s_state->ps[i]);
+            s_state->debug.slots[i].inFloat = 0;
+            s_state->debug.slots[i].floatAerialActive = 0;
+            s_state->debug.slots[i].guardArmed = 0;
         }
-        s_debug.resetCount++;
+        s_state->debug.resetCount++;
     }
 
     void hoverPsAttach()
@@ -161,7 +165,10 @@ namespace extra {
         freeNetPtr(s_state);
         s_state = allocNetArray<HoverPsState>(1);
         hoverPsResetAll();
-        TM_LOG("hover_ps: debug block at %08x\n", &s_debug);
+        if (s_state != NULL)
+        {
+            TM_LOG("hover_ps: debug block at %08x\n", &s_state->debug);
+        }
     }
 
     void hoverPsDetach()
@@ -182,7 +189,7 @@ namespace extra {
             hoverPsResetTransient();
         }
         s_lastFrame = frame;
-        s_debug.frame = static_cast<u32>(frame >= 0 ? frame : 0);
+        s_state->debug.frame = static_cast<u32>(frame >= 0 ? frame : 0);
 
         const int limit = game::kMaxTracked < kHoverPsMaxSlots ? game::kMaxTracked : kHoverPsMaxSlots;
         for (int i = 0; i < limit; i++)
@@ -190,7 +197,7 @@ namespace extra {
             const game::Tracked* t = game::tracked(i);
             if (t == NULL || !t->used || t->cur.frame != frame || !game::isRam(t->fighter))
             {
-                if (s_debug.slots[i].used != 0 || s_lastFighter[i] != NULL)
+                if (s_state->debug.slots[i].used != 0 || s_lastFighter[i] != NULL)
                 {
                     floatDjcResetTransient(s_state->floatDjc[i]);
                     psResetTransient(s_state->ps[i]);

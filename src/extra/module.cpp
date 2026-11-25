@@ -34,7 +34,9 @@
 #include "main/game/match.h"
 #include "main/game/tracker.h"
 #include "main/gfx/text.h"
+#include "main/lab.h"
 #include "main/module.h"
+#include "main/settings.h"
 #include "main/ui/info_display.h"
 #include "shared/game/scene.h"
 #include "shared/log.h"
@@ -97,10 +99,20 @@ namespace extra {
             describe(line);
             TM_LOG("%s (render call %u)\n", line, call);
         }
-        if (!s_vsReadOnly && (drillHudHook(0, NULL) & 1u) != 0u)
+        bool drawDrill = !s_vsReadOnly && (drillHudHook(0, NULL) & 1u) != 0u;
+        bool drawAdap = !s_vsReadOnly && !match.paused && !lab::menuOpen()
+                        && main::settings().cpu.options.adaptiveMode != cpu::kAdaptiveOff;
+        if (drawDrill || drawAdap)
         {
             gfx::begin();
-            drillHudDraw(match);
+            if (drawDrill)
+            {
+                drillHudDraw(match);
+            }
+            if (drawAdap)
+            {
+                adaptiveCpuDraw(match);
+            }
             gfx::end();
         }
 #ifdef TM_EXTRA_PROOF

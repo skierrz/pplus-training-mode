@@ -346,8 +346,9 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     CHECK_EQ(113u, offsetof(Settings, osd.infoBgColor));
     CHECK_EQ(114u, offsetof(Settings, osd.infoBgAlpha));
     CHECK_EQ(115u, offsetof(Settings, osd.timingMeter));
+    CHECK_EQ(116u, offsetof(Settings, osd.preset));
     CHECK_EQ(22u, offsetof(main::OsdSettings, bgColor));
-    CHECK_EQ(28u, offsetof(main::OsdSettings, reserved));
+    CHECK_EQ(29u, offsetof(main::OsdSettings, reserved));
 
     // Boot clean and verify defaults.
     bootStorage();
@@ -373,7 +374,7 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     REQUIRE(host::card::has(kFileA));
     storage::AreaEntry* osdArea = findAreaEntry(kFileA, storage::kAreaOsd);
     REQUIRE(osdArea != NULL);
-    CHECK_EQ(28u, osdArea->used);
+    CHECK_EQ(29u, osdArea->used);
 
     bootStorage();
     CHECK_LOG("16 areas, 0 with new fields, 0 at defaults, 0 unknown");

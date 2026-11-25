@@ -1,5 +1,6 @@
 #include "extra/adaptive_cpu.h"
 
+#include <cstdio>
 #include <string.h>
 
 #include "extra/adaptive_cpu_core.h"
@@ -8,7 +9,12 @@
 #include "main/cpu/actions.h"
 #include "main/cpu/cpu_settings.h"
 #include "main/game/fighters.h"
+#include "main/gfx/draw.h"
+#include "main/gfx/text.h"
+#include "main/lab.h"
 #include "main/settings.h"
+#include "main/ui/hud_layout.h"
+#include "main/ui/style.h"
 #include "shared/log.h"
 
 namespace tm {
@@ -34,6 +40,7 @@ namespace extra {
         float p1GrabProb;   // 0x24: P1 MovementTracker approxChance(kMovGrab)
         u32 biasAction;     // 0x28: last AdaptiveBiasAction selected (0..5)
         u32 biasTriggers;   // 0x2C: total adaptive bias activations
+        u32 hudDraws;       // 0x30: Habit Readout HUD render calls
     };
 
     static MovementTracker* s_trackers = NULL;
@@ -272,6 +279,119 @@ namespace extra {
         return selectAdaptiveAction(mode, dom, conf, list, inCounter, false, opponentDist, kNeutralEngageRange, commit,
                                     s_mixCounter[cpuPlayerNo], s_neutralCooldown[cpuPlayerNo], kNeutralBiasCooldown,
                                     s_debug.biasAction, s_debug.biasTriggers);
+    }
+
+    static void drawHudText(float x, float y, const char* s, gfx::Rgba col, float scale)
+    {
+        gfx::text(x + 0.8f, y + 0.8f, s, 0x000000C8u, scale);
+        gfx::text(x, y, s, col, scale);
+    }
+
+    void adaptiveCpuDraw(const game::MatchState& match)
+    {
+        const main::Settings& s = main::settings();
+        u8 mode = s.cpu.options.adaptiveMode;
+        if (!match.running || match.paused || lab::menuOpen() || mode == cpu::kAdaptiveOff || s_trackers == NULL
+            || gfx::lineHeight(0.5f) <= 0.0f)
+        {
+            return;
+        }
+        bool wide = gfx::widescreen();
+        float xs = ui::layout::xsOf(wide);
+        int vSlots = ui::layout::inputViewerSlotCount(s.display.inputViewer);
+        bool hasComp = s.general.diDisplay != 0 && s.display.diVectorMode != main::kDiVectorLive;
+        bool hasPsa = s.display.psaInspector != main::kPsaOff;
+        ui::layout::Box b = ui::layout::adaptiveHudBox(ui::layout::topBand(), vSlots, hasComp, hasPsa, wide);
+
+        AdaptiveHudView v;
+        adaptiveBuildHudView(mode, s_patterns, s_telemetryPlayer, static_cast<u8>(s_debug.biasAction), v);
+
+        float x = b.x0;
+        float y = b.y0;
+        float bw = b.x1 - b.x0;
+        float bh = b.y1 - b.y0;
+        float px = 1.5f * xs;
+        bool activeMode = mode == cpu::kAdaptiveActive;
+        u32 accent = activeMode ? 0xFFD300FFu : 0x35B8C8FFu;
+
+        // Native P+ dark-teal card frame matching PSA Inspector & Input Viewer.
+        gfx::fillRect(x, y, bw, bh, 0x050C12E4u);
+        gfx::fillRect(x + px, y + 1.5f, bw - 2.0f * px, bh - 3.0f, 0x3A5868D8u);
+        gfx::fillGradV(x + 2.0f * px, y + 3.0f, bw - 4.0f * px, bh - 6.0f, 0x132632DCu, 0x09141CE0u);
+        gfx::fillRect(x + px, y + 1.5f, bw - 2.0f * px, 2.5f, accent);
+        gfx::fillRect(x + px, y + 1.5f, bw - 2.0f * px, 1.0f, 0xFFFFFF40u);
+        gfx::fillRect(x + 4.0f * xs, y + 15.0f, bw - 8.0f * xs, 1.0f, 0x2A4C58C0u);
+
+        float hdrScale = ui::style::scaleForCap(6.4f);
+        float hdrY = ui::style::textYForCap(y + 6.2f, hdrScale);
+        drawHudText(x + 5.5f * xs, hdrY, activeMode ? "ADAPTIVE" : "HABIT TRACK",
+                    activeMode ? 0xFFE24AFFu : 0x7CE6E0FFu, hdrScale);
+
+        char badge[16];
+        if (v.rpsCount > 0)
+        {
+            snprintf(badge, sizeof(badge), "READ %u%%", static_cast<unsigned>(v.confidencePct));
+        }
+        else
+        {
+            strcpy(badge, "WAITING");
+        }
+        float bwText = gfx::textWidth(badge, hdrScale);
+        gfx::Rgba badgeCol = v.confident ? 0xFFD300FFu : (v.rpsCount > 0 ? 0xB8D8E4FFu : 0x6E8694FFu);
+        drawHudText(x + bw - 5.5f * xs - bwText, hdrY, badge, badgeCol, hdrScale);
+
+        static const char* const kBarLabels[3] = {"ATK", "GRB", "DEF"};
+        static const gfx::Rgba kBarCols[3] = {0xFF6B54FFu, 0xFFD300FFu, 0x38B8FFFFu};
+        const u8 pcts[3] = {v.atkPct, v.grabPct, v.defPct};
+        float rowScale = ui::style::scaleForCap(6.0f);
+        float barX = x + 29.0f * xs;
+        float barW = 73.0f * xs;
+        for (int r = 0; r < 3; r++)
+        {
+            float ry = y + 18.0f + static_cast<float>(r) * 9.0f;
+            float ty = ui::style::textYForCap(ry, rowScale);
+            drawHudText(x + 5.5f * xs, ty, kBarLabels[r], 0xC6D8E0FFu, rowScale);
+            gfx::fillRect(barX, ry + 0.4f, barW, 5.2f, 0x0A151CE8u);
+            if (pcts[r] > 0)
+            {
+                float fw = barW * (static_cast<float>(pcts[r]) * 0.01f);
+                gfx::fillRect(barX, ry + 0.4f, fw, 5.2f, kBarCols[r]);
+            }
+            char pctBuf[8];
+            snprintf(pctBuf, sizeof(pctBuf), "%u%%", static_cast<unsigned>(pcts[r]));
+            float pw = gfx::textWidth(pctBuf, rowScale);
+            drawHudText(x + bw - 5.5f * xs - pw, ty, pctBuf, 0xE6F2F8FFu, rowScale);
+        }
+
+        char foot[28];
+        gfx::Rgba footCol = 0x8BA6B4FFu;
+        if (activeMode)
+        {
+            if (v.confident && v.biasAction != kBiasNone)
+            {
+                snprintf(foot, sizeof(foot), "Bias: %s", adaptiveBiasLabel(v.biasAction));
+                footCol = 0xFFE24AFFu;
+            }
+            else
+            {
+                strcpy(foot, "Learning P1...");
+            }
+        }
+        else
+        {
+            if (v.rpsCount > 0)
+            {
+                snprintf(foot, sizeof(foot), "Read: %s", adaptiveRpsLabel(v.dominantRps));
+                footCol = v.confident ? 0x7CE6E0FFu : 0xB8CDD6FFu;
+            }
+            else
+            {
+                strcpy(foot, "Watching P1...");
+            }
+        }
+        float footY = ui::style::textYForCap(y + 46.0f, rowScale);
+        drawHudText(x + 5.5f * xs, footY, foot, footCol, rowScale);
+        s_debug.hudDraws++;
     }
 }
 }
