@@ -1136,3 +1136,93 @@ TEST(stage4c, regressions_recovery_snake_and_flow_course)
     CHECK_NEAR(sv.floor.rightX, fc.gates[kFlowGateEdgeBurst].maxX, 0.01f);
     CHECK_NEAR(sv.floor.rightX - fc.edgeWidth, fc.gates[kFlowGateEdgeBurst].minX, 0.01f);
 }
+
+TEST(stage4c, recovery_sweetspot_3d_gx_guide_geometry_and_clamping)
+{
+    // Final Destination ledges (-85, 0) and (+85, 0) with custom cliff-hang box.
+    StageGeometry fd = makeFdGeom();
+    RecoveryGuideGeom g;
+    CHECK(computeRecoveryGuideGeom(fd, 0.0f, 8.0f, 14.0f, 12.0f, g));
+    CHECK_EQ(1, g.valid);
+
+    // Left ledge (dir = +1 -> outward = -1): offstage pocket extends left of lip (-85 - 14 = -99).
+    CHECK_NEAR(-85.0f, g.sides[0].lipX, 0.01f);
+    CHECK_NEAR(0.0f, g.sides[0].lipY, 0.01f);
+    CHECK_NEAR(-1.0f, g.sides[0].outward, 0.01f);
+    CHECK_NEAR(-99.0f, g.sides[0].grabMinX, 0.01f);
+    CHECK_NEAR(-85.0f, g.sides[0].grabMaxX, 0.01f);
+    CHECK_NEAR(-20.0f, g.sides[0].grabMinY, 0.01f);
+    CHECK_NEAR(-8.0f, g.sides[0].grabMaxY, 0.01f);
+    CHECK_NEAR(kRecSweetspotMaxPeakAboveLip, g.sides[0].sweetCeilY, 0.01f);
+    CHECK_NEAR(-85.0f - kRecNearLedgeHorizWindow, g.sides[0].sweetMinX, 0.01f);
+    CHECK_NEAR(-85.0f, g.sides[0].sweetMaxX, 0.01f);
+
+    // Right ledge (dir = -1 -> outward = +1): offstage pocket extends right of lip (+85 + 14 = +99).
+    CHECK_NEAR(85.0f, g.sides[1].lipX, 0.01f);
+    CHECK_NEAR(1.0f, g.sides[1].outward, 0.01f);
+    CHECK_NEAR(85.0f, g.sides[1].grabMinX, 0.01f);
+    CHECK_NEAR(99.0f, g.sides[1].grabMaxX, 0.01f);
+    CHECK_NEAR(85.0f, g.sides[1].sweetMinX, 0.01f);
+    CHECK_NEAR(85.0f + kRecNearLedgeHorizWindow, g.sides[1].sweetMaxX, 0.01f);
+
+    // Zero / out-of-range cliff-hang dimensions clamp cleanly to safe defaults (w=10, offY=9, h=10).
+    RecoveryGuideGeom gClamp;
+    CHECK(computeRecoveryGuideGeom(fd, 0.0f, 0.0f, 0.0f, 999.0f, gClamp));
+    CHECK_NEAR(10.0f, gClamp.sides[1].grabMaxX - gClamp.sides[1].grabMinX, 0.01f);
+    CHECK_NEAR(-19.0f, gClamp.sides[1].grabMinY, 0.01f);
+    CHECK_NEAR(-9.0f, gClamp.sides[1].grabMaxY, 0.01f);
+
+    // Stage without ledges returns false / invalid.
+    StageGeometry noLedge = fd;
+    noLedge.hasLedges = false;
+    RecoveryGuideGeom gInvalid;
+    CHECK(!computeRecoveryGuideGeom(noLedge, 0.0f, 8.0f, 14.0f, 12.0f, gInvalid));
+    CHECK_EQ(0, gInvalid.valid);
+}
+
+TEST(stage4c, floorhug_meta_knight_sticky_taunt_reset_guard)
+{
+    CHECK(floorhugIsTauntStatus(kFhStAppeal));
+    CHECK(floorhugIsTauntStatus(kFhStSmashAppeal));
+    CHECK(!floorhugIsTauntStatus(0x00));
+    CHECK(!floorhugIsTauntStatus(0x43));
+
+    // 1. Non-Floorhug, non-taunt savestate loads leave Meta Knight (0x16) and
+    //    all other fighters completely untouched (neither taunt interrupt nor
+    //    visibility/hurtbox module wipe).
+    CHECK(!floorhugNeedsTauntInterrupt(kFhFtMetaKnight, 0x00, kFhTauntGuardFrames, false, false));
+    CHECK(!floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStAppeal, kFhTauntGuardFrames, false, false));
+    CHECK(!floorhugNeedsMetaKnightModuleRestore(kFhFtMetaKnight, true, false, false));
+    CHECK(!floorhugNeedsMetaKnightModuleRestore(kCsFtFox, true, false, false));
+
+    // 2. Non-Floorhug savestate loads that interrupted an active Meta Knight
+    //    AppealHi (wasInTaunt == true) DO repair Meta Knight's taunt & modules.
+    CHECK(floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStAppeal, kFhTauntGuardFrames, false, true));
+    CHECK(floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStSmashAppeal, 1, false, true));
+    CHECK(floorhugNeedsMetaKnightModuleRestore(kFhFtMetaKnight, true, false, true));
+    CHECK(!floorhugNeedsMetaKnightModuleRestore(kFhFtMetaKnight, false, false, true));
+
+    // 3. Non-Floorhug savestate loads of another fighter (e.g. Luigi 0x09 or
+    //    Snake 0x2A) in taunt do NOT cancel their taunt or restore modules.
+    CHECK(!floorhugNeedsTauntInterrupt(0x09, kFhStAppeal, kFhTauntGuardFrames, false, true));
+    CHECK(!floorhugNeedsTauntInterrupt(kSnkFtSnake, kFhStAppeal, kFhTauntGuardFrames, false, true));
+    CHECK(!floorhugNeedsMetaKnightModuleRestore(0x09, true, false, true));
+    CHECK(!floorhugNeedsMetaKnightModuleRestore(kSnkFtSnake, true, false, true));
+
+    // 4. Active Floorhug resets (floorhugActive == true) protect Meta Knight
+    //    and other fighters during the 6-frame guard window, and stop at 0.
+    CHECK(floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStAppeal, kFhTauntGuardFrames, true, false));
+    CHECK(floorhugNeedsTauntInterrupt(kCsFtFox, kFhStAppeal, 3, true, false));
+    CHECK(floorhugNeedsMetaKnightModuleRestore(kFhFtMetaKnight, true, true, false));
+    CHECK(!floorhugNeedsMetaKnightModuleRestore(kCsFtFox, true, true, false));
+    CHECK(!floorhugNeedsTauntInterrupt(kFhFtMetaKnight, 0x00, kFhTauntGuardFrames, true, true));
+    CHECK(!floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStAppeal, 0, true, true));
+
+    // 5. Taunt mask bit keys by HUD playerNo (0..15) + partner bit (distinct non-zero bits).
+    CHECK_EQ(1u << 0, floorhugTauntMaskBit(0, false));
+    CHECK_EQ(1u << 1, floorhugTauntMaskBit(0, true));
+    CHECK_EQ(1u << 2, floorhugTauntMaskBit(1, false));
+    CHECK_EQ(1u << 7, floorhugTauntMaskBit(3, true));
+    CHECK_EQ(0u, floorhugTauntMaskBit(-1, false));
+    CHECK_EQ(0u, floorhugTauntMaskBit(16, false));
+}

@@ -1,16 +1,31 @@
 #include "extra/challenge_backends.h"
 
+#include <GX/GXGeometry.h>
+#include <GX/GXTypes.h>
+#include <GX/GXVert.h>
+#include <ft/fighter.h>
+#include <gf/gf_camera.h>
+#include <so/collision/so_collision_hit_module_impl.h>
 #include <so/controller/so_controller_module_impl.h>
+#include <so/ground/so_ground_module_impl.h>
+#include <so/ground/so_ground_shape_impl.h>
 #include <so/so_module_accesser.h>
+#include <so/status/so_status_module_impl.h>
+#include <so/visibility/so_visibility_module_impl.h>
 #include <so/work/so_work_manage_module_impl.h>
 #include <string.h>
 
+#include "extra/drill_hud.h"
 #include "extra/drill_pplus_tech_engines.h"
 #include "extra/net_alloc.h"
 #include "extra/stage_geom.h"
 #include "main/game/body.h"
 #include "main/game/fighters.h"
+#include "main/game/status_ids.h"
 #include "main/game/tracker.h"
+#include "main/gfx/draw.h"
+#include "main/lab.h"
+#include "shared/drill_session.h"
 #include "shared/game/mem.h"
 #include "shared/log.h"
 
@@ -23,6 +38,7 @@ namespace extra {
         enum {
             kPosturePrevPos = 0x18,
             kPostureLr = 0x40,
+            kCollCliffBoxOffset = 0x3C,        // grCollStatus cliff-hang box floats (0x801357F0)
             kLaBasicLedgeGrabs = 79,           // LA-Basic[79] (Ledge.asm:495-513)
             kVarSnakeCypherUses = 0x11000034u, // LA-Float[52] (FitSnake.pac 0x2CBF8)
             kVarSnakeCypherUsed = 0x1200003Du  // LA-Bit[61]   (FitSnake.pac 0x2CC18)
@@ -36,6 +52,7 @@ namespace extra {
             int ftKind;
             const Fighter* fighter;
             u32 taskId;
+            u8 inTaunt;
             CancelSprintState cs;
             FlowCourseState fc;
             ReactionTechchaseState rt;
@@ -48,6 +65,13 @@ namespace extra {
             ChallengeSlot slots[game::kMaxTracked];
             ChallengeFrame frames[game::kMaxTracked];
             u16 reactionRings[game::kMaxTracked * kReactionRingCap];
+            StageGeometry cachedGeom;
+            u32 guideDrawCalls;
+            u32 tauntInterrupts;
+            u32 preResetTauntMask;
+            u8 tauntGuardFrames;
+            u8 floorhugGuardActive;
+            u8 haveGeom;
         };
 
         NetState* s_net = NULL;
@@ -110,6 +134,7 @@ namespace extra {
                 slot.rt.ring = s_net->reactionRings + idx * kReactionRingCap;
                 slot.rt.ringCap = kReactionRingCap;
             }
+            slot.inTaunt = 0;
             cancelSprintResetTransient(slot.cs);
             flowCourseResetTransient(slot.fc);
             reactionTechchaseResetTransient(slot.rt);
@@ -183,6 +208,96 @@ namespace extra {
             out.valid = 1;
             return t;
         }
+        ChallengeSlot* slotAt(int trackedSlot)
+        {
+            return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked
+                    && s_net->slots[trackedSlot].active)
+                       ? &s_net->slots[trackedSlot]
+                       : NULL;
+        }
+
+        void restoreTauntModules(const soModuleEnumeration* m)
+        {
+            if (ramOk(m->m_visibilityModule))
+            {
+                m->m_visibilityModule->setWhole(1);
+                m->m_visibilityModule->setDefaultAll();
+            }
+            if (ramOk(m->m_collisionHitModule))
+            {
+                m->m_collisionHitModule->setWhole(0, 0);
+                m->m_collisionHitModule->resetStatusAll(0);
+                m->m_collisionHitModule->resetStatusGlobal(0);
+            }
+            if (ramOk(m->m_controllerModule))
+            {
+                m->m_controllerModule->resetButton();
+                m->m_controllerModule->resetTrigger();
+            }
+        }
+
+        void interruptFighterTaunt(Fighter* f, int playerNo, bool partner, int ftKind, u8 guardFrames, bool onReset)
+        {
+            const soModuleEnumeration* m = game::fighterModules(f);
+            if (m == NULL)
+            {
+                return;
+            }
+            bool floorhugActive = s_net->floorhugGuardActive != 0;
+            bool wasInTaunt = (s_net->preResetTauntMask & floorhugTauntMaskBit(playerNo, partner)) != 0u;
+            int st = game::fighterStatus(m);
+            if (floorhugNeedsTauntInterrupt(ftKind, static_cast<s16>(st), guardFrames, floorhugActive, wasInTaunt))
+            {
+                if (ramOk(m->m_statusModule) && ramOk(f->m_moduleAccesser))
+                {
+                    m->m_statusModule->changeStatusForce(game::kStatusWait, f->m_moduleAccesser);
+                }
+                restoreTauntModules(m);
+                s_net->tauntInterrupts++;
+                TM_LOG("challenge4c: interrupted sticky taunt (ft %#x, st %#x)\n", ftKind, st);
+            }
+            else if (floorhugNeedsMetaKnightModuleRestore(ftKind, onReset, floorhugActive, wasInTaunt))
+            {
+                // Savestate loads may already have restored status to Wait while
+                // Meta Knight's AppealHi vanish/hurtbox flags remained dirty.
+                restoreTauntModules(m);
+            }
+        }
+
+        void scanInterruptTaunts(bool onReset)
+        {
+            if (s_net == NULL || s_net->tauntGuardFrames == 0)
+            {
+                return;
+            }
+            game::FighterRef refs[game::kMaxFighters];
+            int n = game::listFighters(refs, game::kMaxFighters);
+            for (int i = 0; i < n; i++)
+            {
+                if (ramOk(refs[i].fighter))
+                {
+                    interruptFighterTaunt(refs[i].fighter, refs[i].playerNo, false,
+                                          game::fighterKind(refs[i].entryId, false), s_net->tauntGuardFrames, onReset);
+                }
+                if (ramOk(refs[i].partner) && refs[i].partner != refs[i].fighter)
+                {
+                    interruptFighterTaunt(refs[i].partner, refs[i].playerNo, true,
+                                          game::fighterKind(refs[i].entryId, true), s_net->tauntGuardFrames, onReset);
+                }
+            }
+        }
+    }
+
+    void challengeBackendsInterruptTaunts()
+    {
+        if (s_net == NULL)
+        {
+            return;
+        }
+        s_net->floorhugGuardActive = 1;
+        s_net->preResetTauntMask = 0u;
+        s_net->tauntGuardFrames = kFhTauntGuardFrames;
+        scanInterruptTaunts(true);
     }
 
     void challengeBackendsAttach()
@@ -225,6 +340,32 @@ namespace extra {
         {
             return;
         }
+        u32 preResetTauntMask = 0u;
+        for (int i = 0; i < game::kMaxTracked; i++)
+        {
+            if (s_net->slots[i].active && s_net->slots[i].inTaunt != 0)
+            {
+                preResetTauntMask |= floorhugTauntMaskBit(s_net->slots[i].playerNo, s_net->slots[i].partner);
+            }
+        }
+        game::FighterRef refs[game::kMaxFighters];
+        int n = game::listFighters(refs, game::kMaxFighters);
+        for (int i = 0; i < n; i++)
+        {
+            const soModuleEnumeration* m = game::fighterModules(refs[i].fighter);
+            if (m != NULL && floorhugIsTauntStatus(static_cast<s16>(game::fighterStatus(m))))
+            {
+                preResetTauntMask |= floorhugTauntMaskBit(refs[i].playerNo, false);
+            }
+            if (ramOk(refs[i].partner) && refs[i].partner != refs[i].fighter)
+            {
+                const soModuleEnumeration* mp = game::fighterModules(refs[i].partner);
+                if (mp != NULL && floorhugIsTauntStatus(static_cast<s16>(game::fighterStatus(mp))))
+                {
+                    preResetTauntMask |= floorhugTauntMaskBit(refs[i].playerNo, true);
+                }
+            }
+        }
         for (int i = 0; i < game::kMaxTracked; i++)
         {
             resetSlot(i, false);
@@ -234,6 +375,25 @@ namespace extra {
             }
         }
         s_net->debug.resetCount = s_resetCount;
+
+        // Only arm the taunt/AppealHi reset guard during Floorhug or when a
+        // fighter was actually in taunt right before reset, so non-taunt
+        // Training Lab savestates (e.g. Meta Knight Dimensional Cape, ledge
+        // invuln, or solo-standby hidden CPU) are never disturbed.
+        bool floorhugActive = (drillHudActiveId() == drills::kDrillFloorhug);
+        if (floorhugActive || preResetTauntMask != 0u)
+        {
+            s_net->preResetTauntMask = preResetTauntMask;
+            s_net->floorhugGuardActive = floorhugActive ? 1 : 0;
+            s_net->tauntGuardFrames = kFhTauntGuardFrames;
+            scanInterruptTaunts(true);
+        }
+        else
+        {
+            s_net->tauntGuardFrames = 0;
+            s_net->preResetTauntMask = 0u;
+            s_net->floorhugGuardActive = 0;
+        }
     }
 
     void challengeBackendsFrame()
@@ -250,12 +410,24 @@ namespace extra {
         s_prevFrame = f;
         s_net->debug.frame = static_cast<u32>(f >= 0 ? f : 0);
 
+        if (s_net->tauntGuardFrames > 0)
+        {
+            scanInterruptTaunts(false);
+            s_net->tauntGuardFrames--;
+            if (s_net->tauntGuardFrames == 0)
+            {
+                s_net->preResetTauntMask = 0u;
+                s_net->floorhugGuardActive = 0;
+            }
+        }
+
         game::FighterRef refs[game::kMaxFighters];
         int refCount = game::listFighters(refs, game::kMaxFighters);
 
-        StageGeometry geom;
+        StageGeometry& geom = s_net->cachedGeom;
         memset(&geom, 0, sizeof(geom));
         bool haveGeom = queryStageGeometry(geom, false, true);
+        s_net->haveGeom = haveGeom ? 1 : 0;
 
         ChallengeFrame* frames = s_net->frames;
         memset(frames, 0, sizeof(s_net->frames));
@@ -294,6 +466,7 @@ namespace extra {
             }
             ChallengeSlot& slot = s_net->slots[i];
             const ChallengeFrame& cf = frames[i];
+            slot.inTaunt = floorhugIsTauntStatus(cf.status) ? 1 : 0;
 
             cancelSprintStep(slot.cs, cf);
             if (haveGeom)
@@ -317,6 +490,153 @@ namespace extra {
             mirrorSlot(slot, f);
         }
     }
+
+    // Draws 3D GX world-space ledge-grab box and sweetspot ceiling guides on
+    // both ledges while Universal Recovery Sweetspot challenge is active.
+    void challengeBackendsDraw3d(const game::MatchState& match)
+    {
+        if (s_net == NULL || !match.running || match.paused || lab::menuOpen()
+            || drillHudActiveId() != drills::kDrillRecoverySweetspot || !s_net->haveGeom)
+        {
+            return;
+        }
+        gfCameraManager* camMgr = gfCameraManager::getManager();
+        if (!ramOk(camMgr))
+        {
+            return;
+        }
+
+        float offX = -4.0f, offY = 9.0f, cw = 10.0f, ch = 10.0f;
+        bool overshoot = false;
+        const ChallengeSlot* hmnSlot = NULL;
+        for (int i = 0; i < game::kMaxTracked; i++)
+        {
+            const game::Tracked* t = game::tracked(i);
+            if (t != NULL && t->used && !t->partner && !t->cpu && s_net->slots[i].active)
+            {
+                hmnSlot = &s_net->slots[i];
+                const soModuleEnumeration* m = game::fighterModules(t->fighter);
+                if (m != NULL && ramOk(m->m_groundModule))
+                {
+                    grCollStatus* cs = m->m_groundModule->getCollStatus(0);
+                    if (ramOk(cs))
+                    {
+                        const float* f = reinterpret_cast<const float*>(reinterpret_cast<u32>(cs) + kCollCliffBoxOffset);
+                        offX = f[0];
+                        offY = f[1];
+                        cw = f[2];
+                        ch = f[3];
+                    }
+                }
+                break;
+            }
+        }
+        if (hmnSlot != NULL && hmnSlot->rf.offstageActive && hmnSlot->rf.sawPeakNearLip
+            && hmnSlot->rf.maxHeightAboveLip > kRecSweetspotMaxPeakAboveLip)
+        {
+            overshoot = true;
+        }
+
+        RecoveryGuideGeom guide;
+        if (!computeRecoveryGuideGeom(s_net->cachedGeom, offX, offY, cw, ch, guide))
+        {
+            return;
+        }
+
+        const gfx::Rgba kBoxTop = 0x22B8CC48u;
+        const gfx::Rgba kBoxBot = 0x0C48589Cu;
+        const gfx::Rgba kBoxEdge = 0x4CE6F0F0u;
+        const gfx::Rgba kBandFill = overshoot ? 0xFF66583Cu : 0x4CE68834u;
+        const gfx::Rgba kRailCol = overshoot ? 0xFF6658F0u : 0xFFD300F0u;
+        const gfx::Rgba kLipCol = 0xFFFFFFFFu;
+
+        camMgr->m_cameras[0].setGX();
+        gfx::forgetState();
+        gfx::prepare();
+
+        // Translucent ledge-grab pocket + sweetspot band on both ledges.
+        GXBegin(GX_QUADS, GX_VTXFMT1, 16);
+        for (int s = 0; s < 2; s++)
+        {
+            const RecoveryLedgeGuide& d = guide.sides[s];
+            gfx::vertex(d.grabMinX, d.grabMaxY, kBoxTop);
+            gfx::vertex(d.grabMaxX, d.grabMaxY, kBoxTop);
+            gfx::vertex(d.grabMaxX, d.grabMinY, kBoxBot);
+            gfx::vertex(d.grabMinX, d.grabMinY, kBoxBot);
+
+            gfx::vertex(d.sweetMinX, d.sweetCeilY, kBandFill);
+            gfx::vertex(d.sweetMaxX, d.sweetCeilY, kBandFill);
+            gfx::vertex(d.sweetMaxX, d.lipY, kBandFill);
+            gfx::vertex(d.sweetMinX, d.lipY, kBandFill);
+        }
+        GXEnd();
+
+        // Ledge-grab box outline + sweetspot ceiling target line + lip tick.
+        gfx::lineBegin(GX_LINES, 36, 14);
+        for (int s = 0; s < 2; s++)
+        {
+            const RecoveryLedgeGuide& d = guide.sides[s];
+            // Grab box rectangle (4 segments)
+            gfx::vertex(d.grabMinX, d.grabMaxY, kBoxEdge);
+            gfx::vertex(d.grabMaxX, d.grabMaxY, kBoxEdge);
+            gfx::vertex(d.grabMinX, d.grabMinY, kBoxEdge);
+            gfx::vertex(d.grabMaxX, d.grabMinY, kBoxEdge);
+            gfx::vertex(d.grabMinX, d.grabMinY, kBoxEdge);
+            gfx::vertex(d.grabMinX, d.grabMaxY, kBoxEdge);
+            gfx::vertex(d.grabMaxX, d.grabMinY, kBoxEdge);
+            gfx::vertex(d.grabMaxX, d.grabMaxY, kBoxEdge);
+            // Sweetspot ceiling rail + end ticks (3 segments)
+            gfx::vertex(d.sweetMinX, d.sweetCeilY, kRailCol);
+            gfx::vertex(d.sweetMaxX, d.sweetCeilY, kRailCol);
+            gfx::vertex(d.sweetMinX, d.lipY, kRailCol);
+            gfx::vertex(d.sweetMinX, d.sweetCeilY, kRailCol);
+            gfx::vertex(d.sweetMaxX, d.lipY, kRailCol);
+            gfx::vertex(d.sweetMaxX, d.sweetCeilY, kRailCol);
+            // Ledge lip horizontal + vertical crosshair (2 segments)
+            gfx::vertex(d.lipX - 2.0f, d.lipY, kLipCol);
+            gfx::vertex(d.lipX + 2.0f, d.lipY, kLipCol);
+            gfx::vertex(d.lipX, d.lipY - 2.0f, kLipCol);
+            gfx::vertex(d.lipX, d.lipY + 2.0f, kLipCol);
+        }
+        GXEnd();
+
+        GXSetLineWidth(6, 0);
+        gfx::forgetState();
+        s_net->guideDrawCalls++;
+    }
+
+    const CancelSprintState* challengeCancelSprint(int trackedSlot)
+    {
+        ChallengeSlot* s = slotAt(trackedSlot);
+        return s != NULL ? &s->cs : NULL;
+    }
+
+    const FlowCourseState* challengeFlowCourse(int trackedSlot)
+    {
+        ChallengeSlot* s = slotAt(trackedSlot);
+        return s != NULL ? &s->fc : NULL;
+    }
+
+    const ReactionTechchaseState* challengeReactionTechchase(int trackedSlot)
+    {
+        ChallengeSlot* s = slotAt(trackedSlot);
+        return s != NULL ? &s->rt : NULL;
+    }
+
+    const RecoveryFloorhugState* challengeRecoveryFloorhug(int trackedSlot)
+    {
+        ChallengeSlot* s = slotAt(trackedSlot);
+        return s != NULL ? &s->rf : NULL;
+    }
+
+    const SnakeRecoveryState* challengeSnakeRecovery(int trackedSlot)
+    {
+        ChallengeSlot* s = slotAt(trackedSlot);
+        return s != NULL ? &s->snk : NULL;
+    }
+
+    u32 challengeRecoveryGuideDrawCalls() { return s_net != NULL ? s_net->guideDrawCalls : 0u; }
+    u32 challengeTauntInterruptCount() { return s_net != NULL ? s_net->tauntInterrupts : 0u; }
 
     const ChallengeDebugBlock* challengeDebugBlock()
     {

@@ -262,6 +262,9 @@ namespace extra {
         timingMeterDraw(match);
         drillPracticeDraw(match);
         comboBreakRushDraw3d(match);
+#if TM_STAGE4C
+        challengeBackendsDraw3d(match);
+#endif
     }
 
     static u32 onDrillHook(u32 phase, gfPadStatus* pads)

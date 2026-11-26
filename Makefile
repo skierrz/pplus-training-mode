@@ -142,10 +142,10 @@ EXTRA_PROOF ?= 0
 ifeq ($(EXTRA_PROOF),1)
 BUILD   := $(BUILD)/proof
 endif
-# STAGE4C=1: compile experimental unwired Stage 4C challenge backends into extra.
-STAGE4C ?= 0
-ifeq ($(STAGE4C),1)
-BUILD   := $(BUILD)/stage4c
+# STAGE4C=1: compile Stage 4C P+ challenges and character trainers into extra.
+STAGE4C ?= 1
+ifeq ($(STAGE4C),0)
+BUILD   := $(BUILD)/no-stage4c
 endif
 TOOLS   ?= tools
 # Optional local copy of the upstream template for `make tools`.

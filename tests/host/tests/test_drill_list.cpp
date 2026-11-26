@@ -903,12 +903,13 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     menu::list::attach();
     stepFrame(pads); // neutral clears wait-release
 
-    // Starts on Page 0 (All Modes, 19 rows: Lab -> Core Fundamentals ->
-    // Defensive & Situational -> P+ Advanced Tech -> Browse Recordings).
+    // Starts on Page 0 (All Modes, 26 rows: Lab -> Core Fundamentals ->
+    // Defensive & Situational -> P+ Advanced Tech -> P+ Challenges ->
+    // Character Trainers -> Browse Recordings).
     CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
 
     // Step through All Modes and verify intuitive ordering & recommendation badges.
-    for (int i = 0; i < 18; i++)
+    for (int i = 0; i < 25; i++)
     {
         setPadInput(pads[0], kDpadDown);
         stepFrame(pads);
@@ -926,9 +927,11 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     CHECK(host::log::contains("drills: row 15 DACUS"));
     CHECK(host::log::contains("drills: row 16 B-Reverse / Wavebounce"));
     CHECK(host::log::contains("drills: row 17 Float / Hover & DJC"));
-    CHECK(host::log::contains("drills: row 18 Browse Recordings"));
+    CHECK(host::log::contains("drills: row 18 Cancel Sprint"));
+    CHECK(host::log::contains("drills: row 24 Snake Infinite Recovery"));
+    CHECK(host::log::contains("drills: row 25 Browse Recordings"));
 
-    // Select row 18 (Browse Recordings) -> opens browser, B returns to Boot Menu.
+    // Select row 25 (Browse Recordings) -> opens browser, B returns to Boot Menu.
     setPadInput(pads[0], kButtonA);
     stepFrame(pads);
     CHECK(host::log::contains("browser: opened for port 1"));
@@ -993,7 +996,8 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     CHECK_EQ(9, static_cast<int>(menu::session().pendingScenario));
     CHECK(host::log::contains("drills: scenario 9 (P+ Multi-Hit SDI) armed"));
 
-    // Reopen, cycle R -> Tech Practice (Page 3) -> All Modes (Page 0), select row 0 (Training Lab) -> clears pendingScenario to 0!
+    // Reopen, cycle R -> Tech Practice (Page 3) -> Challenges (Page 4) -> Character Trainers (Page 5)
+    // -> All Modes (Page 0), select row 0 (Training Lab) -> clears pendingScenario to 0!
     setPadInput(pads[0], 0);
     stepFrame(pads);
     setPadInput(pads[0], game::kPadL | game::kPadR);
@@ -1003,6 +1007,16 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     setPadInput(pads[0], game::kPadR);
     stepFrame(pads);
     CHECK(host::log::contains("drills: page Tech Practice"));
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+    setPadInput(pads[0], game::kPadR);
+    stepFrame(pads);
+    CHECK(host::log::contains("drills: page Challenges"));
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+    setPadInput(pads[0], game::kPadR);
+    stepFrame(pads);
+    CHECK(host::log::contains("drills: page Character Trainers"));
     setPadInput(pads[0], 0);
     stepFrame(pads);
     setPadInput(pads[0], game::kPadR);
@@ -1093,12 +1107,15 @@ TEST(drill_list, skill_drills_section_arms_drill_and_shows_personal_best)
     menu::list::attach();
     stepFrame(pads);
 
-    // L from All Modes wraps directly to Page 3 (Tech Practice, 8 single-page rows).
-    setPadInput(pads[0], game::kPadL);
-    stepFrame(pads);
+    // 3x R from All Modes reaches Page 3 (Tech Practice, 8 single-page rows).
+    for (int p = 0; p < 3; p++)
+    {
+        setPadInput(pads[0], game::kPadR);
+        stepFrame(pads);
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+    }
     CHECK(host::log::contains("drills: page Tech Practice"));
-    setPadInput(pads[0], 0);
-    stepFrame(pads);
 
     // Details card shows Best Streak placeholder when best == 0.
     host::canvas::clear();
@@ -1157,10 +1174,13 @@ TEST(drill_list, tech_practice_eight_rows_and_recommendation_badges)
     stepFrame(pads);
 
     // Verify all 8 Tech Practice rows arm their exact DrillId on one page without scrolling.
-    setPadInput(pads[0], game::kPadL);
-    stepFrame(pads);
-    setPadInput(pads[0], 0);
-    stepFrame(pads);
+    for (int p = 0; p < 3; p++)
+    {
+        setPadInput(pads[0], game::kPadR);
+        stepFrame(pads);
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+    }
 
     static const u8 kExpectedDrills[8] = {
         drills::kDrillLCancel,    drills::kDrillWavedash, drills::kDrillLedgedash, drills::kDrillPowershield,
@@ -1560,5 +1580,87 @@ TEST(drill_list, return_from_match_reopens_but_stage_select_back_stays_closed)
     CHECK_EQ(0, static_cast<int>(menu::session().matchRan));
     CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
     CHECK_EQ(static_cast<int>(drills::kDrillNone), static_cast<int>(menu::session().drill));
+    menu::list::detach();
+}
+
+TEST(drill_list, challenges_and_character_trainers_tabs_arm_all_seven_and_show_snake_card)
+{
+    gfPadStatus pads[iface::kPadCount];
+    initPads(pads, 1u << 0);
+    host::fakes::setMenuPort(0);
+    host::fakes::setTrainingSelectRunning(true);
+    menu::list::attach();
+    stepFrame(pads);
+
+    // L from All Modes wraps directly to Page 5 (Character Trainers, 1 row: Snake Infinite Recovery).
+    setPadInput(pads[0], game::kPadL);
+    stepFrame(pads);
+    CHECK(host::log::contains("drills: page Character Trainers"));
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+
+    menu::session().best[drills::kDrillSnakeRecovery] = 4;
+    host::canvas::clear();
+    menu::list::onRender(0);
+    CHECK(canvasDrew("Character Trainers"));
+    CHECK(canvasDrew("Snake Infinite Recovery"));
+    CHECK(canvasDrew("Duelist - Cypher & C4 recovery chain"));
+    CHECK(canvasDrew("Recommended: Snake"));
+    CHECK(canvasDrew("Best: 4"));
+
+    // Select Snake Infinite Recovery -> arms kDrillSnakeRecovery (15) and shows CSS mode pill.
+    setPadInput(pads[0], kButtonA);
+    stepFrame(pads);
+    CHECK_EQ(static_cast<int>(drills::kDrillSnakeRecovery), static_cast<int>(menu::session().drill));
+    CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
+    CHECK_EQ(5, static_cast<int>(menu::session().page));
+    CHECK_EQ(0, static_cast<int>(menu::session().row));
+
+    host::canvas::clear();
+    menu::list::onRender(0);
+    CHECK(canvasDrew("SNAKE RECOVERY"));
+
+    // Reopen and press L -> Page 4 (Challenges, 6 rows arming IDs 9..14).
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+    setPadInput(pads[0], game::kPadL | game::kPadR);
+    stepFrame(pads);
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+    setPadInput(pads[0], game::kPadL);
+    stepFrame(pads);
+    CHECK(host::log::contains("drills: page Challenges"));
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+
+    static const u8 kExpectedChallenges[6] = {
+        drills::kDrillCancelSprint,       drills::kDrillFlowCourse,        drills::kDrillReactionLab,
+        drills::kDrillTechchaseEscape,    drills::kDrillRecoverySweetspot, drills::kDrillFloorhug
+    };
+    for (int r = 0; r < 6; r++)
+    {
+        if (r > 0)
+        {
+            setPadInput(pads[0], game::kPadL | game::kPadR);
+            stepFrame(pads);
+            setPadInput(pads[0], 0);
+            stepFrame(pads);
+            setPadInput(pads[0], kDpadDown);
+            stepFrame(pads);
+            setPadInput(pads[0], 0);
+            stepFrame(pads);
+        }
+        if (r == 4)
+        {
+            host::canvas::clear();
+            menu::list::onRender(0);
+            CHECK(canvasDrew("3D Ledge Guides"));
+        }
+        setPadInput(pads[0], kButtonA);
+        stepFrame(pads);
+        CHECK_EQ(static_cast<int>(kExpectedChallenges[r]), static_cast<int>(menu::session().drill));
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+    }
     menu::list::detach();
 }

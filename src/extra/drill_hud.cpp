@@ -4,6 +4,12 @@
 #include <gf/gf_pad_status.h>
 #include <string.h>
 
+#ifndef TM_STAGE4C
+#define TM_STAGE4C 0
+#endif
+#if TM_STAGE4C
+#include "extra/challenge_backends.h"
+#endif
 #include "extra/drill_core_engines.h"
 #include "extra/drill_float_djc_core.h"
 #include "extra/drill_hover_ps_engines.h"
@@ -172,7 +178,12 @@ namespace extra {
             // the pill never collides with the counter text.
             u8 target = drillModeTargetReps(st.mode);
             char buf[28];
-            if (target == 0)
+            if (st.mode == kDrillModeTimed60)
+            {
+                unsigned secs = static_cast<unsigned>((st.timerFrames + 59u) / 60u);
+                snprintf(buf, sizeof(buf), "%02us  HIT %u", secs, static_cast<unsigned>(st.totalHit));
+            }
+            else if (target == 0)
             {
                 unsigned pct = st.totalAtt > 0u ? (static_cast<unsigned>(st.totalHit) * 100u) / st.totalAtt : 0u;
                 snprintf(buf, sizeof(buf), "%u/%u (%u%%)", static_cast<unsigned>(st.totalHit),
@@ -185,16 +196,17 @@ namespace extra {
             }
             float rightTextW = gfx::textWidth(buf, kScales[0]);
 
-            // Compact Brawl-styled mode pill beside title (FREE / 10-REP / 20-REP).
+            // Compact Brawl-styled mode pill beside title (FREE / 10-REP / 20-REP / 60s).
             const char* modeTxt = drillModeLabel(st.mode);
             float titleW = gfx::displayTextWidth(drillHudTitle(st.activeDrill), kScales[2]);
             float pillX = lx + titleW + 6.0f * xs;
             float pillW = gfx::textWidth(modeTxt, kScales[0]) + 8.0f * xs;
             if (pillX + pillW < rx - rightTextW - 6.0f * xs)
             {
+                bool scored = (target > 0 || st.mode == kDrillModeTimed60);
                 gfx::fillRect(pillX, 29.5f, pillW, 12.0f, 0x07141AE8u);
                 gfx::fillGradV(pillX + xs, 30.5f, pillW - 2.0f * xs, 10.0f,
-                               target == 0 ? 0x1B6B76FFu : 0xB88200FFu, target == 0 ? 0x0E3D45FFu : 0x7A5000FFu);
+                               scored ? 0xB88200FFu : 0x1B6B76FFu, scored ? 0x7A5000FFu : 0x0E3D45FFu);
                 label(pillX + pillW * 0.5f, 31.5f, modeTxt, 0xFFFFFFFFu, kAlignCenter);
             }
 
@@ -224,8 +236,9 @@ namespace extra {
             float ox = 320.0f - 192.0f * xs;
             float ix = ox + 4.0f * xs;
             float iw = 376.0f * xs;
+            bool timed = st.mode == kDrillModeTimed60;
             u8 target = drillModeTargetReps(st.mode);
-            if (target == 0)
+            if (!timed && target == 0)
             {
                 target = kDrillSetReps10;
             }
@@ -239,12 +252,22 @@ namespace extra {
             char buf[28];
             snprintf(buf, sizeof(buf), "%s PRACTICE", drillHudTitle(st.activeDrill));
             label(320.0f, 115.0f, buf, 0xFFFFFFFFu, kAlignCenter | kSzDisp13);
-            snprintf(buf, sizeof(buf), "%u-REP SET COMPLETE", static_cast<unsigned>(target));
+            if (timed)
+            {
+                snprintf(buf, sizeof(buf), "60s RUN COMPLETE");
+            }
+            else
+            {
+                snprintf(buf, sizeof(buf), "%u-REP SET COMPLETE", static_cast<unsigned>(target));
+            }
             label(320.0f, 136.0f, buf, 0xFFF5B8FFu, kAlignCenter);
 
-            unsigned hits = st.totalHit < target ? st.totalHit : static_cast<unsigned>(target);
-            unsigned pct = (hits * 100u) / static_cast<unsigned>(target);
-            snprintf(buf, sizeof(buf), "%u / %u  (%u%%)", hits, static_cast<unsigned>(target), pct);
+            unsigned denom = timed ? (st.totalAtt > 0u ? static_cast<unsigned>(st.totalAtt) : 1u)
+                                   : static_cast<unsigned>(target);
+            unsigned hits = timed ? static_cast<unsigned>(st.totalHit)
+                                  : (st.totalHit < target ? static_cast<unsigned>(st.totalHit) : static_cast<unsigned>(target));
+            unsigned pct = (timed && st.totalAtt == 0u) ? 0u : (hits * 100u) / denom;
+            snprintf(buf, sizeof(buf), "%u / %u  (%u%%)", hits, timed ? static_cast<unsigned>(st.totalAtt) : denom, pct);
             u8 scFl = kAlignCenter | kSzDisp20 | (pct >= 80u ? kDispGold : (pct < 50u ? kDispRed : 0));
             label(320.0f, 166.0f, buf, pct >= 80u ? 0xFFE866FFu : (pct >= 50u ? 0xFFFFFFFFu : 0xFF9E92FFu), scFl);
 
@@ -257,7 +280,7 @@ namespace extra {
             else
             {
                 float pw = 220.0f * xs;
-                drawPips(320.0f - pw * 0.5f, 202.0f, pw, 6.0f, static_cast<int>(target));
+                drawPips(320.0f - pw * 0.5f, 202.0f, pw, 6.0f, timed ? kDrillFreePips : static_cast<int>(target));
             }
 
             float rowX = ox + 20.0f * xs;
@@ -336,8 +359,8 @@ namespace extra {
         drillHudInit(s_rt.st, id, id ? s_rt.sess->best[id] : 0u);
         drillPracticeSetActiveDrill(id);
         ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
-        pm->activeDrill = id;
-        pm->mode = s_rt.st.mode;
+        pm->activeDrill = id < kPracticeDrillCount ? id : static_cast<u8>(drills::kDrillNone);
+        pm->mode = s_rt.st.mode < 3u ? s_rt.st.mode : 0u;
         if (id)
         {
             s_rt.sess->drillRan = 1;
@@ -452,6 +475,38 @@ namespace extra {
             {
                 feed.brev = pplusTechBReverse(slot);
             }
+#if TM_STAGE4C
+            else if (d == drills::kDrillCancelSprint)
+            {
+                feed.cs = challengeCancelSprint(slot);
+                const game::Tracked* tr = game::tracked(slot);
+                if (tr != NULL)
+                {
+                    feed.ineligibleFighter = cancelSprintSpec(game::fighterKind(tr->entryId, tr->partner)) == NULL;
+                }
+            }
+            else if (d == drills::kDrillFlowCourse)
+            {
+                feed.fc = challengeFlowCourse(slot);
+            }
+            else if (d == drills::kDrillReactionLab || d == drills::kDrillTechchaseEscape)
+            {
+                feed.rt = challengeReactionTechchase(slot);
+            }
+            else if (d == drills::kDrillRecoverySweetspot || d == drills::kDrillFloorhug)
+            {
+                feed.rf = challengeRecoveryFloorhug(slot);
+            }
+            else if (d == drills::kDrillSnakeRecovery)
+            {
+                feed.snk = challengeSnakeRecovery(slot);
+                const game::Tracked* tr = game::tracked(slot);
+                if (tr != NULL)
+                {
+                    feed.ineligibleFighter = game::fighterKind(tr->entryId, tr->partner) != kSnkFtSnake;
+                }
+            }
+#endif
             if (!s_rt.synced)
             {
                 drillHudPoll(st, feed, true);
@@ -465,6 +520,12 @@ namespace extra {
                     s_rt.waitRelease = 1;
                     ui::menuSound(game::kSoundConfirm);
                 }
+            }
+            if (!st.modalOpen && drillHudTickTimer(st))
+            {
+                saveBest = true;
+                s_rt.waitRelease = 1;
+                ui::menuSound(game::kSoundConfirm);
             }
         }
         if (saveBest && s_rt.sess)
@@ -496,8 +557,13 @@ namespace extra {
             const WdZoneState* wz = drillPracticeWdZone();
             bool wdZone = active && st.activeDrill == drills::kDrillWavedash && drillPracticeConfig().wdTargetZone != 0u
                           && wz != NULL && wz->active != 0u;
+#if TM_STAGE4C
+            bool recGuide = active && st.activeDrill == drills::kDrillRecoverySweetspot;
+#else
+            bool recGuide = false;
+#endif
             return (active ? 1u : 0u) | (st.modalOpen ? 2u : 0u) | (drillPracticeClaimsDpadLR() ? 4u : 0u)
-                   | (wdZone ? 8u : 0u);
+                   | ((wdZone || recGuide) ? 8u : 0u);
         }
         if (phase == iface::kPadsSystem)
         {
@@ -537,9 +603,15 @@ namespace extra {
                     if (modBit != 0 && (held & modBit) != 0)
                     {
                         drillHudCycleMode(st);
-                        ui::pages::practiceMenuState()->mode = st.mode;
+                        ui::pages::practiceMenuState()->mode = st.mode < 3u ? st.mode : 0u;
                         s_rt.synced = 0;
                         s_rt.releaseMask[i] |= game::kPadDUp;
+#if TM_STAGE4C
+                        if (st.activeDrill == drills::kDrillFloorhug)
+                        {
+                            challengeBackendsInterruptTaunts();
+                        }
+#endif
                         ui::menuSound(game::kSoundMove);
                         syncDebug();
                     }
@@ -565,6 +637,12 @@ namespace extra {
                     {
                         drillHudRetry(st);
                         drillPracticeReset();
+#if TM_STAGE4C
+                        if (isChallengeDrill(st.activeDrill))
+                        {
+                            challengeBackendsReset();
+                        }
+#endif
                         s_rt.synced = 0;
                     }
                     else
@@ -670,7 +748,7 @@ namespace extra {
         }
         u8 clean = mode < kDrillModeCount ? mode : static_cast<u8>(kDrillModeFree);
         Runtime& s_rt = *s_rtPtr;
-        ui::pages::practiceMenuState()->mode = clean;
+        ui::pages::practiceMenuState()->mode = clean < 3u ? clean : 0u;
         if (clean != s_rt.st.mode)
         {
             drillHudInitMode(s_rt.st, s_rt.st.activeDrill, s_rt.st.sessionBest, clean);
