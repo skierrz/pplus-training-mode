@@ -473,7 +473,7 @@ namespace ui {
                 o.onChange();
             }
         }
-        return next != v;
+        return optionValue(def, o) != v;
     }
 
     bool menuStep(const MenuDef& def, MenuState& state, const MenuInput& in)

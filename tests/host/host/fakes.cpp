@@ -616,6 +616,8 @@ namespace record {
     {
         return host::fakes::s_recording.rows;
     }
+
+    void showMessage(const char*) {}
 }
 
 namespace cpu {

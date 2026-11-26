@@ -13,6 +13,14 @@ namespace tm {
 namespace ui {
 namespace pages {
 #define TM_SCRATCH(f) static_cast<u16>(offsetof(AlterCopy, f))
+    // Keeps AlterCopy::frame clamped to [slot.start + 1, slot.end] even when
+    // slot.start >= 255 exceeds Option::min's u8 range on Wii, and refreshes
+    // the displayed axes and buttons for the selected frame immediately.
+    static void alterFrameChanged()
+    {
+        main::extraAlterRow();
+    }
+
 #ifdef __MWERKS__
     extern Page kAlterInputs = {"Alter Inputs", NULL, 0, {0, 0, 0}};
     static Option* s_alterRows = NULL;
@@ -21,11 +29,11 @@ namespace pages {
     {
         s_alterRows = buf;
         static const u16 kStrs[2] = {kPs_fmt_d, kPs_alt_kPressed};
-        static void (*const kCbs[2])() = {NULL, main::extraAlterEdited};
+        static void (*const kCbs[3])() = {NULL, main::extraAlterEdited, alterFrameChanged};
         static bool (*const kGates[2])() = {NULL, main::extraAlterRow};
         const u8 kAx = kFlagScratch | kFlagHalf | kFlagSigned;
         static const RowSpec kSpecs[16] = {
-            {kKindInt,    kFlagScratch | kFlagHalf, TM_SCRATCH(frame), 1, 1, 3600, 0, 0, 1, 0},
+            {kKindInt,    kFlagScratch | kFlagHalf, TM_SCRATCH(frame), 1, 1, 3600, 0, 2, 1, 0},
             {kKindInt,    kAx, TM_SCRATCH(axis) + 0,  -80, 0, 80,  0, 1, 1, 0},
             {kKindInt,    kAx, TM_SCRATCH(axis) + 2,  -80, 0, 80,  0, 1, 1, 0},
             {kKindInt,    kAx, TM_SCRATCH(axis) + 4,  -80, 0, 80,  0, 1, 1, 0},
@@ -45,11 +53,16 @@ namespace pages {
         fillPageRows(kAlterInputs, buf, 16, kSpecs, kPs_alt_names, kStrs, NULL, kCbs, kGates);
     }
 
+    void detachAlterInputsPage()
+    {
+        s_alterRows = NULL;
+    }
+
     // Called from the extra module; keep from linker dead-stripping.
 #pragma force_active on
-    Option& alterFrameRow()
+    Option* alterFrameRow()
     {
-        return s_alterRows[0];
+        return s_alterRows;
     }
 #pragma force_active reset
 #else
@@ -66,7 +79,7 @@ namespace pages {
     // Non-const: the Frame row's range follows the selected slot length.
     static Option kRows[] = {
         TM_ROW(::tm::ui::kKindInt, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHalf, TM_SCRATCH(frame), 1, 3600, 1,
-               "Frame", "%d", NULL, main::extraAlterRow),
+               "Frame", "%d", alterFrameChanged, main::extraAlterRow),
         TM_AXIS("Stick X", 0, -80),
         TM_AXIS("Stick Y", 1, -80),
         TM_AXIS("C-Stick X", 2, -80),
@@ -86,9 +99,9 @@ namespace pages {
 #undef TM_BUTTON
 #undef TM_AXIS
 
-    Option& alterFrameRow()
+    Option* alterFrameRow()
     {
-        return kRows[0];
+        return &kRows[0];
     }
 
     extern const Page kAlterInputs = TM_PAGE("Alter Inputs", kRows);

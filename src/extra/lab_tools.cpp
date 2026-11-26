@@ -89,15 +89,28 @@ namespace extra {
     bool alterRow()
     {
         record::Slot* s = slot();
-        ui::Option& frame = ui::pages::alterFrameRow();
+        ui::Option* frame = ui::pages::alterFrameRow();
+        if (frame == NULL)
+        {
+            return false;
+        }
         if (s == NULL || record::slotEmpty(*s))
         {
-            frame.min = frame.max = 1;
+            frame->min = 1;
+            frame->max = 1;
             return false;
         }
         ui::pages::AlterCopy& c = copy();
-        frame.min = static_cast<s16>(s->start + 1);
-        frame.max = static_cast<s16>(s->end);
+        int lo = s->start + 1;
+        // Option::min is u8 on Wii; cap at 255 here and enforce the exact
+        // [s->start + 1, s->end] range below (and from the Frame row onChange).
+        int clampedMin = lo > 255 ? 255 : lo;
+#ifdef __MWERKS__
+        frame->min = static_cast<u8>(clampedMin);
+#else
+        frame->min = static_cast<s16>(clampedMin);
+#endif
+        frame->max = static_cast<s16>(s->end);
         c.frame = static_cast<u16>(c.frame <= s->start ? s->start + 1 : (c.frame > s->end ? s->end : c.frame));
         record::Input in;
         frameAt(*s, c.frame - 1, in);
@@ -125,6 +138,10 @@ namespace extra {
             return;
         }
         const ui::pages::AlterCopy& c = copy();
+        if (c.frame <= s->start || c.frame > s->end)
+        {
+            return;
+        }
         int t = c.frame - 1;
         record::Input in;
         frameAt(*s, t, in);

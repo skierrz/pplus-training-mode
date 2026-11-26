@@ -3,14 +3,19 @@
 // and RecordingSettings::startOnFirstInput sanitization.
 #include <string.h>
 
+#include "extra/lab_tools.h"
 #include "host/canvas.h"
 #include "host/fakes.h"
 #include "host/test.h"
+#include "main/extra.h"
 #include "main/gfx/text.h"
 #include "main/record/hud.h"
 #include "main/record/slots.h"
 #include "main/record/start_input.h"
 #include "main/settings.h"
+#include "main/ui/menu.h"
+#include "main/ui/pages/alter_inputs.h"
+#include "main/ui/pages/pages.h"
 
 using namespace tm;
 
@@ -367,4 +372,113 @@ TEST(record_slots, packed_run_log_reclaims_ram_and_preserves_bit_exact_rewind)
     REQUIRE(record::slotRead(log, 9, check));
     CHECK_EQ(alt.buttons, check.buttons);
     CHECK(!record::slotRead(log, 10, check));
+}
+
+namespace {
+    u8* alterTestValues()
+    {
+        return reinterpret_cast<u8*>(&main::settings());
+    }
+}
+
+TEST(record_slots, alter_inputs_frame_min_clamps_above_255)
+{
+    host::fakes::reset();
+    main::ExtraHooks hooks;
+    memset(&hooks, 0, sizeof(hooks));
+    hooks.alterRow = extra::alterRow;
+    hooks.alterEdited = extra::alterEdited;
+    main::setExtraHooks(&hooks);
+
+    REQUIRE(record::storageAllocate());
+    main::settings().recording.manageSide = 0;
+    main::settings().recording.manageSlot = 0;
+    record::Slot* s = record::slotAt(0, 0);
+    REQUIRE(s != NULL);
+
+    static const ui::Page* const kOnePage[1] = {&ui::pages::kAlterInputs};
+    static const ui::MenuDef kDef = {kOnePage, 1, alterTestValues, 0, NULL, NULL, 0, NULL};
+    ui::pages::AlterCopy& copy = *reinterpret_cast<ui::pages::AlterCopy*>(ui::menuScratch());
+
+    const int kStarts[2] = {255, 300};
+    for (int tc = 0; tc < 2; tc++)
+    {
+        const int start = kStarts[tc];
+        const int end = start + 6;
+        record::slotClear(*s);
+        for (int f = start; f < end; f++)
+        {
+            record::Input in = neutralInput();
+            in.x = static_cast<float>(f - start + 1) / 80.0f;
+            in.buttons = ((f - start) & 1) ? 0x1u : 0x4u;
+            record::slotWrite(*s, f, in);
+        }
+        CHECK_EQ(static_cast<u16>(start), s->start);
+        CHECK_EQ(static_cast<u16>(end), s->end);
+
+        memset(&copy, 0, sizeof(copy));
+        ui::MenuState state;
+        ui::menuReset(kDef, state);
+
+        REQUIRE(extra::alterRow());
+        ui::Option* frameRow = ui::pages::alterFrameRow();
+        REQUIRE(frameRow != NULL);
+        CHECK_EQ(255, static_cast<int>(frameRow->min));
+        CHECK_EQ(end, static_cast<int>(frameRow->max));
+        CHECK_EQ(static_cast<u16>(start + 1), copy.frame);
+        CHECK_EQ(1, static_cast<int>(copy.axis[0]));
+
+        // Stepping Left (or fast-Left) from s->start + 1 must stay clamped at
+        // s->start + 1 and never drop to 0 or pre-start frames.
+        ui::MenuInput in;
+        memset(&in, 0, sizeof(in));
+        in.left = 1;
+        CHECK(ui::menuStep(kDef, state, in));
+        CHECK_EQ(static_cast<u16>(start + 1), copy.frame);
+        CHECK_EQ(1, static_cast<int>(copy.axis[0]));
+
+        in.left = 20;
+        CHECK(ui::menuStep(kDef, state, in));
+        CHECK_EQ(static_cast<u16>(start + 1), copy.frame);
+
+        // Stepping Right advances into the slot and refreshes the displayed frame.
+        memset(&in, 0, sizeof(in));
+        in.right = 2;
+        CHECK(ui::menuStep(kDef, state, in));
+        CHECK_EQ(static_cast<u16>(start + 3), copy.frame);
+        CHECK_EQ(3, static_cast<int>(copy.axis[0]));
+
+        // Large Left step back clamps cleanly to s->start + 1.
+        memset(&in, 0, sizeof(in));
+        in.left = 50;
+        CHECK(ui::menuStep(kDef, state, in));
+        CHECK_EQ(static_cast<u16>(start + 1), copy.frame);
+        CHECK_EQ(1, static_cast<int>(copy.axis[0]));
+
+        // Out-of-range copy.frame is ignored safely by alterEdited().
+        copy.frame = 0;
+        copy.axis[0] = 77;
+        extra::alterEdited();
+        copy.frame = static_cast<u16>(start);
+        extra::alterEdited();
+        record::Input verify;
+        REQUIRE(record::slotRead(*s, start, verify));
+        CHECK_EQ(1, static_cast<int>(verify.x * 80.0f + 0.5f));
+
+        // Valid edit inside [s->start + 1, s->end] persists cleanly.
+        copy.frame = static_cast<u16>(start + 2);
+        REQUIRE(extra::alterRow());
+        copy.axis[0] = 42;
+        extra::alterEdited();
+        REQUIRE(record::slotRead(*s, start + 1, verify));
+        CHECK_EQ(42, static_cast<int>(verify.x * 80.0f + 0.5f));
+    }
+
+    if (ui::Option* frameRow = ui::pages::alterFrameRow())
+    {
+        frameRow->min = 1;
+        frameRow->max = 3600;
+    }
+    main::setExtraHooks(NULL);
+    record::storageFree();
 }
