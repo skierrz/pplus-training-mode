@@ -618,13 +618,15 @@ TEST(drill_list, draw_pending_shows_css_mode_pill_and_reopen_works)
     menu::list::attach();
     stepFrame(pads);
 
-    // Brawl-styled CSS mode pill shows active mode + controller-appropriate reopen hint.
+    // Brawl-styled CSS mode pill shows active mode + controller-appropriate reopen badges.
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK(host::canvas::runs() >= 2);
-    CHECK(host::canvas::rects() >= 2);
+    CHECK(host::canvas::runs() >= 4);
+    CHECK(host::canvas::rects() >= 4);
     CHECK(canvasDrew("TRAINING LAB"));
-    CHECK(canvasDrew("B / C+Z: Modes"));
+    CHECK(canvasDrew("B"));
+    CHECK(canvasDrew("C+Z"));
+    CHECK(canvasDrew("Modes"));
     CHECK(strcmp(menu::list::reopenHint(), "C+Z = Training Menu") == 0);
 
     setPadType(pads, 4, gfPadType::WIIMOTE);
@@ -632,14 +634,18 @@ TEST(drill_list, draw_pending_shows_css_mode_pill_and_reopen_works)
     host::canvas::clear();
     menu::list::onRender(0);
     CHECK(canvasDrew("TRAINING LAB"));
-    CHECK(canvasDrew("1 / - + B: Modes"));
+    CHECK(canvasDrew("1"));
+    CHECK(canvasDrew("- + B"));
+    CHECK(canvasDrew("Modes"));
     CHECK(strcmp(menu::list::reopenHint(), "- + B = Training Menu") == 0);
 
     setPadType(pads, 4, gfPadType::WII_CLASSIC);
     stepFrame(pads);
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK(canvasDrew("B / L+R: Modes"));
+    CHECK(canvasDrew("B"));
+    CHECK(canvasDrew("L+R"));
+    CHECK(canvasDrew("Modes"));
     CHECK(strcmp(menu::list::reopenHint(), "L+R = Training Menu") == 0);
 
     pads[0].m_error = gfPadError::NONE;
@@ -647,7 +653,9 @@ TEST(drill_list, draw_pending_shows_css_mode_pill_and_reopen_works)
     stepFrame(pads);
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK(canvasDrew("B / L+R: Modes"));
+    CHECK(canvasDrew("B"));
+    CHECK(canvasDrew("L+R"));
+    CHECK(canvasDrew("Modes"));
     CHECK(strcmp(menu::list::reopenHint(), "L+R = Training Menu") == 0);
 
     // Armed tech practice shows its own name in the CSS mode pill.
@@ -827,7 +835,7 @@ TEST(drill_list, per_controller_footer_and_browser_labels)
     CHECK(canvasDrew("X"));
     CHECK(canvasDrew("Recordings"));
     CHECK(canvasDrew("Y"));
-    CHECK(canvasDrew("OSDs"));
+    CHECK(canvasDrew("Overlays"));
     CHECK(canvasDrew("L/R"));
     CHECK(canvasDrew("Section"));
 
@@ -908,8 +916,8 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     // Character Trainers -> Browse Recordings).
     CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
 
-    // Step through All Modes and verify intuitive ordering & recommendation badges.
-    for (int i = 0; i < 26; i++)
+    // Step through All Modes (28 rows) and verify intuitive ordering & recommendation badges.
+    for (int i = 0; i < 27; i++)
     {
         setPadInput(pads[0], kDpadDown);
         stepFrame(pads);
@@ -920,19 +928,20 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     CHECK(host::log::contains("drills: row 2 Wavedash / Waveland"));
     CHECK(host::log::contains("drills: row 3 Ledgedash"));
     CHECK(host::log::contains("drills: row 4 Combo Lab"));
-    CHECK(host::log::contains("drills: row 8 Powershield"));
-    CHECK(host::log::contains("drills: row 11 Slide-Off"));
-    CHECK(host::log::contains("drills: row 13 P+ Multi-Hit SDI"));
-    CHECK(host::log::contains("drills: row 14 RAR"));
-    CHECK(host::log::contains("drills: row 15 DACUS"));
-    CHECK(host::log::contains("drills: row 16 B-Reverse / Wavebounce"));
-    CHECK(host::log::contains("drills: row 17 Float / Hover & DJC"));
-    CHECK(host::log::contains("drills: row 18 Cancel Sprint"));
-    CHECK(host::log::contains("drills: row 24 Combo-Break Rush"));
-    CHECK(host::log::contains("drills: row 25 Snake Infinite Recovery"));
-    CHECK(host::log::contains("drills: row 26 Browse Recordings"));
+    CHECK(host::log::contains("drills: row 8 OoS Reversal - Defense"));
+    CHECK(host::log::contains("drills: row 9 Powershield"));
+    CHECK(host::log::contains("drills: row 12 Slide-Off"));
+    CHECK(host::log::contains("drills: row 14 P+ Multi-Hit SDI"));
+    CHECK(host::log::contains("drills: row 15 RAR"));
+    CHECK(host::log::contains("drills: row 16 DACUS"));
+    CHECK(host::log::contains("drills: row 17 B-Reverse / Wavebounce"));
+    CHECK(host::log::contains("drills: row 18 Float / Hover & DJC"));
+    CHECK(host::log::contains("drills: row 19 Cancel Sprint"));
+    CHECK(host::log::contains("drills: row 25 Combo-Break Rush"));
+    CHECK(host::log::contains("drills: row 26 Snake Infinite Recovery"));
+    CHECK(host::log::contains("drills: row 27 Browse Recordings"));
 
-    // Select row 26 (Browse Recordings) -> opens browser, B returns to Boot Menu.
+    // Select row 27 (Browse Recordings) -> opens browser, B returns to Boot Menu.
     setPadInput(pads[0], kButtonA);
     stepFrame(pads);
     CHECK(host::log::contains("browser: opened for port 1"));
@@ -951,7 +960,7 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
-    // Move down to row 3 in Offense (Shield Pressure / OoS, presetId = 4) and select it.
+    // Move down to row 3 in Offense (Shield Pressure - Offense, presetId = 4) and select it.
     for (int i = 0; i < 3; i++)
     {
         setPadInput(pads[0], kDpadDown);
@@ -959,22 +968,22 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
         setPadInput(pads[0], 0);
         stepFrame(pads);
     }
-    CHECK(host::log::contains("drills: row 3 Shield Pressure / OoS"));
+    CHECK(host::log::contains("drills: row 3 Shield Pressure - Offense"));
     setPadInput(pads[0], kButtonA);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: scenario 4 (Shield Pressure / OoS) armed"));
-    CHECK(host::log::contains("drills: list closed (Shield Pressure / OoS)"));
+    CHECK(host::log::contains("drills: scenario 4 (Shield Pressure - Offense) armed"));
+    CHECK(host::log::contains("drills: list closed (Shield Pressure - Offense)"));
     CHECK_EQ(4, static_cast<int>(menu::session().pendingScenario));
     CHECK_EQ(1, static_cast<int>(menu::session().page));
     CHECK_EQ(3, static_cast<int>(menu::session().row));
     CHECK_EQ(1, static_cast<int>(menu::session().labChosen));
 
-    // Reopen with L+R: remembers Page 1 (Offense), Row 3 (Shield Pressure / OoS).
+    // Reopen with L+R: remembers Page 1 (Offense), Row 3 (Shield Pressure - Offense).
     setPadInput(pads[0], 0);
     stepFrame(pads);
     setPadInput(pads[0], game::kPadL | game::kPadR);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: list opened (L+R) for port 1, row 3 Shield Pressure / OoS"));
+    CHECK(host::log::contains("drills: list opened (L+R) for port 1, row 3 Shield Pressure - Offense"));
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
@@ -1124,7 +1133,7 @@ TEST(drill_list, skill_drills_section_arms_drill_and_shows_personal_best)
     CHECK(canvasDrew("Tech Practice"));
     CHECK(canvasDrew("L-Cancel"));
     CHECK(canvasDrew("Best Streak"));
-    CHECK(canvasDrew("Best: --"));
+    CHECK(canvasDrew("--"));
 
     // Move down to Ledgedash (row 2 of Tech Practice) and select it -> arms drill 1, clears scenario, closes list.
     for (int i = 0; i < 2; i++)
@@ -1161,7 +1170,7 @@ TEST(drill_list, skill_drills_section_arms_drill_and_shows_personal_best)
 
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK(canvasDrew("Best: 8"));
+    CHECK(canvasDrew("8"));
     menu::list::detach();
 }
 
@@ -1174,7 +1183,7 @@ TEST(drill_list, tech_practice_eight_rows_and_recommendation_badges)
     menu::list::attach();
     stepFrame(pads);
 
-    // Verify all 8 Tech Practice rows arm their exact DrillId on one page without scrolling.
+    // Verify all 7 universal Tech Practice rows arm their exact DrillId on one page without scrolling.
     for (int p = 0; p < 3; p++)
     {
         setPadInput(pads[0], game::kPadR);
@@ -1183,11 +1192,11 @@ TEST(drill_list, tech_practice_eight_rows_and_recommendation_badges)
         stepFrame(pads);
     }
 
-    static const u8 kExpectedDrills[8] = {
+    static const u8 kExpectedDrills[7] = {
         drills::kDrillLCancel,    drills::kDrillWavedash, drills::kDrillLedgedash, drills::kDrillPowershield,
-        drills::kDrillRar,        drills::kDrillDacus,    drills::kDrillBReverse,  drills::kDrillHoverFloat
+        drills::kDrillRar,        drills::kDrillDacus,    drills::kDrillBReverse
     };
-    for (int r = 0; r < 8; r++)
+    for (int r = 0; r < 7; r++)
     {
         if (r > 0)
         {
@@ -1607,7 +1616,7 @@ TEST(drill_list, challenges_and_character_trainers_tabs_arm_all_seven_and_show_s
     CHECK(canvasDrew("Snake Infinite Recovery"));
     CHECK(canvasDrew("Duelist - Cypher & C4 recovery chain"));
     CHECK(canvasDrew("Recommended: Snake"));
-    CHECK(canvasDrew("Best: 4"));
+    CHECK(canvasDrew("4"));
 
     // Select Snake Infinite Recovery -> arms kDrillSnakeRecovery (15) and shows CSS mode pill.
     setPadInput(pads[0], kButtonA);
@@ -1665,7 +1674,7 @@ TEST(drill_list, challenges_and_character_trainers_tabs_arm_all_seven_and_show_s
             menu::list::onRender(0);
             CHECK(canvasDrew("3D Target Orbs"));
             CHECK(canvasDrew("Best Score"));
-            CHECK(canvasDrew("Best: 1250"));
+            CHECK(canvasDrew("1250"));
         }
         setPadInput(pads[0], kButtonA);
         stepFrame(pads);
