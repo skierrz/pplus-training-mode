@@ -152,6 +152,14 @@ namespace main {
     bool extraGanondorfRows() { return rngCall(kRngGanondorf); }
     bool extraIceClimbersRows() { return rngCall(kRngIceClimbers); }
     bool extraOlimarRows() { return rngCall(kRngOlimar); }
+    bool extraOlimarP1() { return rngCall(kRngOlimarP1); }
+    void extraOlimarAction(u32 action, u32 dpadHeld, u32 dpadPressed)
+    {
+        if (s_hooks != NULL && s_hooks->olimarAction != NULL)
+        {
+            s_hooks->olimarAction(action, dpadHeld, dpadPressed);
+        }
+    }
     bool extraCharacterRngPage() { return rngCall(kRngAny); }
 
     void extraStageOptionsTick() { stageCall(kStageTick); }

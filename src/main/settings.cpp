@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "extra/olimar_pikmin_logic.h"
 #include "main/cpu/actions.h"
 #include "main/cpu/lab_data.h"
 #include "main/game/overlays.h"
@@ -110,6 +111,7 @@ namespace main {
         }
 
         s.comboTrainer.enabledMeters &= kMeterAll;
+        extra::olimarSanitizeSettings(s.fighterMechanics);
     }
 
     Settings& settings()

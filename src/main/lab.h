@@ -75,6 +75,10 @@ namespace lab {
     // True when Combo Lab's L + D-Pad CPU % shortcut is held on raw system pads
     // (checked by savestate::onPads before it consumes or hides D-Pad Left/Right).
     bool comboLHeldOnPads(const gfPadStatus* pads);
+    // True when Olimar D-Pad Mode (B+D-Pad Pluck or Lineup Presets) owns the
+    // D-pad in an active Training match with P1 Olimar (suppresses Savestates,
+    // Taunts, and Lab D-pad shortcuts while keeping L+D-Pad CPU % active).
+    bool olimarDpadActive(const game::MatchState& m);
     void savestateCopying();
     void savestateLoaded();
     // Pre-swap teardown for overlays, OSDs, advantage/technique trackers,

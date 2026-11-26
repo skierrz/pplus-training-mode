@@ -40,6 +40,7 @@ namespace pages {
         P_CPU_COUNTERS,
         P_CPU_DEFENSE,
         P_COUNTER_POOL,
+        P_OLIMAR,
         P_COUNT
     };
     enum { kCategoryCount = 7 };
@@ -80,6 +81,7 @@ namespace pages {
     extern TM_PAGE_QUAL Page kCpuCounters;
     extern TM_PAGE_QUAL Page kCpuDefense;
     extern TM_PAGE_QUAL Page kCounterPool;
+    extern TM_PAGE_QUAL Page kOlimar;
 
 #ifdef __MWERKS__
     struct RowSpec {
@@ -122,6 +124,7 @@ namespace pages {
     void initSlotManagementPage(Option* buf);
     void initSlotChancesPages(Option* buf);
     void initLedgedashHudPage(Option* buf);
+    void initOlimarPage(Option* buf);
 #endif
 
     // Indexed by PageId (registry.cpp).

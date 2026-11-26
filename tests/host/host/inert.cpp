@@ -11,6 +11,7 @@
 #include "main/record/record.h"
 #include "main/savestate/savestate.h"
 #include "main/savestate/snapshot.h"
+#include "main/extra.h"
 #include "main/settings.h"
 #include "main/ui/info_display.h"
 #include "menu/game/training.h"
@@ -62,6 +63,12 @@ namespace lab {
     bool comboLHeldOnPads(const gfPadStatus*)
     {
         return false;
+    }
+    bool olimarDpadActive(const game::MatchState& m)
+    {
+        u8 mode = static_cast<u8>((main::settings().fighterMechanics.olimarColorMatAndMode >> 10) & 0x3u);
+        return mode != main::kOlimarDpadOff && mode < main::kOlimarDpadModeCount && m.running && m.training
+               && !m.paused && main::extraOlimarP1();
     }
     bool minusBoundToFrameAdvance(const game::MatchState& m)
     {

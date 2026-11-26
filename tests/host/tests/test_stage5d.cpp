@@ -189,17 +189,16 @@ TEST(stage5d, nana_throw_menu_row_and_storage_compat)
     CHECK_EQ(32u, sizeof(main::FighterMechanicsSettings));
     CHECK_EQ(464u, sizeof(main::Settings));
 
-    // Nana Throw is at index 32 (after Ganon Float at 31); Olimar Pikmin & Maturity follow at 33..34.
+    // Nana Throw is at index 32 (after Ganon Float at 31); Olimar submenu follows at 33.
     const ui::Page* page = ui::labMenu().pages[ui::pages::P_STAGE_CAST];
     REQUIRE(page != NULL);
-    CHECK_EQ(35, page->count);
+    CHECK_EQ(34, page->count);
     CHECK(strcmp(page->options[31].name, "Ganon Float") == 0);
     CHECK(strcmp(page->options[32].name, "Nana Throw") == 0);
-    CHECK(strcmp(page->options[33].name, "Olimar Pikmin") == 0);
-    CHECK(strcmp(page->options[34].name, "Olimar Maturity") == 0);
+    CHECK(strcmp(page->options[33].name, "Olimar") == 0);
     CHECK_EQ(main::kNanaThrowCount - 1, static_cast<int>(page->options[32].max));
-    CHECK_EQ(main::kOlimarPikminCount - 1, static_cast<int>(page->options[33].max));
-    CHECK_EQ(main::kOlimarMaturityCount - 1, static_cast<int>(page->options[34].max));
+    CHECK_EQ(static_cast<int>(ui::kKindMenu), static_cast<int>(page->options[33].kind));
+    CHECK_EQ(static_cast<int>(ui::pages::P_OLIMAR), static_cast<int>(page->options[33].max));
 
     // Storage round-trip and backwards compatibility with pre-nanaThrow area length (22 bytes).
     storage::detach();
@@ -228,7 +227,7 @@ TEST(stage5d, nana_throw_menu_row_and_storage_compat)
     // Truncate kAreaFighterMechanics to 22 bytes (before nanaThrow): loads Default (0).
     storage::AreaEntry* area = areaEntry("settings-a.bin", storage::kAreaFighterMechanics);
     REQUIRE(area != NULL);
-    CHECK_EQ(25u, area->used);
+    CHECK_EQ(32u, area->used);
     area->used = offsetof(main::FighterMechanicsSettings, nanaThrow);
     CHECK_EQ(22u, area->used);
     reseal("settings-a.bin");

@@ -116,6 +116,14 @@ namespace main {
         u32 (*drillHook)(u32 phase, gfPadStatus* pads);
         // TopLeft/TopRight OSD start Y stepped below active extra overlay columns.
         float (*osdTopStartY)(bool isTopRight);
+        // Olimar Lab Kit (extra/olimar_lab.h): OlimarAction + D-pad held/pressed masks.
+        void (*olimarAction)(u32 action, u32 dpadHeld, u32 dpadPressed);
+    };
+
+    enum OlimarAction {
+        kOlimarPreStep = 0,
+        kOlimarMoveLead = 1,
+        kOlimarSavestateLoaded = 2
     };
 
     // What the match module asks of the Scenario Presets engine.
@@ -155,7 +163,8 @@ namespace main {
         kRngSnake,
         kRngGanondorf,
         kRngIceClimbers,
-        kRngOlimar
+        kRngOlimar,
+        kRngOlimarP1
     };
 
     // What the match module asks of the Stage Options code.
@@ -202,6 +211,8 @@ namespace main {
     bool extraGanondorfRows();
     bool extraIceClimbersRows();
     bool extraOlimarRows();
+    bool extraOlimarP1();
+    void extraOlimarAction(u32 action, u32 dpadHeld, u32 dpadPressed);
     // The Main Menu row: any character the page has rows for.
     bool extraCharacterRngPage();
     // Stage Options rows on Stage & Cast. Without the extra module, or on a

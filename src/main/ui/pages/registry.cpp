@@ -53,7 +53,7 @@ namespace pages {
         kCpuAllRowCount = 14 + 6 + 12 + 7 + 15 + 66, // main, di, counters, defense, reversals, pool
         kOverlayRowCount = 34,                       // 17 P1 + 17 CPU
         kInfoRowCount = 20,                          // 10 P1 + 10 CPU
-        kStageCastRowCount = 35,
+        kStageCastRowCount = 34,
         kScenariosRowCount = 51,
         kOsdMenuRowCount = 26,
         kComboTrainerRowCount = 23,                  // 16 + 7 meters
@@ -67,11 +67,12 @@ namespace pages {
         kSlotChancesRowCount = 14,                   // 7 P1 + 7 CPU
         kAdvCounterRowCount = 8,
         kLedgedashHudRowCount = 4,
+        kOlimarRowCount = 22,
         kDynRowTotal = kCpuAllRowCount + kOverlayRowCount + kInfoRowCount + kStageCastRowCount
                        + kScenariosRowCount + kOsdMenuRowCount + kComboTrainerRowCount + kTechOptionsRowCount
                        + kRecordingRowCount + kGeneralRowCount + kControlsRowCount + kThemeRowCount
                        + kAlterInputsRowCount + kSlotManagementRowCount + kSlotChancesRowCount
-                       + kAdvCounterRowCount + kLedgedashHudRowCount
+                       + kAdvCounterRowCount + kLedgedashHudRowCount + kOlimarRowCount
     };
 
     static Option* s_dynRows = NULL;
@@ -110,7 +111,8 @@ namespace pages {
         initAlterInputsPage(p); p += kAlterInputsRowCount;
         initSlotManagementPage(p); p += kSlotManagementRowCount;
         initSlotChancesPages(p); p += kSlotChancesRowCount;
-        initLedgedashHudPage(p);
+        initLedgedashHudPage(p); p += kLedgedashHudRowCount;
+        initOlimarPage(p);
     }
 
     void pagesDetach()
@@ -119,7 +121,7 @@ namespace pages {
                              &kAdvancedCounter, &kHmnOverlays, &kCpuOverlays, &kHmnInfo, &kCpuInfo, &kStageCast,
                              &kScenarios, &kOsdMenu, &kComboTrainer, &kComboMeters, &kTechOptions, &kRecording,
                              &kGeneral, &kControls, &kTheme, &kAlterInputs, &kSlotManagement, &kHmnChances,
-                             &kCpuChances, &kLedgedashHud};
+                             &kCpuChances, &kLedgedashHud, &kOlimar};
         for (int i = 0; i < static_cast<int>(sizeof(dyn) / sizeof(dyn[0])); i++)
         {
             dyn[i]->options = NULL;
@@ -140,7 +142,7 @@ namespace pages {
         &kStageCast,    &kControls,     &kDebug,          &kComboTrainer, &kComboMeters,   &kTechOptions,
         &kAdvancedCounter, &kSlotManagement, &kAlterInputs, &kHmnChances, &kCpuChances,    &kHmnOverlays,
         &kCpuOverlays,  &kHmnInfo,      &kCpuInfo,        &kLedgedashHud, &kFighterSwap, &kTheme,
-        &kReversalSlots, &kCpuDi,       &kCpuCounters,    &kCpuDefense,  &kCounterPool
+        &kReversalSlots, &kCpuDi,       &kCpuCounters,    &kCpuDefense,  &kCounterPool, &kOlimar
     };
 }
 }

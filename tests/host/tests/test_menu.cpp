@@ -654,10 +654,12 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[50].max);
 
     const ui::Page& sc = ui::pages::kStageCast;
-    REQUIRE(sc.count == 35);
+    REQUIRE(sc.count == 34);
     CHECK(strcmp(sc.options[0].name, "Fighter Swap") == 0);
     CHECK_EQ(ui::pages::P_FIGHTER_SWAP, sc.options[0].max);
     CHECK(strcmp(sc.options[1].name, "Show Inactive Fighters") == 0);
+    CHECK(strcmp(sc.options[33].name, "Olimar") == 0);
+    CHECK_EQ(ui::pages::P_OLIMAR, sc.options[33].max);
     storage::detach();
 }
 
@@ -1514,7 +1516,7 @@ TEST(menu, compressed_option_descriptions_decode_all_pages_and_bounds)
     CHECK(strcmp(extra::optionDesc(ui::pages::P_GENERAL, 11),
                  "Switch directly to Brawl's built-in Training pause menu.") == 0);
     CHECK(strcmp(extra::optionDesc(ui::pages::P_STAGE_CAST, 33),
-                 "Force Olimar pluck to pull Red, Yellow, Blue, White, or Purple.") == 0);
+                 "Configure Olimar pull pool, maturity, lineup, whistle, and presets.") == 0);
     CHECK(strcmp(extra::optionDesc(ui::pages::P_COUNT, 9),
                  "End this session and return to the Character Select Screen.") == 0);
 }

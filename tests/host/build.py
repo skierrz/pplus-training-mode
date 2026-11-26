@@ -45,6 +45,7 @@ MOD_SOURCES = [
     "extra/fighter_mechanics.cpp",
     "extra/lab_tools.cpp",
     "extra/menu_descriptions.cpp",
+    "extra/olimar_lab.cpp",
     "extra/pplus_recovery_core.cpp",
     "extra/psa_opcodes.cpp",
     "extra/reversal_slots.cpp",

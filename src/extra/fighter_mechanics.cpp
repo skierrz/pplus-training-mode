@@ -17,6 +17,7 @@
 
 #include "extra/fighter_mechanics_logic.h"
 #include "extra/net_alloc.h"
+#include "extra/olimar_lab.h"
 #include "main/game/fighters.h"
 #include "main/settings.h"
 #include "shared/game/mem.h"
@@ -33,15 +34,7 @@ namespace extra {
             kDededeWeightCount = 4,
             kDededeParamDee = 4015,
             kDededeParamDoo = 4016,
-            kDededeParamGordo = 4017,
-            // FitPikmin.pac data+0x7C -> pullOutParam table (count 30 at +0x80;
-            // row 0: s32 gid=0, float speed=1.0, float weights[5]={1,1,1,1,1}
-            // for Red, Yellow, Blue, White, Purple; 0x80a6b864 & RSBE01.TXT:2963).
-            kOlimarDataTable = 0x7C,
-            kOlimarDataCount = 0x80,
-            kOlimarTableEntries = 30,
-            kOlimarWeightsOffset = 0x08,
-            kOlimarWeightCount = 5
+            kDededeParamGordo = 4017
         };
 
         struct WeightCache {
@@ -63,7 +56,6 @@ namespace extra {
 
         struct FighterMechNet {
             WeightCache dedede;
-            WeightCache olimar;
 #ifdef __MWERKS__
             VisualSlot vis[game::kMaxFighters];
 #endif
@@ -270,151 +262,6 @@ namespace extra {
             }
         }
 
-        void findOlimarWeights(WeightCache& c)
-        {
-            c.tried = true;
-            const void* data = extraFtCommonData(kFtOlimar);
-            if (!game::isRam(data))
-            {
-                c.data = NULL;
-                TM_LOG("fighter mech: Olimar fighter data not found: Pikmin pluck left alone\n");
-                return;
-            }
-            c.data = data;
-            u32 tableAddr = game::wordAt(data, kOlimarDataTable);
-            u32 count = game::wordAt(data, kOlimarDataCount);
-            if (!game::isRam(reinterpret_cast<const void*>(tableAddr)) || count != kOlimarTableEntries)
-            {
-                TM_LOG("fighter mech: Olimar pullOutParam invalid (%08x, %u): left alone\n", tableAddr, count);
-                return;
-            }
-            s32 gid = static_cast<s32>(game::wordAt(reinterpret_cast<const void*>(tableAddr), 0));
-            float speed = floatAt(reinterpret_cast<const void*>(tableAddr), 4);
-            float* weights = reinterpret_cast<float*>(tableAddr + kOlimarWeightsOffset);
-            if (!game::isRam(weights))
-            {
-                return;
-            }
-            bool ok = gid == 0 && speed == 1.0f && weights[0] == 1.0f && weights[1] == 1.0f && weights[2] == 1.0f
-                      && weights[3] == 1.0f && weights[4] == 1.0f;
-            TM_LOG("fighter mech: Olimar Pikmin weights at %08x (gid=%d spd=%.1f %.1f/%.1f/%.1f/%.1f/%.1f): %s\n",
-                   weights, gid, speed, weights[0], weights[1], weights[2], weights[3], weights[4],
-                   ok ? "ok" : "not as expected: left alone");
-            if (ok)
-            {
-                c.weights = weights;
-                writeWeights(c.orig, weights, kOlimarWeightCount);
-            }
-        }
-
-        void applyOlimarWeights(u8 choice)
-        {
-            if (s_net == NULL)
-            {
-                return;
-            }
-            WeightCache& c = s_net->olimar;
-            syncCache(c, kFtOlimar);
-            if (!c.tried)
-            {
-                findOlimarWeights(c);
-            }
-            if (!cacheResident(c, kFtOlimar, kOlimarDataTable, kOlimarWeightsOffset))
-            {
-                return;
-            }
-            float want[kOlimarWeightCount];
-            olimarPikminWeights(choice, c.orig, want);
-            writeWeights(c.weights, want, kOlimarWeightCount);
-        }
-
-#ifdef __MWERKS__
-        // Locks every active wnPikminPikmin article's maturity stage (LA-Basic[8]:
-        // 0 Leaf, 1 Bud, 2 Flower), zeroes its growth timer (LA-Basic[9]), and syncs
-        // model visibility group 0 (ft_pikmin.rel 0x1b61c..0x1b828; article array
-        // iteration matches sora_melee 0x8079eb0c..0x8079eb7c).
-        typedef s32 (*ArtArrSizeFn)(const void*);
-        typedef void** (*ArtArrAtFn)(void*, s32);
-        typedef int (*ArtGetIdFn)(void*);
-
-        void applyOlimarMaturity(const soModuleEnumeration* m, u8 rawChoice)
-        {
-            int target = olimarMaturityTarget(rawChoice);
-            if (target < 0 || !game::isRam(m->m_generateArticleManageModule))
-            {
-                return;
-            }
-            void* arr = reinterpret_cast<void*>(game::wordAt(m->m_generateArticleManageModule, 0x2C));
-            if (!game::isRam(arr))
-            {
-                return;
-            }
-            u32* arrVt = *reinterpret_cast<u32**>(arr);
-            if (!game::isRam(arrVt))
-            {
-                return;
-            }
-            ArtArrSizeFn sizeFn = reinterpret_cast<ArtArrSizeFn>(arrVt[0x14 / 4]);
-            ArtArrAtFn atFn = reinterpret_cast<ArtArrAtFn>(arrVt[0x0C / 4]);
-            if (!game::isRam(reinterpret_cast<const void*>(sizeFn))
-                || !game::isRam(reinterpret_cast<const void*>(atFn)))
-            {
-                return;
-            }
-            s32 count = sizeFn(arr);
-            if (count <= 0 || count > 16)
-            {
-                return;
-            }
-            for (s32 i = 0; i < count; i++)
-            {
-                void** slot = atFn(arr, i);
-                if (!game::isRam(slot) || !game::isRam(*slot))
-                {
-                    continue;
-                }
-                void* art = *slot;
-                u32* artVt = *reinterpret_cast<u32**>(art);
-                if (!game::isRam(artVt))
-                {
-                    continue;
-                }
-                ArtGetIdFn idFn = reinterpret_cast<ArtGetIdFn>(artVt[0x20 / 4]);
-                if (!game::isRam(reinterpret_cast<const void*>(idFn)) || idFn(art) != kPikminArticleId)
-                {
-                    continue;
-                }
-                // MWERKS secondary-base top-offset at vtable+4 (-0x88 inside Weapon).
-                s32 topOff = static_cast<s32>(artVt[1]);
-                if (topOff > 0 || topOff < -0x200)
-                {
-                    continue;
-                }
-                StageObject* obj = reinterpret_cast<StageObject*>(reinterpret_cast<u8*>(art) + topOff);
-                if (!game::isRam(obj) || !game::isRam(obj->m_moduleAccesser))
-                {
-                    continue;
-                }
-                const soModuleEnumeration* am = obj->m_moduleAccesser->m_enumerationStart;
-                if (!game::isRam(am) || !game::isRam(am->m_workManageModule) || !game::isRam(am->m_visibilityModule))
-                {
-                    continue;
-                }
-                soWorkManageModule* aWork = am->m_workManageModule;
-                soVisibilityModule* aVis = am->m_visibilityModule;
-                if (aWork->getInt(kVarPikminGrowTimer) != 0)
-                {
-                    aWork->setInt(0, kVarPikminGrowTimer);
-                }
-                if (aWork->getInt(kVarPikminMaturity) != target || aVis->get(0) != target)
-                {
-                    aWork->setInt(target, kVarPikminMaturity);
-                    aVis->setStatusDefault(0, static_cast<u8>(target), true);
-                }
-            }
-        }
-#endif
-
         void findDededeWeights(WeightCache& c, Fighter* fighter)
         {
             c.tried = true;
@@ -523,7 +370,7 @@ namespace extra {
             return;
         }
         clearCache(s_net->dedede);
-        clearCache(s_net->olimar);
+        olimarLabAttach();
 #ifdef __MWERKS__
         clearVisualSlots();
 #endif
@@ -536,11 +383,11 @@ namespace extra {
             return;
         }
         syncCache(s_net->dedede, kFtDedede);
-        syncCache(s_net->olimar, kFtOlimar);
+        olimarLabSync();
     }
 
     void fighterMechanicsApplyFighter(Fighter* fighter, const soModuleEnumeration* m, int ftKind, int status,
-                                      int playerNo)
+                                      int playerNo, bool isCpu)
     {
         if (m == NULL || !game::isRam(m->m_workManageModule))
         {
@@ -562,8 +409,6 @@ namespace extra {
         executePlan(work, plan);
 #ifdef __MWERKS__
         syncFighterVisuals(fighter, m, ftKind, status, playerNo, plan, hadPreVisual);
-#else
-        (void)playerNo;
 #endif
         if (ftKind == kFtDedede && fighter != NULL)
         {
@@ -571,21 +416,18 @@ namespace extra {
         }
         else if (ftKind == kFtOlimar)
         {
-            applyOlimarWeights(s.olimarPikmin);
-#ifdef __MWERKS__
-            applyOlimarMaturity(m, s.olimarMaturity);
-#endif
+            olimarLabApplyFighter(fighter, m, status, playerNo, isCpu);
         }
     }
 
     void fighterMechanicsPrepareSwap()
     {
+        olimarLabPrepareSwap();
         if (s_net == NULL)
         {
             return;
         }
         WeightCache& ddd = s_net->dedede;
-        WeightCache& oli = s_net->olimar;
         if (cacheResident(ddd, kFtDedede, kDededeDataTable, kDededeWeightsOffset))
         {
             const void* liveData = extraFtCommonData(kFtDedede);
@@ -593,15 +435,7 @@ namespace extra {
                    ddd.weights, ddd.orig[0], ddd.orig[1], ddd.orig[2], ddd.orig[3], liveData);
             writeWeights(ddd.weights, ddd.orig, kDededeWeightCount);
         }
-        if (cacheResident(oli, kFtOlimar, kOlimarDataTable, kOlimarWeightsOffset))
-        {
-            const void* liveData = extraFtCommonData(kFtOlimar);
-            TM_LOG("fighter mech: detach Olimar Pikmin weights %08x (put back %.1f/%.1f/%.1f/%.1f/%.1f, live data %08x)\n",
-                   oli.weights, oli.orig[0], oli.orig[1], oli.orig[2], oli.orig[3], oli.orig[4], liveData);
-            writeWeights(oli.weights, oli.orig, kOlimarWeightCount);
-        }
         clearCache(ddd);
-        clearCache(oli);
 #ifdef __MWERKS__
         clearVisualSlots();
 #endif
@@ -610,6 +444,7 @@ namespace extra {
     void fighterMechanicsDetach()
     {
         fighterMechanicsPrepareSwap();
+        olimarLabDetach();
 #ifdef __MWERKS__
         freeNetPtr(s_net);
 #endif

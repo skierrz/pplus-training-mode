@@ -10,6 +10,7 @@
 #include "main/gfx/text.h"
 #include "main/settings.h"
 #include "main/ui/menu_theme_core.h"
+#include "main/ui/pages/olimar.h"
 #include "main/ui/pages/pages.h"
 #include "main/ui/pages/scenarios.h"
 #include "main/ui/style.h"
@@ -383,6 +384,10 @@ namespace ui {
 
     static void enterPage(MenuState& state, const MenuDef& def, int id)
     {
+        if (id == pages::P_OLIMAR)
+        {
+            pages::olimarSyncFromSettings();
+        }
         s_rail = isRailStyle(def);
         s_allowShowInactive = allowShowInactive(def, id);
         int first = nextRow(pageAt(def, id), -1, 1);
