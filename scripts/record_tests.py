@@ -121,9 +121,9 @@ ROW_HMN_MODE = 1
 SLOT_HEADER, SLOT_TABLE, SLOT_PAIRS, SLOT_FRAMES = 20, 1024, 20 + 4 * 1024, 20 + 4 * 1024 + 2048
 SLOT_SIZE = SLOT_FRAMES + 8 * 3600
 MAX_FRAMES = 3600
-# The storage block: the twelve slots, then the run log Frame Decrement
-# replays (record::runLog): both sides' record::Input (32 bytes) per frame.
-SLOT_BYTES = 12 * SLOT_SIZE + 2 * MAX_FRAMES * 32
+# The storage block: the twelve slots, then the two packed run-log slots Frame
+# Decrement replays (record::runLogSlot, 8 bytes/frame + exact float palettes).
+SLOT_BYTES = 14 * SLOT_SIZE
 
 # P1's scripted sequence (buttons, stick x, stick y, frames): walk, dash
 # back, a jump and a double jump, a jab, shield, a C-stick forward smash as a

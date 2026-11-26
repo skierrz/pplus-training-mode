@@ -24,20 +24,52 @@ namespace record {
     static Slot* s_slots = NULL;
     static game::HeapUsage s_before;
 
-    enum { kSlotBytes = sizeof(Slot) * kSides * kSlotCount };
+    enum {
+        kUserSlots = kSides * kSlotCount,
+        kTotalSlots = kSides * (kSlotCount + 1)
+    };
 
     u32 storageBytes()
     {
-        return kSlotBytes + sizeof(Input) * kMaxFrames * kSides;
+        return static_cast<u32>(sizeof(Slot)) * kTotalSlots;
     }
 
-    Input* runLog(int side)
+    Slot* runLogSlot(int side)
     {
         if (s_slots == NULL || side < 0 || side >= kSides)
         {
             return NULL;
         }
-        return reinterpret_cast<Input*>(reinterpret_cast<u8*>(s_slots) + kSlotBytes) + side * kMaxFrames;
+        return &s_slots[kUserSlots + side];
+    }
+
+    void runLogClear(int side)
+    {
+        Slot* s = runLogSlot(side);
+        if (s != NULL)
+        {
+            slotClear(*s);
+        }
+    }
+
+    void runLogWrite(int side, int t, const Input& in)
+    {
+        Slot* s = runLogSlot(side);
+        if (s == NULL)
+        {
+            return;
+        }
+        if (t == 0)
+        {
+            slotClear(*s);
+        }
+        slotWrite(*s, t, in);
+    }
+
+    bool runLogRead(int side, int t, Input& out)
+    {
+        Slot* s = runLogSlot(side);
+        return s != NULL && slotRead(*s, t, out);
     }
 
     const void* storageAddress()
@@ -83,7 +115,7 @@ namespace record {
         s_slots = static_cast<Slot*>(block);
         // The inputs must stay what they are when a state is loaded.
         savestate::setOwnExclusion(reinterpret_cast<u32>(block), bytes);
-        for (int i = 0; i < kSides * kSlotCount; i++)
+        for (int i = 0; i < kTotalSlots; i++)
         {
             slotClear(s_slots[i]);
         }

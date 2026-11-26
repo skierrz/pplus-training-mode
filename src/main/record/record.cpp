@@ -466,6 +466,7 @@ namespace record {
         for (int side = 0; side < kSides; side++)
         {
             s_logged[side] = 0;
+            runLogClear(side);
             s_takeAt[side] = kNoTake;
         }
     }
@@ -882,22 +883,32 @@ namespace record {
             return;
         }
         SideState& s = s_side[side];
-        Input* log = runLog(side);
+        Slot* log = runLogSlot(side);
         if (s_rewind == kRewindReplay && s_t < s_rewindTarget)
         {
             // The input the fighter acted on when this frame first ran,
             // whatever produced it then (playback, the pad, the CPU).
-            const Input& in = log[s_t];
-            u32* words = reinterpret_cast<u32*>(reinterpret_cast<u32>(call->input) + 0xC);
-            words[0] = in.buttons;
-            reinterpret_cast<float*>(words)[1] = in.x;
-            reinterpret_cast<float*>(words)[2] = in.y;
-            writePp(who.entryId, in);
+            Input in;
+            if (log != NULL && runLogRead(side, static_cast<int>(s_t), in))
+            {
+                u32* words = reinterpret_cast<u32*>(reinterpret_cast<u32>(call->input) + 0xC);
+                words[0] = in.buttons;
+                reinterpret_cast<float*>(words)[1] = in.x;
+                reinterpret_cast<float*>(words)[2] = in.y;
+                writePp(who.entryId, in);
+            }
         }
         if (log != NULL && s_t <= s_logged[side] && s_t < kMaxFrames && positionsSaved())
         {
-            // What follows the frame logged now is a new future.
-            readInput(call->input, who.entryId, log[s_t]);
+            // During rewind replay frames 0..s_rewindTarget-1 are already packed in
+            // the run log; keep them intact until replay finishes, then log the new
+            // future normally.
+            if (s_rewind != kRewindReplay || s_t >= s_rewindTarget)
+            {
+                Input logged;
+                readInput(call->input, who.entryId, logged);
+                runLogWrite(side, static_cast<int>(s_t), logged);
+            }
             s_logged[side] = s_t + 1;
         }
         int m = mode(side);
@@ -1426,6 +1437,7 @@ namespace record {
                 if (otherRun)
                 {
                     s_logged[side] = 0;
+                    runLogClear(side);
                 }
                 if (slotSetting(side) == 0)
                 {

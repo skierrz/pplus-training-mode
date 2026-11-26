@@ -82,9 +82,11 @@ namespace record {
     bool slotEdit(Slot& s, int t, const Input& in);
 
     // The run log: both sides' inputs of every frame of the current run,
-    // exactly as the fighters acted on them, whatever drove them (Frame
-    // Decrement replays it). kMaxFrames frames per side, in the same block
-    // as the slots; NULL without storage.
-    Input* runLog(int side);
+    // packed into one Slot per side (8 bytes/frame plus exact float-bit
+    // palettes; Frame Decrement replays it). NULL without storage.
+    Slot* runLogSlot(int side);
+    void runLogClear(int side);
+    void runLogWrite(int side, int t, const Input& in);
+    bool runLogRead(int side, int t, Input& out);
 }
 }

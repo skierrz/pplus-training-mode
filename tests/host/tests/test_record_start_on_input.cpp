@@ -311,3 +311,60 @@ TEST(record_start_on_input, settings_layout_and_sanitization)
     main::sanitizeSettings(main::settings());
     CHECK_EQ(1u, static_cast<unsigned>(main::settings().recording.startOnFirstInput));
 }
+
+TEST(record_slots, packed_run_log_reclaims_ram_and_preserves_bit_exact_rewind)
+{
+    // Packed run log uses 2 record::Slot blocks (14 * sizeof(Slot) total vs
+    // 12 * sizeof(Slot) + 2 * 3600 * 32 before), reclaiming 160,472 B (~157 KiB).
+    const u32 oldBytes = 12u * static_cast<u32>(sizeof(record::Slot)) + 2u * record::kMaxFrames * 32u;
+    const u32 newBytes = record::storageBytes();
+    CHECK_EQ(14u * static_cast<u32>(sizeof(record::Slot)), newBytes);
+    CHECK_EQ(160472u, oldBytes - newBytes);
+
+    // Exercise Slot packing directly for bit-exact float preservation across
+    // non-power-of-two analog stick / C-stick / trigger values and rewind reads.
+    static record::Slot log;
+    record::slotClear(log);
+    const int kFrames = 12;
+    record::Input seq[kFrames];
+    for (int f = 0; f < kFrames; f++)
+    {
+        memset(&seq[f], 0, sizeof(seq[f]));
+        seq[f].buttons = static_cast<u32>((f * 37 + 1) & 0xFFFF);
+        seq[f].x = (static_cast<float>(f - 5) / 80.0f) * 0.9875f;
+        seq[f].y = (static_cast<float>(5 - f) / 80.0f) * 0.9125f;
+        seq[f].cx = (f % 3 == 0) ? 0.775f : -0.4125f;
+        seq[f].cy = (f % 2 == 0) ? 0.0f : -0.6375f;
+        seq[f].l = (f % 4 == 0) ? (43.0f / 140.0f) : 0.0f;
+        seq[f].r = (f % 5 == 0) ? (120.0f / 140.0f) : 0.0f;
+        seq[f].press = static_cast<u8>(f & 3);
+        record::slotWrite(log, f, seq[f]);
+    }
+    CHECK_EQ(0u, log.lossy);
+    CHECK_EQ(static_cast<u16>(kFrames), log.end);
+
+    // Simulate Frame Decrement rewind: read frames 0..8 bit-for-bit without truncating.
+    for (int f = 0; f < 9; f++)
+    {
+        record::Input got;
+        REQUIRE(record::slotRead(log, f, got));
+        CHECK_EQ(seq[f].buttons, got.buttons);
+        CHECK_EQ(0, memcmp(&seq[f].x, &got.x, sizeof(float)));
+        CHECK_EQ(0, memcmp(&seq[f].y, &got.y, sizeof(float)));
+        CHECK_EQ(0, memcmp(&seq[f].cx, &got.cx, sizeof(float)));
+        CHECK_EQ(0, memcmp(&seq[f].cy, &got.cy, sizeof(float)));
+        CHECK_EQ(0, memcmp(&seq[f].l, &got.l, sizeof(float)));
+        CHECK_EQ(0, memcmp(&seq[f].r, &got.r, sizeof(float)));
+        CHECK_EQ(seq[f].press, got.press);
+    }
+
+    // After rewind reaches target frame 9, writing a new input truncates old future cleanly.
+    record::Input alt = seq[9];
+    alt.buttons = cpu::button::kJump;
+    record::slotWrite(log, 9, alt);
+    CHECK_EQ(10u, static_cast<unsigned>(log.end));
+    record::Input check;
+    REQUIRE(record::slotRead(log, 9, check));
+    CHECK_EQ(alt.buttons, check.buttons);
+    CHECK(!record::slotRead(log, 10, check));
+}
