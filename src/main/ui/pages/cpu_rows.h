@@ -9,10 +9,17 @@ namespace pages {
     bool cpuLabControl();
 
     enum { kCounterGroundSize = 57, kCounterAirSize = 35, kCounterShieldSize = 50 };
-    extern const char* const kTdiLabels[cpu::kTdiCount];
+#ifdef __MWERKS__
+    extern const char* kTdiLabels;
+    extern const char* kCounterGround;
+    extern const char* kCounterAir;
+    extern const char* kCounterShield;
+#else
+    TM_LABELS_EXTERN_DECL(kTdiLabels, cpu::kTdiCount);
     extern const char* kCounterGround[kCounterGroundSize];
-    extern const char* const kCounterAir[kCounterAirSize];
     extern const char* kCounterShield[kCounterShieldSize];
+    TM_LABELS_EXTERN_DECL(kCounterAir, kCounterAirSize);
+#endif
     // Enables/disables fighter-specific DJC/Float counter labels for the active CPU.
     bool counterLabels();
 }
@@ -26,4 +33,7 @@ namespace pages {
            ::tm::ui::pages::cpuLabControl)
 #define TM_CPU_CHOICE(name, f, labels, def)                                                                   \
     TM_ROW(::tm::ui::kKindChoice, TM_HALF(f), TM_FIELD(f), 0, TM_COUNT(labels) - 1, def, name, labels, NULL, \
+           ::tm::ui::pages::cpuLabControl)
+#define TM_CPU_CHOICE_P(name, f, labels, count, def)                                                                   \
+    TM_ROW(::tm::ui::kKindChoice, TM_HALF(f), TM_FIELD(f), TM_CHOICE_LO, (count) - 1, def, name, labels, NULL, \
            ::tm::ui::pages::cpuLabControl)

@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "extra/net_alloc.h"
 #include "main/cpu/fighter_input.h"
 
 namespace tm {
@@ -93,31 +94,6 @@ namespace extra {
         }
 
 #pragma dont_inline on
-        float i2f(int v)
-        {
-            return static_cast<float>(v);
-        }
-
-        float i2fScale(int v, float s)
-        {
-            return static_cast<float>(v) * s;
-        }
-
-        float minf(float a, float b)
-        {
-            return a < b ? a : b;
-        }
-
-        float maxf(float a, float b)
-        {
-            return a > b ? a : b;
-        }
-
-        float clampf(float v, float lo, float hi)
-        {
-            return v < lo ? lo : (v > hi ? hi : v);
-        }
-
         bool isGuardStatus(int s)
         {
             return s >= kStGuardOn && s <= kStGuardDamage;

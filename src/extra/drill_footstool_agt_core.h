@@ -182,6 +182,9 @@ namespace extra {
         return s == kFaStatusPassive || s == kFaStatusPassiveFb;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline bool faSawStatus(const FaOpponentView& opp, s16 target)
     {
         if (opp.status == target)
@@ -300,6 +303,9 @@ namespace extra {
         }
         return false;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline void footstoolAgtStep(FootstoolAgtState& st, const FootstoolAgtFrameInput& in)
     {

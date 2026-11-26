@@ -183,8 +183,6 @@ namespace extra {
 
     static DiNet* s_net = NULL;
 
-    // The stick threshold and the Code Menu's values (in this order from
-    // 0x80B88350, then the decay) and the blast zones, read once per drawing.
     static struct {
         float threshold, sdi, asdi, decay;
         float reflectSpeed, reflectMul, groundMul;
@@ -205,10 +203,6 @@ namespace extra {
         float maxFall;
     };
 
-    // The fighter being drawn: where its body is, how far above its
-    // position the paths are drawn, its ECB's points as offsets from its
-    // position (bottom and top, half the width, the side points' height),
-    // for how many frames.
     static struct {
         float x, y, lift;
         float down, up, half, mid;
@@ -223,29 +217,39 @@ namespace extra {
                                     0, 0x7C781B78, 0x7C992378, 0x7CBA2B78};
     static bool s_rays = false;
 
-    static float fat(const void* base, u32 offset)
-    {
-        return *reinterpret_cast<const float*>(reinterpret_cast<u32>(base) + offset);
-    }
-
+#pragma dont_inline on
     static bool within(float v, float lo, float hi)
     {
         return v >= lo && v <= hi;
     }
 
-    // sqrt(v) for v >= 0: the hardware estimate refined by Newton steps.
+    static DiVectorResult resolveDi(u8 mode, float kx, float ky, float posX, float stageCenterX, float facing,
+                                    float liveX, float liveY)
+    {
+        return resolveDiVector(mode, kx, ky, posX, stageCenterX, facing, liveX, liveY);
+    }
+
+    static void setCompass(bool inHitlag, u8 mode, float lx, float ly, float dx, float dy, float sx, float sy)
+    {
+        if (s_net == NULL || (s_net->compass.active && (!inHitlag || s_net->compass.inHitlag)))
+        {
+            return;
+        }
+        DiCompassState& c = s_net->compass;
+        c.active = true;
+        c.inHitlag = inHitlag;
+        c.mode = mode;
+        c.launchX = lx;
+        c.launchY = ly;
+        c.diX = dx;
+        c.diY = dy;
+        c.liveX = sx;
+        c.liveY = sy;
+    }
+
     static float root(float v)
     {
-        if (v <= 0.0f)
-        {
-            return 0.0f;
-        }
-        float r = static_cast<float>(__frsqrte(v));
-        for (int i = 0; i < 3; i++)
-        {
-            r = r * (1.5f - 0.5f * v * r * r);
-        }
-        return v * r;
+        return game::stickRoot(v);
     }
 
     // Scales (x, y) back onto a circle of `radius` if it is longer.
@@ -258,6 +262,7 @@ namespace extra {
             y *= radius / len;
         }
     }
+#pragma dont_inline reset
 
     // The energy with `id` at its place in the kinetic module's list; NULL
     // if the list is not as measured.
@@ -284,7 +289,7 @@ namespace extra {
         {
             return 1.0f;
         }
-        float v = fat(damage, (fn[0] & 0xFFFF) + kLogSdiMul);
+        float v = floatAt(damage, (fn[0] & 0xFFFF) + kLogSdiMul);
         return within(v, 0.0f, 10.0f) ? v : 1.0f;
     }
 
@@ -320,12 +325,9 @@ namespace extra {
     // writes (the CPU Options' planned DI while they handle a hit).
     static bool readStick(const game::FighterRef& ref, bool partner, int hitlag, Stick& out)
     {
-        out.x = out.y = out.cx = out.cy = out.lx = out.ly = 0.0f;
-        out.rawMainX = out.rawMainY = out.rawCx = out.rawCy = 0;
+        memset(&out, 0, sizeof(out));
         out.cstickMode = kCStickNone;
-        out.hasHumanPad = false;
-        out.cstickWasActive = false;
-        ftEntryManager* entries = g_ftEntryManager;
+        ftEntryManager* entries = extraEntryManager();
         ftEntry* entry = game::isRam(entries) ? entries->getEntity(ref.entryId) : NULL;
         if (!game::isRam(entry) || !game::isRam(entry->m_input))
         {
@@ -340,8 +342,8 @@ namespace extra {
         const void* input = reinterpret_cast<const void*>(game::wordAt(entry->m_input, partner ? 0x10 : 0xC));
         if (game::isRam(input))
         {
-            out.lx = out.x = fat(input, 0x10);
-            out.ly = out.y = fat(input, 0x14);
+            out.lx = out.x = floatAt(input, 0x10);
+            out.ly = out.y = floatAt(input, 0x14);
         }
         s8 raw[4];
         u8 controllerType = kPadGcc;
@@ -397,6 +399,7 @@ namespace extra {
         return true;
     }
 
+#pragma dont_inline on
     // Moves the start by `distance` along the stick (scaled onto a circle of
     // 1); never down through the floor.
     static void shift(Flight& s, float x, float y, float distance)
@@ -444,6 +447,7 @@ namespace extra {
         s.x += s.vx;
         s.y += s.vy + s.g;
     }
+#pragma dont_inline reset
 
     // Where a path first meets the stage.
     struct Contact {
@@ -468,7 +472,7 @@ namespace extra {
 #ifdef TM_EXPERIMENTS
         experiments::g_rayCount++;
 #endif
-        if (!stRayCheck(&pos, &dir, &hit, &normal, true, NULL, false, kRayFighter))
+        if (!extraRayCheck(&pos, &dir, &hit, &normal, true, NULL, false, kRayFighter))
         {
             return;
         }
@@ -640,10 +644,7 @@ namespace extra {
     struct TraceBuf {
         char data[240];
         int len;
-        void init()
-        {
-            len = 0;
-        }
+        void init() { len = 0; }
         void flush()
         {
             if (len > 0)
@@ -653,79 +654,70 @@ namespace extra {
                 len = 0;
             }
         }
-        void putChar(char c)
-        {
-            if (len < static_cast<int>(sizeof(data)) - 1)
-            {
-                data[len++] = c;
-            }
-        }
-        void putUint(u32 v)
-        {
-            char tmp[12];
-            int n = 0;
-            do
-            {
-                tmp[n++] = static_cast<char>('0' + (v % 10));
-                v /= 10;
-            } while (v != 0);
-            while (n > 0)
-            {
-                putChar(tmp[--n]);
-            }
-        }
-        void putFixed3(float v)
-        {
-            if (!(v >= -100000.0f && v <= 100000.0f))
-            {
-                v = 0.0f;
-            }
-            s32 m = static_cast<s32>(v >= 0.0f ? (v * 1000.0f + 0.5f) : (v * 1000.0f - 0.5f));
-            if (m < 0)
-            {
-                putChar('-');
-                m = -m;
-            }
-            u32 a = static_cast<u32>(m);
-            putUint(a / 1000);
-            putChar('.');
-            u32 frac = a % 1000;
-            putChar(static_cast<char>('0' + (frac / 100)));
-            putChar(static_cast<char>('0' + ((frac / 10) % 10)));
-            putChar(static_cast<char>('0' + (frac % 10)));
-        }
-        void addPoint(char tag, bool plus, int frame, float x, float y)
-        {
-            if (len > static_cast<int>(sizeof(data)) - 42)
-            {
-                flush();
-            }
-            putChar('d');
-            putChar('i');
-            putChar(':');
-            putChar(' ');
-            putChar(tag);
-            if (plus)
-            {
-                putChar('+');
-            }
-            putChar(' ');
-            if (frame < 0)
-            {
-                putChar('-');
-                putUint(static_cast<u32>(-frame));
-            }
-            else
-            {
-                putUint(static_cast<u32>(frame));
-            }
-            putChar(' ');
-            putFixed3(x);
-            putChar(' ');
-            putFixed3(y);
-            putChar('\n');
-        }
+        void putNum(s32 v, bool frac3);
+        void putCoord(float v);
+        void addPoint(char tag, bool plus, int frame, float x, float y);
     };
+
+#pragma dont_inline on
+    void TraceBuf::putNum(s32 v, bool frac3)
+    {
+        u32 a;
+        if (v < 0)
+        {
+            data[len++] = '-';
+            a = static_cast<u32>(-(v + 1)) + 1u;
+        }
+        else
+        {
+            a = static_cast<u32>(v);
+        }
+        char tmp[12];
+        int n = 0;
+        do
+        {
+            tmp[n++] = static_cast<char>('0' + (a % 10u));
+            a /= 10u;
+        } while (a != 0u || (frac3 && n < 4));
+        while (n > 0)
+        {
+            if (frac3 && n == 3)
+            {
+                data[len++] = '.';
+            }
+            data[len++] = tmp[--n];
+        }
+    }
+#pragma dont_inline reset
+
+    void TraceBuf::putCoord(float v)
+    {
+        data[len++] = ' ';
+        v = within(v, -100000.0f, 100000.0f) ? v : 0.0f;
+        putNum(f2i(v >= 0.0f ? (v * 1000.0f + 0.5f) : (v * 1000.0f - 0.5f)), true);
+    }
+
+    void TraceBuf::addPoint(char tag, bool plus, int frame, float x, float y)
+    {
+        if (len > static_cast<int>(sizeof(data)) - 42)
+        {
+            flush();
+        }
+        data[len++] = 'd';
+        data[len++] = 'i';
+        data[len++] = ':';
+        data[len++] = ' ';
+        data[len++] = tag;
+        if (plus)
+        {
+            data[len++] = '+';
+        }
+        data[len++] = ' ';
+        putNum(frame, false);
+        putCoord(x);
+        putCoord(y);
+        data[len++] = '\n';
+    }
 
     // What follows a contact without a tech (rules above): the slide after
     // a landing (or from a grounded start) or the flight after a bounce,
@@ -938,8 +930,8 @@ namespace extra {
         int hitlag = static_cast<soStopModuleImpl*>(m->m_stopModule)->getHitStopRealFrame();
         int hitstun = game::fighterHitstun(m);
         Flight s;
-        s.x = fat(m->m_postureModule, 0xC);
-        s.y = fat(m->m_postureModule, 0x10);
+        s.x = floatAt(m->m_postureModule, 0xC);
+        s.y = floatAt(m->m_postureModule, 0x10);
         if (t != NULL)
         {
             if (t->entryId != ref.entryId || (hitlag <= 0 && hitstun <= 0))
@@ -970,11 +962,11 @@ namespace extra {
         {
             return;
         }
-        s.vx = fat(damage, kSpeed);
-        s.vy = fat(damage, kSpeed + 4);
-        s.g = fat(gravity, kSpeed + 4);
-        s.accel = fat(gravity, kAccel);
-        s.maxFall = fat(gravity, kMaxFall);
+        s.vx = floatAt(damage, kSpeed);
+        s.vy = floatAt(damage, kSpeed + 4);
+        s.g = floatAt(gravity, kSpeed + 4);
+        s.accel = floatAt(gravity, kAccel);
+        s.maxFall = floatAt(gravity, kMaxFall);
         if (!within(s.accel, -2.0f, 0.0f) || !within(s.maxFall, 0.0f, 20.0f))
         {
             return;
@@ -993,7 +985,7 @@ namespace extra {
         s_body.half *= 0.5f;
         s_body.mid = left.m_y - s.y;
         soModuleAccesser* accesser = reinterpret_cast<soModuleAccesser*>(game::wordAt(f, 0x60));
-        s_body.brake = soValueAccesser::getConstantFloat(accesser, kGroundBrake, 0) * s_env.groundMul;
+        s_body.brake = extraConstFloat(accesser, kGroundBrake) * s_env.groundMul;
         s_body.brake = within(s_body.brake, 0.0f, 1.0f) ? s_body.brake : 0.0f;
         if (s_body.down < kLowEcb)
         {
@@ -1011,7 +1003,9 @@ namespace extra {
         float feet = s.y;
         s_body.ground = m->m_situationModule->getKind() != Situation_Air;
         s_body.floor = s_body.ground || (hitlag > 0 && floorAt(s.x, feet) && s.y - feet < kOnFloor);
-        Stick st = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, kCStickNone, false, false};
+        Stick st;
+        memset(&st, 0, sizeof(st));
+        st.cstickMode = kCStickNone;
         u8 diMode = main::settings().display.diVectorMode;
         bool own = hitlag > 0 && readStick(ref, partner, hitlag, st);
         float stageCenterX = (s_env.left + s_env.right) * 0.5f;
@@ -1028,18 +1022,10 @@ namespace extra {
             // Launched: the speeds already carry the DI.
             if (s_net != NULL && !s_net->compass.active)
             {
-                Stick liveSt = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, kCStickNone, false, false};
+                Stick liveSt;
                 readStick(ref, partner, 0, liveSt);
-                DiVectorResult dv = resolveDiVector(diMode, s.vx, s.vy, s.x, stageCenterX, facing, liveSt.x, liveSt.y);
-                s_net->compass.active = true;
-                s_net->compass.inHitlag = false;
-                s_net->compass.mode = diMode;
-                s_net->compass.launchX = s.vx;
-                s_net->compass.launchY = s.vy;
-                s_net->compass.diX = dv.dx;
-                s_net->compass.diY = dv.dy;
-                s_net->compass.liveX = liveSt.x;
-                s_net->compass.liveY = liveSt.y;
+                DiVectorResult dv = resolveDi(diMode, s.vx, s.vy, s.x, stageCenterX, facing, liveSt.x, liveSt.y);
+                setCompass(false, diMode, s.vx, s.vy, dv.dx, dv.dy, liveSt.x, liveSt.y);
             }
             drawPath(s, kWidthMain, kBlue, 'l');
             return;
@@ -1054,20 +1040,9 @@ namespace extra {
         {
             float launchVx = s.vx;
             float launchVy = s.vy;
-            DiVectorResult dv = resolveDiVector(diMode, launchVx, launchVy, s.x, stageCenterX, facing, st.x, st.y);
+            DiVectorResult dv = resolveDi(diMode, launchVx, launchVy, s.x, stageCenterX, facing, st.x, st.y);
             applyDi(s, dv.dx, dv.dy);
-            if (s_net != NULL && (!s_net->compass.active || !s_net->compass.inHitlag))
-            {
-                s_net->compass.active = true;
-                s_net->compass.inHitlag = true;
-                s_net->compass.mode = diMode;
-                s_net->compass.launchX = launchVx;
-                s_net->compass.launchY = launchVy;
-                s_net->compass.diX = dv.dx;
-                s_net->compass.diY = dv.dy;
-                s_net->compass.liveX = st.x;
-                s_net->compass.liveY = st.y;
-            }
+            setCompass(true, diMode, launchVx, launchVy, dv.dx, dv.dy, st.x, st.y);
             drawPath(s, kWidthMain, kBlue, 'p');
             return;
         }
@@ -1103,18 +1078,7 @@ namespace extra {
         float launchVx = s.vx;
         float launchVy = s.vy;
         applyDi(s, preview.tdiX, preview.tdiY);
-        if (s_net != NULL && (!s_net->compass.active || !s_net->compass.inHitlag))
-        {
-            s_net->compass.active = true;
-            s_net->compass.inHitlag = true;
-            s_net->compass.mode = diMode;
-            s_net->compass.launchX = launchVx;
-            s_net->compass.launchY = launchVy;
-            s_net->compass.diX = preview.tdiX;
-            s_net->compass.diY = preview.tdiY;
-            s_net->compass.liveX = st.x;
-            s_net->compass.liveY = st.y;
-        }
+        setCompass(true, diMode, launchVx, launchVy, preview.tdiX, preview.tdiY, st.x, st.y);
         if (s.vy + s.accel < sink)
         {
             // Stays on its floor (smash DI down moves it no lower).
@@ -1134,7 +1098,7 @@ namespace extra {
             s_net->compass.active = false;
             s_net->compass.inHitlag = false;
         }
-        if (!m.running || !readEnv())
+        if (s_net == NULL || !m.running || !readEnv())
         {
             return;
         }
@@ -1272,28 +1236,18 @@ namespace extra {
                     game::mainStick(raw[0], raw[1], &liveX, &liveY);
                 }
             }
-            DiVectorResult dv = resolveDiVector(mode, launchX, launchY, 0.0f, 0.0f, 1.0f, liveX, liveY);
+            DiVectorResult dv = resolveDi(mode, launchX, launchY, 0.0f, 0.0f, 1.0f, liveX, liveY);
             diX = dv.dx;
             diY = dv.dy;
         }
 
         // Count active Input Viewer slots so the compass stacks cleanly below them.
-        int viewerSlots = 0;
-        if (set.display.inputViewer != display::kWhoNone)
-        {
-            game::FighterRef refs[game::kMaxFighters];
-            int n = game::listFighters(refs, game::kMaxFighters);
-            for (int i = 0; i < n && viewerSlots < 2; i++)
-            {
-                bool cpu = display::cpuPlayer(refs[i]);
-                if ((set.display.inputViewer & (cpu ? display::kWhoCpu : display::kWhoHuman)) != 0)
-                {
-                    viewerSlots++;
-                }
-            }
-        }
+        game::FighterRef refs[game::kMaxFighters];
+        int viewerSlots = set.display.inputViewer != display::kWhoNone
+                              ? countInputViewerSlots(refs, game::listFighters(refs, game::kMaxFighters))
+                              : 0;
 
-        ui::layout::Box b = ui::layout::diCompassBox(ui::layout::topBand(), viewerSlots, gfx::widescreen());
+        ui::layout::Box b = hudRightCardBox(kHudCardDiCompass, gfx::widescreen(), viewerSlots);
         float xs = gfx::xScale();
         float x = b.x0;
         float y = b.y0;
@@ -1308,20 +1262,7 @@ namespace extra {
         float ry = 22.0f;
         float rx = ry * xs;
 
-        gfx::fillEllipse(cx, cy, rx, ry, 0x060E14D0u);
-        gfx::lineBegin(GX_LINES, 4, 6);
-        gfx::vertex(cx - rx, cy, 0x3A586888u);
-        gfx::vertex(cx + rx, cy, 0x3A586888u);
-        gfx::vertex(cx, cy - ry, 0x3A586888u);
-        gfx::vertex(cx, cy + ry, 0x3A586888u);
-
-        gfx::lineBegin(GX_LINESTRIP, 17, 10);
-        for (int i = 0; i < 17; i++)
-        {
-            float ux, uy;
-            unitPoint16(i, ux, uy);
-            gfx::vertex(cx + ux * rx, cy - uy * ry, 0x5A96A8F0u);
-        }
+        drawUnitDial(cx, cy, rx, ry, 0x060E14D0u, 0x5A96A8F0u);
 
         // Launch direction arrow (amber-gold).
         float lLen = root(launchX * launchX + launchY * launchY);
@@ -1403,23 +1344,10 @@ namespace extra {
         float cx = cardX + ui::style::w(46.0f);
         float cy = topY + 5.0f + (cardH - 7.0f) * 0.5f;
 
-        gfx::fillEllipse(cx, cy, rx, ry, 0x060E14D8u);
-        gfx::lineBegin(GX_LINES, 4, 6);
-        gfx::vertex(cx - rx, cy, 0x3A586888u);
-        gfx::vertex(cx + rx, cy, 0x3A586888u);
-        gfx::vertex(cx, cy - ry, 0x3A586888u);
-        gfx::vertex(cx, cy + ry, 0x3A586888u);
+        drawUnitDial(cx, cy, rx, ry, 0x060E14D8u, 0x5A96A8F0u);
 
-        gfx::lineBegin(GX_LINESTRIP, 17, 10);
-        for (int i = 0; i < 17; i++)
-        {
-            float ux, uy;
-            unitPoint16(i, ux, uy);
-            gfx::vertex(cx + ux * rx, cy - uy * ry, 0x5A96A8F0u);
-        }
-
-        float vx = static_cast<float>(set.cpuTables.customDiX) / 100.0f;
-        float vy = static_cast<float>(set.cpuTables.customDiY) / 100.0f;
+        float vx = i2fScale(set.cpuTables.customDiX, 0.01f);
+        float vy = i2fScale(set.cpuTables.customDiY, 0.01f);
         clampLength(vx, vy, 1.0f);
         float tipX = cx + vx * rx * 0.90f;
         float tipY = cy - vy * ry * 0.90f;

@@ -88,45 +88,14 @@ namespace extra {
         u32 s_resetCount = 0;
         s32 s_prevFrame = game::kNoFrame;
 
-        float floatAt(const void* base, u32 offset)
-        {
-            return *reinterpret_cast<const float*>(reinterpret_cast<u32>(base) + offset);
-        }
-
-        const void* workBank(const soModuleEnumeration* m, u32 which)
-        {
-            if (m == NULL || !game::isRam(m->m_workManageModule))
-            {
-                return NULL;
-            }
-            const void* w = reinterpret_cast<const void*>(game::wordAt(m->m_workManageModule, which));
-            return game::isRam(w) ? w : NULL;
-        }
-
         s32 statusInt(const soModuleEnumeration* m, u32 index)
         {
-            const void* w = workBank(m, kWorkStatus);
-            if (w == NULL || index >= game::wordAt(w, kWorkIntCount))
-            {
-                return 0;
-            }
-            const s32* ints = reinterpret_cast<const s32*>(game::wordAt(w, kWorkInts));
-            return game::isRam(ints) ? ints[index] : 0;
+            return workInt(m, kWorkStatus, index);
         }
 
         float instanceFloat(const soModuleEnumeration* m, u32 index)
         {
-            const void* w = workBank(m, kWorkInstance);
-            if (w == NULL || index >= game::wordAt(w, kWorkFloatCount))
-            {
-                return 0.0f;
-            }
-            const float* floats = reinterpret_cast<const float*>(game::wordAt(w, kWorkFloats));
-            if (!game::isRam(floats))
-            {
-                return 0.0f;
-            }
-            float v = floats[index];
+            float v = workFloat(m, kWorkInstance, index);
             return (v >= -1.5f && v <= 1.5f) ? v : 0.0f;
         }
 
@@ -153,7 +122,7 @@ namespace extra {
             {
                 return kDefaultLandingFrame;
             }
-            float lf = soValueAccesser::getConstantFloat(accesser, kParamLandingFrame, 0);
+            float lf = extraConstFloat(accesser, kParamLandingFrame);
             return (lf >= 0.0f && lf <= 30.0f) ? lf : kDefaultLandingFrame;
         }
 
@@ -284,36 +253,17 @@ namespace extra {
             // Engine 1: RAR
             d.rarAttempts = e.rar.attempts;
             d.rarBairCount = e.rar.successBairCount;
-            d.rarOutcome = e.rar.last.outcome;
-            d.rarTurnRunFrames = e.rar.last.turnRunFrames;
-            d.rarBairDelay = e.rar.last.bairDelay;
-            d.rarBackwardMomentum = e.rar.last.backwardMomentum;
-            d.rarMomentumRetained = e.rar.last.momentumRetained;
-            d.rarTakeoffVx = e.rar.last.takeoffVx;
+            memcpy(&d.rarOutcome, &e.rar.last.outcome, 12);
 
             // Engine 2: DACUS & Gatling
-            d.dacusAttempts = e.dacus.attempts;
-            d.dacusSuccessCount = e.dacus.successCount;
-            d.dacusGatlingCount = e.dacus.gatlingCount;
-            d.dacusOutcome = e.dacus.last.outcome;
-            d.dacusRawDashFrame = e.dacus.last.rawDashFrame;
-            d.dacusNonHitlagFrame = e.dacus.last.nonHitlagDashFrame;
-            d.dacusGatling = e.dacus.last.gatling;
-            d.dacusVxCarry = e.dacus.last.vxCarry;
-            d.dacusSlideDistance = e.dacus.last.slideDistance;
+            memcpy(&d.dacusAttempts, &e.dacus.attempts, 12);
+            memcpy(&d.dacusOutcome, &e.dacus.last.outcome, 4);
+            memcpy(&d.dacusVxCarry, &e.dacus.last.vxCarry, 8);
 
             // Engine 3: B-Reverse & Wavebounce
-            d.brevAttempts = e.brev.attempts;
-            d.brevBReverseCount = e.brev.bReverseCount;
-            d.brevWavebounceCount = e.brev.wavebounceCount;
-            d.brevTurnaroundCount = e.brev.turnaroundCount;
-            d.brevOutcome = e.brev.last.outcome;
-            d.brevEarlyFlick = e.brev.last.earlyFlickFrames;
-            d.brevLateFlick = e.brev.last.lateFlickFrames;
-            d.brevAirborne = e.brev.last.airborne;
-            d.brevVxBefore = e.brev.last.vxBefore;
-            d.brevVxAfter = e.brev.last.vxAfter;
-            d.brevMomentumRatio = e.brev.last.momentumRatio;
+            memcpy(&d.brevAttempts, &e.brev.attempts, 16);
+            memcpy(&d.brevOutcome, &e.brev.last.outcome, 4);
+            memcpy(&d.brevVxBefore, &e.brev.last.vxBefore, 12);
 
             // Engine 4: Footstool & Lock + AGT
             d.footstoolCount = e.fa.footstoolCount;
@@ -328,30 +278,46 @@ namespace extra {
             d.agtCurrentChain = e.fa.currentAgtChain;
             d.agtIsAerial = e.fa.lastAgt.isAerial;
             d.agtThrowFrame = e.fa.lastAgt.throwFrame;
-            d.agtLastChainCount = static_cast<u8>(e.fa.lastAgt.agtChainCount > 255
-                                                      ? 255
-                                                      : (e.fa.lastAgt.agtChainCount < 0 ? 0 : e.fa.lastAgt.agtChainCount));
-            d.agtChainResetCount = static_cast<u8>(e.fa.agtChainResetCount > 255 ? 255 : e.fa.agtChainResetCount);
-            d.agtVxCarry = e.fa.lastAgt.vxCarry;
-            d.agtVyCarry = e.fa.lastAgt.vyCarry;
+            d.agtLastChainCount = faClampU8(e.fa.lastAgt.agtChainCount);
+            d.agtChainResetCount = faClampU8(static_cast<s32>(e.fa.agtChainResetCount));
+            memcpy(&d.agtVxCarry, &e.fa.lastAgt.vxCarry, 8);
             d.footstoolFailLockoutCount = e.fa.failLockoutCount;
 
             // Engine 5: Floorhug / ASDI-Down & Crouch-Cancel
-            d.fhHitCount = e.fh.hitCount;
-            d.fhCancelCount = e.fh.cancelCount;
-            d.fhTruePunishCount = e.fh.truePunishCount;
-            d.fhOutcome = e.fh.last.outcome;
-            d.fhWasCrouching = e.fh.last.wasCrouching;
-            d.fhAsdiDown = e.fh.last.asdiDown;
-            d.fhAsdiFromCStick = e.fh.last.asdiFromCStick;
-            d.fhHitstunAtLanding = e.fh.last.hitstunAtLanding;
-            d.fhHitstunSaved = e.fh.last.hitstunSaved;
-            d.fhPunishActFrame = e.fh.last.punishActFrame;
+            memcpy(&d.fhHitCount, &e.fh.hitCount, 12);
+            memcpy(&d.fhOutcome, &e.fh.last.outcome, 4);
+            memcpy(&d.fhHitstunAtLanding, &e.fh.last.hitstunAtLanding, 6);
             d.fhTrueCounterPunish = e.fh.last.trueCounterPunish;
             d.fhPad = 0;
-            d.fhEffectiveAsdiX = e.fh.last.effectiveAsdiX;
-            d.fhEffectiveAsdiY = e.fh.last.effectiveAsdiY;
-            d.fhLandingFrame = e.fh.last.landingFrame;
+            memcpy(&d.fhEffectiveAsdiX, &e.fh.last.effectiveAsdiX, 12);
+        }
+
+        void copyFaEvents(const game::Tracked& t, FaEvent* dst, int evN)
+        {
+            for (int k = 0; k < evN; k++)
+            {
+                dst[k].status = t.events[k].status;
+                dst[k].prev = t.events[k].prev;
+                dst[k].flags = t.events[k].flags;
+            }
+        }
+
+        void copySimpleEvents(const game::Tracked& t, void* dst, int evN)
+        {
+            s16* out = static_cast<s16*>(dst);
+            for (int k = 0; k < evN; k++)
+            {
+                out[2 * k] = t.events[k].status;
+                out[2 * k + 1] = t.events[k].prev;
+            }
+        }
+
+        const SlotEngine* activeEngine(int trackedSlot)
+        {
+            return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked
+                    && s_net->engines[trackedSlot].active)
+                       ? &s_net->engines[trackedSlot]
+                       : NULL;
         }
     }
 
@@ -499,11 +465,7 @@ namespace extra {
             rarIn.lr = sn.lr;
             rarIn.vx = sn.vx;
             rarIn.eventCount = evN;
-            for (int k = 0; k < evN; k++)
-            {
-                rarIn.events[k].status = t.events[k].status;
-                rarIn.events[k].prev = t.events[k].prev;
-            }
+            copySimpleEvents(t, rarIn.events, evN);
             rarStep(e.rar, rarIn);
 
             // 2. DACUS & Gatling
@@ -524,11 +486,7 @@ namespace extra {
             dacusIn.buttons = sn.buttons;
             dacusIn.triggerButtons = sn.triggerButtons;
             dacusIn.eventCount = evN;
-            for (int k = 0; k < evN; k++)
-            {
-                dacusIn.events[k].status = t.events[k].status;
-                dacusIn.events[k].prev = t.events[k].prev;
-            }
+            copySimpleEvents(t, dacusIn.events, evN);
             dacusStep(e.dacus, dacusIn);
 
             // 3. B-Reverse & Wavebounce
@@ -544,14 +502,10 @@ namespace extra {
             brevIn.vx = sn.vx;
             brevIn.stickX = sn.stickX;
             brevIn.eventCount = evN;
-            for (int k = 0; k < evN; k++)
-            {
-                brevIn.events[k].status = t.events[k].status;
-                brevIn.events[k].prev = t.events[k].prev;
-            }
+            copySimpleEvents(t, brevIn.events, evN);
             breverseStep(e.brev, brevIn);
 
-            // 4. Footstool & Lock + AGT
+            // 4 & 5. Footstool & Lock + AGT, and Floorhug / ASDI-Down & Crouch-Cancel
             FootstoolAgtFrameInput faIn;
             memset(&faIn, 0, sizeof(faIn));
             faIn.frame = f;
@@ -573,43 +527,8 @@ namespace extra {
             faIn.laBasic81 = sn.laBasic81;
             faIn.laBasic82 = sn.laBasic82;
             faIn.eventCount = evN;
-            for (int k = 0; k < evN; k++)
-            {
-                faIn.events[k].status = t.events[k].status;
-                faIn.events[k].prev = t.events[k].prev;
-                faIn.events[k].flags = t.events[k].flags;
-            }
-            for (int j = 0; j < game::kMaxTracked && faIn.opponentCount < kFaMaxOpponents; j++)
-            {
-                if (j == i || !snaps[j].valid || snaps[j].t->entryId == t.entryId)
-                {
-                    continue;
-                }
-                const SlotSnap& os = snaps[j];
-                const game::Tracked& ot = *os.t;
-                FaOpponentView& ov = faIn.opponents[faIn.opponentCount++];
-                ov.slot = static_cast<s8>(j);
-                ov.status = ot.cur.status;
-                ov.prevStatus = ot.prev.status;
-                ov.airborne = ot.cur.airborne;
-                ov.outOfPlay = os.outOfPlay;
-                ov.hitReceived = ot.cur.hitReceived;
-                ov.shieldReceived = ot.cur.shieldReceived;
-                ov.lastReceivedOther = (ot.lastReceived.frame == f) ? ot.lastReceived.other : -1;
-                ov.x = os.x;
-                ov.y = os.y;
-                u8 oevN = ot.eventCount < kFaMaxEvents ? ot.eventCount : static_cast<u8>(kFaMaxEvents);
-                ov.eventCount = oevN;
-                for (int k = 0; k < oevN; k++)
-                {
-                    ov.events[k].status = ot.events[k].status;
-                    ov.events[k].prev = ot.events[k].prev;
-                    ov.events[k].flags = ot.events[k].flags;
-                }
-            }
-            footstoolAgtStep(e.fa, faIn);
+            copyFaEvents(t, faIn.events, evN);
 
-            // 5. Floorhug / ASDI-Down & Crouch-Cancel
             FloorhugFrameInput fhIn;
             memset(&fhIn, 0, sizeof(fhIn));
             fhIn.frame = f;
@@ -635,26 +554,45 @@ namespace extra {
             fhIn.motionRate = sn.motionRate;
             fhIn.landingFrame = sn.landingFrame;
             fhIn.eventCount = evN;
-            for (int k = 0; k < evN; k++)
-            {
-                fhIn.events[k].status = t.events[k].status;
-                fhIn.events[k].prev = t.events[k].prev;
-            }
-            for (int j = 0; j < game::kMaxTracked && fhIn.attackerCount < kFhMaxAttackers; j++)
+            copySimpleEvents(t, fhIn.events, evN);
+
+            for (int j = 0; j < game::kMaxTracked; j++)
             {
                 if (j == i || !snaps[j].valid || snaps[j].t->entryId == t.entryId)
                 {
                     continue;
                 }
-                const game::Tracked& at = *snaps[j].t;
-                FhAttackerView& av = fhIn.attackers[fhIn.attackerCount++];
-                av.slot = static_cast<s8>(j);
-                av.status = at.cur.status;
-                av.hitlag = at.cur.hitlag;
-                av.hitstun = at.cur.hitstun;
-                av.actionable = at.cur.actionable;
-                av.outOfPlay = snaps[j].outOfPlay;
+                const SlotSnap& os = snaps[j];
+                const game::Tracked& ot = *os.t;
+                if (faIn.opponentCount < kFaMaxOpponents)
+                {
+                    FaOpponentView& ov = faIn.opponents[faIn.opponentCount++];
+                    ov.slot = static_cast<s8>(j);
+                    ov.status = ot.cur.status;
+                    ov.prevStatus = ot.prev.status;
+                    ov.airborne = ot.cur.airborne;
+                    ov.outOfPlay = os.outOfPlay;
+                    ov.hitReceived = ot.cur.hitReceived;
+                    ov.shieldReceived = ot.cur.shieldReceived;
+                    ov.lastReceivedOther = (ot.lastReceived.frame == f) ? ot.lastReceived.other : -1;
+                    ov.x = os.x;
+                    ov.y = os.y;
+                    u8 oevN = ot.eventCount < kFaMaxEvents ? ot.eventCount : static_cast<u8>(kFaMaxEvents);
+                    ov.eventCount = oevN;
+                    copyFaEvents(ot, ov.events, oevN);
+                }
+                if (fhIn.attackerCount < kFhMaxAttackers)
+                {
+                    FhAttackerView& av = fhIn.attackers[fhIn.attackerCount++];
+                    av.slot = static_cast<s8>(j);
+                    av.status = ot.cur.status;
+                    av.hitlag = ot.cur.hitlag;
+                    av.hitstun = ot.cur.hitstun;
+                    av.actionable = ot.cur.actionable;
+                    av.outOfPlay = os.outOfPlay;
+                }
             }
+            footstoolAgtStep(e.fa, faIn);
             floorhugStep(e.fh, fhIn);
 
             if (!t.partner)
@@ -666,37 +604,32 @@ namespace extra {
 
     const RarState* pplusTechRar(int trackedSlot)
     {
-        return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_net->engines[trackedSlot].active)
-                   ? &s_net->engines[trackedSlot].rar
-                   : NULL;
+        const SlotEngine* e = activeEngine(trackedSlot);
+        return e != NULL ? &e->rar : NULL;
     }
 
     const DacusState* pplusTechDacus(int trackedSlot)
     {
-        return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_net->engines[trackedSlot].active)
-                   ? &s_net->engines[trackedSlot].dacus
-                   : NULL;
+        const SlotEngine* e = activeEngine(trackedSlot);
+        return e != NULL ? &e->dacus : NULL;
     }
 
     const BReverseState* pplusTechBReverse(int trackedSlot)
     {
-        return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_net->engines[trackedSlot].active)
-                   ? &s_net->engines[trackedSlot].brev
-                   : NULL;
+        const SlotEngine* e = activeEngine(trackedSlot);
+        return e != NULL ? &e->brev : NULL;
     }
 
     const FootstoolAgtState* pplusTechFootstoolAgt(int trackedSlot)
     {
-        return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_net->engines[trackedSlot].active)
-                   ? &s_net->engines[trackedSlot].fa
-                   : NULL;
+        const SlotEngine* e = activeEngine(trackedSlot);
+        return e != NULL ? &e->fa : NULL;
     }
 
     const FloorhugState* pplusTechFloorhug(int trackedSlot)
     {
-        return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_net->engines[trackedSlot].active)
-                   ? &s_net->engines[trackedSlot].fh
-                   : NULL;
+        const SlotEngine* e = activeEngine(trackedSlot);
+        return e != NULL ? &e->fh : NULL;
     }
 
     const PPlusTechDebugBlock* pplusTechDebugBlock()

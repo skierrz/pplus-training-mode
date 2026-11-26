@@ -24,8 +24,8 @@ namespace pages {
     };
     TM_STATIC_ASSERT(sizeof(AlterCopy) <= kScratchBytes, tm_alter_copy_fits);
 
-    // The page's Frame row: its range follows the slot.
-    Option& alterFrameRow();
+    // The page's Frame row: its range follows the slot (NULL when detached).
+    Option* alterFrameRow();
 }
 }
 }

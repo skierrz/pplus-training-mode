@@ -4,6 +4,7 @@
 
 #include "main/extra.h"
 #include "main/ui/pages/cpu_rows.h"
+#include "main/ui/pages/page_strings.h"
 #include "main/ui/pages/pages.h"
 
 // Unified P+ Lab Scenario Presets and Combo Trainer entry.
@@ -11,8 +12,10 @@
 namespace tm {
 namespace ui {
 namespace pages {
-    extern const char* const kTechInvisLabels[4];
-    extern const char* const kPreTechDriftLabels[6];
+#ifndef __MWERKS__
+    TM_LABELS_EXTERN_DECL(kTechInvisLabels, 4);
+    TM_LABELS_EXTERN_DECL(kPreTechDriftLabels, 6);
+#endif
 
 #pragma dont_inline on
     static u8 activePreset()
@@ -96,131 +99,218 @@ namespace pages {
     static bool practicePsActive() { return practiceDrillIs(5); }
     static bool practicePsProjActive() { return practiceDrillIs(5) && practiceMenuState()->psAttackMode == 0; }
 
-    static const char* const kPresets[] = {
-        "Off", "Combo Lab", "Techchase", "Edgeguard", "Shield Pressure / OoS",
-        "Shield Drop", "Ledgetech", "Slide-Off", "Grab Defense / Throw DI", "P+ Multi-Hit SDI"
+#ifdef __MWERKS__
+    static const u16 kScenLblOffs[36] = {
+        kPs_scen_kPresets, kPs_scen_kSides, kPs_scen_kTechSetups, kPs_scen_kTechPositions, kPs_scen_kTechEscapes,
+        kPs_tech_kTechInvisLabels, kPs_tech_kPreTechDriftLabels, kPs_scen_kTechTdis, kPs_scen_kEdgeSetups,
+        kPs_scen_kEdgeStrengths, kPs_scen_kEdgeDists, kPs_scen_kEdgeDjs, kPs_scen_kEdgeMixups, kPs_scen_kShieldRoles,
+        kPs_scen_kOosActions, kPs_scen_kShieldDefAttacks, kPs_scen_kLtStarts, kPs_scen_kLtTimings,
+        kPs_scen_kLedgetechSpawns, kPs_scen_kLedgetechAttacks, kPs_scen_kShieldDropPlats, kPs_scen_kShieldDropAttacks,
+        kPs_scen_kShieldDropSpacing, kPs_scen_kShieldDropFacing, kPs_scen_kSlideOffAttacks, kPs_scen_kGrabActions,
+        kPs_scen_kGrabPctModes, kPs_scen_kMultiHitMoves, kPs_scen_kPracticeModes, kPs_scen_kPsAtkModes,
+        kPs_scen_kPsHeights, kPs_scen_kPsCadences, kPs_scen_kLedgeSides, kPs_scen_kLedgeInvulns,
+        kPs_scen_kPracticeTargets, kPs_fmt_df
     };
-    static const char* const kSides[] = {"Right", "Left", "Random"};
-    static const char* const kTechSetups[] = {"Tumble Drop", "Free Hit"};
-    static const char* const kTechPositions[] = {"Ground", "Platform 1", "Platform 2", "Platform 3", "Platform 4"};
-    static const char* const kTechEscapes[] = {"Intang Flash", "Spotdodge", "Jab", "Jump", "Shield", "Roll", "None"};
-    static const char* const kTechTdis[] = {"Random", "None", "Away", "Toward", "Survival"};
-    static const char* const kEdgeSetups[] = {"Knockback Launch", "Offstage Spawn"};
-    static const char* const kEdgeStrengths[] = {"Weak", "Normal", "Strong", "Random"};
-    static const char* const kEdgeDists[] = {"Mid", "Deep", "High", "Random"};
-    static const char* const kEdgeDjs[] = {"Available", "Spent", "Random"};
-    static const char* const kEdgeMixups[] = {"Mixed", "Low (Sweetspot)", "High", "Direct"};
-    static const char* const kShieldRoles[] = {"Offense", "Defense"};
-    static const char* const kOosActions[] = {
-        "Grab", "Up B", "Spotdodge", "Roll Away", "SH Nair", "Wavedash", "Random", "Custom Pool"
+    static bool (*const kScenGates[])() = {
+        NULL, main::extraLoaded, scenarioActive, scenarioSideActive, scenarioTechchaseActive,
+        scenarioTechInvisDelayActive, scenarioEdgeguardActive, scenarioEdgeguardLaunchActive,
+        scenarioEdgeguardSpawnActive, scenarioShieldPressureActive, scenarioShieldOffenseActive,
+        scenarioShieldDefenseActive, scenarioLedgetechActive, scenarioShieldDropActive, scenarioSlideOffActive,
+        scenarioGrabActive, scenarioMultiHitActive, practiceActive, practicePsActive, practicePsProjActive,
+        practiceLedgeActive, practiceLcActive, practiceFloatActive, practiceWdActive, comboTrainerAvailable
     };
-    static const char* const kShieldDefAttacks[] = {
-        "Aerial", "Tilt", "Smash", "Dash Attack", "Getup Attack", "Random"
+    static void (*const kScenCbs[])() = {
+        NULL, main::extraScenarioChanged, main::extraScenarioResetNow, practiceChanged
     };
-    static const char* const kLtStarts[] = {"Revival Platform", "Instant Drop"};
-    static const char* const kLtTimings[] = {"Hold Active", "Timed Swing"};
-    static const char* const kLedgetechSpawns[] = {
-        "Close Low", "Deep Low", "Far Out", "High", "Random"
+    enum {
+        kScenRows = 45,
+        kScenFlagHide = ::tm::ui::kFlagHideWhenDisabled,
+        kScenFlagSH = ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled
     };
-    static const char* const kLedgetechAttacks[] = {
-        "Down Tilt", "Fwd Tilt", "F-Smash", "Down Smash", "Down Air", "Neutral B", "Side B", "Random"
+#define SC_OFF(f) static_cast<u16>(kScenarioScratchOffset + offsetof(ScenarioMenuState, f))
+#define PR_OFF(f) static_cast<u16>(kPracticeScratchOffset + offsetof(PracticeMenuState, f))
+    static const RowSpec kScenSpecs[kScenRows] = {
+        {kKindChoice, ::tm::ui::kFlagScratch, SC_OFF(preset), TM_CHOICE_LO, 0, 9, 0, 1, 1, 0},
+        {kKindToggle, kScenFlagSH, SC_OFF(autoReset), 0, 1, 1, 0xFF, 1, 2, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(side), TM_CHOICE_LO, 0, 2, 1, 1, 3, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(techSetup), TM_CHOICE_LO, 0, 1, 2, 1, 4, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(techPosition), TM_CHOICE_LO, 0, 4, 3, 1, 4, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(techEscape), TM_CHOICE_LO, 0, 6, 4, 1, 4, 0},
+        {kKindToggle, kScenFlagSH, SC_OFF(techShowReaction), 0, 0, 1, 0xFF, 1, 4, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(techInvisMode), TM_CHOICE_LO, 0, 3, 5, 1, 4, 0},
+        {kKindInt,    kScenFlagSH, SC_OFF(techInvisDelay), 0, 0, 15, 35, 1, 5, 0},
+        {kKindToggle, kScenFlagSH, SC_OFF(techSound), 0, 0, 1, 0xFF, 1, 4, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(techPreDrift), TM_CHOICE_LO, 0, 5, 6, 1, 4, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(techTdi), TM_CHOICE_LO, 0, 4, 7, 1, 4, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(edgeguardSetup), TM_CHOICE_LO, 0, 1, 8, 1, 6, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(edgeguardStrength), TM_CHOICE_LO, 1, 3, 9, 1, 7, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(edgeguardDist), TM_CHOICE_LO, 0, 3, 10, 1, 8, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(edgeguardDj), TM_CHOICE_LO, 0, 2, 11, 1, 8, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(edgeguardMixup), TM_CHOICE_LO, 0, 3, 12, 1, 6, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(shieldRole), TM_CHOICE_LO, 0, 1, 13, 1, 9, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(oosAction), TM_CHOICE_LO, 0, 7, 14, 1, 10, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(shieldDefAttack), TM_CHOICE_LO, 0, 5, 15, 1, 11, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(ledgetechStart), TM_CHOICE_LO, 0, 1, 16, 1, 12, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(ledgetechTiming), TM_CHOICE_LO, 0, 1, 17, 1, 12, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(ledgetechSpawn), TM_CHOICE_LO, 0, 4, 18, 1, 12, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(ledgetechDj), TM_CHOICE_LO, 0, 1, 11, 1, 12, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(ledgetechAttack), TM_CHOICE_LO, 3, 7, 19, 1, 12, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(shieldDropPlat), TM_CHOICE_LO, 0, 3, 20, 1, 13, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(shieldDropAttack), TM_CHOICE_LO, 0, 3, 21, 1, 13, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(shieldDropSpacing), TM_CHOICE_LO, 0, 3, 22, 1, 13, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(shieldDropFacing), TM_CHOICE_LO, 0, 2, 23, 1, 13, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(slideOffAttack), TM_CHOICE_LO, 0, 3, 24, 1, 14, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(grabAction), TM_CHOICE_LO, 0, 6, 25, 1, 15, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(grabPctMode), TM_CHOICE_LO, 0, 1, 26, 1, 15, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(multiHitMove), TM_CHOICE_LO, 0, 8, 27, 1, 16, 0},
+        {kKindFunc,   kScenFlagHide, 0, 0, 0, 0, 0xFF, 2, 2, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(mode), TM_CHOICE_LO, 0, 2, 28, 3, 17, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(psAttackMode), TM_CHOICE_LO, 0, 1, 29, 3, 18, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(psHeight), TM_CHOICE_LO, 0, 4, 30, 3, 19, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(psCadence), TM_CHOICE_LO, 1, 3, 31, 3, 18, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(ledgeResetSide), TM_CHOICE_LO, 0, 2, 32, 3, 20, 0},
+        {kKindToggle, kScenFlagSH, PR_OFF(ledgeAutoReset), 0, 1, 1, 0xFF, 3, 20, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(ledgeInvulnLimit), TM_CHOICE_LO, 0, 1, 33, 3, 20, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(lcancelTarget), TM_CHOICE_LO, 1, 3, 34, 3, 21, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(floatDjcTarget), TM_CHOICE_LO, 1, 3, 34, 3, 22, 0},
+        {kKindToggle, kScenFlagSH, PR_OFF(wdTargetZone), 0, 0, 1, 0xFF, 3, 23, 0},
+        {kKindMenu,   0, 0, 0, 0, P_COMBO_TRAINER, 0xFF, 0, 24, 0}
     };
-    static const char* const kShieldDropPlats[] = {"Left", "Right", "Top", "Random"};
-    static const char* const kShieldDropAttacks[] = {"SH Aerial", "Tilt", "Down Smash", "Off"};
-    static const char* const kShieldDropSpacing[] = {"Random", "Close", "Under", "Far"};
-    static const char* const kShieldDropFacing[] = {"Toward", "Away", "Random"};
-    static const char* const kSlideOffAttacks[] = {"Under Up Air", "Under Fair", "Under Nair", "On-Plat Ftilt"};
-    static const char* const kGrabActions[] = {
-        "Hold (Mash Out)", "Random Throw", "F-Throw", "B-Throw", "U-Throw", "D-Throw", "Stand (P1 Grabs)"
-    };
-    static const char* const kGrabPctModes[] = {"Random 0-79%", "Current P1 %"};
-    static const char* const kMultiHitMoves[] = {
-        "Auto (Best)", "Nair", "Fair", "Up Air", "Down Air", "Rapid Jab", "Up B", "Side B", "Down B"
-    };
-    static const char* const kPracticeModes[] = {"Free Practice", "10-Rep Set", "20-Rep Set"};
-    static const char* const kPsAtkModes[] = {"Projectile", "Physical"};
-    static const char* const kPsHeights[] = {"Low", "Mid", "High", "Ground", "Random"};
-    static const char* const kPsCadences[] = {"Slow", "Medium", "Fast", "Random"};
-    static const char* const kLedgeSides[] = {"Same", "Opposite", "Random"};
-    static const char* const kLedgeInvulns[] = {"P+ 5-Grab", "Unlimited"};
-    static const char* const kPracticeTargets[] = {"Off", "Stationary CPU", "Shielding CPU", "Moving CPU"};
+#undef SC_OFF
+#undef PR_OFF
+
+    extern Page kScenarios = {"Scenarios", NULL, 0, {0, 0, 0}};
+
+    void initScenariosPage(Option* buf)
+    {
+        fillPageRows(kScenarios, buf, kScenRows, kScenSpecs, kPs_scen_names, kScenLblOffs, NULL, kScenCbs, kScenGates);
+    }
+#else
+    TM_LABELS_BEGIN(kPresets)
+        TM_L("Off") TM_L("Combo Lab") TM_L("Techchase") TM_L("Edgeguard") TM_L("Shield Pressure / OoS")
+        TM_L("Shield Drop") TM_L("Ledgetech") TM_L("Slide-Off") TM_L("Grab Defense / Throw DI") TM_L("P+ Multi-Hit SDI")
+    TM_LABELS_END
+    TM_LABELS_BEGIN(kSides) TM_L("Right") TM_L("Left") TM_L("Random") TM_LABELS_END
+    TM_LABELS_BEGIN(kTechSetups) TM_L("Tumble Drop") TM_L("Free Hit") TM_LABELS_END
+    TM_LABELS_BEGIN(kTechPositions) TM_L("Ground") TM_L("Platform 1") TM_L("Platform 2") TM_L("Platform 3") TM_L("Platform 4") TM_LABELS_END
+    TM_LABELS_BEGIN(kTechEscapes) TM_L("Intang Flash") TM_L("Spotdodge") TM_L("Jab") TM_L("Jump") TM_L("Shield") TM_L("Roll") TM_L("None") TM_LABELS_END
+    TM_LABELS_BEGIN(kTechTdis) TM_L("Random") TM_L("None") TM_L("Away") TM_L("Toward") TM_L("Survival") TM_LABELS_END
+    TM_LABELS_BEGIN(kEdgeSetups) TM_L("Knockback Launch") TM_L("Offstage Spawn") TM_LABELS_END
+    TM_LABELS_BEGIN(kEdgeStrengths) TM_L("Weak") TM_L("Normal") TM_L("Strong") TM_L("Random") TM_LABELS_END
+    TM_LABELS_BEGIN(kEdgeDists) TM_L("Mid") TM_L("Deep") TM_L("High") TM_L("Random") TM_LABELS_END
+    TM_LABELS_BEGIN(kEdgeDjs) TM_L("Available") TM_L("Spent") TM_L("Random") TM_LABELS_END
+    TM_LABELS_BEGIN(kEdgeMixups) TM_L("Mixed") TM_L("Low (Sweetspot)") TM_L("High") TM_L("Direct") TM_LABELS_END
+    TM_LABELS_BEGIN(kShieldRoles) TM_L("Offense") TM_L("Defense") TM_LABELS_END
+    TM_LABELS_BEGIN(kOosActions)
+        TM_L("Grab") TM_L("Up B") TM_L("Spotdodge") TM_L("Roll Away") TM_L("SH Nair") TM_L("Wavedash") TM_L("Random") TM_L("Custom Pool")
+    TM_LABELS_END
+    TM_LABELS_BEGIN(kShieldDefAttacks)
+        TM_L("Aerial") TM_L("Tilt") TM_L("Smash") TM_L("Dash Attack") TM_L("Getup Attack") TM_L("Random")
+    TM_LABELS_END
+    TM_LABELS_BEGIN(kLtStarts) TM_L("Revival Platform") TM_L("Instant Drop") TM_LABELS_END
+    TM_LABELS_BEGIN(kLtTimings) TM_L("Hold Active") TM_L("Timed Swing") TM_LABELS_END
+    TM_LABELS_BEGIN(kLedgetechSpawns)
+        TM_L("Close Low") TM_L("Deep Low") TM_L("Far Out") TM_L("High") TM_L("Random")
+    TM_LABELS_END
+    TM_LABELS_BEGIN(kLedgetechAttacks)
+        TM_L("Down Tilt") TM_L("Fwd Tilt") TM_L("F-Smash") TM_L("Down Smash") TM_L("Down Air") TM_L("Neutral B") TM_L("Side B") TM_L("Random")
+    TM_LABELS_END
+    TM_LABELS_BEGIN(kShieldDropPlats) TM_L("Left") TM_L("Right") TM_L("Top") TM_L("Random") TM_LABELS_END
+    TM_LABELS_BEGIN(kShieldDropAttacks) TM_L("SH Aerial") TM_L("Tilt") TM_L("Down Smash") TM_L("Off") TM_LABELS_END
+    TM_LABELS_BEGIN(kShieldDropSpacing) TM_L("Random") TM_L("Close") TM_L("Under") TM_L("Far") TM_LABELS_END
+    TM_LABELS_BEGIN(kShieldDropFacing) TM_L("Toward") TM_L("Away") TM_L("Random") TM_LABELS_END
+    TM_LABELS_BEGIN(kSlideOffAttacks) TM_L("Under Up Air") TM_L("Under Fair") TM_L("Under Nair") TM_L("On-Plat Ftilt") TM_LABELS_END
+    TM_LABELS_BEGIN(kGrabActions)
+        TM_L("Hold (Mash Out)") TM_L("Random Throw") TM_L("F-Throw") TM_L("B-Throw") TM_L("U-Throw") TM_L("D-Throw") TM_L("Stand (P1 Grabs)")
+    TM_LABELS_END
+    TM_LABELS_BEGIN(kGrabPctModes) TM_L("Random 0-79%") TM_L("Current P1 %") TM_LABELS_END
+    TM_LABELS_BEGIN(kMultiHitMoves)
+        TM_L("Auto (Best)") TM_L("Nair") TM_L("Fair") TM_L("Up Air") TM_L("Down Air") TM_L("Rapid Jab") TM_L("Up B") TM_L("Side B") TM_L("Down B")
+    TM_LABELS_END
+    TM_LABELS_BEGIN(kPracticeModes) TM_L("Free Practice") TM_L("10-Rep Set") TM_L("20-Rep Set") TM_LABELS_END
+    TM_LABELS_BEGIN(kPsAtkModes) TM_L("Projectile") TM_L("Physical") TM_LABELS_END
+    TM_LABELS_BEGIN(kPsHeights) TM_L("Low") TM_L("Mid") TM_L("High") TM_L("Ground") TM_L("Random") TM_LABELS_END
+    TM_LABELS_BEGIN(kPsCadences) TM_L("Slow") TM_L("Medium") TM_L("Fast") TM_L("Random") TM_LABELS_END
+    TM_LABELS_BEGIN(kLedgeSides) TM_L("Same") TM_L("Opposite") TM_L("Random") TM_LABELS_END
+    TM_LABELS_BEGIN(kLedgeInvulns) TM_L("P+ 5-Grab") TM_L("Unlimited") TM_LABELS_END
+    TM_LABELS_BEGIN(kPracticeTargets) TM_L("Off") TM_L("Stationary CPU") TM_L("Shielding CPU") TM_L("Moving CPU") TM_LABELS_END
 
 #define TM_SCEN_OFF(f) static_cast<u16>(kScenarioScratchOffset + offsetof(ScenarioMenuState, f))
-#define TM_SCEN_CHOICE(name, field, labels, def, en)                                                      \
-    TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,               \
-           TM_SCEN_OFF(field), 0, TM_COUNT(labels) - 1, def, name, labels, main::extraScenarioChanged, en)
+#define TM_SCEN_CHOICE(name, field, labels, count, def, en)                                               \
+    TM_ROW_CHOICE_P(::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,                             \
+                    TM_SCEN_OFF(field), count, def, name, labels, main::extraScenarioChanged, en)
 #define TM_PRAC_OFF(f) static_cast<u16>(kPracticeScratchOffset + offsetof(PracticeMenuState, f))
-#define TM_PRAC_CHOICE(name, field, labels, def, en)                                        \
-    TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled, \
-           TM_PRAC_OFF(field), 0, TM_COUNT(labels) - 1, def, name, labels, practiceChanged, en)
+#define TM_PRAC_CHOICE(name, field, labels, count, def, en)                                               \
+    TM_ROW_CHOICE_P(::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,                             \
+                    TM_PRAC_OFF(field), count, def, name, labels, practiceChanged, en)
 #define TM_PRAC_TOGGLE(name, field, def, en)                                                \
     TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled, \
            TM_PRAC_OFF(field), 0, 1, def, name, NULL, practiceChanged, en)
 
     static const Option kRows[] = {
-        TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch, TM_SCEN_OFF(preset), 0, TM_COUNT(kPresets) - 1, 0,
-               "Preset", kPresets, main::extraScenarioChanged, main::extraLoaded),
+        TM_ROW_CHOICE_P(::tm::ui::kFlagScratch, TM_SCEN_OFF(preset), 10, 0,
+                        "Preset", kPresets, main::extraScenarioChanged, main::extraLoaded),
         TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled, TM_SCEN_OFF(autoReset),
                0, 1, 1, "Auto-Reset", NULL, main::extraScenarioChanged, scenarioActive),
-        TM_SCEN_CHOICE("Side", side, kSides, 0, scenarioSideActive),
+        TM_SCEN_CHOICE("Side", side, kSides, 3, 0, scenarioSideActive),
         // Techchase inline rows
-        TM_SCEN_CHOICE("Setup", techSetup, kTechSetups, 0, scenarioTechchaseActive),
-        TM_SCEN_CHOICE("Position", techPosition, kTechPositions, 0, scenarioTechchaseActive),
-        TM_SCEN_CHOICE("Escape", techEscape, kTechEscapes, 0, scenarioTechchaseActive),
+        TM_SCEN_CHOICE("Setup", techSetup, kTechSetups, 2, 0, scenarioTechchaseActive),
+        TM_SCEN_CHOICE("Position", techPosition, kTechPositions, 5, 0, scenarioTechchaseActive),
+        TM_SCEN_CHOICE("Escape", techEscape, kTechEscapes, 7, 0, scenarioTechchaseActive),
         TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,
                TM_SCEN_OFF(techShowReaction), 0, 1, 0, "Reaction Frame", NULL, main::extraScenarioChanged,
                scenarioTechchaseActive),
-        TM_SCEN_CHOICE("Tech Invisibility", techInvisMode, kTechInvisLabels, 0, scenarioTechchaseActive),
+        TM_SCEN_CHOICE("Tech Invisibility", techInvisMode, kTechInvisLabels, 4, 0, scenarioTechchaseActive),
         TM_ROW(::tm::ui::kKindInt, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,
                TM_SCEN_OFF(techInvisDelay), 0, 15, 0, "Invis Delay", "%df", main::extraScenarioChanged,
                scenarioTechInvisDelayActive),
         TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,
                TM_SCEN_OFF(techSound), 0, 1, 0, "Tech Sound Cue", NULL, main::extraScenarioChanged,
                scenarioTechchaseActive),
-        TM_SCEN_CHOICE("Pre-Tech Drift", techPreDrift, kPreTechDriftLabels, 0, scenarioTechchaseActive),
-        TM_SCEN_CHOICE("CPU Launch DI", techTdi, kTechTdis, 0, scenarioTechchaseActive),
+        TM_SCEN_CHOICE("Pre-Tech Drift", techPreDrift, kPreTechDriftLabels, 6, 0, scenarioTechchaseActive),
+        TM_SCEN_CHOICE("CPU Launch DI", techTdi, kTechTdis, 5, 0, scenarioTechchaseActive),
         // Edgeguard inline rows
-        TM_SCEN_CHOICE("Setup", edgeguardSetup, kEdgeSetups, 0, scenarioEdgeguardActive),
-        TM_SCEN_CHOICE("Launch Strength", edgeguardStrength, kEdgeStrengths, 1, scenarioEdgeguardLaunchActive),
-        TM_SCEN_CHOICE("Distance", edgeguardDist, kEdgeDists, 0, scenarioEdgeguardSpawnActive),
-        TM_SCEN_CHOICE("CPU Double Jump", edgeguardDj, kEdgeDjs, 0, scenarioEdgeguardSpawnActive),
-        TM_SCEN_CHOICE("Recovery Mixup", edgeguardMixup, kEdgeMixups, 0, scenarioEdgeguardActive),
+        TM_SCEN_CHOICE("Setup", edgeguardSetup, kEdgeSetups, 2, 0, scenarioEdgeguardActive),
+        TM_SCEN_CHOICE("Launch Strength", edgeguardStrength, kEdgeStrengths, 4, 1, scenarioEdgeguardLaunchActive),
+        TM_SCEN_CHOICE("Distance", edgeguardDist, kEdgeDists, 4, 0, scenarioEdgeguardSpawnActive),
+        TM_SCEN_CHOICE("CPU Double Jump", edgeguardDj, kEdgeDjs, 3, 0, scenarioEdgeguardSpawnActive),
+        TM_SCEN_CHOICE("Recovery Mixup", edgeguardMixup, kEdgeMixups, 4, 0, scenarioEdgeguardActive),
         // Shield Pressure / OoS rows
-        TM_SCEN_CHOICE("Role", shieldRole, kShieldRoles, 0, scenarioShieldPressureActive),
-        TM_SCEN_CHOICE("CPU OoS", oosAction, kOosActions, 0, scenarioShieldOffenseActive),
-        TM_SCEN_CHOICE("CPU Attack", shieldDefAttack, kShieldDefAttacks, 0, scenarioShieldDefenseActive),
+        TM_SCEN_CHOICE("Role", shieldRole, kShieldRoles, 2, 0, scenarioShieldPressureActive),
+        TM_SCEN_CHOICE("CPU OoS", oosAction, kOosActions, 8, 0, scenarioShieldOffenseActive),
+        TM_SCEN_CHOICE("CPU Attack", shieldDefAttack, kShieldDefAttacks, 6, 0, scenarioShieldDefenseActive),
         // Ledgetech rows
-        TM_SCEN_CHOICE("Start", ledgetechStart, kLtStarts, 0, scenarioLedgetechActive),
-        TM_SCEN_CHOICE("Timing", ledgetechTiming, kLtTimings, 0, scenarioLedgetechActive),
-        TM_SCEN_CHOICE("Spawn Position", ledgetechSpawn, kLedgetechSpawns, 0, scenarioLedgetechActive),
-        TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,
-               TM_SCEN_OFF(ledgetechDj), 0, 1, 0, "P1 Double Jump", kEdgeDjs, main::extraScenarioChanged,
-               scenarioLedgetechActive),
-        TM_SCEN_CHOICE("CPU Edgeguard", ledgetechAttack, kLedgetechAttacks, 3, scenarioLedgetechActive),
+        TM_SCEN_CHOICE("Start", ledgetechStart, kLtStarts, 2, 0, scenarioLedgetechActive),
+        TM_SCEN_CHOICE("Timing", ledgetechTiming, kLtTimings, 2, 0, scenarioLedgetechActive),
+        TM_SCEN_CHOICE("Spawn Position", ledgetechSpawn, kLedgetechSpawns, 5, 0, scenarioLedgetechActive),
+        TM_ROW_CHOICE_P(::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,
+                        TM_SCEN_OFF(ledgetechDj), 2, 0, "P1 Double Jump", kEdgeDjs, main::extraScenarioChanged,
+                        scenarioLedgetechActive),
+        TM_SCEN_CHOICE("CPU Edgeguard", ledgetechAttack, kLedgetechAttacks, 8, 3, scenarioLedgetechActive),
         // Shield Drop rows
-        TM_SCEN_CHOICE("Platform", shieldDropPlat, kShieldDropPlats, 0, scenarioShieldDropActive),
-        TM_SCEN_CHOICE("CPU Attack", shieldDropAttack, kShieldDropAttacks, 0, scenarioShieldDropActive),
-        TM_SCEN_CHOICE("CPU Spacing", shieldDropSpacing, kShieldDropSpacing, 0, scenarioShieldDropActive),
-        TM_SCEN_CHOICE("CPU Facing", shieldDropFacing, kShieldDropFacing, 0, scenarioShieldDropActive),
+        TM_SCEN_CHOICE("Platform", shieldDropPlat, kShieldDropPlats, 4, 0, scenarioShieldDropActive),
+        TM_SCEN_CHOICE("CPU Attack", shieldDropAttack, kShieldDropAttacks, 4, 0, scenarioShieldDropActive),
+        TM_SCEN_CHOICE("CPU Spacing", shieldDropSpacing, kShieldDropSpacing, 4, 0, scenarioShieldDropActive),
+        TM_SCEN_CHOICE("CPU Facing", shieldDropFacing, kShieldDropFacing, 3, 0, scenarioShieldDropActive),
         // Slide-Off rows
-        TM_SCEN_CHOICE("CPU Attack", slideOffAttack, kSlideOffAttacks, 0, scenarioSlideOffActive),
+        TM_SCEN_CHOICE("CPU Attack", slideOffAttack, kSlideOffAttacks, 4, 0, scenarioSlideOffActive),
         // Grab Defense rows
-        TM_SCEN_CHOICE("CPU Action", grabAction, kGrabActions, 0, scenarioGrabActive),
-        TM_SCEN_CHOICE("P1 Damage", grabPctMode, kGrabPctModes, 0, scenarioGrabActive),
+        TM_SCEN_CHOICE("CPU Action", grabAction, kGrabActions, 7, 0, scenarioGrabActive),
+        TM_SCEN_CHOICE("P1 Damage", grabPctMode, kGrabPctModes, 2, 0, scenarioGrabActive),
         // Multi-Hit SDI rows
-        TM_SCEN_CHOICE("Multi-Hit Move", multiHitMove, kMultiHitMoves, 0, scenarioMultiHitActive),
+        TM_SCEN_CHOICE("Multi-Hit Move", multiHitMove, kMultiHitMoves, 9, 0, scenarioMultiHitActive),
         TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, "Reset Now", NULL,
                main::extraScenarioResetNow, scenarioActive),
         // Active Tech Practice drill options (hidden unless a Tech Practice drill is running)
-        TM_PRAC_CHOICE("Practice Mode", mode, kPracticeModes, 0, practiceActive),
-        TM_PRAC_CHOICE("Attack Mode", psAttackMode, kPsAtkModes, 0, practicePsActive),
-        TM_PRAC_CHOICE("Shot Height", psHeight, kPsHeights, 0, practicePsProjActive),
-        TM_PRAC_CHOICE("Cadence", psCadence, kPsCadences, 1, practicePsActive),
-        TM_PRAC_CHOICE("Reset Ledge", ledgeResetSide, kLedgeSides, 0, practiceLedgeActive),
+        TM_PRAC_CHOICE("Practice Mode", mode, kPracticeModes, 3, 0, practiceActive),
+        TM_PRAC_CHOICE("Attack Mode", psAttackMode, kPsAtkModes, 2, 0, practicePsActive),
+        TM_PRAC_CHOICE("Shot Height", psHeight, kPsHeights, 5, 0, practicePsProjActive),
+        TM_PRAC_CHOICE("Cadence", psCadence, kPsCadences, 4, 1, practicePsActive),
+        TM_PRAC_CHOICE("Reset Ledge", ledgeResetSide, kLedgeSides, 3, 0, practiceLedgeActive),
         TM_PRAC_TOGGLE("Ledge Auto-Reset", ledgeAutoReset, 1, practiceLedgeActive),
-        TM_PRAC_CHOICE("Ledge Invuln", ledgeInvulnLimit, kLedgeInvulns, 0, practiceLedgeActive),
-        TM_PRAC_CHOICE("Target", lcancelTarget, kPracticeTargets, 1, practiceLcActive),
-        TM_PRAC_CHOICE("Target", floatDjcTarget, kPracticeTargets, 1, practiceFloatActive),
+        TM_PRAC_CHOICE("Ledge Invuln", ledgeInvulnLimit, kLedgeInvulns, 2, 0, practiceLedgeActive),
+        TM_PRAC_CHOICE("Target", lcancelTarget, kPracticeTargets, 4, 1, practiceLcActive),
+        TM_PRAC_CHOICE("Target", floatDjcTarget, kPracticeTargets, 4, 1, practiceFloatActive),
         TM_PRAC_TOGGLE("Target Zone", wdTargetZone, 0, practiceWdActive),
         TM_MENU_IF("Combo Trainer", P_COMBO_TRAINER, comboTrainerAvailable)
     };
@@ -231,6 +321,7 @@ namespace pages {
 #undef TM_SCEN_OFF
 
     extern const Page kScenarios = TM_PAGE("Scenarios", kRows);
+#endif
 }
 }
 }

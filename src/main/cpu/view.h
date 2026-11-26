@@ -40,7 +40,17 @@ namespace cpu {
 
     // The entry's active fighter, or its partner (Nana) with `sub`.
     Fighter* fighterOf(int entryId, bool sub);
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    bool x_readView(Fighter* fighter, View& out);
+    void x_placeAt(Fighter* fighter, float x, float y);
+#ifndef TM_EXTRA_THUNK_IMPL
+    static inline bool readView(Fighter* fighter, View& out) { return x_readView(fighter, out); }
+#else
     bool readView(Fighter* fighter, View& out);
+#endif
+#else
+    bool readView(Fighter* fighter, View& out);
+#endif
     // The entry's active fighter kind (ftKind), -1 if unreadable.
     int fighterKind(int entryId);
 
@@ -102,7 +112,11 @@ namespace cpu {
 
     void setMotionRate(Fighter* fighter, float rate);
     // Stops every kinetic energy first.
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
+    static inline void placeAt(Fighter* fighter, float x, float y) { x_placeAt(fighter, x, y); }
+#else
     void placeAt(Fighter* fighter, float x, float y);
+#endif
     void requestStatus(Fighter* fighter, int status);
 
     // soSoundModule::playSE; its handle, negative if none.

@@ -1,6 +1,7 @@
 // Mid-session Fighter Swap runtime (gmPlayerInitData + stLoaderPlayer +
 // set_guard). Heavy roster data and swap execution live in extra so match
 // stays lean.
+#define TM_FIGHTER_SWAP_IMPL 1
 #include "extra/fighter_swap.h"
 
 #include <ft/ft_manager.h>
@@ -121,6 +122,7 @@ namespace extra {
         TM_STATIC_ASSERT(sizeof(FighterSwapDebugBlock) == 0x20, tm_fighter_swap_debug_block_size);
 
         struct FighterSwapNet {
+            FighterSwapEntry roster[kFighterSwapCount];
             const char* rosterNames[kFighterSwapCount];
             PendingSlot pending[game::kMaxFighters];
             FighterSwapDebugBlock debug;
@@ -375,7 +377,45 @@ namespace extra {
             return s_net != NULL && m.running && m.training && !drillActive() && !s_swapInProgress
                    && !savestate::loadingFiles();
         }
+        static const char kRosterNames[] =
+            "Bowser\0Captain Falcon\0Charizard\0Dedede\0Diddy Kong\0Donkey Kong\0Falco\0Fox\0Ganondorf\0"
+            "Giga Bowser\0Ice Climbers\0Ike\0Ivysaur\0Jigglypuff\0Kirby\0Knuckles\0Link\0Lucario\0Lucas\0"
+            "Luigi\0Mario\0Marth\0Meta Knight\0Mewtwo\0Mr. Game & Watch\0Ness\0Olimar\0Peach\0Pikachu\0Pit\0"
+            "R.O.B.\0Roy\0Samus\0Sheik\0Snake\0Sonic\0Sopo\0Squirtle\0Toon Link\0Wario\0Wario-Man\0Wolf\0"
+            "Yoshi\0Zelda\0Zero Suit Samus\0";
+        static const u8 kRosterKinds[kFighterSwapCount] = {
+            0x0C, 0x0A, 0x1E, 0x23, 0x1C, 0x01, 0x15, 0x07, 0x16, 0x2C, 0x10, 0x25, 0x22, 0x27, 0x06,
+            0x35, 0x02, 0x24, 0x1B, 0x09, 0x00, 0x13, 0x18, 0x33, 0x14, 0x0B, 0x1A, 0x0D, 0x08, 0x19,
+            0x26, 0x32, 0x03, 0x0F, 0x2A, 0x2B, 0x11, 0x20, 0x28, 0x17, 0x2D, 0x29, 0x05, 0x0E, 0x04
+        };
+        static const u8 kRosterIcons[kFighterSwapCount] = {
+            0x0C, 0x0A, 0x2A, 0x1F, 0x1A, 0x01, 0x13, 0x07, 0x14, 0x0C, 0x10, 0x21, 0x2C, 0x23, 0x06,
+            0x30, 0x02, 0x20, 0x19, 0x09, 0x00, 0x11, 0x16, 0x2E, 0x12, 0x0B, 0x18, 0x0D, 0x08, 0x17,
+            0x22, 0x2D, 0x03, 0x0F, 0x26, 0x27, 0x10, 0x2B, 0x24, 0x15, 0x15, 0x25, 0x05, 0x0E, 0x04
+        };
+
+        void initRoster(FighterSwapNet& net)
+        {
+            const char* p = kRosterNames;
+            for (int i = 0; i < kFighterSwapCount; i++)
+            {
+                u8 k = kRosterKinds[i];
+                net.roster[i].name = p;
+                net.roster[i].gmKind = k;
+                net.roster[i].cssIcon = kRosterIcons[i];
+                net.roster[i].setGroup = fighterSwapSetGroup(k);
+                net.rosterNames[i] = p;
+                while (*p++ != '\0') {}
+            }
+        }
     }
+
+#ifdef __MWERKS__
+    const FighterSwapEntry* fighterSwapRoster()
+    {
+        return s_net != NULL ? s_net->roster : NULL;
+    }
+#endif
 
     void fighterSwapAttach()
     {
@@ -400,11 +440,7 @@ namespace extra {
             main::setFighterSwapLabels(NULL, 0);
             return;
         }
-        const FighterSwapEntry* roster = fighterSwapRoster();
-        for (int i = 0; i < kFighterSwapCount; i++)
-        {
-            s_net->rosterNames[i] = roster[i].name;
-        }
+        initRoster(*s_net);
         s_net->debug.magic = kDebugMagic;
         s_net->debug.scratchAddr = reinterpret_cast<u32>(ui::pages::fighterSwapMenuState());
         s_net->debug.costumeHelperOk = s_costumeHelperOk ? 1 : 0;

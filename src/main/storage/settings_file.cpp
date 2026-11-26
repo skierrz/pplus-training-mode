@@ -81,20 +81,10 @@ namespace storage {
         {
             return;
         }
-        u32 need = (static_cast<u32>(kFileCap) + 31u) & ~31u;
-        game::HeapUsage u;
-        if (game::heapUsage(Heaps::Network, u) && u.largest >= need)
-        {
-            void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
-            if (game::isRam(p))
-            {
-                memset(p, 0, need);
-                s_file = static_cast<u8*>(p);
-            }
-        }
+        s_file = static_cast<u8*>(game::allocNetworkZero(static_cast<u32>(kFileCap)));
         if (s_file == NULL)
         {
-            TM_LOG("storage: settings file buffer alloc failed (%u B in Network)\n", need);
+            TM_LOG("storage: settings file buffer alloc failed (%u B in Network)\n", static_cast<unsigned>(kFileCap));
         }
 #endif
     }
@@ -126,6 +116,9 @@ namespace storage {
     };
     TM_STATIC_ASSERT(kV1SessionBytes <= sizeof(s_v1SessionBuf), tm_v1_session_buf_fits);
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     static void copySessionFields(Settings& s, u8* buf, bool toBuf)
     {
         u8* p = reinterpret_cast<u8*>(&s);
@@ -210,66 +203,69 @@ namespace storage {
         {
             return kNoMemory;
         }
+        int freeR = kOk;
+        int freeStatus = 0;
+        int r = kMissing;
         if (!s_job.read(kNames[slot], buf, sizeof(FileHeader)))
         {
-            freeReadBuffer(buf, kOk, 0);
-            return kMissing;
-        }
-        int r = s_job.wait(kWaitMs, status);
-        if (r != kOk)
-        {
-            freeReadBuffer(buf, r, status);
-            return r == kBusy ? kMissing : r;
-        }
-        const FileHeader* h = reinterpret_cast<const FileHeader*>(buf);
-        r = checkHeader(buf, sizeof(FileHeader), kSettingsMagic, kSettingsFormat, false);
-        if (r != kOk)
-        {
-            if (r == kNewer)
-            {
-                sequence = h->sequence;
-            }
-            freeReadBuffer(buf, kOk, 0);
-            return r;
-        }
-        u32 size = h->size;
-        if (size > kFileCap || size < sizeof(FileHeader) + sizeof(SettingsHead))
-        {
-            freeReadBuffer(buf, kOk, 0);
-            return kCorrupt;
-        }
-        // Exactly the header's size: a file cut short fails to read.
-        if (!s_job.read(kNames[slot], buf, size))
-        {
-            freeReadBuffer(buf, kOk, 0);
-            return kCorrupt;
+            goto out;
         }
         r = s_job.wait(kWaitMs, status);
         if (r != kOk)
         {
-            freeReadBuffer(buf, r, status);
-            return r == kMissing ? kCorrupt : r;
+            freeR = r;
+            freeStatus = status;
+            if (r == kBusy) r = kMissing;
+            goto out;
         }
-        r = checkHeader(buf, size, kSettingsMagic, kSettingsFormat, true);
-        if (r == kOk)
         {
-            const SettingsHead* head = reinterpret_cast<const SettingsHead*>(buf + sizeof(FileHeader));
-            if (!validAreas(buf, size, sizeof(FileHeader) + sizeof(SettingsHead), head->areaCount))
+            const FileHeader* h = reinterpret_cast<const FileHeader*>(buf);
+            r = checkHeader(buf, sizeof(FileHeader), kSettingsMagic, kSettingsFormat, false);
+            if (r != kOk)
+            {
+                if (r == kNewer) sequence = h->sequence;
+                goto out;
+            }
+            u32 size = h->size;
+            if (size > kFileCap || size < sizeof(FileHeader) + sizeof(SettingsHead)
+                || !s_job.read(kNames[slot], buf, size))
             {
                 r = kCorrupt;
+                goto out;
             }
-            else
+            r = s_job.wait(kWaitMs, status);
+            if (r != kOk)
             {
-                sequence = reinterpret_cast<const FileHeader*>(buf)->sequence;
-                if (!hasBest || sequenceNewer(sequence, bestSeq))
+                freeR = r;
+                freeStatus = status;
+                if (r == kMissing) r = kCorrupt;
+                goto out;
+            }
+            r = checkHeader(buf, size, kSettingsMagic, kSettingsFormat, true);
+            if (r == kOk)
+            {
+                const SettingsHead* head = reinterpret_cast<const SettingsHead*>(buf + sizeof(FileHeader));
+                if (!validAreas(buf, size, sizeof(FileHeader) + sizeof(SettingsHead), head->areaCount))
                 {
-                    memcpy(s_file, buf, size);
+                    r = kCorrupt;
+                }
+                else
+                {
+                    sequence = reinterpret_cast<const FileHeader*>(buf)->sequence;
+                    if (!hasBest || sequenceNewer(sequence, bestSeq))
+                    {
+                        memcpy(s_file, buf, size);
+                    }
                 }
             }
         }
-        freeReadBuffer(buf, kOk, 0);
+    out:
+        freeReadBuffer(buf, freeR, freeStatus);
         return r;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     static void load()
     {

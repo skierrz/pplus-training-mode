@@ -222,6 +222,7 @@ namespace extra {
         s_debug.resolvedLedgetechAtk = s_state.resolvedLedgetechAttack;
     }
 
+#pragma dont_inline reset
     static bool sawIntraFrameStatus(int playerNo, int targetStatus)
     {
         for (int i = 0; i < game::kMaxTracked; i++)
@@ -245,6 +246,7 @@ namespace extra {
         }
         return false;
     }
+#pragma dont_inline on
 
     static bool findPlayerRef(const game::FighterRef* refs, int n, int playerNo, game::FighterRef& out)
     {
@@ -458,7 +460,6 @@ namespace extra {
     }
 #pragma dont_inline reset
 
-#pragma dont_inline on
     static bool fighterHasActiveHitbox(Fighter* f)
     {
         const soModuleEnumeration* m = game::fighterModules(f);
@@ -480,9 +481,7 @@ namespace extra {
         }
         return false;
     }
-#pragma dont_inline reset
 
-#pragma dont_inline on
     static void placeOnRevivalPlatform(const game::FighterRef& ref, float x, float y, bool setNoclip, float lr,
                                        float dmg, bool spendDj)
     {
@@ -539,9 +538,7 @@ namespace extra {
             s_net->revivalPlayer = static_cast<s8>(ref.playerNo);
         }
     }
-#pragma dont_inline reset
 
-#pragma dont_inline on
     static void applyEdgeguardLaunch(const game::FighterRef& ref, const StageGeometry& geom, u8 strengthMode,
                                      int sideChoice, u32& rng, bool setNoclip, float damage)
     {
@@ -571,7 +568,7 @@ namespace extra {
                     log->m_speed.m_y = lp.kbY;
                     log->m_angle = lp.angleDeg;
                     log->m_lr = -outward;
-                    log->m_frame = static_cast<float>(lp.hitstun);
+                    log->m_frame = i2f(lp.hitstun);
                     log->m_hitStopFrame = static_cast<u32>(lp.hitlag);
                 }
             }
@@ -601,9 +598,7 @@ namespace extra {
         // while P1 follow-ups still get full Survival DI.
         cpu::optionsResetSlot(ref.playerNo);
     }
-#pragma dont_inline reset
 
-#pragma dont_inline on
     void finishStandingWarp(const game::FighterRef& ref, bool setNoclip, bool fallIfNoGround)
     {
         for (int i = 0; i < 2; i++)
@@ -630,6 +625,7 @@ namespace extra {
         }
     }
 
+#pragma dont_inline on
     static void setXlu(const soModuleEnumeration* m, int frames)
     {
         if (game::isRam(m->m_collisionHitModule))
@@ -645,6 +641,7 @@ namespace extra {
         finishStandingWarp(ref, noclip, fallIfNoGround);
         clearWarpIntang(ref);
     }
+#pragma dont_inline reset
 
     static void setMotionFrozen(const soModuleEnumeration* cm, bool freeze)
     {
@@ -663,7 +660,6 @@ namespace extra {
             s_net->slidePassDisabled = noPass;
         }
     }
-#pragma dont_inline reset
 
     void scenarioPresetsDetach()
     {
@@ -794,14 +790,9 @@ namespace extra {
         }
         const ScenarioState& st = s_net->state;
         const ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
-        const main::Settings& s = main::settings();
         bool wide = gfx::widescreen();
         float xs = ui::layout::xsOf(wide);
-        ui::layout::Box card = ui::layout::techchaseHudBox(
-            ui::layout::topBand(), ui::layout::inputViewerSlotCount(s.display.inputViewer),
-            s.general.diDisplay != 0 && s.display.diVectorMode != main::kDiVectorLive,
-            s.display.psaInspector != main::kPsaOff, wide,
-            s.cpu.options.control == cpu::kControlLab && s.cpu.options.adaptiveMode != cpu::kAdaptiveOff);
+        ui::layout::Box card = hudRightCardBox(kHudCardTechchase, wide);
         float x0 = card.x0;
         float x1 = card.x1;
         float y0 = card.y0;
@@ -1020,6 +1011,7 @@ namespace extra {
     {
         return game::isRam(m->m_situationModule) && m->m_situationModule->getKind() == Situation_Air;
     }
+#pragma dont_inline reset
 
     static bool readCanAct(Fighter* f, int hitlag, int hitstun)
     {
@@ -1061,7 +1053,6 @@ namespace extra {
             }
         }
     }
-#pragma dont_inline reset
 
 #pragma dont_inline on
     static bool spawnEdgeguardCpu(const game::FighterRef& ref, const StageGeometry& geom, const ScenarioConfig& cfg,
@@ -1261,7 +1252,7 @@ namespace extra {
             {
                 float cx = 0.5f * (in.geom.floor.leftX + in.geom.floor.rightX);
                 warpGroundClean(hmnRef, cx, in.geom.floor.centerY, false,
-                                static_cast<float>(s.general.playerPercent), 1.0f);
+                                i2f(s.general.playerPercent), 1.0f);
             }
         }
         if (s_state.techBest > prevBest)
@@ -1342,8 +1333,8 @@ namespace extra {
         }
 
         const ScenarioSpawns& sp = act.spawns;
-        float hmnDmg = act.useExplicitHmnDmg ? act.hmnDmg : static_cast<float>(s.general.playerPercent);
-        float cpuDmg = act.useExplicitCpuDmg ? act.cpuDmg : static_cast<float>(s.cpu.percent);
+        float hmnDmg = act.useExplicitHmnDmg ? act.hmnDmg : i2f(s.general.playerPercent);
+        float cpuDmg = act.useExplicitCpuDmg ? act.cpuDmg : i2f(s.cpu.percent);
         if (act.warpHmn || act.warpCpu)
         {
             restoreRuntimeMods();

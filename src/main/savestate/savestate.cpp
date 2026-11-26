@@ -137,6 +137,9 @@ namespace savestate {
 
     // A refusal the player could not otherwise tell the reason of, as an
     // OSD message in the human's stack (lines short enough for its box).
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     static void refusal(const char* text)
     {
         osd::post(humanSlot(), kOsdId, osd::kRed, "%s", text);
@@ -144,38 +147,20 @@ namespace savestate {
 
     static void saveFailed(Result r)
     {
-        if (r == kErrTooBig)
-        {
-            refusal("Save failed:\nno room beside\nthe recording");
-        }
-        else if (r == kErrNoRoom)
-        {
-            refusal("Save failed:\nnot enough memory");
-        }
-        else
-        {
-            refusal("Save failed:\nmemory unreadable");
-        }
+        refusal(r == kErrTooBig ? "Save failed:\nno room beside\nthe recording"
+                                : (r == kErrNoRoom ? "Save failed:\nnot enough memory"
+                                                   : "Save failed:\nmemory unreadable"));
     }
 
     // Nothing saved: plays the error sound alone without posting an OSD.
     static void loadFailed(Result r)
     {
-        if (r == kErrMatch)
+        if (r == kErrMatch || r == kErrLayout || r == kErrResources || r == kErrChecksum)
         {
-            refusal("Load failed:\nfrom another match");
-        }
-        else if (r == kErrLayout)
-        {
-            refusal("Load failed:\nmemory has moved");
-        }
-        else if (r == kErrResources)
-        {
-            refusal("Load failed:\nfiles changed\nsince the save");
-        }
-        else if (r == kErrChecksum)
-        {
-            refusal("Load failed:\nstate overwritten");
+            refusal(r == kErrMatch       ? "Load failed:\nfrom another match"
+                    : r == kErrLayout    ? "Load failed:\nmemory has moved"
+                    : r == kErrResources ? "Load failed:\nfiles changed\nsince the save"
+                                         : "Load failed:\nstate overwritten");
         }
     }
 
@@ -183,6 +168,9 @@ namespace savestate {
     {
         ui::menuSound(id);
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     static void savedFeedback()
     {

@@ -60,15 +60,8 @@ namespace extra {
 
     static u8 clampU8Float(float v)
     {
-        if (v <= 0.0f)
-        {
-            return 0;
-        }
-        if (v >= 255.0f)
-        {
-            return 255;
-        }
-        return static_cast<u8>(v);
+        int n = f2i(v);
+        return static_cast<u8>(n <= 0 ? 0 : (n >= 255 ? 255 : n));
     }
 
     static float absF(float v)
@@ -311,10 +304,7 @@ namespace extra {
         }
         bool wide = gfx::widescreen();
         float xs = ui::layout::xsOf(wide);
-        int vSlots = ui::layout::inputViewerSlotCount(s.display.inputViewer);
-        bool hasComp = s.general.diDisplay != 0 && s.display.diVectorMode != main::kDiVectorLive;
-        bool hasPsa = s.display.psaInspector != main::kPsaOff;
-        ui::layout::Box b = ui::layout::adaptiveHudBox(ui::layout::topBand(), vSlots, hasComp, hasPsa, wide);
+        ui::layout::Box b = hudRightCardBox(kHudCardAdaptive, wide);
 
         AdaptiveHudView v;
         adaptiveBuildHudView(mode, s_net->patterns, s_net->telemetryPlayer, static_cast<u8>(s_net->debug.biasAction),
@@ -328,7 +318,7 @@ namespace extra {
         u32 accent = activeMode ? 0xFFD300FFu : 0x35B8C8FFu;
 
         drawHudCard(x, y, bw, bh, xs, accent, 0xFFFFFF40u);
-        gfx::fillRect(x + 4.0f * xs, y + 15.0f, bw - 8.0f * xs, 1.0f, 0x2A4C58C0u);
+        drawHudDivider(x, y + 15.0f, bw, xs);
 
         float hdrScale = ui::style::scaleForCap(6.4f);
         float hdrY = ui::style::textYForCap(y + 6.2f, hdrScale);
@@ -356,13 +346,13 @@ namespace extra {
         float barW = 73.0f * xs;
         for (int r = 0; r < 3; r++)
         {
-            float ry = y + 18.0f + static_cast<float>(r) * 9.0f;
+            float ry = y + 18.0f + i2fScale(r, 9.0f);
             float ty = ui::style::textYForCap(ry, rowScale);
             drawShadowText(x + 5.5f * xs, ty, kBarLabels[r], 0xC6D8E0FFu, rowScale);
             gfx::fillRect(barX, ry + 0.4f, barW, 5.2f, 0x0A151CE8u);
             if (pcts[r] > 0)
             {
-                float fw = barW * (static_cast<float>(pcts[r]) * 0.01f);
+                float fw = barW * i2fScale(pcts[r], 0.01f);
                 gfx::fillRect(barX, ry + 0.4f, fw, 5.2f, kBarCols[r]);
             }
             char pctBuf[8];
@@ -385,17 +375,14 @@ namespace extra {
                 strcpy(foot, "Learning P1...");
             }
         }
+        else if (v.rpsCount > 0)
+        {
+            snprintf(foot, sizeof(foot), "Read: %s", adaptiveRpsLabel(v.dominantRps));
+            footCol = v.confident ? 0x7CE6E0FFu : 0xB8CDD6FFu;
+        }
         else
         {
-            if (v.rpsCount > 0)
-            {
-                snprintf(foot, sizeof(foot), "Read: %s", adaptiveRpsLabel(v.dominantRps));
-                footCol = v.confident ? 0x7CE6E0FFu : 0xB8CDD6FFu;
-            }
-            else
-            {
-                strcpy(foot, "Watching P1...");
-            }
+            strcpy(foot, "Watching P1...");
         }
         float footY = ui::style::textYForCap(y + 46.0f, rowScale);
         drawShadowText(x + 5.5f * xs, footY, foot, footCol, rowScale);

@@ -367,3 +367,91 @@ TEST(psa_inspector, sd_storage_round_trip_clamping_and_migration)
 
     storage::detach();
 }
+
+TEST(psa_inspector, opcode_names_module_prefixes_and_typed_args)
+{
+    psaOpcodesAttach();
+    char buf[64];
+
+    // All key module prefixes from fudgepop01's AnimCmd spec.
+    CHECK_EQ(0, strcmp(psaModulePrefix(0x00), "flow"));
+    CHECK_EQ(0, strcmp(psaModulePrefix(0x02), "status"));
+    CHECK_EQ(0, strcmp(psaModulePrefix(0x04), "motion"));
+    CHECK_EQ(0, strcmp(psaModulePrefix(0x06), "coll"));
+    CHECK_EQ(0, strcmp(psaModulePrefix(0x12), "work"));
+    CHECK_EQ(0, strcmp(psaModulePrefix(0x64), "cancel"));
+    CHECK(psaModulePrefix(0xFF) == NULL);
+
+    // Named opcodes + numArgs disambiguation (00:02 with 0 args = NoEvent, 1 arg = AsyncWait).
+    psaFormatOpcodeName(0x00010100u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "SyncWait"));
+    psaFormatOpcodeName(0x00020000u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "NoEvent"));
+    psaFormatOpcodeName(0x00020100u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "AsyncWait"));
+    psaFormatOpcodeName(0x04070200u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "SetFSM"));
+    psaFormatOpcodeName(0x06000D00u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "Hitbox"));
+    psaFormatOpcodeName(0x64000000u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "AllowInt"));
+    psaFormatOpcodeName(0x120A0100u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "BitSet"));
+
+    // Fallback to module prefix + hex code for unnamed commands, and raw hex for unknown module.
+    psaFormatOpcodeName(0x11FE0100u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "gfx:FE"));
+    psaFormatOpcodeName(0x99AB0000u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "99:AB"));
+    psaFormatOpcodeName(0u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "-"));
+
+    // Typed acAnimCmdArgument formatting (0 int, 1 scalar / 60000.0f, 2 ptr, 3 bool, 4 file, 5 var, 6 req).
+    psaFormatArg(0u, static_cast<u32>(-12), buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "-12"));
+    psaFormatArg(1u, 120000u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "2"));
+    psaFormatArg(1u, 107400u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "1.79"));
+    psaFormatArg(2u, 0x80FB1234u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "@80FB1234"));
+    psaFormatArg(3u, 1u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "true"));
+    psaFormatArg(3u, 0u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "false"));
+    psaFormatArg(4u, 0x1Au, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "f:1A"));
+    psaFormatArg(5u, 0x1000004Fu, buf, sizeof(buf)); // LA-Basic[79]
+    CHECK_EQ(0, strcmp(buf, "LA-Int[79]"));
+    psaFormatArg(5u, 0x11000022u, buf, sizeof(buf)); // LA-Float[34]
+    CHECK_EQ(0, strcmp(buf, "LA-Flt[34]"));
+    psaFormatArg(5u, 0x2200000Au, buf, sizeof(buf)); // RA-Bit[10]
+    CHECK_EQ(0, strcmp(buf, "RA-Bit[10]"));
+    psaFormatArg(5u, 0x00000003u, buf, sizeof(buf)); // IC-Basic[3]
+    CHECK_EQ(0, strcmp(buf, "IC-Int[3]"));
+    psaFormatArg(6u, 0x00000004u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "R:4"));
+    psaFormatArg(6u, 0x80000004u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "!R:4"));
+
+    // Focused command formatting combines opcode name + typed args + ellipsis when numArgs > captured.
+    PsaArgSnapshot args[2] = {{1u, 107400u}, {0u, 0u}};
+    psaFormatFocusCommand(0x04070200u, args, 2u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "SetFSM(1.79,0)"));
+
+    PsaArgSnapshot hitArgs[4] = {{0u, 0u}, {0u, 0u}, {0u, 12u}, {0u, 45u}};
+    psaFormatFocusCommand(0x06000D00u, hitArgs, 4u, buf, sizeof(buf));
+    CHECK_EQ(0, strcmp(buf, "Hitbox(0,0,12,45..)"));
+
+    // Focus thread selection prefers SubMain (1) over ActMain (0).
+    PsaThreadSnapshot th[kPsaThreadCount];
+    memset(th, 0, sizeof(th));
+    th[0].active = 1;
+    th[0].cmdHeader = 0x00010100u;
+    CHECK_EQ(0, psaSelectFocusThread(th));
+    th[1].active = 1;
+    th[1].cmdHeader = 0x04070200u;
+    CHECK_EQ(1, psaSelectFocusThread(th));
+
+    psaOpcodesDetach();
+}

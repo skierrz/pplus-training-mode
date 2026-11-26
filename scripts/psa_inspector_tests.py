@@ -43,7 +43,7 @@ S_INFO_HMN_SIZE = 57
 S_INFO_HMN_ROWS = 58
 
 TMPS_MAGIC = 0x544D5053  # "TMPS"
-TMPS_SIZE = 0x130
+TMPS_SIZE = 0x18C
 PSA_BLOCK_RE = re.compile(r"psa: debug block at ([0-9a-f]{8})")
 
 SCENARIOS = [
@@ -89,6 +89,14 @@ def read_tmps(emu, addr):
             "frameSpeed": speed,
             "waitFrames": wait_f,
         })
+    focus_thread, focus_cmd, focus_arg_count = struct.unpack_from(">iII", raw, 0x130)
+    focus_args = []
+    for k in range(4):
+        atype, acontent = struct.unpack_from(">II", raw, 0x13C + k * 8)
+        focus_args.append((atype, acontent))
+    focus_raw = raw[0x15C:0x18C]
+    nul = focus_raw.find(b"\x00")
+    focus_text = (focus_raw[:nul] if nul >= 0 else focus_raw).decode("ascii", "replace")
     return {
         "magic": hdr[0],
         "drawCalls": hdr[1],
@@ -101,6 +109,11 @@ def read_tmps(emu, addr):
         "secondaryKind": hdr[8],
         "activeThreadCount": hdr[9],
         "threads": threads,
+        "focusThread": focus_thread,
+        "focusCmdHeader": focus_cmd,
+        "focusArgCount": focus_arg_count,
+        "focusArgs": focus_args[:focus_arg_count],
+        "focusText": focus_text,
     }
 
 
@@ -227,6 +240,9 @@ def sc_live_threads(t):
     saw_sync_wait = False
     saw_async_wait = False
     saw_opcode = False
+    saw_decoded_name = False
+    saw_typed_args = False
+    sample_focus = ""
     saw_sub_adv = False
     prev_sub_f = -1.0
     max_active = 0
@@ -236,6 +252,14 @@ def sc_live_threads(t):
     for frame_idx in range(36):
         step(e, 1)
         st = read_tmps(e, t.tmps)
+        ftxt = st["focusText"]
+        if ftxt and not re.match(r"^[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}$", ftxt):
+            saw_decoded_name = True
+            if not sample_focus:
+                sample_focus = ftxt
+        if st["focusArgCount"] > 0 and "(" in ftxt and ")" in ftxt:
+            saw_typed_args = True
+            sample_focus = ftxt
         if abs(st["fsmRate"] - 1.0) > 0.05:
             saw_non_one_fsm = True
             if abs(st["fsmRate"] - 1.0) > abs(peak_fsm - 1.0):
@@ -286,6 +310,14 @@ def sc_live_threads(t):
     for _ in range(28):
         step(e, 1)
         st = read_tmps(e, t.tmps)
+        ftxt = st["focusText"]
+        if ftxt and not re.match(r"^[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}$", ftxt):
+            saw_decoded_name = True
+            if not sample_focus:
+                sample_focus = ftxt
+        if st["focusArgCount"] > 0 and "(" in ftxt and ")" in ftxt:
+            saw_typed_args = True
+            sample_focus = ftxt
         if abs(st["fsmRate"] - 1.0) > 0.05:
             saw_non_one_fsm = True
             if abs(st["fsmRate"] - 1.0) > abs(peak_fsm - 1.0):
@@ -309,6 +341,11 @@ def sc_live_threads(t):
         saw_non_one_fsm,
         "live-non-1.0-fsm",
         f"peakFsm={peak_fsm:.4f}",
+    )
+    t.check(
+        saw_decoded_name and saw_typed_args,
+        "live-decoded-opcodes-and-args",
+        f"decoded={saw_decoded_name} typedArgs={saw_typed_args} sample={sample_focus!r}",
     )
 
 

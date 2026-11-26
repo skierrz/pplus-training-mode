@@ -23,6 +23,9 @@ namespace ui {
     static bool s_rail = false;
     bool g_menuQuiet = false;
     bool g_showInactiveRows = false;
+#ifdef __MWERKS__
+    u8 g_counterAvailMask = 0;
+#endif
 
     void menuSound(int id)
     {
@@ -149,7 +152,7 @@ namespace ui {
         {
             if (o.kind == kKindInt)
             {
-                lo = o.min;
+                lo = (o.flags & kFlagSigned) ? static_cast<int>(static_cast<s8>(o.min)) : static_cast<int>(o.min);
             }
             if (o.kind != kKindToggle)
             {
@@ -237,6 +240,29 @@ namespace ui {
         return label != NULL && label[0] == TM_DROPPED_LABEL[0];
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
+    static const char* choiceLabel(const Option& o, int idx)
+    {
+#ifdef __MWERKS__
+        if (o.min != 0)
+        {
+            const char* p = static_cast<const char*>(o.data);
+            while (idx > 0)
+            {
+                while (*p++ != '\0') {}
+                idx--;
+            }
+            return p;
+        }
+#endif
+        return static_cast<const char* const*>(o.data)[idx];
+    }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
+
     void retireDropped(const MenuDef& def)
     {
         for (int pg = 0; pg < def.pageCount; pg++)
@@ -250,7 +276,7 @@ namespace ui {
                     continue;
                 }
                 int v = optionValue(def, o);
-                if (v >= 0 && v <= o.max && droppedLabel(static_cast<const char* const*>(o.data)[v]))
+                if (v >= 0 && v <= o.max && droppedLabel(choiceLabel(o, v)))
                 {
                     setOptionValue(def, o, o.def);
                 }
@@ -425,10 +451,15 @@ namespace ui {
         if (o.kind == kKindChoice && delta != 0)
         {
             // Step over retired or unavailable choices.
-            const char* const* labels = static_cast<const char* const*>(o.data);
             int step = delta > 0 ? 1 : -1;
-            while (next != v && labels[next] != NULL
-                   && (droppedLabel(labels[next]) || labels[next][0] == TM_UNAVAILABLE_LABEL[0]))
+            const char* lbl;
+            while (next != v && (lbl = choiceLabel(o, next)) != NULL
+                   && (droppedLabel(lbl) || lbl[0] == TM_UNAVAILABLE_LABEL[0]
+#ifdef __MWERKS__
+                       || (lbl[0] == TM_DJC_LABEL[0] && (g_counterAvailMask & 1) == 0)
+                       || (lbl[0] == TM_FLOAT_LABEL[0] && (g_counterAvailMask & 2) == 0)
+#endif
+                       ))
             {
                 int further = clampTo(o, next + step);
                 next = further == next ? v : further;
@@ -442,7 +473,7 @@ namespace ui {
                 o.onChange();
             }
         }
-        return next != v;
+        return optionValue(def, o) != v;
     }
 
     bool menuStep(const MenuDef& def, MenuState& state, const MenuInput& in)
@@ -711,12 +742,28 @@ namespace ui {
 
     static bool unavailableLabel(const char* s)
     {
-        return s != NULL && s[0] == TM_UNAVAILABLE_LABEL[0];
+        if (s == NULL)
+        {
+            return false;
+        }
+#ifdef __MWERKS__
+        if (s[0] == TM_DJC_LABEL[0]) return (g_counterAvailMask & 1) == 0;
+        if (s[0] == TM_FLOAT_LABEL[0]) return (g_counterAvailMask & 2) == 0;
+#endif
+        return s[0] == TM_UNAVAILABLE_LABEL[0];
     }
 
     static const char* labelText(const char* s)
     {
-        return unavailableLabel(s) || droppedLabel(s) ? s + 1 : s;
+        if (s != NULL && (s[0] == TM_UNAVAILABLE_LABEL[0] || s[0] == TM_DROPPED_LABEL[0]
+#ifdef __MWERKS__
+                          || s[0] == TM_DJC_LABEL[0] || s[0] == TM_FLOAT_LABEL[0]
+#endif
+                          ))
+        {
+            return s + 1;
+        }
+        return s;
     }
 
     // The value column's text, or NULL for none (then no box either).
@@ -733,7 +780,7 @@ namespace ui {
             return v ? "On" : "Off";
         case kKindChoice:
         {
-            const char* label = static_cast<const char* const*>(o.data)[v];
+            const char* label = choiceLabel(o, v);
             greyValue = unavailableLabel(label);
             return labelText(label);
         }
@@ -1065,10 +1112,12 @@ namespace ui {
         else if (p.count > 0 && cur < p.count)
         {
             desc = main::extraOptionDesc(pageId, static_cast<u8>(cur));
+#ifndef __MWERKS__
             if (desc == NULL)
             {
                 desc = p.options[cur].desc;
             }
+#endif
         }
         if (desc == NULL || desc[0] == '\0')
         {

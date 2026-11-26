@@ -44,6 +44,7 @@
 #include "main/ui/settings_modal.h"
 #include "main/ui/style.h"
 #include "main/ui/watermark.h"
+#include "shared/game/heap.h"
 #include "shared/game/mem.h"
 #include "shared/game/menu_sound.h"
 #include "shared/game/pad_bits.h"
@@ -156,6 +157,7 @@ namespace lab {
     static u32 s_frozenGameCalls = 0;
     static u32 s_advancedSteps = 0;
 
+#pragma dont_inline on
     static void capture(Raw* raw, const gfPadStatus* pads, bool resetWaits)
     {
         for (int i = 0; i < kPorts; i++)
@@ -205,7 +207,6 @@ namespace lab {
         return -1;
     }
 
-#pragma dont_inline on
     static u32 dpadBits(const Raw* raw, const game::MatchState& m, bool held)
     {
         bool allowMinus = !minusBoundToFrameAdvance(m);
@@ -221,12 +222,6 @@ namespace lab {
             }
         }
         return mask;
-    }
-#pragma dont_inline reset
-
-    static bool anyDpadDown(const Raw* raw, const game::MatchState& m, bool held)
-    {
-        return (dpadBits(raw, m, held) & kDpadDown) != 0;
     }
 
     // Bit 0: held on any port; bit 1: fresh press on any port.
@@ -295,6 +290,7 @@ namespace lab {
             hide(pads[i], kAllButtons, true);
         }
     }
+#pragma dont_inline reset
 
     static bool stickNeutral(const gfPadStatus& pad)
     {
@@ -331,6 +327,7 @@ namespace lab {
         return settings().controls.startOpensMenu != 0;
     }
 
+#pragma dont_inline on
     // One fresh press of Start/+ on `pad`, whatever the controller does.
     static void injectStart(gfPadStatus& pad)
     {
@@ -343,7 +340,6 @@ namespace lab {
         pad.m_buttonsReleasedThisFrame.bits &= ~bits;
     }
 
-#pragma dont_inline on
     static u8 activeScenarioPreset()
     {
         return main::extraLoaded() ? ui::pages::scenarioMenuState()->preset : 0;
@@ -360,21 +356,19 @@ namespace lab {
         const main::ComboTrainerSettings& ct = settings().comboTrainer;
         return main::extraLoaded() && ct.enabled != 0 && ct.recoveryTrainer == 0;
     }
-#pragma dont_inline reset
 
-    static inline bool resetLeftPreset(u8 p)
+    static bool comboLHeld(const game::MatchState& m)
     {
-        return p != ui::pages::kPresetOff && p != ui::pages::kPresetComboLab;
-    }
-
-    static bool anyLHeld(const Raw* raw)
-    {
+        if (!m.running || !m.training || m.paused || s_st.open || !comboShortcutActive())
+        {
+            return false;
+        }
         for (int i = 0; i < kPorts; i++)
         {
-            if (raw[i].connected)
+            if (s_st.sys[i].connected)
             {
-                u32 lBit = game::inMatchPad(raw[i].controllerType).prevCat;
-                if (lBit != 0 && (raw[i].held & lBit) != 0)
+                u32 lBit = game::inMatchPad(s_st.sys[i].controllerType).prevCat;
+                if (lBit != 0 && (s_st.sys[i].held & lBit) != 0)
                 {
                     return true;
                 }
@@ -382,10 +376,11 @@ namespace lab {
         }
         return false;
     }
+#pragma dont_inline reset
 
-    static bool comboLHeld(const game::MatchState& m)
+    static inline bool resetLeftPreset(u8 p)
     {
-        return m.running && m.training && !m.paused && !s_st.open && comboShortcutActive() && anyLHeld(s_st.sys);
+        return p != ui::pages::kPresetOff && p != ui::pages::kPresetComboLab;
     }
 
     bool comboLHeldOnPads(const gfPadStatus* pads)
@@ -432,6 +427,7 @@ namespace lab {
     // D-pad directions owned by Lab shortcuts (Up None, Shield Drop platform
     // cycle, Techchase platform stepping, active scenario reset/spacing, Combo Lab),
     // hidden from the game.
+#pragma dont_inline on
     static u32 boundDpad(const game::MatchState& m)
     {
         if (!m.running || !m.training || m.paused)
@@ -494,6 +490,7 @@ namespace lab {
             hidePort(pads[i], i, m, false);
         }
     }
+#pragma dont_inline reset
 
     // A fighter's controls come from the port's system pad (P+ reads it, the
     // pad thread writes it: stub's pad_hooks.cpp), so the lab's buttons are
@@ -519,6 +516,7 @@ namespace lab {
         }
     }
 
+#pragma dont_inline on
     static int repeat(Repeat& r, bool down, bool fast)
     {
         if (!down)
@@ -565,6 +563,22 @@ namespace lab {
         ui::menuSound(game::kSoundOpen);
     }
 
+    static void latchReleaseWaits()
+    {
+        for (int i = 0; i < kPorts; i++)
+        {
+            s_st.releaseMask[i] = s_st.sys[i].held;
+        }
+        s_st.stickWaitMask = 0xFF;
+    }
+
+    static void closeByButton()
+    {
+        ui::menuSound(game::kSoundClose);
+        closeMenu();
+    }
+#pragma dont_inline reset
+
     // Also called from the extra module (fighter_swap): keep exported.
 #pragma force_active on
     bool menuOpen()
@@ -590,23 +604,11 @@ namespace lab {
         record::clearDeleteConfirm();
         // Whatever is still held when the menu closes stays hidden until it
         // is let go, so it neither moves Training's menu nor the fighters.
-        for (int i = 0; i < kPorts; i++)
-        {
-            s_st.releaseMask[i] = s_st.sys[i].held;
-        }
-        s_st.stickWaitMask = 0xFF;
+        latchReleaseWaits();
         TM_LOG("lab: menu closed\n");
         storage::settingsMenuClosed();
     }
 #pragma force_active reset
-
-    // Closed by the player (its button, or B on the top page), with the sound;
-    // Exit sounds as its function row, a menu the game closes is silent.
-    static void closeByButton()
-    {
-        ui::menuSound(game::kSoundClose);
-        closeMenu();
-    }
 
     static void runMenu()
     {
@@ -671,8 +673,8 @@ namespace lab {
                 {
                     sx = sy = 0.0f;
                 }
-                int ix = static_cast<int>(sx >= 0.0f ? (sx * 100.0f + 0.5f) : (sx * 100.0f - 0.5f));
-                int iy = static_cast<int>(sy >= 0.0f ? (sy * 100.0f + 0.5f) : (sy * 100.0f - 0.5f));
+                int ix = game::f2i(sx >= 0.0f ? (sx * 100.0f + 0.5f) : (sx * 100.0f - 0.5f));
+                int iy = game::f2i(sy >= 0.0f ? (sy * 100.0f + 0.5f) : (sy * 100.0f - 0.5f));
                 if (ix < -100) ix = -100;
                 else if (ix > 100) ix = 100;
                 if (iy < -100) iy = -100;
@@ -942,7 +944,7 @@ namespace lab {
         {
             int side = refs[i].cpu ? main::kSideCpu : main::kSideHuman;
             u16 percent = main::percentSetting(side);
-            if (main::lockSetting(side) && game::damage(refs[i]) != static_cast<float>(percent))
+            if (main::lockSetting(side) && game::damage(refs[i]) != game::i2f(percent))
             {
                 game::setDamage(refs[i], percent);
             }
@@ -1271,11 +1273,7 @@ namespace lab {
             hideAll(pads);
             if (confirmed)
             {
-                for (int i = 0; i < kPorts; i++)
-                {
-                    s_st.releaseMask[i] = s_st.sys[i].held;
-                }
-                s_st.stickWaitMask = 0xFF;
+                latchReleaseWaits();
                 game::setFrozen(false);
                 onSettingsUpgraded();
             }
@@ -1437,7 +1435,7 @@ namespace lab {
         case game::kTechWavedash:
             if (o.wavedash)
             {
-                float angle = static_cast<int>(t.angle * 10.0f) / 10.0f;
+                float angle = game::i2fScale(game::f2i(t.angle * 10.0f), 0.1f);
                 m = osd::post(t.player, osd::kIdWavedash, osd::kWhite, "Wavedash: f%d\nAngle: %2.1f\n%s (%df)",
                               t.frame, angle, t.flag ? "SH" : "FH", t.a);
                 osd::lineColor(m, 0, first ? osd::kGreen : osd::kWhite);
@@ -1875,9 +1873,15 @@ namespace lab {
         s_vsReadOnly = !game::trainingGameMode();
         memset(s_playerShieldHit, 0, sizeof(s_playerShieldHit));
         game::trackerAttach();
+#ifdef __MWERKS__
+        game::advantageAttach();
+#endif
         game::advantageReset(onAdvantage);
         game::techniquesAttach();
         game::techniquesReset(onTechnique);
+#ifdef __MWERKS__
+        game::overlaysAttach();
+#endif
         game::setFrameListener(onTrackerFrame);
         gfx::textAttach();
         osd::attach();
@@ -1903,24 +1907,34 @@ namespace lab {
 
     void detach()
     {
-        if (s_vsReadOnly)
+        bool ro = s_vsReadOnly;
+        if (!ro)
         {
-            osd::detach();
-            gfx::textDetach();
-            game::techniquesDetach();
-            game::trackerDetach();
+            display::detach();
+#ifdef __MWERKS__
+            extra::techSparkleDetach();
+#endif
+        }
+        osd::detach();
+        gfx::textDetach();
+#ifdef __MWERKS__
+        game::overlaysDetach();
+#else
+        if (!ro)
+        {
+            game::overlaysClear();
+        }
+#endif
+        game::techniquesDetach();
+#ifdef __MWERKS__
+        game::advantageDetach();
+#endif
+        game::trackerDetach();
+        if (ro)
+        {
             s_vsReadOnly = false;
             return;
         }
-        display::detach();
-#ifdef __MWERKS__
-        extra::techSparkleDetach();
-#endif
-        osd::detach();
-        gfx::textDetach();
-        game::overlaysClear();
-        game::techniquesDetach();
-        game::trackerDetach();
         game::setFrozen(false);
         game::setGameplayPaused(false);
         game::setCameraPaused(false);

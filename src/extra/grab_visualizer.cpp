@@ -39,10 +39,6 @@ namespace extra {
             kDebugMagic = 0x544D4756,            // "TMGV"
             kAreaSetup = 0x807AE3F8,             // soAreaModuleImpl::setup (shared by ftAreaModuleImpl)
             kAreaSlotSetup = 0x28,
-            kStageObjVptr = 0x3C,                // gfTask vptr (sizeof(gfTask) == 0x40)
-            kSlotProcessAnim = 0x10,
-            kStageObjProcessAnim = 0x8070F444,   // StageObject::processAnim
-            kAccesserOffset = 0x60,
             kSearchPartGroup = 0x58,             // soCollisionSearchPart::m_groupIndex (88)
             kSearchInterval = 0xFC,              // soCollisionSearchModuleImpl::m_checkInterval (252)
             kSearchCounter = 0x100,              // soCollisionSearchModuleImpl::m_checkCounter (256)
@@ -61,8 +57,6 @@ namespace extra {
             kGfAreaCircleRadius = 0x50,
             kCategoryLists = 0x58,               // gfTaskScheduler category list heads (0x8002EFE8)
             kTaskNext = 0x10,
-            kTaskFlags = 0x2C,
-            kTaskAlive = 0x40000000,
             kMaxAreas = 32,
             kMaxItemRects = 24,
             kMaxCategoryTasks = 96
@@ -85,69 +79,12 @@ namespace extra {
             u32 drawCalls;        // 0x28
         };
 
-        struct FighterSlot {
-            bool present;
-            bool wanted;
-            u32 mainTaskId;
-            u32 partnerTaskId;
-        };
-
         struct ItemRect {
             float xs[4];
             float ys[4];
         };
 
         GrabVizDebugBlock s_debug;
-
-        const soModuleEnumeration* verifiedWeaponModules(const void* task, Weapon*& outWeapon)
-        {
-            outWeapon = NULL;
-            if (!game::isRam(task) || (game::wordAt(task, kTaskFlags) & kTaskAlive) == 0)
-            {
-                return NULL;
-            }
-            const void* vt = reinterpret_cast<const void*>(game::wordAt(task, kStageObjVptr));
-            if (!game::isRam(vt) || game::wordAt(vt, kSlotProcessAnim) != kStageObjProcessAnim)
-            {
-                return NULL;
-            }
-            StageObject* obj = const_cast<StageObject*>(reinterpret_cast<const StageObject*>(task));
-            if (obj->soGetKind() != StageObject_Weapon)
-            {
-                return NULL;
-            }
-            const soModuleAccesser* accesser =
-                reinterpret_cast<const soModuleAccesser*>(game::wordAt(task, kAccesserOffset));
-            // Weapon::getFounderTaskId (0x808E60FC) reads m_workManageModule off m_enumerationStart.
-            if (!game::isRam(accesser) || !game::isRam(accesser->m_enumerationStart)
-                || !game::isRam(accesser->m_enumerationStart->m_workManageModule))
-            {
-                return NULL;
-            }
-            outWeapon = static_cast<Weapon*>(obj);
-            return accesser->m_enumerationStart;
-        }
-
-        int ownerSlotByTaskId(const FighterSlot slots[game::kMaxFighters], int taskId)
-        {
-            if (taskId <= 0)
-            {
-                return -1;
-            }
-            u32 tid = static_cast<u32>(taskId);
-            for (int p = 0; p < game::kMaxFighters; p++)
-            {
-                if (!slots[p].present)
-                {
-                    continue;
-                }
-                if (slots[p].mainTaskId == tid || (slots[p].partnerTaskId != 0 && slots[p].partnerTaskId == tid))
-                {
-                    return p;
-                }
-            }
-            return -1;
-        }
 
         bool drawCollisionShape(const void* shape, u8 kind, const float viewMtx[3][4], bool& drewBubble)
         {
@@ -164,23 +101,35 @@ namespace extra {
             return true;
         }
 
-        void drawCatchModule(const soModuleEnumeration* m, const float viewMtx[3][4], bool& drewBubble)
+#pragma dont_inline on
+        void drawCollModule(const void* mod, bool isSearch, const float viewMtx[3][4], bool& drewBubble)
         {
-            if (m == NULL || !s_debug.shapeOk || !game::isRam(m->m_collisionCatchModule))
+            if (!s_debug.shapeOk || !game::isRam(mod))
             {
                 return;
             }
-            const void* catchMod = m->m_collisionCatchModule;
-            const void* vt = reinterpret_cast<const void*>(game::wordAt(catchMod, 0));
-            if (!game::isRam(vt) || game::wordAt(vt, kCollCatchSlotRenderDebug) != kCollCatchRenderDebug)
+            const void* vt = reinterpret_cast<const void*>(game::wordAt(mod, 0));
+            u32 slotOff = isSearch ? kCollSearchSlotRenderDebug : kCollCatchSlotRenderDebug;
+            u32 renderFn = isSearch ? kCollSearchRenderDebug : kCollCatchRenderDebug;
+            if (!game::isRam(vt) || game::wordAt(vt, slotOff) != renderFn)
             {
                 return;
+            }
+            if (isSearch)
+            {
+                u32 interval = game::wordAt(mod, kSearchInterval);
+                if (interval != 0 && game::wordAt(mod, kSearchCounter) != interval)
+                {
+                    return;
+                }
             }
             const void* parts = NULL;
             const void* calls = NULL;
             const void* coll = NULL;
             int gCount = 0;
-            int limit = collOpenParts(catchMod, kCollCatchParts, kCollCatchCollision, parts, calls, coll, gCount);
+            int limit = collOpenParts(mod, isSearch ? kCollSearchParts : kCollCatchParts,
+                                      isSearch ? kCollSearchCollision : kCollCatchCollision,
+                                      parts, calls, coll, gCount);
             for (int id = 0; id < limit; id++)
             {
                 const void* part = collArrayAt(parts, calls, id);
@@ -188,52 +137,29 @@ namespace extra {
                 {
                     continue;
                 }
-                const void* shape = collShapeOf(coll, gCount, id, 0);
-                if (drawCollisionShape(shape, kGrabVizGrab, viewMtx, drewBubble))
+                u32 group = isSearch ? game::wordAt(part, kSearchPartGroup) : 0u;
+                const void* shape = collShapeOf(coll, gCount, id, group);
+                if (drawCollisionShape(shape, isSearch ? kGrabVizSearch : kGrabVizGrab, viewMtx, drewBubble))
                 {
-                    s_debug.grabShapes++;
-                    s_debug.totalGrabDrawn++;
+                    if (isSearch)
+                    {
+                        s_debug.searchShapes++;
+                        s_debug.totalSearchDrawn++;
+                    }
+                    else
+                    {
+                        s_debug.grabShapes++;
+                        s_debug.totalGrabDrawn++;
+                    }
                 }
             }
         }
+#pragma dont_inline reset
 
-        void drawSearchModule(const soModuleEnumeration* m, const float viewMtx[3][4], bool& drewBubble)
+        void drawCatchAndSearch(const soModuleEnumeration* m, const float viewMtx[3][4], bool& drewBubble)
         {
-            if (m == NULL || !s_debug.shapeOk || !game::isRam(m->m_collisionSearchModule))
-            {
-                return;
-            }
-            const void* searchMod = m->m_collisionSearchModule;
-            const void* vt = reinterpret_cast<const void*>(game::wordAt(searchMod, 0));
-            if (!game::isRam(vt) || game::wordAt(vt, kCollSearchSlotRenderDebug) != kCollSearchRenderDebug)
-            {
-                return;
-            }
-            u32 interval = game::wordAt(searchMod, kSearchInterval);
-            if (interval != 0 && game::wordAt(searchMod, kSearchCounter) != interval)
-            {
-                return;
-            }
-            const void* parts = NULL;
-            const void* calls = NULL;
-            const void* coll = NULL;
-            int gCount = 0;
-            int limit = collOpenParts(searchMod, kCollSearchParts, kCollSearchCollision, parts, calls, coll, gCount);
-            for (int id = 0; id < limit; id++)
-            {
-                const void* part = collArrayAt(parts, calls, id);
-                if (!game::isRam(part) || game::wordAt(part, 0) != kCollPartActive)
-                {
-                    continue;
-                }
-                u32 group = game::wordAt(part, kSearchPartGroup);
-                const void* shape = collShapeOf(coll, gCount, id, group);
-                if (drawCollisionShape(shape, kGrabVizSearch, viewMtx, drewBubble))
-                {
-                    s_debug.searchShapes++;
-                    s_debug.totalSearchDrawn++;
-                }
-            }
+            drawCollModule(m->m_collisionCatchModule, false, viewMtx, drewBubble);
+            drawCollModule(m->m_collisionSearchModule, true, viewMtx, drewBubble);
         }
 
         void collectItemAreas(const soModuleEnumeration* m, const float viewMtx[3][4], bool& drewBubble,
@@ -323,7 +249,7 @@ namespace extra {
             }
         }
 
-        void drawWeaponModules(u8 who, const FighterSlot slots[game::kMaxFighters], const float viewMtx[3][4],
+        void drawWeaponModules(u8 who, const CollFighterSlot slots[game::kMaxFighters], const float viewMtx[3][4],
                                bool& drewBubble)
         {
             const void* scheduler = g_taskScheduler;
@@ -335,17 +261,16 @@ namespace extra {
                 game::wordAt(scheduler, kCategoryLists + 4u * static_cast<u32>(gfTask::Category_Weapon)));
             for (int n = 0; n < kMaxCategoryTasks && game::isRam(task); n++)
             {
-                Weapon* w = NULL;
-                const soModuleEnumeration* m = verifiedWeaponModules(task, w);
-                if (m != NULL && w != NULL)
+                StageObject* obj = NULL;
+                const soModuleEnumeration* m = collVerifiedTaskModules(task, StageObject_Weapon, true, obj);
+                if (m != NULL && obj != NULL)
                 {
-                    int ownerTaskId = w->getFounderTaskId();
-                    int slot = ownerSlotByTaskId(slots, ownerTaskId);
+                    int ownerTaskId = static_cast<Weapon*>(obj)->getFounderTaskId();
+                    int slot = collOwnerSlotByTaskId(slots, game::kMaxFighters, ownerTaskId);
                     bool drawIt = slot >= 0 ? slots[slot].wanted : (who == display::kWhoBoth);
                     if (drawIt)
                     {
-                        drawCatchModule(m, viewMtx, drewBubble);
-                        drawSearchModule(m, viewMtx, drewBubble);
+                        drawCatchAndSearch(m, viewMtx, drewBubble);
                     }
                 }
                 task = reinterpret_cast<const void*>(game::wordAt(task, kTaskNext));
@@ -353,6 +278,9 @@ namespace extra {
         }
     }
 
+#ifdef TM_MODULE_MAIN
+#pragma force_active on
+#endif
     void grabVizAttach()
     {
         memset(&s_debug, 0, sizeof(s_debug));
@@ -393,7 +321,7 @@ namespace extra {
         float viewMtx[3][4];
         memcpy(viewMtx, &camMgr->m_cameras[0], sizeof(viewMtx));
 
-        FighterSlot slots[game::kMaxFighters];
+        CollFighterSlot slots[game::kMaxFighters];
         memset(slots, 0, sizeof(slots));
         ItemRect itemRects[kMaxItemRects];
         int itemRectCount = 0;
@@ -419,21 +347,14 @@ namespace extra {
             {
                 continue;
             }
-            const soModuleEnumeration* m = game::fighterModules(refs[i].fighter);
-            if (m != NULL)
+            Fighter* pair[2] = {refs[i].fighter, (refs[i].partner != refs[i].fighter) ? refs[i].partner : NULL};
+            for (int k = 0; k < 2; k++)
             {
-                drawCatchModule(m, viewMtx, drewBubble);
-                drawSearchModule(m, viewMtx, drewBubble);
-                collectItemAreas(m, viewMtx, drewBubble, itemRects, itemRectCount);
-            }
-            if (refs[i].partner != NULL && refs[i].partner != refs[i].fighter)
-            {
-                const soModuleEnumeration* pm = game::fighterModules(refs[i].partner);
-                if (pm != NULL)
+                const soModuleEnumeration* m = pair[k] != NULL ? game::fighterModules(pair[k]) : NULL;
+                if (m != NULL)
                 {
-                    drawCatchModule(pm, viewMtx, drewBubble);
-                    drawSearchModule(pm, viewMtx, drewBubble);
-                    collectItemAreas(pm, viewMtx, drewBubble, itemRects, itemRectCount);
+                    drawCatchAndSearch(m, viewMtx, drewBubble);
+                    collectItemAreas(m, viewMtx, drewBubble, itemRects, itemRectCount);
                 }
             }
         }
@@ -462,5 +383,8 @@ namespace extra {
             s_debug.drawCalls++;
         }
     }
+#ifdef TM_MODULE_MAIN
+#pragma force_active reset
+#endif
 }
 }

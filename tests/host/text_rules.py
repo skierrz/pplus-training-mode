@@ -100,6 +100,7 @@ NOT_DRAWN_FILES = [
     (r"extra/fighter_swap\.cpp$", "swap refusal reasons for the log"),
     (r"extra/ui_assets\.cpp$", "BRRES texture and palette names matched in RAM"),
     (r"extra/net_alloc\.cpp$", "logging format wrapper"),
+    (r"main/module\.cpp$", "logging format wrapper"),
 ]
 
 # ---- longest values ------------------------------------------------------------
@@ -227,12 +228,23 @@ def _decode_lz77_ascii(comp):
 
 
 def status_names(sources):
-    src_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-                            "src", "main", "game", "status_names.cpp")
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    src_path = os.path.join(repo_root, "src", "main", "game", "status_names.cpp")
     text = open(src_path, "r", encoding="utf-8").read()
-    m = re.search(r"kNamesLz77\[[^\]]*\]\s*=\s*\{([^}]+)\}", text)
-    if m:
-        comp = bytes(int(tok, 0) for tok in re.findall(r"0x[0-9A-Fa-f]+|\d+", m.group(1)))
+    m_comp = re.search(r"kNamesComp\[[^\]]*\]\s*=\s*\{([^}]+)\}", text)
+    m_raw = re.search(r"kRawBytes\s*=\s*(\d+)", text)
+    m_lz = re.search(r"kNamesLz77\[[^\]]*\]\s*=\s*\{([^}]+)\}", text)
+    if m_comp and m_raw:
+        import importlib.util
+        gmd_path = os.path.join(repo_root, "scripts", "gen_menu_descriptions.py")
+        spec = importlib.util.spec_from_file_location("gen_menu_descriptions", gmd_path)
+        gmd = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gmd)
+        comp = bytes(int(tok, 0) for tok in re.findall(r"0x[0-9A-Fa-f]+|\d+", m_comp.group(1)))
+        raw = gmd.decode_huff_lzss(comp, int(m_raw.group(1))).decode("ascii")
+        names = [n for n in raw.split("\0") if n]
+    elif m_lz:
+        comp = bytes(int(tok, 0) for tok in re.findall(r"0x[0-9A-Fa-f]+|\d+", m_lz.group(1)))
         raw = _decode_lz77_ascii(comp).decode("ascii")
         names = [n for n in raw.split("\0") if n]
     else:
@@ -901,8 +913,17 @@ def psa_inspector_core_h(c, src):
             for t in c.expand(lit, 2):
                 c.item("fit", lit, t, scale_for_cap(6.0), 0, 36.0, 0.0)
                 c.buffer(lit, t, 12.0)
+        elif lit.func == "psaFormatFocusCommand":
+            # Formatted into focusText[48] and clipped via clipToWidth to 170 px.
+            pass
         else:
             continue
+        c.take(lit)
+
+
+def psa_opcodes_cpp(c, src):
+    # Opcode names and typed argument strings, clipped via clipToWidth in psa_inspector.cpp.
+    for lit in src.literals:
         c.take(lit)
 
 
@@ -912,6 +933,9 @@ def psa_inspector_cpp(c, src):
             continue
         if lit.name == "drawShadowText":
             c.item("fit", lit, lit.text, scale_for_cap(6.0), 0, 170.0, 0.0)
+            c.take(lit)
+        elif lit.name == "snprintf" and lit.arg == 2 and lit.text == "%s:%s":
+            # Focus footer strip clipped via clipToWidth to 170 px (focusLine[56]).
             c.take(lit)
 
 
@@ -1175,6 +1199,7 @@ HANDLERS = [
     ("extra/fighter_swap_core.h", fighter_swap_core_h),
     ("extra/pplus_tech_tracker_core.h", walked),
     ("extra/psa_inspector_core.h", psa_inspector_core_h),
+    ("extra/psa_opcodes.cpp", psa_opcodes_cpp),
     ("extra/psa_inspector.cpp", psa_inspector_cpp),
     ("extra/adaptive_cpu_core.h", adaptive_cpu_core_h),
     ("extra/adaptive_cpu.cpp", adaptive_cpu_cpp),

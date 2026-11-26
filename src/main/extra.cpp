@@ -1,6 +1,9 @@
 #include "main/extra.h"
 
+#include <stddef.h>
+
 #include "extra/reversal_slots.h"
+#include "main/ui/info_display.h"
 #include "shared/log.h"
 #include "shared/perf.h"
 
@@ -18,36 +21,59 @@ namespace main {
     }
 #pragma force_active reset
 
-    void extraRender(u32 renderCall, const game::MatchState& match)
-    {
-        if (s_hooks != NULL && s_hooks->render != NULL)
-        {
-            s_hooks->render(renderCall, match);
-        }
-    }
-
-    bool extraAlterRow()
-    {
-        return s_hooks != NULL && s_hooks->alterRow();
-    }
-
-    void extraAlterEdited()
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
+    static void callVoid(u32 off)
     {
         if (s_hooks != NULL)
         {
-            s_hooks->alterEdited();
+            typedef void (*Fn)();
+            Fn fn = *reinterpret_cast<const Fn*>(reinterpret_cast<const u8*>(s_hooks) + off);
+            if (fn != NULL) fn();
         }
     }
 
-    bool extraLoaded()
+    static bool callBool(u32 off)
     {
-        return s_hooks != NULL;
+        if (s_hooks == NULL) return false;
+        typedef bool (*Fn)();
+        Fn fn = *reinterpret_cast<const Fn*>(reinterpret_cast<const u8*>(s_hooks) + off);
+        return fn != NULL && fn();
     }
 
-#pragma dont_inline on
+    static void callMatch(u32 off, const game::MatchState& match)
+    {
+        if (s_hooks != NULL)
+        {
+            typedef void (*Fn)(const game::MatchState&);
+            Fn fn = *reinterpret_cast<const Fn*>(reinterpret_cast<const u8*>(s_hooks) + off);
+            if (fn != NULL) fn(match);
+        }
+    }
+
+    static void callMatchBool(u32 off, const game::MatchState& match, bool menuOpen)
+    {
+        if (s_hooks != NULL)
+        {
+            typedef void (*Fn)(const game::MatchState&, bool);
+            Fn fn = *reinterpret_cast<const Fn*>(reinterpret_cast<const u8*>(s_hooks) + off);
+            if (fn != NULL) fn(match, menuOpen);
+        }
+    }
+
+    void extraRender(u32 renderCall, const game::MatchState& match)
+    {
+        if (s_hooks != NULL && s_hooks->render != NULL) s_hooks->render(renderCall, match);
+    }
+
+    bool extraAlterRow() { return callBool(offsetof(ExtraHooks, alterRow)); }
+    void extraAlterEdited() { callVoid(offsetof(ExtraHooks, alterEdited)); }
+    bool extraLoaded() { return s_hooks != NULL; }
+
     static bool rngCall(int call)
     {
-        return s_hooks != NULL && s_hooks->characterRng(call);
+        return s_hooks != NULL && s_hooks->characterRng != NULL && s_hooks->characterRng(call);
     }
 
     static bool stageCall(int call)
@@ -57,219 +83,68 @@ namespace main {
 
     void extraScenarioCall(int call)
     {
-        if (s_hooks != NULL && s_hooks->scenarioCall != NULL)
-        {
-            s_hooks->scenarioCall(call);
-        }
+        if (s_hooks != NULL && s_hooks->scenarioCall != NULL) s_hooks->scenarioCall(call);
     }
+#ifdef __MWERKS__
 #pragma dont_inline reset
+#endif
 
-    void extraCharacterRng()
-    {
-        rngCall(kRngApply);
-    }
+    void extraCharacterRng() { rngCall(kRngApply); }
+    bool extraPeachRows() { return rngCall(kRngPeach); }
+    bool extraGameWatchRows() { return rngCall(kRngGameWatch); }
+    bool extraLuigiRows() { return rngCall(kRngLuigi); }
+    bool extraSamusRows() { return rngCall(kRngSamus); }
+    bool extraMewtwoRows() { return rngCall(kRngMewtwo); }
+    bool extraLucarioRows() { return rngCall(kRngLucario); }
+    bool extraWarioRows() { return rngCall(kRngWario); }
+    bool extraDonkeyKongRows() { return rngCall(kRngDonkeyKong); }
+    bool extraIvysaurRows() { return rngCall(kRngIvysaur); }
+    bool extraRobRows() { return rngCall(kRngRob); }
+    bool extraLucasRows() { return rngCall(kRngLucas); }
+    bool extraSquirtleRows() { return rngCall(kRngSquirtle); }
+    bool extraSheikRows() { return rngCall(kRngSheik); }
+    bool extraDededeRows() { return rngCall(kRngDedede); }
+    bool extraSnakeRows() { return rngCall(kRngSnake); }
+    bool extraGanondorfRows() { return rngCall(kRngGanondorf); }
+    bool extraIceClimbersRows() { return rngCall(kRngIceClimbers); }
+    bool extraOlimarRows() { return rngCall(kRngOlimar); }
+    bool extraCharacterRngPage() { return rngCall(kRngAny); }
 
-    bool extraPeachRows()
-    {
-        return rngCall(kRngPeach);
-    }
+    void extraStageOptionsTick() { stageCall(kStageTick); }
+    void extraStageOptionsChanged() { stageCall(kStageChanged); }
+    void extraStageOptionsSavestateLoaded() { stageCall(kStageSavestateLoaded); }
+    bool extraStageOptionsPage() { return stageCall(kStagePage); }
+    bool extraStageHazardsRow() { return stageCall(kStageHazardsRow); }
+    bool extraStagePlatformsRow() { return stageCall(kStagePlatformsRow); }
+    bool extraStageFodRow() { return stageCall(kStageFodRow); }
 
-    bool extraGameWatchRows()
-    {
-        return rngCall(kRngGameWatch);
-    }
-
-    bool extraLuigiRows()
-    {
-        return rngCall(kRngLuigi);
-    }
-
-    bool extraSamusRows()
-    {
-        return rngCall(kRngSamus);
-    }
-
-    bool extraMewtwoRows()
-    {
-        return rngCall(kRngMewtwo);
-    }
-
-    bool extraLucarioRows()
-    {
-        return rngCall(kRngLucario);
-    }
-
-    bool extraWarioRows()
-    {
-        return rngCall(kRngWario);
-    }
-
-    bool extraDonkeyKongRows()
-    {
-        return rngCall(kRngDonkeyKong);
-    }
-
-    bool extraIvysaurRows()
-    {
-        return rngCall(kRngIvysaur);
-    }
-
-    bool extraRobRows()
-    {
-        return rngCall(kRngRob);
-    }
-
-    bool extraLucasRows()
-    {
-        return rngCall(kRngLucas);
-    }
-
-    bool extraSquirtleRows()
-    {
-        return rngCall(kRngSquirtle);
-    }
-
-    bool extraSheikRows()
-    {
-        return rngCall(kRngSheik);
-    }
-
-    bool extraDededeRows()
-    {
-        return rngCall(kRngDedede);
-    }
-
-    bool extraSnakeRows()
-    {
-        return rngCall(kRngSnake);
-    }
-
-    bool extraGanondorfRows()
-    {
-        return rngCall(kRngGanondorf);
-    }
-
-    bool extraIceClimbersRows()
-    {
-        return rngCall(kRngIceClimbers);
-    }
-
-    bool extraOlimarRows()
-    {
-        return rngCall(kRngOlimar);
-    }
-
-    bool extraCharacterRngPage()
-    {
-        return rngCall(kRngAny);
-    }
-
-    void extraStageOptionsTick()
-    {
-        stageCall(kStageTick);
-    }
-
-    void extraStageOptionsChanged()
-    {
-        stageCall(kStageChanged);
-    }
-
-    void extraStageOptionsSavestateLoaded()
-    {
-        stageCall(kStageSavestateLoaded);
-    }
-
-    bool extraStageOptionsPage()
-    {
-        return stageCall(kStagePage);
-    }
-
-    bool extraStageHazardsRow()
-    {
-        return stageCall(kStageHazardsRow);
-    }
-
-    bool extraStagePlatformsRow()
-    {
-        return stageCall(kStagePlatformsRow);
-    }
-
-    bool extraStageFodRow()
-    {
-        return stageCall(kStageFodRow);
-    }
-
-    bool extraDiRow()
-    {
-        return s_hooks != NULL;
-    }
-
+    bool extraDiRow() { return s_hooks != NULL; }
     void extraDiDraw(const game::MatchState& match)
     {
         TM_PERF_SCOPE(kDiDraw);
-        if (s_hooks != NULL)
-        {
-            s_hooks->diDraw(match);
-        }
+        callMatch(offsetof(ExtraHooks, diDraw), match);
     }
-
-    void extraDiReset()
-    {
-        if (s_hooks != NULL)
-        {
-            s_hooks->diReset();
-        }
-    }
-
+    void extraDiReset() { callVoid(offsetof(ExtraHooks, diReset)); }
     void extraDiHideDrawDi(bool hide)
     {
-        if (s_hooks != NULL)
-        {
-            s_hooks->diHideDrawDi(hide);
-        }
+        if (s_hooks != NULL && s_hooks->diHideDrawDi != NULL) s_hooks->diHideDrawDi(hide);
     }
 
-    void extraHeatmapDraw(const game::MatchState& match)
-    {
-        if (s_hooks != NULL && s_hooks->heatmapDraw != NULL)
-        {
-            s_hooks->heatmapDraw(match);
-        }
-    }
-
-    void extraHeatmapReset()
-    {
-        if (s_hooks != NULL && s_hooks->heatmapReset != NULL)
-        {
-            s_hooks->heatmapReset();
-        }
-    }
-
-    void extraGrabVizDraw(const game::MatchState& match)
-    {
-        if (s_hooks != NULL && s_hooks->grabVizDraw != NULL)
-        {
-            s_hooks->grabVizDraw(match);
-        }
-    }
+    void extraHeatmapDraw(const game::MatchState& match) { callMatch(offsetof(ExtraHooks, heatmapDraw), match); }
+    void extraHeatmapReset() { callVoid(offsetof(ExtraHooks, heatmapReset)); }
+    void extraGrabVizDraw(const game::MatchState& match) { callMatch(offsetof(ExtraHooks, grabVizDraw), match); }
 
     int extraActIn(Fighter* fighter, int* how)
     {
         *how = kActNone;
-        return s_hooks != NULL ? s_hooks->actIn(fighter, how) : -1;
+        return s_hooks != NULL && s_hooks->actIn != NULL ? s_hooks->actIn(fighter, how) : -1;
     }
 
-    void extraFrameData()
-    {
-        if (s_hooks != NULL)
-        {
-            s_hooks->frameData();
-        }
-    }
+    void extraFrameData() { callVoid(offsetof(ExtraHooks, frameData)); }
 
     bool extraAdvantageMeasured(const game::Advantage& r)
     {
-        return s_hooks != NULL && s_hooks->advantageMeasured(r);
+        return s_hooks != NULL && s_hooks->advantageMeasured != NULL && s_hooks->advantageMeasured(r);
     }
 
     bool extraShieldHoldFullMove(int defenderPlayerNo, int defenderEntryId, const cpu::View& v, bool newHit)
@@ -286,54 +161,22 @@ namespace main {
 
     void extraPPlusRecoveryReset(int slot)
     {
-        if (s_hooks != NULL && s_hooks->pplusRecoveryReset != NULL)
-        {
-            s_hooks->pplusRecoveryReset(slot);
-        }
+        if (s_hooks != NULL && s_hooks->pplusRecoveryReset != NULL) s_hooks->pplusRecoveryReset(slot);
     }
 
-    void extraComboDraw(const game::MatchState& match)
-    {
-        if (s_hooks != NULL && s_hooks->comboDraw != NULL)
-        {
-            s_hooks->comboDraw(match);
-        }
-    }
-
-    void extraComboReset()
-    {
-        if (s_hooks != NULL && s_hooks->comboReset != NULL)
-        {
-            s_hooks->comboReset();
-        }
-    }
+    void extraComboDraw(const game::MatchState& match) { callMatch(offsetof(ExtraHooks, comboDraw), match); }
+    void extraComboReset() { callVoid(offsetof(ExtraHooks, comboReset)); }
 
     int extraAdaptiveBias(int cpuPlayerNo, int list, bool inCounter, float opponentDist, bool commit)
     {
-        if (s_hooks != NULL && s_hooks->adaptiveBias != NULL)
-        {
-            return s_hooks->adaptiveBias(cpuPlayerNo, list, inCounter, opponentDist, commit);
-        }
-        return -1;
+        return s_hooks != NULL && s_hooks->adaptiveBias != NULL
+                   ? s_hooks->adaptiveBias(cpuPlayerNo, list, inCounter, opponentDist, commit)
+                   : -1;
     }
 
-    void extraAdaptiveReset()
-    {
-        if (s_hooks != NULL && s_hooks->adaptiveReset != NULL)
-        {
-            s_hooks->adaptiveReset();
-        }
-    }
-
-    void extraScenarioChanged()
-    {
-        extraScenarioCall(kScenarioChanged);
-    }
-
-    void extraScenarioResetNow()
-    {
-        extraScenarioCall(kScenarioResetNow);
-    }
+    void extraAdaptiveReset() { callVoid(offsetof(ExtraHooks, adaptiveReset)); }
+    void extraScenarioChanged() { extraScenarioCall(kScenarioChanged); }
+    void extraScenarioResetNow() { extraScenarioCall(kScenarioResetNow); }
 
     bool extraScenarioCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons)
     {
@@ -343,99 +186,39 @@ namespace main {
 
     void extraScenarioSavedView(Settings& out)
     {
-        if (s_hooks != NULL && s_hooks->scenarioSavedView != NULL)
-        {
-            s_hooks->scenarioSavedView(out);
-        }
+        if (s_hooks != NULL && s_hooks->scenarioSavedView != NULL) s_hooks->scenarioSavedView(out);
     }
 
-    bool extraFighterSwapRow()
-    {
-        return s_hooks != NULL && s_hooks->fighterSwapRow != NULL && s_hooks->fighterSwapRow();
-    }
-
-    void extraFighterSwapChanged()
-    {
-        if (s_hooks != NULL && s_hooks->fighterSwapChanged != NULL)
-        {
-            s_hooks->fighterSwapChanged();
-        }
-    }
-
-    void extraFighterSwapApply()
-    {
-        if (s_hooks != NULL && s_hooks->fighterSwapApply != NULL)
-        {
-            s_hooks->fighterSwapApply();
-        }
-    }
-
-    bool extraFighterSwapBusy()
-    {
-        return s_hooks != NULL && s_hooks->fighterSwapBusy != NULL && s_hooks->fighterSwapBusy();
-    }
+    bool extraFighterSwapRow() { return callBool(offsetof(ExtraHooks, fighterSwapRow)); }
+    void extraFighterSwapChanged() { callVoid(offsetof(ExtraHooks, fighterSwapChanged)); }
+    void extraFighterSwapApply() { callVoid(offsetof(ExtraHooks, fighterSwapApply)); }
+    bool extraFighterSwapBusy() { return callBool(offsetof(ExtraHooks, fighterSwapBusy)); }
 
     const char* extraOptionDesc(u8 pageId, u8 row)
     {
-        return (s_hooks != NULL && s_hooks->optionDesc != NULL) ? s_hooks->optionDesc(pageId, row) : NULL;
+        return s_hooks != NULL && s_hooks->optionDesc != NULL ? s_hooks->optionDesc(pageId, row) : NULL;
     }
 
     bool extraDrawUiIcon(u8 iconId, float x, float y, float w, float h, u32 rgba)
     {
-        return s_hooks != NULL && s_hooks->drawUiIcon != NULL && s_hooks->drawUiIcon(iconId, x, y, w, h, rgba);
+        return s_hooks != NULL && s_hooks->drawUiIcon != NULL
+               && s_hooks->drawUiIcon(iconId, x, y, w, h, rgba);
     }
 
     void extraDrawPageOverlay(u8 pageId, bool railMode)
     {
-        if (s_hooks != NULL && s_hooks->drawPageOverlay != NULL)
-        {
-            s_hooks->drawPageOverlay(pageId, railMode);
-        }
+        if (s_hooks != NULL && s_hooks->drawPageOverlay != NULL) s_hooks->drawPageOverlay(pageId, railMode);
     }
 
-    bool extraInfoWanted()
-    {
-        return s_hooks != NULL && s_hooks->infoWanted != NULL && s_hooks->infoWanted();
-    }
-
-    void extraInfoStep(bool previousRan)
-    {
-        if (s_hooks != NULL && s_hooks->infoStep != NULL)
-        {
-            s_hooks->infoStep(previousRan);
-        }
-    }
-
-    void extraInfoDraw()
-    {
-        if (s_hooks != NULL && s_hooks->infoDraw != NULL)
-        {
-            s_hooks->infoDraw();
-        }
-    }
-
-    void extraInfoReset()
-    {
-        if (s_hooks != NULL && s_hooks->infoReset != NULL)
-        {
-            s_hooks->infoReset();
-        }
-    }
-
-    void extraInfoApplyPreset(int side)
-    {
-        if (s_hooks != NULL && s_hooks->infoApplyPreset != NULL)
-        {
-            s_hooks->infoApplyPreset(side);
-        }
-    }
+    bool extraInfoWanted() { return ui::infoWanted(); }
+    void extraInfoStep(bool previousRan) { ui::infoStep(previousRan); }
+    void extraInfoDraw() { ui::drawInfo(); }
+    void extraInfoReset() { ui::infoReset(); }
+    void extraInfoApplyPreset(int side) { ui::applyInfoPreset(side); }
 
     void extraInputViewerDraw(const game::MatchState& match, bool menuOpen)
     {
-        if (s_hooks != NULL && s_hooks->inputViewerDraw != NULL)
-        {
-            s_hooks->inputViewerDraw(match, menuOpen);
-        }
+        callMatchBool(offsetof(ExtraHooks, inputViewerDraw), match, menuOpen);
     }
 
     bool extraDrawColoredHitboxes(Fighter* fighter)
@@ -445,10 +228,7 @@ namespace main {
 
     void extraDiCompassDraw(const game::MatchState& match, bool menuOpen)
     {
-        if (s_hooks != NULL && s_hooks->diCompassDraw != NULL)
-        {
-            s_hooks->diCompassDraw(match, menuOpen);
-        }
+        callMatchBool(offsetof(ExtraHooks, diCompassDraw), match, menuOpen);
     }
 
     bool extraReversalPick(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay)
@@ -462,36 +242,22 @@ namespace main {
 
     void extraPsaInspectorDraw(const game::MatchState& match, bool menuOpen)
     {
-        if (s_hooks != NULL && s_hooks->psaInspectorDraw != NULL)
-        {
-            s_hooks->psaInspectorDraw(match, menuOpen);
-        }
+        callMatchBool(offsetof(ExtraHooks, psaInspectorDraw), match, menuOpen);
     }
 
     void extraTimingMeterDraw(const game::MatchState& match)
     {
-        if (s_hooks != NULL && s_hooks->timingMeterDraw != NULL)
-        {
-            s_hooks->timingMeterDraw(match);
-        }
+        callMatch(offsetof(ExtraHooks, timingMeterDraw), match);
     }
 
     u32 extraDrill(u32 phase, gfPadStatus* pads)
     {
-        if (s_hooks != NULL && s_hooks->drillHook != NULL)
-        {
-            return s_hooks->drillHook(phase, pads);
-        }
-        return 0u;
+        return s_hooks != NULL && s_hooks->drillHook != NULL ? s_hooks->drillHook(phase, pads) : 0u;
     }
 
     float extraOsdTopStartY(bool isTopRight)
     {
-        if (s_hooks != NULL && s_hooks->osdTopStartY != NULL)
-        {
-            return s_hooks->osdTopStartY(isTopRight);
-        }
-        return 0.0f;
+        return s_hooks != NULL && s_hooks->osdTopStartY != NULL ? s_hooks->osdTopStartY(isTopRight) : 0.0f;
     }
 }
 }

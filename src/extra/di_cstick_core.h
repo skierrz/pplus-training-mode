@@ -2,6 +2,7 @@
 
 #include <types.h>
 
+#include "extra/net_alloc.h"
 #include "shared/game/stick.h"
 
 // Pure P+ 3.2.1 C-stick binding lookup and hitlag dual-stick DI/SDI/ASDI/TDI
@@ -162,27 +163,14 @@ namespace extra {
             }
             else
             {
-                float fx = static_cast<float>(rawCx);
-                float fy = static_cast<float>(rawCy);
+                float fx = i2f(rawCx);
+                float fy = i2f(rawCy);
                 float len = game::stickRoot(fx * fx + fy * fy);
-                float nx = len > 0.0f ? (fx / len) * kCStickUnitScale : 0.0f;
-                float ny = len > 0.0f ? (fy / len) * kCStickUnitScale : 0.0f;
-                if (mode == kCStickTilt)
-                {
-                    effX = clampS8(static_cast<int>(nx * kCStickTiltScale));
-                    effY = clampS8(static_cast<int>(ny * kCStickTiltScale));
-                }
-                else if (mode == kCStickAttack)
-                {
-                    effX = clampS8(static_cast<int>(nx * kCStickAttackScale));
-                    effY = clampS8(static_cast<int>(ny * kCStickAttackScale));
-                }
-                else
-                {
-                    // Smash (5) and Smash+Charge (0xB).
-                    effX = clampS8(static_cast<int>(nx));
-                    effY = clampS8(static_cast<int>(ny));
-                }
+                float sc = (mode == kCStickTilt) ? kCStickTiltScale
+                                                 : (mode == kCStickAttack ? kCStickAttackScale : 1.0f);
+                float mul = len > 0.0f ? (kCStickUnitScale * sc / len) : 0.0f;
+                effX = clampS8(f2i(fx * mul));
+                effY = clampS8(f2i(fy * mul));
             }
         }
         game::mainStick(effX, effY, &outX, &outY);

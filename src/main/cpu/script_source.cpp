@@ -75,16 +75,8 @@ namespace cpu {
     {
         if (s_blocks == NULL)
         {
-            u32 need = (static_cast<u32>(sizeof(ScriptBlock) * kScriptBlocks) + 31u) & ~31u;
-            game::HeapUsage u;
-            if (game::heapUsage(Heaps::Network, u) && u.largest >= need)
-            {
-                void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
-                if (game::isRam(p))
-                {
-                    s_blocks = static_cast<ScriptBlock*>(p);
-                }
-            }
+            s_blocks = static_cast<ScriptBlock*>(
+                game::allocNetworkZero(static_cast<u32>(sizeof(ScriptBlock) * kScriptBlocks)));
         }
         if (s_blocks == NULL)
         {

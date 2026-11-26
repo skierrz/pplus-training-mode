@@ -71,44 +71,52 @@ namespace savestate {
     struct HeapRule {
         u8 id;
         u8 cls;
-        const char* name; // as the game names it in g_HeapInfos
     };
 
     static const HeapRule kRules[] = {
-        {Heaps::System, kClassGameplay, "System"},
-        {Heaps::Effect, kClassGameplay, "Effect"},
-        {Heaps::FighterEffect, kClassGameplay, "FighterEffect"},
-        {Heaps::StageInstance, kClassGameplay, "StageInstance"},
-        {Heaps::ItemInstance, kClassGameplay, "ItemInstance"},
-        {Heaps::Physics, kClassGameplay, "Physics"},
-        {Heaps::InfoInstance, kClassGameplay, "InfoInstance"},
-        {Heaps::GameGlobal, kClassGameplay, "GameGlobal"},
-        {Heaps::GlobalMode, kClassGameplay, "GlobalMode"},
-        {Heaps::Tmp, kClassGameplay, "Tmp"},
-        {Heaps::MenuInstance, kClassGameplay, "MenuInstance"},
-        {Heaps::Fighter1Instance, kClassFighterInstance, "Fighter1Instance"},
-        {Heaps::Fighter2Instance, kClassFighterInstance, "Fighter2Instance"},
-        {Heaps::Fighter3Instance, kClassFighterInstance, "Fighter3Instance"},
-        {Heaps::Fighter4Instance, kClassFighterInstance, "Fighter4Instance"},
-        {Heaps::Fighter1Resource, kClassResource, "Fighter1Resoruce"},
-        {Heaps::Fighter2Resource, kClassResource, "Fighter2Resoruce"},
-        {Heaps::Fighter3Resource, kClassResource, "Fighter3Resoruce"},
-        {Heaps::Fighter4Resource, kClassResource, "Fighter4Resoruce"},
-        {Heaps::Fighter1Resource2, kClassResource, "Fighter1Resoruce2"},
-        {Heaps::Fighter2Resource2, kClassResource, "Fighter2Resoruce2"},
-        {Heaps::Fighter3Resource2, kClassResource, "Fighter3Resoruce2"},
-        {Heaps::Fighter4Resource2, kClassResource, "Fighter4Resoruce2"},
-        {Heaps::FighterTechqniq, kClassResource, "FighterTechqniq"},
-        {Heaps::FighterKirbyResource1, kClassResource, "FighterKirbyResource1"},
-        {Heaps::FighterKirbyResource2, kClassResource, "FighterKirbyResource2"},
-        {Heaps::FighterKirbyResource3, kClassResource, "FighterKirbyResource3"},
-        {Heaps::StageResource, kClassResource, "StageResoruce"},
-        {Heaps::ItemResource, kClassResource, "IteamResource"},
-        {Heaps::ItemExtraResource, kClassResource, "ItemExtraResource"},
-        {Heaps::PokemonResource, kClassResource, "PokemonResource"},
-        {Heaps::AssistFigureResource, kClassResource, "AssistFigureResource"},
-        {Heaps::CommonResource, kClassResource, "CommonResource"}
+        {Heaps::System, kClassGameplay},
+        {Heaps::Effect, kClassGameplay},
+        {Heaps::FighterEffect, kClassGameplay},
+        {Heaps::StageInstance, kClassGameplay},
+        {Heaps::ItemInstance, kClassGameplay},
+        {Heaps::Physics, kClassGameplay},
+        {Heaps::InfoInstance, kClassGameplay},
+        {Heaps::GameGlobal, kClassGameplay},
+        {Heaps::GlobalMode, kClassGameplay},
+        {Heaps::Tmp, kClassGameplay},
+        {Heaps::MenuInstance, kClassGameplay},
+        {Heaps::Fighter1Instance, kClassFighterInstance},
+        {Heaps::Fighter2Instance, kClassFighterInstance},
+        {Heaps::Fighter3Instance, kClassFighterInstance},
+        {Heaps::Fighter4Instance, kClassFighterInstance},
+        {Heaps::Fighter1Resource, kClassResource},
+        {Heaps::Fighter2Resource, kClassResource},
+        {Heaps::Fighter3Resource, kClassResource},
+        {Heaps::Fighter4Resource, kClassResource},
+        {Heaps::Fighter1Resource2, kClassResource},
+        {Heaps::Fighter2Resource2, kClassResource},
+        {Heaps::Fighter3Resource2, kClassResource},
+        {Heaps::Fighter4Resource2, kClassResource},
+        {Heaps::FighterTechqniq, kClassResource},
+        {Heaps::FighterKirbyResource1, kClassResource},
+        {Heaps::FighterKirbyResource2, kClassResource},
+        {Heaps::FighterKirbyResource3, kClassResource},
+        {Heaps::StageResource, kClassResource},
+        {Heaps::ItemResource, kClassResource},
+        {Heaps::ItemExtraResource, kClassResource},
+        {Heaps::PokemonResource, kClassResource},
+        {Heaps::AssistFigureResource, kClassResource},
+        {Heaps::CommonResource, kClassResource}
     };
+    // Names matching kRules in g_HeapInfos order (NUL-separated).
+    static const char kRuleNames[] =
+        "System\0Effect\0FighterEffect\0StageInstance\0ItemInstance\0Physics\0InfoInstance\0"
+        "GameGlobal\0GlobalMode\0Tmp\0MenuInstance\0"
+        "Fighter1Instance\0Fighter2Instance\0Fighter3Instance\0Fighter4Instance\0"
+        "Fighter1Resoruce\0Fighter2Resoruce\0Fighter3Resoruce\0Fighter4Resoruce\0"
+        "Fighter1Resoruce2\0Fighter2Resoruce2\0Fighter3Resoruce2\0Fighter4Resoruce2\0"
+        "FighterTechqniq\0FighterKirbyResource1\0FighterKirbyResource2\0FighterKirbyResource3\0"
+        "StageResoruce\0IteamResource\0ItemExtraResource\0PokemonResource\0AssistFigureResource\0CommonResource\0";
     enum { kRuleCount = sizeof(kRules) / sizeof(kRules[0]) };
 
     // The slot lives in these heaps, which a match with two fighters leaves
@@ -125,61 +133,63 @@ namespace savestate {
     // lists (gp-v*.json, dolphin/Data/Sys/Rollback), same length (the
     // AreaManager's shorter here). Pad, controller, OS, sound, GX and file
     // IO state are left out on purpose.
-    static const Range kFixed[] = {
-        {0x805A00B8, 0x8},    // g_mtRand
-        {0x805A0420, 0x8},    // second mtRand
-        {0x8059FF58, 0x4},    // libc rand state
-        {0x804977B4, 0xC},    // g_mtPrngLogManager
-        {0x8059C668, 0x4},    // task id counter
-        {0x807824D4, 0x4},    // a Project+ variable in sora_melee .text
-        {0x80494E00, 0x3C0},  // scene/model render records
-        {0x804953B0, 0x20},   // s_gfSlowManager
-        {0x805A0080, 0x8},    // gfSlowManager s_needsUpdate
-        {0x8059C690, 0x8},    // gfSlowManager s_maxSlowRate
-        {0x8049DEDC, 0xC},    // camera subject list head
-        {0x8049E020, 0x40},
-        {0x8049E570, 0x30},   // ground collision list heads
-        {0x8049EDD8, 0x5068}, // nw4r::ef EffectSystem
-        {0x804A3DE0, 0x60},
-        {0x804A3E70, 0x20},   // nw4r::ef resource list
-        {0x804A3EC0, 0x40},
-        {0x804A3F20, 0x20},
-        {0x804A3F60, 0x20},
-        {0x804A3FE0, 0x20},
-        {0x804A4580, 0x40},
-        {0x804A4680, 0x20},
-        {0x804A56C0, 0x20},
-        {0x804A5700, 0x20},
-        {0x804A5740, 0x20},
-        {0x804A7F40, 0x40},
-        {0x804A9A80, 0xB20},
-        {0x804AA640, 0x40},
-        {0x804AA6E0, 0x40},
-        {0x804AA740, 0x2E0},
-        {0x804ADB20, 0x140},
-        {0x804ADC80, 0x100},
-        {0x804AFA80, 0x20},
-        {0x805A0000, 0x40},   // .sbss main-thread globals
-        {0x805A0100, 0x80},
-        {0x805A0280, 0x80},
-        {0x805A0340, 0x40},
-        {0x805A03C0, 0x40},
-        {0x8059C480, 0x40},   // .sdata main-thread globals
-        {0x8059E900, 0x40},
-        {0x805B8A00, 0x140},  // gfTaskScheduler
-        {0x805B6D20, 0x740},  // gfCameraManager
-        {0x805B69E0, 0x280},  // camera quake controller
-        // AreaManager (a gfTask in System FW): its list at +0x68 links area
-        // nodes in the fighters' heaps (without it the list was corrupt
-        // after a restore).
-        {0x805B6200, 0x80},
-        // Project+: hold-to-pause counters, its scratch area (a counter there
-        // feeds fighter state: without it a fighter byte differed after a
-        // restore), per-port records.
-        {0x80584080, 0x20},
-        {0x805A7400, 0x2000},
-        {0x935F0000, 0x2000}
+    static const u32 kFixedAddr[] = {
+        0x805A00B8, // g_mtRand
+        0x805A0420, // second mtRand
+        0x8059FF58, // libc rand state
+        0x804977B4, // g_mtPrngLogManager
+        0x8059C668, // task id counter
+        0x807824D4, // a Project+ variable in sora_melee .text
+        0x80494E00, // scene/model render records
+        0x804953B0, // s_gfSlowManager
+        0x805A0080, // gfSlowManager s_needsUpdate
+        0x8059C690, // gfSlowManager s_maxSlowRate
+        0x8049DEDC, // camera subject list head
+        0x8049E020,
+        0x8049E570, // ground collision list heads
+        0x8049EDD8, // nw4r::ef EffectSystem
+        0x804A3DE0,
+        0x804A3E70, // nw4r::ef resource list
+        0x804A3EC0,
+        0x804A3F20,
+        0x804A3F60,
+        0x804A3FE0,
+        0x804A4580,
+        0x804A4680,
+        0x804A56C0,
+        0x804A5700,
+        0x804A5740,
+        0x804A7F40,
+        0x804A9A80,
+        0x804AA640,
+        0x804AA6E0,
+        0x804AA740,
+        0x804ADB20,
+        0x804ADC80,
+        0x804AFA80,
+        0x805A0000, // .sbss main-thread globals
+        0x805A0100,
+        0x805A0280,
+        0x805A0340,
+        0x805A03C0,
+        0x8059C480, // .sdata main-thread globals
+        0x8059E900,
+        0x805B8A00, // gfTaskScheduler
+        0x805B6D20, // gfCameraManager
+        0x805B69E0, // camera quake controller
+        0x805B6200, // AreaManager
+        0x80584080, // Project+ hold-to-pause / scratch / per-port records
+        0x805A7400,
+        0x935F0000
     };
+    static const u16 kFixedLen[] = {
+        0x8, 0x8, 0x4, 0xC, 0x4, 0x4, 0x3C0, 0x20, 0x8, 0x8, 0xC, 0x40, 0x30, 0x5068,
+        0x60, 0x20, 0x40, 0x20, 0x20, 0x20, 0x40, 0x20, 0x20, 0x20, 0x20, 0x40, 0xB20,
+        0x40, 0x40, 0x2E0, 0x140, 0x100, 0x20, 0x40, 0x80, 0x80, 0x40, 0x40, 0x40, 0x40,
+        0x140, 0x740, 0x280, 0x80, 0x20, 0x2000, 0x2000
+    };
+    enum { kFixedCount = sizeof(kFixedAddr) / sizeof(kFixedAddr[0]) };
+    TM_STATIC_ASSERT(kFixedCount == sizeof(kFixedLen) / sizeof(kFixedLen[0]), tm_fixed_lens_match);
 
     // Inside the ranges above but never copied: the four ranges the newest
     // of Brawl Online's lists (gp-v29.json) excludes.
@@ -772,9 +782,9 @@ namespace savestate {
         {
             *layout = mix(mix(*layout, s_own.addr), s_own.len);
         }
-        for (u32 i = 0; i < sizeof(kFixed) / sizeof(kFixed[0]); i++)
+        for (u32 i = 0; i < kFixedCount; i++)
         {
-            add(w, kFixed[i].addr, kFixed[i].len);
+            add(w, kFixedAddr[i], kFixedLen[i]);
         }
         flush(w);
         return true;
@@ -1125,9 +1135,9 @@ namespace savestate {
                              kRules[r].cls == kClassFighterInstance ? kClassGameplay : kRules[r].cls, NULL);
                 }
                 walkModules(&m, NULL);
-                for (u32 i = 0; i < sizeof(kFixed) / sizeof(kFixed[0]); i++)
+                for (u32 i = 0; i < kFixedCount; i++)
                 {
-                    add(m, kFixed[i].addr, kFixed[i].len);
+                    add(m, kFixedAddr[i], kFixedLen[i]);
                 }
                 flush(m);
             }
@@ -1301,12 +1311,20 @@ namespace savestate {
 
     const char* resultText(Result r)
     {
-        static const char* const kText[kResultCount] = {
-            "ok", "no free heap for the state", "state too large", "heap walk failed", "no state saved",
-            "saved in another match", "memory layout changed", "files loaded since the save",
-            "state memory overwritten"
-        };
-        return r < kResultCount ? kText[r] : "?";
+        static const char kText[] =
+            "ok\0no free heap for the state\0state too large\0heap walk failed\0no state saved\0"
+            "saved in another match\0memory layout changed\0files loaded since the save\0"
+            "state memory overwritten\0";
+        if (r >= kResultCount)
+        {
+            return "?";
+        }
+        const char* p = kText;
+        for (int i = 0; i < r; i++)
+        {
+            while (*p++ != '\0') {}
+        }
+        return p;
     }
 
     u32 usageHash()
@@ -1433,15 +1451,17 @@ namespace savestate {
 
     bool layoutKnown()
     {
+        const char* name = kRuleNames;
         for (u32 r = 0; r < kRuleCount; r++)
         {
             u32 id = kRules[r].id;
             if (poolOf(id) != 0 && (g_HeapInfos[id].m_name == NULL ||
-                                    !game::sameString(g_HeapInfos[id].m_name, kRules[r].name)))
+                                    !game::sameString(g_HeapInfos[id].m_name, name)))
             {
-                TM_LOG("savestate: heap %u is not %s; savestates off\n", id, kRules[r].name);
+                TM_LOG("savestate: heap %u is not %s; savestates off\n", id, name);
                 return false;
             }
+            while (*name++ != '\0') {}
         }
         return true;
     }

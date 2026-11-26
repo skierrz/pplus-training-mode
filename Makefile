@@ -192,18 +192,18 @@ PACK    := scripts/pack-rel.py
 rwildcard = $(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 SHARED_SRCS := $(sort $(call rwildcard,src/shared,*.cpp))
 STUB_SRCS   := $(sort $(call rwildcard,src/stub,*.cpp)) $(SHARED_SRCS)
-INFO_EXTRA_SRCS := src/main/ui/info_display.cpp src/main/game/status_names.cpp
 MAIN_MOVED_SRCS := src/extra/tech_sparkle.cpp src/extra/reversal_slots.cpp \
-                   src/extra/action_log.cpp src/extra/combo_break_rush_core.cpp
-MAIN_SRCS   := $(filter-out $(INFO_EXTRA_SRCS),$(sort $(call rwildcard,src/main,*.cpp))) $(MAIN_MOVED_SRCS) $(SHARED_SRCS)
+                   src/extra/grab_visualizer.cpp src/extra/pplus_collision.cpp \
+                   src/extra/hitbox_colors.cpp src/extra/lab_tools.cpp \
+                   src/extra/action_log.cpp
+MAIN_SRCS   := $(sort $(call rwildcard,src/main,*.cpp)) $(MAIN_MOVED_SRCS) $(SHARED_SRCS)
 # The menu module draws with the main module's 2D helpers and reads the SD
 # card with its file helpers, compiled again from where they live.
 MENU_SRCS   := $(sort $(call rwildcard,src/menu,*.cpp)) src/main/gfx/draw.cpp src/main/gfx/text.cpp \
                src/main/ui/style.cpp src/main/storage/file_io.cpp $(SHARED_SRCS)
 # The extra module is linked against the main module and uses its code, so
-# it compiles only its own sources, info display/status names moved out of
-# match for headroom, and the destructor chain every module needs its own copy of.
-EXTRA_SRCS  := $(filter-out $(MAIN_MOVED_SRCS),$(sort $(call rwildcard,src/extra,*.cpp))) $(INFO_EXTRA_SRCS) src/shared/global_chain.cpp
+# it compiles only its own sources and the destructor chain every module needs.
+EXTRA_SRCS  := $(filter-out $(MAIN_MOVED_SRCS),$(sort $(call rwildcard,src/extra,*.cpp))) src/shared/global_chain.cpp
 ifneq ($(STAGE4C),1)
 EXTRA_SRCS  := $(filter-out src/extra/challenge_backends.cpp,$(EXTRA_SRCS))
 endif
@@ -242,7 +242,8 @@ INCLUDES := -Isrc -I- \
             -I$(BH)/std/Include \
             -I$(BH)/utils/include
 
-CFLAGS   := -msgstyle gcc -Cpp_exceptions off -proc gekko -nostdinc -O4,s \
+CFLAGS   := -msgstyle gcc -Cpp_exceptions off -proc gekko -nostdinc \
+            -opt level=4,space,peephole,nostrength \
             -inline auto -fp hard -enum int -sdata 0 -sdata2 0 -func_align 4
 CXXFLAGS := -lang=c++ $(CFLAGS) -DTM_STUB_MODULE_ID=$(STUB_ID)
 ifeq ($(EXPERIMENTS),1)
@@ -264,7 +265,7 @@ ifeq ($(PERF),1)
 CXXFLAGS += -DTM_PERF=1
 endif
 # -r1: partial link (elf2rel resolves game symbols); -m: module entry point.
-LDFLAGS  := -lcf $(LCF) -r1 -fp hard -m _prolog -g -strip_partial
+LDFLAGS  := -lcf $(LCF) -r1 -fp hard -m _prolog -g -strip_partial -code_merging all,aggressive
 
 # MWCC writes dependency files with CRLF, backslashes and absolute Windows
 # paths (C:\...), which make cannot parse. Rewrite build/x.d into build/x.dep

@@ -616,6 +616,8 @@ namespace record {
     {
         return host::fakes::s_recording.rows;
     }
+
+    void showMessage(const char*) {}
 }
 
 namespace cpu {
@@ -646,6 +648,15 @@ namespace osd {
         host::fakes::s_osdId = id;
         return NULL;
     }
+}
+
+namespace ui {
+    // src/main/ui/info_display.cpp.
+    bool infoWanted() { return false; }
+    void infoStep(bool) {}
+    void drawInfo() {}
+    void infoReset() {}
+    void applyInfoPreset(int) {}
 }
 }
 

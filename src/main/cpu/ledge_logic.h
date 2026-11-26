@@ -55,6 +55,9 @@ namespace cpu {
         float y;
     };
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline void ledgeStateReset(LedgeState& st)
     {
         st.active = false;
@@ -62,6 +65,9 @@ namespace cpu {
         st.waitFrames = 0;
         st.holdFrames = 0;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // Resolves kLedgeRandom deterministically across Neutral/Roll/Attack/Jump/Drop.
     inline u8 resolveLedgeOption(u8 option, u32 rng)

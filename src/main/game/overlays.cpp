@@ -13,6 +13,7 @@
 #include "main/game/tech_frames.h"
 #include "main/game/techniques.h"
 #include "main/game/tracker.h"
+#include "shared/game/heap.h"
 #include "shared/game/mem.h"
 #include "shared/game/menu_sound.h"
 #include "shared/log.h"
@@ -48,11 +49,25 @@ namespace game {
         u8 savedNameCursor;
     };
 
-    static Applied s_applied[kMaxTracked];
+    static Applied* s_applied = NULL;
     static bool s_colorChecked = false;
     static bool s_colorOk = false;
     static bool s_visChecked = false;
     static bool s_visOk = false;
+
+    void overlaysAttach()
+    {
+        if (s_applied == NULL)
+        {
+            s_applied = static_cast<Applied*>(allocNetworkZero(static_cast<u32>(sizeof(Applied) * kMaxTracked)));
+        }
+    }
+
+    void overlaysDetach()
+    {
+        overlaysClear();
+        freeNetworkSlot(reinterpret_cast<void**>(&s_applied));
+    }
 
     // High-contrast P+ state-overlay tint palette (RGBA).
     static const GXColor kColors[kOverlayChoiceCount] = {
@@ -347,6 +362,10 @@ namespace game {
 
     void overlaysApply(bool live, const OverlayConfig& config)
     {
+        if (s_applied == NULL)
+        {
+            return;
+        }
         for (int i = 0; i < kMaxTracked; i++)
         {
             Applied& a = s_applied[i];
@@ -415,7 +434,7 @@ namespace game {
 
     void overlaysFixCamera(void* fighter)
     {
-        if (fighter == NULL)
+        if (fighter == NULL || s_applied == NULL)
         {
             return;
         }
@@ -433,18 +452,25 @@ namespace game {
 
     void overlaysClear()
     {
-        for (int i = 0; i < kMaxTracked; i++)
+        if (s_applied != NULL)
         {
-            release(s_applied[i]);
+            for (int i = 0; i < kMaxTracked; i++)
+            {
+                release(s_applied[i]);
+            }
         }
         s_colorChecked = s_visChecked = false;
     }
 
     bool overlayShowsCollision(const Fighter* f)
     {
+        if (s_applied == NULL || f == NULL)
+        {
+            return false;
+        }
         for (int i = 0; i < kMaxTracked; i++)
         {
-            if (f != NULL && s_applied[i].fighter == f && s_applied[i].choice == kOverlayCollision)
+            if (s_applied[i].fighter == f && s_applied[i].choice == kOverlayCollision)
             {
                 return true;
             }

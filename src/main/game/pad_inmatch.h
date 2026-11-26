@@ -28,8 +28,22 @@ namespace game {
     const char* pauseHint(u32 controllerType);
     // isDecrement == false: main::AdvanceButton; true: main::DecrementButton.
     u32 faButtonBits(u32 controllerType, u8 button, bool isDecrement);
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    bool x_padConnectedInMatch(int port, const gfPadStatus& pad);
+    void x_clearPadBits(gfPadStatus& pad, u32 mask);
+#ifndef TM_EXTRA_THUNK_IMPL
+    static inline bool padConnectedInMatch(int port, const gfPadStatus& pad) { return x_padConnectedInMatch(port, pad); }
+    int playerPort(int playerNo);
+    static inline void clearPadBits(gfPadStatus& pad, u32 mask) { x_clearPadBits(pad, mask); }
+#else
     bool padConnectedInMatch(int port, const gfPadStatus& pad);
     int playerPort(int playerNo);
     void clearPadBits(gfPadStatus& pad, u32 mask);
+#endif
+#else
+    bool padConnectedInMatch(int port, const gfPadStatus& pad);
+    int playerPort(int playerNo);
+    void clearPadBits(gfPadStatus& pad, u32 mask);
+#endif
 }
 }

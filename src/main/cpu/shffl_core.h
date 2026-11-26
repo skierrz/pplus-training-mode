@@ -95,11 +95,17 @@ namespace cpu {
         return setting < kShfflRandom ? setting : static_cast<u8>(kShfflFramePerfect);
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline Step makeStep(u16 buttons, s8 x, s8 y, u8 ref, u8 frames, u8 until)
     {
         Step s = {buttons, x, y, ref, frames, until, 0};
         return s;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // Populates `out[0..n-1]` (terminated with a 0-frame sentinel) for a SHFFL
     // (`shortHop == true`) or FFL (`shortHop == false`) aerial under
@@ -154,11 +160,6 @@ namespace cpu {
             {
                 out[n++] = makeStep(aerial.buttons, aerial.x, aerial.y, aerial.ref, 1, kUntilNone);
             }
-            for (int i = 0; i < kShfflFlickPairs && n + 1 < limit; i++)
-            {
-                out[n++] = makeStep(0, 0, -100, kRefAbs, 1, kUntilFastfall);
-                out[n++] = makeStep(0, 0, 0, kRefAbs, 1, kUntilFastfall);
-            }
         }
         else
         {
@@ -190,11 +191,12 @@ namespace cpu {
             {
                 out[n++] = makeStep(0, 0, 0, kRefAbs, ffDelay, kUntilNone);
             }
-            for (int i = 0; i < kShfflFlickPairs && n + 1 < limit; i++)
-            {
-                out[n++] = makeStep(0, 0, -100, kRefAbs, 1, kUntilFastfall);
-                out[n++] = makeStep(0, 0, 0, kRefAbs, 1, kUntilFastfall);
-            }
+        }
+
+        for (int i = 0; i < kShfflFlickPairs && n + 1 < limit; i++)
+        {
+            out[n++] = makeStep(0, 0, -100, kRefAbs, 1, kUntilFastfall);
+            out[n++] = makeStep(0, 0, 0, kRefAbs, 1, kUntilFastfall);
         }
 
         out[n++] = makeStep(0, 0, 0, kRefAbs, 0, kUntilNone);

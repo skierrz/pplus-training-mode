@@ -45,7 +45,16 @@ namespace savestate {
     bool recordingStateValid();
     void dropRecordingState();
     // True while gfFileIOManager has pending async file requests.
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    bool x_loadingFiles();
+#ifndef TM_EXTRA_THUNK_IMPL
+    static inline bool loadingFiles() { return x_loadingFiles(); }
+#else
     bool loadingFiles();
+#endif
+#else
+    bool loadingFiles();
+#endif
     // Mid-match fighter swap: drops all savestate slots (freeing spare heaps)
     // and re-arms the automatic match-start savestate once the swap settles.
     void resetForSwap();

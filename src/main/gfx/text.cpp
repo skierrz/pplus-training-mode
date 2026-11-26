@@ -24,7 +24,9 @@ namespace gfx {
     static void* const kSystemFont = reinterpret_cast<void*>(0x80497E44);
     static void* const kDisplayFont = reinterpret_cast<void*>(0x80497DA4);
 
+#if !(defined(TM_MODULE_MAIN) && defined(__MWERKS__))
     static float s_widths[kTextSlots];
+#endif
 
     static bool fontLoaded()
     {
@@ -46,33 +48,9 @@ namespace gfx {
         {
             return false;
         }
-        if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
-        {
-            return true;
-        }
-        switch (c)
-        {
-        case ' ':
-        case '!':
-        case '"':
-        case '%':
-        case '&':
-        case '\'':
-        case '+':
-        case ',':
-        case '-':
-        case '.':
-        case '/':
-        case ':':
-        case ';':
-        case '=':
-        case '?':
-        case '@':
-        case '~':
-            return true;
-        default:
-            return false;
-        }
+        static const u32 kMask[3] = {0xAFFFF8E7u, 0x07FFFFFFu, 0x47FFFFFEu};
+        u32 idx = static_cast<u32>(c - 0x20);
+        return ((kMask[idx >> 5] >> (idx & 31u)) & 1u) != 0u;
     }
 
     // Constructed on first use, inside the render hook, once the game is up.
@@ -109,6 +87,7 @@ namespace gfx {
     struct GlyphCache {
         Glyph glyphs[kGlyphCodes];
         TexSheet sheets[kMaxSheets];
+        float widths[kTextSlots];
         u8 haveGlyph[kGlyphCodes / 8];
         u32 sheetCount;
         u32 glyphResource;
@@ -116,6 +95,11 @@ namespace gfx {
         u32 glyphMagF;
     };
     static GlyphCache* s_glyphCache = NULL;
+
+    static float* widthSlots()
+    {
+        return s_glyphCache != NULL ? s_glyphCache->widths : NULL;
+    }
 
     static void syncGlyphCache(const ms::CharWriter& w)
     {
@@ -642,67 +626,71 @@ namespace gfx {
     }
 #endif
 
+#if !(defined(TM_MODULE_MAIN) && defined(__MWERKS__))
+    static float* widthSlots()
+    {
+        return s_widths;
+    }
+#endif
+
     void textRight(int slot, float right, float y, const char* str, Rgba color, float scale)
     {
-        if (slot < 0 || slot >= kTextSlots)
+        float* widths = widthSlots();
+        if (widths == NULL || slot < 0 || slot >= kTextSlots)
         {
             return;
         }
-        float x = right - s_widths[slot];
-        s_widths[slot] = text(x, y, str, color, scale) - x;
+        float x = right - widths[slot];
+        widths[slot] = text(x, y, str, color, scale) - x;
     }
 
     void textCentered(int slot, float centre, float y, const char* str, Rgba color, float scale)
     {
-        if (slot < 0 || slot >= kTextSlots)
+        float* widths = widthSlots();
+        if (widths == NULL || slot < 0 || slot >= kTextSlots)
         {
             return;
         }
-        float x = centre - s_widths[slot] * 0.5f;
-        s_widths[slot] = text(x, y, str, color, scale) - x;
+        float x = centre - widths[slot] * 0.5f;
+        widths[slot] = text(x, y, str, color, scale) - x;
     }
 
     void textBox(int slot, float x, float y, const char* str, Rgba color, Rgba box, float scale, bool centre)
     {
-        if (slot < 0 || slot >= kTextSlots)
+        float* widths = widthSlots();
+        if (widths == NULL || slot < 0 || slot >= kTextSlots)
         {
             return;
         }
         const float pad = 6.0f;
-        float w = s_widths[slot];
+        float w = widths[slot];
         float left = centre ? x - w * 0.5f : x;
         if (w > 0.0f)
         {
             fillRect(left - pad, y - pad * 0.5f, w + 2 * pad, lineHeight(scale) + pad, box);
         }
-        s_widths[slot] = text(left, y, str, color, scale) - left;
+        widths[slot] = text(left, y, str, color, scale) - left;
     }
 
     void forgetWidths()
     {
+        float* widths = widthSlots();
+        if (widths == NULL)
+        {
+            return;
+        }
         for (int i = 0; i < kTextSlots; i++)
         {
-            s_widths[i] = 0.0f;
+            widths[i] = 0.0f;
         }
     }
 
     void textAttach()
     {
 #if defined(TM_MODULE_MAIN) && defined(__MWERKS__)
-        if (s_glyphCache != NULL)
+        if (s_glyphCache == NULL)
         {
-            return;
-        }
-        u32 need = (static_cast<u32>(sizeof(GlyphCache)) + 31u) & ~31u;
-        game::HeapUsage u;
-        if (game::heapUsage(Heaps::Network, u) && u.largest >= need)
-        {
-            void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
-            if (game::isRam(p))
-            {
-                memset(p, 0, sizeof(GlyphCache));
-                s_glyphCache = static_cast<GlyphCache*>(p);
-            }
+            s_glyphCache = static_cast<GlyphCache*>(game::allocNetworkZero(static_cast<u32>(sizeof(GlyphCache))));
         }
 #endif
     }
@@ -710,11 +698,7 @@ namespace gfx {
     void textDetach()
     {
 #if defined(TM_MODULE_MAIN) && defined(__MWERKS__)
-        if (s_glyphCache != NULL)
-        {
-            free(s_glyphCache);
-            s_glyphCache = NULL;
-        }
+        game::freeNetworkSlot(reinterpret_cast<void**>(&s_glyphCache));
 #endif
     }
 }

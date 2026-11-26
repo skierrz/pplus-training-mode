@@ -159,11 +159,12 @@ namespace game {
     struct TechniqueNet {
         Watch watch[kMaxTracked];
         TechniqueState state[kMaxTracked];
+        Ledgedash ledge;      // human player only (Ledgedash HUD)
+        Ledgedash ledgeEvent; // last kTechGalint emitter (human or CPU)
     };
 
     static TechniqueNet* s_net = NULL;
-    static Ledgedash s_ledge;      // human player only (Ledgedash HUD)
-    static Ledgedash s_ledgeEvent; // last kTechGalint emitter (human or CPU)
+    static Ledgedash s_emptyLedge;
     static TechniqueSink s_sink = NULL;
 
     static void clearWatch(Watch& w)
@@ -186,31 +187,17 @@ namespace game {
     {
         if (s_net == NULL)
         {
-            u32 need = (static_cast<u32>(sizeof(TechniqueNet)) + 31u) & ~31u;
-            HeapUsage u;
-            if (heapUsage(Heaps::Network, u) && u.largest >= need)
-            {
-                void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
-                if (isRam(p))
-                {
-                    memset(p, 0, need);
-                    s_net = static_cast<TechniqueNet*>(p);
-                }
-            }
+            s_net = static_cast<TechniqueNet*>(allocNetworkZero(static_cast<u32>(sizeof(TechniqueNet))));
             if (s_net == NULL)
             {
-                TM_LOG("techniques: alloc failed (%u bytes in Network)\n", static_cast<unsigned>(need));
+                TM_LOG("techniques: alloc failed (%u bytes in Network)\n", static_cast<unsigned>(sizeof(TechniqueNet)));
             }
         }
     }
 
     void techniquesDetach()
     {
-        if (s_net != NULL)
-        {
-            free(s_net);
-            s_net = NULL;
-        }
+        freeNetworkSlot(reinterpret_cast<void**>(&s_net));
         s_sink = NULL;
     }
 
@@ -224,11 +211,13 @@ namespace game {
                 clearWatch(s_net->watch[i]);
                 s_net->state[i].valid = false;
             }
+            s_net->ledge.done = kNoFrame;
+            s_net->ledge.count = 0;
+            s_net->ledgeEvent.done = kNoFrame;
+            s_net->ledgeEvent.count = 0;
         }
-        s_ledge.done = kNoFrame;
-        s_ledge.count = 0;
-        s_ledgeEvent.done = kNoFrame;
-        s_ledgeEvent.count = 0;
+        s_emptyLedge.done = kNoFrame;
+        s_emptyLedge.count = 0;
     }
 
     const TechniqueState* techniqueState(int i)
@@ -238,14 +227,17 @@ namespace game {
 
     const Ledgedash& lastLedgedash()
     {
-        return s_ledge;
+        return s_net != NULL ? s_net->ledge : s_emptyLedge;
     }
 
     const Ledgedash& lastLedgedashEvent()
     {
-        return s_ledgeEvent;
+        return s_net != NULL ? s_net->ledgeEvent : s_emptyLedge;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     static void emit(int kind, const Tracked& t, int tracked, int frame, int flag, int a, int b, float angle)
     {
         if (s_sink == NULL)
@@ -330,13 +322,16 @@ namespace game {
             return -1;
         }
         float a = static_cast<float>(atan2(y, x) * 57.29577951308232) + 360.0f + 22.5f;
-        return static_cast<int>(a / 45.0f) % 8;
+        return game::f2i(a * (1.0f / 45.0f)) % 8;
     }
 
     static u8 cellOf(int s)
     {
         return ledgeCellOf(s);
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     static void wavedash(Watch& w, const Tracked& t, int i, s32 f)
     {
@@ -820,13 +815,13 @@ namespace game {
                 bool escaped = t.cur.status == 0x40 || t.cur.status == 0x41 || t.cur.status == 0x10A;
                 if (escaped && w.grabFrames > 0 && w.grabStart > 0.0f)
                 {
-                    int optimal = static_cast<int>((w.grabStart + 16.999f) / 17.0f);
+                    int optimal = game::f2i((w.grabStart + 16.999f) * (1.0f / 17.0f));
                     if (optimal < 1)
                     {
                         optimal = 1;
                     }
                     emit(kTechGrabBreakout, t, i, static_cast<int>(w.grabFrames), 1, optimal, 0,
-                         w.grabStart / static_cast<float>(w.grabFrames));
+                         w.grabStart / game::i2f(static_cast<int>(w.grabFrames)));
                 }
             }
             w.grabbed = false;
@@ -839,8 +834,8 @@ namespace game {
             w.grabStart = b.clatter;
         }
         w.grabFrames++;
-        emit(kTechGrabBreakout, t, i, kNoValue, 0, static_cast<int>(b.clatter + 0.5f), 0,
-             (w.grabStart - b.clatter) / w.grabFrames);
+        emit(kTechGrabBreakout, t, i, kNoValue, 0, game::f2i(b.clatter + 0.5f), 0,
+             (w.grabStart - b.clatter) / game::i2f(static_cast<int>(w.grabFrames)));
     }
 
     static void combo(Watch& w, const Tracked& t, int i)
@@ -865,7 +860,7 @@ namespace game {
         const Tracked* a = tracked(attacker);
         if (w.comboHits >= 2 && a != NULL)
         {
-            int dealt = static_cast<int>(w.damage) - static_cast<int>(w.comboStart);
+            int dealt = game::f2i(w.damage) - game::f2i(w.comboStart);
             emit(kTechCombo, *a, attacker, kNoValue, 0, w.comboHits, dealt, 0.0f);
         }
     }
@@ -1048,19 +1043,20 @@ namespace game {
             int galint = w.body.xluFrames > 0 ? w.body.xluFrames
                          : w.lastIntangible != kNoFrame ? -(f - w.lastIntangible)
                                                          : 0;
-            s_ledgeEvent.done = f;
-            s_ledgeEvent.player = t.playerNo;
-            s_ledgeEvent.count = static_cast<u8>(w.cellCount);
-            memcpy(s_ledgeEvent.cells, w.cells, w.cellCount);
-            s_ledgeEvent.galint = static_cast<s16>(galint);
-            s_ledgeEvent.ledgeFrames = w.waitFrames;
-            s_ledgeEvent.hasAngle = w.adHas;
-            s_ledgeEvent.angle = w.adAngle;
-            s_ledgeEvent.noXlu = !w.hangXlu;
-            s_ledgeEvent.grabCount = w.ledgeGrabs;
+            Ledgedash& le = s_net->ledgeEvent;
+            le.done = f;
+            le.player = t.playerNo;
+            le.count = static_cast<u8>(w.cellCount);
+            memcpy(le.cells, w.cells, w.cellCount);
+            le.galint = static_cast<s16>(galint);
+            le.ledgeFrames = w.waitFrames;
+            le.hasAngle = w.adHas;
+            le.angle = w.adAngle;
+            le.noXlu = !w.hangXlu;
+            le.grabCount = w.ledgeGrabs;
             if (!t.cpu)
             {
-                s_ledge = s_ledgeEvent;
+                s_net->ledge = le;
             }
             emit(kTechGalint, t, i, galint, !w.hangXlu, w.waitFrames, w.ledgeGrabs, w.adAngle);
             w.ledgePhase = 0;

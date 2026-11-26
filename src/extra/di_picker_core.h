@@ -66,11 +66,12 @@ namespace extra {
 
         if (mode <= main::kDiVectorDownOut)
         {
+            static const float kSign[3] = {-1.0f, 0.0f, 1.0f};
             int ax = kAxis[mode - 1][0];
             int ay = kAxis[mode - 1][1];
             float s = (ax != 0 && ay != 0) ? kDiag : 1.0f;
-            r.dx = away * static_cast<float>(ax) * s;
-            r.dy = static_cast<float>(ay) * s;
+            r.dx = away * kSign[ax + 1] * s;
+            r.dy = kSign[ay + 1] * s;
         }
         else
         {

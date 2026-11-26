@@ -111,5 +111,9 @@ namespace cpu {
     const Step* shortHop();
     // One-frame sideways wiggle out of tumble (kEndsWithSteps).
     const Action* wiggleOut();
+#ifdef __MWERKS__
+    void actionsAttach();
+    void actionsDetach();
+#endif
 }
 }

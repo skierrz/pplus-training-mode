@@ -45,24 +45,13 @@ namespace perf {
     void attach()
     {
 #if defined(TM_MODULE_MAIN) && defined(__MWERKS__)
-        if (s_blockPtr != NULL)
-        {
-            return;
-        }
-        u32 need = (static_cast<u32>(sizeof(Block)) + 31u) & ~31u;
-        game::HeapUsage u;
-        if (game::heapUsage(Heaps::Network, u) && u.largest >= need)
-        {
-            void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
-            if (game::isRam(p))
-            {
-                memset(p, 0, need);
-                s_blockPtr = static_cast<Block*>(p);
-            }
-        }
         if (s_blockPtr == NULL)
         {
-            TM_LOG("perf: main block alloc failed (%u B in Network)\n", need);
+            s_blockPtr = static_cast<Block*>(game::allocNetworkZero(static_cast<u32>(sizeof(Block))));
+            if (s_blockPtr == NULL)
+            {
+                TM_LOG("perf: main block alloc failed (%u B in Network)\n", static_cast<unsigned>(sizeof(Block)));
+            }
         }
 #endif
     }
@@ -70,11 +59,7 @@ namespace perf {
     void detach()
     {
 #if defined(TM_MODULE_MAIN) && defined(__MWERKS__)
-        if (s_blockPtr != NULL)
-        {
-            free(s_blockPtr);
-            s_blockPtr = NULL;
-        }
+        game::freeNetworkSlot(reinterpret_cast<void**>(&s_blockPtr));
 #endif
     }
 
@@ -94,6 +79,15 @@ namespace perf {
         return s_block;
     }
 #endif
+
+    Scope::Scope(u32 section) : m_section(section), m_start(OSGetTick())
+    {
+    }
+
+    Scope::~Scope()
+    {
+        add(m_section, OSGetTick() - m_start);
+    }
 
     void add(u32 section, u32 ticks)
     {

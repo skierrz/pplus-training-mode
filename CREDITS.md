@@ -83,8 +83,10 @@ fudgepop01!
   wrap-around and start-index fixes) re-implemented in pure C++ in
   `src/extra/adaptive_cpu*`; and the live read-only PSA AnimCmd 11-Thread &
   FSM Inspector concept (`PSADataPage` / `PSAScriptPage` thread table and
-  frame speed modifier readout) re-implemented from scratch on Project+ 3.2.1
-  runtime structures in `src/extra/psa_inspector*`.
+  frame speed modifier readout) plus AnimCmd module prefixes, opcode names, and
+  typed argument decoding from `fudgepop01`'s specification (used with
+  permission), re-implemented from scratch on Project+ 3.2.1 runtime structures
+  in `src/extra/psa_inspector*` and `src/extra/psa_opcodes*`.
 - **Learned from**: SuperTraining's frame-data animation-command thread
   structures, read while building `src/extra/frame_data.cpp` from the game's
   own code.

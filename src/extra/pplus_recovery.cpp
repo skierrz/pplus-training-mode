@@ -7,6 +7,7 @@
 #include <so/work/so_work_manage_module_impl.h>
 #include <wn/weapon.h>
 
+#include "extra/net_alloc.h"
 #include "extra/pplus_recovery_core.h"
 #include "extra/stage_geom.h"
 #include "main/cpu/driver.h"
@@ -48,11 +49,6 @@ namespace extra {
     static RecoveryState s_states[cpu::kMaxSlots];
     static u32 s_rng = 0xA341316Cu;
 
-    static float floatAt(const void* base, u32 offset)
-    {
-        return *reinterpret_cast<const float*>(reinterpret_cast<u32>(base) + offset);
-    }
-
 #pragma dont_inline on
     static const void* laArray(const soModuleEnumeration* m, u32 countOff, u32 ptrOff, u32 idx)
     {
@@ -83,7 +79,7 @@ namespace extra {
             return 0;
         }
         int used = m->m_workManageModule->getInt(kJumpCountBasic);
-        int maxJ = soValueAccesser::getConstantInt(accesser, kJumpCountMaxParam, 0);
+        int maxJ = extraConstInt(accesser, kJumpCountMaxParam);
         int rem = maxJ - used;
         return rem > 0 ? rem : 0;
     }

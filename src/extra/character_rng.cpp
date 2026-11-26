@@ -24,6 +24,7 @@
 #include "extra/fighter_mechanics.h"
 #include "extra/fighter_mechanics_logic.h"
 #include "extra/fighter_swap.h"
+#include "extra/net_alloc.h"
 #include "main/extra.h"
 #include "main/game/fighters.h"
 #include "main/settings.h"
@@ -142,7 +143,7 @@ namespace extra {
 
     static int activeKind(const game::FighterRef& ref)
     {
-        ftEntryManager* entries = g_ftEntryManager;
+        ftEntryManager* entries = extraEntryManager();
         if (!game::isRam(entries))
         {
             return -1;
@@ -173,49 +174,20 @@ namespace extra {
 
     static bool matchesQuery(int call, int kind, bool livePartner)
     {
-        switch (call)
+        if (call == main::kRngAny)
         {
-        case main::kRngAny:
             return fighterHasMechanicsRow(kind) || (kind == kFtPopo && livePartner);
-        case main::kRngPeach:
-            return kind == kFtPeach;
-        case main::kRngGameWatch:
-            return kind == kFtGameWatch;
-        case main::kRngLuigi:
-            return kind == kFtLuigi;
-        case main::kRngSamus:
-            return kind == kFtSamus;
-        case main::kRngMewtwo:
-            return kind == kFtMewtwo;
-        case main::kRngLucario:
-            return kind == kFtLucario;
-        case main::kRngWario:
-            return kind == kFtWario;
-        case main::kRngDonkeyKong:
-            return kind == kFtDonkeyKong;
-        case main::kRngIvysaur:
-            return kind == kFtIvysaur;
-        case main::kRngRob:
-            return kind == kFtRob;
-        case main::kRngLucas:
-            return kind == kFtLucas;
-        case main::kRngSquirtle:
-            return kind == kFtSquirtle;
-        case main::kRngSheik:
-            return kind == kFtSheik;
-        case main::kRngDedede:
-            return kind == kFtDedede;
-        case main::kRngSnake:
-            return kind == kFtSnake;
-        case main::kRngGanondorf:
-            return kind == kFtGanondorf;
-        case main::kRngIceClimbers:
-            return kind == kFtPopo && livePartner;
-        case main::kRngOlimar:
-            return kind == kFtOlimar;
-        default:
-            return false;
         }
+        if (call == main::kRngIceClimbers)
+        {
+            return kind == kFtPopo && livePartner;
+        }
+        static const u8 kKinds[] = {
+            kFtPeach, kFtGameWatch, kFtLuigi, kFtSamus, kFtMewtwo, kFtLucario, kFtWario, kFtDonkeyKong,
+            kFtIvysaur, kFtRob, kFtLucas, kFtSquirtle, kFtSheik, kFtDedede, kFtSnake, kFtGanondorf, 0xFF, kFtOlimar
+        };
+        int idx = call - main::kRngPeach;
+        return idx >= 0 && idx < static_cast<int>(sizeof(kKinds)) && kind == static_cast<int>(kKinds[idx]);
     }
 
     // The next Judge is the chosen one. The one before is set to another
@@ -414,14 +386,14 @@ namespace extra {
         {
             return false;
         }
-        const void* data = g_ftCommonDataAccesser.getData(Fighter_Peach);
+        const void* data = extraFtCommonData(Fighter_Peach);
         return data == s_oddsData && game::isRam(data)
                && reinterpret_cast<s32*>(game::wordAt(data, kDataOdds)) == s_odds && game::isRam(s_odds);
     }
 
     static void syncOddsCache()
     {
-        const void* data = g_ftCommonDataAccesser.getData(Fighter_Peach);
+        const void* data = extraFtCommonData(Fighter_Peach);
         if (data == NULL || data != s_oddsData)
         {
             clearOddsCache();
@@ -434,7 +406,7 @@ namespace extra {
     static void findOdds(Fighter* fighter)
     {
         s_oddsTried = true;
-        const void* data = g_ftCommonDataAccesser.getData(Fighter_Peach);
+        const void* data = extraFtCommonData(Fighter_Peach);
         if (!game::isRam(data))
         {
             s_oddsData = NULL;
@@ -446,7 +418,7 @@ namespace extra {
         const ItemEntry* items = reinterpret_cast<const ItemEntry*>(game::wordAt(data, kDataItems));
         u32 count = game::wordAt(data, kDataItemCount);
         bool ok = game::isRam(odds) && game::isRam(items) && count == kItemEntries
-                  && soValueAccesser::getConstantInt(fighter->m_moduleAccesser, kParamOdds, 0) == *odds && *odds > 1
+                  && extraConstInt(fighter->m_moduleAccesser, kParamOdds) == *odds && *odds > 1
                   && items[0].kind == Item_BobOmb && items[0].weight == 0.0f && items[1].kind == Item_MrSaturn
                   && items[1].weight > 0.0f && items[2].kind == Item_BeamSword && items[2].weight == 0.0f;
         TM_LOG("character rng: Peach's item odds at %08x (1 in %d), table at %08x (%d): %s\n", odds,
@@ -486,31 +458,29 @@ namespace extra {
         fighterMechanicsAttach();
     }
 
-    void characterRngPrepareSwap()
+    static void restoreOdds(bool preSwap)
     {
-        fighterMechanicsPrepareSwap();
         if (oddsResident())
         {
-            const void* liveData = g_ftCommonDataAccesser.getData(Fighter_Peach);
-            TM_LOG("character rng: pre-swap restore item odds %08x (was %d, put back %d, live data %08x)\n", s_odds,
-                   *s_odds, s_oddsFile, liveData);
+            const void* liveData = extraFtCommonData(Fighter_Peach);
+            TM_LOG("character rng: %s item odds %08x (was %d, put back %d, live data %08x)\n",
+                   preSwap ? "pre-swap restore" : "detach", s_odds, *s_odds, s_oddsFile, liveData);
             *s_odds = s_oddsFile;
         }
         clearOddsCache();
+    }
+
+    void characterRngPrepareSwap()
+    {
+        fighterMechanicsPrepareSwap();
+        restoreOdds(true);
         s_smashWas = main::kSmashDefault;
     }
 
     void characterRngDetach()
     {
         fighterMechanicsDetach();
-        if (oddsResident())
-        {
-            const void* liveData = g_ftCommonDataAccesser.getData(Fighter_Peach);
-            TM_LOG("character rng: detach item odds %08x (was %d, put back %d, live data %08x)\n", s_odds, *s_odds,
-                   s_oddsFile, liveData);
-            *s_odds = s_oddsFile;
-        }
-        clearOddsCache();
+        restoreOdds(false);
         // The item files stay loaded for every later match and mode: the
         // file's weights must be back.
         if (s_draw != NULL && isDraw(s_draw, true))

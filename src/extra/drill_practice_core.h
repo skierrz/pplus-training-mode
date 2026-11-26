@@ -123,6 +123,9 @@ namespace extra {
         u8 reserved[3];
     };
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline void practiceConfigDefaults(PracticeConfig& cfg)
     {
         static const u8 kDefs[9] = {
@@ -159,6 +162,9 @@ namespace extra {
             }
         }
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // -------------------------------------------------------------------------
     // 1. Powershield Projectile Table & CPU Driver (verified P+ 3.2.1 Fit*.pac)
@@ -172,6 +178,9 @@ namespace extra {
         u8 spacing;
     };
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     // Ivysaur (Synthesis/Solarbeam) and Snake (timed bouncing grenade) are
     // intentionally omitted so both cleanly fall back to Physical (Jab).
     inline const ProjectileProfile* findProjectileProfile(int ftKind)
@@ -205,6 +214,9 @@ namespace extra {
         }
         return NULL;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline bool hasNeutralBProjectile(int ftKind) { return findProjectileProfile(ftKind) != NULL; }
 

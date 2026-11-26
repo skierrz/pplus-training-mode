@@ -60,6 +60,7 @@ BLOCK_LINE = re.compile(r"perf: (stub|main) block at ([0-9a-f]{8}), (\d+) sectio
 S_LEDGE_HUD, S_DI = 12, 19
 S_HITBOXES, S_ENV = 42, 44
 S_HEATMAP, S_HEATMAP_BOUNDS, S_GRAB_VIZ = 47, 48, 51
+S_INPUT_VIEWER, S_PSA_INSPECTOR = 52, 55
 S_HMN_ROWS, S_CPU_ROWS = 58, 74
 S_OSD_ADVANTAGE, S_OSD_FIRST, S_OSD_LAST = 89, 92, 108
 # The Damage preset's eight rows (ui/info_display.cpp applyInfoPreset).
@@ -263,6 +264,8 @@ class Perf:
             ("info-ledge", lambda: info(True), fight, False),
             ("di", lambda: s(S_DI, 1), fight, False),
             ("boxes", lambda: (s(S_HITBOXES, 3), s(S_ENV, 1)), fight, False),
+            ("input-viewer", lambda: s(S_INPUT_VIEWER, 1), fight, False),
+            ("psa", lambda: s(S_PSA_INSPECTOR, 1), fight, False),
             ("heatmap", lambda: (s(S_HEATMAP, 3), s(S_HEATMAP_BOUNDS, 1)), fight, False),
             ("grabviz", lambda: s(S_GRAB_VIZ, 3), fight, False),
             ("everything", lambda: (all_osds(), info(True), s(S_DI, 1),

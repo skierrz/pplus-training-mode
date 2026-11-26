@@ -227,6 +227,9 @@ namespace extra {
         return s == kLedgeStDead || s == kLedgeStRebirth || s == kLedgeStStandby;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline float ledgeStickAngleDeg(float x, float y)
     {
         float ax = x < 0.0f ? -x : x;
@@ -272,32 +275,10 @@ namespace extra {
 
     inline void ledgeCoreResetTransient(LedgeCoreState& st)
     {
-        st.phase = kLedgePhaseOff;
-        st.ledgeAir = 0;
+        memset(&st, 0, reinterpret_cast<char*>(&st.seq) - reinterpret_cast<char*>(&st));
         st.hangXlu = 1;
-        st.noInvulnLimit = 0;
-        st.countedNoInvulnGrab = 0;
-        st.fromTether = 0;
-        st.isTourneyWinner = 0;
-        st.tourneyWinnerSlow = 0;
-        st.ledgeJumpXluStripped = 0;
-        st.isOtherGetup = 0;
-        st.usedAirdodge = 0;
-        st.usedFly = 0;
-        st.failFlags = kLedgeFailNone;
-        st.grabCount = 0;
-        st.prevFrameWasTether = 0;
         st.leftFrame = kLedgeCoreNoFrame;
         st.lastIntangible = kLedgeCoreNoFrame;
-        st.waitFrames = 0;
-        st.dropFrame = 0;
-        st.neutralLatchFrames = 0;
-        st.fallFrames = 0;
-        st.jumpFrames = 0;
-        st.airdodgeAirFrames = 0;
-        st.landingLagFrames = 0;
-        st.airdodgeAngle = 0.0f;
-        st.cellCount = 0;
     }
 
     inline void ledgeCoreResetAll(LedgeCoreState& st)
@@ -412,6 +393,9 @@ namespace extra {
         st.seq++;
         st.phase = kLedgePhaseOff;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // Steps one finished game frame for one tracked fighter. Returns true if a
     // ledge attempt finalized on this frame (result available in st.last).

@@ -107,6 +107,9 @@ namespace extra {
         return v < 0.0f ? -v : v;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline u8 rarClampU8(s32 v)
     {
         if (v < 0)
@@ -148,6 +151,9 @@ namespace extra {
         st.last.frame = frame;
         st.phase = kRarPhaseIdle;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline bool rarWalkTurnSource(s16 prev)
     {

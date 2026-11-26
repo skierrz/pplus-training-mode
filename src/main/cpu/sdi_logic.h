@@ -25,6 +25,9 @@ namespace cpu {
         return v < 0.0f ? -v : v;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline float sdiSqrt(float v)
     {
         if (v <= 0.0f)
@@ -38,6 +41,9 @@ namespace cpu {
         }
         return r;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // One of 8 directions (0 for the centre); within 22.5 degrees of an axis
     // counts as on it (sin(pi/8) = 0.38268f).

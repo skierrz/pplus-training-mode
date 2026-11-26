@@ -188,6 +188,9 @@ namespace extra {
         return s == kFhStatusSquat || s == kFhStatusSquatWait;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline bool fhCounterActionStatus(s16 s)
     {
         return s == kFhStatusDash || s == kFhStatusTurnDash || s == kFhStatusJumpSquat
@@ -308,6 +311,9 @@ namespace extra {
             st.phase = kFhPhaseIdle;
         }
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline bool floorhugStep(FloorhugState& st, const FloorhugFrameInput& in)
     {

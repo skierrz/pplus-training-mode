@@ -47,6 +47,12 @@ namespace ui {
     u8* menuScratch();
 #endif
     extern bool g_showInactiveRows;
+#ifdef __MWERKS__
+    // Bit 0: active CPU fighter has DJC; bit 1: active CPU fighter has Float.
+    extern u8 g_counterAvailMask;
+#define TM_DJC_LABEL "\003"
+#define TM_FLOAT_LABEL "\004"
+#endif
 
     // A choice label starting with this character is listed but not built yet:
     // drawn grey, without the marker.
@@ -60,17 +66,28 @@ namespace ui {
         u8 kind;    // OptionKind
         u8 flags;   // OptionFlag bits
         u16 offset; // byte offset of the value in the settings struct
+#ifdef __MWERKS__
+        u8 min;     // s8 when kFlagSigned, u8 bitmask when kFlagBit
+        s8 def;     // default value (also what a row not built yet shows)
+        s16 max;    // INT: largest value; CHOICE: count - 1; MENU: page id
+        const char* name;
+#else
         s16 min;
         s16 max;    // INT: largest value; CHOICE: count - 1; MENU: page id
         s16 def;    // default value (also what a row not built yet shows)
         u16 reserved;
         const char* name;
         const char* desc;   // unused in match (descriptions live in extra/menu_descriptions.cpp)
+#endif
         const void* data;   // CHOICE: const char* const* labels; INT: format; FUNC/INFO: value text
         void (*onChange)(); // after the value changed, or when A runs a FUNC
         bool (*enabled)();  // NULL: always; false: grey and skipped by the cursor
     };
+#ifdef __MWERKS__
+    TM_STATIC_ASSERT(sizeof(Option) == 24, tm_option_is_24_bytes);
+#else
     TM_STATIC_ASSERT(sizeof(Option) == 32, tm_option_is_32_bytes);
+#endif
 
     struct Page {
         const char* title;
@@ -148,7 +165,16 @@ namespace ui {
     // or value change, a page or function, B leaving a page, A on an
     // unavailable row), not menuJump or the value setters, so only a button
     // press does. Silent while g_menuQuiet is set (Frame Decrement's replay).
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    void x_menuSound(int id);
+#ifndef TM_EXTRA_THUNK_IMPL
+    static inline void menuSound(int id) { x_menuSound(id); }
+#else
     void menuSound(int id);
+#endif
+#else
+    void menuSound(int id);
+#endif
     extern bool g_menuQuiet;
 
     // The page shown and the option under the cursor (NULL on an empty page).

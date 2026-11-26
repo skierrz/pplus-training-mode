@@ -1,7 +1,10 @@
 #include "main/module.h"
 
+#include <cstdarg>
+#include <cstdio>
 #include <types.h>
 
+#include "main/cpu/actions.h"
 #include "main/cpu/cpu.h"
 #include "main/display/display.h"
 #include "main/extra.h"
@@ -20,6 +23,7 @@
 #include "main/settings.h"
 #include "main/storage/storage.h"
 #include "main/ui/match_hud.h"
+#include "main/ui/pages/pages.h"
 #include "main/ui/settings_modal.h"
 #include "shared/drill_session.h"
 #include "shared/game/code_menu.h"
@@ -53,10 +57,32 @@ namespace main {
     static bool s_vsReadOnly = false;
     static bool s_vsPrevRan = false;
 
+#pragma force_active on
     const iface::Services& services()
     {
         return s_iface != NULL ? s_iface->services : kNoServices;
     }
+#pragma force_active reset
+
+#ifdef __MWERKS__
+    void logf(const char* fmt, ...)
+    {
+#ifdef TM_PERF
+        perf::add(perf::kCountLogs, 1);
+#endif
+        if (s_iface == NULL)
+        {
+            return;
+        }
+        char buf[512];
+        va_list args;
+        va_start(args, fmt);
+        vsnprintf(buf, sizeof(buf), fmt, args);
+        va_end(args);
+        buf[sizeof(buf) - 1] = '\0';
+        s_iface->services.log("[" TM_PLUGIN_NAME "] %s", buf);
+    }
+#endif
 
 #ifdef TM_PERF
     // The frame's end for the match module's sections, and the calibration
@@ -260,6 +286,10 @@ namespace main {
         perf::attach();
         perf::announce("main", perf::kMainNames, perf::kMainSections);
 #endif
+#ifdef __MWERKS__
+        ui::pages::pagesAttach();
+        cpu::actionsAttach();
+#endif
         bool reset = loadSettings(block);
         if (s_vsReadOnly)
         {
@@ -316,6 +346,10 @@ namespace main {
         if (s_vsReadOnly)
         {
             lab::detach();
+#ifdef __MWERKS__
+            cpu::actionsDetach();
+            ui::pages::pagesDetach();
+#endif
             TM_LOG("main: detaching\n");
 #ifdef TM_PERF
             perf::detach();
@@ -330,6 +364,10 @@ namespace main {
         savestate::detach();
         cpu::moduleDetach();
         lab::detach();
+#ifdef __MWERKS__
+        cpu::actionsDetach();
+        ui::pages::pagesDetach();
+#endif
         game::codeMenuMatchDetach();
         game::trainingDamageRestore();
         game::trainingControllerRestore();

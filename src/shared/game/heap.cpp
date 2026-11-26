@@ -1,6 +1,9 @@
 #include "shared/game/heap.h"
 
+#include <gf/gf_heap_manager.h>
 #include <gf/gf_memory_pool.h>
+#include <memory.h>
+#include <string.h>
 
 #include "shared/game/mem.h"
 #include "shared/log.h"
@@ -93,5 +96,46 @@ namespace game {
                heapName(heap), g_HeapInfos[heap].m_size, usage.freeBytes,
                usage.freeBlocks, usage.largest);
     }
+
+#if defined(TM_MODULE_MAIN) && defined(__MWERKS__)
+#pragma force_active on
+    void* allocNetworkZero(u32 bytes)
+    {
+        u32 need = (bytes + 31u) & ~31u;
+        HeapUsage u;
+        if (need != 0 && heapUsage(Heaps::Network, u) && u.largest >= need)
+        {
+            void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
+            if (isRam(p))
+            {
+                memset(p, 0, need);
+                return p;
+            }
+        }
+        return NULL;
+    }
+
+    void freeNetworkSlot(void** slot)
+    {
+        if (slot != NULL && *slot != NULL)
+        {
+            free(*slot);
+            *slot = NULL;
+        }
+    }
+
+    float i2f(s32 v) { return static_cast<float>(v); }
+    float u2f(u32 v) { return static_cast<float>(v); }
+    s32 f2i(float v) { return static_cast<s32>(v); }
+    float i2fScale(s32 v, float s) { return static_cast<float>(v) * s; }
+    float minf(float a, float b) { return a < b ? a : b; }
+    float maxf(float a, float b) { return a > b ? a : b; }
+    float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
+    float floatAt(const void* base, u32 offset)
+    {
+        return *reinterpret_cast<const float*>(reinterpret_cast<u32>(base) + offset);
+    }
+#pragma force_active reset
+#endif
 }
 }

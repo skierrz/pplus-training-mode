@@ -103,7 +103,7 @@ namespace extra {
 
         static void placeCpu(const game::FighterRef& r, float x, float y, float lr, bool resetSlot)
         {
-            placeStanding(r, x, y, false, static_cast<float>(main::settings().cpu.percent), lr);
+            placeStanding(r, x, y, false, i2f(main::settings().cpu.percent), lr);
             setFighterCorrect(r, soGroundShapeImpl::Correct_Ground_Cliff_Stop);
             if (resetSlot && r.playerNo >= 0 && r.playerNo < game::kMaxFighters)
             {
@@ -278,7 +278,7 @@ namespace extra {
 
             float sx, sy;
             computeCliffSnapSpawn(ledge.x, ledge.y, ledge.dir, box, sx, sy);
-            placeFalling(hmn, sx, sy, false, static_cast<float>(main::settings().general.playerPercent), ledge.dir);
+            placeFalling(hmn, sx, sy, false, i2f(main::settings().general.playerPercent), ledge.dir);
             refreshAirResources(hmn, false); // clears LA-Basic[2] and zeroes LA-Basic[79]
 
             for (int k = 0; k < 2; k++)
@@ -648,8 +648,8 @@ namespace extra {
                     float brake = 0.08f, walkMax = 1.5f;
                     if (game::isRam(hmn->fighter->m_moduleAccesser))
                     {
-                        brake = soValueAccesser::getConstantFloat(hmn->fighter->m_moduleAccesser, kParamGroundBrake, 0);
-                        walkMax = soValueAccesser::getConstantFloat(hmn->fighter->m_moduleAccesser, kParamWalkSpeedMax, 0);
+                        brake = extraConstFloat(hmn->fighter->m_moduleAccesser, kParamGroundBrake);
+                        walkMax = extraConstFloat(hmn->fighter->m_moduleAccesser, kParamWalkSpeedMax);
                     }
                     spawnWavedashZone(z, hmnFs.x, hmnFs.y, hmnFacing(hm), brake, geom, walkMax);
                 }

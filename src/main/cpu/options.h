@@ -65,7 +65,16 @@ namespace cpu {
     // Resets one CPU slot's (or every slot's) option state machine cleanly back
     // to kIdle without releasing driver claims, port overrides, or noReaction.
     // Called on every Combo Trainer warp and Scenario preset reset.
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    void x_optionsResetSlot(int playerNo);
+#ifndef TM_EXTRA_THUNK_IMPL
+    static inline void optionsResetSlot(int playerNo) { x_optionsResetSlot(playerNo); }
+#else
     void optionsResetSlot(int playerNo);
+#endif
+#else
+    void optionsResetSlot(int playerNo);
+#endif
     void optionsResetAll();
 }
 }

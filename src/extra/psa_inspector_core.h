@@ -3,20 +3,24 @@
 #include <cstdio>
 #include <types.h>
 
+#include "extra/psa_opcodes.h"
 #include "shared/interface.h"
 #include "shared/version.h"
 
 // Pure logic for the read-only PSA AnimCmd 11-Thread & FSM Inspector.
 // Header-only and free of Brawl/Wii headers so host unit tests exercise the
 // exact same decoding, thread selection, and formatting used in-game.
-// Concept adapted from fudgepop01's SuperTraining / FudgeMenu PSA inspector
-// (used with express permission; see CREDITS.md).
+// Concept and AnimCmd opcode/argument layout adapted from fudgepop01's
+// SuperTraining / FudgeMenu PSA inspector and AnimCmd spec (used with express
+// permission; see CREDITS.md).
 namespace tm {
 namespace extra {
     enum {
         kPsaDebugMagic = 0x544D5053u, // "TMPS"
         kPsaThreadCount = 11,
         kPsaDisplayRows = 6,
+        kPsaMaxArgs = 4,
+        kPsaFocusTextSize = 48,
         kPsaWaitTagSync = 0u,
         kPsaWaitTagAsync = 1u,
         kPsaWaitTagAsyncDone = 7u
@@ -35,6 +39,11 @@ namespace extra {
         u8 option;
     };
 
+    struct PsaArgSnapshot {
+        u32 type;    // +0x00 acCmdArgConv::argType (0 int, 1 scalar, 2 ptr, 3 bool, 4 file, 5 var, 6 req)
+        u32 content; // +0x04 acCmdArgConv::data
+    };
+
     struct PsaThreadSnapshot {
         u32 id;             // +0x00 thread index 0..10
         s16 type;           // +0x04 soAnimCmdControlUnit +0x0C
@@ -47,21 +56,27 @@ namespace extra {
     };
 
     struct PsaDebugBlock {
-        u32 magic;             // +0x00 "TMPS" (0x544D5053)
-        u32 drawCalls;         // +0x04 incremented on each rendered frame
-        s32 playerNo;          // +0x08 target playerNo (0..3), -1 when off/none
-        s32 status;            // +0x0C fighter status (action) id
-        s32 subaction;         // +0x10 soMotionModuleImpl m_kind (subaction) id
-        float animFrame;       // +0x14 soMotionModuleImpl +0x40
-        float fsmRate;         // +0x18 soMotionModuleImpl +0x4C (main rate)
-        float secondaryRate;   // +0x1C soMotionModuleImpl +0x7C (when secondaryKind != -1)
-        s32 secondaryKind;     // +0x20 soMotionModuleImpl +0x88 (-1 when inactive)
-        u32 activeThreadCount; // +0x24 count of active threads out of 11
+        u32 magic;                                  // +0x00 "TMPS" (0x544D5053)
+        u32 drawCalls;                              // +0x04 incremented on each rendered frame
+        s32 playerNo;                               // +0x08 target playerNo (0..3), -1 when off/none
+        s32 status;                                 // +0x0C fighter status (action) id
+        s32 subaction;                              // +0x10 soMotionModuleImpl m_kind (subaction) id
+        float animFrame;                            // +0x14 soMotionModuleImpl +0x40
+        float fsmRate;                              // +0x18 soMotionModuleImpl +0x4C (main rate)
+        float secondaryRate;                        // +0x1C soMotionModuleImpl +0x7C (when secondaryKind != -1)
+        s32 secondaryKind;                          // +0x20 soMotionModuleImpl +0x88 (-1 when inactive)
+        u32 activeThreadCount;                      // +0x24 count of active threads out of 11
         PsaThreadSnapshot threads[kPsaThreadCount]; // +0x28 (11 * 24 = 264 bytes)
+        s32 focusThread;                            // +0x130 focused thread index (0..10), -1 if none
+        u32 focusCmdHeader;                         // +0x134 focused thread's cmdHeader
+        u32 focusArgCount;                          // +0x138 captured args (0..kPsaMaxArgs)
+        PsaArgSnapshot focusArgs[kPsaMaxArgs];      // +0x13C (4 * 8 = 32 bytes)
+        char focusText[kPsaFocusTextSize];          // +0x15C decoded focused opcode + typed args
     };
 
+    TM_STATIC_ASSERT(sizeof(PsaArgSnapshot) == 0x08, tm_psa_arg_snapshot_size);
     TM_STATIC_ASSERT(sizeof(PsaThreadSnapshot) == 0x18, tm_psa_thread_snapshot_size);
-    TM_STATIC_ASSERT(sizeof(PsaDebugBlock) == 0x130, tm_psa_debug_block_size);
+    TM_STATIC_ASSERT(sizeof(PsaDebugBlock) == 0x18C, tm_psa_debug_block_size);
 
     inline PsaCmdHeader psaDecodeCmdHeader(u32 hdr)
     {
@@ -102,6 +117,9 @@ namespace extra {
         return kPsaWaitNone;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline float psaClampDisplay(float v, float lo, float hi)
     {
         if (!(v == v))
@@ -118,6 +136,9 @@ namespace extra {
         }
         return v;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline const char* psaThreadName(int index)
     {
@@ -180,17 +201,12 @@ namespace extra {
         float f = psaClampDisplay(animFrame, 0.0f, 999.9f);
         u32 st = status >= 0 ? (static_cast<u32>(status) & 0xFFFu) : 0u;
         u32 sub = subaction >= 0 ? (static_cast<u32>(subaction) & 0xFFFu) : 0u;
-        if (secondaryKind != -1)
+        int n = snprintf(out, static_cast<size_t>(outSize), "A:%03X S:%03X f%.1f",
+                         static_cast<unsigned>(st), static_cast<unsigned>(sub), static_cast<double>(f));
+        if (secondaryKind != -1 && n > 0 && n < outSize)
         {
             float sr = psaClampDisplay(secondaryRate, 0.0f, 99.99f);
-            snprintf(out, static_cast<size_t>(outSize), "A:%03X S:%03X f%.1f 2x%.2f",
-                     static_cast<unsigned>(st), static_cast<unsigned>(sub), static_cast<double>(f),
-                     static_cast<double>(sr));
-        }
-        else
-        {
-            snprintf(out, static_cast<size_t>(outSize), "A:%03X S:%03X f%.1f",
-                     static_cast<unsigned>(st), static_cast<unsigned>(sub), static_cast<double>(f));
+            snprintf(out + n, static_cast<size_t>(outSize - n), " 2x%.2f", static_cast<double>(sr));
         }
     }
 
@@ -202,19 +218,16 @@ namespace extra {
 
     inline void psaFormatWait(u8 waitKind, float waitFrames, char* out, int outSize)
     {
-        if (waitKind == kPsaWaitSync)
+        if (waitKind == kPsaWaitSync || waitKind == kPsaWaitAsync)
         {
             float w = psaClampDisplay(waitFrames, 0.0f, 99.9f);
-            snprintf(out, static_cast<size_t>(outSize), "w%.1f", static_cast<double>(w));
+            snprintf(out, static_cast<size_t>(outSize), "%c%.1f", waitKind == kPsaWaitSync ? 'w' : 'a',
+                     static_cast<double>(w));
         }
-        else if (waitKind == kPsaWaitAsync)
+        else if (outSize >= 2)
         {
-            float w = psaClampDisplay(waitFrames, 0.0f, 99.9f);
-            snprintf(out, static_cast<size_t>(outSize), "a%.1f", static_cast<double>(w));
-        }
-        else
-        {
-            snprintf(out, static_cast<size_t>(outSize), "-");
+            out[0] = '-';
+            out[1] = '\0';
         }
     }
 
@@ -223,6 +236,82 @@ namespace extra {
         PsaCmdHeader h = psaDecodeCmdHeader(cmdHeader);
         snprintf(out, static_cast<size_t>(outSize), "%02X:%02X", static_cast<unsigned>(h.module),
                  static_cast<unsigned>(h.code));
+    }
+
+    // Picks the primary active thread whose live opcode + typed arguments are
+    // featured in the detail strip (SubMain preferred, then ActMain, then
+    // remaining active threads in display order).
+    inline int psaSelectFocusThread(const PsaThreadSnapshot* threads)
+    {
+        static const u8 kFocusOrder[kPsaThreadCount] = {1, 0, 2, 3, 4, 9, 10, 5, 6, 7, 8};
+        for (int i = 0; i < kPsaThreadCount; i++)
+        {
+            int idx = kFocusOrder[i];
+            if (threads[idx].active != 0 && threads[idx].cmdHeader != 0u)
+            {
+                return idx;
+            }
+        }
+        return -1;
+    }
+
+    // Formats "<OpName>(<arg0>,<arg1>...)" into `out`, truncating cleanly.
+    inline void psaFormatFocusCommand(u32 cmdHeader, const PsaArgSnapshot* args, u32 argCount, char* out, int outSize)
+    {
+        if (outSize <= 0)
+        {
+            return;
+        }
+        if (cmdHeader == 0u)
+        {
+            out[0] = '\0';
+            return;
+        }
+        psaFormatOpcodeName(cmdHeader, out, outSize);
+        u8 totalArgs = psaDecodeCmdHeader(cmdHeader).numArgs;
+        u32 show = argCount < kPsaMaxArgs ? argCount : static_cast<u32>(kPsaMaxArgs);
+        if (show == 0u || args == NULL)
+        {
+            return;
+        }
+        int pos = 0;
+        while (pos < outSize && out[pos] != '\0')
+        {
+            pos++;
+        }
+        if (pos + 1 >= outSize)
+        {
+            out[outSize - 1] = '\0';
+            return;
+        }
+        out[pos++] = '(';
+        out[pos] = '\0';
+        for (u32 i = 0; i < show && pos + 2 < outSize; i++)
+        {
+            if (i > 0u)
+            {
+                out[pos++] = ',';
+            }
+            psaFormatArg(args[i].type, args[i].content, out + pos, outSize - pos);
+            while (pos < outSize && out[pos] != '\0')
+            {
+                pos++;
+            }
+        }
+        if (totalArgs > show && pos + 3 < outSize)
+        {
+            out[pos++] = '.';
+            out[pos++] = '.';
+        }
+        if (pos + 1 < outSize)
+        {
+            out[pos++] = ')';
+            out[pos] = '\0';
+        }
+        else
+        {
+            out[outSize - 1] = '\0';
+        }
     }
 }
 }

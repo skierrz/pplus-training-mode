@@ -142,32 +142,20 @@ namespace game {
                            | (1 << kGroupAirJumpAerial)
     };
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     // Statuses a fighter is free to act in, and those only a choice enters:
     // entering any means it could act during that frame.
     static bool freeStatus(int s)
     {
-        switch (s)
-        {
-        case kStatusWait:
-        case kStatusWalk:
-        case kStatusWalkBrake:
-        case kStatusDash:
-        case kStatusRun:
-        case kStatusTurn:
-        case kStatusTurnDash:
-        case kStatusTurnRun:
-        case kStatusSquat:
-        case kStatusSquatWait:
-        case kStatusFall:
-        case kStatusFallAerial:
-        case kStatusJumpSquat:
-        case kStatusGuardOn:
-        case kStatusGuard:
-        case kStatusGuardOff:
-            return true;
-        default:
-            return false;
-        }
+        const u32 kMask = (1u << kStatusWait) | (1u << kStatusWalk) | (1u << kStatusWalkBrake)
+                          | (1u << kStatusDash) | (1u << kStatusRun) | (1u << kStatusTurn)
+                          | (1u << kStatusTurnDash) | (1u << kStatusTurnRun) | (1u << kStatusSquat)
+                          | (1u << kStatusSquatWait) | (1u << kStatusFall) | (1u << kStatusFallAerial)
+                          | (1u << kStatusJumpSquat) | (1u << kStatusGuardOn) | (1u << kStatusGuard)
+                          | (1u << kStatusGuardOff);
+        return static_cast<u32>(s) < 32u && ((kMask >> s) & 1u) != 0u;
     }
 
     // Moves: entering one from something that is not itself a move is a
@@ -195,6 +183,9 @@ namespace game {
         return (s >= kStatusAttack && s <= kStatusAttackAirFirst) || (s >= kStatusSpecialN && s < kStatusFinal)
                || s == kStatusThrow;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     void StatusWatch::notifyEventChangeStatus(int statusKind, int prevStatusKind, soStatusData*,
                                               soModuleAccesser* moduleAccesser)
@@ -1019,19 +1010,12 @@ namespace game {
 #ifdef __MWERKS__
         if (s_slots == NULL)
         {
-            u32 need = (static_cast<u32>(sizeof(Slot) * kMaxTracked) + 31u) & ~31u;
-            HeapUsage u;
-            if (heapUsage(Heaps::Network, u) && u.largest >= need)
+            s_slots = static_cast<Slot*>(allocNetworkZero(static_cast<u32>(sizeof(Slot) * kMaxTracked)));
+            if (s_slots != NULL)
             {
-                void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
-                if (isRam(p))
+                for (int i = 0; i < kMaxTracked; i++)
                 {
-                    memset(p, 0, need);
-                    s_slots = static_cast<Slot*>(p);
-                    for (int i = 0; i < kMaxTracked; i++)
-                    {
-                        new (&s_slots[i]) Slot;
-                    }
+                    new (&s_slots[i]) Slot;
                 }
             }
         }

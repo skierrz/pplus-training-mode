@@ -94,6 +94,9 @@ namespace extra {
         return v < 0.0f ? -v : v;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline u8 dacusClampU8(s32 v)
     {
         if (v < 0)
@@ -137,6 +140,9 @@ namespace extra {
         st.last.slideDistance = slideDist;
         st.last.frame = frame;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline bool dacusStep(DacusState& st, const DacusFrameInput& in)
     {

@@ -48,36 +48,17 @@ namespace extra {
         int platformCount;
     };
 
-#ifdef __MWERKS__
-#pragma dont_inline on
-#endif
-    inline u32 geomNextRng(u32& state)
-    {
-        u32 x = state != 0 ? state : 0x6D2B79F5u;
-        x ^= x << 13;
-        x ^= x >> 17;
-        x ^= x << 5;
-        state = x;
-        return x;
-    }
-
-    inline float geomRand01(u32& state)
-    {
-        return static_cast<float>(geomNextRng(state) & 0x00FFFFFFu) / 16777216.0f;
-    }
-
-    inline float geomRandRange(u32& state, float lo, float hi)
-    {
-        return lo + geomRand01(state) * (hi - lo);
-    }
+    enum {
+        kPlatSlotLeft = 0,
+        kPlatSlotRight = 1,
+        kPlatSlotTop = 2,
+        kPlatSlotRandom = 3
+    };
 
     inline float geomClamp(float v, float lo, float hi)
     {
         return v < lo ? lo : (v > hi ? hi : v);
     }
-#ifdef __MWERKS__
-#pragma dont_inline reset
-#endif
 
     inline float geomMax(float a, float b)
     {
@@ -89,7 +70,57 @@ namespace extra {
         return a < b ? a : b;
     }
 
-    inline bool nearestLedge(const StageGeometry& g, float x, float y, LedgeInfo& out)
+    inline bool isOffstageGeom(const StageGeometry& g, float x, float y, float margin = 0.0f)
+    {
+        if (!g.floor.valid)
+        {
+            return false;
+        }
+        return x < g.floor.leftX - margin || x > g.floor.rightX + margin || y < g.floor.centerY - 2.0f;
+    }
+
+#if defined(__MWERKS__) && !defined(TM_STAGE_GEOM_IMPL)
+    u32 geomNextRng(u32& state);
+    float geomRand01(u32& state);
+    float geomRandRange(u32& state, float lo, float hi);
+    bool nearestLedge(const StageGeometry& g, float x, float y, LedgeInfo& out);
+    void classifyPlatforms(const StageGeometry& g, int slotIdx[3]);
+    bool selectPlatformBySlot(const StageGeometry& g, u8 slot, u32& rng, StagePlatform& out,
+                              u8* outActualSlot = NULL);
+    int sortPlatformsLowestLeftToRight(const StageGeometry& g, StagePlatform out[kMaxStagePlatforms]);
+    bool selectPlatform(const StageGeometry& g, bool preferLeft, StagePlatform& out);
+    bool sampleSafeCandidate(const StageGeometry& g, u32& rng, bool onGround, float& outX, float& outY);
+    bool sampleOffstageMode(const StageGeometry& g, int sideChoice, u8 mode, u32& rng, float& outX, float& outY);
+    bool sampleRecoveryCandidate(const StageGeometry& g, u32& rng, float& outX, float& outY, int sideChoice = 2);
+    bool sampleEdgeguardSpawn(const StageGeometry& g, u8 distMode, int sideChoice, u32& rng, float& outX,
+                              float& outY);
+#else
+#ifdef __MWERKS__
+#define TM_GEOM_FN
+#else
+#define TM_GEOM_FN inline
+#endif
+    TM_GEOM_FN u32 geomNextRng(u32& state)
+    {
+        u32 x = state != 0 ? state : 0x6D2B79F5u;
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        state = x;
+        return x;
+    }
+
+    TM_GEOM_FN float geomRand01(u32& state)
+    {
+        return static_cast<float>(geomNextRng(state) & 0x00FFFFFFu) / 16777216.0f;
+    }
+
+    TM_GEOM_FN float geomRandRange(u32& state, float lo, float hi)
+    {
+        return lo + geomRand01(state) * (hi - lo);
+    }
+
+    TM_GEOM_FN bool nearestLedge(const StageGeometry& g, float x, float y, LedgeInfo& out)
     {
         if (!g.hasLedges)
         {
@@ -105,18 +136,8 @@ namespace extra {
         return true;
     }
 
-    enum {
-        kPlatSlotLeft = 0,
-        kPlatSlotRight = 1,
-        kPlatSlotTop = 2,
-        kPlatSlotRandom = 3
-    };
-
-#ifdef __MWERKS__
-#pragma dont_inline on
-#endif
     // Maps live platforms to canonical Left / Right / Top slots (-1 if absent).
-    inline void classifyPlatforms(const StageGeometry& g, int slotIdx[3])
+    TM_GEOM_FN void classifyPlatforms(const StageGeometry& g, int slotIdx[3])
     {
         slotIdx[0] = slotIdx[1] = slotIdx[2] = -1;
         int n = g.platformCount;
@@ -170,8 +191,8 @@ namespace extra {
 
     // Selects a pass-through platform by canonical slot (Left / Right / Top /
     // Random), cleanly skipping absent slots on 1- or 2-platform stages.
-    inline bool selectPlatformBySlot(const StageGeometry& g, u8 slot, u32& rng, StagePlatform& out,
-                                     u8* outActualSlot = NULL)
+    TM_GEOM_FN bool selectPlatformBySlot(const StageGeometry& g, u8 slot, u32& rng, StagePlatform& out,
+                                         u8* outActualSlot = NULL)
     {
         int idx[3];
         classifyPlatforms(g, idx);
@@ -207,7 +228,7 @@ namespace extra {
 
     // Collects all valid pass-through platforms sorted lowest-first (ascending Y),
     // tie-breaking left-to-right (ascending midX within 2.0u Y tolerance).
-    inline int sortPlatformsLowestLeftToRight(const StageGeometry& g, StagePlatform out[kMaxStagePlatforms])
+    TM_GEOM_FN int sortPlatformsLowestLeftToRight(const StageGeometry& g, StagePlatform out[kMaxStagePlatforms])
     {
         int n = g.platformCount;
         if (n > kMaxStagePlatforms) n = kMaxStagePlatforms;
@@ -236,7 +257,7 @@ namespace extra {
     // Selects an active pass-through platform from live geometry, preferring
     // the lowest platform on the requested side (left or right of main floor
     // center) and falling back to the lowest valid platform on the stage.
-    inline bool selectPlatform(const StageGeometry& g, bool preferLeft, StagePlatform& out)
+    TM_GEOM_FN bool selectPlatform(const StageGeometry& g, bool preferLeft, StagePlatform& out)
     {
         StagePlatform sorted[kMaxStagePlatforms];
         int count = sortPlatformsLowestLeftToRight(g, sorted);
@@ -258,19 +279,10 @@ namespace extra {
         return true;
     }
 
-    inline bool isOffstageGeom(const StageGeometry& g, float x, float y, float margin = 0.0f)
-    {
-        if (!g.floor.valid)
-        {
-            return false;
-        }
-        return x < g.floor.leftX - margin || x > g.floor.rightX + margin || y < g.floor.centerY - 2.0f;
-    }
-
     // Generates one candidate point inside the live stage's floor and blast
     // zones (never hardcoded to any single stage). Callers on the console
     // verify the point with downward and upward stRayCheck calls.
-    inline bool sampleSafeCandidate(const StageGeometry& g, u32& rng, bool onGround, float& outX, float& outY)
+    TM_GEOM_FN bool sampleSafeCandidate(const StageGeometry& g, u32& rng, bool onGround, float& outX, float& outY)
     {
         if (!g.floor.valid || !g.blast.valid)
         {
@@ -301,28 +313,32 @@ namespace extra {
 
     // Shared offstage box sampler relative to the live stage's ledges & blast zones.
     // mode: 0 = Recovery, 1 = Edgeguard Mid, 2 = Edgeguard Deep, 3 = Edgeguard High.
-    inline bool sampleOffstageMode(const StageGeometry& g, int sideChoice, u8 mode, u32& rng, float& outX, float& outY)
+    TM_GEOM_FN bool sampleOffstageMode(const StageGeometry& g, int sideChoice, u8 mode, u32& rng, float& outX,
+                                       float& outY)
     {
         if (!g.floor.valid || !g.blast.valid || !g.hasLedges)
         {
             return false;
         }
-        float minD = 25.0f, maxD = 80.0f, minY = -42.0f, maxY = 30.0f;
-        if (mode == 1) { minD = 32.0f; maxD = 50.0f; minY = -18.0f; maxY = 6.0f; }
-        else if (mode == 2) { minD = 48.0f; maxD = 74.0f; minY = -44.0f; maxY = -16.0f; }
-        else if (mode == 3) { minD = 28.0f; maxD = 52.0f; minY = 18.0f; maxY = 44.0f; }
+        static const float kBoxes[4][4] = {
+            {25.0f, 80.0f, -42.0f, 30.0f},
+            {32.0f, 50.0f, -18.0f, 6.0f},
+            {48.0f, 74.0f, -44.0f, -16.0f},
+            {28.0f, 52.0f, 18.0f, 44.0f}
+        };
+        const float* b = kBoxes[mode < 4 ? mode : 0];
         float pad = mode == 0 ? 28.0f : 26.0f;
         float loFrac = mode == 0 ? 0.50f : 0.75f;
         bool rightSide = sideChoice < 2 ? (sideChoice == 0) : ((geomNextRng(rng) & 1u) != 0);
         const LedgeInfo& ledge = rightSide ? g.rightLedge : g.leftLedge;
         float outward = rightSide ? 1.0f : -1.0f;
         float maxOut = geomMax(20.0f, rightSide ? (g.blast.right - ledge.x - pad) : (ledge.x - g.blast.left - pad));
-        float hiD = geomMin(maxD, maxOut);
-        float loD = geomMin(minD, hiD * loFrac);
+        float hiD = geomMin(b[1], maxOut);
+        float loD = geomMin(b[0], hiD * loFrac);
         outX = ledge.x + outward * geomRandRange(rng, loD, hiD);
 
-        float loY = geomMax(g.blast.bottom + 38.0f, ledge.y + minY);
-        float hiY = geomMin(g.blast.top - 32.0f, ledge.y + maxY);
+        float loY = geomMax(g.blast.bottom + 38.0f, ledge.y + b[2]);
+        float hiY = geomMin(g.blast.top - 32.0f, ledge.y + b[3]);
         if (hiY <= loY) hiY = loY + 4.0f;
         outY = geomRandRange(rng, loY, hiY);
         return true;
@@ -330,7 +346,8 @@ namespace extra {
 
     // Generates an offstage recovery-practice spawn point relative to the live
     // stage's ledges and blast zones. sideChoice: 0 = Right, 1 = Left, 2 = Random.
-    inline bool sampleRecoveryCandidate(const StageGeometry& g, u32& rng, float& outX, float& outY, int sideChoice = 2)
+    TM_GEOM_FN bool sampleRecoveryCandidate(const StageGeometry& g, u32& rng, float& outX, float& outY,
+                                            int sideChoice = 2)
     {
         return sampleOffstageMode(g, sideChoice, 0, rng, outX, outY);
     }
@@ -338,14 +355,13 @@ namespace extra {
     // Generates an offstage Edgeguard spawn point for explicit distance presets:
     // distMode: 0 = Mid, 1 = Deep, 2 = High, 3 = Random.
     // sideChoice: 0 = Right, 1 = Left, 2 = Random.
-    inline bool sampleEdgeguardSpawn(const StageGeometry& g, u8 distMode, int sideChoice, u32& rng, float& outX,
-                                     float& outY)
+    TM_GEOM_FN bool sampleEdgeguardSpawn(const StageGeometry& g, u8 distMode, int sideChoice, u32& rng, float& outX,
+                                         float& outY)
     {
         u8 mode = distMode >= 3 ? static_cast<u8>(geomNextRng(rng) % 3u) : distMode;
         return sampleOffstageMode(g, sideChoice, static_cast<u8>(mode + 1), rng, outX, outY);
     }
-#ifdef __MWERKS__
-#pragma dont_inline reset
+#undef TM_GEOM_FN
 #endif
 }
 }

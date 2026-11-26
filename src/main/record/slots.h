@@ -72,7 +72,16 @@ namespace record {
     // Stores frame `t`; the slot then ends at t + 1 (later frames dropped).
     void slotWrite(Slot& s, int t, const Input& in);
     // False outside start..end.
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    bool x_slotRead(const Slot& s, int t, Input& out);
+#ifndef TM_EXTRA_THUNK_IMPL
+    static inline bool slotRead(const Slot& s, int t, Input& out) { return x_slotRead(s, t, out); }
+#else
     bool slotRead(const Slot& s, int t, Input& out);
+#endif
+#else
+    bool slotRead(const Slot& s, int t, Input& out);
+#endif
     void slotCopy(Slot& to, const Slot& from);
     // Drops the first `frames` frames: frame `frames` becomes frame 0.
     void slotDropFront(Slot& s, int frames);
@@ -82,9 +91,11 @@ namespace record {
     bool slotEdit(Slot& s, int t, const Input& in);
 
     // The run log: both sides' inputs of every frame of the current run,
-    // exactly as the fighters acted on them, whatever drove them (Frame
-    // Decrement replays it). kMaxFrames frames per side, in the same block
-    // as the slots; NULL without storage.
-    Input* runLog(int side);
+    // packed into one Slot per side (8 bytes/frame plus exact float-bit
+    // palettes; Frame Decrement replays it). NULL without storage.
+    Slot* runLogSlot(int side);
+    void runLogClear(int side);
+    void runLogWrite(int side, int t, const Input& in);
+    bool runLogRead(int side, int t, Input& out);
 }
 }

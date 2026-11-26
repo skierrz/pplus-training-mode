@@ -64,20 +64,11 @@ namespace osd {
 #ifdef __MWERKS__
         if (s_messages == NULL)
         {
-            u32 need = (static_cast<u32>(sizeof(Message) * kPlayers * kPerPlayer) + 31u) & ~31u;
-            game::HeapUsage u;
-            if (game::heapUsage(Heaps::Network, u) && u.largest >= need)
-            {
-                void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
-                if (game::isRam(p))
-                {
-                    memset(p, 0, need);
-                    s_messages = static_cast<Message*>(p);
-                }
-            }
+            s_messages = static_cast<Message*>(game::allocNetworkZero(static_cast<u32>(sizeof(Message) * kPlayers * kPerPlayer)));
             if (s_messages == NULL)
             {
-                TM_LOG("osd: messages alloc failed (%u B in Network)\n", need);
+                TM_LOG("osd: messages alloc failed (%u B in Network)\n",
+                       static_cast<unsigned>(sizeof(Message) * kPlayers * kPerPlayer));
             }
         }
 #endif
@@ -88,11 +79,7 @@ namespace osd {
     {
         reset();
 #ifdef __MWERKS__
-        if (s_messages != NULL)
-        {
-            free(s_messages);
-            s_messages = NULL;
-        }
+        game::freeNetworkSlot(reinterpret_cast<void**>(&s_messages));
 #endif
     }
 
@@ -108,6 +95,9 @@ namespace osd {
         }
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     static float smooth(float t)
     {
         t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
@@ -130,6 +120,9 @@ namespace osd {
     {
         return now < m.born || now - m.born >= kLifetime + (game::frozen() ? 0 : kAnimFrames);
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // Drops expired messages and gives the rest of `player`'s stack their
     // places by age, starting a glide for every message whose place changed.

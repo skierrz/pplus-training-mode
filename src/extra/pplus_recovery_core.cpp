@@ -2,7 +2,11 @@
 
 #include <string.h>
 
+#include "extra/net_alloc.h"
 #include "extra/stage_geom_math.h"
+#ifdef __MWERKS__
+#include "shared/game/stick.h"
+#endif
 
 namespace tm {
 namespace extra {
@@ -42,7 +46,12 @@ namespace extra {
     };
 
     // Portable fast square root (zero libm dependency for MWCC and MSVC).
-#pragma dont_inline on
+#ifdef __MWERKS__
+    static inline float recSqrt(float s)
+    {
+        return game::stickRoot(s);
+    }
+#else
     static float recSqrt(float s)
     {
         if (s <= 0.0f)
@@ -56,7 +65,7 @@ namespace extra {
         }
         return g;
     }
-#pragma dont_inline reset
+#endif
 
     static inline float recAbs(float v)
     {
@@ -74,14 +83,9 @@ namespace extra {
         out.buttons = (lastButtons & btn) != 0 ? 0u : btn;
     }
 
-    static float recClamp(float v, float lo, float hi)
+    static inline float recClamp(float v, float lo, float hi)
     {
-        return v < lo ? lo : (v > hi ? hi : v);
-    }
-
-    static float i2f(int v)
-    {
-        return static_cast<float>(v);
+        return clampf(v, lo, hi);
     }
 #pragma dont_inline reset
 
@@ -416,11 +420,13 @@ namespace extra {
         }
         return false;
     }
+#pragma dont_inline reset
 
     static bool isTetherStatus(int s)
     {
         return (s >= kStAirLasso && s <= kStAirLassoFailure) || s == kStCliffJump2;
     }
+#pragma dont_inline on
 
     static bool inRect16(int x16, int xMin, int xMax, int y16, int yMin, int yMax)
     {
@@ -452,14 +458,14 @@ namespace extra {
             st.option = st.usedFloat = st.holdFrames = st.mashPhase = st.highMixup = 0;
             if (mix == kMixupHigh)
             {
-                st.highMixup = static_cast<u8>(28.0f + 27.0f * recRand01(rng));
+                st.highMixup = static_cast<u8>(f2i(28.0f + 27.0f * recRand01(rng)));
             }
             else if (mix == kMixupMixed)
             {
                 float r = recRand01(rng);
                 if ((in.ledgeOccupied && r < 0.80f) || (!in.ledgeOccupied && r < 0.25f))
                 {
-                    st.highMixup = static_cast<u8>(15.0f + 40.0f * recRand01(rng));
+                    st.highMixup = static_cast<u8>(f2i(15.0f + 40.0f * recRand01(rng)));
                 }
             }
         }
@@ -470,11 +476,11 @@ namespace extra {
         float absNCX = recAbs(toLedgeX);
         float belowLedgeY = toLedgeY; // > 0 below ledge, < 0 above ledge
         float highBelowY = belowLedgeY + (!in.ceilingAbove ? i2f(st.highMixup) : 0.0f);
-        const int ix = static_cast<int>(absNCX * 16.0f);
-        const int iy = static_cast<int>(belowLedgeY * 16.0f);
-        const int iyH = static_cast<int>(highBelowY * 16.0f);
-        const int iAnim = static_cast<int>(in.animFrame * 16.0f);
-        const int iWall = static_cast<int>(in.wallDist * 16.0f);
+        const int ix = f2i(absNCX * 16.0f);
+        const int iy = f2i(belowLedgeY * 16.0f);
+        const int iyH = f2i(highBelowY * 16.0f);
+        const int iAnim = f2i(in.animFrame * 16.0f);
+        const int iWall = f2i(in.wallDist * 16.0f);
         float stageCenterX = 0.5f * (in.stageLeftX + in.stageRightX);
         float stageCenterDir = in.x > stageCenterX ? -1.0f : 1.0f;
         float towardLedge = toLedgeX == 0.0f ? stageCenterDir : recSign(toLedgeX);
