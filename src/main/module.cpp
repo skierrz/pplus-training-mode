@@ -20,6 +20,7 @@
 #include "main/settings.h"
 #include "main/storage/storage.h"
 #include "main/ui/match_hud.h"
+#include "main/ui/settings_modal.h"
 #include "shared/drill_session.h"
 #include "shared/game/code_menu.h"
 #include "shared/game/scene.h"
@@ -122,7 +123,8 @@ namespace main {
             TM_PERF_SCOPE(kLabRender);
             lab::onRender(call, match);
         }
-        if (!s_vsReadOnly && match.running && !match.paused && !lab::menuOpen() && record::hudVisible())
+        if (!s_vsReadOnly && match.running && !match.paused && !lab::menuOpen() && !ui::settingsModalOpen()
+            && record::hudVisible())
         {
             TM_PERF_SCOPE(kRecordHud);
             gfx::begin();

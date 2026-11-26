@@ -18,6 +18,7 @@
 #include "extra/drill_hover_ps_engines.h"
 #include "extra/drill_hud.h"
 #include "extra/drill_pplus_tech_engines.h"
+#include "extra/drill_practice_driver.h"
 #include "extra/fighter_swap.h"
 #include "extra/frame_data.h"
 #include "extra/grab_visualizer.h"
@@ -46,6 +47,7 @@
 #include "main/settings.h"
 #include "main/ui/hud_layout.h"
 #include "main/ui/info_display.h"
+#include "main/ui/settings_modal.h"
 #include "shared/game/scene.h"
 #include "shared/log.h"
 #include "shared/version.h"
@@ -108,8 +110,9 @@ namespace extra {
             describe(line);
             TM_LOG("%s (render call %u)\n", line, call);
         }
-        bool drawDrill = !s_vsReadOnly && (drillHudHook(0, NULL) & 1u) != 0u;
-        bool drawAdap = !s_vsReadOnly && !match.paused && !lab::menuOpen()
+        bool modalUp = ui::settingsModalOpen();
+        bool drawDrill = !s_vsReadOnly && !modalUp && (drillHudHook(0, NULL) & 1u) != 0u;
+        bool drawAdap = !s_vsReadOnly && !modalUp && !match.paused && !lab::menuOpen()
                         && main::settings().cpu.options.control == cpu::kControlLab
                         && main::settings().cpu.options.adaptiveMode != cpu::kAdaptiveOff;
         if (drawDrill || drawAdap)
@@ -155,6 +158,7 @@ namespace extra {
         challengeBackendsFrame();
 #endif
         drillHudFrame();
+        drillPracticeFrame();
         techTrackerFrame();
         techSparkleFrame();
         timingMeterFrame();
@@ -172,6 +176,7 @@ namespace extra {
         challengeBackendsReset();
 #endif
         drillHudSavestateReset();
+        drillPracticeReset();
         techTrackerReset();
         techSparkleReset();
         timingMeterReset();
@@ -215,18 +220,33 @@ namespace extra {
         return osdTopStartY(isTopRight, band, infoBot, rightBot);
     }
 
+    static bool onCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons)
+    {
+        if (drillPracticeCpuStep(who, v, f, out, lastButtons))
+        {
+            return true;
+        }
+        return scenarioPresetsCpuStep(who, v, f, out, lastButtons);
+    }
+
+    static void onTimingAndPracticeDraw(const game::MatchState& match)
+    {
+        timingMeterDraw(match);
+        drillPracticeDraw(match);
+    }
+
     static const main::ExtraHooks kHooks = {
         onRender,          alterRow,           alterEdited,        diDraw,
         diReset,           diHideDrawDi,       framesUntilActionable, onFrame,
         frameDataMeasured, frameDataShieldHoldFullMove, characterRng, stageOptions,
         pplusRecoveryStep, pplusRecoveryReset, comboTrainerDraw,   onComboReset,
         heatmapDraw,       heatmapReset,       adaptiveCpuBias,    adaptiveCpuReset,
-        scenarioPresetsCall, scenarioPresetsCpuStep, scenarioPresetsSavedView, grabVizDraw,
+        scenarioPresetsCall, onCpuStep,        scenarioPresetsSavedView, grabVizDraw,
         fighterSwapRow,    fighterSwapChanged, fighterSwapApply,   fighterSwapBusy,
         optionDesc,        uiAssetsDrawIcon,   uiAssetsDrawPageOverlay,
         ui::infoWanted,    ui::infoStep,       ui::drawInfo,       ui::infoReset,
         ui::applyInfoPreset, inputViewerDraw,  drawColoredHitboxes, diCompassDraw,
-        reversalSlotsPick, psaInspectorDraw,   timingMeterDraw,    drillHudHook,
+        reversalSlotsPick, psaInspectorDraw,   onTimingAndPracticeDraw, drillHudHook,
         osdTopStartYHook
     };
 
@@ -277,6 +297,7 @@ namespace extra {
         psaInspectorAttach();
         techSparkleAttach();
         timingMeterAttach();
+        drillPracticeAttach();
         drillHudAttach();
         main::setExtraHooks(&kHooks);
         TM_LOG("extra: attached next to match module v%s\n", main::kModule.buildVersion);
@@ -297,6 +318,7 @@ namespace extra {
             return;
         }
         drillHudDetach();
+        drillPracticeDetach();
         timingMeterDetach();
         techSparkleDetach();
         psaInspectorDetach();

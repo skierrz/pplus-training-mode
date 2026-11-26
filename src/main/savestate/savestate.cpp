@@ -19,6 +19,7 @@
 #include "main/cpu/driver.h"
 #include "main/cpu/fighter_input.h"
 #include "main/cpu/options.h"
+#include "main/extra.h"
 #include "main/game/fighters.h"
 #include "main/game/freeze.h"
 #include "main/game/pad_inmatch.h"
@@ -712,7 +713,7 @@ namespace savestate {
         bool live = m.running && m.training && !m.paused;
         if (live)
         {
-            u32 bound = lab::comboLHeldOnPads(pads) ? 0u : boundBits();
+            u32 bound = (lab::comboLHeldOnPads(pads) || (main::extraDrill(0, NULL) & 4u) != 0u) ? 0u : boundBits();
             s_heldRight = (bound & kDpadRight) && (held & kDpadRight) ? s_heldRight + 1 : 0;
             if (s_heldRight == 0)
             {

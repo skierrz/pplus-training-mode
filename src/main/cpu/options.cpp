@@ -2447,6 +2447,17 @@ namespace cpu {
         }
         noReactionOn(who, c.intangible == kIntangibleNoReaction);
 
+        // Active Tech Practice drivers (Solo Standby, Powershield projectiles,
+        // L-Cancel / Float-DJC targets) preempt Lab recovery, ledge, and counter
+        // behaviors while they claim the CPU.
+        if ((main::extraDrill(0, NULL) & 1u) != 0u
+            && main::extraScenarioCpuStep(who, v, f, out, lastButtons(slot)))
+        {
+            state = kIdle;
+            remember();
+            return true;
+        }
+
         // On-ledge reversal / getup option (ledge_logic.h): preempts Game AI /
         // PPlusAI recovery only while hanging on the ledge or completing an
         // on-stage getup. Once airborne after Drop or Jump, normal recovery /

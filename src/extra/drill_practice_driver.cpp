@@ -356,7 +356,7 @@ namespace extra {
         freeNetPtr(s_net);
     }
 
-    void drillPracticeReset() { resetSubsystems(true); }
+    void drillPracticeReset() { resetSubsystems(false); }
 
     void drillPracticeSetActiveDrill(u8 drillId)
     {
@@ -368,7 +368,7 @@ namespace extra {
         if (clean != s_net->debug.activeDrill)
         {
             s_net->debug.activeDrill = clean;
-            resetSubsystems(false);
+            resetSubsystems(clean == kPracticeDrillNone);
         }
     }
 
@@ -494,7 +494,6 @@ namespace extra {
         dbg.cpuInStandby = (net.flags & kFlagStandby) != 0u ? 1u : 0u;
         dbg.targetModeActive = tMode;
         dbg.psResolvedMode = anyProj ? static_cast<u8>(kPsAtkProjectile) : static_cast<u8>(kPsAtkPhysical);
-        dbg.psResolvedHeight = net.sub.psCpu[0].resolvedHeight;
         if (d == kPracticeDrillNone || hm == NULL)
         {
             if (d == kPracticeDrillNone)
@@ -667,7 +666,7 @@ namespace extra {
                     setNoReactPair(refs[i], true);
                     net.flags |= kFlagNoReact;
                 }
-                bool needPlace = doRepos || (tMode == kTargetStationary && !ts.anchorValid);
+                bool needPlace = doRepos || ((tMode == kTargetStationary || tMode == kTargetShielding) && !ts.anchorValid);
                 if (needPlace)
                 {
                     computeTargetAnchor(hmnFs.x, hmnFacing(hm), 12.0f, geom, ts.anchorX, ts.anchorY, ts.anchorLr);
@@ -723,6 +722,10 @@ namespace extra {
         if (d == kPracticeDrillPowershield)
         {
             PsCpuState& ps = net.sub.psCpu[slot];
+            if (ps.phase == kPsCpuIdle && (v.hitstun > 0 || v.hitlag > 0 || v.air))
+            {
+                return false;
+            }
             ps.rng ^= game::frameCounter() * 0x9E3779B9u + static_cast<u32>(slot);
             PsCpuInput in;
             in.cpuFtKind = game::fighterKind(who.entryId, who.sub);
@@ -738,6 +741,7 @@ namespace extra {
             in.floorRight = floorR;
             PsCpuOutput po;
             stepPsPracticeCpu(in, net.cfg, ps, po);
+            net.debug.psResolvedHeight = ps.resolvedHeight;
             act = po.active;
             btn = po.buttons;
             sx = po.stickX;
@@ -747,6 +751,11 @@ namespace extra {
             const u8 tMode = getTargetMode(net);
             if (tMode != kTargetOff)
             {
+                if ((tMode == kTargetShielding && (v.hitstun > 0 || v.air))
+                    || (tMode == kTargetMoving && (v.hitstun > 0 || v.hitlag > 0 || v.air)))
+                {
+                    return false;
+                }
                 TargetCpuInput tin;
                 tin.targetMode = tMode;
                 tin.cpuAir = v.air;

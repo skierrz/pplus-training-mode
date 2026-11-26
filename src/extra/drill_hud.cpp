@@ -9,6 +9,7 @@
 #include "extra/drill_hover_ps_engines.h"
 #include "extra/drill_hud_core.h"
 #include "extra/drill_pplus_tech_engines.h"
+#include "extra/drill_practice_driver.h"
 #include "extra/net_alloc.h"
 #include "extra/ui_assets.h"
 #include "main/game/fighters.h"
@@ -332,6 +333,7 @@ namespace extra {
         u8 id = (s_rt.sess && isValidSkillDrill(s_rt.sess->drill)) ? s_rt.sess->drill
                                                                    : static_cast<u8>(drills::kDrillNone);
         drillHudInit(s_rt.st, id, id ? s_rt.sess->best[id] : 0u);
+        drillPracticeSetActiveDrill(id);
         if (id)
         {
             s_rt.sess->drillRan = 1;
@@ -487,7 +489,11 @@ namespace extra {
                 ui::layout::Box b = {320.0f - hw, 24.0f, 320.0f + hw, 64.0f};
                 ui::layout::setLabBand(b);
             }
-            return (active ? 1u : 0u) | (st.modalOpen ? 2u : 0u);
+            const WdZoneState* wz = drillPracticeWdZone();
+            bool wdZone = active && st.activeDrill == drills::kDrillWavedash && drillPracticeConfig().wdTargetZone != 0u
+                          && wz != NULL && wz->active != 0u;
+            return (active ? 1u : 0u) | (st.modalOpen ? 2u : 0u) | (drillPracticeClaimsDpadLR() ? 4u : 0u)
+                   | (wdZone ? 8u : 0u);
         }
         if (phase == iface::kPadsSystem)
         {
@@ -553,6 +559,7 @@ namespace extra {
                     if (act == 1)
                     {
                         drillHudRetry(st);
+                        drillPracticeReset();
                         s_rt.synced = 0;
                     }
                     else
@@ -561,6 +568,7 @@ namespace extra {
                         if (act == 2)
                         {
                             st.activeDrill = drills::kDrillNone;
+                            drillPracticeSetActiveDrill(drills::kDrillNone);
                             if (s_rt.sess)
                             {
                                 s_rt.sess->drill = drills::kDrillNone;
@@ -596,6 +604,10 @@ namespace extra {
         }
 
         bool modal = st.modalOpen != 0;
+        if (!modal)
+        {
+            drillPracticeOnPad(phase, pads);
+        }
         for (int i = 0; i < kPorts; i++)
         {
             u32 mask = modal ? 0xFFFFFFFFu : s_rt.releaseMask[i];

@@ -389,7 +389,9 @@ namespace display {
         bool di = settings().general.diDisplay != 0;
         bool heatmap = d.heatmap != kWhoNone && main::extraLoaded();
         bool grabViz = d.grabVisualizer != kWhoNone && main::extraLoaded();
-        bool timingMeter = settings().osd.timingMeter != main::kTimingMeterOff && main::extraLoaded();
+        bool timingMeter = main::extraLoaded()
+                           && (settings().osd.timingMeter != main::kTimingMeterOff
+                               || (main::extraDrill(0, NULL) & 8u) != 0u);
         game::FighterRef refs[game::kMaxFighters];
         int n = game::listFighters(refs, game::kMaxFighters);
         if (d.hitboxes == kWhoNone && !d.envCollision && !di && !heatmap && !grabViz && !timingMeter

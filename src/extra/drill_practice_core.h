@@ -781,16 +781,7 @@ namespace extra {
             z.active = 0u;
             return false;
         }
-        float brake = (groundBrake >= 0.015f && groundBrake <= 0.20f) ? groundBrake : 0.08f;
-        float walkMax = (walkSpeedMax >= 0.5f && walkSpeedMax <= 3.0f) ? walkSpeedMax : 1.5f;
-        float v = 2.976f * 0.9f;
-        float maxDist = 0.0f;
-        for (int f = 0; f < 10; f++)
-        {
-            maxDist += v;
-            v -= (v > walkMax) ? (brake * 2.0f) : brake;
-            if (v < 0.0f) v = 0.0f;
-        }
+        float maxDist = computeWavedashMaxDist(groundBrake, walkSpeedMax);
 
         float dir = p1Lr >= 0.0f ? 1.0f : -1.0f;
         float farOff = maxDist * 0.80f;
