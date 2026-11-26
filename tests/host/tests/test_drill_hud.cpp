@@ -494,6 +494,21 @@ TEST(drill_hud, stage4c_all_seven_challenges_modes_timed60_and_bests)
         drillHudFormatHighlight(hud, hl, sizeof(hl));
         CHECK(strcmp(hl, "Frame 1") == 0);
 
+        // A miss mid-run breaks streakFull, then a 4th hit still grows sessionBest
+        // using totalHit (consistent with 60s expiry score in drillHudComplete).
+        cs.out.attempts++;
+        cs.out.lastSuccess = 0;
+        CHECK(drillHudStep(hud, f));
+        CHECK_EQ(0u, static_cast<unsigned>(hud.streakFull));
+        cs.out.attempts++;
+        cs.out.totalCancels++;
+        cs.out.lastSuccess = 1;
+        cs.out.lastFrames = 1;
+        CHECK(drillHudStep(hud, f));
+        CHECK_EQ(4u, static_cast<unsigned>(hud.totalHit));
+        CHECK_EQ(1u, static_cast<unsigned>(hud.streakFull));
+        CHECK_EQ(4u, static_cast<unsigned>(hud.sessionBest));
+
         // Countdown timer reaches 0 -> opens modal automatically.
         hud.timerFrames = 2;
         CHECK(!drillHudTickTimer(hud));
@@ -506,7 +521,7 @@ TEST(drill_hud, stage4c_all_seven_challenges_modes_timed60_and_bests)
         drillHudRetry(hud);
         CHECK_EQ(0, static_cast<int>(hud.modalOpen));
         CHECK_EQ(static_cast<unsigned>(kDrillTimedFrames), static_cast<unsigned>(hud.timerFrames));
-        CHECK_EQ(3u, static_cast<unsigned>(hud.sessionBest));
+        CHECK_EQ(4u, static_cast<unsigned>(hud.sessionBest));
 
         drillHudCycleMode(hud);
         CHECK_EQ(static_cast<int>(kDrillModeFree), static_cast<int>(hud.mode));

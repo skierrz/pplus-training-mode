@@ -1187,13 +1187,34 @@ TEST(stage4c, floorhug_meta_knight_sticky_taunt_reset_guard)
     CHECK(!floorhugIsTauntStatus(0x00));
     CHECK(!floorhugIsTauntStatus(0x43));
 
-    // Across the 6-frame post-reset guard window, Meta Knight (0x16) or any fighter
-    // stuck in Appeal (0x10C) or Smash_Appeal (0x10D) MUST be interrupted.
-    CHECK(floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStAppeal, kFhTauntGuardFrames));
-    CHECK(floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStSmashAppeal, 1));
-    CHECK(floorhugNeedsTauntInterrupt(kCsFtFox, kFhStAppeal, 3));
+    // 1. Non-Floorhug, non-taunt savestate loads leave Meta Knight (0x16) and
+    //    all other fighters completely untouched (neither taunt interrupt nor
+    //    visibility/hurtbox module wipe).
+    CHECK(!floorhugNeedsTauntInterrupt(kFhFtMetaKnight, 0x00, kFhTauntGuardFrames, false, false));
+    CHECK(!floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStAppeal, kFhTauntGuardFrames, false, false));
+    CHECK(!floorhugNeedsMetaKnightModuleRestore(kFhFtMetaKnight, true, false, false));
+    CHECK(!floorhugNeedsMetaKnightModuleRestore(kCsFtFox, true, false, false));
 
-    // Non-taunt statuses or expired guard (0 frames left) are untouched.
-    CHECK(!floorhugNeedsTauntInterrupt(kFhFtMetaKnight, 0x00, kFhTauntGuardFrames));
-    CHECK(!floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStAppeal, 0));
+    // 2. Non-Floorhug savestate loads that interrupted an active Meta Knight
+    //    AppealHi (wasInTaunt == true) DO repair Meta Knight's taunt & modules.
+    CHECK(floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStAppeal, kFhTauntGuardFrames, false, true));
+    CHECK(floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStSmashAppeal, 1, false, true));
+    CHECK(floorhugNeedsMetaKnightModuleRestore(kFhFtMetaKnight, true, false, true));
+    CHECK(!floorhugNeedsMetaKnightModuleRestore(kFhFtMetaKnight, false, false, true));
+
+    // 3. Non-Floorhug savestate loads of another fighter (e.g. Luigi 0x09 or
+    //    Snake 0x2A) in taunt do NOT cancel their taunt or restore modules.
+    CHECK(!floorhugNeedsTauntInterrupt(0x09, kFhStAppeal, kFhTauntGuardFrames, false, true));
+    CHECK(!floorhugNeedsTauntInterrupt(kSnkFtSnake, kFhStAppeal, kFhTauntGuardFrames, false, true));
+    CHECK(!floorhugNeedsMetaKnightModuleRestore(0x09, true, false, true));
+    CHECK(!floorhugNeedsMetaKnightModuleRestore(kSnkFtSnake, true, false, true));
+
+    // 4. Active Floorhug resets (floorhugActive == true) protect Meta Knight
+    //    and other fighters during the 6-frame guard window, and stop at 0.
+    CHECK(floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStAppeal, kFhTauntGuardFrames, true, false));
+    CHECK(floorhugNeedsTauntInterrupt(kCsFtFox, kFhStAppeal, 3, true, false));
+    CHECK(floorhugNeedsMetaKnightModuleRestore(kFhFtMetaKnight, true, true, false));
+    CHECK(!floorhugNeedsMetaKnightModuleRestore(kCsFtFox, true, true, false));
+    CHECK(!floorhugNeedsTauntInterrupt(kFhFtMetaKnight, 0x00, kFhTauntGuardFrames, true, true));
+    CHECK(!floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStAppeal, 0, true, true));
 }

@@ -71,14 +71,29 @@ namespace extra {
 
     // Returns true when a fighter should be cleanly interrupted out of Appeal
     // across a reset window (prevents Meta Knight's AppealHi vanish / sticky
-    // taunt loop across Floorhug drill resets).
-    inline bool floorhugNeedsTauntInterrupt(int ftKind, s16 status, u8 guardFrames)
+    // taunt loop across Floorhug drill resets without disturbing intentional
+    // non-Floorhug taunt savestates for other fighters).
+    inline bool floorhugNeedsTauntInterrupt(int ftKind, s16 status, u8 guardFrames, bool floorhugActive,
+                                            bool wasInTaunt)
     {
         if (guardFrames == 0 || !floorhugIsTauntStatus(status))
         {
             return false;
         }
-        return ftKind == kFhFtMetaKnight || ftKind >= 0;
+        if (floorhugActive)
+        {
+            return ftKind >= 0;
+        }
+        return ftKind == kFhFtMetaKnight && wasInTaunt;
+    }
+
+    // Returns true when a reset needs to repair Meta Knight's AppealHi
+    // visibility/hurtbox modules even if savestate load already reverted
+    // status to Wait (never touches non-taunt Meta Knight savestates outside
+    // Floorhug).
+    inline bool floorhugNeedsMetaKnightModuleRestore(int ftKind, bool onReset, bool floorhugActive, bool wasInTaunt)
+    {
+        return onReset && ftKind == kFhFtMetaKnight && (floorhugActive || wasInTaunt);
     }
 
     inline bool computeRecoveryGuideGeom(const StageGeometry& g, float cliffOffX, float cliffOffY, float cliffW,

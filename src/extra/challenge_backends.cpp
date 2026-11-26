@@ -52,6 +52,7 @@ namespace extra {
             int ftKind;
             const Fighter* fighter;
             u32 taskId;
+            u8 inTaunt;
             CancelSprintState cs;
             FlowCourseState fc;
             ReactionTechchaseState rt;
@@ -67,7 +68,9 @@ namespace extra {
             StageGeometry cachedGeom;
             u32 guideDrawCalls;
             u32 tauntInterrupts;
+            u32 preResetTauntMask;
             u8 tauntGuardFrames;
+            u8 floorhugGuardActive;
             u8 haveGeom;
         };
 
@@ -131,6 +134,7 @@ namespace extra {
                 slot.rt.ring = s_net->reactionRings + idx * kReactionRingCap;
                 slot.rt.ringCap = kReactionRingCap;
             }
+            slot.inTaunt = 0;
             cancelSprintResetTransient(slot.cs);
             flowCourseResetTransient(slot.fc);
             reactionTechchaseResetTransient(slot.rt);
@@ -212,6 +216,15 @@ namespace extra {
                        : NULL;
         }
 
+        u32 tauntMaskBit(s32 entryId, bool partner)
+        {
+            if (entryId < 0 || entryId >= 16)
+            {
+                return 0u;
+            }
+            return 1u << (static_cast<u32>(entryId) * 2u + (partner ? 1u : 0u));
+        }
+
         void restoreTauntModules(const soModuleEnumeration* m)
         {
             if (ramOk(m->m_visibilityModule))
@@ -232,15 +245,17 @@ namespace extra {
             }
         }
 
-        void interruptFighterTaunt(Fighter* f, int ftKind, u8 guardFrames, bool onReset)
+        void interruptFighterTaunt(Fighter* f, s32 entryId, bool partner, int ftKind, u8 guardFrames, bool onReset)
         {
             const soModuleEnumeration* m = game::fighterModules(f);
             if (m == NULL)
             {
                 return;
             }
+            bool floorhugActive = s_net->floorhugGuardActive != 0;
+            bool wasInTaunt = (s_net->preResetTauntMask & tauntMaskBit(entryId, partner)) != 0u;
             int st = game::fighterStatus(m);
-            if (floorhugNeedsTauntInterrupt(ftKind, static_cast<s16>(st), guardFrames))
+            if (floorhugNeedsTauntInterrupt(ftKind, static_cast<s16>(st), guardFrames, floorhugActive, wasInTaunt))
             {
                 if (ramOk(m->m_statusModule) && ramOk(f->m_moduleAccesser))
                 {
@@ -250,7 +265,7 @@ namespace extra {
                 s_net->tauntInterrupts++;
                 TM_LOG("challenge4c: interrupted sticky taunt (ft %#x, st %#x)\n", ftKind, st);
             }
-            else if (onReset && ftKind == kFhFtMetaKnight)
+            else if (floorhugNeedsMetaKnightModuleRestore(ftKind, onReset, floorhugActive, wasInTaunt))
             {
                 // Savestate loads may already have restored status to Wait while
                 // Meta Knight's AppealHi vanish/hurtbox flags remained dirty.
@@ -270,13 +285,13 @@ namespace extra {
             {
                 if (ramOk(refs[i].fighter))
                 {
-                    interruptFighterTaunt(refs[i].fighter, game::fighterKind(refs[i].entryId, false),
-                                          s_net->tauntGuardFrames, onReset);
+                    interruptFighterTaunt(refs[i].fighter, refs[i].entryId, false,
+                                          game::fighterKind(refs[i].entryId, false), s_net->tauntGuardFrames, onReset);
                 }
                 if (ramOk(refs[i].partner) && refs[i].partner != refs[i].fighter)
                 {
-                    interruptFighterTaunt(refs[i].partner, game::fighterKind(refs[i].entryId, true),
-                                          s_net->tauntGuardFrames, onReset);
+                    interruptFighterTaunt(refs[i].partner, refs[i].entryId, true,
+                                          game::fighterKind(refs[i].entryId, true), s_net->tauntGuardFrames, onReset);
                 }
             }
         }
@@ -288,6 +303,8 @@ namespace extra {
         {
             return;
         }
+        s_net->floorhugGuardActive = 1;
+        s_net->preResetTauntMask = 0u;
         s_net->tauntGuardFrames = kFhTauntGuardFrames;
         scanInterruptTaunts(true);
     }
@@ -332,6 +349,32 @@ namespace extra {
         {
             return;
         }
+        u32 preResetTauntMask = 0u;
+        for (int i = 0; i < game::kMaxTracked; i++)
+        {
+            if (s_net->slots[i].active && s_net->slots[i].inTaunt != 0)
+            {
+                preResetTauntMask |= tauntMaskBit(s_net->slots[i].entryId, s_net->slots[i].partner);
+            }
+        }
+        game::FighterRef refs[game::kMaxFighters];
+        int n = game::listFighters(refs, game::kMaxFighters);
+        for (int i = 0; i < n; i++)
+        {
+            const soModuleEnumeration* m = game::fighterModules(refs[i].fighter);
+            if (m != NULL && floorhugIsTauntStatus(static_cast<s16>(game::fighterStatus(m))))
+            {
+                preResetTauntMask |= tauntMaskBit(refs[i].entryId, false);
+            }
+            if (ramOk(refs[i].partner) && refs[i].partner != refs[i].fighter)
+            {
+                const soModuleEnumeration* mp = game::fighterModules(refs[i].partner);
+                if (mp != NULL && floorhugIsTauntStatus(static_cast<s16>(game::fighterStatus(mp))))
+                {
+                    preResetTauntMask |= tauntMaskBit(refs[i].entryId, true);
+                }
+            }
+        }
         for (int i = 0; i < game::kMaxTracked; i++)
         {
             resetSlot(i, false);
@@ -341,9 +384,25 @@ namespace extra {
             }
         }
         s_net->debug.resetCount = s_resetCount;
-        // Arm Meta Knight / Floorhug sticky-taunt reset guard across resets.
-        s_net->tauntGuardFrames = kFhTauntGuardFrames;
-        scanInterruptTaunts(true);
+
+        // Only arm the taunt/AppealHi reset guard during Floorhug or when a
+        // fighter was actually in taunt right before reset, so non-taunt
+        // Training Lab savestates (e.g. Meta Knight Dimensional Cape, ledge
+        // invuln, or solo-standby hidden CPU) are never disturbed.
+        bool floorhugActive = (drillHudActiveId() == drills::kDrillFloorhug);
+        if (floorhugActive || preResetTauntMask != 0u)
+        {
+            s_net->preResetTauntMask = preResetTauntMask;
+            s_net->floorhugGuardActive = floorhugActive ? 1 : 0;
+            s_net->tauntGuardFrames = kFhTauntGuardFrames;
+            scanInterruptTaunts(true);
+        }
+        else
+        {
+            s_net->tauntGuardFrames = 0;
+            s_net->preResetTauntMask = 0u;
+            s_net->floorhugGuardActive = 0;
+        }
     }
 
     void challengeBackendsFrame()
@@ -364,6 +423,11 @@ namespace extra {
         {
             scanInterruptTaunts(false);
             s_net->tauntGuardFrames--;
+            if (s_net->tauntGuardFrames == 0)
+            {
+                s_net->preResetTauntMask = 0u;
+                s_net->floorhugGuardActive = 0;
+            }
         }
 
         game::FighterRef refs[game::kMaxFighters];
@@ -411,6 +475,7 @@ namespace extra {
             }
             ChallengeSlot& slot = s_net->slots[i];
             const ChallengeFrame& cf = frames[i];
+            slot.inTaunt = floorhugIsTauntStatus(cf.status) ? 1 : 0;
 
             cancelSprintStep(slot.cs, cf);
             if (haveGeom)

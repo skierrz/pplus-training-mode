@@ -325,8 +325,8 @@ namespace list {
             kRowSkillDrill,
             drills::kDrillCancelSprint,
             {
-                "Chain Fighter-specific jump,",
-                "hover, float, or special cancels",
+                "Chain fighter-specific jump,",
+                "hover, or special cancels",
                 "with tight frame-delta scoring."
             },
             "Cancel Fighters",

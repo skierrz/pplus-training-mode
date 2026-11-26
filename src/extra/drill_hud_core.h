@@ -952,7 +952,7 @@ namespace extra {
                     st.bestStreakFull = st.streakFull;
                     st.bestStreak = static_cast<u8>(st.bestStreakFull < 255u ? st.bestStreakFull : 255u);
                 }
-                u16 candidate = target > 0 ? st.totalHit : st.streakFull;
+                u16 candidate = (target > 0 || st.mode == kDrillModeTimed60) ? st.totalHit : st.streakFull;
                 u16 m = drills::betterBest(d, st.sessionBest, candidate);
                 if (m > st.sessionBest)
                 {
