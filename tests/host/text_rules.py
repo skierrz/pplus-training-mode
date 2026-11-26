@@ -1179,12 +1179,12 @@ def combo_break_rush_cpp(c, src):
             continue
         if lit.name == "snprintf" and lit.arg == 2:
             for t in c.expand(lit, 2):
-                c.item("fit", lit, t, scale_for_cap(8.0), 0, 148.0, 0.0)
+                c.item("fit", lit, t, scale_for_cap(10.0), 0, 175.0, 0.0)
                 c.buffer(lit, t, 32.0)
         elif lit.text == "Break the Targets!":
-            c.item("fit", lit, lit.text, scale_for_cap(8.0), 0, 190.0, 0.0)
+            c.item("fit", lit, lit.text, scale_for_cap(10.0), 0, 210.0, 0.0)
         else:
-            c.item("fit", lit, lit.text, scale_for_cap(8.0), 0, 80.0, 0.0)
+            c.item("fit", lit, lit.text, scale_for_cap(10.0), 0, 90.0, 0.0)
         c.take(lit)
 
 

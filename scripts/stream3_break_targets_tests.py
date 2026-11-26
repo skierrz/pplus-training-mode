@@ -350,6 +350,21 @@ def run_break_targets(t, aspect):
             f"modes={modes}",
         )
 
+        # Verify repeated mid-match OFF->ON toggle reloads 8 KiB CMPR tex cleanly with 0 B heap drift!
+        tbl_before = L.heap_table(e)
+        net_used_before = heap_free_used(tbl_before, "Network")[1]
+        s_t0 = t.activate_rush(0)
+        s_t1 = t.activate_rush(3)
+        tbl_after = L.heap_table(e)
+        net_used_after = heap_free_used(tbl_after, "Network")[1]
+        t.check(
+            s_t0["active"] == 0 and s_t0["texLoaded"] == 0
+            and s_t1["active"] == 1 and s_t1["texLoaded"] == 1
+            and net_used_after == net_used_before,
+            "btt-midmatch-toggle-zero-burn",
+            f"tex={s_t0['texLoaded']}->{s_t1['texLoaded']} netUsed={net_used_before}->{net_used_after}B",
+        )
+
         # Switch from Break the Targets! to a Scenario Preset and verify clean CPU restore + tex free!
         t.open_and_apply_scenario(1)
         s_off = read_tmbr(e, t.tmbr)

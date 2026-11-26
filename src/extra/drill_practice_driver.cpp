@@ -561,7 +561,31 @@ namespace extra {
         {
             if (d == kPracticeDrillNone)
             {
-                clearTransient(net, refs, n, kFlagCamOverride | kFlagPsIntang | kFlagNoReact);
+                if (net.externalStandby != 0u && hmn != NULL && snapOk)
+                {
+                    // Stage-framing camera rect for Break the Targets! keeps live targets
+                    // comfortably between bottom % portraits and top HUD bar on 16:9 and 4:3.
+                    float fl = geom.floor.valid ? geom.floor.leftX : -68.0f;
+                    float fr = geom.floor.valid ? geom.floor.rightX : 68.0f;
+                    float fy = geom.floor.valid ? geom.floor.centerY : 0.0f;
+                    float cx = 0.5f * (fl + fr);
+                    float camL = cx - 56.0f;
+                    float camR = cx + 56.0f;
+                    if (net.cachedHmn.x - 36.0f < camL) camL = net.cachedHmn.x - 36.0f;
+                    if (net.cachedHmn.x + 36.0f > camR) camR = net.cachedHmn.x + 36.0f;
+                    if (camL < fl - 8.0f) camL = fl - 8.0f;
+                    if (camR > fr + 8.0f) camR = fr + 8.0f;
+                    float camT = fy + 74.0f;
+                    if (net.cachedHmn.y + 30.0f > camT) camT = net.cachedHmn.y + 30.0f;
+                    float camB = fy - 24.0f;
+                    if (net.cachedHmn.y - 20.0f < camB) camB = net.cachedHmn.y - 20.0f;
+                    applyCameraRect(hmn->fighter, camL, camR, camT, camB);
+                    clearTransient(net, refs, n, kFlagPsIntang | kFlagNoReact);
+                }
+                else
+                {
+                    clearTransient(net, refs, n, kFlagCamOverride | kFlagPsIntang | kFlagNoReact);
+                }
             }
             return;
         }

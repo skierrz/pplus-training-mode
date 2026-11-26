@@ -145,6 +145,8 @@ namespace extra {
         // Entry 0 header at 0x40: +4..+7 = size0 (big-endian).
         u32 size0 = (static_cast<u32>(hdr[0x44]) << 24) | (static_cast<u32>(hdr[0x45]) << 16)
                     | (static_cast<u32>(hdr[0x46]) << 8) | hdr[0x47];
+        // Guard against u32 wrap in ((size0 + 31) & ~31) + 0x60 + 0x20.
+        if (size0 > hdrLen - 0x80u || size0 > 0x00100000u) return false;
         u32 e1 = 0x60u + ((size0 + 31u) & ~31u);
         if (e1 + 0x20u > hdrLen) return false;
         u32 compSize = (static_cast<u32>(hdr[e1 + 4]) << 24) | (static_cast<u32>(hdr[e1 + 5]) << 16)
@@ -155,11 +157,11 @@ namespace extra {
         return true;
     }
 
-    inline void rushTexStreamInit(RushTexStream& s, u8* ring4096, u8* outTex32768)
+    inline void rushTexStreamInit(RushTexStream& s, u8* ring4096, u8* outTex8192)
     {
         memset(&s, 0, sizeof(s));
         s.ring = ring4096;
-        s.outTex = outTex32768;
+        s.outTex = outTex8192;
     }
 
     inline u32 rushBe32(const u8* p)
@@ -390,20 +392,35 @@ namespace extra {
             if (g.blast.right - 28.0f < safeR) safeR = g.blast.right - 28.0f;
         }
         if (safeR <= safeL + 8.0f) { safeL = floorL; safeR = floorR; }
-        float maxY = floorY + 58.0f;
+        // Keep vertical target airspace comfortably between bottom % portraits and top HUD plate.
+        float minY = floorY + 12.0f;
+        float maxY = floorY + 46.0f;
         if (g.blast.valid && g.blast.top - 32.0f < maxY) maxY = g.blast.top - 32.0f;
+        if (maxY < minY + 10.0f) maxY = minY + 10.0f;
 
         int lim = g.platformCount > kMaxStagePlatforms ? kMaxStagePlatforms : g.platformCount;
+        int eligPlats[kMaxStagePlatforms];
+        int eligCount = 0;
+        for (int i = 0; i < lim; i++)
+        {
+            if (g.platforms[i].valid && g.platforms[i].rightX > g.platforms[i].leftX + 4.0f
+                && g.platforms[i].y <= maxY - 8.5f)
+            {
+                eligPlats[eligCount++] = i;
+            }
+        }
         float cx = 0.5f * (safeL + safeR);
-        float cy = floorY + 14.0f;
+        float cy = minY + 6.0f;
         u8 tier = 0;
 
         for (int attempt = 0; attempt < 8; attempt++)
         {
             float r0 = rushRandRange(st.rng, 0.0f, 1.0f);
             u32 roll = st.rng;
-            int pi = (lim > 0 && (roll % 5u) < 3u) ? static_cast<int>((roll >> 3) % static_cast<u32>(lim)) : -1;
-            if (pi >= 0 && g.platforms[pi].valid && g.platforms[pi].rightX > g.platforms[pi].leftX + 4.0f)
+            int pi = (eligCount > 0 && (roll % 5u) < 3u)
+                         ? eligPlats[static_cast<int>((roll >> 3) % static_cast<u32>(eligCount))]
+                         : -1;
+            if (pi >= 0)
             {
                 const StagePlatform& p = g.platforms[pi];
                 float pl = p.leftX + 3.0f; if (pl < safeL) pl = safeL;
@@ -412,16 +429,20 @@ namespace extra {
                 cx = pl + r0 * (pr - pl);
                 if (cx < safeL) cx = safeL;
                 if (cx > safeR) cx = safeR;
-                cy = rushRandRange(st.rng, p.y + 7.5f, p.y + 16.5f);
+                float hiY = p.y + 14.5f;
+                if (hiY > maxY) hiY = maxY;
+                float loY = p.y + 7.5f;
+                if (loY > hiY) loY = hiY;
+                cy = rushRandRange(st.rng, loY, hiY);
                 tier = ((roll >> 8) % 5u == 0u) ? 2 : 1;
             }
             else
             {
                 cx = safeL + r0 * (safeR - safeL);
-                cy = rushRandRange(st.rng, floorY + 8.5f, floorY + 26.0f);
+                cy = rushRandRange(st.rng, minY, floorY + 30.0f);
                 tier = ((roll >> 8) % 6u == 0u) ? 2 : 0;
             }
-            if (cy < floorY + 7.5f) cy = floorY + 7.5f;
+            if (cy < minY) cy = minY;
             if (cy > maxY) cy = maxY;
 
             bool clear = true;

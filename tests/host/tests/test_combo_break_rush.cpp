@@ -78,7 +78,7 @@ TEST(combo_break_rush, spawns_inside_fd_and_bf_stage_airspace)
         CHECK(rushSpawnOne(st, slot, bf, -20.0f, 0.0f));
         const RushTarget& t = st.targets[slot];
         CHECK(t.x >= bf.floor.leftX && t.x <= bf.floor.rightX);
-        CHECK(t.y >= bf.floor.centerY + 7.0f && t.y <= bf.blast.top - 30.0f);
+        CHECK(t.y >= bf.floor.centerY + 11.9f && t.y <= bf.floor.centerY + 46.1f);
         if (t.y > 32.0f)
         {
             sawPlatformArc++;
@@ -231,12 +231,23 @@ TEST(combo_break_rush, break_the_targets_arc_header_and_streaming_lz77_cmpr_tex0
     CHECK_EQ(0xA0u, streamOff);
     CHECK_EQ(0x10000u, compSize);
 
-    // Rejects corrupt magic / single-entry ARC.
+    // Rejects corrupt magic / single-entry ARC / u32 wrap size0 headers.
     arcHdr[0] = 'X';
     CHECK(!rushParseOuterArcEntry1(arcHdr, sizeof(arcHdr), streamOff, compSize));
     arcHdr[0] = 'A';
     arcHdr[7] = 1;
     CHECK(!rushParseOuterArcEntry1(arcHdr, sizeof(arcHdr), streamOff, compSize));
+    arcHdr[7] = 3;
+    const u32 wrapSizes[3] = {0xFFFFFFE0u, 0xFFFFFFA0u, 0xFFFFFFC0u};
+    for (int wi = 0; wi < 3; wi++)
+    {
+        u32 ws = wrapSizes[wi];
+        arcHdr[0x44] = static_cast<u8>((ws >> 24) & 0xFFu);
+        arcHdr[0x45] = static_cast<u8>((ws >> 16) & 0xFFu);
+        arcHdr[0x46] = static_cast<u8>((ws >> 8) & 0xFFu);
+        arcHdr[0x47] = static_cast<u8>(ws & 0xFFu);
+        CHECK(!rushParseOuterArcEntry1(arcHdr, sizeof(arcHdr), streamOff, compSize));
+    }
 
     // 2. Streaming LZ77 + TEX0 extractor skips a decoy TEX0 (wrong format) and
     //    extracts the 128x128 GX_TF_CMPR mip 1 (8,192 B) from a mipped 256x256

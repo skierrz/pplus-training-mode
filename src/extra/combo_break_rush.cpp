@@ -14,6 +14,9 @@
 #include <ft/fighter.h>
 #include <gf/gf_camera.h>
 #include <gf/gf_draw.h>
+#include <gf/gf_heap_manager.h>
+#include <gf/gf_memory_pool.h>
+#include <memory.h>
 #include <mt/mt_vector.h>
 #include <so/posture/so_posture_module_impl.h>
 #include <so/so_module_accesser.h>
@@ -34,6 +37,7 @@
 #include "main/ui/menu.h"
 #include "shared/drill_session.h"
 #include "shared/game/frame.h"
+#include "shared/game/heap.h"
 #include "shared/game/mem.h"
 #include "shared/game/menu_sound.h"
 #include "shared/log.h"
@@ -50,8 +54,10 @@ namespace extra {
             kDvdFastOpenAddr = 0x801F6210,
             kDvdCloseAddr = 0x801F6524,
             kDvdReadPrioAddr = 0x801F67F0,
-            kDvdChunkBytes = 1024,
+            kDvdChunkBytes = 4096,       // 4 KiB read chunk (~16 sync DVD calls vs ~61)
+            kDvdScratchBytes = kDvdChunkBytes + kRushLzRingSize, // 8 KiB temporary pool scratch
             kDvdMaxCompRead = 80 * 1024, // STGTARGETLv5 mip1 needs ~61 KiB, Lv1 needs ~55 KiB
+            kCostumeReserve = 0x110000,
             // Brawl resident SFX IDs (snd/snd_id.h):
             kSfxCapsuleBreak = 0x1F7A,   // snd_se_item_Capsule_break
             kSfxPunchHitL = 0x003D,      // snd_se_common_punch_hit_l
@@ -79,6 +85,33 @@ namespace extra {
 
         static RushNet* s_net = NULL;
 
+        // Direct 32-byte-aligned Heaps::Network pool alloc/free (bypasses extra's s_arena
+        // bump slab so repeated mid-match OFF->ON toggles never burn arena headroom, while
+        // still enforcing P+'s 0x110000 costume decompression reserve).
+        u8* allocNetPool32(u32 bytes)
+        {
+            u32 need = (bytes + 31u) & ~31u;
+            if (need == 0u) return NULL;
+            game::HeapUsage u;
+            u.largest = 0u;
+            if (!game::heapUsage(Heaps::Network, u) || u.largest < kCostumeReserve
+                || u.largest - kCostumeReserve < need)
+            {
+                return NULL;
+            }
+            void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
+            return game::isRam(p) ? static_cast<u8*>(p) : NULL;
+        }
+
+        void freeNetPool32(u8*& ptr)
+        {
+            if (game::isRam(ptr))
+            {
+                free(ptr);
+            }
+            ptr = NULL;
+        }
+
         // Smooth periodic approximation for gentle 3D target yaw/shatter spin (zero libm relocs).
         void unitWave16(float phase, float& outSin, float& outCos)
         {
@@ -94,8 +127,9 @@ namespace extra {
         }
 
         // Streams only the first ~61 KiB of Brawl's STGTARGETLv5.PAC (fallback LV1)
-        // from disc via DVDReadPrio using a 5 KiB stack scratch buffer (0 B temp heap)
-        // and extracts its 128x128 GX_TF_CMPR bullseye mip 1 (8 KiB) into Heaps::Network.
+        // from disc via DVDReadPrio using a temporary 8 KiB 32-byte-aligned pool scratch
+        // (4 KiB chunk + 4 KiB LZ77 ring, freed before return) and extracts its 128x128
+        // GX_TF_CMPR bullseye mip 1 (8 KiB) into Heaps::Network.
         bool tryLoadDiscTargetTex(const char* path, u8* outTex, u8* chunk, u8* ring, u32& outFail)
         {
             typedef s32 (*ConvertFn)(const char*);
@@ -109,39 +143,69 @@ namespace extra {
             memset(&fi, 0, sizeof(fi));
             if (!reinterpret_cast<FastOpenFn>(kDvdFastOpenAddr)(entry, &fi)) { outFail = 4u; return false; }
 
-            DCFlushRange(chunk, kDvdChunkBytes);
+            // OpenRVL DVDFileInfo::length sits at +0x34; DVDReadPrio panics if
+            // offset > fileLen or offset + length >= fileLen + 32.
+            u32 fileLen = *reinterpret_cast<const u32*>(fi.raw + 0x34);
             bool ok = false;
-            s32 hdrRead = reinterpret_cast<ReadPrioFn>(kDvdReadPrioAddr)(&fi, chunk, 256, 0, 2);
-            u32 streamOff = 0u, compSize = 0u;
-            if (hdrRead < 160)
+            if (fileLen < 256u)
             {
-                outFail = 5u;
-            }
-            else if (!rushParseOuterArcEntry1(chunk, 256u, streamOff, compSize))
-            {
-                outFail = 6u;
+                outFail = 10u;
             }
             else
             {
-                RushTexStream st;
-                rushTexStreamInit(st, ring, outTex);
-                u32 limit = compSize < kDvdMaxCompRead ? compSize : static_cast<u32>(kDvdMaxCompRead);
-                u32 pos = 0u;
-                while (pos < limit && !st.done && !st.failed)
+                DCFlushRange(chunk, kDvdChunkBytes);
+                s32 hdrRead = reinterpret_cast<ReadPrioFn>(kDvdReadPrioAddr)(&fi, chunk, 256, 0, 2);
+                u32 streamOff = 0u, compSize = 0u;
+                if (hdrRead < 160)
                 {
-                    u32 want = limit - pos;
-                    if (want > kDvdChunkBytes) want = kDvdChunkBytes;
-                    u32 rdLen = (want + 31u) & ~31u;
-                    if (rdLen > kDvdChunkBytes) rdLen = kDvdChunkBytes;
-                    s32 got = reinterpret_cast<ReadPrioFn>(kDvdReadPrioAddr)(
-                        &fi, chunk, static_cast<s32>(rdLen), static_cast<s32>(streamOff + pos), 2);
-                    if (got <= 0) { outFail = 7u; break; }
-                    u32 feed = static_cast<u32>(got) < want ? static_cast<u32>(got) : want;
-                    rushTexStreamFeed(st, chunk, feed);
-                    pos += feed;
+                    outFail = 5u;
                 }
-                ok = (st.done != 0u);
-                if (!ok && outFail == 0u) outFail = st.failed ? 8u : 9u;
+                else if (!rushParseOuterArcEntry1(chunk, 256u, streamOff, compSize))
+                {
+                    outFail = 6u;
+                }
+                else if (streamOff >= fileLen || (streamOff & 3u) != 0u)
+                {
+                    outFail = 11u;
+                }
+                else
+                {
+                    RushTexStream st;
+                    rushTexStreamInit(st, ring, outTex);
+                    u32 maxAvail = fileLen - streamOff;
+                    u32 limit = compSize < maxAvail ? compSize : maxAvail;
+                    if (limit > static_cast<u32>(kDvdMaxCompRead)) limit = static_cast<u32>(kDvdMaxCompRead);
+                    u32 pos = 0u;
+                    while (pos < limit && !st.done && !st.failed)
+                    {
+                        u32 want = limit - pos;
+                        if (want > static_cast<u32>(kDvdChunkBytes)) want = static_cast<u32>(kDvdChunkBytes);
+                        u32 rdLen = (want + 31u) & ~31u;
+                        if (rdLen > static_cast<u32>(kDvdChunkBytes)) rdLen = static_cast<u32>(kDvdChunkBytes);
+                        u32 curOff = streamOff + pos;
+                        if (curOff > fileLen || (curOff & 3u) != 0u || rdLen == 0u
+                            || rdLen >= (fileLen - curOff) + 32u)
+                        {
+                            outFail = 12u;
+                            break;
+                        }
+                        s32 got = reinterpret_cast<ReadPrioFn>(kDvdReadPrioAddr)(
+                            &fi, chunk, static_cast<s32>(rdLen), static_cast<s32>(curOff), 2);
+                        if (got <= 0) { outFail = 7u; break; }
+                        u32 ugot = static_cast<u32>(got);
+                        u32 feed = ugot < want ? ugot : want;
+                        rushTexStreamFeed(st, chunk, feed);
+                        pos += feed;
+                        // A short read may leave pos unaligned for DVDReadPrio's (offset >> 2) shift.
+                        if (ugot < want)
+                        {
+                            if (!st.done) outFail = 13u;
+                            break;
+                        }
+                    }
+                    ok = (st.done != 0u);
+                    if (!ok && outFail == 0u) outFail = st.failed ? 8u : 9u;
+                }
             }
             reinterpret_cast<CloseFn>(kDvdCloseAddr)(&fi);
             return ok;
@@ -149,7 +213,7 @@ namespace extra {
 
         void releaseTargetTex(RushNet& net)
         {
-            freeNetPtr(net.targetTex);
+            freeNetPool32(net.targetTex);
             net.texTried = 0u;
         }
 
@@ -157,22 +221,29 @@ namespace extra {
         {
             if (net.targetTex != NULL || net.texTried != 0u) return;
             net.texTried = 1u;
-            u8* tex = static_cast<u8*>(allocNetZero(kRushTexMip1Bytes));
+            u8* tex = allocNetPool32(kRushTexMip1Bytes);
             if (tex == NULL)
             {
                 TM_LOG("combo_break_rush: tex alloc failed (8 KiB)\n");
                 return;
             }
-            u8 chunkRaw[kDvdChunkBytes + 32];
-            u8 ring[kRushLzRingSize];
-            u8* chunk = reinterpret_cast<u8*>((reinterpret_cast<u32>(chunkRaw) + 31u) & ~31u);
+            u8* scratch = allocNetPool32(kDvdScratchBytes);
+            if (scratch == NULL)
+            {
+                TM_LOG("combo_break_rush: scratch alloc failed (8 KiB)\n");
+                freeNetPool32(tex);
+                return;
+            }
+            u8* chunk = scratch;
+            u8* ring = scratch + kDvdChunkBytes;
             u32 fail1 = 0u, fail2 = 0u;
             bool ok = tryLoadDiscTargetTex("/stage/melee/STGTARGETLv5.PAC", tex, chunk, ring, fail1)
                       || tryLoadDiscTargetTex("/stage/melee/STGTARGETLV1.PAC", tex, chunk, ring, fail2);
+            freeNetPool32(scratch);
             if (!ok)
             {
                 TM_LOG("combo_break_rush: disc target tex fallback (f1=%u f2=%u)\n", fail1, fail2);
-                freeNetRaw(tex);
+                freeNetPool32(tex);
                 return;
             }
             DCFlushRange(tex, kRushTexMip1Bytes);
@@ -639,7 +710,7 @@ namespace extra {
             }
         }
 
-        // Pass 2: Real Brawl STGTARGET CMPR 256x256 bullseye mapped onto each live 3D front face.
+        // Pass 2: Real Brawl STGTARGET CMPR 128x128 bullseye mapped onto each live 3D front face.
         if (net.targetTex != NULL)
         {
             typedef void (*GxInitTexObjFn)(GXTexObj*, void*, u16, u16, GXTexFmt, GXTexWrapMode, GXTexWrapMode, GXBool);
@@ -711,7 +782,11 @@ namespace extra {
         const bool wide = gfx::widescreen();
         const float xs = ui::layout::xsOf(wide);
         const ui::layout::Box b = ui::layout::comboBreakHudBox(wide);
-        const float ox = b.x0, oy = b.y0, bw = b.x1 - b.x0, bh = b.y1 - b.y0;
+        // Integer scanline plate centered at 320.0 (5% CRT safe on 4:3 and 16:9).
+        const float bw = 344.0f * xs;
+        const float ox = 320.0f - bw * 0.5f;
+        const float oy = b.y0; // 24.0f (integer scanline)
+        const float bh = 44.0f;
 
         // Panel B quiet borderless smoked plate (zero wireframe border, zero neon accent bar).
         gfx::fillRect(ox, oy, bw, bh, 0x0E161EA6u);
@@ -719,16 +794,17 @@ namespace extra {
         const float padX = 10.0f * xs;
         const float lx = ox + padX;
         const float rx = ox + bw - padX;
-        const float txtSc = 8.0f / 15.0f;
+        const float txtSc = 10.0f / 15.0f; // 10.0 scanlines (480i CRT readable)
 
-        // Top row: calm white Rodin title + mode/timer readout.
-        drawShadowText(lx, oy + 4.5f, "Break the Targets!", 0xF2F6FAFFu, txtSc);
+        // Top row (y = 28): calm white Rodin title + mode/timer readout.
+        const float topY = oy + 4.0f;
+        drawShadowText(lx, topY, "Break the Targets!", 0xF2F6FAFFu, txtSc);
 
         char buf[32];
         if (st.mode == kRushFree)
         {
             float tw = gfx::textWidth("Free", txtSc);
-            drawShadowText(rx - tw, oy + 4.5f, "Free", 0xA8E8C8FFu, txtSc);
+            drawShadowText(rx - tw, topY, "Free", 0xA8E8C8FFu, txtSc);
         }
         else
         {
@@ -736,14 +812,14 @@ namespace extra {
             if (st.finished) strcpy(buf, "Time Up");
             else snprintf(buf, sizeof(buf), "%u:%02u", secs / 60u, secs % 60u);
             gfx::Rgba tCol = (st.finished || secs <= 5u) ? 0xFF7868FFu : 0xFFD300FFu;
-            drawShadowText(rx - gfx::textWidth(buf, txtSc), oy + 4.5f, buf, tCol, txtSc);
+            drawShadowText(rx - gfx::textWidth(buf, txtSc), topY, buf, tCol, txtSc);
         }
 
-        // Faint inset horizontal divider matching Panel B grounding.
-        gfx::fillRect(lx, oy + 17.5f, bw - 2.0f * padX, 1.0f, 0xFFFFFF38u);
+        // 2px integer-Y inset divider matching Panel B grounding (480i interlace-safe).
+        gfx::fillRect(lx, oy + 20.0f, bw - 2.0f * padX, 2.0f, 0xFFFFFF24u);
 
-        // Second row: calm white labels + semantic gold/green values.
-        const float rowY = oy + 20.5f;
+        // Second row (y = 48): calm white labels + semantic gold/green values.
+        const float rowY = oy + 24.0f;
         float curX = lx;
         drawShadowText(curX, rowY, "Score ", 0xD8E2ECFFu, txtSc);
         curX += gfx::textWidth("Score ", txtSc);
@@ -772,17 +848,18 @@ namespace extra {
         snprintf(buf, sizeof(buf), "Chain %u", static_cast<unsigned>(st.streak));
         float stkW = gfx::textWidth(buf, txtSc);
         float stkX = rx - bestW - 10.0f * xs - stkW;
-        if (stkX > curX + 18.0f * xs)
+        if (stkX > curX + 14.0f * xs)
         {
             drawShadowText(stkX, rowY, buf, st.streak > 0 ? 0x4CE688FFu : 0xB8C6D2FFu, txtSc);
         }
 
-        // Subtle 2px chain timer bar along the bottom inset of the smoked plate.
+        // 2px integer-Y chain timer bar along the bottom inset of the smoked plate (y = 64).
         const float barW = bw - 2.0f * padX;
-        gfx::fillRect(lx, oy + bh - 4.5f, barW, 2.0f, 0x060C1280u);
+        const float barY = oy + 40.0f;
+        gfx::fillRect(lx, barY, barW, 2.0f, 0x060C1280u);
         if (st.chainFrames > 0)
         {
-            gfx::fillRect(lx, oy + bh - 4.5f,
+            gfx::fillRect(lx, barY,
                           barW * i2f(st.chainFrames) / i2f(kRushChainMaxFrames), 2.0f,
                           st.multiplier >= 4 ? 0xFFD300F0u : 0x4CE688E8u);
         }
