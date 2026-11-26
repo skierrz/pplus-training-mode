@@ -45,6 +45,9 @@ namespace extra {
         }
     }
 
+#ifdef TM_MODULE_MAIN
+#pragma force_active on
+#endif
     void hitboxColorsAttach()
     {
         memset(&s_debug, 0, sizeof(s_debug));
@@ -176,5 +179,8 @@ namespace extra {
         }
         return true;
     }
+#ifdef TM_MODULE_MAIN
+#pragma force_active reset
+#endif
 }
 }

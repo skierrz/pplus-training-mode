@@ -83,6 +83,9 @@ namespace extra {
     // the Frame row's range follows the slot's frames (frame n is the run's
     // step n - 1; a recording started after the run starts later) and the
     // copy is read back from the slot, so it shows what is stored.
+#ifdef TM_MODULE_MAIN
+#pragma force_active on
+#endif
     bool alterRow()
     {
         record::Slot* s = slot();
@@ -162,5 +165,8 @@ namespace extra {
         }
         TM_LOG("record: frame %d edited: buttons %x\n", c.frame, in.buttons);
     }
+#ifdef TM_MODULE_MAIN
+#pragma force_active reset
+#endif
 }
 }

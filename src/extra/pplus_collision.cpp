@@ -59,6 +59,9 @@ namespace extra {
         }
     }
 
+#ifdef TM_MODULE_MAIN
+#pragma force_active on
+#endif
     bool collShapeSupported()
     {
         return wordsMatch(kShapeOfAddr, kGetShapeWords, static_cast<int>(sizeof(kGetShapeWords) / 4));
@@ -228,5 +231,8 @@ namespace extra {
         }
         return -1;
     }
+#ifdef TM_MODULE_MAIN
+#pragma force_active reset
+#endif
 }
 }

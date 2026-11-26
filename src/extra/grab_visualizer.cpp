@@ -278,6 +278,9 @@ namespace extra {
         }
     }
 
+#ifdef TM_MODULE_MAIN
+#pragma force_active on
+#endif
     void grabVizAttach()
     {
         memset(&s_debug, 0, sizeof(s_debug));
@@ -380,5 +383,8 @@ namespace extra {
             s_debug.drawCalls++;
         }
     }
+#ifdef TM_MODULE_MAIN
+#pragma force_active reset
+#endif
 }
 }

@@ -192,7 +192,9 @@ PACK    := scripts/pack-rel.py
 rwildcard = $(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 SHARED_SRCS := $(sort $(call rwildcard,src/shared,*.cpp))
 STUB_SRCS   := $(sort $(call rwildcard,src/stub,*.cpp)) $(SHARED_SRCS)
-MAIN_MOVED_SRCS := src/extra/tech_sparkle.cpp src/extra/reversal_slots.cpp
+MAIN_MOVED_SRCS := src/extra/tech_sparkle.cpp src/extra/reversal_slots.cpp \
+                   src/extra/grab_visualizer.cpp src/extra/pplus_collision.cpp \
+                   src/extra/hitbox_colors.cpp src/extra/lab_tools.cpp
 MAIN_SRCS   := $(sort $(call rwildcard,src/main,*.cpp)) $(MAIN_MOVED_SRCS) $(SHARED_SRCS)
 # The menu module draws with the main module's 2D helpers and reads the SD
 # card with its file helpers, compiled again from where they live.
