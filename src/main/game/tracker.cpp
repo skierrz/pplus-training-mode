@@ -172,6 +172,11 @@ namespace game {
         return freeStatus(status) || (moveStatus(status) && !moveStatus(prev) && prev != kStatusJumpSquat);
     }
 
+    static bool landingStatus(int s)
+    {
+        return s >= kStatusLanding && s <= kStatusLandingFallSpecial;
+    }
+
     // The statuses a hit puts a fighter in.
     static bool damageStatus(int s)
     {
@@ -232,6 +237,13 @@ namespace game {
         if (entersActionable(statusKind, prevStatusKind))
         {
             s->actionable = 1;
+        }
+        else if (landingStatus(statusKind))
+        {
+            // Entering landing lag (0x16..0x19) ends any airborne actionability
+            // from earlier in the same frame (e.g. a 0-air-frame horizontal
+            // waveland EscapeAir -> LandingFallSpecial, P+ AirDodge.asm:286-305).
+            s->actionable = 0;
         }
         if (s_statusListener != NULL && s_slots != NULL)
         {

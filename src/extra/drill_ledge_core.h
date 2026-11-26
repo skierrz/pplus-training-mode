@@ -620,6 +620,7 @@ namespace extra {
             st.failFlags |= kLedgeFailTourneyWinnerSlow;
         }
 
+        bool enteredLanding = false;
         for (int k = 0; k < n; k++)
         {
             int es = in.events[k].status;
@@ -633,6 +634,10 @@ namespace extra {
                 st.usedAirdodge = 1;
                 st.airdodgeAngle = ledgeStickAngleDeg(in.stickX, in.stickY);
             }
+            if (es >= kLedgeStLandingFirst && es <= kLedgeStLandingFallSpecial)
+            {
+                enteredLanding = true;
+            }
             // P+ Ledge.asm:516-530: Cliff_Jump2 (0x7A) -> Attack_Air (0x33) or
             // SpecialN..Lw (0x112..0x115) strips m_xluFrameGlobal to 0.
             if (ep == kLedgeStCliffJump2
@@ -643,10 +648,12 @@ namespace extra {
             }
         }
 
-        // Grounded actionable completion check.
+        // Grounded actionable completion check. Frame 1 of a newly entered
+        // landing lag status (0x16..0x19) is never grounded-actionable.
+        bool inNewLandingLag = enteredLanding && s >= kLedgeStLandingFirst && s <= kLedgeStLandingFallSpecial;
         bool otherGetupDone = st.isOtherGetup != 0 && !in.airborne && in.actionable != 0
                               && !(s >= kLedgeStCliffAttack && s <= kLedgeStCliffEscape);
-        bool airborneDone = !in.airborne && in.actionable != 0 && st.ledgeAir != 0;
+        bool airborneDone = !in.airborne && in.actionable != 0 && st.ledgeAir != 0 && !inNewLandingLag;
 
         if (airborneDone || otherGetupDone)
         {
