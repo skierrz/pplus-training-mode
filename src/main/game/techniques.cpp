@@ -1027,15 +1027,22 @@ namespace game {
         {
             w.ledgeAir = true;
         }
+        bool enteredLanding = false;
         for (int k = 0; k < t.eventCount; k++)
         {
-            if (t.events[k].status == kStatusEscapeAir)
+            int es = t.events[k].status;
+            if (es == kStatusEscapeAir)
             {
                 w.adHas = 1;
                 w.adAngle = stickAngle(w.body.stickX, w.body.stickY);
             }
+            if (landingStatus(es))
+            {
+                enteredLanding = true;
+            }
         }
-        if (!t.cur.airborne && t.cur.actionable && w.ledgeAir)
+        bool inNewLandingLag = enteredLanding && landingStatus(s);
+        if (!t.cur.airborne && t.cur.actionable && w.ledgeAir && !inNewLandingLag)
         {
             // Positive = intangible frames remaining on first actionable frame;
             // negative = vulnerable frames elapsed since intangibility ended
