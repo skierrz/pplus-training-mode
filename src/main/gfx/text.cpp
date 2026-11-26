@@ -46,33 +46,9 @@ namespace gfx {
         {
             return false;
         }
-        if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
-        {
-            return true;
-        }
-        switch (c)
-        {
-        case ' ':
-        case '!':
-        case '"':
-        case '%':
-        case '&':
-        case '\'':
-        case '+':
-        case ',':
-        case '-':
-        case '.':
-        case '/':
-        case ':':
-        case ';':
-        case '=':
-        case '?':
-        case '@':
-        case '~':
-            return true;
-        default:
-            return false;
-        }
+        static const u32 kMask[3] = {0xAFFFF8E7u, 0x07FFFFFFu, 0x47FFFFFEu};
+        u32 idx = static_cast<u32>(c - 0x20);
+        return ((kMask[idx >> 5] >> (idx & 31u)) & 1u) != 0u;
     }
 
     // Constructed on first use, inside the render hook, once the game is up.

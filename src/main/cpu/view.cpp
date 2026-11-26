@@ -29,6 +29,7 @@
 #include "main/game/fighters.h"
 #include "main/game/motion.h"
 #include "main/game/status_ids.h"
+#include "shared/game/heap.h"
 #include "shared/game/mem.h"
 
 // What the CPU Options read on a fighter, and the little they write.
@@ -70,9 +71,9 @@ namespace cpu {
                            | (1 << game::kGroupAirAttack) | (1 << game::kGroupAirJumpAerial)
     };
 
-    static float floatAt(const void* base, u32 offset)
+    static inline float floatAt(const void* base, u32 offset)
     {
-        return *reinterpret_cast<const float*>(reinterpret_cast<u32>(base) + offset);
+        return game::floatAt(base, offset);
     }
 
     Fighter* fighterOf(int entryId, bool sub)
@@ -139,26 +140,14 @@ namespace cpu {
 
     static bool freeStatus(int s)
     {
-        switch (s)
-        {
-        case game::kStatusWait:
-        case game::kStatusWalk:
-        case game::kStatusWalkBrake:
-        case game::kStatusDash:
-        case game::kStatusRun:
-        case game::kStatusTurn:
-        case game::kStatusTurnDash:
-        case game::kStatusTurnRun:
-        case game::kStatusSquat:
-        case game::kStatusSquatWait:
-        case game::kStatusFall:
-        case game::kStatusFallAerial:
-        case game::kStatusGuardOn:
-        case game::kStatusGuard:
-            return true;
-        default:
-            return false;
-        }
+        static const u32 kFreeMask = (1u << game::kStatusWait) | (1u << game::kStatusWalk)
+                                     | (1u << game::kStatusWalkBrake) | (1u << game::kStatusDash)
+                                     | (1u << game::kStatusRun) | (1u << game::kStatusTurn)
+                                     | (1u << game::kStatusTurnDash) | (1u << game::kStatusTurnRun)
+                                     | (1u << game::kStatusSquat) | (1u << game::kStatusSquatWait)
+                                     | (1u << game::kStatusFall) | (1u << game::kStatusFallAerial)
+                                     | (1u << game::kStatusGuardOn) | (1u << game::kStatusGuard);
+        return static_cast<u32>(s) < 32u && ((kFreeMask >> s) & 1u) != 0u;
     }
 
     static bool escape(int status)
@@ -859,15 +848,7 @@ namespace cpu {
             float t = 0.0f;
             if (len2 > 1e-6f)
             {
-                t = -(fx * dx + fy * dy) / len2;
-                if (t < 0.0f)
-                {
-                    t = 0.0f;
-                }
-                else if (t > 1.0f)
-                {
-                    t = 1.0f;
-                }
+                t = game::clampf(-(fx * dx + fy * dy) / len2, 0.0f, 1.0f);
             }
             float px = x0 + t * dx - cx;
             float py = y0 + t * dy - cy;

@@ -1,9 +1,12 @@
 #include "main/cpu/driver.h"
 
+#include <string.h>
+
 #include "main/cpu/nana_throw_core.h"
 #include "main/cpu/view.h"
 #include "main/game/fighters.h"
 #include "main/settings.h"
+#include "shared/game/heap.h"
 #include "shared/log.h"
 
 namespace tm {
@@ -23,7 +26,16 @@ namespace cpu {
         u32 driven;      // frames driven since taken
     };
 
-    static Slot s_slots[kMaxSlots];
+    struct DriverNet {
+        Slot slots[kMaxSlots];
+        Slot saved[2][kMaxSlots];
+    };
+#ifdef __MWERKS__
+    static DriverNet* s_net = NULL;
+#else
+    static DriverNet s_hostNet;
+    static DriverNet* s_net = &s_hostNet;
+#endif
     static Claimer s_claim[2];
     static u32 s_takes = 0;
     static u32 s_releases = 0;
@@ -99,11 +111,11 @@ namespace cpu {
 
     bool take(const Owner& who, Source* source, u32 flags)
     {
-        if (who.slot < 0 || who.slot >= kMaxSlots || source == NULL || who.sub)
+        if (s_net == NULL || who.slot < 0 || who.slot >= kMaxSlots || source == NULL || who.sub)
         {
             return false;
         }
-        Slot& s = s_slots[who.slot];
+        Slot& s = s_net->slots[who.slot];
         if (s.source != NULL)
         {
             release(who.slot, "taken by another source");
@@ -122,11 +134,11 @@ namespace cpu {
 
     void release(int slot, const char* why)
     {
-        if (slot < 0 || slot >= kMaxSlots || s_slots[slot].source == NULL)
+        if (s_net == NULL || slot < 0 || slot >= kMaxSlots || s_net->slots[slot].source == NULL)
         {
             return;
         }
-        Slot& s = s_slots[slot];
+        Slot& s = s_net->slots[slot];
         unsilence(s, slot, why);
         Source* source = s.source;
         Owner who = s.who;
@@ -140,27 +152,27 @@ namespace cpu {
 
     bool controlled(int slot)
     {
-        return slot >= 0 && slot < kMaxSlots && s_slots[slot].source != NULL;
+        return s_net != NULL && slot >= 0 && slot < kMaxSlots && s_net->slots[slot].source != NULL;
     }
 
     Source* sourceOf(int slot)
     {
-        return controlled(slot) ? s_slots[slot].source : NULL;
+        return controlled(slot) ? s_net->slots[slot].source : NULL;
     }
 
     u32 lastButtons(int slot)
     {
-        return slot >= 0 && slot < kMaxSlots ? s_slots[slot].lastButtons : 0;
+        return s_net != NULL && slot >= 0 && slot < kMaxSlots ? s_net->slots[slot].lastButtons : 0;
     }
 
     u32 frameOf(int slot)
     {
-        return slot >= 0 && slot < kMaxSlots ? s_slots[slot].frame : 0;
+        return s_net != NULL && slot >= 0 && slot < kMaxSlots ? s_net->slots[slot].frame : 0;
     }
 
     static void onMain(void* input, const Owner& who)
     {
-        Slot& s = s_slots[who.slot];
+        Slot& s = s_net->slots[who.slot];
         s.frame++;
         s.nanaReady = false;
         if (s.source != NULL && s.who.entryId != who.entryId)
@@ -250,7 +262,7 @@ namespace cpu {
     // (observed; opponent not recorded: Popo, Nana, then the others).
     static void onSub(void* input, const Owner& who)
     {
-        Slot& s = s_slots[who.slot];
+        Slot& s = s_net->slots[who.slot];
         if (s.source != NULL && s.nanaReady && s.who.entryId == who.entryId)
         {
             writeFrame(input, s.nana);
@@ -284,7 +296,8 @@ namespace cpu {
     void onFighterInput(const iface::FighterInput* call)
     {
         Owner who;
-        if (!s_attached || !findOwner(call->input, call->entryId, who) || who.slot < 0 || who.slot >= kMaxSlots)
+        if (!s_attached || s_net == NULL || !findOwner(call->input, call->entryId, who) || who.slot < 0
+            || who.slot >= kMaxSlots)
         {
             return;
         }
@@ -298,40 +311,47 @@ namespace cpu {
         }
     }
 
-    static Slot s_savedSlots[2][kMaxSlots];
-
     void driverSaved(int which)
     {
-        for (int i = 0; i < kMaxSlots; i++)
+        if (s_net != NULL)
         {
-            s_savedSlots[which & 1][i] = s_slots[i];
+            memcpy(s_net->saved[which & 1], s_net->slots, sizeof(s_net->slots));
         }
     }
 
     void driverLoaded(int which)
     {
-        for (int i = 0; i < kMaxSlots; i++)
+        if (s_net != NULL)
         {
-            s_slots[i] = s_savedSlots[which & 1][i];
+            memcpy(s_net->slots, s_net->saved[which & 1], sizeof(s_net->slots));
         }
     }
 
     void attach(Claimer first, Claimer second)
     {
-        for (int i = 0; i < kMaxSlots; i++)
+#ifdef __MWERKS__
+        if (s_net == NULL)
         {
-            clear(s_slots[i]);
-            s_slots[i].frame = 0;
+            s_net = static_cast<DriverNet*>(game::allocNetworkZero(static_cast<u32>(sizeof(DriverNet))));
         }
-        driverSaved(0);
-        driverSaved(1);
+#endif
+        if (s_net != NULL)
+        {
+            for (int i = 0; i < kMaxSlots; i++)
+            {
+                clear(s_net->slots[i]);
+                s_net->slots[i].frame = 0;
+            }
+            driverSaved(0);
+            driverSaved(1);
+        }
         s_claim[0] = first;
         s_claim[1] = second;
         s_takes = 0;
         s_releases = 0;
         s_restores = 0;
         s_drivenTotal = 0;
-        s_attached = true;
+        s_attached = s_net != NULL;
     }
 
     void detach()
@@ -341,6 +361,9 @@ namespace cpu {
             release(i, "match ending");
         }
         s_attached = false;
+#ifdef __MWERKS__
+        game::freeNetworkSlot(reinterpret_cast<void**>(&s_net));
+#endif
         TM_LOG("cpu: %u takes, %u releases, %u AI flags put back, %u frames driven\n", s_takes, s_releases,
                s_restores, s_drivenTotal);
     }

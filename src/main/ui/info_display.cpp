@@ -30,6 +30,7 @@
 #include "main/ui/menu_theme_core.h"
 #include "main/ui/style.h"
 #include "main/ui/wall_info_core.h"
+#include "shared/game/heap.h"
 #include "shared/game/mem.h"
 #include "shared/log.h"
 
@@ -175,33 +176,23 @@ namespace ui {
     // Compact panel labels where shorter than the menu name.
     static const char* panelLabel(int value)
     {
-        switch (value)
+        struct Override { u8 id; const char* lbl; };
+        static const Override kOv[] = {
+            {kInfoVelocitySelf, "Vel (Self)"}, {kInfoVelocityKb, "Vel (KB)"},
+            {kInfoEngineLStick, "Stick (Eng)"}, {kInfoSystemLStick, "Stick (Pad)"},
+            {kInfoEngineCStick, "C-Stick (Eng)"}, {kInfoSystemCStick, "C-Stick (Pad)"},
+            {kInfoEngineTrigger, "Trig (Eng)"}, {kInfoSystemTrigger, "Trig (Pad)"},
+            {kInfoLineInfo, "Coll Lines"}, {kInfoBlastzoneLeftRight, "Blast L/R"},
+            {kInfoBlastzoneUpDown, "Blast U/D"}
+        };
+        for (int i = 0; i < static_cast<int>(sizeof(kOv) / sizeof(kOv[0])); i++)
         {
-        case kInfoVelocitySelf:
-            return "Vel (Self)";
-        case kInfoVelocityKb:
-            return "Vel (KB)";
-        case kInfoEngineLStick:
-            return "Stick (Eng)";
-        case kInfoSystemLStick:
-            return "Stick (Pad)";
-        case kInfoEngineCStick:
-            return "C-Stick (Eng)";
-        case kInfoSystemCStick:
-            return "C-Stick (Pad)";
-        case kInfoEngineTrigger:
-            return "Trig (Eng)";
-        case kInfoSystemTrigger:
-            return "Trig (Pad)";
-        case kInfoLineInfo:
-            return "Coll Lines";
-        case kInfoBlastzoneLeftRight:
-            return "Blast L/R";
-        case kInfoBlastzoneUpDown:
-            return "Blast U/D";
-        default:
-            return infoValueLabel(value);
+            if (kOv[i].id == value)
+            {
+                return kOv[i].lbl;
+            }
         }
+        return infoValueLabel(value);
     }
 
     // Values read from the game, not the trackers: docs/internals.md,
@@ -247,14 +238,13 @@ namespace ui {
     // Shadows libc snprintf in this translation unit with typed overloads for
     // hot info-panel formats (%d, %s, %[+].[0-4]f) via a single non-inline
     // formatFast dispatch so MWCC does not inline formatFast or wrappers.
+    static inline float i2f(s32 v)
+    {
+        return game::i2f(v);
+    }
 #ifdef __MWERKS__
 #pragma dont_inline on
 #endif
-    static float i2f(s32 v)
-    {
-        return static_cast<float>(v);
-    }
-
     static s32 constInt(soModuleAccesser* acc, u32 id)
     {
         return soValueAccesser::getConstantInt(acc, id, 0);
