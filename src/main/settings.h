@@ -522,6 +522,26 @@ namespace main {
         kPikminFlower,
         kOlimarMaturityCount
     };
+    enum OlimarDpadMode {
+        kOlimarDpadOff = 0,
+        kOlimarDpadPluck,
+        kOlimarDpadPresets,
+        kOlimarDpadModeCount
+    };
+    enum OlimarStartSlot {
+        kStartSlotDefault = 0,
+        kStartSlotRed,
+        kStartSlotYellow,
+        kStartSlotBlue,
+        kStartSlotWhite,
+        kStartSlotPurple,
+        kStartSlotEmpty,
+        kOlimarStartSlotCount
+    };
+    enum {
+        kOlimarPullPoolAll = 0x1F,
+        kOlimarPresetCount = 16
+    };
 
     struct FighterMechanicsSettings {
         u8 peachFloat;       // MechToggle (Default / Always)
@@ -547,9 +567,12 @@ namespace main {
         u8 snakeCypher;      // MechToggle (Default / Unlimited)
         u8 ganonFloat;       // MechToggle (Default / Unlimited)
         u8 nanaThrow;        // NanaThrow (Default / F-Throw / B-Throw / U-Throw / D-Throw)
-        u8 olimarPikmin;     // OlimarPikmin (Default / Red / Yellow / Blue / White / Purple)
-        u8 olimarMaturity;   // OlimarMaturity (Default / Leaf / Bud / Flower)
-        u8 reserved[7];
+        u8 olimarPikmin;           // legacy single-color override (0..5)
+        u8 olimarMaturity;         // OlimarMaturity (global Set All + old-save compat)
+        u8 olimarPullAndWhistle;   // bits 0..4: Pull Pool R/Y/B/W/P (0 -> 0x1F); bits 5..7: Whistle/Lead 0..5
+        u16 olimarColorMatAndMode; // bits 0..9: 5x 2-bit per-color maturity; bits 10..11: D-Pad Mode; bits 12..15: 0
+        u16 olimarStartLineup;     // bits 0..11: 4x 3-bit start slots (0..6); bits 12..15: 0
+        u16 olimarDpadPresets;     // 4x 4-bit preset IDs (0..15): Up, Down, Left, Right
     };
 
     struct Settings {
@@ -632,6 +655,10 @@ namespace main {
     TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.nanaThrow) == 454, tm_settings_nana_throw_at_454);
     TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.olimarPikmin) == 455, tm_settings_olimar_pikmin_at_455);
     TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.olimarMaturity) == 456, tm_settings_olimar_maturity_at_456);
+    TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.olimarPullAndWhistle) == 457, tm_settings_olimar_pull_at_457);
+    TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.olimarColorMatAndMode) == 458, tm_settings_olimar_cmat_at_458);
+    TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.olimarStartLineup) == 460, tm_settings_olimar_start_at_460);
+    TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.olimarDpadPresets) == 462, tm_settings_olimar_presets_at_462);
     TM_STATIC_ASSERT(sizeof(Settings) == 464, tm_settings_size_unchanged);
 
     // Lab Menu Button's default: Start in the match opens the menu (0 keeps it

@@ -19,15 +19,14 @@ namespace pages {
     }
 
 #ifdef __MWERKS__
-    enum { kStageCastRows = 35 };
+    enum { kStageCastRows = 34 };
     static Option* s_stageCastRows = NULL;
 
-    static const u16 kCastLblOffs[20] = {
+    static const u16 kCastLblOffs[18] = {
         kPs_cast_kHazards, kPs_cast_kPlatDefault, kPs_cast_kFodHeight, kPs_cast_kTurnip, kPs_cast_kPeachSmash,
         kPs_cast_kUnlimited, kPs_cast_kMisfire, kPs_cast_kHammer, kPs_cast_kGnwBucket, kPs_cast_kCharge3,
         kPs_cast_kSamusBeam, kPs_cast_kLucarioAura, kPs_cast_kCharge2, kPs_cast_kRobBeam, kPs_cast_kLucasOffense,
-        kPs_cast_kSheikNeedles, kPs_cast_kDededeWaddle, kPs_cast_kNanaThrow, kPs_cast_kOlimarPikmin,
-        kPs_cast_kOlimarMaturity
+        kPs_cast_kSheikNeedles, kPs_cast_kDededeWaddle, kPs_cast_kNanaThrow
     };
     static bool (*const kCastGates[])() = {
         main::extraStageHazardsRow, main::extraStagePlatformsRow, main::extraStageFodRow,
@@ -35,7 +34,7 @@ namespace pages {
         main::extraMewtwoRows, main::extraLucarioRows, main::extraWarioRows, main::extraDonkeyKongRows,
         main::extraIvysaurRows, main::extraRobRows, main::extraLucasRows, main::extraSquirtleRows,
         main::extraSheikRows, main::extraDededeRows, main::extraSnakeRows, main::extraGanondorfRows,
-        main::extraIceClimbersRows, main::extraOlimarRows
+        main::extraIceClimbersRows
     };
     struct CastRowSpec {
         u16 offset;
@@ -44,7 +43,7 @@ namespace pages {
         u8 gateIdx;
         u8 isStage;
     };
-    static const CastRowSpec kCastSpecs[33] = {
+    static const CastRowSpec kCastSpecs[31] = {
         {TM_FIELD(stageOptions.hazards), main::kStageHazardCount, 0, 0, 1},
         {TM_FIELD(stageOptions.platformMode), main::kStagePlatMaxChoices, 1, 1, 1},
         {TM_FIELD(stageOptions.fodLeft), main::kFodHeightCount, 2, 2, 1},
@@ -75,9 +74,7 @@ namespace pages {
         {TM_FIELD(fighterMechanics.snakeTranq), main::kMechToggleCount, 5, 17, 0},
         {TM_FIELD(fighterMechanics.snakeCypher), main::kMechToggleCount, 5, 17, 0},
         {TM_FIELD(fighterMechanics.ganonFloat), main::kMechToggleCount, 5, 18, 0},
-        {TM_FIELD(fighterMechanics.nanaThrow), main::kNanaThrowCount, 17, 19, 0},
-        {TM_FIELD(fighterMechanics.olimarPikmin), main::kOlimarPikminCount, 18, 20, 0},
-        {TM_FIELD(fighterMechanics.olimarMaturity), main::kOlimarMaturityCount, 19, 20, 0}
+        {TM_FIELD(fighterMechanics.nanaThrow), main::kNanaThrowCount, 17, 19, 0}
     };
 
     extern Page kStageCast = {"Stage & Cast", NULL, 0, {0, 0, 0}};
@@ -93,7 +90,7 @@ namespace pages {
         buf[0] = kHead[0];
         buf[1] = kHead[1];
         const char* nm = pageStr(kPs_cast_names);
-        for (int i = 0; i < 33; i++)
+        for (int i = 0; i < 31; i++)
         {
             const CastRowSpec& sp = kCastSpecs[i];
             Option& o = buf[2 + i];
@@ -109,6 +106,17 @@ namespace pages {
             o.enabled = kCastGates[sp.gateIdx];
             while (*nm++ != '\0') {}
         }
+        Option& oli = buf[33];
+        oli.kind = ::tm::ui::kKindMenu;
+        oli.flags = ::tm::ui::kFlagHideWhenDisabled;
+        oli.offset = 0;
+        oli.min = 0;
+        oli.def = 0;
+        oli.max = P_OLIMAR;
+        oli.name = nm;
+        oli.data = NULL;
+        oli.onChange = NULL;
+        oli.enabled = main::extraOlimarRows;
         kStageCast.options = buf;
         kStageCast.count = kStageCastRows;
     }
@@ -154,8 +162,6 @@ namespace pages {
     TM_LABELS_BEGIN(kSheikNeedles) TM_L("Default") TM_L("0") TM_L("6") TM_LABELS_END
     TM_LABELS_BEGIN(kDededeWaddle) TM_L("Default") TM_L("Waddle Dee") TM_L("Waddle Doo") TM_L("Gordo") TM_LABELS_END
     TM_LABELS_BEGIN(kNanaThrow) TM_L("Default") TM_L("F-Throw") TM_L("B-Throw") TM_L("U-Throw") TM_L("D-Throw") TM_LABELS_END
-    TM_LABELS_BEGIN(kOlimarPikmin) TM_L("Default") TM_L("Red") TM_L("Yellow") TM_L("Blue") TM_L("White") TM_L("Purple") TM_LABELS_END
-    TM_LABELS_BEGIN(kOlimarMaturity) TM_L("Default") TM_L("Leaf") TM_L("Bud") TM_L("Flower") TM_LABELS_END
 
     TM_LABELS_ASSERT(kTurnip, main::kPeachTurnipCount, tm_turnip_labels_match_the_setting);
     TM_LABELS_ASSERT(kPeachSmash, main::kPeachSmashCount, tm_smash_labels_match_the_setting);
@@ -172,8 +178,6 @@ namespace pages {
     TM_LABELS_ASSERT(kSheikNeedles, main::kSheikNeedlesCount, tm_sheik_needles_labels_match_the_setting);
     TM_LABELS_ASSERT(kDededeWaddle, main::kDededeWaddleCount, tm_dedede_waddle_labels_match_the_setting);
     TM_LABELS_ASSERT(kNanaThrow, main::kNanaThrowCount, tm_nana_throw_labels_match_the_setting);
-    TM_LABELS_ASSERT(kOlimarPikmin, main::kOlimarPikminCount, tm_olimar_pikmin_labels_match_the_setting);
-    TM_LABELS_ASSERT(kOlimarMaturity, main::kOlimarMaturityCount, tm_olimar_maturity_labels_match_the_setting);
 
 #define TM_SROW_P(field, labels, count, name, gate)                                                            \
     TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(field), count, 0,                                \
@@ -219,8 +223,8 @@ namespace pages {
         TM_FROW(fighterMechanics.snakeCypher, kUnlimited, main::kMechToggleCount, "Snake Cypher", main::extraSnakeRows),
         TM_FROW(fighterMechanics.ganonFloat, kUnlimited, main::kMechToggleCount, "Ganon Float", main::extraGanondorfRows),
         TM_FROW(fighterMechanics.nanaThrow, kNanaThrow, main::kNanaThrowCount, "Nana Throw", main::extraIceClimbersRows),
-        TM_FROW(fighterMechanics.olimarPikmin, kOlimarPikmin, main::kOlimarPikminCount, "Olimar Pikmin", main::extraOlimarRows),
-        TM_FROW(fighterMechanics.olimarMaturity, kOlimarMaturity, main::kOlimarMaturityCount, "Olimar Maturity", main::extraOlimarRows)
+        TM_ROW(::tm::ui::kKindMenu, ::tm::ui::kFlagHideWhenDisabled, 0, 0, P_OLIMAR, 0,
+               "Olimar", NULL, NULL, main::extraOlimarRows)
     };
 #undef TM_SROW_P
 #undef TM_FROW

@@ -25,6 +25,7 @@
 #include "extra/fighter_mechanics_logic.h"
 #include "extra/fighter_swap.h"
 #include "extra/net_alloc.h"
+#include "extra/olimar_lab.h"
 #include "main/extra.h"
 #include "main/game/fighters.h"
 #include "main/settings.h"
@@ -542,11 +543,20 @@ namespace extra {
         int n = game::listFighters(refs, game::kMaxFighters);
         bool matched = false;
         bool peach = false;
+        bool olimar = false;
         for (int i = 0; i < n; i++)
         {
             int kind = activeKind(refs[i]);
             if (kind < 0)
             {
+                continue;
+            }
+            if (call == main::kRngOlimarP1)
+            {
+                if (!refs[i].cpu && kind == kFtOlimar)
+                {
+                    matched = true;
+                }
                 continue;
             }
             if (call != main::kRngApply && matchesQuery(call, kind, hasLivePartner(refs[i])))
@@ -556,6 +566,10 @@ namespace extra {
             if (kind == kFtPeach)
             {
                 peach = true;
+            }
+            if (kind == kFtOlimar)
+            {
+                olimar = true;
             }
             const soModuleEnumeration* m = game::fighterModules(refs[i].fighter);
             if (call != main::kRngApply || m == NULL || !game::isRam(m->m_workManageModule))
@@ -578,10 +592,14 @@ namespace extra {
                 applyDraw(turnip);
                 applyFace(m, status, turnip);
             }
-            fighterMechanicsApplyFighter(refs[i].fighter, m, kind, status, refs[i].playerNo);
+            fighterMechanicsApplyFighter(refs[i].fighter, m, kind, status, refs[i].playerNo, refs[i].cpu);
         }
         if (call == main::kRngApply)
         {
+            if (!olimar)
+            {
+                olimarLabNoOlimarFrame();
+            }
             s_smashWas = static_cast<u8>(smash);
             return peach;
         }

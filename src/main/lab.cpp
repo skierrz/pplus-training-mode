@@ -4,6 +4,7 @@
 #include <string.h>
 #include <gf/gf_pad_status.h>
 
+#include "extra/olimar_pikmin_logic.h"
 #include "extra/reversal_slots.h"
 #ifdef __MWERKS__
 #include "extra/tech_sparkle.h"
@@ -39,6 +40,7 @@
 #include "main/ui/match_hud.h"
 #include "main/ui/menu.h"
 #include "main/ui/osd.h"
+#include "main/ui/pages/olimar.h"
 #include "main/ui/pages/scenarios.h"
 #include "main/ui/pages/pages.h"
 #include "main/ui/settings_modal.h"
@@ -448,9 +450,19 @@ namespace lab {
         return false;
     }
 
+    bool olimarDpadActive(const game::MatchState& m)
+    {
+        u8 mode = extra::olimarDpadMode(settings().fighterMechanics);
+        if (mode == main::kOlimarDpadOff || !m.running || !m.training || m.paused || comboLHeld(m))
+        {
+            return false;
+        }
+        return main::extraOlimarP1();
+    }
+
     // D-pad directions owned by Lab shortcuts (Up None, Shield Drop platform
-    // cycle, Techchase platform stepping, active scenario reset/spacing, Combo Lab),
-    // hidden from the game.
+    // cycle, Techchase platform stepping, active scenario reset/spacing, Combo Lab,
+    // or Olimar D-Pad Mode), hidden from the game.
 #pragma dont_inline on
     static u32 boundDpad(const game::MatchState& m)
     {
@@ -458,7 +470,7 @@ namespace lab {
         {
             return 0;
         }
-        if (comboLHeld(m))
+        if (comboLHeld(m) || olimarDpadActive(m))
         {
             return kDpadAll;
         }
@@ -622,6 +634,10 @@ namespace lab {
         net.menu.resetConfirmPage = 0;
         memset(st.repeat, 0, sizeof(st.repeat));
         int shown = ui::currentPage(net.menu);
+        if (shown == ui::pages::P_OLIMAR)
+        {
+            ui::pages::olimarSyncFromSettings();
+        }
         TM_LOG("lab: menu opened by port %d (%s) on page %d (%s) row %d, depth %d, main row %d, rail %d\n", port + 1,
                start ? "Start" : "Z in pause", shown, ui::labMenu().pages[shown]->title, net.menu.cursor[shown],
                net.menu.depth, net.menu.railFocus ? net.menu.railCursor : net.menu.category, net.menu.railFocus ? 1 : 0);
@@ -984,47 +1000,56 @@ namespace lab {
         // D-Pad shortcuts when menu is closed in active training match.
         if (!comboL && !st.open && !m.paused && m.running && m.training)
         {
-            u32 dp = dpadBits(st.sys, m, false);
-            if (dp != 0)
+            if (olimarDpadActive(m))
             {
-                u8 p = activeScenarioPreset();
-                int call = -1;
-                if ((dp & kDpadDown) != 0)
+                u32 dpHeld = dpadBits(st.sys, m, true);
+                u32 dpPressed = dpadBits(st.sys, m, false);
+                main::extraOlimarAction(main::kOlimarPreStep, dpHeld, dpPressed);
+            }
+            else
+            {
+                u32 dp = dpadBits(st.sys, m, false);
+                if (dp != 0)
                 {
-                    if (settings().controls.dpadDown == main::kDownFrameAdvance)
+                    u8 p = activeScenarioPreset();
+                    int call = -1;
+                    if ((dp & kDpadDown) != 0)
                     {
-                        settings().general.frameAdvance ^= 1;
-                        frameAdvanceChanged();
+                        if (settings().controls.dpadDown == main::kDownFrameAdvance)
+                        {
+                            settings().general.frameAdvance ^= 1;
+                            frameAdvanceChanged();
+                        }
+                        else if (p == ui::pages::kPresetTechchase)
+                        {
+                            call = main::kScenarioStepPosDown;
+                        }
+                        else if (comboShortcutActive())
+                        {
+                            call = main::kScenarioComboReposition;
+                        }
                     }
-                    else if (p == ui::pages::kPresetTechchase)
+                    if (call < 0 && p != ui::pages::kPresetOff)
                     {
-                        call = main::kScenarioStepPosDown;
+                        if ((dp & kDpadUp) != 0)
+                        {
+                            if (p == ui::pages::kPresetShieldDrop) call = main::kScenarioCyclePlatform;
+                            else if (p == ui::pages::kPresetTechchase) call = main::kScenarioStepPosUp;
+                        }
+                        else if (spacingShortcutActive(p))
+                        {
+                            if ((dp & kDpadLeft) != 0) call = main::kScenarioSpacingCloser;
+                            else if ((dp & kDpadRight) != 0) call = main::kScenarioSpacingFarther;
+                        }
+                        else if (resetLeftPreset(p) && (dp & kDpadLeft) != 0)
+                        {
+                            call = main::kScenarioResetNow;
+                        }
                     }
-                    else if (comboShortcutActive())
+                    if (call >= 0)
                     {
-                        call = main::kScenarioComboReposition;
+                        main::extraScenarioCall(call);
                     }
-                }
-                if (call < 0 && p != ui::pages::kPresetOff)
-                {
-                    if ((dp & kDpadUp) != 0)
-                    {
-                        if (p == ui::pages::kPresetShieldDrop) call = main::kScenarioCyclePlatform;
-                        else if (p == ui::pages::kPresetTechchase) call = main::kScenarioStepPosUp;
-                    }
-                    else if (spacingShortcutActive(p))
-                    {
-                        if ((dp & kDpadLeft) != 0) call = main::kScenarioSpacingCloser;
-                        else if ((dp & kDpadRight) != 0) call = main::kScenarioSpacingFarther;
-                    }
-                    else if (resetLeftPreset(p) && (dp & kDpadLeft) != 0)
-                    {
-                        call = main::kScenarioResetNow;
-                    }
-                }
-                if (call >= 0)
-                {
-                    main::extraScenarioCall(call);
                 }
             }
         }
@@ -1331,6 +1356,10 @@ namespace lab {
         game::setFrozen(!run && !gameplayPaused);
         lockPercents(m);
         maintainPlayerShields(net.prevRan);
+        if (net.prevRan && !st.open && olimarDpadActive(m))
+        {
+            main::extraOlimarAction(main::kOlimarPreStep, dpadBits(st.sys, m, true), 0u);
+        }
         logFighters(m);
         applyHiding(pads, m);
         if (st.exiting)
@@ -2018,6 +2047,7 @@ namespace lab {
         main::extraHeatmapReset();
         main::extraAdaptiveReset();
         main::extraScenarioCall(main::kScenarioSavestateLoaded);
+        main::extraOlimarAction(main::kOlimarSavestateLoaded, 0u, 0u);
         main::extraCharacterRng();
         main::extraStageOptionsSavestateLoaded();
         game::reapplyFrozen();

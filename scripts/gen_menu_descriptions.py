@@ -209,8 +209,7 @@ TABLES = {
         "Allow Snake unlimited Cypher uses without landing resets.",
         "Grant Ganondorf unlimited aerial float duration.",
         "Force Ice Climbers Nana grab throws in a chosen direction.",
-        "Force Olimar pluck to pull Red, Yellow, Blue, White, or Purple.",
-        "Lock Olimar Pikmin maturity to Leaf, Bud, or Flower.",
+        "Configure Olimar pull pool, maturity, lineup, whistle, and presets.",
     ],
     "kControlsDesc": [
         "Choose the button that steps one frame during Frame Advance.",
@@ -435,6 +434,30 @@ TABLES = {
     ] + ["Toggle this move in the active Custom Counter Pool."] * 28 + [
         "Include a no-counter wait chance in this Custom Counter Pool.",
     ] + ["Toggle this move in the active Custom Counter Pool."] * 39,
+    "kOlimarDesc": [
+        "Use D-pad for live B+D-Pad plucking or instant lineup presets.",
+        "Allow Red Pikmin in Olimar's random Neutral-B pluck pool.",
+        "Allow Yellow Pikmin in Olimar's random Neutral-B pluck pool.",
+        "Allow Blue Pikmin in Olimar's random Neutral-B pluck pool.",
+        "Allow White Pikmin in Olimar's random Neutral-B pluck pool.",
+        "Allow Purple Pikmin in Olimar's random Neutral-B pluck pool.",
+        "Force Down-B whistle and Move Lead Now to place this color first.",
+        "Immediately move the selected color to lead (or cycle if Default).",
+        "Set maturity lock for all 5 Pikmin colors at once.",
+        "Lock Red Pikmin maturity to Default, Leaf, Bud, or Flower.",
+        "Lock Yellow Pikmin maturity to Default, Leaf, Bud, or Flower.",
+        "Lock Blue Pikmin maturity to Default, Leaf, Bud, or Flower.",
+        "Lock White Pikmin maturity to Default, Leaf, Bud, or Flower.",
+        "Lock Purple Pikmin maturity to Default, Leaf, Bud, or Flower.",
+        "Set starting Pikmin in Slot 1 (lead) on match start and respawn.",
+        "Set starting Pikmin in Slot 2 on match start and respawn.",
+        "Set starting Pikmin in Slot 3 on match start and respawn.",
+        "Set starting Pikmin in Slot 4 on match start and respawn.",
+        "Lineup preset spawned by pressing D-Pad Up in Presets mode.",
+        "Lineup preset spawned by pressing D-Pad Down in Presets mode.",
+        "Lineup preset spawned by pressing D-Pad Left in Presets mode.",
+        "Lineup preset spawned by pressing D-Pad Right in Presets mode.",
+    ],
     "kRailDesc": [
         "Frame advance, Player 1 damage, speed, camera, and controls.",
         "One-click P+ practice presets and Combo Trainer settings.",
@@ -480,6 +503,7 @@ PAGE_TABLES = [
     ("kCpuCountersDesc", "P_CPU_COUNTERS"),
     ("kCpuDefenseDesc", "P_CPU_DEFENSE"),
     ("kCounterPoolDesc", "P_COUNTER_POOL"),
+    ("kOlimarDesc", "P_OLIMAR"),
     ("kRailDesc", "P_COUNT (Category Rail entries)"),
 ]
 

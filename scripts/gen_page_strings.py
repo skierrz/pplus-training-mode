@@ -232,7 +232,7 @@ def collect_entries() -> list[tuple[str, bytes]]:
     )
     entries.append(("scen_names", _extract_host_option_names(scen, "kRows")))
 
-    # 2. stage_cast.cpp: 26 label tables + 35 row names (skip first 2 head rows for kCastNames)
+    # 2. stage_cast.cpp: 24 label tables + 32 row names (skip first 2 head rows)
     sc = PAGES_DIR / "stage_cast.cpp"
     entries += _parse_labels_from_cpp(
         sc,
@@ -242,11 +242,20 @@ def collect_entries() -> list[tuple[str, bytes]]:
             "kPlatDelfino", "kPlatHorizontal", "kPlatDeadLine", "kPlatRandall",
             "kTurnip", "kPeachSmash", "kMisfire", "kHammer", "kUnlimited", "kCharge2", "kCharge3",
             "kGnwBucket", "kSamusBeam", "kLucarioAura", "kRobBeam", "kLucasOffense",
-            "kSheikNeedles", "kDededeWaddle", "kNanaThrow", "kOlimarPikmin", "kOlimarMaturity",
+            "kSheikNeedles", "kDededeWaddle", "kNanaThrow",
         ],
     )
     all_cast_names = _extract_host_option_names(sc, "kRows").split(b"\x00")[:-1]
     entries.append(("cast_names", b"".join(x + b"\x00" for x in all_cast_names[2:])))
+
+    # 2b. olimar.cpp: 5 label tables + 22 row names
+    oli = PAGES_DIR / "olimar.cpp"
+    entries += _parse_labels_from_cpp(
+        oli,
+        "oli",
+        ["kOlimarDpadMode", "kOlimarColor", "kOlimarMaturity", "kOlimarStartSlot", "kOlimarPresets"],
+    )
+    entries.append(("oli_names", _extract_host_option_names(oli, "kRows")))
 
     # 3. cpu_options.cpp: 21 label tables
     cpu = PAGES_DIR / "cpu_options.cpp"

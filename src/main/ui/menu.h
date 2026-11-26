@@ -36,11 +36,12 @@ namespace ui {
     };
 
     enum {
-        kScratchBytes = 96,
+        kScratchBytes = 112,
         kShowInactiveScratchOffset = 32,
         kLedgeDismissScratchOffset = 84,
         kDiPickActiveScratchOffset = 85,
-        kCounterModeScratchOffset = 86
+        kCounterModeScratchOffset = 86,
+        kOlimarScratchOffset = 88
     };
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
     u8* x_menuScratch();
