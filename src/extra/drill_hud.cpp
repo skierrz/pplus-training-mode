@@ -769,6 +769,7 @@ namespace extra {
 
     void drillHudDisable()
     {
+        comboBreakRushSetActive(kRushOff);
         if (s_rtPtr == NULL)
         {
             return;
@@ -781,7 +782,6 @@ namespace extra {
         }
         drillHudInit(s_rt.st, static_cast<u8>(drills::kDrillNone), 0u);
         drillPracticeSetActiveDrill(kPracticeDrillNone);
-        comboBreakRushSetActive(kRushOff);
         ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
         pm->activeDrill = static_cast<u8>(drills::kDrillNone);
         pm->mode = static_cast<u8>(kDrillModeFree);

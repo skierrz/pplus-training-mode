@@ -20,6 +20,7 @@
 #include <so/work/so_work_manage_module_impl.h>
 #include <string.h>
 
+#include "extra/combo_break_rush.h"
 #include "extra/combo_trainer.h"
 #include "extra/drill_core_engines.h"
 #include "extra/drill_hover_ps_engines.h"
@@ -943,7 +944,8 @@ namespace extra {
         switch (call)
         {
         case main::kScenarioChanged:
-            if (ui::pages::scenarioMenuState()->preset != kScenarioOff && drillHudActiveId() != 0)
+            if (ui::pages::scenarioMenuState()->preset != kScenarioOff
+                && (drillHudActiveId() != 0 || comboBreakRushActive()))
             {
                 drillHudDisable();
             }
