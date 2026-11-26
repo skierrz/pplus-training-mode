@@ -1025,19 +1025,12 @@ namespace game {
 #ifdef __MWERKS__
         if (s_slots == NULL)
         {
-            u32 need = (static_cast<u32>(sizeof(Slot) * kMaxTracked) + 31u) & ~31u;
-            HeapUsage u;
-            if (heapUsage(Heaps::Network, u) && u.largest >= need)
+            s_slots = static_cast<Slot*>(allocNetworkZero(static_cast<u32>(sizeof(Slot) * kMaxTracked)));
+            if (s_slots != NULL)
             {
-                void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
-                if (isRam(p))
+                for (int i = 0; i < kMaxTracked; i++)
                 {
-                    memset(p, 0, need);
-                    s_slots = static_cast<Slot*>(p);
-                    for (int i = 0; i < kMaxTracked; i++)
-                    {
-                        new (&s_slots[i]) Slot;
-                    }
+                    new (&s_slots[i]) Slot;
                 }
             }
         }

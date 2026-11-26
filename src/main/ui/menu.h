@@ -47,6 +47,12 @@ namespace ui {
     u8* menuScratch();
 #endif
     extern bool g_showInactiveRows;
+#ifdef __MWERKS__
+    // Bit 0: active CPU fighter has DJC; bit 1: active CPU fighter has Float.
+    extern u8 g_counterAvailMask;
+#define TM_DJC_LABEL "\003"
+#define TM_FLOAT_LABEL "\004"
+#endif
 
     // A choice label starting with this character is listed but not built yet:
     // drawn grey, without the marker.

@@ -90,7 +90,8 @@ namespace ui {
                 if (a < kSizes[k])
                 {
                     const char* lbl = (k == 1) ? pages::packedLabelAt(kCounterAir, a)
-                                               : (k == 0 ? kCounterGround[a] : kCounterShield[a]);
+                                               : (k == 0 ? pages::packedLabelAt(kCounterGround, a)
+                                                         : pages::packedLabelAt(kCounterShield, a));
                     if (droppedLabel(lbl))
                     {
                         a = kDefaults[k];

@@ -36,5 +36,32 @@ namespace game {
 
     // Logs one heap's size, free bytes, free-block count and largest block.
     void logHeap(Heaps::HeapType heap);
+
+#ifdef __MWERKS__
+    // Shared MAIN-resident Heaps::Network allocator and compact FP/mem helpers
+    // (exported from MAIN; stub/menu do not link these).
+    void* allocNetworkZero(u32 bytes);
+    void freeNetworkSlot(void** slot);
+    float i2f(s32 v);
+    float u2f(u32 v);
+    s32 f2i(float v);
+    float i2fScale(s32 v, float s);
+    float minf(float a, float b);
+    float maxf(float a, float b);
+    float clampf(float v, float lo, float hi);
+    float floatAt(const void* base, u32 offset);
+#else
+    inline float i2f(s32 v) { return static_cast<float>(v); }
+    inline float u2f(u32 v) { return static_cast<float>(v); }
+    inline s32 f2i(float v) { return static_cast<s32>(v); }
+    inline float i2fScale(s32 v, float s) { return static_cast<float>(v) * s; }
+    inline float minf(float a, float b) { return a < b ? a : b; }
+    inline float maxf(float a, float b) { return a > b ? a : b; }
+    inline float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
+    inline float floatAt(const void* base, u32 offset)
+    {
+        return *reinterpret_cast<const float*>(static_cast<const u8*>(base) + offset);
+    }
+#endif
 }
 }

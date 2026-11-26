@@ -17,22 +17,22 @@ namespace pages {
         g_showInactiveRows = menuScratch()[kShowInactiveScratchOffset] != 0;
     }
 
-    // Stage Options choice tables (platform presets stay pointer arrays for setStagePlatformRowPreset).
+    // Stage Options choice tables.
     TM_LABELS_BEGIN(kHazards) TM_L("Default") TM_L("On") TM_L("Off") TM_LABELS_END
     TM_LABELS_BEGIN(kFodHeight)
         TM_L("Default") TM_L("Hidden") TM_L("Lowest") TM_L("Left Def") TM_L("Average") TM_L("Right Def") TM_L("Highest")
     TM_LABELS_END
-    static const char* const kPlatDefault[] = {"Cycle", "Freeze", "Preset 1", "Preset 2", "Preset 3"};
-    static const char* const kPlatGeneric[] = {"Cycle", "Freeze"};
-    static const char* const kPlatLuigisMansion[] = {"Cycle", "Freeze", "Split", "Combined"};
-    static const char* const kPlatDelfino[] = {"Cycle", "Freeze", "Tri-Plat", "Two-Plat"};
-    static const char* const kPlatHorizontal[] = {"Cycle", "Freeze", "Center", "Left", "Right"};
-    static const char* const kPlatDeadLine[] = {"Cycle", "Freeze", "Close", "Far", "Mid"};
-    static const char* const kPlatRandall[] = {"Cycle", "Freeze", "Left Out", "Right Out", "Hidden"};
+    TM_LABELS_BEGIN(kPlatDefault) TM_L("Cycle") TM_L("Freeze") TM_L("Preset 1") TM_L("Preset 2") TM_L("Preset 3") TM_LABELS_END
+    TM_LABELS_BEGIN(kPlatGeneric) TM_L("Cycle") TM_L("Freeze") TM_LABELS_END
+    TM_LABELS_BEGIN(kPlatLuigisMansion) TM_L("Cycle") TM_L("Freeze") TM_L("Split") TM_L("Combined") TM_LABELS_END
+    TM_LABELS_BEGIN(kPlatDelfino) TM_L("Cycle") TM_L("Freeze") TM_L("Tri-Plat") TM_L("Two-Plat") TM_LABELS_END
+    TM_LABELS_BEGIN(kPlatHorizontal) TM_L("Cycle") TM_L("Freeze") TM_L("Center") TM_L("Left") TM_L("Right") TM_LABELS_END
+    TM_LABELS_BEGIN(kPlatDeadLine) TM_L("Cycle") TM_L("Freeze") TM_L("Close") TM_L("Far") TM_L("Mid") TM_LABELS_END
+    TM_LABELS_BEGIN(kPlatRandall) TM_L("Cycle") TM_L("Freeze") TM_L("Left Out") TM_L("Right Out") TM_L("Hidden") TM_LABELS_END
 
     TM_LABELS_ASSERT(kHazards, main::kStageHazardCount, tm_stage_hazards_labels_match);
     TM_LABELS_ASSERT(kFodHeight, main::kFodHeightCount, tm_fod_height_labels_match);
-    TM_STATIC_ASSERT(TM_COUNT(kPlatDefault) == main::kStagePlatMaxChoices, tm_stage_plat_default_labels_match);
+    TM_LABELS_ASSERT(kPlatDefault, main::kStagePlatMaxChoices, tm_stage_plat_default_labels_match);
 
     // Fighter RNG and Mechanics choice tables.
     TM_LABELS_BEGIN(kTurnip)
@@ -72,9 +72,6 @@ namespace pages {
     TM_LABELS_ASSERT(kNanaThrow, main::kNanaThrowCount, tm_nana_throw_labels_match_the_setting);
     TM_LABELS_ASSERT(kOlimarPikmin, main::kOlimarPikminCount, tm_olimar_pikmin_labels_match_the_setting);
 
-#define TM_SROW(field, labels, name, gate)                                                                     \
-    TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(field), 0, TM_COUNT(labels) - 1, 0, \
-           name, labels, main::extraStageOptionsChanged, gate)
 #define TM_SROW_P(field, labels, count, name, gate)                                                            \
     TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(field), count, 0,                                \
                     name, labels, main::extraStageOptionsChanged, gate)
@@ -89,7 +86,7 @@ namespace pages {
         TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch, kShowInactiveScratchOffset, 0, 1, 0, "Show Inactive",
                NULL, showInactiveChanged, NULL),
         TM_SROW_P(stageOptions.hazards, kHazards, main::kStageHazardCount, "Hazards", main::extraStageHazardsRow),
-        TM_SROW(stageOptions.platformMode, kPlatDefault, "Platforms", main::extraStagePlatformsRow),
+        TM_SROW_P(stageOptions.platformMode, kPlatDefault, main::kStagePlatMaxChoices, "Platforms", main::extraStagePlatformsRow),
         TM_SROW_P(stageOptions.fodLeft, kFodHeight, main::kFodHeightCount, "Left Platform", main::extraStageFodRow),
         TM_SROW_P(stageOptions.fodRight, kFodHeight, main::kFodHeightCount, "Right Platform", main::extraStageFodRow),
         TM_FROW(characterRng.peachTurnip, kTurnip, main::kPeachTurnipCount, "Peach Turnip", main::extraPeachRows),
@@ -121,7 +118,6 @@ namespace pages {
         TM_FROW(fighterMechanics.nanaThrow, kNanaThrow, main::kNanaThrowCount, "Nana Throw", main::extraIceClimbersRows),
         TM_FROW(fighterMechanics.olimarPikmin, kOlimarPikmin, main::kOlimarPikminCount, "Olimar Pikmin", main::extraOlimarRows)
     };
-#undef TM_SROW
 #undef TM_SROW_P
 #undef TM_FROW
 
@@ -140,33 +136,33 @@ namespace main {
         {
         case extra::kPresetGenericMoving:
             row.data = kPlatGeneric;
-            row.max = TM_COUNT(kPlatGeneric) - 1;
+            row.max = 1;
             break;
         case extra::kPresetLuigisMansion:
             row.data = kPlatLuigisMansion;
-            row.max = TM_COUNT(kPlatLuigisMansion) - 1;
+            row.max = 3;
             break;
         case extra::kPresetDelfinoSecret:
             row.data = kPlatDelfino;
-            row.max = TM_COUNT(kPlatDelfino) - 1;
+            row.max = 3;
             break;
         case extra::kPresetSmashville:
         case extra::kPresetGreenHill:
             row.data = kPlatHorizontal;
-            row.max = TM_COUNT(kPlatHorizontal) - 1;
+            row.max = 4;
             break;
         case extra::kPresetDeadLine:
             row.data = kPlatDeadLine;
-            row.max = TM_COUNT(kPlatDeadLine) - 1;
+            row.max = 4;
             break;
         case extra::kPresetYoshisStory:
         case extra::kPresetYoshisIsland:
             row.data = kPlatRandall;
-            row.max = TM_COUNT(kPlatRandall) - 1;
+            row.max = 4;
             break;
         default:
             row.data = kPlatDefault;
-            row.max = TM_COUNT(kPlatDefault) - 1;
+            row.max = 4;
             break;
         }
     }

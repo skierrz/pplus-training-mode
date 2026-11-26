@@ -248,17 +248,7 @@ namespace game {{
     {{
 #ifdef __MWERKS__
         statusNamesDetach();
-        u32 need = (static_cast<u32>(sizeof(StatusNamesNet)) + 31u) & ~31u;
-        HeapUsage u;
-        if (heapUsage(Heaps::Network, u) && u.largest >= need)
-        {{
-            void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
-            if (isRam(p))
-            {{
-                memset(p, 0, need);
-                s_net = static_cast<StatusNamesNet*>(p);
-            }}
-        }}
+        s_net = static_cast<StatusNamesNet*>(allocNetworkZero(static_cast<u32>(sizeof(StatusNamesNet))));
         if (!populate(s_net))
         {{
             statusNamesDetach();
@@ -274,11 +264,7 @@ namespace game {{
     void statusNamesDetach()
     {{
 #ifdef __MWERKS__
-        if (s_net != NULL)
-        {{
-            free(s_net);
-            s_net = NULL;
-        }}
+        freeNetworkSlot(reinterpret_cast<void**>(&s_net));
 #else
         s_net = NULL;
 #endif

@@ -186,31 +186,17 @@ namespace game {
     {
         if (s_net == NULL)
         {
-            u32 need = (static_cast<u32>(sizeof(TechniqueNet)) + 31u) & ~31u;
-            HeapUsage u;
-            if (heapUsage(Heaps::Network, u) && u.largest >= need)
-            {
-                void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
-                if (isRam(p))
-                {
-                    memset(p, 0, need);
-                    s_net = static_cast<TechniqueNet*>(p);
-                }
-            }
+            s_net = static_cast<TechniqueNet*>(allocNetworkZero(static_cast<u32>(sizeof(TechniqueNet))));
             if (s_net == NULL)
             {
-                TM_LOG("techniques: alloc failed (%u bytes in Network)\n", static_cast<unsigned>(need));
+                TM_LOG("techniques: alloc failed (%u bytes in Network)\n", static_cast<unsigned>(sizeof(TechniqueNet)));
             }
         }
     }
 
     void techniquesDetach()
     {
-        if (s_net != NULL)
-        {
-            free(s_net);
-            s_net = NULL;
-        }
+        freeNetworkSlot(reinterpret_cast<void**>(&s_net));
         s_sink = NULL;
     }
 

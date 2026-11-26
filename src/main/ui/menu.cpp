@@ -23,6 +23,9 @@ namespace ui {
     static bool s_rail = false;
     bool g_menuQuiet = false;
     bool g_showInactiveRows = false;
+#ifdef __MWERKS__
+    u8 g_counterAvailMask = 0;
+#endif
 
     void menuSound(int id)
     {
@@ -451,7 +454,12 @@ namespace ui {
             int step = delta > 0 ? 1 : -1;
             const char* lbl;
             while (next != v && (lbl = choiceLabel(o, next)) != NULL
-                   && (droppedLabel(lbl) || lbl[0] == TM_UNAVAILABLE_LABEL[0]))
+                   && (droppedLabel(lbl) || lbl[0] == TM_UNAVAILABLE_LABEL[0]
+#ifdef __MWERKS__
+                       || (lbl[0] == TM_DJC_LABEL[0] && (g_counterAvailMask & 1) == 0)
+                       || (lbl[0] == TM_FLOAT_LABEL[0] && (g_counterAvailMask & 2) == 0)
+#endif
+                       ))
             {
                 int further = clampTo(o, next + step);
                 next = further == next ? v : further;
@@ -734,12 +742,28 @@ namespace ui {
 
     static bool unavailableLabel(const char* s)
     {
-        return s != NULL && s[0] == TM_UNAVAILABLE_LABEL[0];
+        if (s == NULL)
+        {
+            return false;
+        }
+#ifdef __MWERKS__
+        if (s[0] == TM_DJC_LABEL[0]) return (g_counterAvailMask & 1) == 0;
+        if (s[0] == TM_FLOAT_LABEL[0]) return (g_counterAvailMask & 2) == 0;
+#endif
+        return s[0] == TM_UNAVAILABLE_LABEL[0];
     }
 
     static const char* labelText(const char* s)
     {
-        return unavailableLabel(s) || droppedLabel(s) ? s + 1 : s;
+        if (s != NULL && (s[0] == TM_UNAVAILABLE_LABEL[0] || s[0] == TM_DROPPED_LABEL[0]
+#ifdef __MWERKS__
+                          || s[0] == TM_DJC_LABEL[0] || s[0] == TM_FLOAT_LABEL[0]
+#endif
+                          ))
+        {
+            return s + 1;
+        }
+        return s;
     }
 
     // The value column's text, or NULL for none (then no box either).

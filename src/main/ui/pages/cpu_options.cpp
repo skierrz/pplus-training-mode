@@ -46,23 +46,41 @@ namespace pages {
     TM_LABELS_ASSERT(kAsdi, 7, tm_asdi_match);
     TM_LABELS_ASSERT(kBehavior, 5, tm_behavior_match);
 
-#define TM_PLAY_SLOT_LABELS \
-    "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5", "Slot 6", "Random Slot"
 #define TM_PLAY_SLOT_LABELS_P \
     TM_L("Slot 1") TM_L("Slot 2") TM_L("Slot 3") TM_L("Slot 4") TM_L("Slot 5") TM_L("Slot 6") TM_L("Random Slot")
-#define TM_DJC_LABELS NA "DJC Nair", NA "DJC Fair", NA "DJC Bair", NA "DJC Uair", NA "DJC Dair"
-#define TM_FLOAT_LABELS NA "Float Nair", NA "Float Fair", NA "Float Bair", NA "Float Uair", NA "Float Dair"
-#define TM_SHFFL_LABELS "SHFFL Nair", "SHFFL Fair", "SHFFL Bair", "SHFFL Uair", "SHFFL Dair"
+#ifdef __MWERKS__
+#define DJC_M TM_DJC_LABEL
+#define FLT_M TM_FLOAT_LABEL
+#else
+#define DJC_M NA
+#define FLT_M NA
+#endif
+#define TM_DJC_LABELS_P \
+    TM_L(DJC_M "DJC Nair") TM_L(DJC_M "DJC Fair") TM_L(DJC_M "DJC Bair") TM_L(DJC_M "DJC Uair") TM_L(DJC_M "DJC Dair")
+#define TM_FLOAT_LABELS_P \
+    TM_L(FLT_M "Float Nair") TM_L(FLT_M "Float Fair") TM_L(FLT_M "Float Bair") TM_L(FLT_M "Float Uair") TM_L(FLT_M "Float Dair")
+#define TM_SHFFL_LABELS_P TM_L("SHFFL Nair") TM_L("SHFFL Fair") TM_L("SHFFL Bair") TM_L("SHFFL Uair") TM_L("SHFFL Dair")
 #define TM_FFL_LABELS_P TM_L("FFL Nair") TM_L("FFL Fair") TM_L("FFL Bair") TM_L("FFL Uair") TM_L("FFL Dair")
 
     // Indexed to match cpu/actions.cpp action tables.
+#ifdef __MWERKS__
+    extern const char kCounterGround[] =
+#else
     extern const char* kCounterGround[kCounterGroundSize] = {
-        "None", "Spotdodge", "Shield", "Grab", "Up B", "Side B Toward", "Down B", "Neutral B", "Up Smash",
-        "Down Smash", "Forward Smash", "Roll Away", "Roll Toward", "Jab", "Forward Tilt", "Up Tilt", "Down Tilt",
-        "Dash Attack", "Short Hop", "Full Hop", "Wavedash Away", "Wavedash Toward", "Wavedash Down", "Dash Back",
-        "Dash Through", TM_PLAY_SLOT_LABELS, "Side B Away", "Roll Random", "SH Nair", "SH Fair",
-        "SH Bair", "SH Uair", "SH Dair", "Random Custom", "Random", TM_DJC_LABELS, TM_FLOAT_LABELS, TM_SHFFL_LABELS,
-        "Custom Pool"};
+#endif
+        TM_L("None") TM_L("Spotdodge") TM_L("Shield") TM_L("Grab") TM_L("Up B") TM_L("Side B Toward")
+        TM_L("Down B") TM_L("Neutral B") TM_L("Up Smash") TM_L("Down Smash") TM_L("Forward Smash")
+        TM_L("Roll Away") TM_L("Roll Toward") TM_L("Jab") TM_L("Forward Tilt") TM_L("Up Tilt") TM_L("Down Tilt")
+        TM_L("Dash Attack") TM_L("Short Hop") TM_L("Full Hop") TM_L("Wavedash Away") TM_L("Wavedash Toward")
+        TM_L("Wavedash Down") TM_L("Dash Back") TM_L("Dash Through") TM_PLAY_SLOT_LABELS_P TM_L("Side B Away")
+        TM_L("Roll Random") TM_L("SH Nair") TM_L("SH Fair") TM_L("SH Bair") TM_L("SH Uair") TM_L("SH Dair")
+        TM_L("Random Custom") TM_L("Random") TM_DJC_LABELS_P TM_FLOAT_LABELS_P TM_SHFFL_LABELS_P
+        TM_L("Custom Pool")
+#ifdef __MWERKS__
+        ;
+#else
+    };
+#endif
     TM_LABELS_EXTERN_BEGIN(kCounterAir, kCounterAirSize)
         TM_L("None") TM_L("Airdodge") TM_L("Jump Away") TM_L("Jump Toward") TM_L("Jump Neutral")
         TM_L("Up B Away") TM_L("Up B Toward") TM_L("Neutral B") TM_L("Side B Away") TM_L("Side B Toward")
@@ -71,26 +89,44 @@ namespace pages {
         TM_PLAY_SLOT_LABELS_P TM_L("Random Custom") TM_L("Random") TM_FFL_LABELS_P TM_L("Custom Pool")
     TM_LABELS_END
     TM_LABELS_ASSERT(kCounterAir, kCounterAirSize, tm_counter_air_match);
+#ifdef __MWERKS__
+    extern const char kCounterShield[] =
+#else
     extern const char* kCounterShield[kCounterShieldSize] = {
-        "None", "Grab", "Short Hop", "Full Hop", "Spotdodge", "Roll Away", "Roll Toward", "Up B",
-        DROPPED "Side B Away", DROPPED "Side B Toward", "Down B", DROPPED "Neutral B", "Up Smash",
-        DROPPED "Down Smash", DROPPED "Forward Smash", "SH Nair", "SH Fair", "SH Bair", "SH Uair",
-        "SH Dair", "Wavedash Away", DROPPED "Shield Drop",
-        TM_PLAY_SLOT_LABELS, "Wavedash Toward", "Wavedash Down", "Roll Random", "Random Custom", "Random",
-        TM_DJC_LABELS, TM_FLOAT_LABELS, TM_SHFFL_LABELS, "Custom Pool"};
-#undef TM_PLAY_SLOT_LABELS
+#endif
+        TM_L("None") TM_L("Grab") TM_L("Short Hop") TM_L("Full Hop") TM_L("Spotdodge") TM_L("Roll Away")
+        TM_L("Roll Toward") TM_L("Up B") TM_L(DROPPED "Side B Away") TM_L(DROPPED "Side B Toward")
+        TM_L("Down B") TM_L(DROPPED "Neutral B") TM_L("Up Smash") TM_L(DROPPED "Down Smash")
+        TM_L(DROPPED "Forward Smash") TM_L("SH Nair") TM_L("SH Fair") TM_L("SH Bair") TM_L("SH Uair")
+        TM_L("SH Dair") TM_L("Wavedash Away") TM_L(DROPPED "Shield Drop")
+        TM_PLAY_SLOT_LABELS_P TM_L("Wavedash Toward") TM_L("Wavedash Down") TM_L("Roll Random")
+        TM_L("Random Custom") TM_L("Random") TM_DJC_LABELS_P TM_FLOAT_LABELS_P TM_SHFFL_LABELS_P
+        TM_L("Custom Pool")
+#ifdef __MWERKS__
+        ;
+#else
+    };
+#endif
+#undef DJC_M
+#undef FLT_M
 #undef TM_PLAY_SLOT_LABELS_P
-#undef TM_DJC_LABELS
-#undef TM_FLOAT_LABELS
-#undef TM_SHFFL_LABELS
+#undef TM_DJC_LABELS_P
+#undef TM_FLOAT_LABELS_P
+#undef TM_SHFFL_LABELS_P
 #undef TM_FFL_LABELS_P
 
 #pragma dont_inline on
     bool counterLabels()
     {
-        static const char** const kLists[2] = {kCounterGround, kCounterShield};
         game::FighterRef ref;
         int kind = game::findFighter(true, ref) ? cpu::fighterKind(ref.entryId) : -1;
+#ifdef __MWERKS__
+        static const cpu::Action kDjcProbe = {NULL, cpu::kForDjc, 0};
+        static const cpu::Action kFloatProbe = {NULL, cpu::kForFloat, 0};
+        g_counterAvailMask = static_cast<u8>((cpu::fitsKind(&kDjcProbe, kind) ? 1 : 0)
+                                             | (cpu::fitsKind(&kFloatProbe, kind) ? 2 : 0));
+#else
+        static const char** const kLists[2] = {kCounterGround, kCounterShield};
         for (int k = 0; k < 2; k++)
         {
             int list = k == 0 ? cpu::kListGround : cpu::kListShield;
@@ -109,6 +145,7 @@ namespace pages {
                 }
             }
         }
+#endif
         return cpuLabControl();
     }
 #pragma dont_inline reset
@@ -221,8 +258,8 @@ namespace pages {
         cpu::freezeCpuToggle();
     }
 
-#define TM_COUNTER_CHOICE(name, f, labels, def)                                                             \
-    TM_ROW(::tm::ui::kKindChoice, TM_HALF(f), TM_FIELD(f), 0, TM_COUNT(labels) - 1, def, name, labels, NULL, \
+#define TM_COUNTER_CHOICE(name, f, labels, count, def)                                              \
+    TM_ROW(::tm::ui::kKindChoice, TM_HALF(f), TM_FIELD(f), TM_CHOICE_LO, (count) - 1, def, name, labels, NULL, \
            counterLabels)
 #define TM_CPU_FUNC(name, onSelect, label) \
     TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, name, label, onSelect, cpuLabControl)
@@ -270,10 +307,10 @@ namespace pages {
 
     // CPU > Counters & Reversals (P_CPU_COUNTERS)
     static const Option kCounterRows[] = {
-        TM_COUNTER_CHOICE("Ground Counter", cpu.options.counterGround, kCounterGround, 13),
+        TM_COUNTER_CHOICE("Ground Counter", cpu.options.counterGround, kCounterGround, kCounterGroundSize, 13),
         TM_ROW_CHOICE_P(0, TM_FIELD(cpu.options.counterAir), kCounterAirSize, 1, "Air Counter", kCounterAir, NULL,
                         counterLabels),
-        TM_COUNTER_CHOICE("Shield Counter", cpu.options.counterShield, kCounterShield, 1),
+        TM_COUNTER_CHOICE("Shield Counter", cpu.options.counterShield, kCounterShield, kCounterShieldSize, 1),
         TM_CPU_CHOICE_P("Shield Timing", cpu.options.shieldTiming, kShieldTiming, 2, cpu::kShieldTimingFullMove),
         TM_CPU_INT("Counter Delay", cpu.options.counterDelay, 0, 99, 0, "%df"),
         TM_MENU_IF("Custom Pools", P_COUNTER_POOL, cpuLabControl),
@@ -326,7 +363,11 @@ namespace pages {
 
     static const char* stripMarker(const char* s)
     {
-        if (s != NULL && (s[0] == TM_UNAVAILABLE_LABEL[0] || s[0] == TM_DROPPED_LABEL[0]))
+        if (s != NULL && (s[0] == TM_UNAVAILABLE_LABEL[0] || s[0] == TM_DROPPED_LABEL[0]
+#ifdef __MWERKS__
+                          || s[0] == TM_DJC_LABEL[0] || s[0] == TM_FLOAT_LABEL[0]
+#endif
+                          ))
         {
             return s + 1;
         }
@@ -344,11 +385,11 @@ namespace pages {
         const char* src = "None";
         if (trig == cpu::kRevOnHit && c.counterGround < kCounterGroundSize)
         {
-            src = stripMarker(kCounterGround[c.counterGround]);
+            src = stripMarker(packedLabelAt(kCounterGround, c.counterGround));
         }
         else if (trig == cpu::kRevOnShield && c.counterShield < kCounterShieldSize)
         {
-            src = stripMarker(kCounterShield[c.counterShield]);
+            src = stripMarker(packedLabelAt(kCounterShield, c.counterShield));
         }
         else if (trig == cpu::kRevOnGetup && c.getup < 5)
         {
@@ -375,9 +416,6 @@ namespace pages {
     static bool revTrig2() { return revTrig(cpu::kRevOnGetup); }
     static bool revTrig3() { return revTrig(cpu::kRevOnLedge); }
 
-#define TM_REV_ACT(idx, labels, count, gate)                                                                     \
-    TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.revSlot2Action[idx]), 0, \
-           (count) - 1, 0, "Slot 2 Action", labels, NULL, gate)
 #define TM_REV_ACT_P(idx, labels, count, gate)                                                                   \
     TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.revSlot2Action[idx]), count, 0,        \
                     "Slot 2 Action", labels, NULL, gate)
@@ -395,10 +433,10 @@ namespace pages {
                         kRevTriggerScratchOffset, 4, 0, "Trigger", kRevTriggers, NULL, revEnabled),
         TM_ROW(::tm::ui::kKindInfo, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, "Slot 1 (Primary)", s_revSlot1Label,
                NULL, revEnabled),
-        TM_REV_ACT(cpu::kRevOnHit, kCounterGround, kCounterGroundSize, revTrig0),
+        TM_REV_ACT_P(cpu::kRevOnHit, kCounterGround, kCounterGroundSize, revTrig0),
         TM_REV_DELAY(cpu::kRevOnHit, revTrig0),
         TM_REV_WEIGHT(cpu::kRevOnHit, revTrig0),
-        TM_REV_ACT(cpu::kRevOnShield, kCounterShield, kCounterShieldSize, revTrig1),
+        TM_REV_ACT_P(cpu::kRevOnShield, kCounterShield, kCounterShieldSize, revTrig1),
         TM_REV_DELAY(cpu::kRevOnShield, revTrig1),
         TM_REV_WEIGHT(cpu::kRevOnShield, revTrig1),
         TM_REV_ACT_P(cpu::kRevOnGetup, kRevGetup, 5, revTrig2),
@@ -409,7 +447,6 @@ namespace pages {
         TM_REV_WEIGHT(cpu::kRevOnLedge, revTrig3)
     };
 
-#undef TM_REV_ACT
 #undef TM_REV_ACT_P
 #undef TM_REV_DELAY
 #undef TM_REV_WEIGHT

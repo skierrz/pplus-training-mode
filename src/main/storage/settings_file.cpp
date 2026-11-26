@@ -81,20 +81,10 @@ namespace storage {
         {
             return;
         }
-        u32 need = (static_cast<u32>(kFileCap) + 31u) & ~31u;
-        game::HeapUsage u;
-        if (game::heapUsage(Heaps::Network, u) && u.largest >= need)
-        {
-            void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
-            if (game::isRam(p))
-            {
-                memset(p, 0, need);
-                s_file = static_cast<u8*>(p);
-            }
-        }
+        s_file = static_cast<u8*>(game::allocNetworkZero(static_cast<u32>(kFileCap)));
         if (s_file == NULL)
         {
-            TM_LOG("storage: settings file buffer alloc failed (%u B in Network)\n", need);
+            TM_LOG("storage: settings file buffer alloc failed (%u B in Network)\n", static_cast<unsigned>(kFileCap));
         }
 #endif
     }

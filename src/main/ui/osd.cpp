@@ -64,20 +64,11 @@ namespace osd {
 #ifdef __MWERKS__
         if (s_messages == NULL)
         {
-            u32 need = (static_cast<u32>(sizeof(Message) * kPlayers * kPerPlayer) + 31u) & ~31u;
-            game::HeapUsage u;
-            if (game::heapUsage(Heaps::Network, u) && u.largest >= need)
-            {
-                void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
-                if (game::isRam(p))
-                {
-                    memset(p, 0, need);
-                    s_messages = static_cast<Message*>(p);
-                }
-            }
+            s_messages = static_cast<Message*>(game::allocNetworkZero(static_cast<u32>(sizeof(Message) * kPlayers * kPerPlayer)));
             if (s_messages == NULL)
             {
-                TM_LOG("osd: messages alloc failed (%u B in Network)\n", need);
+                TM_LOG("osd: messages alloc failed (%u B in Network)\n",
+                       static_cast<unsigned>(sizeof(Message) * kPlayers * kPerPlayer));
             }
         }
 #endif
@@ -88,11 +79,7 @@ namespace osd {
     {
         reset();
 #ifdef __MWERKS__
-        if (s_messages != NULL)
-        {
-            free(s_messages);
-            s_messages = NULL;
-        }
+        game::freeNetworkSlot(reinterpret_cast<void**>(&s_messages));
 #endif
     }
 

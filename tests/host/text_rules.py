@@ -100,6 +100,7 @@ NOT_DRAWN_FILES = [
     (r"extra/fighter_swap\.cpp$", "swap refusal reasons for the log"),
     (r"extra/ui_assets\.cpp$", "BRRES texture and palette names matched in RAM"),
     (r"extra/net_alloc\.cpp$", "logging format wrapper"),
+    (r"main/module\.cpp$", "logging format wrapper"),
 ]
 
 # ---- longest values ------------------------------------------------------------

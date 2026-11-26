@@ -689,20 +689,9 @@ namespace gfx {
     void textAttach()
     {
 #if defined(TM_MODULE_MAIN) && defined(__MWERKS__)
-        if (s_glyphCache != NULL)
+        if (s_glyphCache == NULL)
         {
-            return;
-        }
-        u32 need = (static_cast<u32>(sizeof(GlyphCache)) + 31u) & ~31u;
-        game::HeapUsage u;
-        if (game::heapUsage(Heaps::Network, u) && u.largest >= need)
-        {
-            void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
-            if (game::isRam(p))
-            {
-                memset(p, 0, sizeof(GlyphCache));
-                s_glyphCache = static_cast<GlyphCache*>(p);
-            }
+            s_glyphCache = static_cast<GlyphCache*>(game::allocNetworkZero(static_cast<u32>(sizeof(GlyphCache))));
         }
 #endif
     }
@@ -710,11 +699,7 @@ namespace gfx {
     void textDetach()
     {
 #if defined(TM_MODULE_MAIN) && defined(__MWERKS__)
-        if (s_glyphCache != NULL)
-        {
-            free(s_glyphCache);
-            s_glyphCache = NULL;
-        }
+        game::freeNetworkSlot(reinterpret_cast<void**>(&s_glyphCache));
 #endif
     }
 }

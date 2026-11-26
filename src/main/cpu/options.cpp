@@ -2944,27 +2944,21 @@ namespace cpu {
     {
         if (s_heap == NULL)
         {
-            u32 need = (static_cast<u32>(sizeof(OptionsHeap)) + 31u) & ~31u;
-            game::HeapUsage u;
-            if (game::heapUsage(Heaps::Network, u) && u.largest >= need)
+            void* p = game::allocNetworkZero(static_cast<u32>(sizeof(OptionsHeap)));
+            if (p != NULL)
             {
-                void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
-                if (game::isRam(p))
+                s_heap = static_cast<OptionsHeap*>(p);
+                // Placement-construct each Brain over zeroed memory so MWCC
+                // writes only the Source/Brain vtable pointer without
+                // copying uninitialized stack bytes over fields reset() skips.
+                for (int i = 0; i < kMaxSlots; i++)
                 {
-                    s_heap = static_cast<OptionsHeap*>(p);
-                    memset(s_heap, 0, sizeof(*s_heap));
-                    // Placement-construct each Brain over zeroed memory so MWCC
-                    // writes only the Source/Brain vtable pointer without
-                    // copying uninitialized stack bytes over fields reset() skips.
-                    for (int i = 0; i < kMaxSlots; i++)
-                    {
-                        new (&s_heap->brains[i]) Brain;
-                        new (&s_heap->saved[0].brains[i]) Brain;
-                        new (&s_heap->saved[1].brains[i]) Brain;
-                    }
-                    s_brains = s_heap->brains;
-                    s_saved = s_heap->saved;
+                    new (&s_heap->brains[i]) Brain;
+                    new (&s_heap->saved[0].brains[i]) Brain;
+                    new (&s_heap->saved[1].brains[i]) Brain;
                 }
+                s_brains = s_heap->brains;
+                s_saved = s_heap->saved;
             }
         }
         if (s_brains == NULL)

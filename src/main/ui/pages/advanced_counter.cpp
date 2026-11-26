@@ -25,7 +25,7 @@ namespace pages {
     }
 
 #define TM_ADV_CHOICE(name, f, labels, count, def) \
-    TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(f), 0, (count) - 1, def, name, labels, valueChanged, custom)
+    TM_ROW_CHOICE_P(0, TM_FIELD(f), count, def, name, labels, valueChanged, custom)
 #define TM_ADV_DELAY(name, f) \
     TM_ROW(::tm::ui::kKindInt, 0, TM_FIELD(f), 0, 99, 0, name, "%df", valueChanged, custom)
 

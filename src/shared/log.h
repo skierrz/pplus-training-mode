@@ -13,6 +13,13 @@ namespace extra {
 }
 }
 #define TM_LOG(...) ::tm::extra::logf(__VA_ARGS__)
+#elif defined(TM_MODULE_MAIN) && defined(__MWERKS__)
+namespace tm {
+namespace main {
+    void logf(const char* fmt, ...);
+}
+}
+#define TM_LOG(...) ::tm::main::logf(__VA_ARGS__)
 #elif (defined(TM_MODULE_MAIN) || defined(TM_MODULE_EXTRA)) && defined(TM_PERF)
 #include "main/services.h"
 #include "shared/perf.h"

@@ -198,69 +198,84 @@ namespace cpu {
 #define TM_RANDOM_ADV {NULL, kActionRandomAdvanced, 0}
 #define TM_CUSTOM_POOL {NULL, kActionCustomPool, 0}
 #define TM_DO(steps) {steps, 0, 0}
-#define TM_PLAY_SLOTS {NULL, 0, 1}, {NULL, 0, 2}, {NULL, 0, 3}, {NULL, 0, 4}, {NULL, 0, 5}, {NULL, 0, 6}
-#define TM_PLAY_RANDOM {NULL, kActionPlayRandomSlot, 0}
-#define TM_DJCS                                                                                     \
-    {kDjcNair, kForDjc, 0}, {kDjcFair, kForDjc, 0}, {kDjcBair, kForDjc, 0}, {kDjcUair, kForDjc, 0}, \
-        {kDjcDair, kForDjc, 0}
-#define TM_FLOATS                                                                                       \
-    {kFloatNair, kForFloat, 0}, {kFloatFair, kForFloat, 0}, {kFloatBair, kForFloat, 0}, {kFloatUair, kForFloat, 0}, \
-        {kFloatDair, kForFloat, 0}
-#define TM_SHFFLS                                                                                     \
-    {kShfflNair, kForShffl | kEndsWithSteps, 0}, {kShfflFair, kForShffl | kEndsWithSteps, 0},         \
-        {kShfflBair, kForShffl | kEndsWithSteps, 0}, {kShfflUair, kForShffl | kEndsWithSteps, 0},     \
-        {kShfflDair, kForShffl | kEndsWithSteps, 0}
-#define TM_FFLS                                                                                   \
-    {kFflNair, kForFfl | kEndsWithSteps, 0}, {kFflFair, kForFfl | kEndsWithSteps, 0},             \
-        {kFflBair, kForFfl | kEndsWithSteps, 0}, {kFflUair, kForFfl | kEndsWithSteps, 0},         \
-        {kFflDair, kForFfl | kEndsWithSteps, 0}
+
+    // Deduplicated unique Action records; each list below stores 1-byte indices
+    // into kActions rather than duplicating 8-byte Action structs + relocs.
+    enum ActId {
+        A_NONE = 0,
+        A_SPOTDODGE, A_SHIELD, A_GRAB, A_UPB, A_SIDEB_T, A_DOWNB, A_NEUTRALB,
+        A_USMASH, A_DSMASH, A_FSMASH, A_ROLL_A, A_ROLL_T, A_JAB, A_FTILT, A_UTILT, A_DTILT,
+        A_DASH_ATK, A_SH, A_FH, A_WD_A, A_WD_T, A_WD_D, A_DASH_B, A_DASH_THRU,
+        A_SLOT1, A_SLOT2, A_SLOT3, A_SLOT4, A_SLOT5, A_SLOT6, A_PLAY_RND,
+        A_SIDEB_A, A_ROLL_RND,
+        A_SH_NAIR, A_SH_FAIR, A_SH_BAIR, A_SH_UAIR, A_SH_DAIR,
+        A_RND_ADV, A_RND,
+        A_DJC_NAIR, A_DJC_FAIR, A_DJC_BAIR, A_DJC_UAIR, A_DJC_DAIR,
+        A_FLT_NAIR, A_FLT_FAIR, A_FLT_BAIR, A_FLT_UAIR, A_FLT_DAIR,
+        A_SHFFL_NAIR, A_SHFFL_FAIR, A_SHFFL_BAIR, A_SHFFL_UAIR, A_SHFFL_DAIR,
+        A_CUSTOM_POOL,
+        A_AIRDODGE, A_JUMP_A, A_JUMP_T, A_JUMP_N, A_UPB_A, A_UPB_T, A_FAIR, A_BAIR,
+        A_TUMBLE_FF, A_WIGGLE_FF, A_WAIT_NOTECH,
+        A_FFL_NAIR, A_FFL_FAIR, A_FFL_BAIR, A_FFL_UAIR, A_FFL_DAIR,
+        A_OOS_UPB, A_OOS_SIDEB_A, A_OOS_SIDEB_T, A_OOS_DOWNB, A_OOS_NEUTRALB,
+        A_OOS_USMASH, A_OOS_DSMASH, A_OOS_FSMASH, A_WAIT
+    };
+
+    static const Action kActions[] = {
+        TM_NONE,
+        TM_DO(kSpotdodge), TM_DO(kShield), TM_DO(kGrab), TM_DO(kUpB), TM_DO(kSideBToward), TM_DO(kDownB), TM_DO(kNeutralB),
+        TM_DO(kUSmash), TM_DO(kDSmash), TM_DO(kFSmash), TM_DO(kRollAway), TM_DO(kRollToward), TM_DO(kJab), TM_DO(kFTilt), TM_DO(kUTilt), TM_DO(kDTilt),
+        TM_DO(kDashAttack), TM_DO(kShortHop), TM_DO(kFullHop), TM_DO(kWavedashAway), TM_DO(kWavedashToward), TM_DO(kWavedashDown), TM_DO(kDashBack), {kDashThrough, kEndsWithSteps, 0},
+        {NULL, 0, 1}, {NULL, 0, 2}, {NULL, 0, 3}, {NULL, 0, 4}, {NULL, 0, 5}, {NULL, 0, 6}, {NULL, kActionPlayRandomSlot, 0},
+        TM_DO(kSideBAway), TM_DO(kRollRandom),
+        TM_DO(kSHNair), TM_DO(kSHFair), TM_DO(kSHBair), TM_DO(kSHUair), TM_DO(kSHDair),
+        TM_RANDOM_ADV, TM_RANDOM,
+        {kDjcNair, kForDjc, 0}, {kDjcFair, kForDjc, 0}, {kDjcBair, kForDjc, 0}, {kDjcUair, kForDjc, 0}, {kDjcDair, kForDjc, 0},
+        {kFloatNair, kForFloat, 0}, {kFloatFair, kForFloat, 0}, {kFloatBair, kForFloat, 0}, {kFloatUair, kForFloat, 0}, {kFloatDair, kForFloat, 0},
+        {kShfflNair, kForShffl | kEndsWithSteps, 0}, {kShfflFair, kForShffl | kEndsWithSteps, 0}, {kShfflBair, kForShffl | kEndsWithSteps, 0}, {kShfflUair, kForShffl | kEndsWithSteps, 0}, {kShfflDair, kForShffl | kEndsWithSteps, 0},
+        TM_CUSTOM_POOL,
+        TM_DO(kAirdodge), {kJumpAway, kNeedsJump, 0}, {kJumpToward, kNeedsJump, 0}, {kShortHop, kNeedsJump, 0}, TM_DO(kUpBAway), TM_DO(kUpBToward), TM_DO(kFair), TM_DO(kBair),
+        {kTumbleFastfall, kEndsWithSteps, 0}, {kWiggleFastfall, kEndsWithSteps, 0}, {kWait, kNoTech | kEndsWithSteps, 0},
+        {kFflNair, kForFfl | kEndsWithSteps, 0}, {kFflFair, kForFfl | kEndsWithSteps, 0}, {kFflBair, kForFfl | kEndsWithSteps, 0}, {kFflUair, kForFfl | kEndsWithSteps, 0}, {kFflDair, kForFfl | kEndsWithSteps, 0},
+        TM_DO(kOosUpB), TM_DO(kOosSideBAway), TM_DO(kOosSideBToward), TM_DO(kOosDownB), TM_DO(kOosNeutralB),
+        TM_DO(kOosUSmash), TM_DO(kOosDSmash), TM_DO(kOosFSmash), TM_DO(kWait)
+    };
+
+#define A_SLOTS A_SLOT1, A_SLOT2, A_SLOT3, A_SLOT4, A_SLOT5, A_SLOT6, A_PLAY_RND
+#define A_SHS A_SH_NAIR, A_SH_FAIR, A_SH_BAIR, A_SH_UAIR, A_SH_DAIR
+#define A_DJCS A_DJC_NAIR, A_DJC_FAIR, A_DJC_BAIR, A_DJC_UAIR, A_DJC_DAIR
+#define A_FLTS A_FLT_NAIR, A_FLT_FAIR, A_FLT_BAIR, A_FLT_UAIR, A_FLT_DAIR
+#define A_SHFFLS A_SHFFL_NAIR, A_SHFFL_FAIR, A_SHFFL_BAIR, A_SHFFL_UAIR, A_SHFFL_DAIR
+#define A_FFLS A_FFL_NAIR, A_FFL_FAIR, A_FFL_BAIR, A_FFL_UAIR, A_FFL_DAIR
 
     // Indexed like the Counter Action rows' labels (ui/pages/cpu_options.cpp).
-    // A NULL script is None, Play Slot N (playSlot), or (flags) one of the
-    // random kinds. P+ character techniques (DJC, Float) and SHFFL/FFL aerials
-    // sit at the end of their tables to preserve all existing indices.
-    static const Action kGround[] = {
-        TM_NONE,             TM_DO(kSpotdodge),    TM_DO(kShield),        TM_DO(kGrab),
-        TM_DO(kUpB),         TM_DO(kSideBToward),  TM_DO(kDownB),         TM_DO(kNeutralB),
-        TM_DO(kUSmash),      TM_DO(kDSmash),       TM_DO(kFSmash),        TM_DO(kRollAway),
-        TM_DO(kRollToward),  TM_DO(kJab),          TM_DO(kFTilt),         TM_DO(kUTilt),
-        TM_DO(kDTilt),       TM_DO(kDashAttack),   TM_DO(kShortHop),      TM_DO(kFullHop),
-        TM_DO(kWavedashAway), TM_DO(kWavedashToward), TM_DO(kWavedashDown), TM_DO(kDashBack),
-        {kDashThrough, kEndsWithSteps, 0}, TM_PLAY_SLOTS, TM_PLAY_RANDOM, TM_DO(kSideBAway),
-        TM_DO(kRollRandom),  TM_DO(kSHNair),       TM_DO(kSHFair),        TM_DO(kSHBair),
-        TM_DO(kSHUair),      TM_DO(kSHDair),       TM_RANDOM_ADV,         TM_RANDOM,
-        TM_DJCS,             TM_FLOATS,            TM_SHFFLS,             TM_CUSTOM_POOL};
-    static const Action kAir[] = {
-        TM_NONE,           TM_DO(kAirdodge),        {kJumpAway, kNeedsJump, 0}, {kJumpToward, kNeedsJump, 0},
-        {kShortHop, kNeedsJump, 0}, TM_DO(kUpBAway), TM_DO(kUpBToward),         TM_DO(kNeutralB),
-        TM_DO(kSideBAway), TM_DO(kSideBToward),     TM_DO(kDownB),              TM_DO(kJab),
-        TM_DO(kFair),      TM_DO(kBair),            TM_DO(kUSmash),             TM_DO(kDSmash),
-        {kTumbleFastfall, kEndsWithSteps, 0},       {kWiggleFastfall, kEndsWithSteps, 0},
-        TM_NONE,           {kWait, kNoTech | kEndsWithSteps, 0},
-        TM_PLAY_SLOTS,     TM_PLAY_RANDOM,          TM_RANDOM_ADV,              TM_RANDOM,
-        TM_FFLS,           TM_CUSTOM_POOL};
-    static const Action kShieldList[] = {
-        TM_NONE,              TM_DO(kGrab),           TM_DO(kShortHop),      TM_DO(kFullHop),
-        TM_DO(kSpotdodge),    TM_DO(kRollAway),       TM_DO(kRollToward),    TM_DO(kOosUpB),
-        TM_DO(kOosSideBAway), TM_DO(kOosSideBToward), TM_DO(kOosDownB),      TM_DO(kOosNeutralB),
-        TM_DO(kOosUSmash),    TM_DO(kOosDSmash),      TM_DO(kOosFSmash),     TM_DO(kSHNair),
-        TM_DO(kSHFair),       TM_DO(kSHBair),         TM_DO(kSHUair),        TM_DO(kSHDair),
-        TM_DO(kWavedashAway), TM_DO(kWait),           TM_PLAY_SLOTS,         TM_PLAY_RANDOM,
-        TM_DO(kWavedashToward), TM_DO(kWavedashDown), TM_DO(kRollRandom),    TM_RANDOM_ADV,
-        TM_RANDOM,            TM_DJCS,                TM_FLOATS,             TM_SHFFLS,
-        TM_CUSTOM_POOL};
+    static const u8 kGround[] = {
+        A_NONE, A_SPOTDODGE, A_SHIELD, A_GRAB, A_UPB, A_SIDEB_T, A_DOWNB, A_NEUTRALB,
+        A_USMASH, A_DSMASH, A_FSMASH, A_ROLL_A, A_ROLL_T, A_JAB, A_FTILT, A_UTILT, A_DTILT,
+        A_DASH_ATK, A_SH, A_FH, A_WD_A, A_WD_T, A_WD_D, A_DASH_B, A_DASH_THRU,
+        A_SLOTS, A_SIDEB_A, A_ROLL_RND, A_SHS, A_RND_ADV, A_RND, A_DJCS, A_FLTS, A_SHFFLS, A_CUSTOM_POOL};
+    static const u8 kAir[] = {
+        A_NONE, A_AIRDODGE, A_JUMP_A, A_JUMP_T, A_JUMP_N, A_UPB_A, A_UPB_T, A_NEUTRALB,
+        A_SIDEB_A, A_SIDEB_T, A_DOWNB, A_JAB, A_FAIR, A_BAIR, A_USMASH, A_DSMASH,
+        A_TUMBLE_FF, A_WIGGLE_FF, A_NONE, A_WAIT_NOTECH,
+        A_SLOTS, A_RND_ADV, A_RND, A_FFLS, A_CUSTOM_POOL};
+    static const u8 kShieldList[] = {
+        A_NONE, A_GRAB, A_SH, A_FH, A_SPOTDODGE, A_ROLL_A, A_ROLL_T, A_OOS_UPB,
+        A_OOS_SIDEB_A, A_OOS_SIDEB_T, A_OOS_DOWNB, A_OOS_NEUTRALB, A_OOS_USMASH, A_OOS_DSMASH, A_OOS_FSMASH,
+        A_SHS, A_WD_A, A_WAIT, A_SLOTS, A_WD_T, A_WD_D, A_ROLL_RND, A_RND_ADV, A_RND,
+        A_DJCS, A_FLTS, A_SHFFLS, A_CUSTOM_POOL};
 
 #undef TM_NONE
 #undef TM_RANDOM
 #undef TM_RANDOM_ADV
 #undef TM_CUSTOM_POOL
 #undef TM_DO
-#undef TM_PLAY_SLOTS
-#undef TM_PLAY_RANDOM
-#undef TM_DJCS
-#undef TM_FLOATS
-#undef TM_SHFFLS
-#undef TM_FFLS
+#undef A_SLOTS
+#undef A_SHS
+#undef A_DJCS
+#undef A_FLTS
+#undef A_SHFFLS
+#undef A_FFLS
 
     // Clean P+ Random counter action pools, indexed into the tables above:
     //  - Ground: defensive options, quick pokes, and movement mixups
@@ -270,9 +285,8 @@ namespace cpu {
     static const u8 kAirRandom[] = {1, 2, 3, 11, 12, 13, 14, 15};
     static const u8 kShieldRandom[] = {1, 2, 4, 5, 6, 7, 12, 15, 16, 20};
 
-    static const Action* const kLists[kListCount] = {kGround, kAir, kShieldList};
-    static const int kCounts[kListCount] = {sizeof(kGround) / sizeof(kGround[0]), sizeof(kAir) / sizeof(kAir[0]),
-                                            sizeof(kShieldList) / sizeof(kShieldList[0])};
+    static const u8* const kLists[kListCount] = {kGround, kAir, kShieldList};
+    static const u8 kCounts[kListCount] = {sizeof(kGround), sizeof(kAir), sizeof(kShieldList)};
 
     int actionKind(int list, int index)
     {
@@ -280,7 +294,7 @@ namespace cpu {
         {
             return kActionNone;
         }
-        const Action& a = kLists[list][index];
+        const Action& a = kActions[kLists[list][index]];
         if (a.steps != NULL)
         {
             return kActionScript;
@@ -310,19 +324,14 @@ namespace cpu {
         {
             return NULL;
         }
-        const Action* a = &kLists[list][index];
+        const Action* a = &kActions[kLists[list][index]];
         if (kind == kKindAny)
         {
             return a;
         }
         if (kind == kGanon && (a->flags & kForFloat) != 0)
         {
-            int float0 = index;
-            while (float0 > 0 && (kLists[list][float0 - 1].flags & kForFloat) != 0)
-            {
-                float0--;
-            }
-            int offset = index - float0;
+            int offset = static_cast<int>(kLists[list][index]) - A_FLT_NAIR;
             return offset >= 0 && offset < 5 ? &kGanonFloats[offset] : NULL;
         }
         return fitsKind(a, kind) ? a : NULL;

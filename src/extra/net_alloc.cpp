@@ -179,45 +179,14 @@ namespace extra {
         return stRayCheck(pos, dir, hit, normal, passThrough, col, b2, mask);
     }
 
-    float i2f(s32 v)
-    {
-        return static_cast<float>(v);
-    }
-
-    float u2f(u32 v)
-    {
-        return static_cast<float>(v);
-    }
-
-    s32 f2i(float v)
-    {
-        return static_cast<s32>(v);
-    }
-
-    float i2fScale(s32 v, float s)
-    {
-        return static_cast<float>(v) * s;
-    }
-
-    float minf(float a, float b)
-    {
-        return a < b ? a : b;
-    }
-
-    float maxf(float a, float b)
-    {
-        return a > b ? a : b;
-    }
-
-    float clampf(float v, float lo, float hi)
-    {
-        return v < lo ? lo : (v > hi ? hi : v);
-    }
-
-    float floatAt(const void* base, u32 offset)
-    {
-        return *reinterpret_cast<const float*>(reinterpret_cast<u32>(base) + offset);
-    }
+    float i2f(s32 v) { return game::i2f(v); }
+    float u2f(u32 v) { return game::u2f(v); }
+    s32 f2i(float v) { return game::f2i(v); }
+    float i2fScale(s32 v, float s) { return game::i2fScale(v, s); }
+    float minf(float a, float b) { return game::minf(a, b); }
+    float maxf(float a, float b) { return game::maxf(a, b); }
+    float clampf(float v, float lo, float hi) { return game::clampf(v, lo, hi); }
+    float floatAt(const void* base, u32 offset) { return game::floatAt(base, offset); }
 
     const void* workBank(const soModuleEnumeration* m, u32 which)
     {
