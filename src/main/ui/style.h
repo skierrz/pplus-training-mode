@@ -87,51 +87,57 @@ namespace style {
     static const gfx::Rgba kTextDisabled = 0x7A8699FF;
     static const gfx::Rgba kInfoFill = 0x121822CC;
 
-    // ---- Native P+ in-match Lab Menu palette (Category Rail & Top Tabs) ----
-    static const gfx::Rgba kLabBorderColor = 0x000000FF;
-    static const gfx::Rgba kLabBevelLight = 0x5A96A890;
-    static const gfx::Rgba kLabBevelDark = 0x040B0EFF;
-    static const gfx::Rgba kLabBaseBg = 0x0C181FEE;
-    static const gfx::Rgba kLabHeaderTop = 0x1A3946F2;
-    static const gfx::Rgba kLabHeaderBot = 0x0E212AF2;
-    static const gfx::Rgba kLabRailTop = 0x0E1D25F5;
-    static const gfx::Rgba kLabRailBot = 0x081117F5;
-    static const gfx::Rgba kLabBaseTop = 0x102029EE;
-    static const gfx::Rgba kLabBaseBot = 0x091319EE;
-    static const gfx::Rgba kLabDescTopCol = 0x0F222AF5;
-    static const gfx::Rgba kLabDescBotCol = 0x081318F5;
-    static const gfx::Rgba kLabFooterTopCol = 0x10181EFF;
-    static const gfx::Rgba kLabFooterBotCol = 0x000000FF;
-    static const gfx::Rgba kLabDivider = 0x24424CFF;
-    static const gfx::Rgba kLabAccent = 0x2BB7ABFF;
-    static const gfx::Rgba kLabTealTop = 0x36CFC2FF;
-    static const gfx::Rgba kLabTealBot = 0x1A8C83FF;
-    static const gfx::Rgba kLabTealSheen = 0x8EF5EA90;
-    static const gfx::Rgba kLabTealEdge = 0x0D4D48FF;
-    static const gfx::Rgba kLabActiveTabText = 0x041B1AFF;
-    static const gfx::Rgba kLabTabTop = 0x1D3D4AFF;
-    static const gfx::Rgba kLabTabBot = 0x11252EFF;
-    static const gfx::Rgba kLabTabInactiveText = 0xB8CDD6FF;
-    static const gfx::Rgba kLabMutedText = 0x9FB4BDFF;
-    static const gfx::Rgba kLabFocusGold = 0xFFD300FF;
-    static const gfx::Rgba kLabGoldTop = 0xFFE24AFF;
-    static const gfx::Rgba kLabGoldBot = 0xD49300FF;
-    static const gfx::Rgba kLabGoldSheen = 0xFFF49EFF;
-    static const gfx::Rgba kLabGoldEdge = 0x7A5000FF;
-    static const gfx::Rgba kLabGoldInk = 0x0C1218FF;
-    static const gfx::Rgba kLabGoldInkMuted = 0x524014FF;
-    static const gfx::Rgba kLabPillBorder = 0x060B10FF;
-    static const gfx::Rgba kLabPillOnTop = 0x28AE3CFF;
-    static const gfx::Rgba kLabPillOnBot = 0x146C22FF;
-    static const gfx::Rgba kLabPillOnMutedTop = 0x1C4D26B0;
-    static const gfx::Rgba kLabPillOnMutedBot = 0x123218B0;
-    static const gfx::Rgba kLabPillOffTop = 0x1E2842FF;
-    static const gfx::Rgba kLabPillOffBot = 0x111728FF;
-    static const gfx::Rgba kLabPillOffMutedTop = 0x161D28B0;
-    static const gfx::Rgba kLabPillOffMutedBot = 0x0F141DB0;
+    // ---- Native P+ in-match Lab Menu palette (v1 Direction A smoked charcoal) ----
+    static const gfx::Rgba kLabBorderColor = 0x06080DFF;
+    static const gfx::Rgba kLabBevelLight = 0x2A3544A0;
+    static const gfx::Rgba kLabBevelDark = 0x05070BFF;
+    static const gfx::Rgba kLabBaseBg = 0x10151CE8;
+    static const gfx::Rgba kLabHeaderTop = 0x151B24F2;
+    static const gfx::Rgba kLabHeaderBot = 0x0E1219F2;
+    static const gfx::Rgba kLabRailTop = 0x11161EF2;
+    static const gfx::Rgba kLabRailBot = 0x0B0E14F2;
+    static const gfx::Rgba kLabBaseTop = 0x141A22E6;
+    static const gfx::Rgba kLabBaseBot = 0x0D1117E6;
+    static const gfx::Rgba kLabDescTopCol = 0x0F141BF5;
+    static const gfx::Rgba kLabDescBotCol = 0x090C11F5;
+    static const gfx::Rgba kLabFooterTopCol = 0x0B0E14FF;
+    static const gfx::Rgba kLabFooterBotCol = 0x05070BFF;
+    static const gfx::Rgba kLabDivider = 0x26303EFF;
+    static const gfx::Rgba kLabAccent = 0x2DB3A1FF;
+    static const gfx::Rgba kLabTealTop = 0x2DB3A1FF;
+    static const gfx::Rgba kLabTealBot = 0x209485FF;
+    static const gfx::Rgba kLabTealSheen = 0x7CE4D670;
+    static const gfx::Rgba kLabTealEdge = 0x125B52FF;
+    static const gfx::Rgba kLabActiveTabText = 0x061413FF;
+    static const gfx::Rgba kLabTabTop = 0x242C38FF;
+    static const gfx::Rgba kLabTabBot = 0x181E27FF;
+    static const gfx::Rgba kLabTabInactiveText = 0xC0CCD6FF;
+    static const gfx::Rgba kLabMutedText = 0x9AA7B4FF;
+    static const gfx::Rgba kLabFocusGold = 0xF4C830FF;
+    static const gfx::Rgba kLabGoldTop = 0xF7CE38FF;
+    static const gfx::Rgba kLabGoldBot = 0xDDA914FF;
+    static const gfx::Rgba kLabGoldSheen = 0xFFE98A80;
+    static const gfx::Rgba kLabGoldEdge = 0x8A6408FF;
+    static const gfx::Rgba kLabGoldInk = 0x0A0E14FF;
+    static const gfx::Rgba kLabGoldInkMuted = 0x524214FF;
+    static const gfx::Rgba kLabRowSlateTop = 0x2A323EE8;
+    static const gfx::Rgba kLabRowSlateBot = 0x212832E8;
+    static const gfx::Rgba kLabRowSlateEdge = 0x10141BE8;
+    static const gfx::Rgba kLabStripeCol = 0x5A6674E0;
+    static const gfx::Rgba kLabPillBorder = 0x080C12FF;
+    static const gfx::Rgba kLabPillFocusTop = 0xF6F9FCFF;
+    static const gfx::Rgba kLabPillFocusBot = 0xE2E8F0FF;
+    static const gfx::Rgba kLabPillOnTop = 0x24AA48FF;
+    static const gfx::Rgba kLabPillOnBot = 0x167830FF;
+    static const gfx::Rgba kLabPillOnMutedTop = 0x1A4C28B0;
+    static const gfx::Rgba kLabPillOnMutedBot = 0x11311AB0;
+    static const gfx::Rgba kLabPillOffTop = 0x1A2029EE;
+    static const gfx::Rgba kLabPillOffBot = 0x131820EE;
+    static const gfx::Rgba kLabPillOffMutedTop = 0x151A22B0;
+    static const gfx::Rgba kLabPillOffMutedBot = 0x0F131AB0;
     static const gfx::Rgba kLabPillOnSheen = 0xFFFFFF38;
-    static const gfx::Rgba kLabPillOffSheen = 0x6882B040;
-    static const gfx::Rgba kLabDescText = 0xC6D8E0FF;
+    static const gfx::Rgba kLabPillOffSheen = 0x50607430;
+    static const gfx::Rgba kLabDescText = 0xD2DCE4FF;
     static const gfx::Rgba kLabTitleTop = 0xFFFFFFFF;
     static const gfx::Rgba kLabTitleBot = 0xC6DCE6FF;
     static const gfx::Rgba kLabTitleEdge = 0x000000C0;
@@ -270,6 +276,14 @@ namespace style {
     // and 2px bottom shadow (zero 1px horizontal lines for flicker-free 480i).
     void drawBevelBar(float x, float y, float width, float height, gfx::Rgba topCol, gfx::Rgba botCol,
                       gfx::Rgba sheenCol, gfx::Rgba edgeCol);
+
+    // Stock P+ ~24 deg slanted vertical-gradient quad in 2D screen coordinates.
+    void drawSlantGradV(float x0Top, float x0Bot, float x1Top, float x1Bot, float y0, float y1, gfx::Rgba topCol,
+                        gfx::Rgba botCol);
+
+    // Twin P+ "//" diagonal stripes inside a slanted bar ending at `rightTopX`.
+    void drawDiagStripes(float rightTopX, float y0, float y1, float slantPx, float stripeW, float gap,
+                         gfx::Rgba color);
 
     // Fallback Brawl red cursor triangle pointing right (black outer frame +
     // crisp crimson fill + upper specular highlight).

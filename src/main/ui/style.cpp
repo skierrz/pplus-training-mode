@@ -1,5 +1,10 @@
 #include "main/ui/style.h"
 
+#ifdef __MWERKS__
+#include <GX/GXGeometry.h>
+#include <GX/GXHardware.h>
+#endif
+
 namespace tm {
 namespace ui {
 namespace style {
@@ -9,6 +14,34 @@ namespace style {
         gfx::fillGradV(x, y, width, height, topCol, botCol);
         gfx::fillRect(x, y, width, 2.0f, sheenCol);
         gfx::fillRect(x, y + height - 2.0f, width, 2.0f, edgeCol);
+    }
+
+    void drawSlantGradV(float x0Top, float x0Bot, float x1Top, float x1Bot, float y0, float y1, gfx::Rgba topCol,
+                        gfx::Rgba botCol)
+    {
+#ifdef __MWERKS__
+        gfx::prepare();
+        GXBegin(GX_QUADS, GX_VTXFMT1, 4);
+        gfx::vertex(x0Top, y0, topCol);
+        gfx::vertex(x1Top, y0, topCol);
+        gfx::vertex(x1Bot, y1, botCol);
+        gfx::vertex(x0Bot, y1, botCol);
+#else
+        float minX = x0Top < x0Bot ? x0Top : x0Bot;
+        float maxX = x1Top > x1Bot ? x1Top : x1Bot;
+        gfx::fillGradV(minX, y0, maxX - minX, y1 - y0, topCol, botCol);
+#endif
+    }
+
+    void drawDiagStripes(float rightTopX, float y0, float y1, float slantPx, float stripeW, float gap,
+                         gfx::Rgba color)
+    {
+        float x1 = rightTopX;
+        float x0 = x1 - stripeW;
+        drawSlantGradV(x0, x0 - slantPx, x1, x1 - slantPx, y0, y1, color, color);
+        x1 = x0 - gap;
+        x0 = x1 - stripeW;
+        drawSlantGradV(x0, x0 - slantPx, x1, x1 - slantPx, y0, y1, color, color);
     }
 
     void drawCursorTri(float x, float cy, float size)

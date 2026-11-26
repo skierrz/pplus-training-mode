@@ -13,6 +13,7 @@
 #include "host/test.h"
 #include "main/extra.h"
 #include "main/gfx/text.h"
+#include "main/lab.h"
 #include "main/settings.h"
 #include "main/storage/storage.h"
 #include "main/storage/settings_file.h"
@@ -599,26 +600,35 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK(strcmp(ctrls.options[2].name, "Rewind Button") == 0);
 
     const ui::Page& disp = ui::pages::kDisplayOptions;
-    REQUIRE(disp.count == 24);
+    REQUIRE(disp.count == 18);
+    CHECK(strcmp(disp.options[0].name, "Frame Meter") == 0);
     CHECK(strcmp(disp.options[1].name, "Input Viewer") == 0);
-    CHECK(strcmp(disp.options[2].name, "Theme") == 0);
-    CHECK_EQ(ui::pages::P_THEME, disp.options[2].max);
-    CHECK(strcmp(disp.options[3].name, "Hitboxes") == 0);
-    CHECK(strcmp(disp.options[4].name, "Hitbox Colors") == 0);
-    CHECK((disp.options[4].flags & ui::kFlagHideWhenDisabled) != 0);
-    CHECK(strcmp(disp.options[10].name, "DI Display") == 0);
-    CHECK(strcmp(disp.options[11].name, "DI Vector") == 0);
-    CHECK((disp.options[11].flags & ui::kFlagHideWhenDisabled) != 0);
-    CHECK(strcmp(disp.options[21].name, "Floating Meters") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_METERS, disp.options[21].max);
-    CHECK(strcmp(disp.options[22].name, "Advanced / Debug") == 0);
-    CHECK_EQ(ui::pages::P_DEBUG, disp.options[22].max);
-    CHECK(strcmp(disp.options[23].name, "Action Log") == 0);
+    CHECK(strcmp(disp.options[2].name, "Hitboxes") == 0);
+    CHECK(strcmp(disp.options[3].name, "Hitbox Colors") == 0);
+    CHECK((disp.options[3].flags & ui::kFlagHideWhenDisabled) != 0);
+    CHECK(strcmp(disp.options[9].name, "DI Display") == 0);
+    CHECK(strcmp(disp.options[10].name, "DI Vector") == 0);
+    CHECK((disp.options[10].flags & ui::kFlagHideWhenDisabled) != 0);
+    CHECK(strcmp(disp.options[11].name, "Stage Collision") == 0);
+    CHECK(strcmp(disp.options[14].name, "Floating Meters") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_METERS, disp.options[14].max);
+    CHECK(strcmp(disp.options[16].name, "Theme") == 0);
+    CHECK_EQ(ui::pages::P_THEME, disp.options[16].max);
+    CHECK(strcmp(disp.options[17].name, "Lab Debug") == 0);
+    CHECK_EQ(ui::pages::P_DEBUG, disp.options[17].max);
 
     const ui::Page& dbg = ui::pages::kDebug;
-    REQUIRE(dbg.count == 2);
-    CHECK(strcmp(dbg.options[0].name, "PSA Debugger") == 0);
-    CHECK(strcmp(dbg.options[1].name, "Debug Overlay") == 0);
+    REQUIRE(dbg.count == 8);
+    CHECK(strcmp(dbg.options[0].name, "P1 Info Display") == 0);
+    CHECK_EQ(ui::pages::P_HMN_INFO, dbg.options[0].max);
+    CHECK(strcmp(dbg.options[1].name, "CPU Info Display") == 0);
+    CHECK_EQ(ui::pages::P_CPU_INFO, dbg.options[1].max);
+    CHECK(strcmp(dbg.options[2].name, "PSA Debugger") == 0);
+    CHECK(strcmp(dbg.options[3].name, "Debug Overlay") == 0);
+    CHECK(strcmp(dbg.options[4].name, "Match HUD") == 0);
+    CHECK(strcmp(dbg.options[5].name, "Fighter Models") == 0);
+    CHECK(strcmp(dbg.options[6].name, "Stage Model") == 0);
+    CHECK(strcmp(dbg.options[7].name, "Effects") == 0);
 
     const ui::Page& cpuP = ui::pages::kCpuOptions;
     REQUIRE(cpuP.count == 14);
@@ -638,10 +648,10 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK(strcmp(osdP.options[10].name, "Shield Advantage") == 0);
 
     const ui::Page& scen = ui::pages::kScenarios;
-    REQUIRE(scen.count == 45);
-    CHECK(strcmp(scen.options[34].name, "Practice Mode") == 0);
-    CHECK(strcmp(scen.options[44].name, "Combo Trainer") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[44].max);
+    REQUIRE(scen.count == 51);
+    CHECK(strcmp(scen.options[40].name, "Practice Mode") == 0);
+    CHECK(strcmp(scen.options[50].name, "More Combo Options") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[50].max);
 
     const ui::Page& sc = ui::pages::kStageCast;
     REQUIRE(sc.count == 35);
@@ -1152,29 +1162,29 @@ TEST(lab_menu, show_inactive_fighters_scoped_to_stage_cast_only)
     }
     CHECK(static_cast<int>(st.cursor[ui::pages::P_STAGE_CAST]) > 8);
 
-    // Scenarios MUST still compact hidden preset/drill rows (only Preset [0] and Combo Trainer [44] visible).
+    // Scenarios MUST still compact hidden preset/drill rows (only Preset [0] and More Combo Options [50] visible).
     const u8 scenPath[] = {ui::pages::P_SCENARIOS};
     REQUIRE(ui::menuJump(menu, st, scenPath, 1));
     CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(44, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    CHECK_EQ(50, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(44, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    CHECK_EQ(50, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
 
-    // Context-scoped Tab 1: when a Tech Practice drill is active, Preset and Combo Trainer hide,
-    // leaving only the active drill's rows (Ledgedash: Practice Mode [34], Reset Ledge [38],
-    // Ledge Auto-Reset [39], Ledge Invuln [40]).
+    // Context-scoped Tab 1: when a Tech Practice drill is active, Preset and More Combo Options hide,
+    // leaving only the active drill's rows (Ledgedash: Practice Mode [40], Reset Ledge [44],
+    // Ledge Auto-Reset [45], Ledge Invuln [46]).
     ui::pages::practiceMenuState()->activeDrill = 1;
     REQUIRE(ui::menuJump(menu, st, scenPath, 1));
-    CHECK_EQ(34, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
-    ui::menuStep(menu, st, inDown);
-    CHECK_EQ(38, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
-    ui::menuStep(menu, st, inDown);
-    CHECK_EQ(39, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
-    ui::menuStep(menu, st, inDown);
     CHECK_EQ(40, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(40, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    CHECK_EQ(44, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(45, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(46, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(46, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::pages::practiceMenuState()->activeDrill = 0;
 
     // CPU > Counters & Reversals: Counter Mode starts at Single Action (1), hiding Custom Pools,
@@ -1524,34 +1534,34 @@ TEST(lab_menu, progressive_disclosure_hides_child_rows_until_parent_enabled)
     main::settings().display.hitboxes = 0;
     main::settings().display.heatmap = 0;
     main::settings().general.diDisplay = 0;
-    // Row 0 Match HUD -> 1 Input Viewer -> 2 Theme -> 3 Hitboxes -> 5 Hitbox Heatmap -> 9 Grab -> 10 DI Display -> 12 Stage Coll
-    static const int kDispCompact[] = {0, 1, 2, 3, 5, 9, 10, 12};
+    // Row 0 Frame Meter -> 1 Input Viewer -> 2 Hitboxes -> 4 Hitbox Heatmap -> 8 Grab -> 9 DI Display -> 11 Stage Coll -> 12 P1 Overlays
+    static const int kDispCompact[] = {0, 1, 2, 4, 8, 9, 11, 12};
     CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_DISPLAY]));
     for (int i = 1; i < 8; i++)
     {
         ui::menuStep(menu, st, inDown);
         CHECK_EQ(kDispCompact[i], static_cast<int>(st.cursor[ui::pages::P_DISPLAY]));
     }
-    // Enable Hitboxes -> row 4 (Hitbox Colors) becomes reachable right under Hitboxes!
+    // Enable Hitboxes -> row 3 (Hitbox Colors) becomes reachable right under Hitboxes!
     main::settings().display.hitboxes = 1;
-    st.cursor[ui::pages::P_DISPLAY] = 3;
+    st.cursor[ui::pages::P_DISPLAY] = 2;
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(4, static_cast<int>(st.cursor[ui::pages::P_DISPLAY]));
+    CHECK_EQ(3, static_cast<int>(st.cursor[ui::pages::P_DISPLAY]));
 
-    // 2. CPU > DI & SDI: Custom DI rows (1..3) hidden unless tdi==Custom; SDI rows (5..6) hidden while sdiAmount==0.
+    // 2. CPU > DI & SDI: Pick DI Angle (row 1) hidden unless tdi==Custom; SDI rows (3..4) hidden while sdiAmount==0.
     const u8 diPath[] = {ui::pages::P_CPU, ui::pages::P_CPU_DI};
     REQUIRE(ui::menuJump(menu, st, diPath, 2));
     main::settings().cpu.options.tdi = cpu::kTdiRandom;
     main::settings().cpu.options.sdiAmount = 0;
     CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_CPU_DI]));
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(4, static_cast<int>(st.cursor[ui::pages::P_CPU_DI])); // jumped past rows 1..3 to SDI Inputs
+    CHECK_EQ(2, static_cast<int>(st.cursor[ui::pages::P_CPU_DI])); // jumped past row 1 to SDI Inputs
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(7, static_cast<int>(st.cursor[ui::pages::P_CPU_DI])); // jumped past rows 5 & 6 to ASDI Direction
+    CHECK_EQ(5, static_cast<int>(st.cursor[ui::pages::P_CPU_DI])); // jumped past rows 3 & 4 to ASDI Direction
     main::settings().cpu.options.sdiAmount = 2;
-    st.cursor[ui::pages::P_CPU_DI] = 4;
+    st.cursor[ui::pages::P_CPU_DI] = 2;
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(5, static_cast<int>(st.cursor[ui::pages::P_CPU_DI]));
+    CHECK_EQ(3, static_cast<int>(st.cursor[ui::pages::P_CPU_DI]));
 
     // 3. Recording: post-save rows (1..18) hidden when !positionsSaved; only row 0 visible.
     host::fakes::recording().positions = false;
@@ -1752,31 +1762,211 @@ TEST(menu, tech_practice_lab_rows_gate_by_active_drill)
     ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
     memset(pm, 0, sizeof(*pm));
     const ui::Page& scen = ui::pages::kScenarios;
-    // Rows 34..43 are the 10 conditional Tech Practice rows.
-    for (int r = 34; r <= 43; r++)
+    // Rows 40..49 are the 10 conditional Tech Practice rows.
+    for (int r = 40; r <= 49; r++)
     {
         CHECK((scen.options[r].flags & (ui::kFlagScratch | ui::kFlagHideWhenDisabled))
               == (ui::kFlagScratch | ui::kFlagHideWhenDisabled));
         CHECK(!scen.options[r].enabled());
     }
-    // Powershield (5): Mode (34), Attack Mode (35), Shot Height (36, proj only), Cadence (37).
+    // Powershield (5): Mode (40), Attack Mode (41), Shot Height (42, proj only), Cadence (43).
     pm->activeDrill = 5;
     pm->psAttackMode = 0;
-    CHECK(scen.options[34].enabled() && scen.options[35].enabled() && scen.options[36].enabled()
-          && scen.options[37].enabled() && !scen.options[38].enabled());
+    CHECK(scen.options[40].enabled() && scen.options[41].enabled() && scen.options[42].enabled()
+          && scen.options[43].enabled() && !scen.options[44].enabled());
     pm->psAttackMode = 1;
-    CHECK(scen.options[35].enabled() && !scen.options[36].enabled() && scen.options[37].enabled());
-    // Ledgedash (1): Mode (34), Reset Ledge (38), Ledge Auto-Reset (39), Ledge Invuln (40).
+    CHECK(scen.options[41].enabled() && !scen.options[42].enabled() && scen.options[43].enabled());
+    // Ledgedash (1): Mode (40), Reset Ledge (44), Ledge Auto-Reset (45), Ledge Invuln (46).
     pm->activeDrill = 1;
-    CHECK(scen.options[34].enabled() && !scen.options[35].enabled() && scen.options[38].enabled()
-          && scen.options[39].enabled() && scen.options[40].enabled() && !scen.options[41].enabled());
-    // L-Cancel (3) -> row 41; Float/Hover (4) -> row 42; Wavedash (2) -> row 43.
+    CHECK(scen.options[40].enabled() && !scen.options[41].enabled() && scen.options[44].enabled()
+          && scen.options[45].enabled() && scen.options[46].enabled() && !scen.options[47].enabled());
+    // L-Cancel (3) -> row 47; Float/Hover (4) -> row 48; Wavedash (2) -> row 49.
     pm->activeDrill = 3;
-    CHECK(scen.options[34].enabled() && scen.options[41].enabled() && !scen.options[42].enabled());
+    CHECK(scen.options[40].enabled() && scen.options[47].enabled() && !scen.options[48].enabled());
     pm->activeDrill = 4;
-    CHECK(scen.options[34].enabled() && !scen.options[41].enabled() && scen.options[42].enabled());
+    CHECK(scen.options[40].enabled() && !scen.options[47].enabled() && scen.options[48].enabled());
     pm->activeDrill = 2;
-    CHECK(scen.options[34].enabled() && scen.options[43].enabled() && !scen.options[41].enabled());
+    CHECK(scen.options[40].enabled() && scen.options[49].enabled() && !scen.options[47].enabled());
     memset(pm, 0, sizeof(*pm));
     main::setExtraHooks(NULL);
+}
+
+TEST(lab_menu, stream1_damage_sync_and_one_tap_a_zero_reset)
+{
+    bootLab();
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+
+    // Unlocked damage syncs live match % into menu setting without mutating locked sides.
+    u16 p1Pct = 10;
+    u16 cpuPct = 20;
+    CHECK(lab::syncUnlockedPercentValue(p1Pct, false, 67.8f));
+    CHECK_EQ(67, static_cast<int>(p1Pct));
+    CHECK(!lab::syncUnlockedPercentValue(cpuPct, true, 140.0f));
+    CHECK_EQ(20, static_cast<int>(cpuPct));
+    CHECK(lab::syncUnlockedPercentValue(p1Pct, false, -5.0f));
+    CHECK_EQ(0, static_cast<int>(p1Pct));
+    CHECK(lab::syncUnlockedPercentValue(p1Pct, false, 1250.0f));
+    CHECK_EQ(999, static_cast<int>(p1Pct));
+
+    // 1-tap A on Lab > P1 Damage resets playerPercent to 0 and plays confirm sound.
+    main::settings().general.playerPercent = 84;
+    st.depth = 0;
+    st.stack[0] = ui::pages::P_GENERAL;
+    st.railFocus = false;
+    st.cursor[ui::pages::P_GENERAL] = 1; // P1 Damage
+    host::log::clear();
+    ui::MenuInput inA = {0, 0, 0, 0, true, false, false, false};
+    CHECK(ui::menuStep(menu, st, inA));
+    CHECK_EQ(0, static_cast<int>(main::settings().general.playerPercent));
+    CHECK_EQ(1, sounds(game::kSoundConfirm));
+
+    // 1-tap A on CPU > CPU Damage resets cpu.percent to 0 and plays confirm sound.
+    main::settings().cpu.percent = 112;
+    const u8 cpuPath[] = {ui::pages::P_CPU};
+    REQUIRE(ui::menuJump(menu, st, cpuPath, 1));
+    CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_CPU]));
+    host::log::clear();
+    CHECK(ui::menuStep(menu, st, inA));
+    CHECK_EQ(0, static_cast<int>(main::settings().cpu.percent));
+    CHECK_EQ(1, sounds(game::kSoundConfirm));
+
+    // Unrelated kKindInt row (P1 Load Random %) must NOT reset on A.
+    main::settings().recording.randomPercent[0] = 35;
+    const u8 genPath[] = {ui::pages::P_GENERAL};
+    REQUIRE(ui::menuJump(menu, st, genPath, 1));
+    st.cursor[ui::pages::P_GENERAL] = 3; // P1 Load Random %
+    host::log::clear();
+    CHECK(ui::menuStep(menu, st, inA));
+    CHECK_EQ(35, static_cast<int>(main::settings().recording.randomPercent[0]));
+    CHECK_EQ(0, sounds(game::kSoundConfirm));
+    storage::detach();
+}
+
+TEST(lab_menu, stream1_cstick_live_di_aiming_and_display_lab_debug_structure)
+{
+    bootLab();
+    main::setExtraHooks(&kNoHooks);
+    const ui::MenuDef& menu = ui::labMenu();
+
+    // Non-modal C-Stick live DI aiming: tilts map to [-100, +100] on the unit circle,
+    // while releasing to neutral (allowNeutral=false) preserves the aimed angle.
+    s8 dx = 100, dy = 0;
+    CHECK(lab::stickToCustomDi(0.78f, 0.62f, false, dx, dy));
+    CHECK_EQ(78, static_cast<int>(dx));
+    CHECK_EQ(62, static_cast<int>(dy));
+    CHECK(!lab::stickToCustomDi(0.05f, -0.05f, false, dx, dy));
+    CHECK_EQ(78, static_cast<int>(dx));
+    CHECK_EQ(62, static_cast<int>(dy));
+    // Over-unit diagonal clamps cleanly to unit circle (1, 1) -> (~71, ~71).
+    CHECK(lab::stickToCustomDi(1.0f, 1.0f, false, dx, dy));
+    CHECK_EQ(71, static_cast<int>(dx));
+    CHECK_EQ(71, static_cast<int>(dy));
+    // Control-Stick modal fallback (allowNeutral=true) allows locking neutral (0, 0).
+    CHECK(lab::stickToCustomDi(0.0f, 0.0f, true, dx, dy));
+    CHECK_EQ(0, static_cast<int>(dx));
+    CHECK_EQ(0, static_cast<int>(dy));
+
+    // CPU > DI & SDI has no redundant Custom DI X / Y rows.
+    const ui::Page& di = ui::pages::kCpuDi;
+    REQUIRE(di.count == 6);
+    for (int i = 0; i < di.count; i++)
+    {
+        CHECK(strcmp(di.options[i].name, "Custom DI X") != 0);
+        CHECK(strcmp(di.options[i].name, "Custom DI Y") != 0);
+    }
+
+    // Display default visible list is exact 13-row player-first order.
+    main::settings().display.hitboxes = 0;
+    main::settings().display.heatmap = 0;
+    main::settings().general.diDisplay = 0;
+    static const char* const kExpectedDisp[13] = {
+        "Frame Meter", "Input Viewer", "Hitboxes", "Hitbox Heatmap", "Grab / Tether Boxes",
+        "DI Display", "Stage Collision", "P1 Overlays", "CPU Overlays", "Floating Meters",
+        "Ledgedash HUD", "Theme", "Lab Debug"
+    };
+    const ui::Page& disp = ui::pages::kDisplayOptions;
+    int vis = 0;
+    for (int i = 0; i < disp.count; i++)
+    {
+        bool hidden = (disp.options[i].flags & ui::kFlagHideWhenDisabled) != 0
+                      && disp.options[i].enabled != NULL && !disp.options[i].enabled();
+        if (!hidden)
+        {
+            REQUIRE(vis < 13);
+            CHECK(strcmp(disp.options[i].name, kExpectedDisp[vis]) == 0);
+            vis++;
+        }
+    }
+    CHECK_EQ(13, vis);
+
+    // Display > Lab Debug exposes exact 8 debug/visual rows.
+    static const char* const kExpectedDbg[8] = {
+        "P1 Info Display", "CPU Info Display", "PSA Debugger", "Debug Overlay",
+        "Match HUD", "Fighter Models", "Stage Model", "Effects"
+    };
+    const ui::Page& dbg = ui::pages::kDebug;
+    REQUIRE(dbg.count == 8);
+    for (int i = 0; i < 8; i++)
+    {
+        CHECK(strcmp(dbg.options[i].name, kExpectedDbg[i]) == 0);
+    }
+
+    main::setExtraHooks(NULL);
+    storage::detach();
+}
+
+TEST(lab_menu, stream1_combo_lab_inline_rows_on_scenarios)
+{
+    bootLab();
+    main::setExtraHooks(&kNoHooks);
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+
+    ui::pages::ScenarioMenuState* sm = ui::pages::scenarioMenuState();
+    memset(sm, 0, sizeof(*sm));
+    sm->preset = ui::pages::kPresetComboLab;
+    sm->autoReset = 1;
+    main::settings().cpu.options.control = cpu::kControlLab;
+
+    const ui::Page& scen = ui::pages::kScenarios;
+    static const char* const kExpectedComboLab[11] = {
+        "Preset", "Auto-Reset", "Side",
+        "Post-Hitstun", "Reset Delay", "Trajectory DI", "Tech Option", "Reset P1", "Noclip Reset",
+        "Reset Now", "More Combo Options"
+    };
+    int vis = 0;
+    for (int i = 0; i < scen.count; i++)
+    {
+        bool hidden = (scen.options[i].flags & ui::kFlagHideWhenDisabled) != 0
+                      && scen.options[i].enabled != NULL && !scen.options[i].enabled();
+        if (!hidden)
+        {
+            REQUIRE(vis < 11);
+            CHECK(strcmp(scen.options[i].name, kExpectedComboLab[vis]) == 0);
+            vis++;
+        }
+    }
+    CHECK_EQ(11, vis);
+
+    // Editing inline Post-Hitstun and Noclip Reset mutates main::settings().comboTrainer directly.
+    const u8 scenPath[] = {ui::pages::P_SCENARIOS};
+    REQUIRE(ui::menuJump(menu, st, scenPath, 1));
+    ui::MenuInput inRight = {0, 0, 0, 1, false, false, false, false};
+    st.cursor[ui::pages::P_SCENARIOS] = 3; // Post-Hitstun
+    main::settings().comboTrainer.postHitstunEscape = main::kComboEscapeDodge;
+    CHECK(ui::menuStep(menu, st, inRight));
+    CHECK_EQ(static_cast<int>(main::kComboEscapeJumpInvuln),
+             static_cast<int>(main::settings().comboTrainer.postHitstunEscape));
+
+    st.cursor[ui::pages::P_SCENARIOS] = 8; // Noclip Reset
+    main::settings().comboTrainer.noclip = 0;
+    CHECK(ui::menuStep(menu, st, inRight));
+    CHECK_EQ(1, static_cast<int>(main::settings().comboTrainer.noclip));
+
+    sm->preset = ui::pages::kPresetOff;
+    main::setExtraHooks(NULL);
+    storage::detach();
 }

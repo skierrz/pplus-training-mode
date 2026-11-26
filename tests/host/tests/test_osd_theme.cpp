@@ -178,8 +178,8 @@ TEST(osd_theme, display_theme_menu_navigation_and_descriptions)
     const ui::Page& displayPage = *menu.pages[ui::pages::P_DISPLAY];
     const ui::Page& themePage = *menu.pages[ui::pages::P_THEME];
 
-    // Streamlined Display places Theme at row 2 near the top for quick access.
-    const u8 themeRow = 2;
+    // Player-first Display places Theme at raw row 16 (visible row 11 at default).
+    const u8 themeRow = 16;
     CHECK_STR("Theme", displayPage.options[themeRow].name);
     CHECK_EQ(static_cast<int>(ui::kKindMenu), static_cast<int>(displayPage.options[themeRow].kind));
     CHECK_EQ(static_cast<int>(ui::pages::P_THEME), static_cast<int>(displayPage.options[themeRow].max));

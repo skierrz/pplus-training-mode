@@ -93,9 +93,9 @@ INFO_PRESET, INFO_SIZE = 0, 1
 CONTROLS_MENU_BUTTON, CONTROLS_CODE_MENU, CONTROLS_MENU_STYLE = 7, 8, 9
 OSD_POWERSHIELD = 14  # visible row at default (OSD Preset=Essentials; Advantage Tolerance visible at 12)
 OSD_ROWS = 26         # visible OSD rows at default (all 26 rows visible under Essentials defaults)
-DISPLAY_HMN_INFO, DISPLAY_CPU_INFO, DISPLAY_DEBUG = 13, 14, 17  # visible Display rows at default
-DISPLAY_ROWS = 19     # visible Display rows at default (Hitbox Colors, Heatmap*, DI Vector hidden; Action Log last)
-DEBUG_OVERLAY_ROW = 1  # Display > Advanced / Debug: 0 PSA Debugger, 1 Debug Overlay
+DISPLAY_DEBUG = 12    # visible Display row at default (Lab Debug is the 13th/last row)
+DISPLAY_ROWS = 13     # visible Display rows at default (Frame Meter .. Lab Debug)
+DEBUG_HMN_INFO, DEBUG_CPU_INFO, DEBUG_OVERLAY_ROW = 0, 1, 3  # Display > Lab Debug: P1 Info, CPU Info, PSA, Debug Overlay
 PRESETS = {"none": 0, "state": 1, "ledge": 2, "damage": 3, "debug": 4}
 SIZES = {"small": 0, "medium": 1, "large": 2}
 # main::Settings offsets (src/main/settings.h; the module checks them at build time).
@@ -1752,6 +1752,17 @@ def cmd_test_lab(rest):
                 step = "CPU Options: CPU Percent, key repeat, lock"
                 lab.main_to(MAIN_CPU)
                 lab.tap(["A"])
+                # Opening the menu with Lock CPU Damage off syncs CPU Damage to live match %;
+                # 1-tap A resets it cleanly to 0% before checking clamp at 0.
+                synced_cpu = lab.setting(SET_CPU_PERCENT, half=True)
+                live_cpu = int(lab.f.damage(cpu))
+                if synced_cpu != live_cpu:
+                    raise LabError(f"CPU Percent did not sync to live damage on open ({synced_cpu} != {live_cpu})")
+                if synced_cpu != 0:
+                    lab.tap(["A"])
+                    if lab.setting(SET_CPU_PERCENT, half=True) != 0 or lab.f.damage(cpu) != 0.0:
+                        raise LabError(f"1-tap A reset on CPU Percent failed (setting {lab.setting(SET_CPU_PERCENT, half=True)}, live {lab.f.damage(cpu)})")
+                    note(f"CPU Percent synced to live {live_cpu}% on open and 1-tap A reset it to 0%")
                 # Values clamp at their ends (no wrap): Left at 0 stays 0.
                 lab.tap(stick=LEFT)
                 if lab.setting(SET_CPU_PERCENT, half=True) != 0:
@@ -1805,7 +1816,9 @@ def cmd_test_lab(rest):
                 lab.open_menu()
                 lab.main_to(MAIN_DISPLAY)
                 lab.tap(["A"])
-                lab.down(DISPLAY_HMN_INFO)
+                lab.down(DISPLAY_DEBUG)
+                lab.tap(["A"])  # Lab Debug
+                lab.down(DEBUG_HMN_INFO)
                 lab.tap(["A"])
                 lab.set_choice(SET_HMN_INFO, PRESETS["state"])
                 lab.down(INFO_SIZE - INFO_PRESET)
@@ -1814,8 +1827,8 @@ def cmd_test_lab(rest):
                 if rows[:4] != [2, 3, 32, 35]:
                     raise LabError(f"Basic preset set the rows to {rows}")
                 shot("lab-menu-player-info")
-                lab.tap(["B"])  # back to Display (row DISPLAY_HMN_INFO)
-                lab.down(DISPLAY_CPU_INFO - DISPLAY_HMN_INFO)
+                lab.tap(["B"])  # back to Lab Debug (row DEBUG_HMN_INFO)
+                lab.down(DEBUG_CPU_INFO - DEBUG_HMN_INFO)
                 lab.tap(["A"])
                 lab.set_choice(SET_CPU_INFO, PRESETS["damage"])
                 lab.down(INFO_SIZE - INFO_PRESET)
@@ -1831,10 +1844,8 @@ def cmd_test_lab(rest):
                 lab.set_choice(SET_CPU_INFO + 2, row1)
                 note(f"CPU Info Display row 1: right from {IV_SYS_L} skipped unavailable {IV_ENG_C} to {IV_SYS_C}; back to {row1}")
                 note(f"info presets: HMN rows {rows}, CPU rows {list(emu.read(lab.settings + SET_CPU_INFO + 2, 8))}")
-                lab.tap(["B"])  # back to Display (row DISPLAY_CPU_INFO)
-                lab.down(DISPLAY_DEBUG - DISPLAY_CPU_INFO)
-                lab.tap(["A"])  # Advanced / Debug
-                lab.down(DEBUG_OVERLAY_ROW)
+                lab.tap(["B"])  # back to Lab Debug (row DEBUG_CPU_INFO)
+                lab.down(DEBUG_OVERLAY_ROW - DEBUG_CPU_INFO)
                 lab.toggle_off(SET_OVERLAY)
                 lab.close_menu()
                 nav.resume_training(emu)
@@ -1917,7 +1928,7 @@ def cmd_test_lab(rest):
                 moves = len(re.findall(r"\] ui: sound 0 ", emu.synced_log_text()[pos:]))
                 shot("lab-display-last-row")
                 note(f"Display Options: {DISPLAY_ROWS + 2} downs from the top moved the cursor {moves} rows "
-                     f"(to Action Log, the last)")
+                     f"(to Lab Debug, the last)")
                 if moves != DISPLAY_ROWS - 1:
                     raise LabError(f"down moved {moves} rows on Display Options, want {DISPLAY_ROWS - 1} "
                                    "(stopping on the last row)")

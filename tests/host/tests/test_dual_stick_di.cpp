@@ -415,14 +415,14 @@ TEST(dual_stick_di, settings_layout_menu_row_and_storage_round_trip)
     CHECK_EQ(64u, sizeof(main::CpuSettings));
     CHECK_EQ(464u, sizeof(main::Settings));
 
-    // Dual-Stick SDI lives on CPU > DI & SDI (P_CPU_DI, row 6); counters live on P_CPU_COUNTERS;
+    // Dual-Stick SDI lives on CPU > DI & SDI (P_CPU_DI, row 4); counters live on P_CPU_COUNTERS;
     // P+ Tech OSD lives on P_OSD_MENU (row 5).
     const ui::Page& diPage = ui::pages::kCpuDi;
-    REQUIRE(diPage.count == 8);
-    CHECK(strcmp(diPage.options[6].name, "Dual-Stick SDI") == 0);
-    CHECK_EQ(ui::kKindToggle, diPage.options[6].kind);
-    CHECK_EQ(0, diPage.options[6].def);
-    CHECK(strcmp(diPage.options[7].name, "ASDI Direction") == 0);
+    REQUIRE(diPage.count == 6);
+    CHECK(strcmp(diPage.options[4].name, "Dual-Stick SDI") == 0);
+    CHECK_EQ(ui::kKindToggle, diPage.options[4].kind);
+    CHECK_EQ(0, diPage.options[4].def);
+    CHECK(strcmp(diPage.options[5].name, "ASDI Direction") == 0);
 
     const ui::Page& cntPage = ui::pages::kCpuCounters;
     REQUIRE(cntPage.count == 12);

@@ -936,8 +936,8 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     CHECK(host::log::contains("drills: row 16 DACUS"));
     CHECK(host::log::contains("drills: row 17 B-Reverse / Wavebounce"));
     CHECK(host::log::contains("drills: row 18 Float / Hover & DJC"));
-    CHECK(host::log::contains("drills: row 19 Cancel Sprint"));
-    CHECK(host::log::contains("drills: row 25 Combo-Break Rush"));
+    CHECK(host::log::contains("drills: row 19 Cancel Practice: Endurance"));
+    CHECK(host::log::contains("drills: row 25 Break the Targets!"));
     CHECK(host::log::contains("drills: row 26 Snake Infinite Recovery"));
     CHECK(host::log::contains("drills: row 27 Browse Recordings"));
 

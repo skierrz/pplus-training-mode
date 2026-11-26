@@ -161,20 +161,22 @@ def pause_menu_behind_panel(xscale):
 # the plugin keeps every element's 4:3 proportions, centred on x 320.
 
 PANEL = {"left": 36.0, "right": 604.0, "top": 26.0, "bottom": 432.0}
-BORDER = (0, 0, 0)
-TITLE_TOP, TITLE_BOT, TITLE_Y, TITLE_ALPHA = (26, 57, 70), (14, 33, 42), (29.0, 57.0), 0xF2 / 255.0
-RAIL_TOP, RAIL_BOT, RAIL_Y, RAIL_ALPHA = (14, 29, 37), (8, 17, 23), (58.0, 373.0), 0xF5 / 255.0
-ROWS_TOP, ROWS_BOT, ROWS_Y, BAND_ALPHA = (16, 32, 41), (9, 19, 25), (58.0, 373.0), 0xEE / 255.0
-ROW_BOX_TOP, ROW_BOX_BOT, BOX_ALPHA = (30, 40, 66), (17, 23, 40), 1.0
-ROW_BOX_ON_TOP, ROW_BOX_ON_BOT, BOX_ON_ALPHA = (40, 174, 60), (20, 108, 34), 1.0
-ROW_BOX, ROW_BOX_ON = (24, 32, 53), (30, 141, 47)
-GOLD_TOP, GOLD_BOT, GOLD_ALPHA = (255, 226, 74), (212, 147, 0), 1.0
-SCROLL_TRACK = (36, 66, 76)
-THUMB, THUMB_ALPHA = (43, 183, 171), 1.0
+BORDER = (6, 8, 13)
+TITLE_TOP, TITLE_BOT, TITLE_Y, TITLE_ALPHA = (21, 27, 36), (14, 18, 25), (29.0, 57.0), 0xF2 / 255.0
+RAIL_TOP, RAIL_BOT, RAIL_Y, RAIL_ALPHA = (17, 22, 30), (11, 14, 20), (58.0, 373.0), 0xF2 / 255.0
+ROWS_TOP, ROWS_BOT, ROWS_Y, BAND_ALPHA = (20, 26, 34), (13, 17, 23), (58.0, 373.0), 0xE6 / 255.0
+ROW_SLATE_TOP, ROW_SLATE_BOT, ROW_SLATE_ALPHA = (42, 50, 62), (33, 40, 50), 0xE8 / 255.0
+ROW_BOX_TOP, ROW_BOX_BOT, BOX_ALPHA = (26, 32, 41), (19, 24, 32), 0xEE / 255.0
+ROW_BOX_FOCUS_TOP, ROW_BOX_FOCUS_BOT, BOX_FOCUS_ALPHA = (246, 249, 252), (226, 232, 240), 1.0
+ROW_BOX_ON_TOP, ROW_BOX_ON_BOT, BOX_ON_ALPHA = (36, 170, 72), (22, 120, 48), 1.0
+ROW_BOX, ROW_BOX_ON = (23, 28, 37), (29, 145, 60)
+GOLD_TOP, GOLD_BOT, GOLD_ALPHA = (247, 206, 56), (221, 169, 20), 1.0
+SCROLL_TRACK = (38, 48, 62)
+THUMB, THUMB_ALPHA = (39, 164, 147), 1.0
 VISIBLE_ROWS = 11
 ROW_TOP, ROW_PITCH, ROW_H = 63.0, 28.0, 23.0
-NAME_X, ROW_CAP = 216.0, 10.5
-TITLE_X, TITLE_CAP_TOP, TITLE_CAP = 48.0, 36.5, 13.0
+NAME_X, ROW_CAP = 220.0, 10.5
+TITLE_X, TITLE_CAP_TOP, TITLE_CAP = 48.0, 37.0, 12.0
 HIGHLIGHT_X = (203.0, 581.0)
 BOX_X = (410.0, 577.0)
 SCROLL_X, SCROLL_W, SCROLL_TOP, SCROLL_H = 586.0, 8.0, 63.0, 303.0
@@ -452,7 +454,7 @@ def check_menu(closed_path, open_path, xscale, cursor_row, count, disabled_rows=
 
     # Sample header, rail, and right-pane gutters guaranteed free of text and highlights.
     for name, top_c, bot_c, band_y, want_alpha, rect in (
-        ("title band", TITLE_TOP, TITLE_BOT, TITLE_Y, TITLE_ALPHA, (280, 32, 460, 52)),
+        ("title band", TITLE_TOP, TITLE_BOT, TITLE_Y, TITLE_ALPHA, (405, 34, 475, 52)),
         ("rail band", RAIL_TOP, RAIL_BOT, RAIL_Y, RAIL_ALPHA, (44, 354, 192, 370)),
         ("rows band", ROWS_TOP, ROWS_BOT, ROWS_Y, BAND_ALPHA, (582, 250, 585, 365)),
     ):
@@ -463,11 +465,11 @@ def check_menu(closed_path, open_path, xscale, cursor_row, count, disabled_rows=
     top = ROW_TOP + cursor_row * ROW_PITCH
     gold_mid = grad_colour(GOLD_TOP, GOLD_BOT, top, top + ROW_H, top + ROW_H * 0.5)
     if on_box_row == cursor_row:
-        pill_mid = grad_colour(ROW_BOX_ON_TOP, ROW_BOX_ON_BOT, top + 1.0, top + 22.0, top + ROW_H * 0.5)
+        pill_mid = grad_colour(ROW_BOX_ON_TOP, ROW_BOX_ON_BOT, top + 2.0, top + 21.0, top + ROW_H * 0.5)
         box_layer = (pill_mid, BOX_ON_ALPHA)
     else:
-        pill_mid = grad_colour(ROW_BOX_TOP, ROW_BOX_BOT, top + 1.0, top + 22.0, top + ROW_H * 0.5)
-        box_layer = (pill_mid, BOX_ALPHA)
+        pill_mid = grad_colour(ROW_BOX_FOCUS_TOP, ROW_BOX_FOCUS_BOT, top + 2.0, top + 21.0, top + ROW_H * 0.5)
+        box_layer = (pill_mid, BOX_FOCUS_ALPHA)
     rect = row_rect(cursor_row, 535, 560)
     layers = [box_layer] if cursor_box else [(gold_mid, GOLD_ALPHA)]
     exp = predicted(closed, rect, layers)
@@ -475,13 +477,13 @@ def check_menu(closed_path, open_path, xscale, cursor_row, count, disabled_rows=
     add("value pill on cursor" if cursor_box else "highlight (row without a box)", rounded(exp), rounded(got),
         close(exp, got, tol_colour))
 
-    # Full-row beveled metallic gold highlight bar sampled in the gutter
-    # between row name text and value pill (clear of dark text and pill).
-    rect = row_rect(cursor_row, 395, 407)
+    # Full-row Solo-Gold highlight bar sampled in the gutter between row name
+    # text and the diagonal stripes / value pill (clear of dark text and stripes).
+    rect = row_rect(cursor_row, 378, 388)
     exp = predicted(closed, rect, [(gold_mid, GOLD_ALPHA)])
     got = opened.mean(*rect)
     add("highlight gold bar", rounded(exp), rounded(got), close(exp, got, tol_colour))
-    gold_sx = opened.sx(401.0)
+    gold_sx = opened.sx(383.0)
     ys = [y for y in range(opened.sy(top - 4), opened.sy(top + ROW_H + 4))
           if is_gold_bar(opened.px(gold_sx, y))]
     if ys:
@@ -491,30 +493,40 @@ def check_menu(closed_path, open_path, xscale, cursor_row, count, disabled_rows=
     else:
         add("highlight top, height", (round(top, 1), ROW_H), None, False)
 
-    for name, row, top_c, bot_c, alpha in (
-        ("Off value box", off_box_row, ROW_BOX_TOP, ROW_BOX_BOT, BOX_ALPHA),
-        ("On value box", on_box_row, ROW_BOX_ON_TOP, ROW_BOX_ON_BOT, BOX_ON_ALPHA),
+    for name, row, top_c, bot_c, alpha, is_off in (
+        ("Off value box", off_box_row, ROW_BOX_TOP, ROW_BOX_BOT, BOX_ALPHA, True),
+        ("On value box", on_box_row, ROW_BOX_ON_TOP, ROW_BOX_ON_BOT, BOX_ON_ALPHA, False),
     ):
         if row is None:
             continue
         rtop = ROW_TOP + row * ROW_PITCH
         rect = row_rect(row, 535, 560)
-        pill_mid = grad_colour(top_c, bot_c, rtop + 2.0, rtop + 21.0, rtop + ROW_H * 0.5)
-        exp = predicted(closed, rect, [(pill_mid, alpha)])
+        use_top, use_bot, use_a = (ROW_BOX_FOCUS_TOP, ROW_BOX_FOCUS_BOT, BOX_FOCUS_ALPHA) if (is_off and row == cursor_row) else (top_c, bot_c, alpha)
+        pill_mid = grad_colour(use_top, use_bot, rtop + 2.0, rtop + 21.0, rtop + ROW_H * 0.5)
+        b_bg = grad_colour(ROWS_TOP, ROWS_BOT, ROWS_Y[0], ROWS_Y[1], rtop + ROW_H * 0.5)
+        s_bg = grad_colour(ROW_SLATE_TOP, ROW_SLATE_BOT, rtop, rtop + ROW_H, rtop + ROW_H * 0.5)
+        box_layers = [(b_bg, BAND_ALPHA), (s_bg, ROW_SLATE_ALPHA), (pill_mid, use_a)] if use_a < 1.0 else [(pill_mid, use_a)]
+        exp = predicted(closed, rect, box_layers)
         got = opened.mean(*rect)
         add(name + (" (highlighted)" if row == cursor_row else ""), rounded(exp), rounded(got),
             close(exp, got, tol_colour))
         if row != cursor_row:
             yy = rtop + 6
-            p_in = grad_colour(top_c, bot_c, rtop + 2.0, rtop + 21.0, yy + 4.0)
+            p_in = grad_colour(use_top, use_bot, rtop + 2.0, rtop + 21.0, yy + 4.0)
             b_out = grad_colour(ROWS_TOP, ROWS_BOT, ROWS_Y[0], ROWS_Y[1], yy + 4.0)
-            a = opened.mean(BOX_X[0] + 3, yy, BOX_X[0] + 6, yy + 8)
-            b = opened.mean(BOX_X[0] - 7, yy, BOX_X[0] - 3, yy + 8)
-            e_in = predicted(closed, (BOX_X[0] + 3, yy, BOX_X[0] + 6, yy + 8), [(p_in, alpha)])
-            e_out = predicted(closed, (BOX_X[0] - 7, yy, BOX_X[0] - 3, yy + 8), [(b_out, BAND_ALPHA)])
+            s_out = grad_colour(ROW_SLATE_TOP, ROW_SLATE_BOT, rtop, rtop + ROW_H, yy + 4.0)
+            a = opened.mean(BOX_X[0] + 10, yy, BOX_X[0] + 14, yy + 8)
+            b = opened.mean(BOX_X[0] - 9, yy, BOX_X[0] - 5, yy + 8)
+            e_in_layers = [(b_out, BAND_ALPHA), (s_out, ROW_SLATE_ALPHA), (p_in, use_a)] if use_a < 1.0 else [(p_in, use_a)]
+            e_in = predicted(closed, (BOX_X[0] + 10, yy, BOX_X[0] + 14, yy + 8), e_in_layers)
+            e_out = predicted(closed, (BOX_X[0] - 9, yy, BOX_X[0] - 5, yy + 8),
+                              [(b_out, BAND_ALPHA), (s_out, ROW_SLATE_ALPHA)])
             add(name + " left edge", BOX_X[0], f"inside {rounded(a)} / {rounded(e_in)}, outside {rounded(b)} / {rounded(e_out)}",
                 close(a, e_in, tol_colour) and close(b, e_out, tol_colour))
-        tb = text_box(opened, row_rect(row, BOX_X[0] + 12, BOX_X[1] - 12, 2))
+        if is_off and row == cursor_row:
+            tb = dark_text_box(opened, row_rect(row, BOX_X[0] + 14, BOX_X[1] - 14, 2))
+        else:
+            tb = text_box(opened, row_rect(row, BOX_X[0] + 14, BOX_X[1] - 14, 2))
         if tb:
             centre = (tb[0] + tb[2]) / 2
             add(name + " text centre", VALUE_CENTRE, round(centre, 1), abs(centre - VALUE_CENTRE) <= 3)
@@ -534,7 +546,7 @@ def check_menu(closed_path, open_path, xscale, cursor_row, count, disabled_rows=
         if teal:
             add("scroll thumb top", round(start, 1), round(opened.gy(teal[0]), 1), abs(opened.gy(teal[0]) - start) <= 3)
     for row in range(VISIBLE_ROWS):
-        rect = row_rect(row, NAME_X, 404, 3)
+        rect = row_rect(row, NAME_X, 398, 3)
         want = row < min(count, VISIBLE_ROWS)
         if row in disabled_rows:
             p = brightest(opened, rect)
@@ -548,15 +560,15 @@ def check_menu(closed_path, open_path, xscale, cursor_row, count, disabled_rows=
             shown = min(p) >= 100
             add(f"row {row} text shown", want, shown, shown == want)
     if name_row == cursor_row:
-        tb = dark_text_box(opened, row_rect(name_row, NAME_X, 404, 2.5))
+        tb = dark_text_box(opened, row_rect(name_row, NAME_X, 398, 2.5))
     else:
-        tb = text_box(opened, row_rect(name_row, NAME_X, 404, 0))
+        tb = text_box(opened, row_rect(name_row, NAME_X, 398, 0))
     if tb:
         top = ROW_TOP + name_row * ROW_PITCH + (ROW_H - ROW_CAP) * 0.5
         add(f"row {name_row} name glyph top, height", (round(top, 1), ROW_CAP), (round(tb[1], 1), round(tb[3] - tb[1], 1)),
             abs(tb[1] - top) <= 2.5 and abs(tb[3] - tb[1] - ROW_CAP) <= 2.5)
         add(f"row {name_row} name left", NAME_X, round(tb[0], 1), abs(tb[0] - NAME_X) <= 3)
-    tb = text_box(opened, (TITLE_X, 30, 300, 56))
+    tb = dark_text_box(opened, (TITLE_X, 30, 240, 56), hi=60)
     if tb:
         th = tb[3] - tb[1]
         add("title glyph top, height", (TITLE_CAP_TOP, TITLE_CAP), (round(tb[1], 1), round(th, 1)),

@@ -248,11 +248,11 @@ namespace extra {
             case kScenarioComboLab:
                 comboCfg.enabled = 1;
                 comboCfg.fixPosition = 1;
-                comboCfg.noclip = 1;
+                comboCfg.noclip = 0;
                 comboCfg.comboTimerAdjustment = 0;
                 if (comboCfg.enabledMeters == 0)
                 {
-                    comboCfg.enabledMeters = main::kMeterAll;
+                    comboCfg.enabledMeters = main::kMeterHitstun | main::kMeterDi;
                 }
                 cpuOpts.tdi = cpu::kTdiRandom;
                 cpuOpts.recovery = cpu::kRecoveryPPlusAi;
