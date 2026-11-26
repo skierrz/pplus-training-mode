@@ -1217,4 +1217,12 @@ TEST(stage4c, floorhug_meta_knight_sticky_taunt_reset_guard)
     CHECK(!floorhugNeedsMetaKnightModuleRestore(kCsFtFox, true, true, false));
     CHECK(!floorhugNeedsTauntInterrupt(kFhFtMetaKnight, 0x00, kFhTauntGuardFrames, true, true));
     CHECK(!floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStAppeal, 0, true, true));
+
+    // 5. Taunt mask bit keys by HUD playerNo (0..15) + partner bit (distinct non-zero bits).
+    CHECK_EQ(1u << 0, floorhugTauntMaskBit(0, false));
+    CHECK_EQ(1u << 1, floorhugTauntMaskBit(0, true));
+    CHECK_EQ(1u << 2, floorhugTauntMaskBit(1, false));
+    CHECK_EQ(1u << 7, floorhugTauntMaskBit(3, true));
+    CHECK_EQ(0u, floorhugTauntMaskBit(-1, false));
+    CHECK_EQ(0u, floorhugTauntMaskBit(16, false));
 }

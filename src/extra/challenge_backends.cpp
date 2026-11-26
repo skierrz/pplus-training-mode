@@ -216,15 +216,6 @@ namespace extra {
                        : NULL;
         }
 
-        u32 tauntMaskBit(s32 entryId, bool partner)
-        {
-            if (entryId < 0 || entryId >= 16)
-            {
-                return 0u;
-            }
-            return 1u << (static_cast<u32>(entryId) * 2u + (partner ? 1u : 0u));
-        }
-
         void restoreTauntModules(const soModuleEnumeration* m)
         {
             if (ramOk(m->m_visibilityModule))
@@ -245,7 +236,7 @@ namespace extra {
             }
         }
 
-        void interruptFighterTaunt(Fighter* f, s32 entryId, bool partner, int ftKind, u8 guardFrames, bool onReset)
+        void interruptFighterTaunt(Fighter* f, int playerNo, bool partner, int ftKind, u8 guardFrames, bool onReset)
         {
             const soModuleEnumeration* m = game::fighterModules(f);
             if (m == NULL)
@@ -253,7 +244,7 @@ namespace extra {
                 return;
             }
             bool floorhugActive = s_net->floorhugGuardActive != 0;
-            bool wasInTaunt = (s_net->preResetTauntMask & tauntMaskBit(entryId, partner)) != 0u;
+            bool wasInTaunt = (s_net->preResetTauntMask & floorhugTauntMaskBit(playerNo, partner)) != 0u;
             int st = game::fighterStatus(m);
             if (floorhugNeedsTauntInterrupt(ftKind, static_cast<s16>(st), guardFrames, floorhugActive, wasInTaunt))
             {
@@ -285,12 +276,12 @@ namespace extra {
             {
                 if (ramOk(refs[i].fighter))
                 {
-                    interruptFighterTaunt(refs[i].fighter, refs[i].entryId, false,
+                    interruptFighterTaunt(refs[i].fighter, refs[i].playerNo, false,
                                           game::fighterKind(refs[i].entryId, false), s_net->tauntGuardFrames, onReset);
                 }
                 if (ramOk(refs[i].partner) && refs[i].partner != refs[i].fighter)
                 {
-                    interruptFighterTaunt(refs[i].partner, refs[i].entryId, true,
+                    interruptFighterTaunt(refs[i].partner, refs[i].playerNo, true,
                                           game::fighterKind(refs[i].entryId, true), s_net->tauntGuardFrames, onReset);
                 }
             }
@@ -354,7 +345,7 @@ namespace extra {
         {
             if (s_net->slots[i].active && s_net->slots[i].inTaunt != 0)
             {
-                preResetTauntMask |= tauntMaskBit(s_net->slots[i].entryId, s_net->slots[i].partner);
+                preResetTauntMask |= floorhugTauntMaskBit(s_net->slots[i].playerNo, s_net->slots[i].partner);
             }
         }
         game::FighterRef refs[game::kMaxFighters];
@@ -364,14 +355,14 @@ namespace extra {
             const soModuleEnumeration* m = game::fighterModules(refs[i].fighter);
             if (m != NULL && floorhugIsTauntStatus(static_cast<s16>(game::fighterStatus(m))))
             {
-                preResetTauntMask |= tauntMaskBit(refs[i].entryId, false);
+                preResetTauntMask |= floorhugTauntMaskBit(refs[i].playerNo, false);
             }
             if (ramOk(refs[i].partner) && refs[i].partner != refs[i].fighter)
             {
                 const soModuleEnumeration* mp = game::fighterModules(refs[i].partner);
                 if (mp != NULL && floorhugIsTauntStatus(static_cast<s16>(game::fighterStatus(mp))))
                 {
-                    preResetTauntMask |= tauntMaskBit(refs[i].entryId, true);
+                    preResetTauntMask |= floorhugTauntMaskBit(refs[i].playerNo, true);
                 }
             }
         }

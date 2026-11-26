@@ -87,6 +87,18 @@ namespace extra {
         return ftKind == kFhFtMetaKnight && wasInTaunt;
     }
 
+    // Per-fighter bitmask key for tracking which fighters were in taunt
+    // immediately prior to a reset. Keyed by HUD playerNo (0..15) + partner
+    // bit (never raw ftEntry::m_entryId, which encodes (gen << 16) | slot).
+    inline u32 floorhugTauntMaskBit(int playerNo, bool partner)
+    {
+        if (playerNo < 0 || playerNo >= 16)
+        {
+            return 0u;
+        }
+        return 1u << (static_cast<u32>(playerNo) * 2u + (partner ? 1u : 0u));
+    }
+
     // Returns true when a reset needs to repair Meta Knight's AppealHi
     // visibility/hurtbox modules even if savestate load already reverted
     // status to Wait (never touches non-taunt Meta Knight savestates outside
