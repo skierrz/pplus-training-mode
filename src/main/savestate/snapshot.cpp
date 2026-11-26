@@ -209,6 +209,11 @@ namespace savestate {
     // A Project+ variable inside code: written as data, but invalidated from
     // the instruction cache too after a load in case a fetch ever reads it.
     static const u32 kCodeWord = 0x807824D4;
+    // RSBE01 rev 2 Revolution OS scheduler lock: hardware ISRs (AI/AX audio
+    // DMA, VI, SI, IOS IPC) still fire during 64 KiB IRQ yields, while no
+    // OSThread (such as gfPadSystem) can preempt and touch half-copied heaps.
+    static s32 (*const kOSDisableScheduler)() = reinterpret_cast<s32 (*)()>(0x801E0760);
+    static s32 (*const kOSEnableScheduler)() = reinterpret_cast<s32 (*)()>(0x801E079C);
 
     struct Chunk {
         u32 addr;
@@ -1069,6 +1074,7 @@ namespace savestate {
         Writer fresh = {&slot, limitChunk, limitPos, chunk, pos, 0, 0, false, false, false, 0, 0, 0, 0, 0,
                         !TM_PERF_LEGACY(), 0, 0, 0};
         w = fresh;
+        kOSDisableScheduler();
         w.irqLevel = OSDisableInterrupts();
 #ifdef TM_PERF
         w.irqStart = OSGetTick();
@@ -1086,6 +1092,7 @@ namespace savestate {
         }
 #endif
         OSRestoreInterrupts(w.irqLevel);
+        kOSEnableScheduler();
         return walked && !w.overflow;
     }
 
@@ -1324,6 +1331,7 @@ namespace savestate {
         {
             beforeCopy();
         }
+        kOSDisableScheduler();
         BOOL level = OSDisableInterrupts();
         bool legacyFlush = TM_PERF_LEGACY();
         u32 irqStart = 0;
@@ -1441,6 +1449,7 @@ namespace savestate {
         }
 #endif
         OSRestoreInterrupts(level);
+        kOSEnableScheduler();
 #ifdef TM_PERF
         info.loadMaxIrqOffTicks = maxIrqOff;
         perf::add(perf::kLoadCopy, copyTicks);
