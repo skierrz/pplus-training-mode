@@ -16,6 +16,7 @@
 #include <string.h>
 #include <types.h>
 
+#include "extra/olimar_pikmin_logic.h"
 #include "main/cpu/driver.h"
 #include "main/cpu/fighter_input.h"
 #include "main/cpu/options.h"
@@ -715,8 +716,11 @@ namespace savestate {
         bool live = m.running && m.training && !m.paused;
         if (live)
         {
-            u32 bound = (lab::comboLHeldOnPads(pads) || (main::extraDrill(0, NULL) & 4u) != 0u
-                         || lab::olimarDpadActive(m)) ? 0u : boundBits();
+            bool olimarDpad = extra::olimarDpadMode(settings().fighterMechanics) != main::kOlimarDpadOff
+                              && main::extraOlimarP1();
+            u32 bound = (lab::comboLHeldOnPads(pads) || (main::extraDrill(0, NULL) & 4u) != 0u || olimarDpad)
+                            ? 0u
+                            : boundBits();
             s_heldRight = (bound & kDpadRight) && (held & kDpadRight) ? s_heldRight + 1 : 0;
             if (s_heldRight == 0)
             {
@@ -848,22 +852,11 @@ namespace savestate {
             return;
         }
         int port = game::playerPort(who.playerNo);
-        u32* buttons = reinterpret_cast<u32*>(reinterpret_cast<u32>(call->input) + kInputButtons);
-        if (static_cast<u32>(port) < kPorts && s_prevType[port] == gfPadType::WIIMOTE)
+        if (static_cast<u32>(port) < kPorts && s_prevType[port] == gfPadType::WIIMOTE
+            && !lab::minusBoundToFrameAdvance(m) && (s_prevHeld[port] & game::kPadWiiMinus) != 0)
         {
-            if (!lab::minusBoundToFrameAdvance(m) && (s_prevHeld[port] & game::kPadWiiMinus) != 0)
-            {
-                *buttons &= ~kAppealAll;
-            }
-            return;
-        }
-        if ((bound & kDpadLeft) && (*buttons & kTauntLeft))
-        {
-            *buttons &= ~(kTauntLeft | kTauntSide);
-        }
-        if ((bound & kDpadRight) && (*buttons & kTauntRight))
-        {
-            *buttons &= ~(kTauntRight | kTauntSide);
+            u32* buttons = reinterpret_cast<u32*>(reinterpret_cast<u32>(call->input) + kInputButtons);
+            *buttons &= ~kAppealAll;
         }
     }
 

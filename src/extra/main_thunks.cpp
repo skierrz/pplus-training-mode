@@ -4,7 +4,6 @@
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
 
 #define TM_EXTRA_THUNK_IMPL 1
-#include "extra/pplus_collision.h"
 #include "main/cpu/driver.h"
 #include "main/cpu/options.h"
 #include "main/cpu/view.h"
@@ -283,36 +282,6 @@ namespace savestate {
     bool x_loadingFiles()
     {
         return loadingFiles();
-    }
-}
-
-namespace extra {
-    bool x_collShapeSupported() { return collShapeSupported(); }
-    bool x_collBubbleSupported() { return collBubbleSupported(); }
-    const void* x_collArrayAt(const void* arr, const void* calls, int idx) { return collArrayAt(arr, calls, idx); }
-    int x_collOpenParts(const void* mod, u32 partsOff, u32 collOff, const void*& outParts,
-                        const void*& outCalls, const void*& outColl, int& outGroups)
-    {
-        return collOpenParts(mod, partsOff, collOff, outParts, outCalls, outColl, outGroups);
-    }
-    const void* x_collShapeOf(const void* coll, int gCount, int id, u32 group)
-    {
-        return collShapeOf(coll, gCount, id, group);
-    }
-    void x_collIdentityMatrix34(float m[3][4]) { collIdentityMatrix34(m); }
-    void x_collDrawBubble(double radius, const float scaleMtx[3][4], const float pos1[3],
-                          const float pos2[3], u32 c1, u32 c2, const float viewMtx[3][4])
-    {
-        collDrawBubble(radius, scaleMtx, pos1, pos2, c1, c2, viewMtx);
-    }
-    const soModuleEnumeration* x_collVerifiedTaskModules(const void* task, int expectedKind, bool requireWork,
-                                                         StageObject*& outObj)
-    {
-        return collVerifiedTaskModules(task, expectedKind, requireWork, outObj);
-    }
-    int x_collOwnerSlotByTaskId(const CollFighterSlot* slots, int count, int taskId)
-    {
-        return collOwnerSlotByTaskId(slots, count, taskId);
     }
 }
 }

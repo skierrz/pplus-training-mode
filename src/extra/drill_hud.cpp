@@ -940,7 +940,7 @@ namespace extra {
             bool recGuide = false;
 #endif
             return (topHud ? 1u : 0u) | (st.modalOpen ? 2u : 0u) | (drillPracticeClaimsDpadLR() ? 4u : 0u)
-                   | ((wdZone || recGuide) ? 8u : 0u);
+                   | ((wdZone || recGuide) ? 8u : 0u) | (drillPracticeClaimsDpadDown() ? 16u : 0u);
         }
         if (phase == iface::kPadsSystem)
         {

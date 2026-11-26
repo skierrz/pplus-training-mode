@@ -34,9 +34,11 @@
 #include "extra/pplus_recovery.h"
 #include "extra/pplus_tech_tracker.h"
 #include "extra/psa_inspector.h"
+#include "extra/reversal_slots.h"
 #include "extra/scenario_presets.h"
 #include "extra/stage_geom.h"
 #include "extra/stage_options.h"
+#include "extra/tech_sparkle.h"
 #include "extra/timing_meter.h"
 #include "extra/ui_assets.h"
 #include "main/extra.h"
@@ -184,6 +186,7 @@ namespace extra {
         drillHudFrame();
         drillPracticeFrame();
         techTrackerFrame();
+        techSparkleFrame();
         timingMeterFrame();
         heatmapTick();
         adaptiveCpuFrame();
@@ -203,6 +206,7 @@ namespace extra {
         drillHudSavestateReset();
         drillPracticeReset();
         techTrackerReset();
+        techSparkleReset();
         timingMeterReset();
         comboBreakRushReset();
         actionLogReset();
@@ -289,7 +293,7 @@ namespace extra {
         optionDesc,        uiAssetsDrawIcon,   uiAssetsDrawPageOverlay,
         ui::infoWanted,    ui::infoStep,       ui::drawInfo,       ui::infoReset,
         ui::applyInfoPreset, inputViewerDraw,  drawColoredHitboxes, diCompassDraw,
-        NULL,              psaInspectorDraw,   onTimingAndPracticeDraw, onDrillHook,
+        reversalSlotsPick, psaInspectorDraw,   onTimingAndPracticeDraw, onDrillHook,
         osdTopStartYHook,  olimarLabAction
     };
 
@@ -337,6 +341,8 @@ namespace extra {
         uiAssetsAttach();
         inputViewerAttach();
         hitboxColorsAttach();
+        reversalSlotsAttach();
+        techSparkleAttach();
         psaInspectorAttach();
         timingMeterAttach();
         drillPracticeAttach();
@@ -368,6 +374,8 @@ namespace extra {
         drillPracticeDetach();
         timingMeterDetach();
         psaInspectorDetach();
+        techSparkleDetach();
+        reversalSlotsReset();
         hitboxColorsDetach();
         inputViewerDetach();
         uiAssetsDetach();

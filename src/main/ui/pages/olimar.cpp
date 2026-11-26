@@ -18,7 +18,14 @@ namespace pages {
 
     void olimarSyncFromSettings()
     {
-        const main::FighterMechanicsSettings& fm = main::settings().fighterMechanics;
+        main::FighterMechanicsSettings& fm = main::settings().fighterMechanics;
+        u8 rawPool = extra::olimarRawPullMask(fm);
+        if ((rawPool == 0u || rawPool == main::kOlimarPullPoolAll)
+            && fm.olimarPikmin >= 1u && fm.olimarPikmin < main::kOlimarPikminCount)
+        {
+            extra::olimarSetRawPullMask(fm, static_cast<u8>(1u << (fm.olimarPikmin - 1u)));
+            fm.olimarPikmin = main::kPikminDefault;
+        }
         OlimarMenuState* st = olimarMenuState();
         st->dpadMode = extra::olimarDpadMode(fm);
         st->whistleColor = extra::olimarWhistleColor(fm);

@@ -90,6 +90,16 @@ ProjectPunch's own drawing, text-printing and vector files say they were
 ported from other people's code. Nothing in this repository is taken from
 those files.
 
+## ilikepizza107 (Partially Invisible Techs)
+
+- Upstream: https://gamebanana.com/scripts/12025 (also adapted into ProjectPunch's `source/pp/invis_techs.cpp`)
+- Licence: no licence file is published upstream.
+
+No code is copied verbatim. The invisible-tech trainer's subaction/frame-hiding
+design is adapted into `src/main/game/overlays.cpp` (with its settings in
+`src/main/ui/pages/color_overlays.cpp`) alongside the ProjectPunch adaptation
+recorded above.
+
 ```
 MIT License
 

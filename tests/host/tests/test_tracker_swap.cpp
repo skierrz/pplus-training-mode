@@ -66,10 +66,12 @@ namespace game {
         return state == 0 || state == 1;
     }
 
+    s32 g_testWorkLCancel = 0;
+
     void readWorkValues(const soModuleEnumeration*, u32& flags, s32& lCancel)
     {
         flags = 0;
-        lCancel = 0;
+        lCancel = g_testWorkLCancel;
     }
 }
 }

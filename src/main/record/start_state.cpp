@@ -1,13 +1,18 @@
 #include "main/record/start_state.h"
 
 #include <ft/fighter.h>
+#include <so/controller/so_controller_module_impl.h>
 #include <so/ground/so_ground_module_impl.h>
+#include <so/ground/so_ground_shape_impl.h>
 #include <so/kinetic/so_kinetic_module_impl.h>
+#include <so/posture/so_posture_module_impl.h>
+#include <so/situation/so_situation_module_impl.h>
 #include <so/so_module_accesser.h>
 #include <so/status/so_status_module_impl.h>
 #include <so/stop/so_stop_module_impl.h>
 
 #include "main/cpu/view.h"
+#include "main/game/body.h"
 #include "main/game/fighters.h"
 #include "main/game/status_ids.h"
 #include "shared/game/mem.h"
@@ -74,6 +79,11 @@ namespace record {
         }
     }
 
+    TM_STATIC_ASSERT(kLiteCorrectGroundCliffStop == soGroundShapeImpl::Correct_Ground_Cliff_Stop,
+                     tm_lite_correct_ground_matches_brawl);
+    TM_STATIC_ASSERT(kLiteCorrectAir == soGroundShapeImpl::Correct_Air,
+                     tm_lite_correct_air_matches_brawl);
+
     struct Saved {
         int player;
         int entryId;
@@ -82,6 +92,8 @@ namespace record {
         float damage;
         float shield;
         bool haveShield;
+        bool air;
+        s32 jumpsUsed;
     };
 
     static bool capture(int player, Saved& out)
@@ -105,11 +117,14 @@ namespace record {
         out.damage = game::damage(ref);
         out.shield = 0.0f;
         out.haveShield = cpu::shieldHealth(ref.fighter, out.shield);
+        out.air = game::isRam(m->m_situationModule) && m->m_situationModule->getKind() == Situation_Air;
+        out.jumpsUsed = game::instanceInt(m, 1);
         return true;
     }
 
-    // Status, then warp, then the ground module, and the launch cleared:
-    // docs/internals.md, "Putting a fighter back at its saved position".
+    // Warp, update facing, conditionally attach ground, force status/correct,
+    // restore jump/air transition groups, clear velocity/knockback/controller,
+    // and restore shield health.
     static bool place(Fighter* f, const Saved& s, bool mirror)
     {
         soModuleEnumeration* m = const_cast<soModuleEnumeration*>(game::fighterModules(f));
@@ -126,14 +141,39 @@ namespace record {
             m->m_stopModule->cancelHitStop();
         }
         setWorkInt(m->m_workManageModule, kHitstunInt, 0);
-        m->m_statusModule->changeStatus(game::kStatusWait, f->m_moduleAccesser);
         f->warp(&pos, lr, 0);
-        if (m->m_groundModule->attachGround(0))
+        m->m_postureModule->updateRotYLr();
+        bool attachOk = false;
+        if (!s.air)
         {
-            m->m_groundModule->setStGroundForce(0);
+            m->m_groundModule->setCorrect(soGroundShapeImpl::Correct_Ground_Cliff_Stop, 0);
+            attachOk = m->m_groundModule->attachGround(0);
+            if (attachOk)
+            {
+                m->m_groundModule->setStGroundForce(0);
+            }
+        }
+        int targetStatus = game::kStatusWait;
+        u32 targetCorrect = kLiteCorrectGroundCliffStop;
+        s32 targetJumps = 0;
+        resolveLiteRestore(s.air, attachOk, s.jumpsUsed, targetStatus, targetCorrect, targetJumps);
+        m->m_statusModule->changeStatusForce(targetStatus, f->m_moduleAccesser);
+        m->m_groundModule->setCorrect(static_cast<soGroundShapeImpl::CorrectKind>(targetCorrect), 0);
+        setWorkInt(m->m_workManageModule, 1, targetJumps);
+        if (targetStatus == game::kStatusFall)
+        {
+            m->m_statusModule->enableTransitionTermAll(game::kGroupAirSpecial);
+            m->m_statusModule->enableTransitionTermAll(game::kGroupAirEscape);
         }
         m->m_kineticModule->clearSpeedAll();
         cpu::clearKnockback(f);
+        if (game::isRam(m->m_controllerModule))
+        {
+            m->m_controllerModule->resetButton();
+            m->m_controllerModule->resetTrigger();
+            m->m_controllerModule->resetMainStick();
+            m->m_controllerModule->resetSubStick();
+        }
         if (s.haveShield)
         {
             cpu::setShieldHealth(f, s.shield);
@@ -149,6 +189,8 @@ namespace record {
         s.z = 0.0f;
         s.lr = lr;
         s.haveShield = false;
+        s.air = false;
+        s.jumpsUsed = 0;
         return place(f, s, false);
     }
 
@@ -281,6 +323,8 @@ namespace record {
             next[i].damage = in[i].damage;
             next[i].shield = in[i].shield;
             next[i].haveShield = in[i].haveShield;
+            next[i].air = false;
+            next[i].jumpsUsed = 0;
         }
         s_lite.side[0] = next[0];
         s_lite.side[1] = next[1];

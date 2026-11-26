@@ -2,6 +2,7 @@
 
 #include <gf/gf_heap_manager.h>
 #include <gf/gf_memory_pool.h>
+#include <gm/gm_global.h>
 #include <math.h>
 #include <memory.h>
 #include <so/so_module_accesser.h>
@@ -58,7 +59,7 @@ namespace game {
         kActOoLagShown = 15,  // 0.25 s cap for reporting post-lag actions
         kLCancelShown = 30,   // 0.5 s pre-landing L-cancel press window
         kLedgeGiveUp = 120,   // frames from leaving the ledge to landing
-        kWavedashAir = 30,    // airborne frames before the airdodge at most
+        kWavedashAir = 10,    // airborne frames before the airdodge at most (matches drill_wavedash_core.h)
         kCliffwaitShown = 24, // 0.4 s cap for reporting ledge-hang duration
         kFallShown = 10,      // Act OoAirborne: frames into a fall
         kPeakShown = 5,       // and frames past a jump's peak
@@ -86,6 +87,7 @@ namespace game {
         u8 jumpHeld;
         u8 shortHop;
         float angle;
+        float wdTakeoffY;
         // Jump cancel.
         s32 jcSquat;
         // L-cancel.
@@ -333,6 +335,15 @@ namespace game {
 #pragma dont_inline reset
 #endif
 
+    static bool pplusAutoLCancel()
+    {
+        if (!isRam(g_GameGlobal) || !isRam(g_GameGlobal->m_modeMelee))
+        {
+            return false;
+        }
+        return (byteAt(g_GameGlobal->m_modeMelee, 0xE5) & 0x01u) != 0u;
+    }
+
     static void wavedash(Watch& w, const Tracked& t, int i, s32 f)
     {
         for (int k = 0; k < t.eventCount; k++)
@@ -344,20 +355,30 @@ namespace game {
                 w.jumpSquat = f;
                 w.air = w.airdodge = kNoFrame;
                 w.jumpHeld = 0;
+                w.wdTakeoffY = w.body.y;
             }
             else if (s == kStatusJump && e.prev == kStatusJumpSquat && w.jumpSquat != kNoFrame)
             {
                 w.air = f;
                 w.shortHop = (e.flags & kShortHopFlag) != 0 ? 1 : 0;
             }
-            else if (s == kStatusEscapeAir && w.air != kNoFrame && f - w.air < kWavedashAir)
+            else if (s == kStatusEscapeAir && w.air != kNoFrame && f - w.air < kWavedashAir && w.body.stickY <= 0.0f)
             {
                 w.airdodge = f;
                 w.angle = stickAngle(w.body.stickX, w.body.stickY);
             }
             else if (s == kStatusLandingFallSpecial && e.prev == kStatusEscapeAir && w.airdodge != kNoFrame)
             {
-                emit(kTechWavedash, t, i, w.airdodge - w.air + 1, w.shortHop, w.jumpHeld, 0, w.angle);
+                float dy = w.body.y - w.wdTakeoffY;
+                if (dy < 0.0f)
+                {
+                    dy = -dy;
+                }
+                int wdFrame = w.airdodge - w.air + 1;
+                if (dy < 3.0f && wdFrame <= kWavedashAir)
+                {
+                    emit(kTechWavedash, t, i, wdFrame, w.shortHop, w.jumpHeld, 0, w.angle);
+                }
                 w.jumpSquat = w.air = w.airdodge = kNoFrame;
             }
             else if (s != kStatusJump && s != kStatusEscapeAir)
@@ -397,9 +418,11 @@ namespace game {
                     w.lcPressed = true;
                 }
                 bool ok = e.lCancel > 0;
+                bool autoLc = !ok && pplusAutoLCancel();
+                int flag = ok ? kLCancelHit : (autoLc ? kLCancelAuto : kLCancelMissed);
                 w.lcLandings++;
                 w.lcHits += ok ? 1 : 0;
-                w.lcMissed = !ok;
+                w.lcMissed = !ok && !autoLc;
                 int frame = kNoValue;
                 if (w.lcPressed)
                 {
@@ -413,7 +436,7 @@ namespace game {
                         frame = kNoValue;
                     }
                 }
-                emit(kTechLCancel, t, i, frame, ok, w.lcHits, w.lcLandings, 0.0f);
+                emit(kTechLCancel, t, i, frame, flag, w.lcHits, w.lcLandings, 0.0f);
                 w.lcPressed = false;
                 aerial = false;
             }

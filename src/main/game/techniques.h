@@ -51,9 +51,11 @@ namespace game {
 
     // Dashback (flag): failed, straight into a dash, or a slow turn that
     // became a dash on its second frame. Powershield (flag): too early,
-    // a success, or a shield that was held before it started.
+    // a success, or a shield that was held before it started. L-cancel (flag):
+    // missed, manual hit, or P+ Auto L-Cancel rule active without a manual hit.
     enum { kDashbackFailed = 0, kDashbackDirect = 1, kDashbackSlowTurn = 2 };
     enum { kPowershieldEarly = 0, kPowershieldDone = 1, kPowershieldBuffered = 2 };
+    enum { kLCancelMissed = 0, kLCancelHit = 1, kLCancelAuto = 2 };
 
     struct Technique {
         u8 kind;    // TechniqueKind

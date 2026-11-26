@@ -574,6 +574,19 @@ namespace ui {
                 main::extraStageOptionsChanged();
                 main::extraCharacterRng();
                 break;
+            case pages::P_OLIMAR:
+            {
+                main::FighterMechanicsSettings& fm = main::settings().fighterMechanics;
+                fm.olimarPikmin = 0;
+                fm.olimarMaturity = 0;
+                fm.olimarPullAndWhistle = main::kOlimarPullPoolAll;
+                fm.olimarColorMatAndMode = 0;
+                fm.olimarStartLineup = 0;
+                fm.olimarDpadPresets = 0;
+                pages::olimarSyncFromSettings();
+                main::extraCharacterRng();
+                break;
+            }
             case pages::P_RECORDING:
                 if (record::positionsSaved())
                 {

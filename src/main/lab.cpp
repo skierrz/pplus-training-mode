@@ -5,10 +5,6 @@
 #include <gf/gf_pad_status.h>
 
 #include "extra/olimar_pikmin_logic.h"
-#include "extra/reversal_slots.h"
-#ifdef __MWERKS__
-#include "extra/tech_sparkle.h"
-#endif
 #include "main/cpu/fighter_input.h"
 #include "main/cpu/options.h"
 #include "main/cpu/view.h"
@@ -507,15 +503,28 @@ namespace lab {
         u32 type = static_cast<u32>(pad.m_controllerType);
         u32 mask = frameAdvanceOn(m) ? faBits(type) : 0;
         u32 dpad = boundDpad(m);
-        if (fighterPad && type == gfPadType::WIIMOTE && m.running && m.training && !m.paused)
+        if (fighterPad && m.running && m.training && !m.paused)
         {
             dpad |= savestate::boundBits();
+            u32 drillFlags = main::extraDrill(0, NULL);
+            if ((drillFlags & 4u) != 0u)
+            {
+                dpad |= kDpadLeft | kDpadRight;
+            }
+            if ((drillFlags & 16u) != 0u)
+            {
+                dpad |= kDpadDown;
+            }
         }
         if (dpad != 0
             && (type != gfPadType::WIIMOTE
                 || ((pad.m_buttonsCurrentFrame.bits & game::kPadWiiMinus) != 0 && !(mask & game::kPadWiiMinus))))
         {
             mask |= dpad;
+            if (fighterPad && type == gfPadType::WIIMOTE && (pad.m_buttonsCurrentFrame.bits & dpad) != 0)
+            {
+                mask |= game::kPadWiiMinus;
+            }
         }
         if (st.startState == kStartWait)
         {
@@ -1216,21 +1225,15 @@ namespace lab {
                 }
             }
         }
-        if (bound == 0 || who.cpu || who.sub)
+        if (bound == 0 || who.cpu || who.sub || type != gfPadType::WIIMOTE)
         {
             return;
         }
         u32* buttons = reinterpret_cast<u32*>(reinterpret_cast<u32>(call->input) + 0xC);
-        if (type == gfPadType::WIIMOTE)
+        if (validPort && dpadAllowed(st.sys[port], m))
         {
-            if (validPort && dpadAllowed(st.sys[port], m))
-            {
-                *buttons &= ~kAppealAll;
-            }
-            return;
+            *buttons &= ~kAppealAll;
         }
-        *buttons &= ~(((bound & kDpadUp) ? kTauntUp : 0) | ((bound & kDpadDown) ? kTauntDown : 0)
-                      | ((bound & (kDpadLeft | kDpadRight)) ? kTauntSide : 0));
     }
 
     static void onGamePads(gfPadStatus* pads)
@@ -1621,16 +1624,24 @@ namespace lab {
             if (o.lCancel)
             {
                 int rate = t.b > 0 ? t.a * 100 / t.b : 0;
-                gfx::Rgba c = t.flag ? osd::kGreen : osd::kRed;
-                if (t.frame == game::kNoValue)
+                if (t.flag == game::kLCancelAuto)
                 {
-                    m = osd::post(t.player, osd::kIdLCancel, osd::kWhite, "L-Cancel (%d%%)\nMissed", rate);
+                    m = osd::post(t.player, osd::kIdLCancel, osd::kWhite, "L-Cancel (%d%%)\nAuto (Rule On)", rate);
+                    osd::lineColor(m, 1, osd::kYellow);
                 }
                 else
                 {
-                    m = osd::post(t.player, osd::kIdLCancel, osd::kWhite, "L-Cancel (%d%%)\nFrame %d/7", rate, t.frame);
+                    gfx::Rgba c = t.flag == game::kLCancelHit ? osd::kGreen : osd::kRed;
+                    if (t.frame == game::kNoValue)
+                    {
+                        m = osd::post(t.player, osd::kIdLCancel, osd::kWhite, "L-Cancel (%d%%)\nMissed", rate);
+                    }
+                    else
+                    {
+                        m = osd::post(t.player, osd::kIdLCancel, osd::kWhite, "L-Cancel (%d%%)\nFrame %d/7", rate, t.frame);
+                    }
+                    osd::lineColor(m, 1, c);
                 }
-                osd::lineColor(m, 1, c);
             }
             break;
         case game::kTechActOos:
@@ -1830,9 +1841,6 @@ namespace lab {
                 main::extraCharacterRng();
             }
             main::extraStageOptionsTick();
-#ifdef __MWERKS__
-            extra::techSparkleFrame();
-#endif
         }
     }
 
@@ -2041,9 +2049,6 @@ namespace lab {
         main::extraInfoReset();
         main::extraDiReset();
         main::extraComboReset();
-#ifdef __MWERKS__
-        extra::techSparkleReset();
-#endif
         main::extraHeatmapReset();
         main::extraAdaptiveReset();
         main::extraScenarioCall(main::kScenarioSavestateLoaded);
@@ -2097,10 +2102,6 @@ namespace lab {
         if (!net.vsReadOnly)
         {
             display::attach();
-            extra::reversalSlotsAttach();
-#ifdef __MWERKS__
-            extra::techSparkleAttach();
-#endif
         }
         bool wide = game::widescreen();
         gfx::setWidescreen(wide);
@@ -2122,9 +2123,6 @@ namespace lab {
         if (!ro)
         {
             display::detach();
-#ifdef __MWERKS__
-            extra::techSparkleDetach();
-#endif
         }
         osd::detach();
         gfx::textDetach();
