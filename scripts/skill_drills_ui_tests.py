@@ -284,6 +284,7 @@ class Runner:
         DT.go_to_row(e, row_idx)
         e.advance(6)
         pos = len(e.log_text())
+        pre_attaches = e.log_text().count("] menu: attached")
         e.press(0, ["A"], frames=4, after=8)
         e.wait_for(
             f"drill {drill_id} armed and list closed",
@@ -292,6 +293,15 @@ class Runner:
             every=2,
         )
         tail = e.log_text()[pos:]
+        if "drills: character select rebuilt" in tail:
+            e.wait_for(
+                f"CSS rebuild for drill {drill_id}",
+                lambda: e.log_text().count("] menu: attached") > pre_attaches
+                and nav.drill_list_state(e) == "closed",
+                300,
+                every=2,
+            )
+            tail = e.log_text()[pos:]
         self.check(
             f"drills: tech practice {drill_id}" in tail,
             f"arm-drill-{drill_id}-{aspect}",

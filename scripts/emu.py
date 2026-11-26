@@ -1725,6 +1725,9 @@ def main():
     if cmd == "test-drills" and rest:
         import drill_tests
         return drill_tests.cmd_test_drills(rest)
+    if cmd == "test-select" and rest:
+        import select_rules_tests
+        return select_rules_tests.cmd_test_select(rest)
     if cmd == "test-cpu" and rest:
         import cpu_tests
         return cpu_tests.cmd_test_cpu(rest)
