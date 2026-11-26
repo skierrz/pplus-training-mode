@@ -11,6 +11,7 @@
 #include <gm/gm_global.h>
 
 #include "menu/game/training.h"
+#include "menu/session.h"
 #include "shared/game/mem.h"
 #include "shared/game/menu_sound.h"
 #include "shared/log.h"
@@ -388,7 +389,10 @@ namespace select {
         tmSelectAllowed[2 * i] = tmSelectAllowed[2 * i + 1] = 0;
         for (int k = 0; k < drills::kSetSize && set[k] != drills::kIconEnd; k++)
         {
-            tmSelectAllowed[2 * i + set[k] / 32] |= 1u << (set[k] % 32);
+            if (set[k] < 64)
+            {
+                tmSelectAllowed[2 * i + set[k] / 32] |= 1u << (set[k] % 32);
+            }
         }
     }
 
@@ -514,6 +518,13 @@ namespace select {
                game::playMenuSound(game::kSoundError));
     }
 
+    // Resolves the active drill from the menu session when callers pass
+    // kDrillNone (0), so armed drills always shape CSS on attach and rebuild.
+    static int effectiveDrill(int drill)
+    {
+        return drill != drills::kDrillNone ? drill : static_cast<int>(session().drill);
+    }
+
     void attach(int drill)
     {
         s_reopening = false;
@@ -523,7 +534,8 @@ namespace select {
         {
             s_dark[i] = false;
         }
-        s_built = drills::selectRuleOf(drill);
+        int activeDrill = effectiveDrill(drill);
+        s_built = drills::selectRuleOf(activeDrill);
         const SelectRule* r = s_built;
         u8* sel = selData();
         if (r == NULL || sel == NULL)
@@ -556,9 +568,9 @@ namespace select {
         reduceGrid(r);
         TM_LOG("select: built for drill %d: %d area(s)%s, P1 icon %d, CPU icon %d, locked %x, allowed %08x%08x "
                "%08x%08x, grid %08x%08x%s\n",
-               drill, s_oneArea.on ? 1 : 2, r->solo && !s_oneArea.on ? " (count not changed)" : "", iconOf(sel, 0),
-               iconOf(sel, 1), tmSelectLockMask, tmSelectAllowed[1], tmSelectAllowed[0], tmSelectAllowed[3],
-               tmSelectAllowed[2], tmSelectGrid[1], tmSelectGrid[0], s_roster.on ? "" : " (whole)");
+               activeDrill, s_oneArea.on ? 1 : 2, r->solo && !s_oneArea.on ? " (count not changed)" : "",
+               iconOf(sel, 0), iconOf(sel, 1), tmSelectLockMask, tmSelectAllowed[1], tmSelectAllowed[0],
+               tmSelectAllowed[3], tmSelectAllowed[2], tmSelectGrid[1], tmSelectGrid[0], s_roster.on ? "" : " (whole)");
     }
 
     // Solo character-select rules still spawn a second fighter slot in Training
@@ -764,7 +776,7 @@ namespace select {
 
     bool needsRebuild(int drill)
     {
-        return drills::selectRuleOf(drill) != s_built;
+        return drills::selectRuleOf(effectiveDrill(drill)) != s_built;
     }
 
     struct Word {
@@ -861,9 +873,10 @@ namespace select {
         st.controllerPort = static_cast<int>(game::wordAt(p1, kAreaControllerNo));
         u8* heldCoin = reinterpret_cast<u8*>(game::wordAt(hand, kHandCoin));
         u8* coinHolder = reinterpret_cast<u8*>(game::wordAt(coin, kCoinHand));
+        bool p1Locked = (tmSelectLockMask & (1u << kAreaHuman)) != 0;
         st.handHoldingAny = isRam(heldCoin);
         st.handHoldingOwn = isRam(heldCoin) && heldCoin == coin;
-        st.ownCoinPlaced = !isRam(heldCoin) && !isRam(coinHolder);
+        st.ownCoinPlaced = !p1Locked && !isRam(heldCoin) && !isRam(coinHolder);
         return canBackFromCss(st, port);
     }
 
