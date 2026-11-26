@@ -599,7 +599,7 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK(strcmp(ctrls.options[2].name, "Rewind Button") == 0);
 
     const ui::Page& disp = ui::pages::kDisplayOptions;
-    REQUIRE(disp.count == 23);
+    REQUIRE(disp.count == 24);
     CHECK(strcmp(disp.options[1].name, "Input Viewer") == 0);
     CHECK(strcmp(disp.options[2].name, "Theme") == 0);
     CHECK_EQ(ui::pages::P_THEME, disp.options[2].max);
@@ -613,6 +613,7 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK_EQ(ui::pages::P_COMBO_METERS, disp.options[21].max);
     CHECK(strcmp(disp.options[22].name, "Advanced / Debug") == 0);
     CHECK_EQ(ui::pages::P_DEBUG, disp.options[22].max);
+    CHECK(strcmp(disp.options[23].name, "Action Log") == 0);
 
     const ui::Page& dbg = ui::pages::kDebug;
     REQUIRE(dbg.count == 2);

@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <types.h>
 
+#include "extra/action_log.h"
 #include "extra/adaptive_cpu.h"
 #ifndef TM_STAGE4C
 #define TM_STAGE4C 0
@@ -11,6 +12,7 @@
 #include "extra/challenge_backends.h"
 #endif
 #include "extra/character_rng.h"
+#include "extra/combo_break_rush.h"
 #include "extra/combo_trainer.h"
 #include "extra/di_display.h"
 #include "extra/di_picker_core.h"
@@ -114,7 +116,10 @@ namespace extra {
                         && main::settings().cpu.options.control == cpu::kControlLab
                         && main::settings().cpu.options.adaptiveMode != cpu::kAdaptiveOff;
         bool drawScen = !s_vsReadOnly && !modalUp && !match.paused && !lab::menuOpen() && scenarioPresetsWantsDraw(match);
-        if (drawDrill || drawAdap || drawScen)
+        bool drawRush = !s_vsReadOnly && !modalUp && !match.paused && !lab::menuOpen() && comboBreakRushActive();
+        bool drawLog = !modalUp && !match.paused && !lab::menuOpen()
+                       && main::settings().general.actionLog != main::kActionLogOff;
+        if (drawDrill || drawAdap || drawScen || drawRush || drawLog)
         {
             gfx::begin();
             if (drawDrill)
@@ -128,6 +133,14 @@ namespace extra {
             if (drawScen)
             {
                 scenarioPresetsDraw(match);
+            }
+            if (drawRush)
+            {
+                comboBreakRushDraw(match);
+            }
+            if (drawLog)
+            {
+                actionLogDraw(match);
             }
             gfx::end();
         }
@@ -148,6 +161,7 @@ namespace extra {
         {
             frameDataFrame();
             heatmapTick();
+            actionLogFrame();
             return;
         }
         fighterSwapTick(game::matchState());
@@ -166,6 +180,8 @@ namespace extra {
         timingMeterFrame();
         heatmapTick();
         adaptiveCpuFrame();
+        comboBreakRushFrame();
+        actionLogFrame();
     }
 
     static void onComboReset()
@@ -181,6 +197,8 @@ namespace extra {
         drillPracticeReset();
         techTrackerReset();
         timingMeterReset();
+        comboBreakRushReset();
+        actionLogReset();
     }
 
     static int infoRowCount(const main::InfoSettings& info)
@@ -243,6 +261,21 @@ namespace extra {
     {
         timingMeterDraw(match);
         drillPracticeDraw(match);
+        comboBreakRushDraw3d(match);
+    }
+
+    static u32 onDrillHook(u32 phase, gfPadStatus* pads)
+    {
+        u32 bits = drillHudHook(phase, pads);
+        if (pads == NULL && comboBreakRushActive())
+        {
+            if (phase == 2u)
+            {
+                ui::layout::setLabBand(ui::layout::comboBreakHudBox(gfx::widescreen()));
+            }
+            bits |= 1u | 8u;
+        }
+        return bits;
     }
 
     static const main::ExtraHooks kHooks = {
@@ -256,7 +289,7 @@ namespace extra {
         optionDesc,        uiAssetsDrawIcon,   uiAssetsDrawPageOverlay,
         ui::infoWanted,    ui::infoStep,       ui::drawInfo,       ui::infoReset,
         ui::applyInfoPreset, inputViewerDraw,  drawColoredHitboxes, diCompassDraw,
-        NULL,              psaInspectorDraw,   onTimingAndPracticeDraw, drillHudHook,
+        NULL,              psaInspectorDraw,   onTimingAndPracticeDraw, onDrillHook,
         osdTopStartYHook
     };
 
@@ -274,6 +307,7 @@ namespace extra {
             frameDataAttach();
             heatmapAttach();
             psaInspectorAttach();
+            actionLogAttach();
             ui::infoReset();
             main::setExtraHooks(&kHooks);
             TM_LOG("extra: attached (read-only VS) v%s\n", main::kModule.buildVersion);
@@ -307,6 +341,8 @@ namespace extra {
         timingMeterAttach();
         drillPracticeAttach();
         drillHudAttach();
+        comboBreakRushAttach();
+        actionLogAttach();
         main::setExtraHooks(&kHooks);
         TM_LOG("extra: attached next to match module v%s\n", main::kModule.buildVersion);
         return true;
@@ -316,6 +352,7 @@ namespace extra {
     {
         if (s_vsReadOnly)
         {
+            actionLogDetach();
             psaInspectorDetach();
             heatmapDetach();
             frameDataDetach();
@@ -325,6 +362,8 @@ namespace extra {
             TM_LOG("extra: detaching\n");
             return;
         }
+        actionLogDetach();
+        comboBreakRushDetach();
         drillHudDetach();
         drillPracticeDetach();
         timingMeterDetach();

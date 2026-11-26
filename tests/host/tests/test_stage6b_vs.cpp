@@ -243,7 +243,7 @@ TEST(stage6b_vs, storage_migrates_pre_wave3_general_area_and_roundtrips_offline_
     const char* newest = newestSettingsFile();
     storage::AreaEntry* area = findAreaEntry(newest, storage::kAreaGeneral);
     REQUIRE(area != NULL);
-    CHECK_EQ(14u, area->used);
+    CHECK_EQ(15u, area->used);
     CHECK_EQ(offsetof(main::GeneralSettings, reserved), area->used);
     area->used = offsetof(main::GeneralSettings, offlineVersus);
     CHECK_EQ(13u, area->used);

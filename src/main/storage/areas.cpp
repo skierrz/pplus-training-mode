@@ -74,6 +74,7 @@ namespace storage {
     };
 #undef TM_ROOM
     TM_STATIC_ASSERT(kAreaCount == 16, tm_areas_worst_case_counts_16_rows);
+    TM_STATIC_ASSERT(offsetof(main::GeneralSettings, reserved) == 15, tm_general_area_used_bytes);
     TM_STATIC_ASSERT(kSettingsFileWorst <= kSettingsFileCap, tm_settings_file_fits_its_cap);
 
     static const AreaDef* findArea(int id)

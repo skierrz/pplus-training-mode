@@ -143,6 +143,7 @@ TABLES = {
         "Show the ledgedash frame timeline bar and GALINT readout.",
         "Toggle 3D floating state meters above fighters anytime.",
         "Open PSA Debugger (modding tool) and frame debug overlay.",
+        "Show a live strip of recent fighter actions and frame counts.",
     ],
     "kOsdDesc": [
         "Apply a 1-click competitive OSD bundle (Custom, Essentials, etc).",

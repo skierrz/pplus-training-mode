@@ -1812,6 +1812,9 @@ def main():
     if cmd == "test-psa-inspector" and rest:
         import psa_inspector_tests
         return psa_inspector_tests.cmd_test_psa_inspector(rest)
+    if cmd == "test-overnight-tools" and rest:
+        import overnight_tools_tests
+        return overnight_tools_tests.cmd_test_overnight_tools(rest)
     if cmd == "test-hud-theme-meter" and rest:
         import hud_theme_meter_tests
         return hud_theme_meter_tests.cmd_test_hud_theme_meter(rest)

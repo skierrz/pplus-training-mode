@@ -158,6 +158,13 @@ NUMBERS = {
     ("drill_hud.cpp", "%u/%u (%u%%)"): ["999", "999", "100"],
     ("drill_hud.cpp", "REP %u/%u  HIT %u"): ["20", "20", "20"],
     ("drill_hud.cpp", "STK %u  BEST %u"): ["999", "999"],
+    ("action_log_core.h", "0x%02X"): ["FFFF"],
+    ("action_log_core.h", "%s %uf"): [None, "999"],
+    ("combo_break_rush.cpp", "%u:%02u"): ["1", "00"],
+    ("combo_break_rush.cpp", "SCORE %u"): ["65535"],
+    ("combo_break_rush.cpp", "x%u"): ["8"],
+    ("combo_break_rush.cpp", "STK %u  BEST %u"): ["99", "65535"],
+    ("combo_break_rush.cpp", "STK %u  BEST --"): ["99"],
     ("drill_hud.cpp", "STK %u  BEST --"): ["999"],
     ("drill_hud.cpp", "%s PRACTICE"): ["FLOAT / HOVER"],
     ("drill_hud.cpp", "%u-REP SET COMPLETE"): ["20"],
@@ -1057,6 +1064,49 @@ def osd_quick(c, src):
         c.take(lit)
 
 
+def action_log_core_h(c, src):
+    for lit in src.literals:
+        if c.taken(lit):
+            continue
+        if lit.func == "actionLogShortLabel" and lit.text == "AttackAir":
+            c.take(lit)  # prefix comparison against motionName, not drawn
+            continue
+        if lit.name == "snprintf" and lit.arg == 2:
+            if lit.text == "%s %uf":
+                c.item("fit", lit, "JumpSq 999f", scale_for_cap(7.5), 0, 96.0, 0.0)
+                c.buffer(lit, "JumpSq 999f", 20.0)
+            else:
+                for t in c.expand(lit, 2):
+                    c.item("fit", lit, t, scale_for_cap(7.5), 0, 72.0, 0.0)
+                    c.buffer(lit, t, 10.0)
+        else:
+            c.item("fit", lit, lit.text, scale_for_cap(7.5), 0, 72.0, 0.0)
+        c.take(lit)
+
+
+def action_log_cpp(c, src):
+    for lit in src.literals:
+        if c.taken(lit):
+            continue
+        c.item("fit", lit, lit.text, scale_for_cap(7.5), 0, 120.0, 0.0)
+        c.take(lit)
+
+
+def combo_break_rush_cpp(c, src):
+    for lit in src.literals:
+        if c.taken(lit):
+            continue
+        if lit.name == "snprintf" and lit.arg == 2:
+            for t in c.expand(lit, 2):
+                c.item("fit", lit, t, scale_for_cap(8.0), 0, 148.0, 0.0)
+                c.buffer(lit, t, 28.0)
+        elif lit.text == "COMBO-BREAK RUSH":
+            c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 190.0, 0.0)
+        else:
+            c.item("fit", lit, lit.text, scale_for_cap(8.0), 0, 80.0, 0.0)
+        c.take(lit)
+
+
 def read_sources(root):
     """Every source under `root` (the mod's src/), scanned."""
     from text_scan import scan
@@ -1131,6 +1181,9 @@ HANDLERS = [
     ("extra/scenario_presets.cpp", scenario_presets_cpp),
     ("extra/drill_hud_core.h", drill_hud_core_h),
     ("extra/drill_hud.cpp", drill_hud_cpp),
+    ("extra/action_log_core.h", action_log_core_h),
+    ("extra/action_log.cpp", action_log_cpp),
+    ("extra/combo_break_rush.cpp", combo_break_rush_cpp),
     ("main/savestate/savestate.cpp", savestate),
     ("main/game/pad_inmatch.cpp", pad_inmatch_cpp),
     ("main/lab.cpp", lab_cpp),

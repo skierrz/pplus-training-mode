@@ -1804,6 +1804,19 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
         CHECK(modalBox.x0 >= safe.x0 - kTol && modalBox.x1 <= safe.x1 + kTol);
         CHECK(modalBox.y0 >= safe.y0 - kTol && modalBox.y1 <= safe.y1 + kTol);
 
+        // Strict 5% CRT safe area (X in [32, 608], Y in [24, 456]) for BOTH 4:3 and 16:9
+        // on Combo-Break Rush top HUD and Action Log strip, plus zero overlap with Brawl
+        // P1/P2 bottom portraits and Techchase HUD.
+        const Box strictSafe = {32.0f, 24.0f, 608.0f, 456.0f};
+        const Box rushHud = comboBreakHudBox(wide);
+        const Box actLog = actionLogBox(wide);
+        CHECK(rushHud.x0 >= strictSafe.x0 - kTol && rushHud.x1 <= strictSafe.x1 + kTol);
+        CHECK(rushHud.y0 >= strictSafe.y0 - kTol && rushHud.y1 <= strictSafe.y1 + kTol);
+        CHECK(actLog.x0 >= strictSafe.x0 - kTol && actLog.x1 <= strictSafe.x1 + kTol);
+        CHECK(actLog.y0 >= strictSafe.y0 - kTol && actLog.y1 <= strictSafe.y1 + kTol);
+        const Box brawlP1 = wide ? Box{63.0f, 397.0f, 151.0f, 445.0f} : Box{41.7f, 397.0f, 158.7f, 445.0f};
+        const Box brawlP2 = wide ? Box{209.0f, 397.0f, 297.0f, 445.0f} : Box{189.4f, 397.0f, 306.4f, 445.0f};
+
         for (int li = 0; li < 4; li++)
         {
             int ledge = kTopModes[li];
@@ -1828,7 +1841,7 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                         {
                             for (int hasAdap = 0; hasAdap <= 1; hasAdap++)
                             {
-                            HudPiece pieces[16];
+                            HudPiece pieces[20];
                             int count = 0;
                             if (drillHud)
                             {
@@ -1871,6 +1884,12 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                                 pieces[count].name = "adaptive-hud";
                                 pieces[count++].rect = adaptiveHudBox(band, vSlots, hasComp != 0, hasPsa != 0, wide);
                             }
+                            pieces[count].name = "action-log";
+                            pieces[count++].rect = actLog;
+                            pieces[count].name = "brawl-p1-portrait";
+                            pieces[count++].rect = brawlP1;
+                            pieces[count].name = "brawl-p2-portrait";
+                            pieces[count++].rect = brawlP2;
                             pieces[count].name = "rec-bar";
                             pieces[count++].rect = recBar;
                             pieces[count].name = "notice";

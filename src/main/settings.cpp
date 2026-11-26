@@ -69,6 +69,7 @@ namespace main {
         };
 #define TM_CLAMP(f, lo, hi) {offsetof(Settings, f), lo, hi}
         static const U8Clamp kClamps[] = {
+            TM_CLAMP(general.actionLog, 0, kActionLogTargetCount - 1),
             TM_CLAMP(controls.menuStyle, 0, kMenuStyleCount - 1),
             TM_CLAMP(display.heatmap, 0, 3),
             TM_CLAMP(display.heatmapBounds, 0, 1),

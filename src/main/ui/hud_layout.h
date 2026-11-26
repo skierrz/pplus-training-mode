@@ -195,6 +195,30 @@ namespace layout {
         return box(320.0f - w * 0.5f, kDrillHudTop, w, kDrillHudHeight);
     }
 
+    // ---- Combo-Break Rush top HUD (extra/combo_break_rush.cpp) ----
+    // Shares the centered top-band safe slot (y 24..64) so side panels step
+    // cleanly below labBand on both 4:3 and 16:9.
+    inline Box comboBreakHudBox(bool wide)
+    {
+        return drillHudBox(wide);
+    }
+
+    // ---- Live State Strip / Action Log (extra/action_log.cpp) ----
+    // Bottom-right telemetry strip aligned beside Brawl's P1/P2 damage HUD
+    // (x1 <= 307) and strictly above the watermark (y >= 443.5) and below all
+    // OSD / Info / Techchase / Recording bands (y <= 395), staying strictly
+    // inside X in [32, 608], Y in [24, 456] on both 4:3 and 16:9.
+    static const float kActionLogRight = 608.0f;
+    static const float kActionLogTop = 398.0f;
+    static const float kActionLogWidth = 294.0f;
+    static const float kActionLogHeight = 40.0f;
+
+    inline Box actionLogBox(bool wide)
+    {
+        float w = kActionLogWidth * xsOf(wide);
+        return box(kActionLogRight - w, kActionLogTop, w, kActionLogHeight);
+    }
+
     // Centered End-Screen Summary Modal (5% CRT safe on 4:3 and 16:9).
     static const float kDrillModalWidth = 384.0f;
     static const float kDrillModalTop = 104.0f;

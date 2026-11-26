@@ -193,7 +193,8 @@ rwildcard = $(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(
 SHARED_SRCS := $(sort $(call rwildcard,src/shared,*.cpp))
 STUB_SRCS   := $(sort $(call rwildcard,src/stub,*.cpp)) $(SHARED_SRCS)
 INFO_EXTRA_SRCS := src/main/ui/info_display.cpp src/main/game/status_names.cpp
-MAIN_MOVED_SRCS := src/extra/tech_sparkle.cpp src/extra/reversal_slots.cpp
+MAIN_MOVED_SRCS := src/extra/tech_sparkle.cpp src/extra/reversal_slots.cpp \
+                   src/extra/action_log.cpp src/extra/combo_break_rush_core.cpp
 MAIN_SRCS   := $(filter-out $(INFO_EXTRA_SRCS),$(sort $(call rwildcard,src/main,*.cpp))) $(MAIN_MOVED_SRCS) $(SHARED_SRCS)
 # The menu module draws with the main module's 2D helpers and reads the SD
 # card with its file helpers, compiled again from where they live.
@@ -600,6 +601,10 @@ test-grab-visualizer: install
 # PSA_ARGS, e.g. PSA_ARGS="--aspect 4:3 --only live-threads".
 test-psa-inspector: install
 	$(Q)$(EMU) test-psa-inspector $(REL) $(PSA_ARGS)
+
+# OVERNIGHT_TOOLS_ARGS, e.g. OVERNIGHT_TOOLS_ARGS="--aspect 4:3".
+test-overnight-tools: install
+	$(Q)$(EMU) test-overnight-tools $(REL) $(OVERNIGHT_TOOLS_ARGS)
 
 # HUD_THEME_METER_ARGS, e.g. HUD_THEME_METER_ARGS="--only theme-v2-persist".
 test-hud-theme-meter: install

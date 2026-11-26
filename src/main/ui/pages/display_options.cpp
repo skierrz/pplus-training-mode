@@ -59,7 +59,9 @@ namespace pages {
         TM_MENU("CPU Info Display", P_CPU_INFO),
         TM_MENU("Ledgedash HUD", P_LEDGEDASH_HUD),
         TM_MENU_IF("Floating Meters", P_COMBO_METERS, main::extraLoaded),
-        TM_MENU("Advanced / Debug", P_DEBUG)
+        TM_MENU("Advanced / Debug", P_DEBUG),
+        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(general.actionLog), 0, TM_COUNT(kPsaTargets) - 1, 0,
+               "Action Log", kPsaTargets, NULL, main::extraLoaded)
     };
 
     extern const Page kDisplayOptions = TM_PAGE("Display", kRows);

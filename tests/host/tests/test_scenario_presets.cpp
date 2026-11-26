@@ -692,11 +692,12 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK(strcmp(gen.options[8].name, "Offline VS Displays") == 0);
     CHECK(strcmp(gen.options[9].name, "Controls") == 0);
     const ui::Page& disp = ui::pages::kDisplayOptions;
-    REQUIRE(disp.count == 23);
+    REQUIRE(disp.count == 24);
     CHECK(strcmp(disp.options[21].name, "Floating Meters") == 0);
     CHECK_EQ(ui::pages::P_COMBO_METERS, disp.options[21].max);
     CHECK(strcmp(disp.options[22].name, "Advanced / Debug") == 0);
     CHECK_EQ(ui::pages::P_DEBUG, disp.options[22].max);
+    CHECK(strcmp(disp.options[23].name, "Action Log") == 0);
     const ui::Page& scen = ui::pages::kScenarios;
     REQUIRE(scen.count == 45);
     CHECK(strcmp(scen.options[0].name, "Preset") == 0);

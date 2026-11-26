@@ -50,6 +50,14 @@ namespace main {
         kInfoSizeCount
     };
 
+    // Display > Action Log (extra/action_log.*).
+    enum ActionLogTarget {
+        kActionLogOff = 0,
+        kActionLogP1,
+        kActionLogCpu,
+        kActionLogTargetCount
+    };
+
     // General page and its Ledgedash HUD page.
     struct GeneralSettings {
         u16 playerPercent;        // 0-999
@@ -65,7 +73,8 @@ namespace main {
         u8 diDisplay;             // 0/1
         u8 playerInfiniteShields; // cpu::InfiniteShields (Off / On Until Hit / On)
         u8 offlineVersus;         // 0/1: opt-in read-only displays in local offline Versus
-        u8 reserved[2];
+        u8 actionLog;             // ActionLogTarget (0 Off, 1 P1, 2 CPU)
+        u8 reserved[1];
     };
 
     // Controls > Menu Style.
@@ -590,6 +599,7 @@ namespace main {
     TM_STATIC_ASSERT(offsetof(Settings, osd.techSparkle) == 117, tm_settings_osd_tech_sparkle_at_117);
     TM_STATIC_ASSERT(offsetof(Settings, general.playerInfiniteShields) == 20, tm_settings_player_infinite_shields_at_20);
     TM_STATIC_ASSERT(offsetof(Settings, general.offlineVersus) == 21, tm_settings_offline_versus_at_21);
+    TM_STATIC_ASSERT(offsetof(Settings, general.actionLog) == 22, tm_settings_action_log_at_22);
     TM_STATIC_ASSERT(offsetof(Settings, general.offlineVersus) == block::kOfflineVersusOffset,
                      tm_settings_offline_versus_matches_block_layout);
     TM_STATIC_ASSERT(kSettingsMagic == block::kSettingsMagic, tm_settings_magic_matches_block_layout);
