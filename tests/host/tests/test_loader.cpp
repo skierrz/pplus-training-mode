@@ -180,6 +180,7 @@ namespace {
         loader::s_otherAllocationLogged = false;
         host::fakes::setHeapRoom(Heaps::MenuInstance, 0x00400000u);
         host::fakes::setHeapRoom(Heaps::OverlayMenu, 0x00400000u);
+        host::fakes::setHeapRoom(Heaps::AssistFigureResource, 0x00400000u);
         host::fakes::setHeapRoom(Heaps::OverlayFighter4, 0x00400000u);
         host::fakes::clearCacheOps();
         host::fakes::setTrainingSelectRunning(true);
@@ -510,20 +511,26 @@ TEST(loader, failure_paths_free_both_buffers_without_leaks)
     CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
     CHECK_EQ(0, host::fakes::heapBlocks(Heaps::OverlayMenu));
 
-    // 6. onlyIfEmpty heap holds another block: refuses before reading or allocating temp.
-    resetLoader(img);
-    void* other = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::OverlayFighter4), 0x40, 32);
-    REQUIRE(other != NULL);
-    s_placements[0].heap = Heaps::OverlayFighter4;
-    s_placements[0].onlyIfEmpty = true;
-    readsBefore = host::card::reads();
-    loader::onSceneStart();
-    CHECK_EQ(readsBefore, host::card::reads());
-    CHECK_EQ(0, s_trace.linkCalls);
-    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
-    CHECK_EQ(1, host::fakes::heapBlocks(Heaps::OverlayFighter4));
-    free(other);
-    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::OverlayFighter4));
+    // 6. onlyIfEmpty heap holds another block (both AssistFigureResource and OverlayFighter4):
+    // refuses before reading or allocating temp.
+    static const Heaps::HeapType kOnlyEmptyHeaps[2] = {Heaps::AssistFigureResource, Heaps::OverlayFighter4};
+    for (u32 hIdx = 0; hIdx < 2; hIdx++)
+    {
+        Heaps::HeapType targetHeap = kOnlyEmptyHeaps[hIdx];
+        resetLoader(img);
+        void* other = gfMemoryPool::alloc(gfHeapManager::getHeap(targetHeap), 0x40, 32);
+        REQUIRE(other != NULL);
+        s_placements[0].heap = targetHeap;
+        s_placements[0].onlyIfEmpty = true;
+        readsBefore = host::card::reads();
+        loader::onSceneStart();
+        CHECK_EQ(readsBefore, host::card::reads());
+        CHECK_EQ(0, s_trace.linkCalls);
+        CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
+        CHECK_EQ(1, host::fakes::heapBlocks(targetHeap));
+        free(other);
+        CHECK_EQ(0, host::fakes::heapBlocks(targetHeap));
+    }
 }
 
 TEST(loader, packed_inspect_rejects_unaligned_size_and_table_offset)

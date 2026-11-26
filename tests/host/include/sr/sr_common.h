@@ -9,6 +9,7 @@ namespace Heaps {
         Network = 0x6,
         ItemResource = 0x8,
         FighterTechqniq = 0x1f,
+        AssistFigureResource = 0x23,
         MenuInstance = 0x2a,
         OverlayMenu = 0x34,
         OverlayFighter1 = 0x35,

@@ -34,7 +34,7 @@ namespace {
     const char kFileA[] = "settings-a.bin";
     const char kFileB[] = "settings-b.bin";
 
-    policy::SceneGateInput localOfflineVs(u32 activePlayers, bool optIn)
+    policy::SceneGateInput localOfflineVs(u32 activePlayers, bool optIn, bool assistTrophies = false)
     {
         policy::SceneGateInput in;
         in.sceneIsMelee = true;
@@ -45,6 +45,7 @@ namespace {
         in.isNetplayVsync = false;
         in.isReplayFlag = false;
         in.optInEnabled = optIn;
+        in.assistTrophiesEnabled = assistTrophies;
         in.activePlayers = activePlayers;
         return in;
     }
@@ -179,17 +180,30 @@ TEST(stage6b_vs, hard_blocks_netplay_replays_and_non_vs_modes_even_when_opted_in
     }
 }
 
-TEST(stage6b_vs, allowed_offline_versus_respects_4p_overlay_fighter4_safety)
+TEST(stage6b_vs, allowed_offline_versus_respects_assist_and_4p_safety)
 {
-    // 2P local offline Versus: match + extra (2 placements).
-    CHECK_EQ(static_cast<int>(policy::kPlanMatchAndExtra),
-             static_cast<int>(policy::decideMeleeLoad(localOfflineVs(2, true))));
-    // 3P local offline Versus: match + extra (2 placements).
-    CHECK_EQ(static_cast<int>(policy::kPlanMatchAndExtra),
-             static_cast<int>(policy::decideMeleeLoad(localOfflineVs(3, true))));
-    // 4P local offline Versus: match ONLY (1 placement, OverlayFighter4 left untouched).
-    CHECK_EQ(static_cast<int>(policy::kPlanMatchOnly),
-             static_cast<int>(policy::decideMeleeLoad(localOfflineVs(4, true))));
+    // Assist Trophies OFF (standard competitive VS): 2P, 3P, and 4P all load
+    // match + extra into AssistFigureResource (leaving OverlayFighter1..4 untouched).
+    for (u32 players = 2; players <= 4; players++)
+    {
+        policy::SceneGateInput in = localOfflineVs(players, true, false);
+        CHECK_EQ(static_cast<int>(policy::kPlanMatchAndExtra), static_cast<int>(policy::decideMeleeLoad(in)));
+        CHECK_EQ(static_cast<int>(policy::kExtraHeapAssist), static_cast<int>(policy::decideExtraHeap(in)));
+    }
+
+    // Assist Trophies ON: 2P and 3P fall back to OverlayFighter4 so Brawl keeps
+    // AssistFigureResource free for Assist Trophy preloads; 4P loads match ONLY.
+    for (u32 players = 2; players <= 3; players++)
+    {
+        policy::SceneGateInput in = localOfflineVs(players, true, true);
+        CHECK_EQ(static_cast<int>(policy::kPlanMatchAndExtra), static_cast<int>(policy::decideMeleeLoad(in)));
+        CHECK_EQ(static_cast<int>(policy::kExtraHeapOverlay4), static_cast<int>(policy::decideExtraHeap(in)));
+    }
+    {
+        policy::SceneGateInput in = localOfflineVs(4, true, true);
+        CHECK_EQ(static_cast<int>(policy::kPlanMatchOnly), static_cast<int>(policy::decideMeleeLoad(in)));
+        CHECK_EQ(static_cast<int>(policy::kExtraHeapNone), static_cast<int>(policy::decideExtraHeap(in)));
+    }
 }
 
 TEST(stage6b_vs, training_mode_policy_unchanged)
@@ -203,8 +217,10 @@ TEST(stage6b_vs, training_mode_policy_unchanged)
     in.isNetplayVsync = false;
     in.isReplayFlag = false;
     in.optInEnabled = false;
+    in.assistTrophiesEnabled = true;
     in.activePlayers = 4;
     CHECK_EQ(static_cast<int>(policy::kPlanMatchAndExtra), static_cast<int>(policy::decideMeleeLoad(in)));
+    CHECK_EQ(static_cast<int>(policy::kExtraHeapAssist), static_cast<int>(policy::decideExtraHeap(in)));
 }
 
 TEST(stage6b_vs, general_page_appends_offline_vs_row_and_description)

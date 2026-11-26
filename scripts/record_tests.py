@@ -3618,8 +3618,9 @@ def _seed_resetti(emu):
 
 def s_resetti(r):
     """Training skips unused Assist Trophy and Pokemon preloads (itManager+0x149F=0),
-    keeping AssistFigureResource and PokemonResource at 0 B and recording working
-    under both seeded Resetti RNG (0x1E6C6E03) and an ordinary unseeded match."""
+    keeping AssistFigureResource at 1 block (extra module only, next_assist == -1)
+    and PokemonResource at 0 B, with recording working under both seeded Resetti
+    RNG (0x1E6C6E03) and an ordinary unseeded match."""
     res = Result("Mr. Resetti guard")
     emu, rec = r.emu, r.rec
     emu.h.call("resume")
@@ -3641,10 +3642,10 @@ def s_resetti(r):
     res.row("Resetti switch bits clear (modeMelee & itManager)", "False / False",
             f"modeMelee {st_a['mode_resetti']} ({mode_hex}), itManager {st_a['mgr_resetti']}",
             st_a["mode_resetti"] is False and st_a["mgr_resetti"] is False)
-    res.row("AssistFigureResource & PokemonResource skipped (0 B)", "next -1, assist 0 B, pokemon 0 B",
+    res.row("Assist preload skipped (extra only) & Pokemon 0 B", "next -1, assist 1 blk (extra), pokemon 0 B",
             f"next {st_a['next_assist']}, assist {st_a['assist_blocks']} blk/{st_a['assist_used']} B, "
             f"pokemon {st_a['pokemon_blocks']} blk/{st_a['pokemon_used']} B",
-            st_a["next_assist"] == -1 and st_a["assist_blocks"] == 0 and st_a["assist_used"] == 0
+            st_a["next_assist"] == -1 and st_a["assist_blocks"] == 1
             and st_a["pokemon_blocks"] == 0 and st_a["pokemon_used"] == 0)
     storage_ok = (bool(tb["flags"] & FLAG_STORAGE) and tb["storage"] != 0 and tb["bytes"] == SLOT_BYTES
                   and st_a["ftq_blocks"] == 1 and refusal is None)
@@ -3682,7 +3683,7 @@ def s_resetti(r):
             freed.group(0) if (storage_ok and freed) else "skipped: no storage during match",
             storage_ok and freed is not None and freed.group(2) == "yes")
 
-    # 2. Ordinary unseeded match: preloads stay skipped (0 B) and recording storage works.
+    # 2. Ordinary unseeded match: preloads stay skipped (extra only in assist, pokemon 0 B) and recording works.
     pos_u = len(emu.log_text())
     nav.start_training_match(emu, r.hmn, r.cpu, r.stage, seed_rng=False)
     emu.advance(60)
@@ -3690,10 +3691,10 @@ def s_resetti(r):
     log_u = log_since(emu, pos_u)
     r.refresh()
     tb_u = rec.status()
-    res.row("ordinary unseeded match keeps preload heaps empty", "next -1, assist/pokemon 0 B, storage ok",
+    res.row("ordinary unseeded match skips preloads", "next -1, assist 1 blk (extra), pokemon 0 B, storage ok",
             f"next {st_u['next_assist']}, assist {st_u['assist_blocks']} blk/{st_u['assist_used']} B, "
             f"pokemon {st_u['pokemon_blocks']} blk/{st_u['pokemon_used']} B, storage {bool(tb_u['flags'] & FLAG_STORAGE)}",
-            st_u["next_assist"] == -1 and st_u["assist_blocks"] == 0 and st_u["assist_used"] == 0
+            st_u["next_assist"] == -1 and st_u["assist_blocks"] == 1
             and st_u["pokemon_blocks"] == 0 and st_u["pokemon_used"] == 0
             and bool(tb_u["flags"] & FLAG_STORAGE) and "record: no storage" not in log_u)
     nav.finish_training(emu)

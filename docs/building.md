@@ -84,9 +84,11 @@ All intermediates (`.o`, dependency files, `.elf`, `.map`, each module's
 `STUB_BUDGET` (20 KiB), the main module needs more than `MAIN_BUDGET`
 bytes when loaded (the block the stub allocates for it, see "Load" below):
 the largest size that passed the stress tests in its heap, the menu module more
-than `MENU_BUDGET` (64 KiB), or the extra module more than `EXTRA_BUDGET`
-(295,712 bytes, the largest size that passed the stress test in
-OverlayFighter4). All can be overridden on the command line for
+than `MENU_BUDGET` (96 KiB), the extra module more than `EXTRA_BUDGET`
+(418,816 bytes / 409 KiB, leaving 608 B below `AssistFigureResource`'s
+419,424 B usable MEM2 cap), or the peak unpacked module file size exceeds
+`TEMP_BUDGET` (495,616 bytes / 484 KiB, guarding `scMelee`'s `MenuInstance`
+temporary link heap). All can be overridden on the command line for
 experiments.
 
 ## Local settings
@@ -123,7 +125,7 @@ modules the stub loads for the scenes that need them and unloads afterwards:
 | Module | Kind, id | Loaded for | Heap | What it holds |
 |---|---|---|---|---|
 | main (`src/main/`) | "match", 21582 | every Training match | OverlayMenu | the lab, its menu, displays, CPU options, savestates, recording, the SD card |
-| extra (`src/extra/`) | "extra", 21584 | every Training match, after the main module | OverlayFighter4 | DI Display, PSA frame data, Alter Inputs, Character RNG & Fighter Mechanics, Stage Options, PPlusAI recovery, Combo Trainer, Hitbox Heatmap, Grab/Tether Visualizer, Adaptive CPU, Scenario Presets, Fighter Swap, native UI assets, menu descriptions, and pure skill drill engines |
+| extra (`src/extra/`) | "extra", 21584 | every Training match and opted-in offline Versus (when Assist Trophies are off), after the main module | AssistFigureResource (MEM2) | DI Display, PSA frame data, Action Log, Character RNG & Fighter Mechanics, Stage Options, PPlusAI recovery, Combo Trainer, Hitbox Heatmap, Grab/Tether Visualizer, Adaptive CPU, Scenario Presets, Fighter Swap, native UI assets, menu descriptions, and pure skill drill engines |
 | menu (`src/menu/`) | "menu", 21583 | Training's character select | OverlayMenu | the Training Menu launcher and the recordings import browser |
 
 - **File.** `scripts/pack-rel.py` writes the stub REL, then each module REL
@@ -141,7 +143,10 @@ modules the stub loads for the scenes that need them and unloads afterwards:
 - **Load.** A policy (`src/stub/load_policy.cpp`) maps the scene that is about
   to start to the modules to load and their heaps: for a Training match
   (`scMelee`), the main module into OverlayMenu, then the extra module into
-  OverlayFighter4 (below); for Training's character select
+  AssistFigureResource (MEM2, below); for opted-in local offline Versus, the
+  extra module also uses AssistFigureResource when Assist Trophies are off (2P
+  to 4P), falling back to OverlayFighter4 for 2P/3P (or match-only in 4P) when
+  Assist Trophies are on; for Training's character select
   (`scSelctCharacter` while the sequence is `sqTraining`), the menu module
   into OverlayMenu: that scene allocates hundreds of blocks in MenuInstance,
   while OverlayMenu is untouched there. Module by module, the loader reads
@@ -218,14 +223,22 @@ between:
   registers its hooks with the main module when it attaches (`main/extra.h`).
   It also logs one line per match from what it reads in the main module;
   `make EXTRA_PROOF=1` (into `build/proof/`) also draws that line.
-- The load rule: Training matches only, after the main module and only if
-  that one loaded, into OverlayFighter4 and only while that heap holds no
-  block. The game gives each different character in a match one of four heap
-  sets, the lowest free one (set n has OverlayFighter(n+1) for its code
-  module), and fighters of the same character share a set. Training by itself
-  never uses more than two sets; while the extra module is loaded, the stub
-  (`src/stub/set_guard.cpp`) refuses a Code Menu swap that would allocate a
-  fourth different character in set 3.
+- The load rule: Training matches (1P to 4P) and opted-in local offline Versus
+  matches with Assist Trophies off (2P to 4P) load the extra module right after
+  the main module into `AssistFigureResource` (MEM2, 419,424 B usable) while
+  that heap holds no block. Because `AssistFigureResource` sits in MEM2
+  (`0x92xxxxxx`..`0x93xxxxxx`, >32 MiB from MEM1), `scripts/pack-rel.py
+  --far-calls extra` appends a 16-byte PowerPC far-call trampoline island
+  (`lis r12; ori r12; mtctr r12; bctr`) per unique external `R_PPC_REL24`
+  target to `extra`'s `.text` section, rewrites external call/tail-call sites
+  to branch locally to their stubs, and replaces those `R_PPC_REL24` records
+  with `R_PPC_ADDR16_HI`/`LO` pairs (with `R_DOLPHIN_NOP` spacers for >64 KiB
+  deltas). Leaving `OverlayFighter4` untouched unlocks all four distinct
+  fighter heap sets simultaneously; `src/stub/set_guard.cpp` self-disables when
+  `extra` is not in `OverlayFighter1..4` and stays active as a safety net for
+  `OverlayFighter4` fallback or `EXTRA_HEAP=56` builds. `src/main/extra.cpp`
+  excludes `extra`'s `gfMemoryPool` payload from savestate snapshots via
+  `savestate::setOwnExclusionAt(1, ...)`.
 - `pack-rel.py` stops if a module imports from another packed module that
   the stub does not keep loaded for it (only extra from match is allowed),
   and prints which module each one links against.

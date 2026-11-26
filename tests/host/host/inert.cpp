@@ -185,6 +185,9 @@ namespace savestate {
     void setOwnExclusion(u32, u32)
     {
     }
+    void setOwnExclusionAt(u32, u32, u32)
+    {
+    }
 }
 
 namespace menu {

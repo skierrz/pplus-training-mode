@@ -6,6 +6,7 @@
 
 #include <ft/ft_manager.h>
 #include <gm/gm_global.h>
+#include <sr/sr_common.h>
 #include <string.h>
 
 #include "extra/adaptive_cpu.h"
@@ -36,6 +37,7 @@
 #include "main/ui/pages/scenarios.h"
 #include "shared/drill_session.h"
 #include "shared/game/frame.h"
+#include "shared/game/heap.h"
 #include "shared/game/mem.h"
 #include "shared/game/menu_sound.h"
 #include "shared/log.h"
@@ -686,8 +688,15 @@ namespace extra {
             return;
         }
 
-        // Enforce <= 3 distinct fighter sets while extra holds OverlayFighter4.
-        if (!fighterSwapFitsBudget(targetKinds, active, game::kMaxFighters, true))
+        // Enforce <= 3 distinct fighter sets only when extra resides in OverlayFighter4.
+        bool extraHoldsSet3 = false;
+        game::HeapUsage of4;
+        if (game::heapUsage(Heaps::OverlayFighter4, of4))
+        {
+            u32 selfAddr = reinterpret_cast<u32>(&fighterSwapApply);
+            extraHoldsSet3 = (selfAddr >= of4.start && selfAddr < of4.end);
+        }
+        if (!fighterSwapFitsBudget(targetKinds, active, game::kMaxFighters, extraHoldsSet3))
         {
             recordRefusal(kRefuseSetBudget, "would require 4th fighter set while extra holds OverlayFighter4");
             return;
