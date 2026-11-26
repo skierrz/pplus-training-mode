@@ -218,8 +218,8 @@ def check_list_screens(emu, taken, notes):
     if last_row(emu) != 3:
         raise nav.NavError(f"Down at bottom Offense row moved off row 3 to {last_row(emu)}")
     path = shot(emu, taken, "drills-list-offense-bottom")
-    hi3, c3 = row_highlighted(path, 3)
-    hi2, c2 = row_highlighted(path, 2)
+    hi3, c3 = row_highlighted(path, 3, x0=278.0, x1=298.0)
+    hi2, c2 = row_highlighted(path, 2, x0=278.0, x1=298.0)
     if not hi3 or hi2:
         raise nav.NavError(f"the highlight is not on Offense row 3 alone (row 2 {c2}, row 3 {c3})")
 

@@ -698,7 +698,7 @@ def sc_challenges_hud(t):
     def run_snake_recovery(aspect):
         tag = "16x9" if aspect == "16:9" else "4x3"
         p1, _cpu, tmdh = t.arm_skill_drill_and_enter(
-            1, 15, "snake", "fox", aspect=aspect, page_name="Character Trainers"
+            0, 15, "snake", "fox", aspect=aspect, page_name="Character Trainers"
         )
         p1_ptr = p1["fighter"]
         S4C.walk_p1_to(e, p1_ptr, 80.0, face_dir=1.0)

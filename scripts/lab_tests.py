@@ -2090,8 +2090,7 @@ def cmd_test_lab(rest):
                 if len(re.findall(r"lab: menu closed", emu.synced_log_text())) != n_close + 1:
                     raise LabError("B on left rail did not close the lab menu")
                 note("Start mode: B focuses left rail, second B on rail closes the menu")
-                lab.open_menu()
-                lab.tap(["B"])  # focus Draft C left rail for next step
+                lab.open_menu()  # reopens with Draft C left rail still focused
 
                 step = "Start mode: OSD Menu scroll and toggle"
                 lab.main_to(MAIN_OSD)
