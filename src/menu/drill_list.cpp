@@ -78,8 +78,9 @@ namespace list {
         kIdxTechchaseEscape = 21,
         kIdxRecoverySweetspot = 22,
         kIdxFloorhug = 23,
-        kIdxSnakeRecovery = 24,
-        kIdxRecordings = 25
+        kIdxComboBreakRush = 24,
+        kIdxSnakeRecovery = 25,
+        kIdxRecordings = 26
     };
 
     // Intuitive All Modes order: Training Lab -> Core Fundamentals ->
@@ -399,6 +400,19 @@ namespace list {
             "L+Up: Free / 10 / 20 / 60s"
         },
         {
+            "Combo-Break Rush",
+            kRowSkillDrill,
+            drills::kDrillComboBreakRush,
+            {
+                "Break 3D stage target orbs to",
+                "build x1-x8 combo chains in",
+                "Timed Rush or Free Practice."
+            },
+            "Any Fighter",
+            "3D Target Orbs",
+            "L+Up: Free / 30s / 60s"
+        },
+        {
             "Snake Infinite Recovery",
             kRowSkillDrill,
             drills::kDrillSnakeRecovery,
@@ -431,8 +445,8 @@ namespace list {
         kIdxTechchase,  kIdxEdgeguard,    kIdxShieldPressure, kIdxPowershield, kIdxShieldDrop,
         kIdxLedgetech,  kIdxSlideOff,     kIdxGrabDefense, kIdxMultiHitSdi, kIdxRar,
         kIdxDacus,      kIdxBReverse,     kIdxFloatHover,  kIdxCancelSprint, kIdxFlowCourse,
-        kIdxReactionLab, kIdxTechchaseEscape, kIdxRecoverySweetspot, kIdxFloorhug, kIdxSnakeRecovery,
-        kIdxRecordings
+        kIdxReactionLab, kIdxTechchaseEscape, kIdxRecoverySweetspot, kIdxFloorhug, kIdxComboBreakRush,
+        kIdxSnakeRecovery, kIdxRecordings
     };
     static const u8 kOffenseIndices[] = {
         kIdxComboLab, kIdxTechchase, kIdxEdgeguard, kIdxShieldPressure, kIdxGrabDefense
@@ -446,10 +460,10 @@ namespace list {
         kIdxLCancel, kIdxWavedash, kIdxLedgedash, kIdxPowershield,
         kIdxRar, kIdxDacus, kIdxBReverse, kIdxFloatHover
     };
-    // 6 single-page rows (zero scrolling; room for Combo-Break Rush at merge).
+    // 7 single-page rows (zero scrolling; kVisibleRows == 10).
     static const u8 kChallengesIndices[] = {
         kIdxCancelSprint, kIdxFlowCourse, kIdxReactionLab,
-        kIdxTechchaseEscape, kIdxRecoverySweetspot, kIdxFloorhug
+        kIdxTechchaseEscape, kIdxRecoverySweetspot, kIdxFloorhug, kIdxComboBreakRush
     };
     // Character-specific P+ trainers.
     static const u8 kCharTrainersIndices[] = {
@@ -1391,7 +1405,8 @@ namespace list {
             drawBevelBar(contentX, barY, contentW, barH, kRowFillTop, kRowFillBot, kRowSheen, kLabBevelDark);
             float bScale = scaleForCap(kCardChipCap);
             float textY = textYForCap(barY + (barH - kCardChipCap) * 0.5f, bScale);
-            gfx::text(contentX + w(10.0f), textY, "Best Streak", kCardMuted, bScale);
+            const char* bestLabel = (row.targetId == drills::kDrillComboBreakRush) ? "Best Score" : "Best Streak";
+            gfx::text(contentX + w(10.0f), textY, bestLabel, kCardMuted, bScale);
             float bw = boldWidth(bestText, bScale);
             boldText(contentX + contentW - w(10.0f) - bw, textY, bestText, best > 0 ? kLabFocusGold : kCardMuted,
                      bScale, bScale);

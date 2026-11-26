@@ -176,6 +176,7 @@ namespace extra {
 
     void comboBreakRushAttach()
     {
+        TM_STATIC_ASSERT(kRushBestSlot == drills::kDrillComboBreakRush, tm_rush_best_slot_matches_drill_id);
         if (s_net == NULL) s_net = allocNetArray<RushNet>(1);
         if (s_net == NULL) return;
         s_net->sess = drills::sessionIn(main::services().settings());
@@ -183,7 +184,14 @@ namespace extra {
         s_net->bubbleOk = collBubbleSupported() ? 1 : 0;
         s_net->debug.cmdMode = kRushCmdIdle;
         u32 best = s_net->sess != NULL ? static_cast<u32>(s_net->sess->best[kRushBestSlot]) : 0u;
-        rushInit(s_net->st, kRushOff, best, 0x544D4252u);
+        u8 startMode = (s_net->sess != NULL && s_net->sess->drill == drills::kDrillComboBreakRush)
+                           ? static_cast<u8>(kRushFree)
+                           : static_cast<u8>(kRushOff);
+        rushInit(s_net->st, startMode, best, 0x544D4252u);
+        if (startMode != kRushOff && s_net->sess != NULL)
+        {
+            s_net->sess->drillRan = 1;
+        }
         syncDebug(*s_net);
         TM_LOG("combo_break_rush: debug block at %08x\n", reinterpret_cast<u32>(&s_net->debug));
     }
@@ -221,6 +229,13 @@ namespace extra {
             }
         }
         syncDebug(*s_net);
+    }
+
+    void comboBreakRushCycleMode()
+    {
+        if (s_net == NULL || s_net->st.mode == kRushOff) return;
+        comboBreakRushSetActive(rushNextMode(s_net->st.mode));
+        ui::menuSound(game::kSoundMove);
     }
 
     bool comboBreakRushActive()

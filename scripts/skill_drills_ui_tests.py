@@ -260,7 +260,7 @@ class Runner:
         pages = re.findall(r"\] drills: page ([^\r\n]+)", tail)
         page_patterns = {
             "Tech Practice": r"(?:L-Cancel|Wavedash|Ledgedash|Powershield|RAR|DACUS|B-Reverse|Float)",
-            "Challenges": r"(?:Cancel Sprint|Movement Flow|Situational Reaction|Universal Techchase|Universal Recovery|Floorhug)",
+            "Challenges": r"(?:Cancel Sprint|Movement Flow|Situational Reaction|Universal Techchase|Universal Recovery|Floorhug|Combo-Break Rush)",
             "Character Trainers": r"(?:Snake Infinite Recovery)",
         }
         pat = page_patterns.get(page_name, "")
@@ -825,11 +825,11 @@ def sc_challenges_hud(t):
         e.h.call("resume")
         nav.finish_training(e)
 
-    # 1. Boot Menu Challenges (6 rows) & Character Trainers (1 row) in 16:9.
+    # 1. Boot Menu Challenges (7 rows incl. Combo-Break Rush) & Character Trainers (1 row) in 16:9.
     LT.set_aspect(e, "16:9", lambda _m: None)
     t.ensure_page_open("Challenges")
-    DT.go_to_row(e, 5)
-    t.check(DT.last_row(e) == 5, "boot-challenges-6-rows", f"reached row {DT.last_row(e)} on Challenges")
+    DT.go_to_row(e, 6)
+    t.check(DT.last_row(e) == 6, "boot-challenges-7-rows", f"reached row {DT.last_row(e)} on Challenges")
     DT.go_to_row(e, 4)
     e.advance(8)
     t.snap("boot-challenges-16x9")

@@ -903,13 +903,13 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     menu::list::attach();
     stepFrame(pads); // neutral clears wait-release
 
-    // Starts on Page 0 (All Modes, 26 rows: Lab -> Core Fundamentals ->
+    // Starts on Page 0 (All Modes, 27 rows: Lab -> Core Fundamentals ->
     // Defensive & Situational -> P+ Advanced Tech -> P+ Challenges ->
     // Character Trainers -> Browse Recordings).
     CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
 
     // Step through All Modes and verify intuitive ordering & recommendation badges.
-    for (int i = 0; i < 25; i++)
+    for (int i = 0; i < 26; i++)
     {
         setPadInput(pads[0], kDpadDown);
         stepFrame(pads);
@@ -928,10 +928,11 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     CHECK(host::log::contains("drills: row 16 B-Reverse / Wavebounce"));
     CHECK(host::log::contains("drills: row 17 Float / Hover & DJC"));
     CHECK(host::log::contains("drills: row 18 Cancel Sprint"));
-    CHECK(host::log::contains("drills: row 24 Snake Infinite Recovery"));
-    CHECK(host::log::contains("drills: row 25 Browse Recordings"));
+    CHECK(host::log::contains("drills: row 24 Combo-Break Rush"));
+    CHECK(host::log::contains("drills: row 25 Snake Infinite Recovery"));
+    CHECK(host::log::contains("drills: row 26 Browse Recordings"));
 
-    // Select row 25 (Browse Recordings) -> opens browser, B returns to Boot Menu.
+    // Select row 26 (Browse Recordings) -> opens browser, B returns to Boot Menu.
     setPadInput(pads[0], kButtonA);
     stepFrame(pads);
     CHECK(host::log::contains("browser: opened for port 1"));
@@ -1620,7 +1621,7 @@ TEST(drill_list, challenges_and_character_trainers_tabs_arm_all_seven_and_show_s
     menu::list::onRender(0);
     CHECK(canvasDrew("SNAKE RECOVERY"));
 
-    // Reopen and press L -> Page 4 (Challenges, 6 rows arming IDs 9..14).
+    // Reopen and press L -> Page 4 (Challenges, 7 rows arming IDs 9..14 + 17).
     setPadInput(pads[0], 0);
     stepFrame(pads);
     setPadInput(pads[0], game::kPadL | game::kPadR);
@@ -1633,11 +1634,13 @@ TEST(drill_list, challenges_and_character_trainers_tabs_arm_all_seven_and_show_s
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
-    static const u8 kExpectedChallenges[6] = {
+    menu::session().best[drills::kDrillComboBreakRush] = 1250;
+    static const u8 kExpectedChallenges[7] = {
         drills::kDrillCancelSprint,       drills::kDrillFlowCourse,        drills::kDrillReactionLab,
-        drills::kDrillTechchaseEscape,    drills::kDrillRecoverySweetspot, drills::kDrillFloorhug
+        drills::kDrillTechchaseEscape,    drills::kDrillRecoverySweetspot, drills::kDrillFloorhug,
+        drills::kDrillComboBreakRush
     };
-    for (int r = 0; r < 6; r++)
+    for (int r = 0; r < 7; r++)
     {
         if (r > 0)
         {
@@ -1655,6 +1658,14 @@ TEST(drill_list, challenges_and_character_trainers_tabs_arm_all_seven_and_show_s
             host::canvas::clear();
             menu::list::onRender(0);
             CHECK(canvasDrew("3D Ledge Guides"));
+        }
+        if (r == 6)
+        {
+            host::canvas::clear();
+            menu::list::onRender(0);
+            CHECK(canvasDrew("3D Target Orbs"));
+            CHECK(canvasDrew("Best Score"));
+            CHECK(canvasDrew("Best: 1250"));
         }
         setPadInput(pads[0], kButtonA);
         stepFrame(pads);

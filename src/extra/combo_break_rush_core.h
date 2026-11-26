@@ -27,12 +27,19 @@ namespace extra {
         kRushTimed60Frames = 3600, // 60 seconds
         kRushBurstFrames = 14,
         kRushRespawnDelay = 10,
-        kRushBestSlot = 24, // drills::Session::best[24] (safe above kDrillIdCount=9)
+        kRushBestSlot = 17, // drills::kDrillComboBreakRush (drills::Session::best[17])
         kRushDebugMagic = 0x544D4252u, // "TMBR"
         kRushDebugVersion = 1,
         kRushCmdIdle = 0xFF,
         kRushCmdSnapTarget = 0xFE
     };
+
+    inline u8 rushNextMode(u8 mode)
+    {
+        if (mode == kRushFree) return static_cast<u8>(kRushTimed30);
+        if (mode == kRushTimed30) return static_cast<u8>(kRushTimed60);
+        return static_cast<u8>(kRushFree);
+    }
 
     struct RushTarget {
         float x;

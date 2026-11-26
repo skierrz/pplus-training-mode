@@ -159,8 +159,12 @@ TEST(combo_break_rush, combo_multiplier_chain_timer_and_modes)
     CHECK_EQ(1, static_cast<int>(st.finished));
     CHECK_EQ(3, static_cast<int>(st.hitEvent));
 
-    // Free Practice never times out and supports best-slot index inside drills::Session.
-    CHECK(kRushBestSlot >= tm::drills::kDrillIdCount && kRushBestSlot < tm::drills::kBestSlots);
+    // Free Practice never times out and best-slot matches kDrillComboBreakRush (17).
+    CHECK_EQ(static_cast<int>(tm::drills::kDrillComboBreakRush), static_cast<int>(kRushBestSlot));
+    CHECK(kRushBestSlot < tm::drills::kBestSlots);
+    CHECK_EQ(static_cast<int>(kRushTimed30), static_cast<int>(rushNextMode(kRushFree)));
+    CHECK_EQ(static_cast<int>(kRushTimed60), static_cast<int>(rushNextMode(kRushTimed30)));
+    CHECK_EQ(static_cast<int>(kRushFree), static_cast<int>(rushNextMode(kRushTimed60)));
     rushInit(st, kRushFree, st.bestScore, 0x11112222u);
     CHECK_EQ(0, static_cast<int>(st.timerFrames));
     for (int f = 0; f < 300; f++)

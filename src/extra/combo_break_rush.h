@@ -15,9 +15,10 @@ namespace extra {
     void comboBreakRushDraw(const game::MatchState& match);
     void comboBreakRushDraw3d(const game::MatchState& match);
 
-    // Clean external API (also callable from Challenges boot menu wiring):
+    // Clean external API (wired into Challenges boot menu and L+Up mode cycle):
     // mode: 0 = Off, 1 = Timed 30s, 2 = Timed 60s, 3 = Free Practice.
     void comboBreakRushSetActive(u8 mode);
+    void comboBreakRushCycleMode();
     bool comboBreakRushActive();
 }
 }

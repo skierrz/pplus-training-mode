@@ -10,6 +10,8 @@
 #if TM_STAGE4C
 #include "extra/challenge_backends.h"
 #endif
+#include "extra/combo_break_rush.h"
+#include "extra/combo_break_rush_core.h"
 #include "extra/drill_core_engines.h"
 #include "extra/drill_float_djc_core.h"
 #include "extra/drill_hover_ps_engines.h"
@@ -595,25 +597,33 @@ namespace extra {
                         s_rt.lastPadType = static_cast<u8>(p.m_controllerType);
                     }
                 }
-                else if (!st.modalOpen && isValidSkillDrill(st.activeDrill) && (pr & game::kPadDUp) != 0
-                         && (held & (game::kPadDDown | game::kPadR)) == 0)
+                else if (!st.modalOpen && (isValidSkillDrill(st.activeDrill) || comboBreakRushActive())
+                         && (pr & game::kPadDUp) != 0 && (held & (game::kPadDDown | game::kPadR)) == 0)
                 {
                     u32 ct = static_cast<u32>(p.m_controllerType);
                     u32 modBit = ct == gfPadType::WIIMOTE ? game::kPadWiiMinus : game::inMatchPad(ct).prevCat;
                     if (modBit != 0 && (held & modBit) != 0)
                     {
-                        drillHudCycleMode(st);
-                        ui::pages::practiceMenuState()->mode = st.mode < 3u ? st.mode : 0u;
-                        s_rt.synced = 0;
-                        s_rt.releaseMask[i] |= game::kPadDUp;
-#if TM_STAGE4C
-                        if (st.activeDrill == drills::kDrillFloorhug)
+                        if (comboBreakRushActive())
                         {
-                            challengeBackendsInterruptTaunts();
+                            comboBreakRushCycleMode();
+                            s_rt.releaseMask[i] |= game::kPadDUp;
                         }
+                        else
+                        {
+                            drillHudCycleMode(st);
+                            ui::pages::practiceMenuState()->mode = st.mode < 3u ? st.mode : 0u;
+                            s_rt.synced = 0;
+                            s_rt.releaseMask[i] |= game::kPadDUp;
+#if TM_STAGE4C
+                            if (st.activeDrill == drills::kDrillFloorhug)
+                            {
+                                challengeBackendsInterruptTaunts();
+                            }
 #endif
-                        ui::menuSound(game::kSoundMove);
-                        syncDebug();
+                            ui::menuSound(game::kSoundMove);
+                            syncDebug();
+                        }
                     }
                 }
             }
@@ -771,6 +781,7 @@ namespace extra {
         }
         drillHudInit(s_rt.st, static_cast<u8>(drills::kDrillNone), 0u);
         drillPracticeSetActiveDrill(kPracticeDrillNone);
+        comboBreakRushSetActive(kRushOff);
         ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
         pm->activeDrill = static_cast<u8>(drills::kDrillNone);
         pm->mode = static_cast<u8>(kDrillModeFree);
