@@ -87,9 +87,9 @@ namespace pages {
 
     void initTechOptionsPage(Option* buf)
     {
-        const void* dataTbl[8] = {
-            pageStr(kPs_tech_kTech), pageStr(kPs_tech_kGetUp), pageStr(kPs_tech_kTechInvisLabels), "%df",
-            pageStr(kPs_tech_kTechTrap), pageStr(kPs_tech_kLockout), pageStr(kPs_tech_kPreTechDriftLabels), "%d%%"
+        static const u16 kStrs[8] = {
+            kPs_tech_kTech, kPs_tech_kGetUp, kPs_tech_kTechInvisLabels, kPs_fmt_df,
+            kPs_tech_kTechTrap, kPs_tech_kLockout, kPs_tech_kPreTechDriftLabels, kPs_fmt_pct
         };
         static bool (*const kGates[6])() = {
             NULL, cpuLabControl, techInvisActive, techNotMiss, techRandom, getupRandom
@@ -114,7 +114,7 @@ namespace pages {
             {kKindInt,    0, TM_FIELD(cpu.options.getupChance[2]), 0, 25, 100, 7, 7, 5, 0},
             {kKindInt,    0, TM_FIELD(cpu.options.getupChance[3]), 0, 25, 100, 7, 8, 5, 0}
         };
-        fillPageRows(kTechOptions, buf, 17, kTs, pageStr(kPs_tech_names), dataTbl, kCbs, kGates);
+        fillPageRows(kTechOptions, buf, 17, kTs, kPs_tech_names, kStrs, NULL, kCbs, kGates);
     }
 #else
 #define TM_CHANCE(name, f, onChange, enabled) \

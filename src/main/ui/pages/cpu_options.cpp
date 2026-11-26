@@ -624,15 +624,16 @@ namespace pages {
         kCounterAir = pageStr(kPs_cpu_kCounterAir);
         kCounterShield = pageStr(kPs_cpu_kCounterShield);
 
-        const void* dataTbl[23] = {
-            "%d%%", pageStr(kPs_cpu_kControl), pageStr(kPs_cpu_kBehavior), pageStr(kPs_cpu_kRecovery),
-            pageStr(kPs_cpu_kLedgeOption), cpu::g_moveCpuLabel, cpu::g_freezeCpuLabel,
-            pageStr(kPs_cpu_kControlledBy), kTdiLabels, lab::g_diPickLabel, "%+d", "%d",
-            pageStr(kPs_cpu_kSdiDirection), pageStr(kPs_cpu_kAsdi), kCounterGround, kCounterAir,
-            kCounterShield, pageStr(kPs_cpu_kShieldTiming), "%df", pageStr(kPs_cpu_kAdaptiveMode),
-            pageStr(kPs_cpu_kShfflTiming), pageStr(kPs_cpu_kInfiniteShields), pageStr(kPs_cpu_kShieldAngle)
+        static const u16 kStrs[22] = {
+            kPs_fmt_pct, kPs_cpu_kControl, kPs_cpu_kBehavior, kPs_cpu_kRecovery,
+            kPs_cpu_kLedgeOption, kPs_cpu_kControlledBy, kPs_cpu_kTdiLabels,
+            kPs_fmt_pd, kPs_fmt_d, kPs_cpu_kSdiDirection, kPs_cpu_kAsdi,
+            kPs_cpu_kCounterGround, kPs_cpu_kCounterAir, kPs_cpu_kCounterShield,
+            kPs_cpu_kShieldTiming, kPs_fmt_df, kPs_cpu_kAdaptiveMode,
+            kPs_cpu_kShfflTiming, kPs_cpu_kInfiniteShields, kPs_cpu_kShieldAngle,
+            kPs_cpu_kGrabEscape, kPs_cpu_kGrabRelease
         };
-        const void* defData[2] = {pageStr(kPs_cpu_kGrabEscape), pageStr(kPs_cpu_kGrabRelease)};
+        static const void* const kExtra[3] = {cpu::g_moveCpuLabel, cpu::g_freezeCpuLabel, lab::g_diPickLabel};
         static void (*const kCbs[6])() = {
             NULL, cpuPercent, moveCpu, freezeCpu, controlledByChanged, lab::toggleDiStickPicker
         };
@@ -652,52 +653,49 @@ namespace pages {
             {kKindMenu,   0, 0, 0, 0, P_CPU_DEFENSE, 0xFF, 0, 1, 0},
             {kKindChoice, 0, TM_FIELD(cpu.options.recovery), TM_CHOICE_LO, cpu::kRecoveryPPlusAi, 2, 3, 0, 1, 0},
             {kKindChoice, 0, TM_FIELD(cpu.options.ledgeOption), TM_CHOICE_LO, cpu::kLedgeDefault, 6, 4, 0, 1, 0},
-            {kKindFunc,   0, 0, 0, 0, 0, 5, 2, 1, 0},
-            {kKindFunc,   0, 0, 0, 0, 0, 6, 3, 1, 0},
-            {kKindChoice, 0, TM_FIELD(cpu.options.controlledBy), TM_CHOICE_LO, 0, 4, 7, 4, 1, 0}
+            {kKindFunc,   0, 0, 0, 0, 0, 0xF0, 2, 1, 0},
+            {kKindFunc,   0, 0, 0, 0, 0, 0xF1, 3, 1, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.controlledBy), TM_CHOICE_LO, 0, 4, 5, 4, 1, 0}
         };
         static const RowSpec kDiS[8] = {
-            {kKindChoice, 0, TM_FIELD(cpu.options.tdi), TM_CHOICE_LO, 0, cpu::kTdiCount - 1, 8, 0, 1, 0},
-            {kKindFunc,   kFlagHideWhenDisabled, 0, 0, 0, 0, 9, 5, 2, 0},
-            {kKindInt,    kFlagSigned | kFlagHideWhenDisabled, TM_FIELD(cpuTables.customDiX), -100, 100, 100, 10, 0, 2, 0},
-            {kKindInt,    kFlagSigned | kFlagHideWhenDisabled, TM_FIELD(cpuTables.customDiY), -100, 0, 100, 10, 0, 2, 0},
-            {kKindInt,    0, TM_FIELD(cpu.options.sdiAmount), 0, 0, 7, 11, 0, 1, 0},
-            {kKindChoice, kFlagHideWhenDisabled, TM_FIELD(cpu.options.sdiDir), TM_CHOICE_LO, 0, 7, 12, 0, 3, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.tdi), TM_CHOICE_LO, 0, cpu::kTdiCount - 1, 6, 0, 1, 0},
+            {kKindFunc,   kFlagHideWhenDisabled, 0, 0, 0, 0, 0xF2, 5, 2, 0},
+            {kKindInt,    kFlagSigned | kFlagHideWhenDisabled, TM_FIELD(cpuTables.customDiX), -100, 100, 100, 7, 0, 2, 0},
+            {kKindInt,    kFlagSigned | kFlagHideWhenDisabled, TM_FIELD(cpuTables.customDiY), -100, 0, 100, 7, 0, 2, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.sdiAmount), 0, 0, 7, 8, 0, 1, 0},
+            {kKindChoice, kFlagHideWhenDisabled, TM_FIELD(cpu.options.sdiDir), TM_CHOICE_LO, 0, 7, 9, 0, 3, 0},
             {kKindToggle, kFlagHideWhenDisabled, TM_FIELD(cpu.options.dualStickSdi), 0, 0, 1, 0xFF, 0, 3, 0},
-            {kKindChoice, 0, TM_FIELD(cpu.options.asdi), TM_CHOICE_LO, 0, 6, 13, 0, 1, 0}
+            {kKindChoice, 0, TM_FIELD(cpu.options.asdi), TM_CHOICE_LO, 0, 6, 10, 0, 1, 0}
         };
         static const RowSpec kCtrS[11] = {
-            {kKindChoice, 0, TM_FIELD(cpu.options.counterGround), TM_CHOICE_LO, 13, kCounterGroundSize - 1, 14, 0, 4, 0},
-            {kKindChoice, 0, TM_FIELD(cpu.options.counterAir), TM_CHOICE_LO, 1, kCounterAirSize - 1, 15, 0, 4, 0},
-            {kKindChoice, 0, TM_FIELD(cpu.options.counterShield), TM_CHOICE_LO, 1, kCounterShieldSize - 1, 16, 0, 4, 0},
-            {kKindChoice, 0, TM_FIELD(cpu.options.shieldTiming), TM_CHOICE_LO, cpu::kShieldTimingFullMove, 1, 17, 0, 1, 0},
-            {kKindInt,    0, TM_FIELD(cpu.options.counterDelay), 0, 0, 99, 18, 0, 1, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.counterGround), TM_CHOICE_LO, 13, kCounterGroundSize - 1, 11, 0, 4, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.counterAir), TM_CHOICE_LO, 1, kCounterAirSize - 1, 12, 0, 4, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.counterShield), TM_CHOICE_LO, 1, kCounterShieldSize - 1, 13, 0, 4, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.shieldTiming), TM_CHOICE_LO, cpu::kShieldTimingFullMove, 1, 14, 0, 1, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.counterDelay), 0, 0, 99, 15, 0, 1, 0},
             {kKindMenu,   0, 0, 0, 0, P_COUNTER_POOL, 0xFF, 0, 1, 0},
             {kKindMenu,   0, 0, 0, 0, P_ADVANCED_COUNTER, 0xFF, 0, 1, 0},
             {kKindMenu,   0, 0, 0, 0, P_REVERSALS, 0xFF, 0, 5, 0},
-            {kKindChoice, 0, TM_FIELD(cpu.options.adaptiveMode), TM_CHOICE_LO, cpu::kAdaptiveOff, 2, 19, 0, 5, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.adaptiveMode), TM_CHOICE_LO, cpu::kAdaptiveOff, 2, 16, 0, 5, 0},
             {kKindToggle, 0, TM_FIELD(cpu.options.autoLCancel), 0, 1, 1, 0xFF, 0, 1, 0},
-            {kKindChoice, kFlagHideWhenDisabled, TM_FIELD(cpu.options.shfflTiming), TM_CHOICE_LO, cpu::kShfflFramePerfect, 4, 20, 0, 6, 0}
+            {kKindChoice, kFlagHideWhenDisabled, TM_FIELD(cpu.options.shfflTiming), TM_CHOICE_LO, cpu::kShfflFramePerfect, 4, 17, 0, 6, 0}
         };
         static const RowSpec kDefS[7] = {
-            {kKindChoice, 0, TM_FIELD(cpu.options.infiniteShields), TM_CHOICE_LO, 1, 2, 21, 0, 1, 0},
-            {kKindInt,    kFlagHideWhenDisabled, TM_FIELD(cpu.options.shieldHealth), 0, 60, 60, 11, 0, 7, 0},
-            {kKindChoice, 0, TM_FIELD(cpu.options.shieldAngle), TM_CHOICE_LO, 0, 4, 22, 0, 1, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.infiniteShields), TM_CHOICE_LO, 1, 2, 18, 0, 1, 0},
+            {kKindInt,    kFlagHideWhenDisabled, TM_FIELD(cpu.options.shieldHealth), 0, 60, 60, 8, 0, 7, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.shieldAngle), TM_CHOICE_LO, 0, 4, 19, 0, 1, 0},
             {kKindToggle, 0, TM_FIELD(cpu.options.intangible), 0, 0, 1, 0xFF, 0, 1, 0},
-            {kKindChoice, 0, TM_FIELD(cpu.options.grabEscape), TM_CHOICE_LO, 0, 3, 0, 0, 1, 0},
-            {kKindChoice, 0, TM_FIELD(cpu.options.grabRelease), TM_CHOICE_LO, 0, 1, 1, 0, 1, 0},
-            {kKindChoice, 0, TM_FIELD(cpu.options.clatterEscape), TM_CHOICE_LO, cpu::kMashNone, 3, 0, 0, 1, 0}
+            {kKindChoice, 0, TM_FIELD(cpu.options.grabEscape), TM_CHOICE_LO, 0, 3, 20, 0, 1, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.grabRelease), TM_CHOICE_LO, 0, 1, 21, 0, 1, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.clatterEscape), TM_CHOICE_LO, cpu::kMashNone, 3, 20, 0, 1, 0}
         };
-        fillPageRows(kCpuOptions, buf, 14, kMainS, pageStr(kPs_cpu_main_names), dataTbl, kCbs, kGates);
+        fillPageRows(kCpuOptions, buf, 14, kMainS, kPs_cpu_main_names, kStrs, kExtra, kCbs, kGates);
         buf += 14;
-        fillPageRows(kCpuDi, buf, 8, kDiS, pageStr(kPs_cpu_di_names), dataTbl, kCbs, kGates);
+        fillPageRows(kCpuDi, buf, 8, kDiS, kPs_cpu_di_names, kStrs, kExtra, kCbs, kGates);
         buf += 8;
-        fillPageRows(kCpuCounters, buf, 11, kCtrS, pageStr(kPs_cpu_ctr_names), dataTbl, kCbs, kGates);
+        fillPageRows(kCpuCounters, buf, 11, kCtrS, kPs_cpu_ctr_names, kStrs, kExtra, kCbs, kGates);
         buf += 11;
-        fillPageRows(kCpuDefense, buf, 7, kDefS, pageStr(kPs_cpu_def_names), dataTbl, kCbs, kGates);
-        buf[4].data = defData[0];
-        buf[5].data = defData[1];
-        buf[6].data = defData[0];
+        fillPageRows(kCpuDefense, buf, 7, kDefS, kPs_cpu_def_names, kStrs, kExtra, kCbs, kGates);
         buf += 7;
         initReversalPage(buf);
         buf += 15;

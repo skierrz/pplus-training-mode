@@ -8,8 +8,8 @@ namespace tm {
 namespace ui {
 namespace pages {
     enum {
-        kPageStringsRawBytes = 7284,
-        kPageStringsCompBytes = 3318
+        kPageStringsRawBytes = 9326,
+        kPageStringsCompBytes = 3615
     };
 
     enum PageStrOff {
@@ -120,13 +120,56 @@ namespace pages {
         kPs_info_kValues = 6630,
         kPs_info_kPresets = 7066,
         kPs_info_kSizes = 7101,
-        kPs_ov_kPreset = 7120,
-        kPs_ov_kColor = 7140,
-        kPs_fmt_df = 7234,
-        kPs_fmt_pct = 7238,
-        kPs_rev_act = 7243,
-        kPs_rev_dly = 7257,
-        kPs_rev_wgt = 7270
+        kPs_info_names = 7120,
+        kPs_ov_kPreset = 7180,
+        kPs_ov_kColor = 7200,
+        kPs_ov_names = 7294,
+        kPs_rec_kHmnMode = 7450,
+        kPs_rec_kCpuMode = 7480,
+        kPs_rec_kSlot = 7518,
+        kPs_rec_kMirrored = 7567,
+        kPs_rec_kCpuCounter = 7581,
+        kPs_rec_kAutoRestore = 7632,
+        kPs_rec_kTakeover = 7663,
+        kPs_rec_names = 7675,
+        kPs_gen_kInfiniteShields = 7958,
+        kPs_gen_kCamera = 7975,
+        kPs_gen_kGameSpeed = 7993,
+        kPs_gen_names = 8016,
+        kPs_ctrl_kAdvanceButton = 8200,
+        kPs_ctrl_kDecrementButton = 8210,
+        kPs_ctrl_kDpadUp = 8225,
+        kPs_ctrl_kDpadDown = 8236,
+        kPs_ctrl_kDpadLeft = 8255,
+        kPs_ctrl_kDpadRight = 8271,
+        kPs_ctrl_kMenuButton = 8287,
+        kPs_ctrl_kMenuStyle = 8304,
+        kPs_ctrl_names = 8327,
+        kPs_thm_kOsdBgLabels = 8460,
+        kPs_thm_kOsdAlphaLabels = 8520,
+        kPs_thm_kMenuAccentLabels = 8564,
+        kPs_thm_kInfoBgLabels = 8613,
+        kPs_thm_kInfoAlphaLabels = 8670,
+        kPs_thm_names = 8702,
+        kPs_alt_kPressed = 8770,
+        kPs_alt_names = 8777,
+        kPs_sm_kPlayer = 8909,
+        kPs_sm_kSlot = 8916,
+        kPs_sm_names = 8958,
+        kPs_sc_names = 9018,
+        kPs_ac_kLogic = 9075,
+        kPs_ac_names = 9094,
+        kPs_ld_names = 9188,
+        kPs_fmt_d = 9231,
+        kPs_fmt_pd = 9234,
+        kPs_fmt_df = 9238,
+        kPs_fmt_pdf = 9242,
+        kPs_fmt_pct = 9247,
+        kPs_rev_act = 9252,
+        kPs_rev_dly = 9266,
+        kPs_rev_wgt = 9279,
+        kPs_rec_save = 9293,
+        kPs_rec_restore = 9308
     };
 
     void pageStringsAttach();

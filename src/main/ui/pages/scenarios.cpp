@@ -100,7 +100,7 @@ namespace pages {
     static bool practicePsProjActive() { return practiceDrillIs(5) && practiceMenuState()->psAttackMode == 0; }
 
 #ifdef __MWERKS__
-    static const u16 kScenLblOffs[35] = {
+    static const u16 kScenLblOffs[36] = {
         kPs_scen_kPresets, kPs_scen_kSides, kPs_scen_kTechSetups, kPs_scen_kTechPositions, kPs_scen_kTechEscapes,
         kPs_tech_kTechInvisLabels, kPs_tech_kPreTechDriftLabels, kPs_scen_kTechTdis, kPs_scen_kEdgeSetups,
         kPs_scen_kEdgeStrengths, kPs_scen_kEdgeDists, kPs_scen_kEdgeDjs, kPs_scen_kEdgeMixups, kPs_scen_kShieldRoles,
@@ -109,7 +109,7 @@ namespace pages {
         kPs_scen_kShieldDropSpacing, kPs_scen_kShieldDropFacing, kPs_scen_kSlideOffAttacks, kPs_scen_kGrabActions,
         kPs_scen_kGrabPctModes, kPs_scen_kMultiHitMoves, kPs_scen_kPracticeModes, kPs_scen_kPsAtkModes,
         kPs_scen_kPsHeights, kPs_scen_kPsCadences, kPs_scen_kLedgeSides, kPs_scen_kLedgeInvulns,
-        kPs_scen_kPracticeTargets
+        kPs_scen_kPracticeTargets, kPs_fmt_df
     };
     static bool (*const kScenGates[])() = {
         NULL, main::extraLoaded, scenarioActive, scenarioSideActive, scenarioTechchaseActive,
@@ -183,13 +183,7 @@ namespace pages {
 
     void initScenariosPage(Option* buf)
     {
-        const void* dataTbl[36];
-        for (int i = 0; i < 35; i++)
-        {
-            dataTbl[i] = pageStr(kScenLblOffs[i]);
-        }
-        dataTbl[35] = pageStr(kPs_fmt_df);
-        fillPageRows(kScenarios, buf, kScenRows, kScenSpecs, pageStr(kPs_scen_names), dataTbl, kScenCbs, kScenGates);
+        fillPageRows(kScenarios, buf, kScenRows, kScenSpecs, kPs_scen_names, kScenLblOffs, NULL, kScenCbs, kScenGates);
     }
 #else
     TM_LABELS_BEGIN(kPresets)

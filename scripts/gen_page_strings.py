@@ -15,10 +15,10 @@ PAGES_DIR = ROOT / "src" / "main" / "ui" / "pages"
 OUT_H = PAGES_DIR / "page_strings.h"
 OUT_CPP = PAGES_DIR / "page_strings.cpp"
 
-# Load encode/decode helpers from gen_status_names.py (shared bit-7 LZ77 format).
-_spec = importlib.util.spec_from_file_location("gen_status_names", ROOT / "scripts" / "gen_status_names.py")
-_gsn = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_gsn)
+# Load encode/decode helpers from gen_menu_descriptions.py (shared Huff+LZSS format).
+_spec = importlib.util.spec_from_file_location("gen_menu_descriptions", ROOT / "scripts" / "gen_menu_descriptions.py")
+_gmd = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_gmd)
 
 # Macro substitutions used inside TM_L(...) on Wii (__MWERKS__).
 WII_MACROS = {
@@ -287,21 +287,86 @@ def collect_entries() -> list[tuple[str, bytes]]:
     )
     entries.append(("tech_names", _extract_host_option_names(tech, "kRows")))
 
-    # 7. info_display.cpp (pages): kValues + kPresets + kSizes
+    # 7. info_display.cpp (pages): kValues + kPresets + kSizes + 10 row names
     info = PAGES_DIR / "info_display.cpp"
     entries += _parse_labels_from_cpp(info, "info", ["kValues", "kPresets", "kSizes"])
+    entries.append(("info_names", b"".join(x.encode("ascii") + b"\x00" for x in [
+        "Preset", "Size", "Row 1", "Row 2", "Row 3", "Row 4", "Row 5", "Row 6", "Row 7", "Row 8"
+    ])))
 
-    # 8. color_overlays.cpp: kPreset + kColor
+    # 8. color_overlays.cpp: kPreset + kColor + 17 row names
     ov = PAGES_DIR / "color_overlays.cpp"
     entries += _parse_labels_from_cpp(ov, "ov", ["kPreset", "kColor"])
+    entries.append(("ov_names", b"".join(x.encode("ascii") + b"\x00" for x in [
+        "Preset", "Actionable", "Hitstun", "Invincible", "Ledge Actionable", "Missed L-Cancel",
+        "Can Fastfall", "Autocancel", "Crouch", "Wait", "Walk", "Dash", "Run", "Full Hop",
+        "Short Hop", "IASA", "Shield Stun"
+    ])))
 
-    # 9. Shared format strings and Reversal Slot 2 labels used by Wii dynamic builders
+    # 9. recording.cpp: 7 label tables + 19 row names
+    rec = PAGES_DIR / "recording.cpp"
+    entries += _parse_labels_from_cpp(
+        rec, "rec", ["kHmnMode", "kCpuMode", "kSlot", "kMirrored", "kCpuCounter", "kAutoRestore", "kTakeover"]
+    )
+    entries.append(("rec_names", _extract_host_option_names(rec, "kRows")))
+
+    # 10. general.cpp: 3 label tables + 13 row names
+    gen = PAGES_DIR / "general.cpp"
+    entries += _parse_labels_from_cpp(gen, "gen", ["kInfiniteShields", "kCamera", "kGameSpeed"])
+    entries.append(("gen_names", _extract_host_option_names(gen, "kRows")))
+
+    # 11. controls.cpp: 8 label tables + 10 row names
+    ctrl = PAGES_DIR / "controls.cpp"
+    entries += _parse_labels_from_cpp(
+        ctrl, "ctrl",
+        ["kAdvanceButton", "kDecrementButton", "kDpadUp", "kDpadDown", "kDpadLeft", "kDpadRight", "kMenuButton", "kMenuStyle"]
+    )
+    entries.append(("ctrl_names", _extract_host_option_names(ctrl, "kRows")))
+
+    # 12. theme.cpp: 5 label tables + 5 row names
+    thm = PAGES_DIR / "theme.cpp"
+    entries += _parse_labels_from_cpp(
+        thm, "thm",
+        ["kOsdBgLabels", "kOsdAlphaLabels", "kMenuAccentLabels", "kInfoBgLabels", "kInfoAlphaLabels"]
+    )
+    entries.append(("thm_names", _extract_host_option_names(thm, "kRows")))
+
+    # 13. alter_inputs.cpp: kPressed + 16 row names
+    alt = PAGES_DIR / "alter_inputs.cpp"
+    entries += _parse_labels_from_cpp(alt, "alt", ["kPressed"])
+    entries.append(("alt_names", _extract_host_option_names(alt, "kRows")))
+
+    # 14. slot_management.cpp: kPlayer + kSlot + 6 row names
+    sm = PAGES_DIR / "slot_management.cpp"
+    entries += _parse_labels_from_cpp(sm, "sm", ["kPlayer", "kSlot"])
+    entries.append(("sm_names", _extract_host_option_names(sm, "kRows")))
+
+    # 15. slot_chances.cpp: 7 shared row names
+    entries.append(("sc_names", b"".join(x.encode("ascii") + b"\x00" for x in [
+        "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5", "Slot 6", "Random Percent"
+    ])))
+
+    # 16. advanced_counter.cpp: kLogic + 8 row names
+    ac = PAGES_DIR / "advanced_counter.cpp"
+    entries += _parse_labels_from_cpp(ac, "ac", ["kLogic"])
+    entries.append(("ac_names", _extract_host_option_names(ac, "kRows")))
+
+    # 17. ledgedash_hud.cpp: 4 row names
+    ld = PAGES_DIR / "ledgedash_hud.cpp"
+    entries.append(("ld_names", _extract_host_option_names(ld, "kRows")))
+
+    # 18. Shared format strings and dynamic labels used by Wii builders
     entries += [
+        ("fmt_d", b"%d\x00"),
+        ("fmt_pd", b"%+d\x00"),
         ("fmt_df", b"%df\x00"),
+        ("fmt_pdf", b"%+df\x00"),
         ("fmt_pct", b"%d%%\x00"),
         ("rev_act", b"Slot 2 Action\x00"),
         ("rev_dly", b"Slot 2 Delay\x00"),
         ("rev_wgt", b"Slot 2 Chance\x00"),
+        ("rec_save", b"Save Positions\x00"),
+        ("rec_restore", b"Restore Positions\x00"),
     ]
 
     return entries
@@ -315,9 +380,9 @@ def generate() -> tuple[str, str, int, int]:
         offsets.append((sym, len(blob)))
         blob.extend(data)
     raw = bytes(blob)
-    comp = _gsn.encode_lz77_ascii(raw)
-    if _gsn.decode_lz77_ascii(comp) != raw:
-        raise RuntimeError("LZ77 ASCII round-trip verification failed")
+    comp = _gmd.encode_huff_lzss(raw)
+    if _gmd.decode_huff_lzss(comp, len(raw)) != raw:
+        raise RuntimeError("Huff+LZSS round-trip verification failed")
 
     # Header
     h_lines = [
@@ -366,8 +431,8 @@ def generate() -> tuple[str, str, int, int]:
         "namespace ui {",
         "namespace pages {",
         f"    // Compressed lab menu page strings ({len(comp)} B vs {len(raw)} B raw).",
-        "    static const u8 kPageStringsLz77[kPageStringsCompBytes] = {",
-        _gsn.format_u8_array(comp),
+        "    static const u8 kPageStringsComp[kPageStringsCompBytes] = {",
+        _gmd.format_u8_array(comp),
         "    };",
         "",
         "    static char* s_pageStrBuf = NULL;",
@@ -383,9 +448,7 @@ def generate() -> tuple[str, str, int, int]:
         "        {",
         "            return;",
         "        }",
-        "        u32 n = extra::decompressLz77Ascii(kPageStringsLz77, kPageStringsCompBytes,",
-        "                                           s_pageStrBuf, kPageStringsRawBytes);",
-        "        if (n != kPageStringsRawBytes)",
+        "        if (!extra::decompressHuffLzss(kPageStringsComp, s_pageStrBuf, kPageStringsRawBytes))",
         "        {",
         "            pageStringsDetach();",
         "        }",

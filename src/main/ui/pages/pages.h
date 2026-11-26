@@ -51,30 +51,30 @@ namespace pages {
 #define TM_PAGE_QUAL const
 #endif
 
-    extern const Page kGeneral;
+    extern TM_PAGE_QUAL Page kGeneral;
     extern TM_PAGE_QUAL Page kScenarios;
     extern TM_PAGE_QUAL Page kCpuOptions;
-    extern const Page kRecording;
+    extern TM_PAGE_QUAL Page kRecording;
     extern const Page kDisplayOptions;
     extern TM_PAGE_QUAL Page kOsdMenu;
     extern TM_PAGE_QUAL Page kStageCast;
-    extern const Page kControls;
+    extern TM_PAGE_QUAL Page kControls;
     extern const Page kDebug;
     extern TM_PAGE_QUAL Page kComboTrainer;
     extern TM_PAGE_QUAL Page kComboMeters;
     extern TM_PAGE_QUAL Page kTechOptions;
-    extern const Page kAdvancedCounter;
-    extern const Page kSlotManagement;
-    extern const Page kAlterInputs;
-    extern const Page kHmnChances;
-    extern const Page kCpuChances;
-    extern const Page kHmnOverlays;
+    extern TM_PAGE_QUAL Page kAdvancedCounter;
+    extern TM_PAGE_QUAL Page kSlotManagement;
+    extern TM_PAGE_QUAL Page kAlterInputs;
+    extern TM_PAGE_QUAL Page kHmnChances;
+    extern TM_PAGE_QUAL Page kCpuChances;
+    extern TM_PAGE_QUAL Page kHmnOverlays;
     extern TM_PAGE_QUAL Page kCpuOverlays;
-    extern const Page kHmnInfo;
+    extern TM_PAGE_QUAL Page kHmnInfo;
     extern TM_PAGE_QUAL Page kCpuInfo;
-    extern const Page kLedgedashHud;
+    extern TM_PAGE_QUAL Page kLedgedashHud;
     extern const Page kFighterSwap;
-    extern const Page kTheme;
+    extern TM_PAGE_QUAL Page kTheme;
     extern TM_PAGE_QUAL Page kReversalSlots;
     extern TM_PAGE_QUAL Page kCpuDi;
     extern TM_PAGE_QUAL Page kCpuCounters;
@@ -95,12 +95,14 @@ namespace pages {
         u8 pad;
     };
 
-    void fillPageRows(Page& page, Option* buf, int count, const RowSpec* specs, const char* names,
-                      const void* const* dataTbl, void (*const* cbTbl)(), bool (*const* gateTbl)());
+    // dataIdx: 0xFF = NULL; 0xF0..0xFE = extraData[dataIdx - 0xF0]; else pageStr(strOffs[dataIdx]).
+    void fillPageRows(Page& page, Option* buf, int count, const RowSpec* specs, u16 namesOff,
+                      const u16* strOffs, const void* const* extraData,
+                      void (*const* cbTbl)(), bool (*const* gateTbl)());
     void pagesAttach();
     void pagesDetach();
     void initCpuPages(Option* buf);
-    void initAdvancedCounterPage();
+    void initAdvancedCounterPage(Option* buf);
     void initOverlayPages(Option* buf);
     void initInfoPages(Option* buf);
     void initStageCastPage(Option* buf);
@@ -108,6 +110,14 @@ namespace pages {
     void initOsdMenuPage(Option* buf);
     void initComboTrainerPages(Option* buf);
     void initTechOptionsPage(Option* buf);
+    void initRecordingPage(Option* buf);
+    void initGeneralPage(Option* buf);
+    void initControlsPage(Option* buf);
+    void initThemePage(Option* buf);
+    void initAlterInputsPage(Option* buf);
+    void initSlotManagementPage(Option* buf);
+    void initSlotChancesPages(Option* buf);
+    void initLedgedashHudPage(Option* buf);
 #endif
 
     // Indexed by PageId (registry.cpp).

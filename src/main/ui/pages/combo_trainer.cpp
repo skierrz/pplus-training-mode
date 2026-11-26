@@ -70,9 +70,9 @@ namespace pages {
 
     void initComboTrainerPages(Option* buf)
     {
-        const void* dataTbl[6] = {
-            pageStr(kPs_ct_kResetDelays), pageStr(kPs_ct_kPostEscapes), pageStr(kPs_ct_kResetDamageMode),
-            "%d%%", "%+df", pageStr(kPs_ct_kRecMixups)
+        static const u16 kStrs[6] = {
+            kPs_ct_kResetDelays, kPs_ct_kPostEscapes, kPs_ct_kResetDamageMode,
+            kPs_fmt_pct, kPs_fmt_pdf, kPs_ct_kRecMixups
         };
         static bool (*const kGates[11])() = {
             NULL, comboActive, comboAnyResetEnabled, comboFixPosEligible, comboFixPosChildEnabled,
@@ -104,7 +104,7 @@ namespace pages {
             {kKindToggle, kFlagBit, TM_FIELD(comboTrainer.enabledMeters), main::kMeterLedgeIntang, 0, 1, 0xFF, 0, 10, 0},
             {kKindToggle, kFlagBit, TM_FIELD(comboTrainer.enabledMeters), main::kMeterIntang, 0, 1, 0xFF, 0, 10, 0}
         };
-        fillPageRows(kComboTrainer, buf, 23, kCt, pageStr(kPs_ct_names), dataTbl, NULL, kGates);
+        fillPageRows(kComboTrainer, buf, 23, kCt, kPs_ct_names, kStrs, NULL, NULL, kGates);
         kComboTrainer.count = 16;
         kComboMeters.options = buf + 16;
         kComboMeters.count = 7;

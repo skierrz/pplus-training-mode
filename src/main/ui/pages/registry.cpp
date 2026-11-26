@@ -13,10 +13,11 @@ namespace pages {
     }
 
 #ifdef __MWERKS__
-    void fillPageRows(Page& page, Option* buf, int count, const RowSpec* specs, const char* names,
-                      const void* const* dataTbl, void (*const* cbTbl)(), bool (*const* gateTbl)())
+    void fillPageRows(Page& page, Option* buf, int count, const RowSpec* specs, u16 namesOff,
+                      const u16* strOffs, const void* const* extraData,
+                      void (*const* cbTbl)(), bool (*const* gateTbl)())
     {
-        const char* nm = names;
+        const char* nm = pageStr(namesOff);
         for (int i = 0; i < count; i++)
         {
             const RowSpec& sp = specs[i];
@@ -28,7 +29,18 @@ namespace pages {
             o.def = sp.def;
             o.max = sp.hi;
             o.name = nm;
-            o.data = (sp.dataIdx == 0xFF || dataTbl == NULL) ? NULL : dataTbl[sp.dataIdx];
+            if (sp.dataIdx == 0xFF)
+            {
+                o.data = NULL;
+            }
+            else if (sp.dataIdx >= 0xF0)
+            {
+                o.data = extraData != NULL ? extraData[sp.dataIdx - 0xF0] : NULL;
+            }
+            else
+            {
+                o.data = strOffs != NULL ? pageStr(strOffs[sp.dataIdx]) : NULL;
+            }
             o.onChange = (sp.cbIdx == 0 || cbTbl == NULL) ? NULL : cbTbl[sp.cbIdx];
             o.enabled = (sp.gateIdx == 0 || gateTbl == NULL) ? NULL : gateTbl[sp.gateIdx];
             while (*nm++ != '\0') {}
@@ -39,15 +51,27 @@ namespace pages {
 
     enum {
         kCpuAllRowCount = 14 + 8 + 11 + 7 + 15 + 65, // main, di, counters, defense, reversals, pool
-        kCpuOverlayRowCount = 17,
-        kCpuInfoRowCount = 10,
+        kOverlayRowCount = 34,                       // 17 P1 + 17 CPU
+        kInfoRowCount = 20,                          // 10 P1 + 10 CPU
         kStageCastRowCount = 34,
         kScenariosRowCount = 45,
         kOsdMenuRowCount = 26,
-        kComboTrainerRowCount = 23, // 16 + 7 meters
+        kComboTrainerRowCount = 23,                  // 16 + 7 meters
         kTechOptionsRowCount = 17,
-        kDynRowTotal = kCpuAllRowCount + kCpuOverlayRowCount + kCpuInfoRowCount + kStageCastRowCount
+        kRecordingRowCount = 19,
+        kGeneralRowCount = 13,
+        kControlsRowCount = 10,
+        kThemeRowCount = 5,
+        kAlterInputsRowCount = 16,
+        kSlotManagementRowCount = 6,
+        kSlotChancesRowCount = 14,                   // 7 P1 + 7 CPU
+        kAdvCounterRowCount = 8,
+        kLedgedashHudRowCount = 4,
+        kDynRowTotal = kCpuAllRowCount + kOverlayRowCount + kInfoRowCount + kStageCastRowCount
                        + kScenariosRowCount + kOsdMenuRowCount + kComboTrainerRowCount + kTechOptionsRowCount
+                       + kRecordingRowCount + kGeneralRowCount + kControlsRowCount + kThemeRowCount
+                       + kAlterInputsRowCount + kSlotManagementRowCount + kSlotChancesRowCount
+                       + kAdvCounterRowCount + kLedgedashHudRowCount
     };
 
     static Option* s_dynRows = NULL;
@@ -63,22 +87,32 @@ namespace pages {
         {
             Option* p = s_dynRows;
             initCpuPages(p); p += kCpuAllRowCount;
-            initAdvancedCounterPage();
-            initOverlayPages(p); p += kCpuOverlayRowCount;
-            initInfoPages(p); p += kCpuInfoRowCount;
+            initAdvancedCounterPage(p); p += kAdvCounterRowCount;
+            initOverlayPages(p); p += kOverlayRowCount;
+            initInfoPages(p); p += kInfoRowCount;
             initStageCastPage(p); p += kStageCastRowCount;
             initScenariosPage(p); p += kScenariosRowCount;
             initOsdMenuPage(p); p += kOsdMenuRowCount;
             initComboTrainerPages(p); p += kComboTrainerRowCount;
-            initTechOptionsPage(p);
+            initTechOptionsPage(p); p += kTechOptionsRowCount;
+            initRecordingPage(p); p += kRecordingRowCount;
+            initGeneralPage(p); p += kGeneralRowCount;
+            initControlsPage(p); p += kControlsRowCount;
+            initThemePage(p); p += kThemeRowCount;
+            initAlterInputsPage(p); p += kAlterInputsRowCount;
+            initSlotManagementPage(p); p += kSlotManagementRowCount;
+            initSlotChancesPages(p); p += kSlotChancesRowCount;
+            initLedgedashHudPage(p);
         }
     }
 
     void pagesDetach()
     {
         Page* const dyn[] = {&kCpuOptions, &kCpuDi, &kCpuCounters, &kCpuDefense, &kReversalSlots, &kCounterPool,
-                             &kCpuOverlays, &kCpuInfo, &kStageCast, &kScenarios, &kOsdMenu, &kComboTrainer,
-                             &kComboMeters, &kTechOptions};
+                             &kAdvancedCounter, &kHmnOverlays, &kCpuOverlays, &kHmnInfo, &kCpuInfo, &kStageCast,
+                             &kScenarios, &kOsdMenu, &kComboTrainer, &kComboMeters, &kTechOptions, &kRecording,
+                             &kGeneral, &kControls, &kTheme, &kAlterInputs, &kSlotManagement, &kHmnChances,
+                             &kCpuChances, &kLedgedashHud};
         for (int i = 0; i < static_cast<int>(sizeof(dyn) / sizeof(dyn[0])); i++)
         {
             dyn[i]->options = NULL;

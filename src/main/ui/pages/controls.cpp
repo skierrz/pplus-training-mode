@@ -1,11 +1,13 @@
 #include "main/game/code_menu.h"
 #include "main/lab.h"
 #include "main/savestate/settings.h"
+#include "main/ui/pages/page_strings.h"
 #include "main/ui/pages/pages.h"
 
 namespace tm {
 namespace ui {
 namespace pages {
+#ifndef __MWERKS__
     TM_LABELS_BEGIN(kAdvanceButton) TM_L("L") TM_L("Z") TM_L("X") TM_L("Y") TM_L("R") TM_LABELS_END
     TM_LABELS_BEGIN(kDecrementButton) TM_L("None") TM_L("Z") TM_L("L") TM_L("R") TM_L("X") TM_L("Y") TM_LABELS_END
     TM_LABELS_BEGIN(kDpadUp) TM_L("Taunt") TM_L("None") TM_LABELS_END
@@ -17,7 +19,34 @@ namespace pages {
     TM_LABELS_ASSERT(kAdvanceButton, main::kAdvanceButtonCount, tm_adv_btn_labels_match);
     TM_LABELS_ASSERT(kDecrementButton, main::kDecrementButtonCount, tm_dec_btn_labels_match);
     TM_LABELS_ASSERT(kMenuStyle, main::kMenuStyleCount, tm_menu_style_labels_match);
+#endif
 
+#ifdef __MWERKS__
+    extern Page kControls = {"Controls", NULL, 0, {0, 0, 0}};
+
+    void initControlsPage(Option* buf)
+    {
+        static const u16 kStrs[9] = {
+            kPs_ctrl_kAdvanceButton, kPs_fmt_df, kPs_ctrl_kDecrementButton,
+            kPs_ctrl_kDpadUp, kPs_ctrl_kDpadDown, kPs_ctrl_kDpadLeft,
+            kPs_ctrl_kDpadRight, kPs_ctrl_kMenuButton, kPs_ctrl_kMenuStyle
+        };
+        static void (*const kCbs[2])() = {NULL, game::codeMenuSync};
+        static const RowSpec kSpecs[10] = {
+            {kKindChoice, 0, TM_FIELD(controls.advanceButton), TM_CHOICE_LO, main::kAdvanceL, main::kAdvanceButtonCount - 1, 0, 0, 0, 0},
+            {kKindInt,    0, TM_FIELD(controls.advanceDelay), 5, 30, 60, 1, 0, 0, 0},
+            {kKindChoice, 0, TM_FIELD(controls.decrementButton), TM_CHOICE_LO, main::kDecrementNone, main::kDecrementButtonCount - 1, 2, 0, 0, 0},
+            {kKindChoice, 0, TM_FIELD(controls.dpadUp), TM_CHOICE_LO, main::kUpTaunt, 1, 3, 0, 0, 0},
+            {kKindChoice, 0, TM_FIELD(controls.dpadDown), TM_CHOICE_LO, main::kDownNone, 1, 4, 0, 0, 0},
+            {kKindChoice, 0, TM_FIELD(controls.dpadLeft), TM_CHOICE_LO, savestate::kLeftLoadState, 1, 5, 0, 0, 0},
+            {kKindChoice, 0, TM_FIELD(controls.dpadRight), TM_CHOICE_LO, savestate::kRightSaveState, 1, 6, 0, 0, 0},
+            {kKindChoice, 0, TM_FIELD(controls.startOpensMenu), TM_CHOICE_LO, main::kDefaultStartOpensMenu, 1, 7, 0, 0, 0},
+            {kKindToggle, 0, TM_FIELD(controls.allowCodeMenu), 0, 0, 1, 0xFF, 1, 0, 0},
+            {kKindChoice, 0, TM_FIELD(controls.menuStyle), TM_CHOICE_LO, main::kMenuStyleRail, main::kMenuStyleCount - 1, 8, 0, 0, 0}
+        };
+        fillPageRows(kControls, buf, 10, kSpecs, kPs_ctrl_names, kStrs, NULL, kCbs, NULL);
+    }
+#else
     static const Option kRows[] = {
         TM_CHOICE_P("Advance Button", controls.advanceButton, kAdvanceButton, main::kAdvanceButtonCount, main::kAdvanceL, NULL),
         TM_INT("Hold Repeat Delay", controls.advanceDelay, 5, 60, 30, "%df", NULL),
@@ -32,6 +61,7 @@ namespace pages {
     };
 
     extern const Page kControls = TM_PAGE("Controls", kRows);
+#endif
 }
 }
 }

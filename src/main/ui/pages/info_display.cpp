@@ -73,45 +73,42 @@ namespace pages {
     }
 
 #ifdef __MWERKS__
-#define TM_INFO_ROW(side, n, name, onEdit) TM_CHOICE_P(name, info[side].rows[n], NULL, kInfoValueCount, kInfoNone, onEdit)
-#define TM_INFO_PAGE(side, onPreset, onEdit, hasRows)                                                         \
-    TM_CHOICE_P("Preset", info[side].preset, NULL, kInfoPresetCount, kInfoPresetNone, onPreset),              \
-        TM_ROW_CHOICE_P(0, TM_FIELD(info[side].size), main::kInfoSizeCount, main::kInfoMedium,                \
-                        "Size", NULL, NULL, hasRows),                                                         \
-        TM_INFO_ROW(side, 0, "Row 1", onEdit), TM_INFO_ROW(side, 1, "Row 2", onEdit),                         \
-        TM_INFO_ROW(side, 2, "Row 3", onEdit), TM_INFO_ROW(side, 3, "Row 4", onEdit),                         \
-        TM_INFO_ROW(side, 4, "Row 5", onEdit), TM_INFO_ROW(side, 5, "Row 6", onEdit),                         \
-        TM_INFO_ROW(side, 6, "Row 7", onEdit), TM_INFO_ROW(side, 7, "Row 8", onEdit)
-
-    static Option kHmnRows[] = {TM_INFO_PAGE(0, hmnPreset, hmnRowEdited, hmnHasRows)};
+    extern Page kHmnInfo = {"P1 Info Display", NULL, 0, {0, 0, 0}};
+    extern Page kCpuInfo = {"CPU Info Display", NULL, 0, {0, 0, 0}};
 
     void initInfoPages(Option* buf)
     {
-        const u8 n = static_cast<u8>(TM_COUNT(kHmnRows));
+        const char* nm = pageStr(kPs_info_names);
+        const char* presets = pageStr(kPs_info_kPresets);
+        const char* sizes = pageStr(kPs_info_kSizes);
         const char* vals = pageStr(kPs_info_kValues);
-        kHmnRows[0].data = pageStr(kPs_info_kPresets);
-        kHmnRows[1].data = pageStr(kPs_info_kSizes);
-        for (int i = 2; i < n; i++)
-        {
-            kHmnRows[i].data = vals;
-        }
-        memcpy(buf, kHmnRows, sizeof(kHmnRows));
         const u16 delta = static_cast<u16>(TM_FIELD(info[1]) - TM_FIELD(info[0]));
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < 10; i++)
         {
-            buf[i].offset = static_cast<u16>(buf[i].offset + delta);
-            buf[i].onChange = i == 0 ? cpuPreset : (i >= 2 ? cpuRowEdited : NULL);
-            if (i == 1)
-            {
-                buf[i].enabled = cpuHasRows;
-            }
+            Option& h = buf[i];
+            h.kind = kKindChoice;
+            h.flags = 0;
+            h.offset = i == 0 ? TM_FIELD(info[0].preset)
+                              : (i == 1 ? TM_FIELD(info[0].size) : static_cast<u16>(TM_FIELD(info[0].rows[0]) + (i - 2)));
+            h.min = TM_CHOICE_LO;
+            h.def = i == 1 ? main::kInfoMedium : 0;
+            h.max = i == 0 ? (kInfoPresetCount - 1) : (i == 1 ? (main::kInfoSizeCount - 1) : (kInfoValueCount - 1));
+            h.name = nm;
+            h.data = i == 0 ? presets : (i == 1 ? sizes : vals);
+            h.onChange = i == 0 ? hmnPreset : (i >= 2 ? hmnRowEdited : NULL);
+            h.enabled = i == 1 ? hmnHasRows : NULL;
+            Option& c = buf[10 + i];
+            c = h;
+            c.offset = static_cast<u16>(h.offset + delta);
+            c.onChange = i == 0 ? cpuPreset : (i >= 2 ? cpuRowEdited : NULL);
+            c.enabled = i == 1 ? cpuHasRows : NULL;
+            while (*nm++ != '\0') {}
         }
-        kCpuInfo.options = buf;
-        kCpuInfo.count = n;
+        kHmnInfo.options = buf;
+        kHmnInfo.count = 10;
+        kCpuInfo.options = buf + 10;
+        kCpuInfo.count = 10;
     }
-
-    extern const Page kHmnInfo = TM_PAGE("P1 Info Display", kHmnRows);
-    extern Page kCpuInfo = {"CPU Info Display", NULL, 0, {0, 0, 0}};
 #else
 #define TM_INFO_ROW(side, n, name, onEdit) TM_CHOICE_P(name, info[side].rows[n], kValues, kInfoValueCount, kInfoNone, onEdit)
 #define TM_INFO_PAGE(side, onPreset, onEdit, hasRows)                                                         \
