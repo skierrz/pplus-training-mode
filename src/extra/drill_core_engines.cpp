@@ -3,6 +3,7 @@
 #include <so/controller/so_controller_module_impl.h>
 #include <so/so_module_accesser.h>
 #include <so/work/so_work_manage_module_impl.h>
+#include <stddef.h>
 #include <string.h>
 
 #include "extra/net_alloc.h"
@@ -116,6 +117,9 @@ namespace extra {
             return y > 1.0f;
         }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
         static void resetSlotAll(CoreDrillSlot& slot)
         {
             slot.active = false;
@@ -138,13 +142,30 @@ namespace extra {
             lcCoreResetTransient(slot.lc);
         }
 
-        static void syncDebugSlot(int idx, const game::Tracked* t, const CoreDrillSlot& slot)
+#ifndef __MWERKS__
+        TM_STATIC_ASSERT(offsetof(CoreDrillDebugSlot, ledgeAirdodgeAngle) - offsetof(CoreDrillDebugSlot, ledgeGalint)
+                             == offsetof(LedgeResult, airdodgeAngle) - offsetof(LedgeResult, galint),
+                         tm_cd_ledge_span);
+        TM_STATIC_ASSERT(offsetof(CoreDrillDebugSlot, ledgeBestGalint) - offsetof(CoreDrillDebugSlot, ledgeAttempts)
+                             == offsetof(LedgeStats, bestGalint) - offsetof(LedgeStats, attempts),
+                         tm_cd_ledge_stats_span);
+        TM_STATIC_ASSERT(offsetof(CoreDrillDebugSlot, wdAirdodgeAirFrames) - offsetof(CoreDrillDebugSlot, wdKind)
+                             == offsetof(WdResult, airdodgeAirFrames) - offsetof(WdResult, kind),
+                         tm_cd_wd_span);
+        TM_STATIC_ASSERT(offsetof(CoreDrillDebugSlot, wlBestStreak) - offsetof(CoreDrillDebugSlot, wdAttempts)
+                             == sizeof(WdStats) - sizeof(u16),
+                         tm_cd_wd_stats_span);
+        TM_STATIC_ASSERT(offsetof(CoreDrillDebugSlot, lcLateFrames) - offsetof(CoreDrillDebugSlot, lcPressFrame)
+                             == offsetof(LcResult, lateFrames) - offsetof(LcResult, pressFrame),
+                         tm_cd_lc_span);
+        TM_STATIC_ASSERT(offsetof(CoreDrillDebugSlot, lcBestStreak) - offsetof(CoreDrillDebugSlot, lcTotal)
+                             == sizeof(LcStats) - sizeof(u16),
+                         tm_cd_lc_stats_span);
+#endif
+
+        static void syncDebugSlot(CoreDrillNet& net, int idx, const game::Tracked* t, const CoreDrillSlot& slot)
         {
-            if (s_net == NULL)
-            {
-                return;
-            }
-            CoreDrillDebugSlot& d = s_net->debug.slots[idx];
+            CoreDrillDebugSlot& d = net.debug.slots[idx];
             if (t == NULL || !slot.active)
             {
                 memset(&d, 0, sizeof(d));
@@ -169,57 +190,30 @@ namespace extra {
             d.ledgeTourneySlow = l.last.tourneyWinnerSlow;
             d.ledgeJumpXluStripped = l.last.ledgeJumpXluStripped;
             d.ledgeCellCount = l.last.cellCount;
-            d.ledgeGalint = l.last.galint;
-            d.ledgeDropFrame = l.last.dropFrame;
-            d.ledgeCliffWaitFrames = l.last.cliffWaitFrames;
-            d.ledgeNeutralLatchFrames = l.last.neutralLatchFrames;
-            d.ledgeFallFrames = l.last.fallFrames;
-            d.ledgeJumpFrames = l.last.jumpFrames;
-            d.ledgeAirdodgeAirFrames = l.last.airdodgeAirFrames;
-            d.ledgeLandingLagFrames = l.last.landingLagFrames;
-            d.ledgeAirdodgeAngle = l.last.airdodgeAngle;
+            memcpy(&d.ledgeGalint, &l.last.galint,
+                   offsetof(LedgeResult, airdodgeAngle) - offsetof(LedgeResult, galint) + sizeof(float));
             d.ledgeActivePhase = l.phase;
             d.ledgeActiveGrabs = l.grabCount;
             d.ledgeActiveNoInvuln = l.noInvulnLimit;
             d.ledgeActiveFromTether = l.fromTether;
-            d.ledgeAttempts = l.stats.attempts;
-            d.ledgeSuccesses = l.stats.successes;
-            d.ledgeTourneyWinners = l.stats.tourneyWinners;
-            d.ledgeSds = l.stats.sds;
-            d.ledgeNoInvulnGrabs = l.stats.noInvulnGrabs;
-            d.ledgeBestGalint = l.stats.bestGalint;
+            memcpy(&d.ledgeAttempts, &l.stats.attempts,
+                   offsetof(LedgeStats, bestGalint) - offsetof(LedgeStats, attempts) + sizeof(s16));
             d.ledgeStreak = l.stats.streak;
             d.ledgeBestStreak = l.stats.bestStreak;
             d.ledgeHasBestGalint = l.stats.hasBestGalint;
-            d.ledgePad[0] = 0;
-            d.ledgePad[1] = 0;
-            d.ledgePad[2] = 0;
+            d.ledgePad[0] = d.ledgePad[1] = d.ledgePad[2] = 0;
             memcpy(d.ledgeCells, l.last.cells, kLedgeCoreMaxCells);
 
             // Engine 2: Wavedash & Platform Waveland
             const WdCoreState& w = slot.wd;
             d.wdSeq = w.seq;
-            d.wdKind = w.last.kind;
-            d.wdOutcome = w.last.outcome;
-            d.wdShortHop = w.last.shortHop;
-            d.wdOnPlatform = w.last.onPlatform;
-            d.wdJumpsquatToDodge = w.last.jumpsquatToDodge;
-            d.wdJumpHoldFrames = w.last.jumpHoldFrames;
-            d.wdAirdodgeAirFrames = w.last.airdodgeAirFrames;
+            memcpy(&d.wdKind, &w.last.kind,
+                   offsetof(WdResult, airdodgeAirFrames) - offsetof(WdResult, kind) + sizeof(s16));
             d.wdPad = 0;
             d.wdAngleDeg = w.last.angleDeg;
             d.wdSlideDistance = w.last.slideDistance;
             d.wdExpectedSpeed = w.last.expectedSpeed;
-            d.wdAttempts = w.stats.wdAttempts;
-            d.wdSuccesses = w.stats.wdSuccesses;
-            d.wdPerfect = w.stats.wdPerfect;
-            d.wdStreak = w.stats.wdStreak;
-            d.wdBestStreak = w.stats.wdBestStreak;
-            d.wlAttempts = w.stats.wlAttempts;
-            d.wlSuccesses = w.stats.wlSuccesses;
-            d.wlPerfect = w.stats.wlPerfect;
-            d.wlStreak = w.stats.wlStreak;
-            d.wlBestStreak = w.stats.wlBestStreak;
+            memcpy(&d.wdAttempts, &w.stats, sizeof(w.stats));
 
             // Engine 3: L-Cancel
             const LcCoreState& c = slot.lc;
@@ -230,24 +224,12 @@ namespace extra {
             d.lcAutoLCancelActive = c.last.autoLCancelActive;
             d.lcBuffer3fActive = c.last.inputBuffer3fActive;
             d.lcPad = 0;
-            d.lcPressFrame = c.last.pressFrame;
-            d.lcEarlyFrames = c.last.earlyFrames;
-            d.lcLateFrames = c.last.lateFrames;
-            d.lcTotal = c.stats.total;
-            d.lcSuccesses = c.stats.successes;
-            d.lcAutoSuccesses = c.stats.autoSuccesses;
-            d.lcAutoCanceled = c.stats.autoCanceled;
-            d.lcWhiffHits = c.stats.whiffHits;
-            d.lcWhiffTotal = c.stats.whiffTotal;
-            d.lcHitHits = c.stats.hitHits;
-            d.lcHitTotal = c.stats.hitTotal;
-            d.lcShieldHits = c.stats.shieldHits;
-            d.lcShieldTotal = c.stats.shieldTotal;
-            d.lcLateMisses = c.stats.lateMisses;
-            d.lcEarlyMisses = c.stats.earlyMisses;
-            d.lcStreak = c.stats.streak;
-            d.lcBestStreak = c.stats.bestStreak;
+            memcpy(&d.lcPressFrame, &c.last.pressFrame, 3 * sizeof(s16));
+            memcpy(&d.lcTotal, &c.stats, sizeof(c.stats));
         }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
         static const CoreDrillSlot* activeSlot(int tracked)
         {
@@ -307,7 +289,8 @@ namespace extra {
 
     void coreDrillEnginesFrame()
     {
-        if (s_net == NULL)
+        CoreDrillNet* net = s_net;
+        if (net == NULL)
         {
             return;
         }
@@ -319,9 +302,9 @@ namespace extra {
         s_prevFrame = f;
 
         readPPlusRuleFlags(s_autoLCancel, s_inputBuffer3f);
-        s_net->debug.frame = static_cast<u32>(f >= 0 ? f : 0);
-        s_net->debug.autoLCancelActive = s_autoLCancel ? 1 : 0;
-        s_net->debug.inputBuffer3fActive = s_inputBuffer3f ? 1 : 0;
+        net->debug.frame = static_cast<u32>(f >= 0 ? f : 0);
+        net->debug.autoLCancelActive = s_autoLCancel ? 1 : 0;
+        net->debug.inputBuffer3fActive = s_inputBuffer3f ? 1 : 0;
 
         game::FighterRef refs[game::kMaxFighters];
         int refCount = game::listFighters(refs, game::kMaxFighters);
@@ -333,7 +316,7 @@ namespace extra {
         for (int i = 0; i < game::kMaxTracked; i++)
         {
             const game::Tracked* t = game::tracked(i);
-            CoreDrillSlot& slot = s_net->slots[i];
+            CoreDrillSlot& slot = net->slots[i];
 
             if (t == NULL)
             {
@@ -341,7 +324,7 @@ namespace extra {
                 {
                     resetSlotAll(slot);
                 }
-                syncDebugSlot(i, NULL, slot);
+                syncDebugSlot(*net, i, NULL, slot);
                 continue;
             }
             if (t->cur.frame != f)
@@ -350,7 +333,7 @@ namespace extra {
                 {
                     resetSlotTransient(slot);
                 }
-                syncDebugSlot(i, t, slot);
+                syncDebugSlot(*net, i, t, slot);
                 continue;
             }
 
@@ -368,7 +351,7 @@ namespace extra {
             game::Body body;
             if (m == NULL || !game::readBody(t->fighter, body))
             {
-                syncDebugSlot(i, t, slot);
+                syncDebugSlot(*net, i, t, slot);
                 continue;
             }
 
@@ -496,7 +479,7 @@ namespace extra {
             }
             lcCoreStep(slot.lc, ci);
 
-            syncDebugSlot(i, t, slot);
+            syncDebugSlot(*net, i, t, slot);
         }
     }
 

@@ -108,6 +108,9 @@ namespace osd {
         }
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     static float smooth(float t)
     {
         t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
@@ -130,6 +133,9 @@ namespace osd {
     {
         return now < m.born || now - m.born >= kLifetime + (game::frozen() ? 0 : kAnimFrames);
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // Drops expired messages and gives the rest of `player`'s stack their
     // places by age, starting a glide for every message whose place changed.

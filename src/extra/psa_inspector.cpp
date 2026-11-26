@@ -70,6 +70,9 @@ namespace extra {
 
         PsaDebugBlock* s_debug = NULL;
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
         s16 s16At(const void* base, u32 offset)
         {
             return *reinterpret_cast<const s16*>(reinterpret_cast<u32>(base) + offset);
@@ -80,9 +83,6 @@ namespace extra {
             return game::isRam(p) && (reinterpret_cast<u32>(p) & 3u) == 0u;
         }
 
-#ifdef __MWERKS__
-#pragma dont_inline on
-#endif
         void clearSnapshot()
         {
             PsaDebugBlock* dbg = s_debug;

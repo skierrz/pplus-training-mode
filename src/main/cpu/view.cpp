@@ -317,45 +317,45 @@ namespace cpu {
                < soValueAccesser::getConstantInt(accesser, kJumpCountMax, 0);
     }
 
-    bool techWindowActive(Fighter* fighter)
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
+    static u8* controllerBase(Fighter* fighter)
     {
-        // soControllerImpl vtable (fighter_input.cpp:44) and guard trigger
-        // index 4 (+96 prev, +97 count; Fighter.pac common.md:798-799).
-        enum { kControllerVtable = 0x80AE4EF0, kGuard4Prev = 88 + 2 * 4, kGuard4Count = 89 + 2 * 4 };
+        enum { kControllerVtable = 0x80AE4EF0 };
         const soModuleEnumeration* m = game::fighterModules(fighter);
         if (m == NULL || !game::isRam(m->m_controllerModule))
         {
-            return false;
+            return NULL;
         }
         soController* c = m->m_controllerModule->getController();
-        if (!game::isRam(c) || game::wordAt(c, 0) != kControllerVtable)
-        {
-            return false;
-        }
-        const u8* base = reinterpret_cast<const u8*>(c);
-        return base[kGuard4Prev] >= 40 && base[kGuard4Count] < 20;
+        return (game::isRam(c) && game::wordAt(c, 0) == kControllerVtable) ? reinterpret_cast<u8*>(c) : NULL;
+    }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
+
+    bool techWindowActive(Fighter* fighter)
+    {
+        // Guard trigger index 4 (+96 prev, +97 count; Fighter.pac common.md:798-799).
+        enum { kGuard4Prev = 88 + 2 * 4, kGuard4Count = 89 + 2 * 4 };
+        const u8* base = controllerBase(fighter);
+        return base != NULL && base[kGuard4Prev] >= 40 && base[kGuard4Count] < 20;
     }
 
     void spoofWallTechTrigger(Fighter* fighter)
     {
         enum {
-            kControllerVtable = 0x80AE4EF0,
             kGuard3Prev = 88 + 2 * 3,
             kGuard3Count = 89 + 2 * 3,
             kGuard4Prev = 88 + 2 * 4,
             kGuard4Count = 89 + 2 * 4
         };
-        const soModuleEnumeration* m = game::fighterModules(fighter);
-        if (m == NULL || !game::isRam(m->m_controllerModule))
+        u8* base = controllerBase(fighter);
+        if (base == NULL)
         {
             return;
         }
-        soController* c = m->m_controllerModule->getController();
-        if (!game::isRam(c) || game::wordAt(c, 0) != kControllerVtable)
-        {
-            return;
-        }
-        u8* base = reinterpret_cast<u8*>(c);
         base[kGuard3Prev] = 40;
         base[kGuard3Count] = 0;
         base[kGuard4Prev] = 40;

@@ -246,6 +246,9 @@ namespace game {
         return s_ledgeEvent;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     static void emit(int kind, const Tracked& t, int tracked, int frame, int flag, int a, int b, float angle)
     {
         if (s_sink == NULL)
@@ -337,6 +340,9 @@ namespace game {
     {
         return ledgeCellOf(s);
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     static void wavedash(Watch& w, const Tracked& t, int i, s32 f)
     {

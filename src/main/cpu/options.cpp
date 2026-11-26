@@ -603,6 +603,7 @@ namespace cpu {
         View v;
         Fighter* f;
 
+#pragma dont_inline on
         void stick(Frame& out, float x, float y, int ref)
         {
             switch (ref)
@@ -625,6 +626,32 @@ namespace cpu {
             out.x = x;
             out.y = y;
         }
+
+        void enterIdle(Frame& out, const Owner& who)
+        {
+            state = kIdle;
+            hits = 0;
+            shieldKind = false;
+            noTech = false;
+            idle(out, who);
+        }
+
+        void enterDown(Frame& out, const Owner& who)
+        {
+            state = kDown;
+            downFrames = 0;
+            missWait = 0;
+            getupInput(out, who);
+        }
+
+        void clearAction(int nextState)
+        {
+            state = nextState;
+            shieldKind = false;
+            script = NULL;
+            pending = NULL;
+        }
+#pragma dont_inline reset
         void startScript(const Step* steps, bool again = false);
 
         bool reached(int until) const
@@ -829,11 +856,48 @@ namespace cpu {
                             static_cast<float>(t.customDiY) / 100.0f, tdiX, tdiY);
         }
 
+#pragma dont_inline on
+        static bool dirStick(int code, float away, float& x, float& y)
+        {
+            // code 0..5: Away, Towards, Left, Right, Up, Down
+            if (static_cast<u32>(code) >= 6u)
+            {
+                return false;
+            }
+            static const s8 kVec[6][2] = {{2, 0}, {-2, 0}, {-1, 0}, {1, 0}, {0, 1}, {0, -1}};
+            int vx = kVec[code][0];
+            x = vx == 2 ? away : (vx == -2 ? -away : static_cast<float>(vx));
+            y = static_cast<float>(kVec[code][1]);
+            return true;
+        }
+
+        static void stepKb(float& kx, float& ky, float& kl, float decay, float& gy, float accel, float maxFall)
+        {
+            float k = kl > decay ? (kl - decay) / kl : 0.0f;
+            kl *= k;
+            kx *= k;
+            ky *= k;
+            gy = gy + accel < -maxFall ? -maxFall : gy + accel;
+        }
+
+        static void setBodiesMotion(int entryId, Fighter* main, float rate)
+        {
+            if (main != NULL)
+            {
+                setMotionRate(main, rate);
+            }
+            Fighter* nana = fighterOf(entryId, true);
+            if (nana != NULL && nana != main)
+            {
+                setMotionRate(nana, rate);
+            }
+        }
+#pragma dont_inline reset
+
         void chooseDi(const Owner&)
         {
             const CpuOptions& c = opts();
             int kind = c.tdi;
-            haveAsdi = false;
             if (kind == kTdiRandom)
             {
                 kind = resolveRandomTdi(rnd());
@@ -842,41 +906,8 @@ namespace cpu {
             diKind = kind;
             diRoll = rnd();
             relativeDi();
-            switch (c.asdi)
-            {
-            case kAsdiAway:
-                asdiX = away;
-                asdiY = 0.0f;
-                haveAsdi = true;
-                break;
-            case kAsdiTowards:
-                asdiX = -away;
-                asdiY = 0.0f;
-                haveAsdi = true;
-                break;
-            case kAsdiLeft:
-                asdiX = -1.0f;
-                asdiY = 0.0f;
-                haveAsdi = true;
-                break;
-            case kAsdiRight:
-                asdiX = 1.0f;
-                asdiY = 0.0f;
-                haveAsdi = true;
-                break;
-            case kAsdiUp:
-                asdiX = 0.0f;
-                asdiY = 1.0f;
-                haveAsdi = true;
-                break;
-            case kAsdiDown:
-                asdiX = 0.0f;
-                asdiY = -1.0f;
-                haveAsdi = true;
-                break;
-            default:
-                break;
-            }
+            // ASDI enum: 1=Away, 2=Towards, 3=Left, 4=Right, 5=Up, 6=Down
+            haveAsdi = dirStick(c.asdi - kAsdiAway, away, asdiX, asdiY);
             const float d = 0.7071f;
             static const float kDirs[8][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {d, d}, {-d, d}, {d, -d}, {-d, -d}};
             int sdi = c.sdiDir;
@@ -887,34 +918,15 @@ namespace cpu {
                 sdiY = kDirs[i][1];
                 return;
             }
-            sdiX = sdiY = 0.0f;
-            switch (sdi)
+            if (sdi == kSdiAuto)
             {
-            case kSdiAuto:
                 sdiX = tdiX;
                 sdiY = tdiY;
-                break;
-            case kSdiAway:
-                sdiX = away;
-                break;
-            case kSdiTowards:
-                sdiX = -away;
-                break;
-            case kSdiUp:
-                sdiY = 1.0f;
-                break;
-            case kSdiDown:
-                sdiY = -1.0f;
-                break;
-            case kSdiLeft:
-                sdiX = -1.0f;
-                break;
-            case kSdiRight:
-                sdiX = 1.0f;
-                break;
-            default:
-                break;
+                return;
             }
+            sdiX = sdiY = 0.0f;
+            // SDI enum: 2=Away, 3=Towards, 4=Left, 5=Right, 6=Up, 7=Down
+            dirStick(sdi - kSdiAway, away, sdiX, sdiY);
         }
 
         // Smash DI: single-stick pushes every other hitlag frame; Dual-Stick
@@ -988,11 +1000,7 @@ namespace cpu {
             {
                 if (flying)
                 {
-                    float k = kl > decay ? (kl - decay) / kl : 0.0f;
-                    kl *= k;
-                    kx *= k;
-                    ky *= k;
-                    gy = gy + accel < -maxFall ? -maxFall : gy + accel;
+                    stepKb(kx, ky, kl, decay, gy, accel, maxFall);
                     vx = kx;
                     vy = ky + gy;
                 }
@@ -1045,11 +1053,7 @@ namespace cpu {
             float x = v.x, y = v.y;
             for (int i = 0; i <= lead; i++)
             {
-                float k = kl > decay ? (kl - decay) / kl : 0.0f;
-                kl *= k;
-                kx *= k;
-                ky *= k;
-                gy = gy + accel < -maxFall ? -maxFall : gy + accel;
+                stepKb(kx, ky, kl, decay, gy, accel, maxFall);
                 float vx = kx;
                 float vy = ky + gy;
                 // Cast from body centre with a small ECB half-width margin.
@@ -1490,12 +1494,9 @@ namespace cpu {
         {
             if (shieldKind && (v.air || !guardStatus(v.status)))
             {
-                shieldKind = false;
-                hits = 0;
                 actionable = 0;
                 revPicked = false;
-                state = kIdle;
-                idle(out, who);
+                enterIdle(out, who);
                 return;
             }
             bool fresh = justOut();
@@ -1865,16 +1866,7 @@ namespace cpu {
                 return;
             }
             frozen = false;
-            Fighter* main = fighterOf(who.entryId, false);
-            Fighter* nana = fighterOf(who.entryId, true);
-            if (main != NULL)
-            {
-                setMotionRate(main, 1.0f);
-            }
-            if (nana != NULL && nana != main)
-            {
-                setMotionRate(nana, 1.0f);
-            }
+            setBodiesMotion(who.entryId, fighterOf(who.entryId, false), 1.0f);
             TM_LOG("cpu: P%d unfrozen\n", who.playerNo + 1);
         }
 
@@ -1930,12 +1922,7 @@ namespace cpu {
             }
             if (frozen)
             {
-                setMotionRate(f, 0.0f);
-                Fighter* nana = fighterOf(who.entryId, true);
-                if (nana != NULL && nana != f)
-                {
-                    setMotionRate(nana, 0.0f);
-                }
+                setBodiesMotion(who.entryId, f, 0.0f);
                 return true;
             }
             if (s_moving)
@@ -2030,6 +2017,7 @@ namespace cpu {
         }
 #pragma dont_inline reset
 
+#pragma dont_inline on
         void remember()
         {
             havePrev = true;
@@ -2040,6 +2028,7 @@ namespace cpu {
             prevVy = v.vy;
             prevAir = v.air;
         }
+#pragma dont_inline reset
     };
 
 #pragma dont_inline on
@@ -2369,17 +2358,11 @@ namespace cpu {
         }
         if (grabbedStatus(v.status) && state != kGrabbed)
         {
-            state = kGrabbed;
-            shieldKind = false;
-            script = NULL;
-            pending = NULL;
+            clearAction(kGrabbed);
         }
         if (c.clatterEscape != kMashNone && isClatterStatus(v.status) && state != kClatter)
         {
-            state = kClatter;
-            shieldKind = false;
-            script = NULL;
-            pending = NULL;
+            clearAction(kClatter);
             playSlot = -1;
         }
         // Entering a techable slip (Slip 0x89 / Slip_Down 0x8A) without a
@@ -2387,10 +2370,7 @@ namespace cpu {
         // kTechFall so Tech and Slip_Wait Get Up options both run.
         if (slipTechStatus(v.status) && !slipTechStatus(prevStatus) && !newHit && state != kHit)
         {
-            state = kTechFall;
-            shieldKind = false;
-            script = NULL;
-            pending = NULL;
+            clearAction(kTechFall);
             playSlot = -1;
             techChosen = false;
             techPressed = false;
@@ -2527,10 +2507,7 @@ namespace cpu {
         case kShieldStun:
             if (v.air || !guardStatus(v.status))
             {
-                shieldKind = false;
-                hits = 0;
-                state = kIdle;
-                idle(out, who);
+                enterIdle(out, who);
                 break;
             }
             out.buttons = kGuard;
@@ -2578,11 +2555,7 @@ namespace cpu {
             }
             else
             {
-                state = kIdle;
-                hits = 0;
-                shieldKind = false;
-                noTech = false;
-                idle(out, who);
+                enterIdle(out, who);
             }
             break;
         case kHit:
@@ -2606,10 +2579,7 @@ namespace cpu {
             }
             if (downStatus(v.status))
             {
-                state = kDown;
-                downFrames = 0;
-                missWait = 0;
-                getupInput(out, who);
+                enterDown(out, who);
             }
             else if (passiveStatus(v.status))
             {
@@ -2637,12 +2607,15 @@ namespace cpu {
             }
             else if (!v.air)
             {
-                state = downStatus(v.status) ? kDown : (passiveStatus(v.status) ? kCounter : kAfter);
-                downFrames = 0;
-                missWait = 0;
-                if (state == kDown)
+                if (downStatus(v.status))
                 {
-                    getupInput(out, who);
+                    enterDown(out, who);
+                }
+                else
+                {
+                    state = passiveStatus(v.status) ? kCounter : kAfter;
+                    downFrames = 0;
+                    missWait = 0;
                 }
             }
             else if (!tumbleStatus(v.status))
@@ -2673,10 +2646,7 @@ namespace cpu {
                 // Missed tech while waiting out Counter Delay: run Get Up.
                 actionable = 0;
                 revPicked = false;
-                state = kDown;
-                downFrames = 0;
-                missWait = 0;
-                getupInput(out, who);
+                enterDown(out, who);
             }
             else
             {
@@ -2730,11 +2700,7 @@ namespace cpu {
             }
             if (canAct(v) && !v.air)
             {
-                state = kIdle;
-                hits = 0;
-                shieldKind = false;
-                noTech = false;
-                idle(out, who);
+                enterIdle(out, who);
             }
             else if (v.air && tumbleStatus(v.status))
             {
@@ -2743,10 +2709,7 @@ namespace cpu {
             else if (!v.air && downStatus(v.status))
             {
                 // Missed tech after the counter action: run Get Up.
-                state = kDown;
-                downFrames = 0;
-                missWait = 0;
-                getupInput(out, who);
+                enterDown(out, who);
             }
             else if (!v.air && passiveStatus(v.status))
             {

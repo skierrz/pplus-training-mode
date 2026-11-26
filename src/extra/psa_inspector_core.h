@@ -117,6 +117,9 @@ namespace extra {
         return kPsaWaitNone;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline float psaClampDisplay(float v, float lo, float hi)
     {
         if (!(v == v))
@@ -133,6 +136,9 @@ namespace extra {
         }
         return v;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline const char* psaThreadName(int index)
     {

@@ -142,6 +142,9 @@ namespace game {
                            | (1 << kGroupAirJumpAerial)
     };
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     // Statuses a fighter is free to act in, and those only a choice enters:
     // entering any means it could act during that frame.
     static bool freeStatus(int s)
@@ -195,6 +198,9 @@ namespace game {
         return (s >= kStatusAttack && s <= kStatusAttackAirFirst) || (s >= kStatusSpecialN && s < kStatusFinal)
                || s == kStatusThrow;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     void StatusWatch::notifyEventChangeStatus(int statusKind, int prevStatusKind, soStatusData*,
                                               soModuleAccesser* moduleAccesser)

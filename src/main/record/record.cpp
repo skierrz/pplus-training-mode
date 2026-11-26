@@ -239,6 +239,9 @@ namespace record {
 
     // ---- helpers ----
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     static u32 rnd()
     {
         u32 x = s_rng ^ (game::frameCounter() * 0x9E3779B9u);
@@ -487,6 +490,9 @@ namespace record {
         s_restorePending = true;
         TM_LOG("record: restore requested (%s)\n", why);
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // ---- controllers ----
 

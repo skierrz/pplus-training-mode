@@ -347,6 +347,9 @@ namespace storage {
 
     // ---- import ----
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     static bool finiteIn(float v, float lo, float hi)
     {
         union {
@@ -370,6 +373,9 @@ namespace storage {
         bits.u = u;
         return finiteIn(bits.f, lo, hi);
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     static bool validSlot(const u8* f, u32 size, u32& at)
     {
