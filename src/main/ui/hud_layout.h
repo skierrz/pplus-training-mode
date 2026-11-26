@@ -95,7 +95,7 @@ namespace layout {
     static const float kKeyY = 26.0f;
     static const float kKeyLabelTop = 34.0f;
     static const float kLegendTop = 72.0f;
-    static const float kLegendCap = 7.2f;
+    static const float kLegendCap = 7.5f;
 
     static const float kCellW = 10.8f;
     static const float kCellGap = 1.0f;

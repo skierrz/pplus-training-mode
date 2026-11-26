@@ -393,12 +393,12 @@ namespace extra {
             char subLine[40];
             psaFormatSubHeader(dbg->status, dbg->subaction, dbg->animFrame, dbg->secondaryKind,
                                dbg->secondaryRate, subLine, sizeof(subLine));
-            float subScale = ui::style::scaleForCap(7.2f);
+            float subScale = ui::style::scaleForCap(7.5f);
             float subY = ui::style::textYForCap(y + 16.0f, subScale);
             drawShadowText(x + 6.0f * xs, subY, subLine, 0xB8CDD6FFu, subScale);
 
             // Up to 6 active threads: Name | Frame | Wait | Decoded Opcode Name.
-            float rowScale = ui::style::scaleForCap(7.2f);
+            float rowScale = ui::style::scaleForCap(7.5f);
             if (rowCount == 0)
             {
                 float ry = ui::style::textYForCap(y + 30.0f, rowScale);

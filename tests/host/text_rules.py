@@ -617,7 +617,7 @@ def ledgedash_hud(c, src):
                 c.item("fit", lit, t, scale_for_cap(8.0), 0, 520.0, 0.0)
                 c.buffer(lit, t, 64.0)
         elif lit.var == "kLegNames":
-            c.item("fit", lit, lit.text, scale_for_cap(7.2), 0, 80.0, 0.0)
+            c.item("fit", lit, lit.text, scale_for_cap(7.5), 0, 80.0, 0.0)
         else:
             continue
         c.take(lit)

@@ -191,7 +191,7 @@ namespace pages {
         }
         for (int h = 0; h < cpu::kAdvancedHits; h++)
         {
-            if (t.hits[h].logic == cpu::kLogicCustom)
+            if (t.hits[h].logic != cpu::kLogicDefault)
             {
                 return kCtrModePerHit;
             }
@@ -237,11 +237,24 @@ namespace pages {
         }
     }
 
+    static void clearPerHitCounters(cpu::CpuOptions& c, cpu::CpuTables& t)
+    {
+        for (int h = 0; h < cpu::kAdvancedHits; h++)
+        {
+            t.hits[h].logic = cpu::kLogicDefault;
+        }
+        c.advLogic = cpu::kLogicDefault;
+    }
+
     static void counterModeChanged()
     {
         u8 mode = menuScratch()[kCounterModeScratchOffset];
         cpu::CpuOptions& c = main::settings().cpu.options;
         cpu::CpuTables& t = main::settings().cpuTables;
+        if (mode != kCtrModePerHit)
+        {
+            clearPerHitCounters(c, t);
+        }
         if (mode == kCtrModeOff)
         {
             c.counterGround = 0;
@@ -249,13 +262,6 @@ namespace pages {
             c.counterShield = 0;
             c.multiReversal = 0;
             c.adaptiveMode = cpu::kAdaptiveOff;
-            for (int h = 0; h < cpu::kAdvancedHits; h++)
-            {
-                if (t.hits[h].logic == cpu::kLogicCustom)
-                {
-                    t.hits[h].logic = cpu::kLogicDefault;
-                }
-            }
         }
         else if (mode == kCtrModeSingle)
         {

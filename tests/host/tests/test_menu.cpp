@@ -1207,6 +1207,67 @@ TEST(lab_menu, show_inactive_fighters_scoped_to_stage_cast_only)
     storage::detach();
 }
 
+TEST(lab_menu, counter_mode_clears_per_hit_overrides_when_switching_away)
+{
+    bootLab();
+    main::setExtraHooks(&kSmashvillePeachHooks);
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+
+    ui::MenuInput inLeft = {0, 0, 1, 0, false, false, false, false};
+    ui::MenuInput inRight = {0, 0, 0, 1, false, false, false, false};
+    ui::MenuInput noop = {0, 0, 0, 0, false, false, false, false};
+
+    // Arm a Per-Hit Custom override (and a Disable override on hit 2): Counter Mode derives Per-Hit (4).
+    main::settings().cpuTables.hits[0].logic = cpu::kLogicCustom;
+    main::settings().cpuTables.hits[1].logic = cpu::kLogicDisable;
+    main::settings().cpu.options.advLogic = cpu::kLogicCustom;
+
+    const u8 ctrPath[] = {ui::pages::P_CPU, ui::pages::P_CPU_COUNTERS};
+    REQUIRE(ui::menuJump(menu, st, ctrPath, 2));
+    CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_CPU_COUNTERS]));
+    CHECK_EQ(4, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+
+    // Step left from Per-Hit (4) -> Reversal Slots (3) -> Custom Pool (2) -> Single Action (1).
+    ui::menuStep(menu, st, inLeft);
+    ui::menuStep(menu, st, inLeft);
+    ui::menuStep(menu, st, inLeft);
+    CHECK_EQ(1, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpuTables.hits[0].logic));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpuTables.hits[1].logic));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpu.options.advLogic));
+    // Subsequent step must stay on Single Action (1), never snapping back to Per-Hit.
+    ui::menuStep(menu, st, noop);
+    CHECK_EQ(1, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+
+    // Re-arm Per-Hit Custom override and switch to Custom Pool (2): overrides clear and mode stays at 2.
+    main::settings().cpuTables.hits[0].logic = cpu::kLogicCustom;
+    main::settings().cpu.options.advLogic = cpu::kLogicCustom;
+    ui::menuStep(menu, st, noop);
+    CHECK_EQ(4, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+    ui::menuStep(menu, st, inLeft); // 3 = Reversal Slots
+    ui::menuStep(menu, st, inLeft); // 2 = Custom Pool
+    CHECK_EQ(2, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpuTables.hits[0].logic));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpu.options.advLogic));
+    ui::menuStep(menu, st, noop);
+    CHECK_EQ(2, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+
+    // Also verify Disable-only Per-Hit override derives Per-Hit (4) and clears on switching to Adaptive (5).
+    main::settings().cpuTables.hits[0].logic = cpu::kLogicDisable;
+    main::settings().cpu.options.advLogic = cpu::kLogicDisable;
+    ui::menuStep(menu, st, noop);
+    CHECK_EQ(4, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+    ui::menuStep(menu, st, inRight); // 5 = Adaptive
+    CHECK_EQ(5, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpuTables.hits[0].logic));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpu.options.advLogic));
+
+    main::setExtraHooks(NULL);
+    storage::detach();
+}
+
 namespace {
     u8 s_allOffVals[4];
     bool s_allOffEnabled = true;

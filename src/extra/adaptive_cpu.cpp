@@ -341,7 +341,7 @@ namespace extra {
         static const char* const kBarLabels[3] = {"ATK", "GRB", "DEF"};
         static const gfx::Rgba kBarCols[3] = {0xFF6B54FFu, 0xFFD300FFu, 0x38B8FFFFu};
         const u8 pcts[3] = {v.atkPct, v.grabPct, v.defPct};
-        float rowScale = ui::style::scaleForCap(7.2f);
+        float rowScale = ui::style::scaleForCap(7.5f);
         float barX = x + 31.0f * xs;
         float barW = 68.0f * xs;
         for (int r = 0; r < 3; r++)

@@ -1407,7 +1407,7 @@ namespace extra {
 
         float tx = cardX + ui::style::w(90.0f);
         float headScale = ui::style::scaleForCap(compact ? 7.5f : 8.2f);
-        float bodyScale = ui::style::scaleForCap(compact ? 7.2f : 7.5f);
+        float bodyScale = ui::style::scaleForCap(7.5f);
         float rowStep = compact ? 15.0f : 19.0f;
         float row0 = topY + (compact ? 10.0f : 12.0f);
         drawShadowText(tx, ui::style::textYForCap(row0, headScale), picking ? "AIMING DI" : "CUSTOM DI",
