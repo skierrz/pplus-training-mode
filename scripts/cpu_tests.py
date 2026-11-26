@@ -194,7 +194,7 @@ SHIELD_ACTIONS = {"None": 0, "Grab": 1,
 LAB, TRAINING = 1, 0  # CPU Control
 # CPU Options rows (src/main/ui/pages/cpu_options.cpp) and Tech & Getup rows.
 CPU_CONTROL_ROW, CPU_BEHAVIOR_ROW, CPU_COUNTERS_ROW, CPU_TECH_ROW = 3, 4, 6, 7
-TECH_INVIS_ROW, TECH_DELAY_ROW, TECH_SOUND_ROW, TECH_IN_PLACE_ROW = 2, 3, 4, 6
+TECH_INVIS_ROW, TECH_DELAY_ROW, TECH_SOUND_ROW, TECH_IN_PLACE_ROW = 2, 3, 4, 7
 SET_TECH_INVIS, SET_TECH_DELAY = 288, 289
 # P+'s first distinguishable tech frame per character (src/main/game/tech_frames.cpp).
 TECH_DIST = {"fox": 4, "mario": 8, "zelda": 3, "sheik": 4}
@@ -1591,7 +1591,8 @@ def o_tech_invis(r, name=None, check_getup=True):
     res.row("default Tech Invisibility Delay", 0, default_delay, default_delay == 0)
 
     def run_once(delay, miss_tech=False, tech_kind="In Place", shot_name=None):
-        opts = on(tech=TECH["None"] if miss_tech else TECH[tech_kind], getup=GETUP["Stand"], missTechWait=0)
+        opts = on(tech=TECH["None"] if miss_tech else TECH[tech_kind], getup=GETUP["Stand"], missTechWait=0,
+                  techSound=1 if miss_tech else 0)
         want_status = STATUS["Passive"] if tech_kind == "In Place" else STATUS["Passive_Fb"]
         r.load("near", opts, percent=50)
         emu.h.call("resume")
@@ -1607,8 +1608,10 @@ def o_tech_invis(r, name=None, check_getup=True):
             lab.set_choice(SET_TECH_DELAY, delay)
         got_mode = lab.setting(SET_TECH_INVIS)
         got_delay = lab.setting(SET_TECH_DELAY)
-        lab.down(TECH_SOUND_ROW - TECH_DELAY_ROW)
-        lab.toggle_on(SET_CPU + CPU_FIELDS["techSound"])
+        if not miss_tech:
+            # Tech Sound Cue is gated off by techNotMiss() when Tech is Miss.
+            lab.down(TECH_SOUND_ROW - TECH_DELAY_ROW)
+            lab.toggle_on(SET_CPU + CPU_FIELDS["techSound"])
         lab.back_to_main(2)
         lab.close_menu()
         pos = len(emu.log_text())
