@@ -33,6 +33,7 @@
 #include "main/ui/hud_layout.h"
 #include "main/ui/menu.h"
 #include "main/ui/pages/scenarios.h"
+#include "shared/game/mem.h"
 #include "shared/drill_session.h"
 #include "shared/game/menu_sound.h"
 #include "shared/game/pad_bits.h"
