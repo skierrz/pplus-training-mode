@@ -87,8 +87,12 @@ def last_page(emu):
 
 def go_to_page(emu, title, button="R"):
     """R steps to the next page, L to the one before."""
-    for _ in range(5):
-        if last_page(emu) == title:
+    for _ in range(8):
+        try:
+            cur = last_page(emu)
+        except nav.NavError:
+            cur = None
+        if cur == title:
             return
         n = count(emu, r"\] drills: page ")
         emu.press(0, [button], frames=3, after=6)
@@ -97,7 +101,7 @@ def go_to_page(emu, title, button="R"):
 
 
 def go_to_row(emu, row):
-    for _ in range(22):
+    for _ in range(30):
         now = last_row(emu)
         if now == row:
             return
@@ -173,20 +177,20 @@ def check_list_screens(emu, taken, notes):
     if hi0 or not hi1:
         raise nav.NavError(f"the highlight is not on L-Cancel alone (row 0 {c0}, row 1 {c1})")
 
-    # Hold Down with key repeat to row 18 (Browse Recordings, scrolled by 9 -> visible row 9)
+    # Hold Down with key repeat to row 25 (Browse Recordings, scrolled by 16 -> visible row 9)
     # and verify bottom clamp.
     emu.hold(0, stick=DOWN)
-    emu.advance(150)
+    emu.advance(210)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 18:
-        raise nav.NavError(f"Down repeat did not reach bottom All Modes row 18, at {last_row(emu)}")
+    if last_row(emu) != 25:
+        raise nav.NavError(f"Down repeat did not reach bottom All Modes row 25, at {last_row(emu)}")
     emu.hold(0, stick=DOWN)
     emu.advance(20)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 18:
-        raise nav.NavError(f"Down at bottom row moved off row 18 to {last_row(emu)}")
+    if last_row(emu) != 25:
+        raise nav.NavError(f"Down at bottom row moved off row 25 to {last_row(emu)}")
     path = shot(emu, taken, "drills-list-all-bottom")
     hi9, c9 = row_highlighted(path, 9)
     hi8, c8 = row_highlighted(path, 8)
@@ -228,7 +232,7 @@ def check_list_screens(emu, taken, notes):
     if not hi0 or hi1:
         raise nav.NavError(f"the highlight is not on Defense row 0 alone (row 0 {c0}, row 1 {c1})")
 
-    # Switch to Tech Practice (Page 3, 8 single-page rows: L-Cancel .. Float / Hover & DJC), then wrap to All Modes.
+    # Switch to Tech Practice (Page 3, 8 single-page rows: L-Cancel .. Float / Hover & DJC).
     go_to_page(emu, "Tech Practice", "R")
     emu.advance(10)
     path = shot(emu, taken, "drills-list-tech-practice")
@@ -242,6 +246,29 @@ def check_list_screens(emu, taken, notes):
     emu.advance(10)
     if last_row(emu) != 7:
         raise nav.NavError(f"Down repeat did not reach bottom Tech Practice row 7, at {last_row(emu)}")
+
+    # Switch to Challenges (Page 4, 6 rows) and Character Trainers (Page 5, 1 row), then wrap to All Modes.
+    go_to_page(emu, "Challenges", "R")
+    emu.advance(10)
+    path = shot(emu, taken, "drills-list-challenges")
+    hi0, c0 = row_highlighted(path, 0)
+    hi1, c1 = row_highlighted(path, 1)
+    if not hi0 or hi1:
+        raise nav.NavError(f"the highlight is not on Challenges row 0 alone (row 0 {c0}, row 1 {c1})")
+    emu.hold(0, stick=DOWN)
+    emu.advance(60)
+    emu.neutral(0)
+    emu.advance(10)
+    if last_row(emu) != 5:
+        raise nav.NavError(f"Down repeat did not reach bottom Challenges row 5, at {last_row(emu)}")
+
+    go_to_page(emu, "Character Trainers", "R")
+    emu.advance(10)
+    path = shot(emu, taken, "drills-list-character-trainers")
+    hi0, c0 = row_highlighted(path, 0)
+    hi1, c1 = row_highlighted(path, 1)
+    if not hi0 or hi1:
+        raise nav.NavError(f"the highlight is not on Character Trainers row 0 alone (row 0 {c0}, row 1 {c1})")
     go_to_page(emu, "All Modes", "R")
     emu.advance(10)
 
@@ -723,7 +750,7 @@ WII_BY_NAME = {label: ctrl for label, _, _, ctrl in WII_CONTROLS}
 
 
 def wii_go_to_page(emu, title, controls):
-    for _ in range(5):
+    for _ in range(7):
         if last_page(emu) == title:
             return
         n = count(emu, r"\] drills: page ")
@@ -733,7 +760,7 @@ def wii_go_to_page(emu, title, controls):
 
 
 def wii_go_to_row(emu, row, controls):
-    for _ in range(22):
+    for _ in range(30):
         now = last_row(emu)
         if now == row:
             return

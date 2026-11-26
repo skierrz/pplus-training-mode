@@ -42,6 +42,7 @@ from harness import HarnessError, Timeout  # noqa: E402
 CHARS = {
     "mario": (0x00, 0x00),
     "fox": (0x07, 0x07),
+    "meta_knight": (0x18, 0x16),
     "lucario": (0x24, 0x20),
     "snake": (0x2A, 0x26),
 }
@@ -84,6 +85,7 @@ SCENARIOS = [
     "flow-course",
     "reaction-techchase",
     "recovery-floorhug",
+    "metaknight-floorhug",
     "snake-recovery",
     "savestate-reset",
 ]
@@ -558,6 +560,87 @@ def sc_recovery_floorhug(emu, notes):
     return fails
 
 
+# ---- Scenario 4C: Meta Knight Floorhug + Sticky Taunt Reset Guard -----------
+
+def sc_metaknight_floorhug(emu, notes):
+    fails = []
+    _, settings, p1_ptr, cpu_ptr, tm4x = start_match(emu, "meta_knight", "fox")
+    cpu_x = read_fighter(emu, cpu_ptr)["x"]
+    walk_p1_to(emu, p1_ptr, cpu_x - 7.5, face_dir=1.0)
+
+    # Save quick savestate at clean grounded Wait before taunt.
+    emu.press(0, ["DRIGHT"], frames=25, after=12)
+
+    # Enter Meta Knight Up Taunt (AppealHi, status 0x10C - cape vanish) and then
+    # load savestate mid-taunt: the reset guard MUST cleanly exit 0x10C/0x10D
+    # without sticky taunt looping, keeping Meta Knight visible and ready to Floorhug.
+    emu.h.call("pause")
+    emu.hold(0, ["DUP"])
+    entered_taunt = False
+    for _ in range(30):
+        step(emu, 1)
+        sf = read_fighter(emu, p1_ptr)
+        if sf["status"] in (0x10C, 0x10D):
+            entered_taunt = True
+            break
+    emu.neutral(0)
+    # Advance into Meta Knight's vanish frames (~24f) while still in taunt.
+    step(emu, 24)
+    st_mid_taunt = read_fighter(emu, p1_ptr)["status"]
+    emu.h.call("resume")
+
+    # Load savestate via DLEFT (triggers challengeBackendsReset + taunt guard).
+    emu.press(0, ["DLEFT"], frames=15, after=18)
+
+    # Observe 20 frames after reset: Meta Knight MUST stay out of 0x10C/0x10D.
+    emu.h.call("pause")
+    taunt_after_reset = 0
+    for _ in range(20):
+        step(emu, 1)
+        if read_fighter(emu, p1_ptr)["status"] in (0x10C, 0x10D):
+            taunt_after_reset += 1
+    st_after = read_fighter(emu, p1_ptr)["status"]
+
+    # Immediately verify Meta Knight completes a real Floorhug / ASDI-Down rep
+    # against Fox Down-Tilt (low hitbox hitting Meta Knight cleanly, proving
+    # hurtbox/visibility/control are intact after AppealHi reset).
+    emu.h.call("write_mem", addr=settings + S_PLAYER_PERCENT, hex="0000")
+    step(emu, 4)
+    inp = PI.PluginInput(emu)
+    fox_dtilt = PI.frames_to_steps({2: (PI.B_ATTACK, 0.0, -0.55)}, 3)
+    mk_trace = []
+
+    def track_mk_fh(_idx=None):
+        sf = read_fighter(emu, p1_ptr)
+        if len(mk_trace) < 12 and (not mk_trace or mk_trace[-1] != (sf["status"], sf["hitlag"])):
+            mk_trace.append((sf["status"], sf["hitlag"]))
+        if sf["hitlag"] > 0:
+            emu.hold(0, stick=NEUTRAL, cstick=DOWN)
+
+    try:
+        inp.run({1: fox_dtilt}, read=track_mk_fh, extra=28)
+    finally:
+        inp.stop()
+        emu.neutral(0)
+    step(emu, 4)
+    d_mk = read_tm4x(emu, tm4x, 0)
+    emu.h.call("resume")
+
+    notes.append(
+        f"metaknight-floorhug: enteredTaunt={int(entered_taunt)} mid={st_mid_taunt:#x} "
+        f"after={st_after:#x} tauntFramesAfter={taunt_after_reset} "
+        f"fhReps={d_mk['fhReps']} fhSucc={d_mk['fhSuccesses']} rst={d_mk['resetCount']} "
+        f"trace={' '.join(f'{s:#x}:hl{h}' for s, h in mk_trace)}"
+    )
+    if not entered_taunt:
+        fails.append("meta knight never entered taunt (0x10C) before reset test")
+    if taunt_after_reset > 0 or st_after in (0x10C, 0x10D):
+        fails.append(f"meta knight sticky taunt detected after reset: status={st_after:#x} frames={taunt_after_reset}")
+    if d_mk["fhReps"] < 1 or d_mk["fhSuccesses"] < 1:
+        fails.append(f"meta knight floorhug rep failed after reset: reps={d_mk['fhReps']} succ={d_mk['fhSuccesses']}")
+    return fails
+
+
 # ---- Scenario 5: Snake Infinite Recovery (Cypher + C4 Self-Hit Loop) --------
 
 def sc_snake_recovery(emu, notes):
@@ -696,6 +779,7 @@ SCENARIO_FNS = {
     "flow-course": sc_flow_course,
     "reaction-techchase": sc_reaction_techchase,
     "recovery-floorhug": sc_recovery_floorhug,
+    "metaknight-floorhug": sc_metaknight_floorhug,
     "snake-recovery": sc_snake_recovery,
     "savestate-reset": sc_savestate_reset,
 }

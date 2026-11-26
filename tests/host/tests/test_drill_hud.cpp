@@ -29,7 +29,16 @@ TEST(drill_hud, session_ids_and_layout_stable)
     CHECK_EQ(6, static_cast<int>(drills::kDrillRar));
     CHECK_EQ(7, static_cast<int>(drills::kDrillDacus));
     CHECK_EQ(8, static_cast<int>(drills::kDrillBReverse));
-    CHECK_EQ(9, static_cast<int>(drills::kDrillIdCount));
+    CHECK_EQ(9, static_cast<int>(drills::kDrillCancelSprint));
+    CHECK_EQ(10, static_cast<int>(drills::kDrillFlowCourse));
+    CHECK_EQ(11, static_cast<int>(drills::kDrillReactionLab));
+    CHECK_EQ(12, static_cast<int>(drills::kDrillTechchaseEscape));
+    CHECK_EQ(13, static_cast<int>(drills::kDrillRecoverySweetspot));
+    CHECK_EQ(14, static_cast<int>(drills::kDrillFloorhug));
+    CHECK_EQ(15, static_cast<int>(drills::kDrillSnakeRecovery));
+    CHECK_EQ(17, static_cast<int>(drills::kDrillComboBreakRush));
+    CHECK_EQ(18, static_cast<int>(drills::kDrillIdCount));
+    CHECK(static_cast<int>(drills::kDrillIdCount) <= static_cast<int>(drills::kBestSlots));
     CHECK_EQ(88u, static_cast<unsigned>(sizeof(drills::Session)));
     CHECK_EQ(5, static_cast<int>(drills::kSessionVersion));
 
@@ -433,5 +442,226 @@ TEST(drill_hud, geometry_within_crt_safe_area_43_and_169)
         CHECK(hud.y1 < 397.0f);
         CHECK(modal.x0 >= safe.x0 && modal.x1 <= safe.x1);
         CHECK(modal.y0 >= safe.y0 && modal.y1 <= safe.y1);
+    }
+}
+
+TEST(drill_hud, stage4c_all_seven_challenges_modes_timed60_and_bests)
+{
+    char hl[kDrillHighlightBuf];
+
+    // 1. Cancel Sprint: ineligible fighter warning, live cancel hit, 60s Timed mode countdown & modal.
+    {
+        DrillHudState hud;
+        drillHudInit(hud, drills::kDrillCancelSprint, 2);
+        CHECK(isChallengeDrill(hud.activeDrill));
+        CHECK_EQ(static_cast<int>(kDrillModeFree), static_cast<int>(hud.mode));
+
+        CancelSprintState cs;
+        cancelSprintResetAll(cs);
+        DrillEngineFeed f = emptyFeed();
+        f.cs = &cs;
+        drillHudSyncBaselines(hud, f);
+
+        f.ineligibleFighter = true;
+        CHECK(!drillHudStep(hud, f));
+        CHECK(strcmp(hud.lastFeedback, "PICK SPACIE/PK/M2/LUC") == 0);
+        f.ineligibleFighter = false;
+
+        // Cycle Free -> 10-Rep -> 20-Rep -> 60s Timed -> Free.
+        drillHudCycleMode(hud);
+        CHECK_EQ(static_cast<int>(kDrillModeSet10), static_cast<int>(hud.mode));
+        drillHudCycleMode(hud);
+        CHECK_EQ(static_cast<int>(kDrillModeSet20), static_cast<int>(hud.mode));
+        drillHudCycleMode(hud);
+        CHECK_EQ(static_cast<int>(kDrillModeTimed60), static_cast<int>(hud.mode));
+        CHECK_EQ(static_cast<unsigned>(kDrillTimedFrames), static_cast<unsigned>(hud.timerFrames));
+        CHECK(strcmp(drillModeLabel(hud.mode), "60s") == 0);
+        drillHudSyncBaselines(hud, f);
+
+        // Score 3 cancels in 60s Timed mode -> sessionBest grows from 2 to 3.
+        for (int i = 0; i < 3; i++)
+        {
+            cs.out.attempts++;
+            cs.out.totalCancels++;
+            cs.out.lastSuccess = 1;
+            cs.out.lastFrames = static_cast<u16>(i == 0 ? 2 : 1);
+            CHECK(drillHudStep(hud, f));
+        }
+        CHECK_EQ(3u, static_cast<unsigned>(hud.totalHit));
+        CHECK_EQ(3u, static_cast<unsigned>(hud.sessionBest));
+        CHECK_EQ(1, static_cast<int>(hud.newBest));
+        CHECK(strcmp(hud.lastFeedback, "PERFECT CANCEL f1") == 0);
+        drillHudFormatHighlight(hud, hl, sizeof(hl));
+        CHECK(strcmp(hl, "Frame 1") == 0);
+
+        // Countdown timer reaches 0 -> opens modal automatically.
+        hud.timerFrames = 2;
+        CHECK(!drillHudTickTimer(hud));
+        CHECK_EQ(0, static_cast<int>(hud.modalOpen));
+        CHECK(drillHudTickTimer(hud));
+        CHECK_EQ(1, static_cast<int>(hud.modalOpen));
+        CHECK_EQ(0u, static_cast<unsigned>(hud.timerFrames));
+
+        // Retry resets timer back to 3600 frames while keeping sessionBest.
+        drillHudRetry(hud);
+        CHECK_EQ(0, static_cast<int>(hud.modalOpen));
+        CHECK_EQ(static_cast<unsigned>(kDrillTimedFrames), static_cast<unsigned>(hud.timerFrames));
+        CHECK_EQ(3u, static_cast<unsigned>(hud.sessionBest));
+
+        drillHudCycleMode(hud);
+        CHECK_EQ(static_cast<int>(kDrillModeFree), static_cast<int>(hud.mode));
+    }
+
+    // 2. Movement Flow Course: completed course updates streak and fastest time highlight.
+    {
+        DrillHudState hud;
+        drillHudInit(hud, drills::kDrillFlowCourse, 0);
+        FlowCourseState fc;
+        flowCourseResetAll(fc);
+        DrillEngineFeed f = emptyFeed();
+        f.fc = &fc;
+        drillHudSyncBaselines(hud, f);
+
+        fc.out.coursesCompleted = 1;
+        fc.out.currentElapsed = 148;
+        fc.out.bestCourseFrames = 148;
+        CHECK(drillHudStep(hud, f));
+        CHECK_EQ(1u, static_cast<unsigned>(hud.totalHit));
+        CHECK_EQ(148, static_cast<int>(hud.bestMetric));
+        CHECK(strcmp(hud.lastFeedback, "COURSE 148f") == 0);
+        drillHudFormatHighlight(hud, hl, sizeof(hl));
+        CHECK(strcmp(hl, "148f") == 0);
+    }
+
+    // 3. Situational Reaction Lab: fast reaction counts as hit, slow (>26f) counts as warn/miss.
+    {
+        DrillHudState hud;
+        drillHudInit(hud, drills::kDrillReactionLab, 0);
+        u16 ring[kReactionRingCap];
+        ReactionTechchaseState rt;
+        reactionTechchaseResetAll(rt, ring, kReactionRingCap);
+        DrillEngineFeed f = emptyFeed();
+        f.rt = &rt;
+        drillHudSyncBaselines(hud, f);
+
+        rt.out.rlCount = 1;
+        rt.out.rlLastFrames = 16;
+        CHECK(drillHudStep(hud, f));
+        CHECK_EQ(1u, static_cast<unsigned>(hud.totalHit));
+        CHECK(strcmp(hud.lastFeedback, "REACT 16f") == 0);
+        drillHudFormatHighlight(hud, hl, sizeof(hl));
+        CHECK(strcmp(hl, "16f") == 0);
+
+        rt.out.rlCount = 2;
+        rt.out.rlLastFrames = 30;
+        CHECK(drillHudStep(hud, f));
+        CHECK_EQ(2u, static_cast<unsigned>(hud.totalAtt));
+        CHECK_EQ(1u, static_cast<unsigned>(hud.totalHit));
+        CHECK_EQ(static_cast<int>(kDrillGradeWarn), static_cast<int>(hud.lastGrade));
+        CHECK(strcmp(hud.lastFeedback, "REACT 30f") == 0);
+    }
+
+    // 4. Universal Techchase Escape: escape vs caught.
+    {
+        DrillHudState hud;
+        drillHudInit(hud, drills::kDrillTechchaseEscape, 0);
+        u16 ring[kReactionRingCap];
+        ReactionTechchaseState rt;
+        reactionTechchaseResetAll(rt, ring, kReactionRingCap);
+        DrillEngineFeed f = emptyFeed();
+        f.rt = &rt;
+        drillHudSyncBaselines(hud, f);
+
+        rt.out.tcEscapes = 1;
+        rt.out.tcLastTightness = 0;
+        CHECK(drillHudStep(hud, f));
+        CHECK(strcmp(hud.lastFeedback, "PERFECT ESC f0") == 0);
+        CHECK_EQ(1u, static_cast<unsigned>(hud.totalHit));
+
+        rt.out.tcCaughtCount = 1;
+        CHECK(drillHudStep(hud, f));
+        CHECK(strcmp(hud.lastFeedback, "CAUGHT") == 0);
+        CHECK_EQ(2u, static_cast<unsigned>(hud.totalAtt));
+        CHECK_EQ(0u, static_cast<unsigned>(hud.streakFull));
+    }
+
+    // 5. Universal Recovery Sweetspot: sweetspot, high overshoot, no-invuln limit, SD.
+    {
+        DrillHudState hud;
+        drillHudInit(hud, drills::kDrillRecoverySweetspot, 0);
+        RecoveryFloorhugState rf;
+        recoveryFloorhugResetAll(rf);
+        DrillEngineFeed f = emptyFeed();
+        f.rf = &rf;
+        drillHudSyncBaselines(hud, f);
+
+        rf.out.recAttempts = 1;
+        rf.out.recLastGrade = kRecGradeSweetspot;
+        rf.out.recLastXlu = 31;
+        CHECK(drillHudStep(hud, f));
+        CHECK(strcmp(hud.lastFeedback, "SWEETSPOT +31f") == 0);
+        CHECK_EQ(1u, static_cast<unsigned>(hud.totalHit));
+
+        rf.out.recAttempts = 2;
+        rf.out.recLastGrade = kRecGradeHighOvershoot;
+        CHECK(drillHudStep(hud, f));
+        CHECK(strcmp(hud.lastFeedback, "HIGH OVERSHOOT") == 0);
+    }
+
+    // 6. Floorhug / ASDI-Down Tech: success with hitstun saved vs miss.
+    {
+        DrillHudState hud;
+        drillHudInit(hud, drills::kDrillFloorhug, 0);
+        RecoveryFloorhugState rf;
+        recoveryFloorhugResetAll(rf);
+        DrillEngineFeed f = emptyFeed();
+        f.rf = &rf;
+        drillHudSyncBaselines(hud, f);
+
+        rf.out.fhReps = 1;
+        rf.out.fhSuccesses = 1;
+        rf.lastFhOutcome = kFhCcFloorhugCancel;
+        rf.lastHitstunSaved = 9;
+        CHECK(drillHudStep(hud, f));
+        CHECK(strcmp(hud.lastFeedback, "FLOORHUG -9f") == 0);
+        CHECK_EQ(1u, static_cast<unsigned>(hud.totalHit));
+        drillHudFormatHighlight(hud, hl, sizeof(hl));
+        CHECK(strcmp(hl, "9f") == 0);
+
+        rf.out.fhReps = 2;
+        rf.lastFhOutcome = kFhMissedFloorhug;
+        CHECK(drillHudStep(hud, f));
+        CHECK(strcmp(hud.lastFeedback, "MISSED FLOORHUG") == 0);
+    }
+
+    // 7. Snake Infinite Recovery: ineligible warning, C4 refresh hit, recovery completed.
+    {
+        DrillHudState hud;
+        drillHudInit(hud, drills::kDrillSnakeRecovery, 0);
+        SnakeRecoveryState snk;
+        snakeRecoveryResetAll(snk);
+        DrillEngineFeed f = emptyFeed();
+        f.snk = &snk;
+        drillHudSyncBaselines(hud, f);
+
+        f.ineligibleFighter = true;
+        CHECK(!drillHudStep(hud, f));
+        CHECK(strcmp(hud.lastFeedback, "PICK SNAKE") == 0);
+        f.ineligibleFighter = false;
+
+        snk.out.refreshCount = 1;
+        snk.out.loopChain = 2;
+        snk.out.bestLoopChain = 2;
+        snk.out.lastSelfHitKind = kSnakeSelfHitC4;
+        CHECK(drillHudStep(hud, f));
+        CHECK(strcmp(hud.lastFeedback, "C4 REFRESH x2") == 0);
+        CHECK_EQ(2, static_cast<int>(hud.bestMetric));
+        drillHudFormatHighlight(hud, hl, sizeof(hl));
+        CHECK(strcmp(hl, "2 loops") == 0);
+
+        snk.out.completedRecoveries = 1;
+        CHECK(drillHudStep(hud, f));
+        CHECK(strcmp(hud.lastFeedback, "RECOVERED x2") == 0);
+        CHECK_EQ(1u, static_cast<unsigned>(hud.totalHit));
     }
 }

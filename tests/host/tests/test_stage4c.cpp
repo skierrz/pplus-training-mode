@@ -1136,3 +1136,64 @@ TEST(stage4c, regressions_recovery_snake_and_flow_course)
     CHECK_NEAR(sv.floor.rightX, fc.gates[kFlowGateEdgeBurst].maxX, 0.01f);
     CHECK_NEAR(sv.floor.rightX - fc.edgeWidth, fc.gates[kFlowGateEdgeBurst].minX, 0.01f);
 }
+
+TEST(stage4c, recovery_sweetspot_3d_gx_guide_geometry_and_clamping)
+{
+    // Final Destination ledges (-85, 0) and (+85, 0) with custom cliff-hang box.
+    StageGeometry fd = makeFdGeom();
+    RecoveryGuideGeom g;
+    CHECK(computeRecoveryGuideGeom(fd, 0.0f, 8.0f, 14.0f, 12.0f, g));
+    CHECK_EQ(1, g.valid);
+
+    // Left ledge (dir = +1 -> outward = -1): offstage pocket extends left of lip (-85 - 14 = -99).
+    CHECK_NEAR(-85.0f, g.sides[0].lipX, 0.01f);
+    CHECK_NEAR(0.0f, g.sides[0].lipY, 0.01f);
+    CHECK_NEAR(-1.0f, g.sides[0].outward, 0.01f);
+    CHECK_NEAR(-99.0f, g.sides[0].grabMinX, 0.01f);
+    CHECK_NEAR(-85.0f, g.sides[0].grabMaxX, 0.01f);
+    CHECK_NEAR(-20.0f, g.sides[0].grabMinY, 0.01f);
+    CHECK_NEAR(-8.0f, g.sides[0].grabMaxY, 0.01f);
+    CHECK_NEAR(kRecSweetspotMaxPeakAboveLip, g.sides[0].sweetCeilY, 0.01f);
+    CHECK_NEAR(-85.0f - kRecNearLedgeHorizWindow, g.sides[0].sweetMinX, 0.01f);
+    CHECK_NEAR(-85.0f, g.sides[0].sweetMaxX, 0.01f);
+
+    // Right ledge (dir = -1 -> outward = +1): offstage pocket extends right of lip (+85 + 14 = +99).
+    CHECK_NEAR(85.0f, g.sides[1].lipX, 0.01f);
+    CHECK_NEAR(1.0f, g.sides[1].outward, 0.01f);
+    CHECK_NEAR(85.0f, g.sides[1].grabMinX, 0.01f);
+    CHECK_NEAR(99.0f, g.sides[1].grabMaxX, 0.01f);
+    CHECK_NEAR(85.0f, g.sides[1].sweetMinX, 0.01f);
+    CHECK_NEAR(85.0f + kRecNearLedgeHorizWindow, g.sides[1].sweetMaxX, 0.01f);
+
+    // Zero / out-of-range cliff-hang dimensions clamp cleanly to safe defaults (w=10, offY=9, h=10).
+    RecoveryGuideGeom gClamp;
+    CHECK(computeRecoveryGuideGeom(fd, 0.0f, 0.0f, 0.0f, 999.0f, gClamp));
+    CHECK_NEAR(10.0f, gClamp.sides[1].grabMaxX - gClamp.sides[1].grabMinX, 0.01f);
+    CHECK_NEAR(-19.0f, gClamp.sides[1].grabMinY, 0.01f);
+    CHECK_NEAR(-9.0f, gClamp.sides[1].grabMaxY, 0.01f);
+
+    // Stage without ledges returns false / invalid.
+    StageGeometry noLedge = fd;
+    noLedge.hasLedges = false;
+    RecoveryGuideGeom gInvalid;
+    CHECK(!computeRecoveryGuideGeom(noLedge, 0.0f, 8.0f, 14.0f, 12.0f, gInvalid));
+    CHECK_EQ(0, gInvalid.valid);
+}
+
+TEST(stage4c, floorhug_meta_knight_sticky_taunt_reset_guard)
+{
+    CHECK(floorhugIsTauntStatus(kFhStAppeal));
+    CHECK(floorhugIsTauntStatus(kFhStSmashAppeal));
+    CHECK(!floorhugIsTauntStatus(0x00));
+    CHECK(!floorhugIsTauntStatus(0x43));
+
+    // Across the 6-frame post-reset guard window, Meta Knight (0x16) or any fighter
+    // stuck in Appeal (0x10C) or Smash_Appeal (0x10D) MUST be interrupted.
+    CHECK(floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStAppeal, kFhTauntGuardFrames));
+    CHECK(floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStSmashAppeal, 1));
+    CHECK(floorhugNeedsTauntInterrupt(kCsFtFox, kFhStAppeal, 3));
+
+    // Non-taunt statuses or expired guard (0 frames left) are untouched.
+    CHECK(!floorhugNeedsTauntInterrupt(kFhFtMetaKnight, 0x00, kFhTauntGuardFrames));
+    CHECK(!floorhugNeedsTauntInterrupt(kFhFtMetaKnight, kFhStAppeal, 0));
+}

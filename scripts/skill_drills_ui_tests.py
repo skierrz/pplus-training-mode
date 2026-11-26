@@ -65,6 +65,7 @@ SCENARIOS = [
     "wavedash-hud",
     "lcancel-lab",
     "powershield-cpu",
+    "challenges-hud",
 ]
 
 
@@ -238,7 +239,7 @@ class Runner:
         e.h.call("write_mem", addr=self.settings + LT.SET_FRAME_ADVANCE, hex="00")
         e.h.call("frame_advance", n=1)
 
-    def ensure_skill_drills_open(self):
+    def ensure_page_open(self, page_name="Tech Practice"):
         e = self.e
         e.neutral(0)
         if nav.scene(e)[0] == "scMelee":
@@ -257,21 +258,29 @@ class Runner:
         log = e.log_text()
         tail = log[log.rfind("] menu: attached"):]
         pages = re.findall(r"\] drills: page ([^\r\n]+)", tail)
-        already_tp = (pages and pages[-1].strip() == "Tech Practice") or (
+        page_patterns = {
+            "Tech Practice": r"(?:L-Cancel|Wavedash|Ledgedash|Powershield|RAR|DACUS|B-Reverse|Float)",
+            "Challenges": r"(?:Cancel Sprint|Movement Flow|Situational Reaction|Universal Techchase|Universal Recovery|Floorhug)",
+            "Character Trainers": r"(?:Snake Infinite Recovery)",
+        }
+        pat = page_patterns.get(page_name, "")
+        already = (pages and pages[-1].strip() == page_name) or (
             not pages
-            and re.search(
-                r"\] drills: list opened .*?, row \d+ (?:L-Cancel|Wavedash|Ledgedash|Powershield|RAR|DACUS|B-Reverse|Float)",
-                tail,
-            )
-            is not None
+            and pat != ""
+            and re.search(r"\] drills: list opened .*?, row \d+ " + pat, tail) is not None
         )
-        if not already_tp:
-            DT.go_to_page(e, "Tech Practice", "R")
+        if not already:
+            DT.go_to_page(e, page_name, "R")
         e.advance(6)
 
-    def arm_skill_drill_and_enter(self, row_idx, drill_id, p1_name, cpu_name="fox", aspect="16:9", freeze_cpu=True):
+    def ensure_skill_drills_open(self):
+        self.ensure_page_open("Tech Practice")
+
+    def arm_skill_drill_and_enter(
+        self, row_idx, drill_id, p1_name, cpu_name="fox", aspect="16:9", freeze_cpu=True, page_name="Tech Practice"
+    ):
         e = self.e
-        self.ensure_skill_drills_open()
+        self.ensure_page_open(page_name)
         DT.go_to_row(e, row_idx)
         e.advance(6)
         pos = len(e.log_text())
@@ -629,12 +638,240 @@ def sc_powershield_cpu(t):
     )
 
 
+def sc_challenges_hud(t):
+    e = t.e
+    import stage4c_tests as S4C  # noqa: E402
+
+    def step(n=1):
+        e.h.call("frame_advance", n=n)
+
+    def run_recovery_sweetspot(aspect):
+        tag = "16x9" if aspect == "16:9" else "4x3"
+        p1, _cpu, tmdh = t.arm_skill_drill_and_enter(
+            4, 13, "fox", "mario", aspect=aspect, page_name="Challenges"
+        )
+        p1_ptr = p1["fighter"]
+        S4C.walk_p1_to(e, p1_ptr, 80.0, face_dir=-1.0)
+        e.h.call("pause")
+        step(2)
+        d0 = read_tmdh(e, tmdh)
+        t.check(
+            d0["magic"] == TMDH_MAGIC and d0["activeDrill"] == 13 and d0["drawCalls"] > 0,
+            f"recovery-sweetspot-init-{tag}",
+            f"drill={d0['activeDrill']} draws={d0['drawCalls']}",
+        )
+        # Jump off right edge, fall below lip, double-jump into sweetspot with 3D GX ledge guides live.
+        e.hold(0, ["X"], stick=S4C.RIGHT)
+        step(3)
+        e.hold(0, stick=S4C.RIGHT)
+        for _ in range(45):
+            sf = S4C.read_fighter(e, p1_ptr)
+            if sf["air"] and sf["x"] > 96.0:
+                break
+            step(1)
+        e.neutral(0)
+        for _ in range(45):
+            sf = S4C.read_fighter(e, p1_ptr)
+            if sf["y"] < -24.0:
+                break
+            step(1)
+        e.hold(0, ["X"], stick=S4C.LEFT)
+        step(4)
+        e.hold(0, stick=S4C.LEFT)
+        for _ in range(65):
+            sf = S4C.read_fighter(e, p1_ptr)
+            if sf["status"] == 0x75 or (not sf["air"] and sf["status"] not in (0x73, 0x74)):
+                break
+            step(1)
+        e.neutral(0)
+        step(4)
+        d1 = read_tmdh(e, tmdh)
+        t.check(
+            d1["repsDone"] >= 1 and d1["repsHit"] >= 1,
+            f"recovery-sweetspot-rep-{tag}",
+            f"reps={d1['repsDone']} hit={d1['repsHit']} streak={d1['streak']}",
+        )
+        t.snap_live_hud(f"hud-recovery-sweetspot-{tag}")
+        e.h.call("resume")
+        nav.finish_training(e)
+
+    def run_snake_recovery(aspect):
+        tag = "16x9" if aspect == "16:9" else "4x3"
+        p1, _cpu, tmdh = t.arm_skill_drill_and_enter(
+            0, 15, "snake", "fox", aspect=aspect, page_name="Character Trainers"
+        )
+        p1_ptr = p1["fighter"]
+        S4C.walk_p1_to(e, p1_ptr, 80.0, face_dir=1.0)
+        e.h.call("pause")
+        step(2)
+        d0 = read_tmdh(e, tmdh)
+        t.check(
+            d0["magic"] == TMDH_MAGIC and d0["activeDrill"] == 15 and d0["drawCalls"] > 0,
+            f"snake-recovery-init-{tag}",
+            f"drill={d0['activeDrill']} draws={d0['drawCalls']}",
+        )
+        # Jump off right edge -> Cypher -> jump-cut -> air C4 drop -> detonate self-hit refresh.
+        e.hold(0, ["X"], stick=S4C.RIGHT)
+        step(4)
+        e.hold(0, stick=(185, 128))
+        for _ in range(40):
+            sf = S4C.read_fighter(e, p1_ptr)
+            if sf["air"] and sf["x"] > 95.0:
+                break
+            step(1)
+        e.neutral(0)
+        step(4)
+        e.hold(0, ["B"], stick=S4C.UP)
+        step(4)
+        e.neutral(0)
+        step(22)
+        e.hold(0, ["X"], stick=S4C.NEUTRAL)
+        step(4)
+        e.neutral(0)
+        step(4)
+        e.hold(0, ["B"], stick=S4C.DOWN)
+        step(4)
+        e.neutral(0)
+        saw_drop = False
+        for _ in range(40):
+            sf = S4C.read_fighter(e, p1_ptr)
+            if sf["status"] == 0x11D:
+                saw_drop = True
+            elif saw_drop and sf["status"] != 0x11D:
+                break
+            step(1)
+        e.hold(0, ["B"], stick=S4C.DOWN)
+        step(4)
+        e.neutral(0)
+        for _ in range(55):
+            if read_tmdh(e, tmdh)["repsHit"] >= 1:
+                break
+            step(1)
+        d1 = read_tmdh(e, tmdh)
+        t.check(
+            d1["repsDone"] >= 1 and d1["repsHit"] >= 1,
+            f"snake-recovery-c4-refresh-{tag}",
+            f"reps={d1['repsDone']} hit={d1['repsHit']} bestMetric={d1['bestMetric']}",
+        )
+        t.snap_live_hud(f"hud-snake-recovery-{tag}")
+        e.h.call("resume")
+        nav.finish_training(e)
+
+    def run_floorhug_metaknight(aspect):
+        tag = "16x9" if aspect == "16:9" else "4x3"
+        p1, cpu, tmdh = t.arm_skill_drill_and_enter(
+            5, 14, "meta_knight", "fox", aspect=aspect, page_name="Challenges"
+        )
+        p1_ptr = p1["fighter"]
+        cpu_ptr = cpu["fighter"]
+        cpu_x = S4C.read_fighter(e, cpu_ptr)["x"]
+        S4C.walk_p1_to(e, p1_ptr, cpu_x - 7.5, face_dir=1.0)
+        e.press(0, ["DRIGHT"], frames=25, after=12)
+
+        # Enter Meta Knight Up Taunt (0x10C) and load savestate (DLEFT) -> verify no sticky taunt loop.
+        e.h.call("pause")
+        d0 = read_tmdh(e, tmdh)
+        t.check(
+            d0["magic"] == TMDH_MAGIC and d0["activeDrill"] == 14 and d0["drawCalls"] > 0,
+            f"floorhug-init-{tag}",
+            f"drill={d0['activeDrill']} draws={d0['drawCalls']}",
+        )
+        e.hold(0, ["DUP"])
+        for _ in range(30):
+            step(1)
+            if S4C.read_fighter(e, p1_ptr)["status"] in (0x10C, 0x10D):
+                break
+        e.neutral(0)
+        step(20)
+        e.h.call("resume")
+        e.press(0, ["DLEFT"], frames=15, after=18)
+
+        e.h.call("pause")
+        taunt_bad = 0
+        for _ in range(15):
+            step(1)
+            if S4C.read_fighter(e, p1_ptr)["status"] in (0x10C, 0x10D):
+                taunt_bad += 1
+        t.check(
+            taunt_bad == 0,
+            f"floorhug-metaknight-taunt-guard-{tag}",
+            f"tauntFramesAfterReset={taunt_bad}",
+        )
+
+        # Perform live Floorhug / ASDI-Down rep as Meta Knight vs Fox Down-Tilt.
+        e.h.call("write_mem", addr=t.settings + S4C.S_PLAYER_PERCENT, hex="0000")
+        step(4)
+        inp = PI.PluginInput(e)
+        fox_dtilt = PI.frames_to_steps({2: (PI.B_ATTACK, 0.0, -0.55)}, 3)
+
+        def track_fh(_idx=None):
+            sf = S4C.read_fighter(e, p1_ptr)
+            if sf["hitlag"] > 0:
+                e.hold(0, stick=S4C.NEUTRAL, cstick=S4C.DOWN)
+
+        try:
+            inp.run({1: fox_dtilt}, read=track_fh, extra=28)
+        finally:
+            inp.stop()
+            e.neutral(0)
+        step(4)
+        d1 = read_tmdh(e, tmdh)
+        t.check(
+            d1["repsDone"] >= 1 and d1["repsHit"] >= 1,
+            f"floorhug-metaknight-rep-{tag}",
+            f"reps={d1['repsDone']} hit={d1['repsHit']} bestMetric={d1['bestMetric']}",
+        )
+        t.snap_live_hud(f"hud-floorhug-{tag}")
+        e.h.call("resume")
+        nav.finish_training(e)
+
+    # 1. Boot Menu Challenges (6 rows) & Character Trainers (1 row) in 16:9.
+    LT.set_aspect(e, "16:9", lambda _m: None)
+    t.ensure_page_open("Challenges")
+    DT.go_to_row(e, 5)
+    t.check(DT.last_row(e) == 5, "boot-challenges-6-rows", f"reached row {DT.last_row(e)} on Challenges")
+    DT.go_to_row(e, 4)
+    e.advance(8)
+    t.snap("boot-challenges-16x9")
+
+    t.ensure_page_open("Character Trainers")
+    e.advance(8)
+    t.snap("boot-char-trainers-16x9")
+
+    # 2. Live 16:9 runs: Recovery Sweetspot (3D GX guides), Snake Infinite Recovery, Floorhug (Meta Knight).
+    run_recovery_sweetspot("16:9")
+    run_snake_recovery("16:9")
+    run_floorhug_metaknight("16:9")
+
+    # 3. Switch to genuine 4:3 BEFORE entering CSS so Boot Menu draws in true 4:3 (xs = 1.0).
+    LT.set_aspect(e, "4:3", lambda _m: None)
+    # Trigger fresh menu attach in 4:3 by quick-entering/exiting or opening Challenges after CSS reload:
+    # Note: nav.finish_training at end of run_floorhug_metaknight already returned to CSS in 16:9;
+    # run_recovery_sweetspot("4:3") will reload Training CSS in 4:3 on exit, so capture 4:3 Boot Menu right after!
+    run_recovery_sweetspot("4:3")
+    t.ensure_page_open("Challenges")
+    DT.go_to_row(e, 4)
+    e.advance(8)
+    t.snap("boot-challenges-4x3")
+    t.ensure_page_open("Character Trainers")
+    e.advance(8)
+    t.snap("boot-char-trainers-4x3")
+
+    run_snake_recovery("4:3")
+    run_floorhug_metaknight("4:3")
+
+    # Restore 16:9 and verify clean module unload back to baseline.
+    LT.set_aspect(e, "16:9", lambda _m: None)
+    e.advance(10)
+
+
 DISPATCH = {
     "boot-menu": sc_boot_menu,
     "ledgedash-hud": sc_ledgedash_hud,
     "wavedash-hud": sc_wavedash_hud,
     "lcancel-lab": sc_lcancel_lab,
     "powershield-cpu": sc_powershield_cpu,
+    "challenges-hud": sc_challenges_hud,
 }
 
 
