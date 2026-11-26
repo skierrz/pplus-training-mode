@@ -1258,7 +1258,7 @@ namespace list {
         float ix1Bot = x1Bot + dySlant - padX;
         float inSlantPx = w((kColRowH - 4.0f) * kSlantTan);
         float textX = cx(kColTextX);
-        float textMaxW = cx(kColBarRight - kFibRowH) - textX;
+        float textMaxW = cx(kColBarRight - 28.0f) - textX;
 
         for (int r = 0; r < kVisibleRows && s_scroll + r < sec.count; r++)
         {
@@ -1270,7 +1270,7 @@ namespace list {
                 drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + kColRowH, kLabGoldEdge, kLabGoldEdge);
                 drawSlantGradV(ix0Top, ix0Bot, ix1Top, ix1Bot, y + kFibHair, y + kColRowH - kFibHair, kLabGoldTop,
                                kLabGoldBot);
-                drawDiagStripes(ix1Top - w(kFibGap), y + kFibHair, y + kColRowH - kFibHair, inSlantPx, w(4.5f),
+                drawDiagStripes(ix1Top - w(kFibTight), y + kFibHair, y + kColRowH - kFibHair, inSlantPx, w(4.5f),
                                 w(3.5f), kLabStripeCol);
                 drawCursorTri(cx(kColLeft + slant * 0.55f + 1.5f), y + kColRowH * 0.5f, 8.0f);
             }

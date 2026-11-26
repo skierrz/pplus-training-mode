@@ -1371,7 +1371,7 @@ class InfoProbe:
             kc = f32r(0.011775)
             cxs, cys = (max(-1.0, min(1.0, f32r(v * kc))) for v in (cx, cy))
             out["C-Stick (Pad)"] = f"C-Stick (Pad): ({cxs:+.4f} , {cys:+.4f})"
-            out["Trig (Pad)"] = f"Trig (Pad): ({f32r(p[4] / 255.0):+.3f} , {f32r(p[5] / 255.0):+.3f})"
+            out["Trig (Pad)"] = f"Trig (Pad): ({f32r(p[4] / 255.0):+.2f},{f32r(p[5] / 255.0):+.2f})"
         impl = e.ptr(u32(mods, 0x5C) + 0x18)
         if impl is not None:
             c = e.read(impl, 0x3C)
@@ -2117,12 +2117,13 @@ def cmd_test_lab(rest):
                 if on != 1 or lab.setting(SET_OSD_POWERSHIELD) != 0:
                     raise LabError(f"{OSD_POWERSHIELD} downs on OSDs did not land on Powershield (A set it to {on})")
                 note(f"OSDs: {OSD_POWERSHIELD} downs landed on Powershield")
-                # Scroll to the last row of OSDs (23 visible rows > 11 visible rows).
-                # Visible row 1 (Act OoAirborne) has no descenders for glyph measurement.
+                # Scroll to the last row of OSDs (OSD_ROWS > VISIBLE_ROWS).
+                # Visible row 0 (Act OoAirborne) has no descenders for glyph measurement.
                 lab.down(OSD_ROWS - 1 - OSD_POWERSHIELD)
                 opened = shot("restyle-scrolled")
-                menu_check(note, closed, opened, xscale, "OSDs scrolled to bottom", cursor_row=10,
-                           count=OSD_ROWS, scroll=OSD_ROWS - 11, cursor_box=True, name_row=1)
+                menu_check(note, closed, opened, xscale, "OSDs scrolled to bottom",
+                           cursor_row=shots.VISIBLE_ROWS - 1, count=OSD_ROWS,
+                           scroll=OSD_ROWS - shots.VISIBLE_ROWS, cursor_box=True, name_row=0)
                 c0 = sim_clock(lab, human) + sim_clock(lab, cpu)
                 emu.advance(40)
                 c1 = sim_clock(lab, human) + sim_clock(lab, cpu)

@@ -454,7 +454,7 @@ def check_menu(closed_path, open_path, xscale, cursor_row, count, disabled_rows=
 
     # Sample header, rail, and right-pane gutters guaranteed free of text and highlights.
     for name, top_c, bot_c, band_y, want_alpha, rect in (
-        ("title band", TITLE_TOP, TITLE_BOT, TITLE_Y, TITLE_ALPHA, (405, 34, 475, 58)),
+        ("title band", TITLE_TOP, TITLE_BOT, TITLE_Y, TITLE_ALPHA, (340, 34, 440, 58)),
         ("rail band", RAIL_TOP, RAIL_BOT, RAIL_Y, RAIL_ALPHA, (44, 356, 190, 364)),
         ("rows band", ROWS_TOP, ROWS_BOT, ROWS_Y, BAND_ALPHA, (581, 250, 584, 348)),
     ):
