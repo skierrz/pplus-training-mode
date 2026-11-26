@@ -177,7 +177,13 @@ namespace storage {
     int checkHeader(const void* file, u32 bytes, u32 magic, u16 format, bool whole)
     {
         const FileHeader* h = static_cast<const FileHeader*>(file);
-        if (bytes < sizeof(FileHeader) || h->magic != magic)
+        if (bytes < sizeof(FileHeader) || h->magic != magic || h->headerSize < sizeof(FileHeader)
+            || h->size < h->headerSize)
+        {
+            return kCorrupt;
+        }
+        if (whole && (bytes < h->size || checksum(static_cast<const u8*>(file) + kChecksumFrom,
+                                                  h->size - kChecksumFrom) != h->checksum))
         {
             return kCorrupt;
         }
@@ -188,15 +194,6 @@ namespace storage {
         if (h->format < format)
         {
             return kOlder;
-        }
-        if (h->headerSize < sizeof(FileHeader) || h->size < h->headerSize)
-        {
-            return kCorrupt;
-        }
-        if (whole && (bytes < h->size || checksum(static_cast<const u8*>(file) + kChecksumFrom,
-                                                  h->size - kChecksumFrom) != h->checksum))
-        {
-            return kCorrupt;
         }
         return kOk;
     }
@@ -442,15 +439,23 @@ namespace storage {
         {
             result = kOk;
         }
+        else if (!cardInserted())
+        {
+            result = kNoCard;
+        }
         else if (kind == kWrite)
         {
             // writeSDFile (fn_8001D740): 1 when FAFopen fails, 3 on a short
             // FAFwrite (0x8001D794, 0x8001D884; returned at 0x8001D8D0).
-            result = status == 3 ? kFull : kWriteFailed;
+            result = cardLocked() ? kLocked : (status == 3 ? kFull : kWriteFailed);
         }
         else if (kind == kFolder)
         {
-            result = kWriteFailed;
+            result = cardLocked() ? kLocked : kWriteFailed;
+        }
+        else if (kind == kDelete && cardLocked())
+        {
+            result = kLocked;
         }
         else
         {
@@ -506,12 +511,14 @@ namespace storage {
         // (sy_core.cpp, FAFsfirst(tmp, 0x20, &info)).
         if (FAFsfirst(pattern, 0x20, &s_list.e) != 0)
         {
-            return 0;
+            return cardInserted() ? 0 : -1;
         }
         do
         {
-            const char* name = s_list.e.name[0] != '\0' ? s_list.e.name : s_list.e.shortname;
-            if (name[0] != '.' && terminated(name, sizeof(s_list.e.name)))
+            bool longName = s_list.e.name[0] != '\0';
+            const char* name = longName ? s_list.e.name : s_list.e.shortname;
+            u32 nameCap = longName ? sizeof(s_list.e.name) : sizeof(s_list.e.shortname);
+            if (name[0] != '.' && terminated(name, nameCap))
             {
                 each(name, static_cast<u32>(s_list.e.size), ctx);
                 count++;

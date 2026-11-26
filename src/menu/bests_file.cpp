@@ -37,6 +37,7 @@ namespace bests {
 
     enum Phase { kIdle, kFolder, kWrite };
     static int s_phase = kIdle;
+    static bool s_jobStale = false;
     static Session* s_session = NULL;
     static u8 s_pendingSlot = 0;
     static u32 s_pendingSequence = 0;
@@ -53,6 +54,10 @@ namespace bests {
     {
         int status = 0;
         sequence = 0;
+        if (s_jobStale || s_job.busy())
+        {
+            return storage::kMissing;
+        }
         u8* buf = storage::allocReadBuffer(kCap);
         if (buf == NULL)
         {
@@ -66,27 +71,28 @@ namespace bests {
         int r = s_job.wait(kWaitMs, status);
         if (r != storage::kOk)
         {
+            if (r == storage::kBusy)
+            {
+                s_jobStale = true;
+            }
             storage::freeReadBuffer(buf, r, status);
             return r == storage::kBusy ? storage::kMissing : r;
         }
         const FileHeader* h = reinterpret_cast<const FileHeader*>(buf);
         r = storage::checkHeader(buf, sizeof(FileHeader), kMagic, kFormat, false);
-        if (r != storage::kOk)
+        if (r != storage::kOk && r != storage::kNewer)
         {
-            if (r == storage::kNewer)
-            {
-                sequence = h->sequence;
-            }
             storage::freeReadBuffer(buf, storage::kOk, 0);
             return r;
         }
+        bool isNewer = (r == storage::kNewer);
         u32 size = h->size;
         if (size > kCap)
         {
             storage::freeReadBuffer(buf, storage::kOk, 0);
-            return storage::kTooBig;
+            return isNewer ? storage::kCorrupt : storage::kTooBig;
         }
-        if (size < kHeadBytes)
+        if (size < (isNewer ? sizeof(FileHeader) : static_cast<u32>(kHeadBytes)))
         {
             storage::freeReadBuffer(buf, storage::kOk, 0);
             return storage::kCorrupt;
@@ -99,19 +105,30 @@ namespace bests {
         r = s_job.wait(kWaitMs, status);
         if (r != storage::kOk)
         {
+            if (r == storage::kBusy)
+            {
+                s_jobStale = true;
+            }
             storage::freeReadBuffer(buf, r, status);
-            return r == storage::kMissing ? storage::kCorrupt : r;
+            return (r == storage::kMissing || r == storage::kBusy) ? storage::kCorrupt : r;
         }
         r = storage::checkHeader(buf, size, kMagic, kFormat, true);
-        const Head* head = reinterpret_cast<const Head*>(buf + sizeof(FileHeader));
-        if (r == storage::kOk && kHeadBytes + head->slotCount * sizeof(u16) > size)
-        {
-            r = storage::kCorrupt;
-        }
-        if (r == storage::kOk)
+        if (r == storage::kNewer)
         {
             sequence = reinterpret_cast<const FileHeader*>(buf)->sequence;
-            memcpy(dst, buf, size);
+        }
+        else if (r == storage::kOk)
+        {
+            const Head* head = reinterpret_cast<const Head*>(buf + sizeof(FileHeader));
+            if (kHeadBytes + head->slotCount * sizeof(u16) > size)
+            {
+                r = storage::kCorrupt;
+            }
+            else
+            {
+                sequence = reinterpret_cast<const FileHeader*>(buf)->sequence;
+                memcpy(dst, buf, size);
+            }
         }
         storage::freeReadBuffer(buf, storage::kOk, 0);
         return r;
@@ -190,7 +207,7 @@ namespace bests {
     {
         s_session = &s;
         u32 sum = sumOf(s.best);
-        if (s_phase != kIdle || sum == s.cardSum)
+        if (s_phase != kIdle || s_jobStale || s_job.busy() || sum == s.cardSum)
         {
             return;
         }
@@ -242,6 +259,14 @@ namespace bests {
     {
         int result = storage::kOk;
         int status = 0;
+        if (s_jobStale)
+        {
+            if (s_job.poll(result, status))
+            {
+                s_jobStale = false;
+            }
+            return;
+        }
         if (s_phase == kIdle || !s_job.poll(result, status))
         {
             return;
@@ -273,6 +298,10 @@ namespace bests {
             s_phase = kWrite;
             r = s_job.write(kNames[s_pendingSlot], s_writeBuf, s_pendingSize) ? s_job.wait(kWaitMs, status)
                                                                               : storage::kBusy;
+        }
+        if (r == storage::kBusy)
+        {
+            s_jobStale = true;
         }
         finished(r == storage::kOk, status, r);
         s_session = NULL;

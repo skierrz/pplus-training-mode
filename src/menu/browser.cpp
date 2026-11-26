@@ -31,11 +31,12 @@ namespace browser {
         kMaxEntries = 70, // seven pages of 10
         kPageRows = kVisibleRows,
         kWaitMs = 5000,
-        // A whole file is checked in one block of the Network heap, which the
-        // character select leaves empty (measured; setup not recorded). It is
-        // the costume buffer's heap while the stage select loads fighters.
+        // A whole file is checked in one block of the Network heap, leaving
+        // kTempReserve (512 KiB) free so costume decompression and any
+        // transient SD buffers coexist cleanly.
         kTempHeap = Heaps::Network,
         kTempMax = 0x30000,
+        kTempReserve = 0x80000,
         // Text slots after the training menu's.
         kSlotPage = 20,
         kSlotHelp,
@@ -154,6 +155,10 @@ namespace browser {
         {
             s_row = s_count > 0 ? s_count - 1 : 0;
         }
+        if (n < 0)
+        {
+            say("Could not load: %s", storage::resultText(storage::cardInserted() ? storage::kMissing : storage::kNoCard));
+        }
         TM_LOG("browser: %d recording(s) listed (folder %s)%s\n", s_count, n < 0 ? "unreadable" : "read",
                s_more ? ", more not shown" : "");
     }
@@ -229,7 +234,8 @@ namespace browser {
     static u8* allocTemp(u32 bytes)
     {
         game::HeapUsage u;
-        if (bytes > kTempMax || !game::heapUsage(kTempHeap, u) || u.allocated != 0 || u.largest < bytes)
+        u.largest = 0;
+        if (bytes > kTempMax || !game::heapUsage(kTempHeap, u) || u.largest < bytes + kTempReserve)
         {
             return NULL;
         }
@@ -246,10 +252,15 @@ namespace browser {
             return;
         }
         s_temp = allocTemp(storage::padded(e.fileSize));
-        if (s_temp == NULL || !s_job.read(e.file, s_temp, e.fileSize))
+        if (s_temp == NULL)
+        {
+            say("Could not load: %s", storage::resultText(storage::kNoMemory));
+            return;
+        }
+        if (!s_job.read(e.file, s_temp, e.fileSize))
         {
             freeTemp();
-            say("Could not load: %s", storage::resultText(storage::kNoMemory));
+            say("Could not load: %s", storage::resultText(storage::kBusy));
             return;
         }
         s_busyRow = row;

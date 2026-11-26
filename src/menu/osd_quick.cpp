@@ -325,6 +325,7 @@ namespace osdQuick {
     static bool s_olderLayoutOnCard = false;
 
     static int s_phase = kIdle;
+    static bool s_jobStale = false;
     static u8 s_pendingSlot = 0;
     static u32 s_pendingSeq = 0;
     static u32 s_pendingSize = 0;
@@ -358,6 +359,10 @@ namespace osdQuick {
         int status = 0;
         seq = 0;
         fileSize = 0;
+        if (s_jobStale || s_job.busy())
+        {
+            return storage::kMissing;
+        }
         u8* buf = storage::allocReadBuffer(storage::kSettingsFileCap);
         if (buf == NULL)
         {
@@ -371,22 +376,23 @@ namespace osdQuick {
         int r = s_job.wait(kWaitMs, status);
         if (r != storage::kOk)
         {
+            if (r == storage::kBusy)
+            {
+                s_jobStale = true;
+            }
             storage::freeReadBuffer(buf, r, status);
             return r == storage::kBusy ? storage::kMissing : r;
         }
         const FileHeader* h = reinterpret_cast<const FileHeader*>(buf);
         r = storage::checkHeader(buf, sizeof(FileHeader), storage::kSettingsMagic, storage::kSettingsFormat, false);
-        if (r != storage::kOk)
+        if (r != storage::kOk && r != storage::kNewer)
         {
-            if (r == storage::kNewer)
-            {
-                seq = h->sequence;
-            }
             storage::freeReadBuffer(buf, storage::kOk, 0);
             return r;
         }
+        u32 minSz = r == storage::kNewer ? sizeof(FileHeader) : (sizeof(FileHeader) + sizeof(SettingsHead));
         u32 sz = h->size;
-        if (sz > storage::kSettingsFileCap || sz < sizeof(FileHeader) + sizeof(SettingsHead))
+        if (sz > storage::kSettingsFileCap || sz < minSz)
         {
             storage::freeReadBuffer(buf, storage::kOk, 0);
             return storage::kCorrupt;
@@ -399,11 +405,19 @@ namespace osdQuick {
         r = s_job.wait(kWaitMs, status);
         if (r != storage::kOk)
         {
+            if (r == storage::kBusy)
+            {
+                s_jobStale = true;
+            }
             storage::freeReadBuffer(buf, r, status);
-            return r == storage::kMissing ? storage::kCorrupt : r;
+            return (r == storage::kMissing || r == storage::kBusy) ? storage::kCorrupt : r;
         }
         r = storage::checkHeader(buf, sz, storage::kSettingsMagic, storage::kSettingsFormat, true);
-        if (r == storage::kOk)
+        if (r == storage::kNewer)
+        {
+            seq = reinterpret_cast<const FileHeader*>(buf)->sequence;
+        }
+        else if (r == storage::kOk)
         {
             const SettingsHead* head = reinterpret_cast<const SettingsHead*>(buf + sizeof(FileHeader));
             if (!validAreaTable(buf, sz, sizeof(FileHeader) + sizeof(SettingsHead), head->areaCount))
@@ -412,7 +426,7 @@ namespace osdQuick {
             }
             else
             {
-                seq = h->sequence;
+                seq = reinterpret_cast<const FileHeader*>(buf)->sequence;
                 fileSize = sz;
                 memcpy(dst, buf, sz);
             }
@@ -435,6 +449,10 @@ namespace osdQuick {
             s_phase = kWrite;
             r = s_job.write(kNames[s_pendingSlot], s_writeBuf, s_pendingSize) ? s_job.wait(kWaitMs, status)
                                                                               : storage::kBusy;
+        }
+        if (r == storage::kBusy)
+        {
+            s_jobStale = true;
         }
         if (r == storage::kOk && s_writeBuf != NULL)
         {
@@ -551,7 +569,7 @@ namespace osdQuick {
         }
 
         // 2. Patch kAreaOsd in-place on SD (never clobbering v1 pending upgrade or newer save).
-        if (s_newerOnCard || s_olderLayoutOnCard)
+        if (s_newerOnCard || s_olderLayoutOnCard || s_phase != kIdle || s_jobStale || s_job.busy())
         {
             return;
         }
@@ -775,6 +793,14 @@ namespace osdQuick {
     {
         int result = storage::kOk;
         int status = 0;
+        if (s_jobStale)
+        {
+            if (s_job.poll(result, status))
+            {
+                s_jobStale = false;
+            }
+            return;
+        }
         if (s_phase == kIdle || !s_job.poll(result, status))
         {
             return;

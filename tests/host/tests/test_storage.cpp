@@ -393,9 +393,10 @@ TEST(settings_file, a_newer_format_is_not_used_and_not_overwritten)
     reseal(kFileA);
     memcpy(older, host::card::data(kFileA), size);
 
-    // Lone newer-format file in slot A.
+    // Lone newer-format file in slot A (valid checksum).
     header(kFileA)->format = storage::kSettingsFormat + 1;
     header(kFileA)->sequence = 9;
+    reseal(kFileA);
     u8 newer[1024];
     memcpy(newer, host::card::data(kFileA), size);
 
@@ -419,12 +420,14 @@ TEST(settings_file, a_newer_format_is_not_used_and_not_overwritten)
     CHECK(!host::card::has(kFileB));
     storage::detach();
 
-    // Dual-slot downgrade: valid format-1 slot A (seq 10) + newer-format slot B (seq 11).
+    // Dual-slot downgrade: valid format-1 slot A (seq 10) + valid newer-format slot B (seq 11).
     host::card::put(kFileA, older, size);
     memcpy(newer, older, size);
     reinterpret_cast<storage::FileHeader*>(newer)->format = storage::kSettingsFormat + 1;
     reinterpret_cast<storage::FileHeader*>(newer)->sequence = 11;
     host::card::put(kFileB, newer, size);
+    reseal(kFileB);
+    memcpy(newer, host::card::data(kFileB), size);
 
     boot();
     CHECK_LOG("storage: notice: Lab settings are from a newer version: not used");
@@ -435,6 +438,41 @@ TEST(settings_file, a_newer_format_is_not_used_and_not_overwritten)
     CHECK_EQ(writes, host::card::writes());
     CHECK(memcmp(older, host::card::data(kFileA), size) == 0);
     CHECK(memcmp(newer, host::card::data(kFileB), size) == 0);
+    storage::detach();
+}
+
+// A single corrupted bit flipping format > current (with bad checksum) must be
+// classified as kCorrupt, fall back to the healthy A/B slot, and keep saving enabled.
+TEST(settings_file, corrupt_newer_format_falls_back_to_healthy_slot_and_keeps_saving)
+{
+    Settings defaults, chosen;
+    saveChosen(defaults, chosen);
+    storage::detach();
+    u32 size = host::card::size(kFileA);
+    u8 older[1024];
+    header(kFileA)->sequence = 10;
+    reseal(kFileA);
+    memcpy(older, host::card::data(kFileA), size);
+
+    // Slot B has format > current and higher sequence, but corrupted checksum (not resealed).
+    u8 badNewer[1024];
+    memcpy(badNewer, older, size);
+    reinterpret_cast<storage::FileHeader*>(badNewer)->format = storage::kSettingsFormat + 2;
+    reinterpret_cast<storage::FileHeader*>(badNewer)->sequence = 0xFFFFFFFEu;
+    host::card::put(kFileB, badNewer, size);
+
+    boot();
+    CHECK_LOG("storage: settings files: a done (10), b the file is damaged (0)");
+    CHECK(!host::log::contains("newer version"));
+    CHECK_SETTINGS(afterReboot(chosen, defaults), main::settings());
+
+    // Saving must still work and replace the damaged slot B with sequence 11.
+    int writes = host::card::writes();
+    main::settings().general.cameraMode = 0;
+    closeMenu();
+    CHECK_EQ(writes + 1, host::card::writes());
+    CHECK_EQ(11u, header(kFileB)->sequence);
+    CHECK_EQ(storage::kSettingsFormat, header(kFileB)->format);
     storage::detach();
 }
 

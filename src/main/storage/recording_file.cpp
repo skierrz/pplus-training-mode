@@ -67,6 +67,7 @@ namespace storage {
     enum Phase { kIdle, kExportFolder, kExportWrite, kImportWait, kImportRead };
     static int s_phase = kIdle;
     static Job s_job;
+    static bool s_jobStale = false; // timed-out request still draining
     static u8* s_buffer = NULL;
     static u32 s_size = 0;
     static char s_name[kNameMax];
@@ -159,7 +160,7 @@ namespace storage {
         snprintf(base, sizeof(base), "%02d%02d%02d-%02d%02d%02d", t.year % 100, t.month + 1, t.mday, t.hour, t.min,
                  t.sec);
         snprintf(out, kNameMax, "%s%s", base, kRecordingSuffix);
-        for (int i = 2; i < 10 && exists(out); i++)
+        for (int i = 2; i < 100 && exists(out); i++)
         {
             snprintf(out, kNameMax, "%s-%d%s", base, i, kRecordingSuffix);
         }
@@ -172,7 +173,7 @@ namespace storage {
 
     void exportRecording()
     {
-        if (s_phase != kIdle)
+        if (s_phase != kIdle || s_jobStale || s_job.busy())
         {
             notice(kNoticeWarn, "The SD card is busy: try again");
             return;
@@ -341,8 +342,13 @@ namespace storage {
                info->cpuColor, info->hasSelect, info->hmnSelect[0], info->hmnSelect[1], info->cpuSelect[0],
                info->cpuSelect[1], info->hmnIcon, info->cpuIcon, stage, info->altStage, info->hazardOff, slots,
                longest, at);
+        if (!s_job.makeFolder())
+        {
+            freeTemp();
+            notice(kNoticeWarn, "The SD card is busy: try again");
+            return;
+        }
         s_phase = kExportFolder;
-        s_job.makeFolder();
     }
 
     // ---- import ----
@@ -566,6 +572,10 @@ namespace storage {
         {
             return;
         }
+        if (s_jobStale || s_job.busy())
+        {
+            return;
+        }
         bool last = ++s_waited >= kImportWaitFrames || record::storageGaveUp();
         if (!record::storageReady() && !last)
         {
@@ -583,8 +593,14 @@ namespace storage {
             notice(kNoticeError, "Import failed: %s", resultText(kNoMemory));
             return;
         }
+        if (!s_job.read(s_name, s_buffer, s_size))
+        {
+            freeTemp();
+            s_phase = kIdle;
+            notice(kNoticeError, "Import failed: %s", resultText(kBusy));
+            return;
+        }
         s_phase = kImportRead;
-        s_job.read(s_name, s_buffer, s_size);
     }
 
     static void importRead(int result, int status)
@@ -614,6 +630,7 @@ namespace storage {
     void recordingAttach(u8* block)
     {
         s_phase = kIdle;
+        s_jobStale = s_job.busy();
         s_buffer = NULL;
         Handoff* h = blockHandoff(block);
         if (h == NULL || h->magic != kHandoffMagic)
@@ -642,13 +659,21 @@ namespace storage {
 
     void recordingUpdate()
     {
+        int result = kOk;
+        int status = 0;
+        if (s_jobStale)
+        {
+            if (!s_job.poll(result, status))
+            {
+                return;
+            }
+            s_jobStale = false;
+        }
         if (s_phase == kImportWait)
         {
             startImportRead();
             return;
         }
-        int result = kOk;
-        int status = 0;
         if (s_phase == kIdle || !s_job.poll(result, status))
         {
             return;
@@ -656,8 +681,14 @@ namespace storage {
         switch (s_phase)
         {
         case kExportFolder:
+            if (!s_job.write(s_name, s_buffer, s_size))
+            {
+                freeTemp();
+                s_phase = kIdle;
+                notice(kNoticeError, "Export failed: %s", resultText(kBusy));
+                break;
+            }
             s_phase = kExportWrite;
-            s_job.write(s_name, s_buffer, s_size);
             break;
         case kExportWrite:
             freeTemp();
@@ -689,8 +720,11 @@ namespace storage {
             int r = s_job.wait(kWaitMs, status);
             if (s_phase == kExportFolder && r != kBusy)
             {
-                s_job.write(s_name, s_buffer, s_size);
-                r = s_job.wait(kWaitMs, status);
+                r = s_job.write(s_name, s_buffer, s_size) ? s_job.wait(kWaitMs, status) : kBusy;
+            }
+            if (r == kBusy)
+            {
+                s_jobStale = true;
             }
             TM_LOG("storage: %s finished at detach: %s\n", s_phase == kImportRead ? "import" : "export",
                    resultText(r));
