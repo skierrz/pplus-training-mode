@@ -662,12 +662,16 @@ namespace extra {
 #pragma dont_inline on
     void TraceBuf::putNum(s32 v, bool frac3)
     {
+        u32 a;
         if (v < 0)
         {
             data[len++] = '-';
-            v = -v;
+            a = static_cast<u32>(-(v + 1)) + 1u;
         }
-        u32 a = static_cast<u32>(v);
+        else
+        {
+            a = static_cast<u32>(v);
+        }
         char tmp[12];
         int n = 0;
         do

@@ -360,7 +360,7 @@ $(BUILD)/stub/%.o: src/%.cpp Makefile | $(MWCC)
 # pack time by scripts/pack-rel.py check_extra_thunks.
 COMMA := ,
 COMPACT_CXXFLAGS := $(subst -inline auto,-inline on$(COMMA)noauto,$(CXXFLAGS)) \
-                    -ipa file -schedule off -func_align 4 -use_lmw_stmw on -str pool,reuse,readonly -fp_contract on -ordered-fp-compares
+                    -ipa file -schedule off -func_align 4 -use_lmw_stmw on -str pool,reuse,readonly -fp_contract on
 
 $(BUILD)/main/shared/global_chain.o: src/shared/global_chain.cpp Makefile | $(MWCC)
 	@echo "c++     $< (main)"
