@@ -154,6 +154,91 @@ namespace {
         c.shieldDropFacing = kSdFaceToward;
         return c;
     }
+
+    main::Settings packSettings(const cpu::CpuOptions& cpuOpts, const main::ComboTrainerSettings& comboCfg,
+                                const main::GeneralSettings* gen, const main::CpuSettings* cpuSet,
+                                const main::OsdSettings* osd, const main::TechInvisSettings* techInvis)
+    {
+        main::Settings s;
+        memset(&s, 0, sizeof(s));
+        s.cpu.options = cpuOpts;
+        s.comboTrainer = comboCfg;
+        if (gen != NULL) s.general = *gen;
+        if (cpuSet != NULL)
+        {
+            s.cpu.percent = cpuSet->percent;
+            s.cpu.lockPercent = cpuSet->lockPercent;
+        }
+        if (osd != NULL) s.osd = *osd;
+        if (techInvis != NULL) s.techInvis = *techInvis;
+        return s;
+    }
+
+    void unpackSettings(const main::Settings& s, cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg,
+                        main::GeneralSettings* gen, main::CpuSettings* cpuSet, main::OsdSettings* osd,
+                        main::TechInvisSettings* techInvis)
+    {
+        cpuOpts = s.cpu.options;
+        comboCfg = s.comboTrainer;
+        if (gen != NULL) *gen = s.general;
+        if (cpuSet != NULL)
+        {
+            cpuSet->percent = s.cpu.percent;
+            cpuSet->lockPercent = s.cpu.lockPercent;
+        }
+        if (osd != NULL) *osd = s.osd;
+        if (techInvis != NULL) *techInvis = s.techInvis;
+    }
+
+    bool applyScenarioConfig(ScenarioState& st, const ScenarioConfig& rawCfg, cpu::CpuOptions& cpuOpts,
+                             main::ComboTrainerSettings& comboCfg, main::GeneralSettings* gen = NULL,
+                             main::CpuSettings* cpuSet = NULL, main::OsdSettings* osd = NULL,
+                             main::TechInvisSettings* techInvis = NULL)
+    {
+        main::Settings s = packSettings(cpuOpts, comboCfg, gen, cpuSet, osd, techInvis);
+        bool r = tm::extra::applyScenarioConfig(st, rawCfg, s);
+        unpackSettings(s, cpuOpts, comboCfg, gen, cpuSet, osd, techInvis);
+        return r;
+    }
+
+    void reapplyActiveScenarioOverrides(const ScenarioState& st, const ScenarioConfig& rawCfg,
+                                        cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg,
+                                        main::GeneralSettings* gen = NULL, main::CpuSettings* cpuSet = NULL,
+                                        main::OsdSettings* osd = NULL, main::TechInvisSettings* techInvis = NULL)
+    {
+        main::Settings s = packSettings(cpuOpts, comboCfg, gen, cpuSet, osd, techInvis);
+        tm::extra::reapplyActiveScenarioOverrides(st, rawCfg, s);
+        unpackSettings(s, cpuOpts, comboCfg, gen, cpuSet, osd, techInvis);
+    }
+
+    void restoreScenarioSnapshot(ScenarioState& st, cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg,
+                                 main::GeneralSettings* gen = NULL, main::CpuSettings* cpuSet = NULL,
+                                 main::OsdSettings* osd = NULL, main::TechInvisSettings* techInvis = NULL)
+    {
+        main::Settings s = packSettings(cpuOpts, comboCfg, gen, cpuSet, osd, techInvis);
+        tm::extra::restoreScenarioSnapshot(st, s);
+        unpackSettings(s, cpuOpts, comboCfg, gen, cpuSet, osd, techInvis);
+    }
+
+    void projectScenarioSavedView(const ScenarioState& st, cpu::CpuOptions& cpuOpts,
+                                  main::ComboTrainerSettings& comboCfg, main::GeneralSettings* gen = NULL,
+                                  main::CpuSettings* cpuSet = NULL, main::OsdSettings* osd = NULL,
+                                  main::TechInvisSettings* techInvis = NULL)
+    {
+        main::Settings s = packSettings(cpuOpts, comboCfg, gen, cpuSet, osd, techInvis);
+        tm::extra::projectScenarioSavedView(st, s);
+        unpackSettings(s, cpuOpts, comboCfg, gen, cpuSet, osd, techInvis);
+    }
+
+    void stepScenario(ScenarioState& st, const ScenarioConfig& rawCfg, const ScenarioStepInput& in,
+                      cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg, ScenarioStepAction& act,
+                      main::GeneralSettings* gen = NULL, main::CpuSettings* cpuSet = NULL,
+                      main::OsdSettings* osd = NULL, main::TechInvisSettings* techInvis = NULL)
+    {
+        main::Settings s = packSettings(cpuOpts, comboCfg, gen, cpuSet, osd, techInvis);
+        tm::extra::stepScenario(st, rawCfg, in, s, act);
+        unpackSettings(s, cpuOpts, comboCfg, gen, cpuSet, osd, techInvis);
+    }
 }
 
 TEST(scenario_presets, all_nine_presets_map_settings_and_snapshot_restores_cleanly)
@@ -1035,7 +1120,6 @@ TEST(scenario_presets, slideoff_temporarily_sets_tumble_percent_and_restores_wit
     // and requests applyHmnPercent so live HMN tumbles immediately on Frame 1.
     stepScenario(st, makeCfg(kScenarioSlideOff), in, cpuOpts, comboCfg, act, &gen);
     CHECK(st.snapshotActive);
-    CHECK(st.snapshotPlayerValid);
     CHECK_EQ(95, static_cast<int>(gen.playerPercent));
     CHECK_EQ(1, static_cast<int>(gen.lockPlayerPercent));
     CHECK(act.applyHmnPercent);
@@ -1060,7 +1144,6 @@ TEST(scenario_presets, slideoff_temporarily_sets_tumble_percent_and_restores_wit
     CHECK_EQ(1, static_cast<int>(gen.lockPlayerPercent));
     stepScenario(st, makeCfg(kScenarioOff), in, cpuOpts, comboCfg, act, &gen);
     CHECK(!st.snapshotActive);
-    CHECK(!st.snapshotPlayerValid);
     CHECK_EQ(12, static_cast<int>(gen.playerPercent));
     CHECK_EQ(0, static_cast<int>(gen.lockPlayerPercent));
     CHECK(act.applyHmnPercent);
@@ -1075,54 +1158,6 @@ TEST(scenario_presets, slideoff_temporarily_sets_tumble_percent_and_restores_wit
     restoreScenarioSnapshot(st, cpuOpts, comboCfg, &gen);
     CHECK_EQ(80, static_cast<int>(gen.playerPercent));
     CHECK_EQ(1, static_cast<int>(gen.lockPlayerPercent));
-}
-
-TEST(scenario_presets, powershield_drill_cpu_approaches_faces_and_throws_repeating_jab)
-{
-    ScenarioCpuState cs;
-    scenarioCpuStateReset(cs);
-    ScenarioCpuInput ci;
-    memset(&ci, 0, sizeof(ci));
-    ci.cpuCanAct = true;
-    ci.cpuLr = -1.0f;
-    ci.hmnX = -20.0f;
-    ci.cpuX = 20.0f; // 40u apart (> 11.0u): must walk toward P1 without swinging yet
-    ScenarioCpuOutput co;
-    stepPowershieldDrillCpu(ci, cs, co);
-    CHECK(co.active);
-    CHECK(co.stickX < -0.5f);
-    CHECK_EQ(0u, co.buttons);
-
-    // Close range (8u apart), facing away (cpuLr = +1 while HMN is to the left): turns first.
-    ci.cpuX = -12.0f;
-    ci.cpuLr = 1.0f;
-    stepPowershieldDrillCpu(ci, cs, co);
-    CHECK(co.active);
-    CHECK(co.stickX < -0.3f);
-    CHECK_EQ(0u, co.buttons);
-
-    // Close range and facing P1: fires neutral Jab (kAttack) immediately, then waits cooldown.
-    ci.cpuLr = -1.0f;
-    stepPowershieldDrillCpu(ci, cs, co);
-    CHECK(co.active);
-    CHECK_EQ(static_cast<u32>(cpu::button::kAttack), co.buttons);
-
-    // Next frame during cooldown: does not spam Attack on frame 2.
-    stepPowershieldDrillCpu(ci, cs, co);
-    CHECK_EQ(0u, co.buttons);
-
-    // After 52 frames of cooldown, throws Jab again!
-    bool firedAgain = false;
-    for (int f = 0; f < 55; f++)
-    {
-        stepPowershieldDrillCpu(ci, cs, co);
-        if ((co.buttons & cpu::button::kAttack) != 0)
-        {
-            firedAgain = true;
-            break;
-        }
-    }
-    CHECK(firedAgain);
 }
 
 TEST(scenario_presets, techchase_resets_on_air_escape_but_keeps_platform_tumble_intact)
@@ -1443,7 +1478,9 @@ TEST(scenario_presets, techchase_platforms_tumble_drop_timing_streak_and_inline_
     CHECK(strcmp(ui::pages::kCounterGround[resolveTechEscapeCounter(kTechEscShield)], "Shield") == 0);
     CHECK(strcmp(ui::pages::kCounterGround[resolveTechEscapeCounter(kTechEscRoll)], "Roll Random") == 0);
 
-    // 3. True cover increments streak/best + computes Reaction Frame; late cover triggers Intangible Flash + resets streak.
+    // 3. True cover via launching airborne hit (DamageFly 0x45, cpuAir = true) increments
+    //    streak/best + computes Reaction Frame; missed-tech knockdown cover leaves REACT = -1;
+    //    late cover triggers Intangible Flash + resets streak.
     ScenarioStepInput in = makeIdleInput(bf);
     in.cpuTechDist = 4; // Fox distinguishable frame 4
     ScenarioStepAction act;
@@ -1453,8 +1490,9 @@ TEST(scenario_presets, techchase_platforms_tumble_drop_timing_streak_and_inline_
     {
         stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis);
     }
-    // P1 hits CPU cleanly on frame 21 -> COVER, reaction = 20 - 4 = 16f, streak = 1, best = 1!
+    // P1 hits CPU cleanly with a launching move (DamageFly 0x45, cpuAir = true) -> COVER, REACT = 16f, STREAK = 1!
     in.cpuStatus = 0x45;
+    in.cpuAir = true;
     in.cpuHitstun = 14;
     stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis);
     CHECK_EQ(static_cast<int>(kTechResCover), static_cast<int>(st.techResult));
@@ -1462,8 +1500,30 @@ TEST(scenario_presets, techchase_platforms_tumble_drop_timing_streak_and_inline_
     CHECK_EQ(1, static_cast<int>(st.techStreak));
     CHECK_EQ(1, static_cast<int>(st.techBest));
 
+    // Missed-tech knockdown (Down_Wait 0x4D -> Down_Stand 0x4F) covered by airborne launch:
+    // increments streak to 2 and keeps techReactionFrames == -1 (never corrupted by Down frames).
+    requestScenarioManualReset(st);
+    in.cpuAir = false;
+    in.cpuHitstun = 0;
+    in.cpuStatus = 0x00;
+    stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis); // warp
+    in.cpuStatus = 0x4D; // Down_Wait for 12 frames
+    for (int f = 0; f < 12; f++)
+    {
+        stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis);
+    }
+    in.cpuStatus = 0x45;
+    in.cpuAir = true;
+    in.cpuHitstun = 14;
+    stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis);
+    CHECK_EQ(static_cast<int>(kTechResCover), static_cast<int>(st.techResult));
+    CHECK_EQ(-1, static_cast<int>(st.techReactionFrames));
+    CHECK_EQ(2, static_cast<int>(st.techStreak));
+    CHECK_EQ(2, static_cast<int>(st.techBest));
+
     // Next tech: P1 is 3 frames late -> triggers techFlashCpu on frame 1 actionable, records 3f Late, resets streak!
     requestScenarioManualReset(st);
+    in.cpuAir = false;
     in.cpuHitstun = 0;
     in.cpuStatus = 0x00;
     stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis); // warp
@@ -1478,7 +1538,7 @@ TEST(scenario_presets, techchase_platforms_tumble_drop_timing_streak_and_inline_
     CHECK_EQ(static_cast<int>(kTechResLate), static_cast<int>(st.techResult));
     CHECK_EQ(3, static_cast<int>(st.techDeltaFrames));
     CHECK_EQ(0, static_cast<int>(st.techStreak));
-    CHECK_EQ(1, static_cast<int>(st.techBest)); // best preserved!
+    CHECK_EQ(2, static_cast<int>(st.techBest)); // best preserved!
 
     // Restore snapshot restores TechInvisSettings byte-for-byte.
     restoreScenarioSnapshot(st, cpuOpts, comboCfg, NULL, NULL, NULL, &invis);
@@ -1602,4 +1662,25 @@ TEST(scenario_presets, edgeguard_ledgetech_shield_defense_shield_drop_and_underp
         }
     }
     CHECK(firedUnderUair);
+
+    // 6. Shield Pressure Defense with Auto-Reset Off clears shieldDefSwung after grace so CPU is not permanently intangible.
+    ScenarioState defSt;
+    scenarioStateInit(defSt);
+    main::Settings defSettings;
+    memset(&defSettings, 0, sizeof(defSettings));
+    ScenarioConfig defCfg = makeCfg(kScenarioShieldPressure, 0);
+    defCfg.shieldRole = kShieldRoleDefense;
+    ScenarioStepInput defIn = makeIdleInput(bf);
+    ScenarioStepAction defAct;
+    tm::extra::stepScenario(defSt, defCfg, defIn, defSettings, defAct); // initial warp
+    defIn.cpuStatus = 0x27; // AttackS3
+    tm::extra::stepScenario(defSt, defCfg, defIn, defSettings, defAct);
+    CHECK(defSt.shieldDefSwung);
+    defIn.cpuStatus = 0x00; // back to Wait (actionable)
+    for (int f = 0; f < 32; f++)
+    {
+        tm::extra::stepScenario(defSt, defCfg, defIn, defSettings, defAct);
+        CHECK(!defAct.warpCpu);
+    }
+    CHECK(!defSt.shieldDefSwung);
 }

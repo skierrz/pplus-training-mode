@@ -33,7 +33,10 @@ namespace extra {
     // blast zones, and (when includePlatforms is true) pass-through platforms
     // via stRayCheck + CameraController.
     bool queryStageGeometry(StageGeometry& out, bool forceRefresh = false, bool includePlatforms = false);
-    bool liveGeometry(StageGeometry& out, bool forceRefresh = false, bool includePlatforms = false);
+    inline bool liveGeometry(StageGeometry& out, bool forceRefresh = false, bool includePlatforms = false)
+    {
+        return queryStageGeometry(out, forceRefresh, includePlatforms);
+    }
 
     // Rejection-samples a safe stage position verified by downward (0, -80)
     // and upward (0, +150) stRayCheck probes.

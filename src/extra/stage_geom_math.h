@@ -48,6 +48,9 @@ namespace extra {
         int platformCount;
     };
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline u32 geomNextRng(u32& state)
     {
         u32 x = state != 0 ? state : 0x6D2B79F5u;
@@ -63,10 +66,18 @@ namespace extra {
         return static_cast<float>(geomNextRng(state) & 0x00FFFFFFu) / 16777216.0f;
     }
 
+    inline float geomRandRange(u32& state, float lo, float hi)
+    {
+        return lo + geomRand01(state) * (hi - lo);
+    }
+
     inline float geomClamp(float v, float lo, float hi)
     {
         return v < lo ? lo : (v > hi ? hi : v);
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline float geomMax(float a, float b)
     {
@@ -101,6 +112,9 @@ namespace extra {
         kPlatSlotRandom = 3
     };
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     // Maps live platforms to canonical Left / Right / Top slots (-1 if absent).
     inline void classifyPlatforms(const StageGeometry& g, int slotIdx[3])
     {
@@ -115,8 +129,6 @@ namespace extra {
             n = kMaxStagePlatforms;
         }
         float floorMid = g.floor.valid ? 0.5f * (g.floor.leftX + g.floor.rightX) : 0.0f;
-        int validCount = 0;
-        int onlyIdx = -1;
         for (int i = 0; i < n; i++)
         {
             const StagePlatform& p = g.platforms[i];
@@ -124,8 +136,6 @@ namespace extra {
             {
                 continue;
             }
-            validCount++;
-            onlyIdx = i;
             float mid = 0.5f * (p.leftX + p.rightX);
             if (mid < floorMid - 4.0f)
             {
@@ -143,7 +153,7 @@ namespace extra {
             }
         }
         // Top slot: highest valid platform distinct from Left/Right (e.g. Battlefield,
-        // Dream Land, FoD top), or the sole platform on 1-platform stages (Smashville).
+        // Dream Land, FoD top), or the sole centered platform on 1-platform stages.
         for (int i = 0; i < n; i++)
         {
             const StagePlatform& p = g.platforms[i];
@@ -154,15 +164,6 @@ namespace extra {
             if (slotIdx[kPlatSlotTop] < 0 || p.y > g.platforms[slotIdx[kPlatSlotTop]].y)
             {
                 slotIdx[kPlatSlotTop] = i;
-            }
-        }
-        if (validCount == 1 && slotIdx[kPlatSlotTop] < 0 && onlyIdx >= 0)
-        {
-            // Keep Left/Right if Smashville's platform is currently off-center,
-            // otherwise expose it as Top (center).
-            if (slotIdx[kPlatSlotLeft] < 0 && slotIdx[kPlatSlotRight] < 0)
-            {
-                slotIdx[kPlatSlotTop] = onlyIdx;
             }
         }
     }
@@ -209,40 +210,25 @@ namespace extra {
     inline int sortPlatformsLowestLeftToRight(const StageGeometry& g, StagePlatform out[kMaxStagePlatforms])
     {
         int n = g.platformCount;
-        if (n <= 0)
-        {
-            return 0;
-        }
-        if (n > kMaxStagePlatforms)
-        {
-            n = kMaxStagePlatforms;
-        }
+        if (n > kMaxStagePlatforms) n = kMaxStagePlatforms;
         int count = 0;
         for (int i = 0; i < n; i++)
         {
             const StagePlatform& p = g.platforms[i];
-            if (p.valid && p.rightX > p.leftX + 4.0f)
-            {
-                out[count++] = p;
-            }
+            if (p.valid && p.rightX > p.leftX + 4.0f) out[count++] = p;
         }
-        for (int i = 1; i < count; i++)
+        for (int i = 0; i < count; i++)
         {
-            StagePlatform key = out[i];
-            float keyMid = 0.5f * (key.leftX + key.rightX);
-            int j = i - 1;
-            while (j >= 0)
+            for (int j = i + 1; j < count; j++)
             {
-                float dy = out[j].y - key.y;
-                float jMid = 0.5f * (out[j].leftX + out[j].rightX);
-                if (!((dy > 2.0f) || (dy >= -2.0f && jMid > keyMid)))
+                float dy = out[i].y - out[j].y;
+                if (dy > 2.0f || (dy >= -2.0f && (out[i].leftX + out[i].rightX) > (out[j].leftX + out[j].rightX)))
                 {
-                    break;
+                    StagePlatform tmp = out[i];
+                    out[i] = out[j];
+                    out[j] = tmp;
                 }
-                out[j + 1] = out[j];
-                j--;
             }
-            out[j + 1] = key;
         }
         return count;
     }
@@ -290,25 +276,18 @@ namespace extra {
         {
             return false;
         }
-        if (onGround)
-        {
-            float loX = g.floor.leftX + 10.0f;
-            float hiX = g.floor.rightX - 10.0f;
-            if (hiX <= loX)
-            {
-                loX = g.floor.leftX;
-                hiX = g.floor.rightX;
-            }
-            outX = loX + geomRand01(rng) * (hiX - loX);
-            outY = g.floor.centerY + 45.0f;
-            return true;
-        }
-        float loX = geomMax(g.blast.left + 25.0f, g.floor.leftX - 30.0f);
-        float hiX = geomMin(g.blast.right - 25.0f, g.floor.rightX + 30.0f);
+        float loX = onGround ? (g.floor.leftX + 10.0f) : geomMax(g.blast.left + 25.0f, g.floor.leftX - 30.0f);
+        float hiX = onGround ? (g.floor.rightX - 10.0f) : geomMin(g.blast.right - 25.0f, g.floor.rightX + 30.0f);
         if (hiX <= loX)
         {
             loX = g.floor.leftX;
             hiX = g.floor.rightX;
+        }
+        outX = geomRandRange(rng, loX, hiX);
+        if (onGround)
+        {
+            outY = g.floor.centerY + 45.0f;
+            return true;
         }
         float loY = geomMax(g.blast.bottom + 35.0f, g.floor.centerY + 8.0f);
         float hiY = geomMin(g.blast.top - 30.0f, g.floor.centerY + 75.0f);
@@ -316,35 +295,36 @@ namespace extra {
         {
             hiY = loY + 10.0f;
         }
-        outX = loX + geomRand01(rng) * (hiX - loX);
-        outY = loY + geomRand01(rng) * (hiY - loY);
+        outY = geomRandRange(rng, loY, hiY);
         return true;
     }
 
     // Shared offstage box sampler relative to the live stage's ledges & blast zones.
-    inline bool sampleOffstageBox(const StageGeometry& g, int sideChoice, float minD, float maxD, float minRelY,
-                                  float maxRelY, float edgePad, float loFrac, u32& rng, float& outX, float& outY)
+    // mode: 0 = Recovery, 1 = Edgeguard Mid, 2 = Edgeguard Deep, 3 = Edgeguard High.
+    inline bool sampleOffstageMode(const StageGeometry& g, int sideChoice, u8 mode, u32& rng, float& outX, float& outY)
     {
         if (!g.floor.valid || !g.blast.valid || !g.hasLedges)
         {
             return false;
         }
-        bool rightSide = sideChoice == 0 ? true : (sideChoice == 1 ? false : ((geomNextRng(rng) & 1u) != 0));
+        float minD = 25.0f, maxD = 80.0f, minY = -42.0f, maxY = 30.0f;
+        if (mode == 1) { minD = 32.0f; maxD = 50.0f; minY = -18.0f; maxY = 6.0f; }
+        else if (mode == 2) { minD = 48.0f; maxD = 74.0f; minY = -44.0f; maxY = -16.0f; }
+        else if (mode == 3) { minD = 28.0f; maxD = 52.0f; minY = 18.0f; maxY = 44.0f; }
+        float pad = mode == 0 ? 28.0f : 26.0f;
+        float loFrac = mode == 0 ? 0.50f : 0.75f;
+        bool rightSide = sideChoice < 2 ? (sideChoice == 0) : ((geomNextRng(rng) & 1u) != 0);
         const LedgeInfo& ledge = rightSide ? g.rightLedge : g.leftLedge;
         float outward = rightSide ? 1.0f : -1.0f;
-        float maxOut = rightSide ? (g.blast.right - ledge.x - edgePad) : (ledge.x - g.blast.left - edgePad);
-        maxOut = geomMax(20.0f, maxOut);
+        float maxOut = geomMax(20.0f, rightSide ? (g.blast.right - ledge.x - pad) : (ledge.x - g.blast.left - pad));
         float hiD = geomMin(maxD, maxOut);
         float loD = geomMin(minD, hiD * loFrac);
-        outX = ledge.x + outward * (loD + geomRand01(rng) * (hiD - loD));
+        outX = ledge.x + outward * geomRandRange(rng, loD, hiD);
 
-        float loY = geomMax(g.blast.bottom + 38.0f, ledge.y + minRelY);
-        float hiY = geomMin(g.blast.top - 32.0f, ledge.y + maxRelY);
-        if (hiY <= loY)
-        {
-            hiY = loY + 4.0f;
-        }
-        outY = loY + geomRand01(rng) * (hiY - loY);
+        float loY = geomMax(g.blast.bottom + 38.0f, ledge.y + minY);
+        float hiY = geomMin(g.blast.top - 32.0f, ledge.y + maxY);
+        if (hiY <= loY) hiY = loY + 4.0f;
+        outY = geomRandRange(rng, loY, hiY);
         return true;
     }
 
@@ -352,7 +332,7 @@ namespace extra {
     // stage's ledges and blast zones. sideChoice: 0 = Right, 1 = Left, 2 = Random.
     inline bool sampleRecoveryCandidate(const StageGeometry& g, u32& rng, float& outX, float& outY, int sideChoice = 2)
     {
-        return sampleOffstageBox(g, sideChoice, 25.0f, 80.0f, -42.0f, 30.0f, 28.0f, 0.5f, rng, outX, outY);
+        return sampleOffstageMode(g, sideChoice, 0, rng, outX, outY);
     }
 
     // Generates an offstage Edgeguard spawn point for explicit distance presets:
@@ -361,14 +341,11 @@ namespace extra {
     inline bool sampleEdgeguardSpawn(const StageGeometry& g, u8 distMode, int sideChoice, u32& rng, float& outX,
                                      float& outY)
     {
-        static const float kEgg[3][4] = {
-            {32.0f, 50.0f, -18.0f, 6.0f},   // Mid
-            {48.0f, 74.0f, -44.0f, -16.0f}, // Deep
-            {28.0f, 52.0f, 18.0f, 44.0f}    // High
-        };
         u8 mode = distMode >= 3 ? static_cast<u8>(geomNextRng(rng) % 3u) : distMode;
-        return sampleOffstageBox(g, sideChoice, kEgg[mode][0], kEgg[mode][1], kEgg[mode][2], kEgg[mode][3], 26.0f,
-                                 0.75f, rng, outX, outY);
+        return sampleOffstageMode(g, sideChoice, static_cast<u8>(mode + 1), rng, outX, outY);
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 }
 }

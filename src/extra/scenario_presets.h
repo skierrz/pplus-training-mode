@@ -38,6 +38,8 @@ namespace extra {
     // Shared fighter warp cleanups and module reads (used by Combo Trainer and Scenario Presets).
     void clearWarpIntang(const game::FighterRef& ref);
     void finishStandingWarp(const game::FighterRef& ref, bool setNoclip, bool fallIfNoGround = false);
+    void warpAirClean(const game::FighterRef& ref, float x, float y, bool noclip, float dmg, float lr,
+                      bool refreshAir, bool spendDj);
     void warpGroundClean(const game::FighterRef& ref, float x, float y, bool noclip, float dmg, float lr,
                          bool fallIfNoGround = false);
     bool findHmnAndCpu(const game::FighterRef* refs, int n, game::FighterRef& hmnRef, game::FighterRef& cpuRef,

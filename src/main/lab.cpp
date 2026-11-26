@@ -357,6 +357,11 @@ namespace lab {
     }
 #pragma dont_inline reset
 
+    static inline bool resetLeftPreset(u8 p)
+    {
+        return p != ui::pages::kPresetOff && p != ui::pages::kPresetComboLab;
+    }
+
     static bool anyLHeld(const Raw* raw)
     {
         for (int i = 0; i < kPorts; i++)
@@ -388,7 +393,7 @@ namespace lab {
         bool comboOn = comboShortcutActive();
         u8 preset = activeScenarioPreset();
         bool spaceOn = spacingShortcutActive(preset);
-        u32 dMask = spaceOn ? (kDpadLeft | kDpadRight) : (preset != ui::pages::kPresetOff ? kDpadLeft : 0u);
+        u32 dMask = spaceOn ? (kDpadLeft | kDpadRight) : (resetLeftPreset(preset) ? kDpadLeft : 0u);
         if (!comboOn && dMask == 0)
         {
             return false;
@@ -401,15 +406,17 @@ namespace lab {
             }
             u32 cur = pads[i].m_buttonsCurrentFrame.bits;
             u32 anyD = cur | pads[i].m_buttonsPressedThisFrame.bits;
+            u32 type = static_cast<u32>(pads[i].m_controllerType);
             if (comboOn)
             {
-                u32 lBit = game::inMatchPad(static_cast<u32>(pads[i].m_controllerType)).prevCat;
+                u32 lBit = game::inMatchPad(type).prevCat;
                 if (lBit != 0 && (cur & lBit) != 0)
                 {
                     return true;
                 }
             }
-            if ((anyD & dMask) != 0 && (spaceOn || (anyD & kDpadRight) == 0))
+            bool dpadOk = type != gfPadType::WIIMOTE || (cur & game::kPadWiiMinus) != 0;
+            if (dpadOk && (anyD & dMask) != 0 && (spaceOn || (anyD & kDpadRight) == 0))
             {
                 return true;
             }
@@ -439,7 +446,7 @@ namespace lab {
         u32 down = (c.dpadDown != main::kDownNone || comboShortcutActive() || p == ui::pages::kPresetTechchase)
                        ? kDpadDown
                        : 0;
-        u32 left = p != ui::pages::kPresetOff ? kDpadLeft : 0;
+        u32 left = (spaceOn || resetLeftPreset(p)) ? kDpadLeft : 0;
         u32 right = spaceOn ? kDpadRight : 0;
         return up | down | left | right;
     }
@@ -853,46 +860,46 @@ namespace lab {
                 storage::notice(storage::kNoticeOk, "CPU Damage: %d%%", pct);
             }
         }
-        // DPad Down = Frame Advance: a press turns it on or off.
-        if (!comboL && (boundDpad(m) & kDpadDown) && !s_st.open
-            && settings().controls.dpadDown == main::kDownFrameAdvance && anyDpadDown(s_st.sys, m, false))
-        {
-            settings().general.frameAdvance ^= 1;
-            frameAdvanceChanged();
-        }
-        else if (!comboL && !s_st.open && !m.paused && m.running && m.training
-                 && settings().controls.dpadDown != main::kDownFrameAdvance && anyDpadDown(s_st.sys, m, false))
-        {
-            if (activeScenarioPreset() == ui::pages::kPresetTechchase)
-            {
-                main::extraScenarioCall(main::kScenarioStepPosDown);
-            }
-            else if (comboShortcutActive())
-            {
-                main::extraScenarioCall(main::kScenarioComboReposition);
-            }
-        }
-        // Scenario-scoped D-Pad Up / Left / Right shortcuts.
+        // D-Pad shortcuts when menu is closed in active training match.
         if (!comboL && !s_st.open && !m.paused && m.running && m.training)
         {
-            u8 p = activeScenarioPreset();
-            if (p != ui::pages::kPresetOff)
+            u32 dp = dpadBits(s_st.sys, m, false);
+            if (dp != 0)
             {
-                u32 dp = dpadBits(s_st.sys, m, false);
+                u8 p = activeScenarioPreset();
                 int call = -1;
-                if ((dp & kDpadUp) != 0)
+                if ((dp & kDpadDown) != 0)
                 {
-                    if (p == ui::pages::kPresetShieldDrop) call = main::kScenarioCyclePlatform;
-                    else if (p == ui::pages::kPresetTechchase) call = main::kScenarioStepPosUp;
+                    if (settings().controls.dpadDown == main::kDownFrameAdvance)
+                    {
+                        settings().general.frameAdvance ^= 1;
+                        frameAdvanceChanged();
+                    }
+                    else if (p == ui::pages::kPresetTechchase)
+                    {
+                        call = main::kScenarioStepPosDown;
+                    }
+                    else if (comboShortcutActive())
+                    {
+                        call = main::kScenarioComboReposition;
+                    }
                 }
-                else if (spacingShortcutActive(p))
+                if (call < 0 && p != ui::pages::kPresetOff)
                 {
-                    if ((dp & kDpadLeft) != 0) call = main::kScenarioSpacingCloser;
-                    else if ((dp & kDpadRight) != 0) call = main::kScenarioSpacingFarther;
-                }
-                else if ((dp & kDpadLeft) != 0)
-                {
-                    call = main::kScenarioResetNow;
+                    if ((dp & kDpadUp) != 0)
+                    {
+                        if (p == ui::pages::kPresetShieldDrop) call = main::kScenarioCyclePlatform;
+                        else if (p == ui::pages::kPresetTechchase) call = main::kScenarioStepPosUp;
+                    }
+                    else if (spacingShortcutActive(p))
+                    {
+                        if ((dp & kDpadLeft) != 0) call = main::kScenarioSpacingCloser;
+                        else if ((dp & kDpadRight) != 0) call = main::kScenarioSpacingFarther;
+                    }
+                    else if (resetLeftPreset(p) && (dp & kDpadLeft) != 0)
+                    {
+                        call = main::kScenarioResetNow;
+                    }
                 }
                 if (call >= 0)
                 {
@@ -1287,7 +1294,7 @@ namespace lab {
         frameAdvanceChanged();
         game::codeMenuSync();
         main::extraStageOptionsChanged();
-        main::extraScenarioSettingsReset();
+        main::extraScenarioCall(main::kScenarioSettingsReset);
         memset(s_playerShieldHit, 0, sizeof(s_playerShieldHit));
         TM_LOG("lab: settings reset to the defaults\n");
     }
@@ -1756,6 +1763,7 @@ namespace lab {
     void savestateCopying()
     {
         game::overlaysClear();
+        main::extraScenarioCall(main::kScenarioSavestateSaving);
     }
 
     // The match is back at the saved frame: messages, advantage exchanges
@@ -1771,7 +1779,7 @@ namespace lab {
         main::extraComboReset();
         main::extraHeatmapReset();
         main::extraAdaptiveReset();
-        main::extraScenarioSavestateLoaded();
+        main::extraScenarioCall(main::kScenarioSavestateLoaded);
         main::extraCharacterRng();
         main::extraStageOptionsSavestateLoaded();
         game::reapplyFrozen();

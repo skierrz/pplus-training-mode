@@ -93,6 +93,16 @@ namespace extra {
         }
 
 #pragma dont_inline on
+        float i2f(int v)
+        {
+            return static_cast<float>(v);
+        }
+
+        float i2fScale(int v, float s)
+        {
+            return static_cast<float>(v) * s;
+        }
+
         float minf(float a, float b)
         {
             return a < b ? a : b;
@@ -113,15 +123,20 @@ namespace extra {
             return s >= kStGuardOn && s <= kStGuardDamage;
         }
 
+        bool isTumbleStatus(int s)
+        {
+            return s >= kStDamageFly && s <= kStDamageFall;
+        }
+
+        bool isDeadOrStandby(int s)
+        {
+            return s == kStDead || s == kStStandby;
+        }
+
         bool isDownOrTechStatus(int s)
         {
             return (s >= kStDownFirst && s <= kStDownLast) || s == kStPassive || s == kStPassiveFb
                    || (s >= kStSlipFirst && s <= kStSlipLast);
-        }
-
-        bool isTumbleStatus(int s)
-        {
-            return s >= kStDamageFly && s <= kStDamageFall;
         }
 
         bool isCaptureHoldStatus(int s)
@@ -133,11 +148,6 @@ namespace extra {
         bool isAttackOrSpecial(int s)
         {
             return (s >= kStAttackFirst && s <= kStThrow) || s >= kStSpecialFirst;
-        }
-
-        bool isDeadOrStandby(int s)
-        {
-            return s == kStDead || s == kStStandby;
         }
 
         // True when a fighter is approaching a blast zone so auto-reset can warp
@@ -160,17 +170,25 @@ namespace extra {
             return inTumble && y > geom.blast.top - 20.0f;
         }
 
-        bool isShieldBreakStatus(int s)
+        void clearEventTelemetry(ScenarioState& st)
+        {
+            const char* start = reinterpret_cast<const char*>(&st.sdiHitCount);
+            const char* end = reinterpret_cast<const char*>(&st.havePrev);
+            memset(&st.sdiHitCount, 0, static_cast<size_t>(end - start));
+        }
+#pragma dont_inline reset
+
+        inline bool isShieldBreakStatus(int s)
         {
             return s >= kStShieldBreakFly && s <= kStFuraFuraEnd;
         }
 
-        bool isAirEscapeStatus(int s)
+        inline bool isAirEscapeStatus(int s)
         {
             return (s >= kStJump && s <= kStFallAerial) || s == kStEscapeAir;
         }
 
-        bool isNeutralGrounded(int s, bool air, int hitstun, int hitlag)
+        inline bool isNeutralGrounded(int s, bool air, int hitstun, int hitlag)
         {
             if (air || hitstun > 0 || hitlag > 0)
             {
@@ -178,20 +196,6 @@ namespace extra {
             }
             return s <= kStWalkBrake || s == kStSquat || s == kStSquatWait || s == kStGuardOn || s == kStGuard;
         }
-
-        void clearEventTelemetry(ScenarioState& st)
-        {
-            st.sawShieldDrop = false;
-            st.sawWallTech = false;
-            st.sawSlideOff = false;
-            st.sawGrabEscape = false;
-            st.sdiHitCount = 0;
-            st.sdiHitlagFrames = 0;
-            st.sdiDispX = 0.0f;
-            st.sdiDispY = 0.0f;
-            st.sdiEscaped = false;
-        }
-#pragma dont_inline reset
 
         inline bool isCaptureEscapeStatus(int s)
         {
@@ -209,42 +213,56 @@ namespace extra {
         }
 
 #pragma dont_inline on
-        void copySnapshotTo(const ScenarioState& st, cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg,
-                            main::GeneralSettings* gen, main::CpuSettings* cpuSet, main::OsdSettings* osd,
-                            main::TechInvisSettings* techInvis)
+        void transferSnapshot(ScenarioState& st, main::Settings& s, bool toSettings)
         {
-            memcpy(&cpuOpts, &st.snapshotCpu, sizeof(cpuOpts));
-            memcpy(&comboCfg, &st.snapshotCombo, sizeof(comboCfg));
-            if (st.snapshotPlayerValid && gen != NULL)
+            if (toSettings)
             {
-                gen->playerPercent = st.snapshotPlayerPercent;
-                gen->lockPlayerPercent = st.snapshotLockPlayerPercent;
-                gen->playerInfiniteShields = st.snapshotPlayerInfShields;
+                memcpy(&s.cpu.options, &st.snapshotCpu, sizeof(s.cpu.options));
+                memcpy(&s.comboTrainer, &st.snapshotCombo, sizeof(s.comboTrainer));
+                s.general.playerPercent = st.snapshotPlayerPercent;
+                s.general.lockPlayerPercent = st.snapshotLockPlayerPercent;
+                s.general.playerInfiniteShields = st.snapshotPlayerInfShields;
+                s.cpu.percent = st.snapshotCpuPercent;
+                s.cpu.lockPercent = st.snapshotLockCpuPercent;
+                s.osd.grabBreakout = st.snapshotGrabBreakoutOsd;
+                memcpy(&s.techInvis, &st.snapshotTechInvis, sizeof(s.techInvis));
             }
-            if (st.snapshotCpuValid && cpuSet != NULL)
+            else
             {
-                cpuSet->percent = st.snapshotCpuPercent;
-                cpuSet->lockPercent = st.snapshotLockCpuPercent;
-            }
-            if (st.snapshotOsdValid && osd != NULL)
-            {
-                osd->grabBreakout = st.snapshotGrabBreakoutOsd;
-            }
-            if (st.snapshotTechInvisValid && techInvis != NULL)
-            {
-                memcpy(techInvis, &st.snapshotTechInvis, sizeof(*techInvis));
+                memcpy(&st.snapshotCpu, &s.cpu.options, sizeof(s.cpu.options));
+                memcpy(&st.snapshotCombo, &s.comboTrainer, sizeof(s.comboTrainer));
+                st.snapshotPlayerPercent = s.general.playerPercent;
+                st.snapshotLockPlayerPercent = s.general.lockPlayerPercent;
+                st.snapshotPlayerInfShields = s.general.playerInfiniteShields;
+                st.snapshotCpuPercent = s.cpu.percent;
+                st.snapshotLockCpuPercent = s.cpu.lockPercent;
+                st.snapshotGrabBreakoutOsd = s.osd.grabBreakout;
+                memcpy(&st.snapshotTechInvis, &s.techInvis, sizeof(s.techInvis));
             }
         }
 
-        void applyPresetOverrides(const ScenarioConfig& cfg, cpu::CpuOptions& cpuOpts,
-                                  main::ComboTrainerSettings& comboCfg, main::GeneralSettings* gen,
-                                  main::CpuSettings* cpuSet, main::OsdSettings* osd,
-                                  main::TechInvisSettings* techInvis)
+        void copySnapshotTo(const ScenarioState& st, main::Settings& s)
+        {
+            transferSnapshot(const_cast<ScenarioState&>(st), s, true);
+        }
+
+        void raiseMinPct(u16& pct, u8& lock, u16 minV, u16 targetV)
+        {
+            if (pct < minV)
+            {
+                pct = targetV;
+                lock = 1;
+            }
+        }
+
+        void applyPresetOverrides(const ScenarioConfig& cfg, main::Settings& s)
         {
             if (cfg.preset == kScenarioOff || cfg.preset >= kScenarioCount)
             {
                 return;
             }
+            cpu::CpuOptions& cpuOpts = s.cpu.options;
+            main::ComboTrainerSettings& comboCfg = s.comboTrainer;
             comboCfg.enabled = 0;
             comboCfg.recoveryTrainer = 0;
             cpuOpts.control = cpu::kControlLab;
@@ -271,12 +289,9 @@ namespace extra {
                 cpuOpts.tdi = resolveTechTdi(cfg.techTdi);
                 cpuOpts.techSound = cfg.techSound != 0 ? 1 : 0;
                 cpuOpts.counterGround = resolveTechEscapeCounter(cfg.techEscape);
-                if (techInvis != NULL)
-                {
-                    techInvis->mode = cfg.techInvisMode;
-                    techInvis->delay = cfg.techInvisDelay;
-                    techInvis->preTechDrift = cfg.techPreDrift;
-                }
+                s.techInvis.mode = cfg.techInvisMode;
+                s.techInvis.delay = cfg.techInvisDelay;
+                s.techInvis.preTechDrift = cfg.techPreDrift;
                 break;
 
             case kScenarioEdgeguard:
@@ -287,11 +302,7 @@ namespace extra {
                 comboCfg.recoveryMixup = cfg.edgeguardMixup;
                 cpuOpts.recovery = cpu::kRecoveryPPlusAi;
                 cpuOpts.tdi = cpu::kTdiSurvival;
-                if (cpuSet != NULL && cpuSet->percent < kEdgeguardMinCpuPercent)
-                {
-                    cpuSet->percent = kEdgeguardTargetCpuPercent;
-                    cpuSet->lockPercent = 1;
-                }
+                raiseMinPct(s.cpu.percent, s.cpu.lockPercent, kEdgeguardMinCpuPercent, kEdgeguardTargetCpuPercent);
                 break;
 
             case kScenarioShieldPressure:
@@ -301,10 +312,7 @@ namespace extra {
                     cpuOpts.counterAir = 0;
                     cpuOpts.counterShield = 0;
                     cpuOpts.autoLCancel = 1;
-                    if (gen != NULL)
-                    {
-                        gen->playerInfiniteShields = cpu::kShieldsOn;
-                    }
+                    s.general.playerInfiniteShields = cpu::kShieldsOn;
                 }
                 else
                 {
@@ -319,14 +327,8 @@ namespace extra {
 
             case kScenarioShieldDrop:
                 cpuOpts.tdi = cpu::kTdiNone;
-                if (cfg.shieldDropAttack != kSdAtkOff)
-                {
-                    cpuOpts.autoLCancel = 1;
-                }
-                if (gen != NULL)
-                {
-                    gen->playerInfiniteShields = cpu::kShieldsOn;
-                }
+                if (cfg.shieldDropAttack != kSdAtkOff) cpuOpts.autoLCancel = 1;
+                s.general.playerInfiniteShields = cpu::kShieldsOn;
                 break;
 
             case kScenarioLedgetech:
@@ -340,28 +342,19 @@ namespace extra {
                 {
                     cpuOpts.tech = cpu::kTechNone;
                     cpuOpts.recovery = cpu::kRecoveryPPlusAi;
-                    if (gen != NULL && gen->playerPercent < kLedgetechMinPercent)
-                    {
-                        gen->playerPercent = kLedgetechTargetPercent;
-                        gen->lockPlayerPercent = 1;
-                    }
+                    raiseMinPct(s.general.playerPercent, s.general.lockPlayerPercent, kLedgetechMinPercent,
+                                kLedgetechTargetPercent);
                 }
                 else if (cfg.preset == kScenarioSlideOff)
                 {
                     cpuOpts.tdi = cpu::kTdiNone;
-                    if (gen != NULL && gen->playerPercent < kSlideOffMinPercent)
-                    {
-                        gen->playerPercent = kSlideOffTargetPercent;
-                        gen->lockPlayerPercent = 1;
-                    }
+                    raiseMinPct(s.general.playerPercent, s.general.lockPlayerPercent, kSlideOffMinPercent,
+                                kSlideOffTargetPercent);
                 }
                 else if (cfg.preset == kScenarioGrabEscape)
                 {
                     cpuOpts.grabEscape = cfg.grabAction == kGrabActStand ? cpu::kMashHigh : cpu::kMashNone;
-                    if (osd != NULL)
-                    {
-                        osd->grabBreakout = 1;
-                    }
+                    s.osd.grabBreakout = 1;
                 }
                 else
                 {
@@ -379,27 +372,9 @@ namespace extra {
 #pragma dont_inline on
         void clearCycleTrackers(ScenarioState& st)
         {
-            st.havePrev = false;
-            st.hmnGuardWindow = 0;
-            st.techEngaged = false;
-            st.techFrames = 0;
-            st.techActFrames = 0;
-            st.techEarlyFrames = 0;
-            st.techCoveredThisRep = false;
-            st.techLateRecorded = false;
-            st.shieldEngaged = false;
-            st.oosCountered = false;
-            st.shieldDefSwung = false;
-            st.shieldDropDone = false;
-            st.ledgetechDone = false;
-            st.slideOffArmed = false;
-            st.slideOffDone = false;
-            st.grabActive = false;
-            st.grabDone = false;
-            st.activeGrabFrames = 0;
-            st.graceFrames = 0;
-            st.sinceResetFrames = 0;
-            st.sdiSequenceActive = false;
+            const char* start = reinterpret_cast<const char*>(&st.havePrev);
+            const char* end = reinterpret_cast<const char*>(&st + 1);
+            memset(&st.havePrev, 0, static_cast<size_t>(end - start));
             st.sdiLatchedReset = true;
         }
 #pragma dont_inline reset
@@ -448,16 +423,8 @@ namespace extra {
 
     float ledgetechCpuInwardOffset(u8 atk)
     {
-        static const float kOffsets[7] = {
-            4.5f, // kLtAtkDtilt
-            5.0f, // kLtAtkFtilt
-            6.0f, // kLtAtkFsmash
-            4.2f, // kLtAtkDsmash
-            3.8f, // kLtAtkDair
-            6.5f, // kLtAtkNeutralB
-            6.5f  // kLtAtkSideB
-        };
-        return atk < 7 ? kOffsets[atk] : 4.2f;
+        static const u8 kOffsets10[7] = {45, 50, 60, 42, 38, 65, 65};
+        return i2fScale(atk < 7 ? kOffsets10[atk] : 42, 0.1f);
     }
 
     u8 stepTechPosition(u8 currentPos, int platformCount, int delta)
@@ -477,25 +444,25 @@ namespace extra {
                                 EdgeguardLaunchParams& out)
     {
         struct EggLaunchRow {
-            float minSpd, maxSpd, minAng, maxAng, lipOff, relY;
-            u8 hitstun, hitlag;
+            u8 minSpd20, maxSpd20, minAng, maxAng, hitstun, hitlag;
+            s8 lipOff, relY;
         };
         static const EggLaunchRow kRows[3] = {
-            {2.65f, 3.05f, 26.0f, 36.0f, -4.0f, 4.0f, 24, 6},  // Weak
-            {3.35f, 3.85f, 22.0f, 34.0f, -2.0f, 6.0f, 34, 8},  // Normal
-            {4.15f, 4.70f, 18.0f, 30.0f, 2.0f, 8.0f, 44, 10}   // Strong
+            {53, 61, 26, 36, 24, 6, -4, 4},  // Weak (2.65..3.05)
+            {67, 77, 22, 34, 34, 8, -2, 6},  // Normal (3.35..3.85)
+            {83, 94, 18, 30, 44, 10, 2, 8}   // Strong (4.15..4.70)
         };
         u8 mode = strengthMode >= kEgStrRandom ? static_cast<u8>(geomNextRng(rng) % 3u) : strengthMode;
         const EggLaunchRow& r = kRows[mode];
-        float speed = r.minSpd + geomRand01(rng) * (r.maxSpd - r.minSpd);
-        float angleDeg = r.minAng + geomRand01(rng) * (r.maxAng - r.minAng);
+        float speed = i2fScale(r.minSpd20, 0.05f) + geomRand01(rng) * i2fScale(r.maxSpd20 - r.minSpd20, 0.05f);
+        float angleDeg = i2f(r.minAng) + geomRand01(rng) * i2f(r.maxAng - r.minAng);
         // Compact polynomial sin/cos on [18..36 deg] (zero libm dependency).
         float rad = angleDeg * 0.01745329f;
         float r2 = rad * rad;
         float sinA = rad * (1.0f - r2 * (0.1666667f - r2 * 0.0083333f));
         float cosA = 1.0f - r2 * (0.5f - r2 * 0.0416667f);
-        out.startX = ledge.x + outward * r.lipOff;
-        out.startY = ledge.y + r.relY;
+        out.startX = ledge.x + outward * i2f(r.lipOff);
+        out.startY = ledge.y + i2f(r.relY);
         out.kbX = outward * speed * cosA;
         out.kbY = speed * sinA;
         out.speed = speed;
@@ -505,7 +472,7 @@ namespace extra {
     }
 
     // Complete P+ 3.2.1 per-fighter multi-hit SDI table verified directly from
-    // sandbox/sd/Project+/pf/fighter/*/Fit*.pac subactionMain scripts.
+    // P+ 3.2.1 fighter Fit*.pac subactionMain scripts.
     u8 bestMultiHitMoveForFighter(int ftKind)
     {
         static const u8 kBest[0x32] = {
@@ -606,13 +573,6 @@ namespace extra {
         c.spacingOffset = raw.spacingOffset < -8 ? -8 : (raw.spacingOffset > 12 ? 12 : raw.spacingOffset);
     }
 
-    ScenarioConfig sanitizeScenarioConfig(const ScenarioConfig& raw)
-    {
-        ScenarioConfig c;
-        sanitizeScenarioConfigInto(raw, c);
-        return c;
-    }
-
     void scenarioStateInit(ScenarioState& st)
     {
         memset(&st, 0, sizeof(st));
@@ -637,10 +597,7 @@ namespace extra {
         memset(&st, 0, sizeof(st));
     }
 
-    void reapplyActiveScenarioOverrides(const ScenarioState& st, const ScenarioConfig& rawCfg, cpu::CpuOptions& cpuOpts,
-                                        main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg,
-                                        main::CpuSettings* cpuSettings, main::OsdSettings* osdCfg,
-                                        main::TechInvisSettings* techInvisCfg)
+    void reapplyActiveScenarioOverrides(const ScenarioState& st, const ScenarioConfig& rawCfg, main::Settings& s)
     {
         if (st.activePreset == kScenarioOff)
         {
@@ -651,15 +608,12 @@ namespace extra {
         cfg.preset = st.activePreset;
         if (st.snapshotActive)
         {
-            copySnapshotTo(st, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg, techInvisCfg);
+            copySnapshotTo(st, s);
         }
-        applyPresetOverrides(cfg, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg, techInvisCfg);
+        applyPresetOverrides(cfg, s);
     }
 
-    bool applyScenarioConfig(ScenarioState& st, const ScenarioConfig& rawCfg, cpu::CpuOptions& cpuOpts,
-                             main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg,
-                             main::CpuSettings* cpuSettings, main::OsdSettings* osdCfg,
-                             main::TechInvisSettings* techInvisCfg)
+    bool applyScenarioConfig(ScenarioState& st, const ScenarioConfig& rawCfg, main::Settings& s)
     {
         ScenarioConfig cfg;
         sanitizeScenarioConfigInto(rawCfg, cfg);
@@ -673,51 +627,35 @@ namespace extra {
             {
                 return false;
             }
-            bool oosChanged = cfg.oosAction != prev.oosAction;
-            bool shieldRoleChanged = cfg.shieldRole != prev.shieldRole;
             bool techOptsChanged = bytesDiffer(&prev.techEscape, &cfg.techEscape, 6);
+            // Non-layout fields: preset(0), autoReset(1), techEscape..techShowReaction(15..21), edgeguardMixup(26).
+            const u8* pb = reinterpret_cast<const u8*>(&prev);
+            const u8* cb = reinterpret_cast<const u8*>(&cfg);
+            static const u32 kNonLayoutBits = (1u << 0) | (1u << 1) | (0x7Fu << 15) | (1u << 26);
+            bool layoutChanged = false;
+            for (int i = 2; i < 33; i++)
+            {
+                if (((kNonLayoutBits >> i) & 1u) == 0 && pb[i] != cb[i]) { layoutChanged = true; break; }
+            }
             bool edgeMixupChanged = cfg.edgeguardMixup != prev.edgeguardMixup;
-            bool sdAtkChanged = cfg.shieldDropAttack != prev.shieldDropAttack;
-            bool grabChanged = cfg.grabAction != prev.grabAction || cfg.grabPctMode != prev.grabPctMode;
-
-            ScenarioConfig a, b;
-            memcpy(&a, &prev, sizeof(a));
-            memcpy(&b, &cfg, sizeof(b));
-            a.preset = b.preset = a.autoReset = b.autoReset = a.techShowReaction = b.techShowReaction =
-                a.edgeguardMixup = b.edgeguardMixup = 0;
-            memset(&a.techEscape, 0, 6);
-            memset(&b.techEscape, 0, 6);
-            bool layoutChanged = bytesDiffer(&a, &b, 33);
-
-            bool needReapply = (cfg.preset == kScenarioShieldPressure && (oosChanged || shieldRoleChanged))
-                               || (cfg.preset == kScenarioTechchase && techOptsChanged)
-                               || (cfg.preset == kScenarioShieldDrop && sdAtkChanged);
+            bool needReapply =
+                (cfg.preset == kScenarioShieldPressure && (cfg.oosAction != prev.oosAction || cfg.shieldRole != prev.shieldRole))
+                || (cfg.preset == kScenarioTechchase && techOptsChanged)
+                || (cfg.preset == kScenarioShieldDrop && cfg.shieldDropAttack != prev.shieldDropAttack)
+                || (cfg.preset == kScenarioEdgeguard && edgeMixupChanged)
+                || (cfg.preset == kScenarioGrabEscape && (cfg.grabAction != prev.grabAction || cfg.grabPctMode != prev.grabPctMode));
             if (needReapply)
             {
-                if (st.snapshotActive)
-                {
-                    copySnapshotTo(st, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg, techInvisCfg);
-                }
-                applyPresetOverrides(cfg, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg, techInvisCfg);
+                if (st.snapshotActive) copySnapshotTo(st, s);
+                applyPresetOverrides(cfg, s);
             }
-            if (cfg.preset == kScenarioEdgeguard && edgeMixupChanged)
-            {
-                comboCfg.recoveryMixup = cfg.edgeguardMixup;
-            }
-            if (cfg.preset == kScenarioGrabEscape && grabChanged)
-            {
-                cpuOpts.grabEscape = cfg.grabAction == kGrabActStand ? cpu::kMashHigh : cpu::kMashNone;
-            }
-            if (layoutChanged)
-            {
-                st.pendingReset = true;
-            }
+            if (layoutChanged) st.pendingReset = true;
             return layoutChanged || techOptsChanged || edgeMixupChanged;
         }
 
         if (cfg.preset == kScenarioOff)
         {
-            restoreScenarioSnapshot(st, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg, techInvisCfg);
+            restoreScenarioSnapshot(st, s);
             st.activePreset = kScenarioOff;
             st.pendingReset = false;
             st.hasPlatform = false;
@@ -728,39 +666,15 @@ namespace extra {
         // Snapshot pre-preset settings ONLY on Off -> Preset transition.
         if (!st.snapshotActive)
         {
-            memcpy(&st.snapshotCpu, &cpuOpts, sizeof(cpuOpts));
-            memcpy(&st.snapshotCombo, &comboCfg, sizeof(comboCfg));
-            st.snapshotPlayerValid = generalCfg != NULL;
-            if (generalCfg != NULL)
-            {
-                st.snapshotPlayerPercent = generalCfg->playerPercent;
-                st.snapshotLockPlayerPercent = generalCfg->lockPlayerPercent;
-                st.snapshotPlayerInfShields = generalCfg->playerInfiniteShields;
-            }
-            st.snapshotCpuValid = cpuSettings != NULL;
-            if (cpuSettings != NULL)
-            {
-                st.snapshotCpuPercent = cpuSettings->percent;
-                st.snapshotLockCpuPercent = cpuSettings->lockPercent;
-            }
-            st.snapshotOsdValid = osdCfg != NULL;
-            if (osdCfg != NULL)
-            {
-                st.snapshotGrabBreakoutOsd = osdCfg->grabBreakout;
-            }
-            st.snapshotTechInvisValid = techInvisCfg != NULL;
-            if (techInvisCfg != NULL)
-            {
-                memcpy(&st.snapshotTechInvis, techInvisCfg, sizeof(*techInvisCfg));
-            }
+            transferSnapshot(st, s, false);
             st.snapshotActive = true;
         }
         else
         {
-            copySnapshotTo(st, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg, techInvisCfg);
+            copySnapshotTo(st, s);
         }
 
-        applyPresetOverrides(cfg, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg, techInvisCfg);
+        applyPresetOverrides(cfg, s);
         st.activePreset = cfg.preset;
         st.pendingReset = true;
         clearEventTelemetry(st);
@@ -774,17 +688,11 @@ namespace extra {
         return true;
     }
 
-    void restoreScenarioSnapshot(ScenarioState& st, cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg,
-                                 main::GeneralSettings* generalCfg, main::CpuSettings* cpuSettings,
-                                 main::OsdSettings* osdCfg, main::TechInvisSettings* techInvisCfg)
+    void restoreScenarioSnapshot(ScenarioState& st, main::Settings& s)
     {
         if (st.snapshotActive)
         {
-            copySnapshotTo(st, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg, techInvisCfg);
-            st.snapshotPlayerValid = false;
-            st.snapshotCpuValid = false;
-            st.snapshotOsdValid = false;
-            st.snapshotTechInvisValid = false;
+            copySnapshotTo(st, s);
             st.snapshotActive = false;
         }
     }
@@ -792,24 +700,17 @@ namespace extra {
     void discardScenarioSnapshot(ScenarioState& st)
     {
         st.snapshotActive = false;
-        st.snapshotPlayerValid = false;
-        st.snapshotCpuValid = false;
-        st.snapshotOsdValid = false;
-        st.snapshotTechInvisValid = false;
         st.activePreset = kScenarioOff;
         st.pendingReset = false;
         st.hasPlatform = false;
         clearCycleTrackers(st);
     }
 
-    void projectScenarioSavedView(const ScenarioState& st, cpu::CpuOptions& cpuOpts,
-                                  main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg,
-                                  main::CpuSettings* cpuSettings, main::OsdSettings* osdCfg,
-                                  main::TechInvisSettings* techInvisCfg)
+    void projectScenarioSavedView(const ScenarioState& st, main::Settings& s)
     {
         if (st.snapshotActive)
         {
-            copySnapshotTo(st, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg, techInvisCfg);
+            copySnapshotTo(st, s);
         }
     }
 
@@ -838,14 +739,24 @@ namespace extra {
     {
         setSpawnPair(out, centerX - dir * span, floorY, dir, centerX + dir * span, floorY, -dir);
     }
-#pragma dont_inline reset
 
-    static inline float clampBlastY(const StageGeometry& geom, float targetY, float botPad, float fbBot)
+    static float clampFloorX(const StageGeometry& geom, float x, float pad)
+    {
+        return clampf(x, geom.floor.leftX + pad, geom.floor.rightX - pad);
+    }
+
+    static float ledgeMaxOut(const StageGeometry& geom, bool leftSide, float pad)
+    {
+        return leftSide ? (geom.leftLedge.x - geom.blast.left - pad) : (geom.blast.right - geom.rightLedge.x - pad);
+    }
+
+    static float clampBlastY(const StageGeometry& geom, float targetY, float botPad, float fbBot)
     {
         float loY = geom.blast.valid ? (geom.blast.bottom + botPad) : fbBot;
         float hiY = geom.blast.valid ? (geom.blast.top - 30.0f) : (fbBot + 74.0f);
         return clampf(targetY, loY, maxf(loY, hiY));
     }
+#pragma dont_inline reset
 
     void computeScenarioSpawnsEx(const ScenarioConfig& rawCfg, int cpuFtKind, u32& rng, const StageGeometry& geom,
                                  ScenarioSpawns& out)
@@ -860,10 +771,8 @@ namespace extra {
         u8 effSide = cfg.side == kScenarioSideRandom ? static_cast<u8>(geomNextRng(rng) & 1u) : cfg.side;
         bool leftSide = effSide == kScenarioSideLeft;
         float dir = leftSide ? -1.0f : 1.0f;
-        float floorLeft = geom.floor.leftX;
-        float floorRight = geom.floor.rightX;
-        float centerX = 0.5f * (floorLeft + floorRight);
-        float halfW = 0.5f * (floorRight - floorLeft);
+        float centerX = 0.5f * (geom.floor.leftX + geom.floor.rightX);
+        float halfW = 0.5f * (geom.floor.rightX - geom.floor.leftX);
         float floorY = geom.floor.centerY;
 
         out.valid = true;
@@ -883,21 +792,16 @@ namespace extra {
             if (cfg.techPosition >= 1 && nPlats > 0)
             {
                 int idx = static_cast<int>(cfg.techPosition) - 1;
-                if (idx >= nPlats)
-                {
-                    idx = nPlats - 1;
-                }
+                if (idx >= nPlats) idx = nPlats - 1;
                 const StagePlatform& plat = sortedPlats[idx];
                 float platMid = 0.5f * (plat.leftX + plat.rightX);
                 out.hasPlatform = true;
                 out.resolvedTechPos = static_cast<u8>(idx + 1);
                 if (tumbleDrop)
                 {
-                    float hx = clampf(platMid - dir * 6.0f, floorLeft + 8.0f, floorRight - 8.0f);
+                    float hx = clampFloorX(geom, platMid - dir * 6.0f, 8.0f);
                     float hlr = platMid >= hx ? 1.0f : -1.0f;
                     setSpawnPair(out, hx, floorY, hlr, platMid, plat.y + 18.0f, -hlr);
-                    out.cpuFalling = true;
-                    out.cpuTumbleDrop = true;
                 }
                 else
                 {
@@ -909,14 +813,14 @@ namespace extra {
             else
             {
                 out.resolvedTechPos = 0;
-                float span = tumbleDrop ? minf(10.0f, halfW * 0.26f) : minf(14.0f, halfW * 0.35f);
-                setSymmetricFloor(out, centerX, floorY, dir, span);
-                if (tumbleDrop)
-                {
-                    out.cpuY = floorY + 18.0f;
-                    out.cpuFalling = true;
-                    out.cpuTumbleDrop = true;
-                }
+                setSymmetricFloor(out, centerX, floorY, dir,
+                                  tumbleDrop ? minf(10.0f, halfW * 0.26f) : minf(14.0f, halfW * 0.35f));
+                if (tumbleDrop) out.cpuY = floorY + 18.0f;
+            }
+            if (tumbleDrop)
+            {
+                out.cpuFalling = true;
+                out.cpuTumbleDrop = true;
             }
             break;
         }
@@ -925,7 +829,6 @@ namespace extra {
         {
             const LedgeInfo& ledge = leftSide ? geom.leftLedge : geom.rightLedge;
             float outward = leftSide ? -1.0f : 1.0f;
-            float inward = -outward;
             float sx = ledge.x + outward * 38.0f;
             float sy = ledge.y - 10.0f;
             if (cfg.edgeguardSetup == kEgSetupSpawn)
@@ -934,11 +837,10 @@ namespace extra {
             }
             else
             {
-                float maxOut = leftSide ? (ledge.x - geom.blast.left - 28.0f) : (geom.blast.right - ledge.x - 28.0f);
-                sx = ledge.x + outward * clampf(38.0f, 18.0f, maxf(18.0f, maxOut));
+                sx = ledge.x + outward * clampf(38.0f, 18.0f, maxf(18.0f, ledgeMaxOut(geom, leftSide, 28.0f)));
                 sy = clampBlastY(geom, ledge.y - 10.0f, 40.0f, ledge.y - 40.0f);
             }
-            setSpawnPair(out, ledge.x + inward * minf(14.0f, halfW * 0.40f), ledge.y, outward, sx, sy, inward);
+            setSpawnPair(out, ledge.x - outward * minf(14.0f, halfW * 0.40f), ledge.y, outward, sx, sy, -outward);
             out.cpuFalling = true;
             break;
         }
@@ -948,16 +850,12 @@ namespace extra {
             float baseDist = 12.0f;
             if (cfg.shieldRole == kShieldRoleDefense)
             {
-                if (cfg.shieldDefAttack == kShieldDefGetup)
-                {
-                    baseDist = 9.0f;
-                    out.cpuDownWait = true;
-                }
-                else
-                {
-                    baseDist = cfg.shieldDefAttack == kShieldDefDash ? 22.0f : 14.0f;
-                }
-                baseDist = clampf(baseDist + static_cast<float>(cfg.spacingOffset), 7.0f, 34.0f);
+                if (cfg.shieldDefAttack == kShieldDefGetup) out.cpuDownWait = true;
+                baseDist = clampf((cfg.shieldDefAttack == kShieldDefGetup
+                                       ? 9.0f
+                                       : (cfg.shieldDefAttack == kShieldDefDash ? 22.0f : 14.0f))
+                                      + i2f(cfg.spacingOffset),
+                                  7.0f, 34.0f);
             }
             setSymmetricFloor(out, centerX, floorY, dir, minf(baseDist * 0.5f, halfW * 0.42f));
             break;
@@ -973,22 +871,16 @@ namespace extra {
                 out.resolvedPlatformSlot = actualSlot;
                 float platMid = 0.5f * (plat.leftX + plat.rightX);
                 float inward = platMid >= centerX ? -1.0f : 1.0f;
-                out.hmnX = platMid;
-                out.hmnY = plat.y;
-                out.hmnLr = inward;
-
                 u8 spaceMode = cfg.shieldDropSpacing == kSdSpaceRandom
                                    ? static_cast<u8>(1u + (geomNextRng(rng) % 3u))
                                    : cfg.shieldDropSpacing;
-                static const float kSdOff[4] = {0.0f, 6.0f, 0.0f, 14.0f};
-                float offset = inward * ((spaceMode < 4 ? kSdOff[spaceMode] : 0.0f) + static_cast<float>(cfg.spacingOffset));
-                out.cpuX = clampf(platMid + offset, floorLeft + 10.0f, floorRight - 10.0f);
-                out.cpuY = floorY;
-
-                float towardP1 = absf(platMid - out.cpuX) > 0.5f ? (platMid >= out.cpuX ? 1.0f : -1.0f) : -inward;
+                static const u8 kSdOff[4] = {0, 6, 0, 14};
+                float cx = clampFloorX(
+                    geom, platMid + inward * i2f((spaceMode < 4 ? kSdOff[spaceMode] : 0) + cfg.spacingOffset), 10.0f);
+                float towardP1 = absf(platMid - cx) > 0.5f ? (platMid >= cx ? 1.0f : -1.0f) : -inward;
                 u8 faceMode = cfg.shieldDropFacing == kSdFaceRandom ? static_cast<u8>(geomNextRng(rng) & 1u)
                                                                     : cfg.shieldDropFacing;
-                out.cpuLr = faceMode == kSdFaceAway ? -towardP1 : towardP1;
+                setSpawnPair(out, platMid, plat.y, inward, cx, floorY, faceMode == kSdFaceAway ? -towardP1 : towardP1);
             }
             else
             {
@@ -999,23 +891,16 @@ namespace extra {
 
         case kScenarioLedgetech:
         {
-            static const float kLtPos[4][2] = {
-                {8.0f, -20.0f},  // CloseLow
-                {12.0f, -36.0f}, // DeepLow
-                {26.0f, -12.0f}, // FarOut
-                {18.0f, 10.0f}   // High
-            };
+            static const s8 kLtPos[4][2] = {{8, -20}, {12, -36}, {26, -12}, {18, 10}};
             const LedgeInfo& ledge = leftSide ? geom.leftLedge : geom.rightLedge;
             float outward = leftSide ? -1.0f : 1.0f;
-            float inward = -outward;
             u8 spawnMode = cfg.ledgetechSpawn == kLtSpawnRandom ? static_cast<u8>(geomNextRng(rng) % 4u)
                                                                 : cfg.ledgetechSpawn;
-            float maxOut = leftSide ? (ledge.x - geom.blast.left - 24.0f) : (geom.blast.right - ledge.x - 24.0f);
-            float outDist = clampf(kLtPos[spawnMode][0], 6.0f, maxf(8.0f, maxOut));
+            float outDist = clampf(i2f(kLtPos[spawnMode][0]), 6.0f, maxf(8.0f, ledgeMaxOut(geom, leftSide, 24.0f)));
             u8 atk = cfg.ledgetechAttack < 7 ? cfg.ledgetechAttack : static_cast<u8>(kLtAtkDsmash);
             setSpawnPair(out, ledge.x + outward * outDist,
-                         clampBlastY(geom, ledge.y + kLtPos[spawnMode][1], 36.0f, ledge.y - 44.0f), inward,
-                         ledge.x + inward * minf(ledgetechCpuInwardOffset(atk), halfW * 0.25f), ledge.y, outward);
+                         clampBlastY(geom, ledge.y + i2f(kLtPos[spawnMode][1]), 36.0f, ledge.y - 44.0f), -outward,
+                         ledge.x - outward * minf(ledgetechCpuInwardOffset(atk), halfW * 0.25f), ledge.y, outward);
             out.hmnFalling = true;
             out.hmnRevivalPlat = cfg.ledgetechStart == kLtStartRevival;
             break;
@@ -1027,40 +912,23 @@ namespace extra {
             if (selectPlatform(geom, leftSide, plat))
             {
                 out.hasPlatform = true;
-                float platMid = 0.5f * (plat.leftX + plat.rightX);
-                bool rightPlat = platMid >= centerX;
+                bool rightPlat = 0.5f * (plat.leftX + plat.rightX) >= centerX;
                 float edgeX = rightPlat ? plat.leftX : plat.rightX;
                 float intoPlat = rightPlat ? 1.0f : -1.0f;
                 float platW = plat.rightX - plat.leftX;
-                if (cfg.slideOffAttack == kSlideAtkOnPlatFtilt)
-                {
-                    out.hmnX = edgeX + intoPlat * minf(3.5f, platW * 0.20f);
-                    out.hmnY = plat.y;
-                    out.hmnLr = intoPlat;
-                    out.cpuX = out.hmnX + intoPlat * minf(9.0f, maxf(5.5f, platW - 6.0f));
-                    out.cpuY = plat.y;
-                }
-                else
-                {
-                    out.hmnX = edgeX + intoPlat * minf(4.0f, platW * 0.22f);
-                    out.hmnY = plat.y;
-                    out.hmnLr = intoPlat;
-                    float underOffset = cfg.slideOffAttack == kSlideAtkUnderFair ? 5.0f : 2.5f;
-                    out.cpuX = clampf(out.hmnX + intoPlat * underOffset, floorLeft + 8.0f, floorRight - 8.0f);
-                    out.cpuY = floorY;
-                }
-                out.cpuLr = -intoPlat;
+                bool onPlat = cfg.slideOffAttack == kSlideAtkOnPlatFtilt;
+                float hx = edgeX + intoPlat * (onPlat ? minf(3.5f, platW * 0.20f) : minf(4.0f, platW * 0.22f));
+                float cx = onPlat ? (hx + intoPlat * minf(9.0f, maxf(5.5f, platW - 6.0f)))
+                                  : clampFloorX(geom, hx + intoPlat * (cfg.slideOffAttack == kSlideAtkUnderFair ? 5.0f : 2.5f),
+                                                8.0f);
+                setSpawnPair(out, hx, plat.y, intoPlat, cx, onPlat ? plat.y : floorY, -intoPlat);
             }
             else
             {
                 const LedgeInfo& ledge = leftSide ? geom.leftLedge : geom.rightLedge;
                 float inward = ledge.dir;
-                out.hmnX = ledge.x + inward * 4.5f;
-                out.hmnY = ledge.y;
-                out.hmnLr = inward;
-                out.cpuX = ledge.x + inward * minf(13.5f, halfW * 0.45f);
-                out.cpuY = ledge.y;
-                out.cpuLr = -inward;
+                setSpawnPair(out, ledge.x + inward * 4.5f, ledge.y, inward,
+                             ledge.x + inward * minf(13.5f, halfW * 0.45f), ledge.y, -inward);
             }
             break;
         }
@@ -1071,12 +939,10 @@ namespace extra {
 
         case kScenarioMultiHitSdi:
         {
-            static const float kSdiSp[kMultiHitMoveCount] = {
-                5.5f, 6.0f, 7.5f, 5.5f, 5.0f, 7.0f, 5.5f, 10.5f, 5.5f
-            };
+            static const u8 kSdiSp2[kMultiHitMoveCount] = {11, 12, 15, 11, 10, 14, 11, 21, 11};
             u8 move = resolveMultiHitMove(cfg.multiHitMove, cpuFtKind);
-            float spacing = move < kMultiHitMoveCount ? kSdiSp[move] : 5.5f;
-            setSymmetricFloor(out, centerX, floorY, -dir, minf(spacing * 0.5f, halfW * 0.30f));
+            setSymmetricFloor(out, centerX, floorY, -dir,
+                              minf(i2fScale(move < kMultiHitMoveCount ? kSdiSp2[move] : 11, 0.25f), halfW * 0.30f));
             break;
         }
 
@@ -1084,21 +950,6 @@ namespace extra {
             out.valid = false;
             break;
         }
-    }
-
-    void computeScenarioSpawns(u8 preset, u8 side, u8 multiHitMove, const StageGeometry& geom, ScenarioSpawns& out)
-    {
-        ScenarioConfig cfg;
-        memset(&cfg, 0, sizeof(cfg));
-        cfg.preset = preset;
-        cfg.autoReset = 1;
-        cfg.side = side;
-        cfg.multiHitMove = multiHitMove;
-        cfg.shieldDropPlat = side == kScenarioSideLeft ? kSdPlatLeft : kSdPlatRight;
-        cfg.shieldDropSpacing = kSdSpaceClose;
-        cfg.shieldDropFacing = kSdFaceToward;
-        u32 rng = 0x51A7C0DEu;
-        computeScenarioSpawnsEx(cfg, -1, rng, geom, out);
     }
 
 #pragma dont_inline on
@@ -1174,38 +1025,50 @@ namespace extra {
         st.graceFrames++;
         return autoReset && st.graceFrames >= limit;
     }
+
+    static void resetTechCounters(ScenarioState& st, bool clearFlags)
+    {
+        st.techFrames = 0;
+        st.techWasPassive = false;
+        st.techActFrames = 0;
+        st.techEarlyFrames = 0;
+        st.graceFrames = 0;
+        if (clearFlags)
+        {
+            st.techCoveredThisRep = false;
+            st.techLateRecorded = false;
+        }
+    }
 #pragma dont_inline reset
 
-    void stepScenario(ScenarioState& st, const ScenarioConfig& rawCfg, const ScenarioStepInput& in,
-                      cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg, ScenarioStepAction& act,
-                      main::GeneralSettings* generalCfg, main::CpuSettings* cpuSettings, main::OsdSettings* osdCfg,
-                      main::TechInvisSettings* techInvisCfg)
+    void stepScenario(ScenarioState& st, const ScenarioConfig& rawCfg, const ScenarioStepInput& in, main::Settings& s,
+                      ScenarioStepAction& act)
     {
         memset(&act, 0, sizeof(act));
         act.restoreCorrectKind[0] = kCorrectGroundCliffStop;
         act.restoreCorrectKind[1] = kCorrectGroundCliffStop;
 
-        for (int s = 0; s < 2; s++)
+        for (int slot = 0; slot < 2; slot++)
         {
-            if (st.restoreCorrect[s])
+            if (st.restoreCorrect[slot])
             {
-                act.restoreCorrect[s] = true;
-                act.restoreCorrectKind[s] = st.restoreCorrectKind[s];
-                st.restoreCorrect[s] = false;
-                st.lastCorrectWritten[s] = st.restoreCorrectKind[s];
+                act.restoreCorrect[slot] = true;
+                act.restoreCorrectKind[slot] = st.restoreCorrectKind[slot];
+                st.restoreCorrect[slot] = false;
+                st.lastCorrectWritten[slot] = st.restoreCorrectKind[slot];
             }
         }
 
-        u16 prevPct = generalCfg != NULL ? generalCfg->playerPercent : 0;
-        u16 prevCpuPct = cpuSettings != NULL ? cpuSettings->percent : 0;
+        u16 prevPct = s.general.playerPercent;
+        u16 prevCpuPct = s.cpu.percent;
         ScenarioConfig cfg;
         sanitizeScenarioConfigInto(rawCfg, cfg);
-        applyScenarioConfig(st, cfg, cpuOpts, comboCfg, generalCfg, cpuSettings, osdCfg, techInvisCfg);
-        if (generalCfg != NULL && generalCfg->playerPercent != prevPct)
+        applyScenarioConfig(st, cfg, s);
+        if (s.general.playerPercent != prevPct)
         {
             act.applyHmnPercent = true;
         }
-        if (cpuSettings != NULL && cpuSettings->percent != prevCpuPct)
+        if (s.cpu.percent != prevCpuPct)
         {
             act.applyCpuPercent = true;
         }
@@ -1229,6 +1092,9 @@ namespace extra {
         bool resetHmn = true;
         bool resetCpu = true;
         bool autoReset = cfg.autoReset != 0;
+        bool hmnFree = in.hmnHitstun == 0 && in.hmnHitlag == 0;
+        bool cpuFree = in.cpuHitstun == 0 && in.cpuHitlag == 0;
+        u16 graceLim = 0;
         bool hmnDanger = in.hmnOutOfPlay || nearBlastZone(in.geom, in.hmnX, in.hmnY, isTumbleStatus(in.hmnStatus));
         bool cpuDanger = in.cpuOutOfPlay || nearBlastZone(in.geom, in.cpuX, in.cpuY, isTumbleStatus(in.cpuStatus));
 
@@ -1240,30 +1106,48 @@ namespace extra {
         else switch (st.activePreset)
         {
         case kScenarioComboLab:
-            if (autoReset && hmnDanger)
-            {
-                wantReset = true;
-            }
+            if (autoReset && hmnDanger) wantReset = true;
             break;
 
         case kScenarioTechchase:
         {
+            bool inPassiveTech = in.cpuStatus == kStPassive || in.cpuStatus == kStPassiveFb;
             bool inTechOrDown = isDownOrTechStatus(in.cpuStatus);
             bool inTumble = in.cpuAir && isTumbleStatus(in.cpuStatus);
-            bool cpuStruck = in.cpuHitstun > 0 || in.cpuHitlag > 0 || isCaptureHoldStatus(in.cpuStatus)
-                             || in.cpuStatus == kStCaptureThrown;
+            bool cpuStruck = !cpuFree || isCaptureHoldStatus(in.cpuStatus) || in.cpuStatus == kStCaptureThrown;
             bool hmnSwungNow = isAttackOrSpecial(in.hmnStatus) && !isAttackOrSpecial(st.prevHmnStatus);
 
-            if (inTechOrDown)
+            if (st.techEngaged && cpuStruck)
+            {
+                if (!st.techCoveredThisRep && st.techFrames > 0)
+                {
+                    st.techCoveredThisRep = true;
+                    st.techResult = kTechResCover;
+                    st.techDeltaFrames = 0;
+                    st.techReactionFrames =
+                        (st.techWasPassive && in.cpuTechDist > 0 && static_cast<int>(st.techFrames) >= in.cpuTechDist)
+                            ? static_cast<s16>(static_cast<int>(st.techFrames) - in.cpuTechDist)
+                            : static_cast<s16>(-1);
+                    st.techStreak++;
+                    if (st.techStreak > st.techBest) st.techBest = st.techStreak;
+                }
+                resetTechCounters(st, false);
+            }
+            else if (inTechOrDown)
             {
                 st.techEngaged = true;
                 st.graceFrames = 0;
                 st.techActFrames = 0;
                 st.techLateRecorded = false;
-                if (st.techFrames < 600)
+                if (inPassiveTech)
                 {
-                    st.techFrames++;
+                    if (!st.techWasPassive) { st.techFrames = 0; st.techWasPassive = true; }
                 }
+                else
+                {
+                    st.techWasPassive = false;
+                }
+                if (st.techFrames < 600) st.techFrames++;
                 if (in.cpuIntangible && hmnSwungNow && st.techEarlyFrames == 0)
                 {
                     int rem = 21 - static_cast<int>(st.techFrames);
@@ -1272,75 +1156,46 @@ namespace extra {
             }
             else if (inTumble)
             {
+                if (!st.techEngaged || !isTumbleStatus(st.prevCpuStatus)) resetTechCounters(st, true);
                 st.techEngaged = true;
                 st.graceFrames = 0;
                 st.techActFrames = 0;
             }
             else if (st.techEngaged)
             {
-                if (cpuStruck)
+                bool groundedSettled = isNeutralGrounded(in.cpuStatus, in.cpuAir, in.cpuHitstun, in.cpuHitlag)
+                                       || (!in.cpuAir && in.cpuActionable);
+                bool airEscaped = in.cpuAir && !isTumbleStatus(in.cpuStatus) && !isDownOrTechStatus(in.cpuStatus)
+                                  && (in.cpuActionable || isAirEscapeStatus(in.cpuStatus));
+                if (groundedSettled || airEscaped)
                 {
-                    if (!st.techCoveredThisRep && st.techFrames > 0)
+                    if (st.techActFrames < 600) st.techActFrames++;
+                    if (st.techActFrames == 1 && !st.techCoveredThisRep && cfg.techEscape == kTechEscIntangFlash)
                     {
-                        st.techCoveredThisRep = true;
-                        st.techResult = kTechResCover;
-                        st.techDeltaFrames = 0;
-                        st.techReactionFrames = (in.cpuTechDist > 0 && static_cast<int>(st.techFrames) >= in.cpuTechDist)
-                                                    ? static_cast<s16>(static_cast<int>(st.techFrames) - in.cpuTechDist)
-                                                    : static_cast<s16>(-1);
-                        st.techStreak++;
-                        if (st.techStreak > st.techBest)
-                        {
-                            st.techBest = st.techStreak;
-                        }
+                        act.techFlashCpu = true;
                     }
-                    st.techFrames = 0;
-                    st.techActFrames = 0;
-                    st.techEarlyFrames = 0;
-                    st.graceFrames = 0;
-                }
-                else
-                {
-                    bool groundedSettled = isNeutralGrounded(in.cpuStatus, in.cpuAir, in.cpuHitstun, in.cpuHitlag)
-                                           || (!in.cpuAir && in.cpuActionable);
-                    bool airEscaped = in.cpuAir && !isTumbleStatus(in.cpuStatus) && !isDownOrTechStatus(in.cpuStatus)
-                                      && (in.cpuActionable || isAirEscapeStatus(in.cpuStatus));
-                    if (groundedSettled || airEscaped)
+                    if (!st.techCoveredThisRep && !st.techLateRecorded && hmnSwungNow)
                     {
-                        if (st.techActFrames < 600)
+                        st.techLateRecorded = true;
+                        st.techResult = kTechResLate;
+                        st.techDeltaFrames = static_cast<u8>(st.techActFrames > 99 ? 99 : st.techActFrames);
+                        st.techReactionFrames = -1;
+                        st.techStreak = 0;
+                    }
+                    if (st.graceFrames == 0) st.completionCount++;
+                    if (tickGrace(st, autoReset, kTechGraceFrames))
+                    {
+                        if (!st.techCoveredThisRep && !st.techLateRecorded)
                         {
-                            st.techActFrames++;
-                        }
-                        if (st.techActFrames == 1 && !st.techCoveredThisRep && cfg.techEscape == kTechEscIntangFlash)
-                        {
-                            act.techFlashCpu = true;
-                        }
-                        if (!st.techCoveredThisRep && !st.techLateRecorded && hmnSwungNow)
-                        {
-                            st.techLateRecorded = true;
-                            st.techResult = kTechResLate;
-                            st.techDeltaFrames = static_cast<u8>(st.techActFrames > 99 ? 99 : st.techActFrames);
-                            st.techReactionFrames = -1;
+                            if (st.techEarlyFrames > 0)
+                            {
+                                st.techResult = kTechResEarly;
+                                st.techDeltaFrames = st.techEarlyFrames;
+                                st.techReactionFrames = -1;
+                            }
                             st.techStreak = 0;
                         }
-                        if (st.graceFrames == 0)
-                        {
-                            st.completionCount++;
-                        }
-                        if (tickGrace(st, autoReset, kTechGraceFrames))
-                        {
-                            if (!st.techCoveredThisRep && !st.techLateRecorded)
-                            {
-                                if (st.techEarlyFrames > 0)
-                                {
-                                    st.techResult = kTechResEarly;
-                                    st.techDeltaFrames = st.techEarlyFrames;
-                                    st.techReactionFrames = -1;
-                                }
-                                st.techStreak = 0;
-                            }
-                            wantReset = true;
-                        }
+                        wantReset = true;
                     }
                 }
             }
@@ -1348,71 +1203,40 @@ namespace extra {
         }
 
         case kScenarioEdgeguard:
-            if (autoReset && hmnDanger)
-            {
-                wantReset = true;
-                resetCpu = false;
-            }
+            if (autoReset && hmnDanger) { wantReset = true; resetCpu = false; }
             break;
 
         case kScenarioShieldPressure:
         {
-            bool activeExchange = in.hmnHitstun > 0 || in.hmnHitlag > 0 || in.cpuHitstun > 0 || in.cpuHitlag > 0
-                                  || isAttackOrSpecial(in.cpuStatus) || isAttackOrSpecial(in.hmnStatus);
-            if (cfg.shieldRole == kShieldRoleDefense)
-            {
-                bool hmnBlocked = in.hmnStatus == kStGuardDamage || in.hmnShieldStun > 0;
-                if (isAttackOrSpecial(in.cpuStatus))
-                {
-                    st.shieldDefSwung = true;
-                    st.shieldEngaged = true;
-                }
-                if (hmnBlocked || in.cpuHitstun > 0 || in.cpuHitlag > 0)
-                {
-                    if (hmnBlocked && !st.prevCpuGuardDamage)
-                    {
-                        st.shieldHitCount++;
-                        st.completionCount++;
-                    }
-                    st.shieldEngaged = true;
-                    st.graceFrames = 0;
-                }
-                st.prevCpuGuardDamage = hmnBlocked;
-                if (st.shieldEngaged && st.shieldDefSwung)
-                {
-                    if (activeExchange || hmnBlocked)
-                    {
-                        st.graceFrames = 0;
-                    }
-                    else if (tickGrace(st, autoReset, kShieldGraceFrames))
-                    {
-                        wantReset = true;
-                    }
-                }
-                break;
-            }
-            bool cpuGuardDmg = in.cpuStatus == kStGuardDamage || in.cpuShieldStun > 0;
-            if (cpuGuardDmg && !st.prevCpuGuardDamage)
+            bool activeExchange = !hmnFree || !cpuFree || isAttackOrSpecial(in.cpuStatus) || isAttackOrSpecial(in.hmnStatus);
+            bool isDef = cfg.shieldRole == kShieldRoleDefense;
+            bool blocked = isDef ? (in.hmnStatus == kStGuardDamage || in.hmnShieldStun > 0)
+                                 : (in.cpuStatus == kStGuardDamage || in.cpuShieldStun > 0);
+            if (blocked && !st.prevCpuGuardDamage)
             {
                 st.shieldHitCount++;
                 st.completionCount++;
                 st.shieldEngaged = true;
                 st.graceFrames = 0;
             }
-            else if (in.cpuHitstun > 0)
+            st.prevCpuGuardDamage = blocked;
+            if (isDef)
             {
-                st.shieldEngaged = true;
-                st.graceFrames = 0;
-            }
-            st.prevCpuGuardDamage = cpuGuardDmg;
-            if (isShieldBreakStatus(in.cpuStatus))
-            {
-                st.shieldEngaged = true;
-                if (tickGrace(st, autoReset, 12))
+                if (isAttackOrSpecial(in.cpuStatus)) { st.shieldDefSwung = true; st.shieldEngaged = true; }
+                if (blocked || !cpuFree) { st.shieldEngaged = true; st.graceFrames = 0; }
+                if (st.shieldEngaged && st.shieldDefSwung)
                 {
-                    wantReset = true;
+                    if (activeExchange || blocked) st.graceFrames = 0;
+                    else if (tickGrace(st, true, kShieldGraceFrames))
+                    {
+                        st.shieldDefSwung = false;
+                        if (autoReset) wantReset = true;
+                    }
                 }
+                break;
             }
+            if (in.cpuHitstun > 0) { st.shieldEngaged = true; st.graceFrames = 0; }
+            if (isShieldBreakStatus(in.cpuStatus)) { st.shieldEngaged = true; graceLim = 12; }
             else if (st.shieldEngaged)
             {
                 if (isAttackOrSpecial(in.cpuStatus) || in.cpuStatus == kStGuardOff
@@ -1421,35 +1245,20 @@ namespace extra {
                 {
                     st.oosCountered = true;
                 }
-                if (activeExchange || cpuGuardDmg)
-                {
-                    st.graceFrames = 0;
-                }
+                if (activeExchange || blocked) st.graceFrames = 0;
                 else if (st.oosCountered || !isGuardStatus(in.cpuStatus) || in.cpuStatus == kStGuardOff)
                 {
-                    if (tickGrace(st, autoReset, kShieldGraceFrames))
-                    {
-                        wantReset = true;
-                    }
+                    graceLim = kShieldGraceFrames;
                 }
-                else
-                {
-                    st.graceFrames = 0;
-                }
+                else st.graceFrames = 0;
             }
             break;
         }
 
         case kScenarioShieldDrop:
         {
-            if (isGuardStatus(in.hmnStatus))
-            {
-                st.hmnGuardWindow = 4;
-            }
-            else if (st.hmnGuardWindow > 0)
-            {
-                st.hmnGuardWindow--;
-            }
+            if (isGuardStatus(in.hmnStatus)) st.hmnGuardWindow = 4;
+            else if (st.hmnGuardWindow > 0) st.hmnGuardWindow--;
             bool passNow = in.hmnStatus == kStPass || in.hmnEnteredPass;
             if (!st.shieldDropDone && passNow && (st.hmnGuardWindow > 0 || isGuardStatus(st.prevHmnStatus)))
             {
@@ -1458,14 +1267,11 @@ namespace extra {
                 st.completionCount++;
                 st.graceFrames = 0;
             }
-            else if (st.shieldDropDone)
+            else if (st.shieldDropDone
+                     && ((!in.hmnAir && in.hmnY <= in.geom.floor.centerY + 4.0f && hmnFree && in.hmnActionable)
+                         || st.graceFrames > 0))
             {
-                bool settledOnFloor = !in.hmnAir && in.hmnY <= in.geom.floor.centerY + 4.0f
-                                      && in.hmnHitlag == 0 && in.hmnHitstun == 0 && in.hmnActionable;
-                if ((settledOnFloor || st.graceFrames > 0) && tickGrace(st, autoReset, kShieldDropGraceFrames))
-                {
-                    wantReset = true;
-                }
+                graceLim = kShieldDropGraceFrames;
             }
             break;
         }
@@ -1473,11 +1279,7 @@ namespace extra {
         case kScenarioLedgetech:
             if (isWallTechStatus(in.hmnStatus))
             {
-                if (!st.sawWallTech)
-                {
-                    st.sawWallTech = true;
-                    st.completionCount++;
-                }
+                if (!st.sawWallTech) { st.sawWallTech = true; st.completionCount++; }
                 st.ledgetechDone = true;
             }
             else if (isLedgeStatus(in.hmnStatus)
@@ -1486,17 +1288,11 @@ namespace extra {
             {
                 st.ledgetechDone = true;
             }
-            if (st.ledgetechDone && tickGrace(st, autoReset, kLedgetechGraceFrames))
-            {
-                wantReset = true;
-            }
+            if (st.ledgetechDone) graceLim = kLedgetechGraceFrames;
             break;
 
         case kScenarioSlideOff:
-            if (!in.hmnAir && st.sinceResetFrames >= 1)
-            {
-                st.slideOffArmed = true;
-            }
+            if (!in.hmnAir && st.sinceResetFrames >= 1) st.slideOffArmed = true;
             if (!st.slideOffDone && st.slideOffArmed && st.havePrev && !st.prevHmnAir && in.hmnAir
                 && (isTumbleStatus(in.hmnStatus) || in.hmnHitstun > 0))
             {
@@ -1505,15 +1301,11 @@ namespace extra {
                 st.completionCount++;
                 st.graceFrames = 0;
             }
-            else if (st.slideOffDone)
+            else if (st.slideOffDone
+                     && ((!in.hmnAir && hmnFree && (in.hmnActionable || isDownOrTechStatus(in.hmnStatus)))
+                         || st.graceFrames > 0))
             {
-                bool settled = (!in.hmnAir && in.hmnHitstun == 0 && in.hmnHitlag == 0
-                                && (in.hmnActionable || isDownOrTechStatus(in.hmnStatus)))
-                               || st.graceFrames > 0;
-                if (settled && tickGrace(st, autoReset, kSlideOffGraceFrames))
-                {
-                    wantReset = true;
-                }
+                graceLim = kSlideOffGraceFrames;
             }
             break;
 
@@ -1524,11 +1316,7 @@ namespace extra {
             bool anyThrown = in.hmnStatus == kStCaptureThrown || in.cpuStatus == kStCaptureThrown;
             if (anyHeld)
             {
-                if (!st.grabActive)
-                {
-                    st.grabActive = true;
-                    st.activeGrabFrames = 0;
-                }
+                if (!st.grabActive) { st.grabActive = true; st.activeGrabFrames = 0; }
                 st.grabEscapeFrames = ++st.activeGrabFrames;
                 st.graceFrames = 0;
             }
@@ -1544,20 +1332,10 @@ namespace extra {
                 }
                 st.grabActive = false;
             }
-            else if (anyThrown)
+            else if (anyThrown) { st.grabActive = false; st.grabDone = true; st.graceFrames = 0; }
+            else if (st.grabDone && ((hmnFree && cpuFree && !in.hmnAir && !in.cpuAir) || st.graceFrames > 0))
             {
-                st.grabActive = false;
-                st.grabDone = true;
-                st.graceFrames = 0;
-            }
-            else if (st.grabDone)
-            {
-                bool settled = in.hmnHitstun == 0 && in.cpuHitstun == 0 && in.hmnHitlag == 0 && in.cpuHitlag == 0
-                               && !in.hmnAir && !in.cpuAir;
-                if ((settled || st.graceFrames > 0) && tickGrace(st, autoReset, kGrabGraceFrames))
-                {
-                    wantReset = true;
-                }
+                graceLim = kGrabGraceFrames;
             }
             break;
         }
@@ -1567,11 +1345,7 @@ namespace extra {
             bool hmnInDamageLag = in.hmnHitlag > 0 && in.hmnDamageHitlag;
             if (hmnInDamageLag && (!st.havePrev || in.hmnHitlag > st.prevHmnHitlag || st.prevHmnHitlag == 0))
             {
-                if (st.sdiLatchedReset)
-                {
-                    clearEventTelemetry(st);
-                    st.sdiLatchedReset = false;
-                }
+                if (st.sdiLatchedReset) { clearEventTelemetry(st); st.sdiLatchedReset = false; }
                 st.sdiSequenceActive = true;
                 st.sdiHitCount++;
                 st.graceFrames = 0;
@@ -1583,29 +1357,21 @@ namespace extra {
                 {
                     float dx = in.hmnX - st.prevHmnX;
                     float dy = in.hmnY - st.prevHmnY;
-                    if (absf(dx) < 15.0f && absf(dy) < 15.0f)
-                    {
-                        st.sdiDispX += dx;
-                        st.sdiDispY += dy;
-                    }
+                    if (absf(dx) < 15.0f && absf(dy) < 15.0f) { st.sdiDispX += dx; st.sdiDispY += dy; }
                 }
             }
             if (st.sdiSequenceActive && !hmnInDamageLag)
             {
                 float totalSdi = absf(st.sdiDispX) + absf(st.sdiDispY);
-                bool escapedNow = (in.hmnHitstun == 0 && in.hmnActionable)
-                                  || (totalSdi >= 0.5f && (absf(in.hmnX - in.cpuX) > 16.0f || in.hmnY - in.cpuY > 14.0f));
-                if (escapedNow)
+                if ((in.hmnHitstun == 0 && in.hmnActionable)
+                    || (totalSdi >= 0.5f && (absf(in.hmnX - in.cpuX) > 16.0f || in.hmnY - in.cpuY > 14.0f)))
                 {
                     if (!st.sdiEscaped && (totalSdi >= 0.5f || st.sdiHitCount >= 1))
                     {
                         st.sdiEscaped = true;
                         st.completionCount++;
                     }
-                    if (tickGrace(st, autoReset, kSdiEscapeGraceFrames))
-                    {
-                        wantReset = true;
-                    }
+                    graceLim = kSdiEscapeGraceFrames;
                 }
             }
             break;
@@ -1613,6 +1379,10 @@ namespace extra {
 
         default:
             break;
+        }
+        if (graceLim != 0 && tickGrace(st, autoReset, graceLim))
+        {
+            wantReset = true;
         }
 
         st.havePrev = true;
@@ -1664,6 +1434,50 @@ namespace extra {
     }
 
 #pragma dont_inline on
+    static bool tickCooldown(ScenarioCpuState& st)
+    {
+        if (st.cooldown > 0)
+        {
+            st.cooldown--;
+            return true;
+        }
+        return false;
+    }
+
+    static void emitAtkReset(ScenarioCpuState& st, ScenarioCpuOutput& out)
+    {
+        out.buttons = cpu::button::kAttack;
+        cpuResetPhase(st, 40, true);
+    }
+
+    enum { kBtnAtk = 0, kBtnSpec = 1, kBtnCStk = 2 };
+
+    static u32 decodeBtn(u8 k)
+    {
+        static const u32 kBtns[3] = {
+            cpu::button::kAttack, cpu::button::kSpecial,
+            cpu::button::kAttack | cpu::button::kSmash | cpu::button::kCStick
+        };
+        return kBtns[k < 3 ? k : 0];
+    }
+
+    static void emitScaled(ScenarioCpuOutput& out, u8 btnKind, float toward, s8 sx20, s8 sy20)
+    {
+        cpuEmit(out, decodeBtn(btnKind), toward * i2fScale(sx20, 0.05f), i2fScale(sy20, 0.05f));
+    }
+
+    // 0 = Nair, 1 = Fair, 2 = Uair, 3 = Dair
+    static void emitAirAtk(ScenarioCpuOutput& out, u8 dir, float lr)
+    {
+        if (dir == 0) out.buttons = cpu::button::kAttack;
+        else cpuCStick(out, dir == 1 ? lr : 0.0f, dir == 2 ? 1.0f : (dir == 3 ? -1.0f : 0.0f));
+    }
+
+    static float stickDivClamp(float num, float div, float lim)
+    {
+        return clampf(num / div, -lim, lim);
+    }
+
     static bool cpuApproachOrFace(const ScenarioCpuInput& in, float absDx, float toward, float maxDist, float walkSpd,
                                   bool needFace, ScenarioCpuOutput& out)
     {
@@ -1722,25 +1536,45 @@ namespace extra {
                 {
                     return;
                 }
-                cpuEmit(out, cpu::button::kJump, isFair ? (toward * 0.80f) : clampf(dx / 12.0f, -0.5f, 0.5f), 0.0f);
+                cpuEmit(out, cpu::button::kJump, isFair ? (toward * 0.80f) : stickDivClamp(dx, 12.0f, 0.5f), 0.0f);
                 cpuSetPhase(st, 2);
             }
         }
         else if (st.phase == 2)
         {
             st.timer++;
-            if (isFair) out.stickX = clampf(dx / 8.0f, -1.0f, 1.0f);
+            if (isFair) out.stickX = stickDivClamp(dx, 8.0f, 1.0f);
             if (in.cpuAir && (!isFair || in.cpuVy <= 0.1f || st.timer >= 8))
             {
-                cpuCStick(out, isFair ? in.cpuLr : 0.0f, isFair ? 0.0f : 1.0f);
+                emitAirAtk(out, isFair ? 1 : 2, in.cpuLr);
                 cpuSetPhase(st, 3);
             }
             else if (!in.cpuAir && st.timer >= 12) cpuSetPhase(st, 1);
         }
         else if (!cpuAirWaitEnd(st, in.cpuAir, 28, isFair ? 36 : 28, true))
         {
-            if (isFair) out.stickX = clampf(dx / 10.0f, -0.7f, 0.7f);
+            if (isFair) out.stickX = stickDivClamp(dx, 10.0f, 0.7f);
             if (isFair ? (in.cpuVy < 0.0f) : (in.cpuVy <= 0.0f)) out.stickY = -1.0f;
+        }
+    }
+
+    static void runGroundPoke(const ScenarioCpuInput& in, ScenarioCpuState& st, ScenarioCpuOutput& out, int idx,
+                              float absDx, float toward)
+    {
+        struct PokeSpec { u8 dist2, walk20, btn, face, cd; s8 sx20, sy20; };
+        static const PokeSpec kPoke[4] = {
+            {26, 13, kBtnCStk, 1, 38, 20, 0},   // Fsmash
+            {23, 13, kBtnAtk, 1, 38, 11, 0},    // Ftilt
+            {20, 12, kBtnCStk, 0, 34, 0, -20},  // Dsmash
+            {20, 12, kBtnAtk, 0, 34, 0, 11}     // Utilt
+        };
+        const PokeSpec& pk = kPoke[idx];
+        if (!in.cpuAir && in.cpuCanAct
+            && !cpuApproachOrFace(in, absDx, toward, i2fScale(pk.dist2, 0.5f), i2fScale(pk.walk20, 0.05f),
+                                  pk.face != 0, out))
+        {
+            emitScaled(out, pk.btn, toward, pk.sx20, pk.sy20);
+            cpuResetPhase(st, pk.cd, true);
         }
     }
 #pragma dont_inline reset
@@ -1756,27 +1590,30 @@ namespace extra {
         float dx = in.hmnX - in.cpuX;
         float toward = dx >= 0.0f ? 1.0f : -1.0f;
         float absDx = absf(dx);
+        const bool cpuGndAct = !in.cpuAir && in.cpuCanAct;
 
-        if (in.preset == kScenarioMultiHitSdi)
+        switch (in.preset)
+        {
+        case kScenarioMultiHitSdi:
         {
             u8 move = resolveMultiHitMove(in.multiHitMove, in.cpuFtKind);
             if (st.lastMove != move) { scenarioCpuStateReset(st); st.lastMove = move; }
             out.active = true;
-            if (st.cooldown > 0) { st.cooldown--; return; }
+            if (tickCooldown(st)) return;
 
             if (move >= kMultiHitNair && move <= kMultiHitDownAir)
             {
                 float takeoffDiv = move == kMultiHitUpAir ? 14.0f : (move == kMultiHitFair ? 11.0f : 9.0f);
                 float approachDist = move == kMultiHitFair ? 10.5f : 8.5f;
-                float takeoffSteerX = clampf(dx / takeoffDiv, -1.0f, 1.0f);
-                float airSteerX = clampf((dx - in.cpuVx * 8.0f) / 3.0f, -1.0f, 1.0f);
+                float takeoffSteerX = stickDivClamp(dx, takeoffDiv, 1.0f);
+                float airSteerX = stickDivClamp(dx - in.cpuVx * 8.0f, 3.0f, 1.0f);
                 if (st.phase == 0)
                 {
-                    if (!in.cpuAir && in.cpuCanAct)
+                    if (cpuGndAct)
                     {
                         if (absDx > approachDist || (in.hmnAir && in.hmnY > in.cpuY + 18.0f))
                         {
-                            out.stickX = clampf(dx / 5.0f, -0.55f, 0.55f);
+                            out.stickX = stickDivClamp(dx, 5.0f, 0.55f);
                             return;
                         }
                         if (move == kMultiHitFair && in.cpuLr * toward < 0.0f) { out.stickX = toward * 0.45f; return; }
@@ -1789,10 +1626,12 @@ namespace extra {
                     st.timer++;
                     if (in.cpuAir)
                     {
-                        if (move == kMultiHitDownAir) { cpuCStick(out, 0.0f, -1.0f); cpuSetPhase(st, 3); }
-                        else if (move == kMultiHitNair) { out.buttons = cpu::button::kAttack; cpuSetPhase(st, 3); }
-                        else if (move == kMultiHitFair) { cpuCStick(out, in.cpuLr, 0.0f); cpuSetPhase(st, 3); }
-                        else { out.stickX = airSteerX; cpuSetPhase(st, 2, 1); }
+                        if (move == kMultiHitUpAir) { out.stickX = airSteerX; cpuSetPhase(st, 2, 1); }
+                        else
+                        {
+                            emitAirAtk(out, move == kMultiHitDownAir ? 3 : (move == kMultiHitFair ? 1 : 0), in.cpuLr);
+                            cpuSetPhase(st, 3);
+                        }
                     }
                     else if (st.timer >= 12) cpuResetPhase(st, 0, false);
                     else out.stickX = takeoffSteerX;
@@ -1805,7 +1644,7 @@ namespace extra {
                         in.hmnAir ? (st.timer >= kUpAirAirborneDelay)
                                   : ((st.timer >= kUpAirMinFrames && in.cpuVy <= 0.25f && in.cpuY <= in.hmnY + 12.0f)
                                      || st.timer >= kUpAirMaxFrames);
-                    if (readyForUpAir) { cpuCStick(out, 0.0f, 1.0f); cpuSetPhase(st, 3); }
+                    if (readyForUpAir) { emitAirAtk(out, 2, in.cpuLr); cpuSetPhase(st, 3); }
                     else out.stickX = airSteerX;
                 }
                 else if (!cpuAirWaitEnd(st, in.cpuAir, 30, 10, false))
@@ -1817,38 +1656,42 @@ namespace extra {
 
             // Grounded Multi-Hit moves: RapidJab (5), UpB (6), SideB (7), DownB (8).
             struct GroundSdiSpec {
-                float range, walkSpd, sxMul, sy, steerDiv, steerMax;
-                u32 btn;
-                u8 needFace, mash, endT, cd;
+                u8 range2, walk20, btn, needFace, mash, steerMax20, endT, cd;
+                s8 sx20, sy20, steerDiv;
             };
             static const GroundSdiSpec kGnd[4] = {
-                {8.5f, 0.65f, 0.0f, 0.0f, 0.0f, 0.0f, cpu::button::kAttack, 1, 1, 24, 22},   // RapidJab
-                {8.0f, 0.60f, 0.0f, 1.0f, 6.0f, 0.45f, cpu::button::kSpecial, 1, 0, 14, 26}, // UpB
-                {14.0f, 0.60f, 1.0f, 0.0f, -1.0f, 1.0f, cpu::button::kSpecial, 0, 0, 12, 22},// SideB
-                {8.0f, 0.60f, 0.0f, -1.0f, 5.0f, 0.55f, cpu::button::kSpecial, 0, 1, 16, 24} // DownB
+                {17, 13, kBtnAtk, 1, 1, 0, 24, 22, 0, 0, 0},     // RapidJab
+                {16, 12, kBtnSpec, 1, 0, 9, 14, 26, 0, 20, 6},   // UpB
+                {28, 12, kBtnSpec, 0, 0, 20, 12, 22, 20, 0, -1}, // SideB
+                {16, 12, kBtnSpec, 0, 1, 11, 16, 24, 0, -20, 5}  // DownB
             };
             const GroundSdiSpec& g = kGnd[move >= kMultiHitRapidJab && move <= kMultiHitDownB ? (move - kMultiHitRapidJab) : 0];
             if (st.phase == 0)
             {
-                if (!in.cpuAir && in.cpuCanAct)
+                if (cpuGndAct)
                 {
-                    if (cpuApproachOrFace(in, absDx, toward, g.range, g.walkSpd, g.needFace != 0, out)) return;
-                    cpuEmit(out, g.btn, toward * g.sxMul, g.sy);
+                    if (cpuApproachOrFace(in, absDx, toward, i2fScale(g.range2, 0.5f), i2fScale(g.walk20, 0.05f),
+                                          g.needFace != 0, out))
+                    {
+                        return;
+                    }
+                    emitScaled(out, g.btn, toward, g.sx20, g.sy20);
                     cpuSetPhase(st, 1, g.mash);
                 }
             }
             else
             {
                 st.timer++;
-                if (g.steerDiv < 0.0f) out.stickX = toward;
-                else if (g.steerDiv > 0.0f) out.stickX = clampf(dx / g.steerDiv, -g.steerMax, g.steerMax);
-                if (g.mash != 0 && (st.timer & 1) == 0 && (in.lastButtons & g.btn) == 0) out.buttons = g.btn;
+                if (g.steerDiv < 0) out.stickX = toward;
+                else if (g.steerDiv > 0) out.stickX = stickDivClamp(dx, i2f(g.steerDiv), i2fScale(g.steerMax20, 0.05f));
+                u32 btn = decodeBtn(g.btn);
+                if (g.mash != 0 && (st.timer & 1) == 0 && (in.lastButtons & btn) == 0) out.buttons = btn;
                 if (st.timer >= g.endT) cpuResetPhase(st, g.cd, false);
             }
-            return;
+            break;
         }
 
-        if (in.preset == kScenarioLedgetech)
+        case kScenarioLedgetech:
         {
             u8 atk = in.ledgetechAttack < 7 ? in.ledgetechAttack : static_cast<u8>(kLtAtkDtilt);
             if (atk == kLtAtkDair && st.phase > 0)
@@ -1857,7 +1700,7 @@ namespace extra {
                 if (st.phase == 1)
                 {
                     st.timer++;
-                    if (in.cpuAir) { cpuCStick(out, 0.0f, -1.0f); cpuSetPhase(st, 2); }
+                    if (in.cpuAir) { emitAirAtk(out, 3, in.cpuLr); cpuSetPhase(st, 2); }
                     else if (st.timer >= 10) cpuResetPhase(st, 0, false);
                 }
                 else
@@ -1867,150 +1710,109 @@ namespace extra {
                 }
                 return;
             }
-            if (st.cooldown > 0) { st.cooldown--; return; }
-            float maxX = (atk == kLtAtkNeutralB || atk == kLtAtkSideB) ? 16.0f : 12.4f;
+            if (tickCooldown(st)) return;
+            float maxX = atk >= kLtAtkNeutralB ? 16.0f : 12.4f;
             bool inLedgeWindow = in.ledgetechTiming == kLtTimeHoldActive
                                  || (absDx <= maxX && in.hmnY >= in.cpuY - 18.0f && in.hmnY <= in.cpuY + 20.0f);
-            if (!in.cpuAir && in.cpuCanAct && inLedgeWindow && in.hmnHitstun == 0)
+            if (cpuGndAct && inLedgeWindow && in.hmnHitstun == 0)
             {
                 out.active = true;
                 if (in.cpuLr * toward < 0.0f) { out.stickX = toward * 0.45f; return; }
                 if (atk == kLtAtkDair) { cpuEmit(out, cpu::button::kJump, toward * 0.20f, 0.0f); cpuSetPhase(st, 1); return; }
-                struct LtAtkSpec { u32 btn; float sxMul; float sy; u8 cd; };
+                struct LtAtkSpec { u8 btn; s8 sx20; s8 sy20; u8 cd; };
                 static const LtAtkSpec kLt[7] = {
-                    {cpu::button::kAttack, 0.0f, -0.55f, 16},
-                    {cpu::button::kAttack, 0.55f, 0.0f, 18},
-                    {cpu::button::kAttack | cpu::button::kSmash | cpu::button::kCStick, 1.0f, 0.0f, 28},
-                    {cpu::button::kAttack | cpu::button::kSmash | cpu::button::kCStick, 0.0f, -1.0f, 26},
-                    {0, 0.0f, 0.0f, 0},
-                    {cpu::button::kSpecial, 0.0f, 0.0f, 24},
-                    {cpu::button::kSpecial, 1.0f, 0.0f, 28}
+                    {kBtnAtk, 0, -11, 16}, {kBtnAtk, 11, 0, 18}, {kBtnCStk, 20, 0, 28},
+                    {kBtnCStk, 0, -20, 26}, {0, 0, 0, 0}, {kBtnSpec, 0, 0, 24}, {kBtnSpec, 20, 0, 28}
                 };
-                cpuEmit(out, kLt[atk].btn, toward * kLt[atk].sxMul, kLt[atk].sy);
+                emitScaled(out, kLt[atk].btn, toward, kLt[atk].sx20, kLt[atk].sy20);
                 st.cooldown = kLt[atk].cd;
             }
-            return;
+            break;
         }
 
-        if (in.preset == kScenarioShieldPressure && in.shieldRole == kShieldRoleDefense)
+        case kScenarioShieldPressure:
         {
+            if (in.shieldRole != kShieldRoleDefense) return;
             out.active = true;
-            if (st.cooldown > 0) { st.cooldown--; return; }
-            if (cpuWaitDelay(st, in.rng, 45, 30)) return;
+            if (tickCooldown(st) || cpuWaitDelay(st, in.rng, 45, 30)) return;
             u8 defAtk = in.shieldDefAttack < 5 ? in.shieldDefAttack : static_cast<u8>(kShieldDefAerial);
             if (defAtk == kShieldDefGetup)
             {
-                if (in.cpuStatus == 0x4D || in.cpuStatus == 0x4E || in.cpuStatus == 0x50)
-                {
-                    out.buttons = cpu::button::kAttack;
-                    cpuResetPhase(st, 40, true);
-                }
-                return;
+                if (in.cpuStatus == 0x4D || in.cpuStatus == 0x4E || in.cpuStatus == 0x50) emitAtkReset(st, out);
             }
-            if (defAtk == kShieldDefAerial) { stepJumpPoke(in, st, out, dx, absDx, toward, true); return; }
-            if (defAtk == kShieldDefDash)
+            else if (defAtk == kShieldDefAerial) stepJumpPoke(in, st, out, dx, absDx, toward, true);
+            else if (defAtk == kShieldDefDash)
             {
                 if (!in.cpuAir)
                 {
                     out.stickX = toward;
-                    if (absDx <= 14.0f && (in.cpuStatus == 0x03 || in.cpuStatus == 0x04))
-                    {
-                        out.buttons = cpu::button::kAttack;
-                        cpuResetPhase(st, 40, true);
-                    }
+                    if (absDx <= 14.0f && (in.cpuStatus == 0x03 || in.cpuStatus == 0x04)) emitAtkReset(st, out);
                 }
-                return;
             }
-            if (!in.cpuAir && in.cpuCanAct)
-            {
-                if (cpuApproachOrFace(in, absDx, toward, defAtk == kShieldDefSmash ? 13.0f : 11.5f, 0.65f, true, out)) return;
-                if (defAtk == kShieldDefSmash) cpuCStick(out, toward, 0.0f);
-                else cpuEmit(out, cpu::button::kAttack, toward * 0.55f, 0.0f);
-                cpuResetPhase(st, 38, true);
-            }
-            return;
+            else runGroundPoke(in, st, out, defAtk == kShieldDefSmash ? 0 : 1, absDx, toward);
+            break;
         }
 
-        if (in.preset == kScenarioShieldDrop && in.shieldDropAttack != kSdAtkOff)
-        {
+        case kScenarioShieldDrop:
+            if (in.shieldDropAttack == kSdAtkOff) return;
             out.active = true;
-            if (st.cooldown > 0) { st.cooldown--; return; }
-            if (cpuWaitDelay(st, in.rng, 30, 36)) return;
-            if (in.shieldDropAttack == kSdAtkShAerial) { stepJumpPoke(in, st, out, dx, absDx, toward, false); return; }
-            if (!in.cpuAir && in.cpuCanAct)
-            {
-                if (cpuApproachOrFace(in, absDx, toward, 10.0f, 0.60f, false, out)) return;
-                if (in.shieldDropAttack == kSdAtkDsmash) cpuCStick(out, 0.0f, -1.0f);
-                else cpuEmit(out, cpu::button::kAttack, 0.0f, 0.55f);
-                cpuResetPhase(st, 34, true);
-            }
-            return;
-        }
+            if (tickCooldown(st) || cpuWaitDelay(st, in.rng, 30, 36)) return;
+            if (in.shieldDropAttack == kSdAtkShAerial) stepJumpPoke(in, st, out, dx, absDx, toward, false);
+            else runGroundPoke(in, st, out, in.shieldDropAttack == kSdAtkDsmash ? 2 : 3, absDx, toward);
+            break;
 
-        if (in.preset == kScenarioSlideOff)
+        case kScenarioSlideOff:
         {
             if (in.hasPlatform && in.slideOffAttack != kSlideAtkOnPlatFtilt)
             {
                 out.active = true;
-                if (st.cooldown > 0) { st.cooldown--; return; }
+                if (tickCooldown(st)) return;
+                float hopX = stickDivClamp(dx, 14.0f, 0.45f);
                 if (st.phase == 0)
                 {
-                    if (!in.cpuAir && !in.hmnAir && in.cpuCanAct && in.hmnHitstun == 0)
+                    if (cpuGndAct && !in.hmnAir && in.hmnHitstun == 0)
                     {
                         bool isFair = in.slideOffAttack == kSlideAtkUnderFair;
                         if (cpuApproachOrFace(in, absDx, toward, isFair ? 8.5f : 5.5f, 0.60f, isFair, out)) return;
-                        cpuEmit(out, cpu::button::kJump, clampf(dx / 14.0f, -0.45f, 0.45f), 0.0f);
+                        cpuEmit(out, cpu::button::kJump, hopX, 0.0f);
                         cpuSetPhase(st, 1, 1);
                     }
                 }
                 else if (st.phase == 1)
                 {
                     st.timer++;
+                    float airX = stickDivClamp(dx, 12.0f, 0.5f);
                     if (!in.cpuAir)
                     {
-                        cpuEmit(out, cpu::button::kJump, clampf(dx / 14.0f, -0.45f, 0.45f), 0.0f);
+                        cpuEmit(out, cpu::button::kJump, hopX, 0.0f);
                         if (st.timer >= 12) cpuResetPhase(st, 0, false);
                     }
-                    else if (st.timer < 5)
-                    {
-                        cpuEmit(out, cpu::button::kJump, clampf(dx / 12.0f, -0.5f, 0.5f), 0.0f);
-                    }
+                    else if (st.timer < 5) cpuEmit(out, cpu::button::kJump, airX, 0.0f);
                     else if (in.cpuY >= in.hmnY - 16.0f || st.timer >= 10)
                     {
-                        if (in.slideOffAttack == kSlideAtkUnderFair) cpuCStick(out, in.cpuLr, 0.0f);
-                        else if (in.slideOffAttack == kSlideAtkUnderNair) out.buttons = cpu::button::kAttack;
-                        else cpuCStick(out, 0.0f, 1.0f);
+                        emitAirAtk(out, in.slideOffAttack == kSlideAtkUnderFair ? 1
+                                            : (in.slideOffAttack == kSlideAtkUnderNair ? 0 : 2),
+                                   in.cpuLr);
                         cpuSetPhase(st, 2);
                     }
-                    else
-                    {
-                        out.stickX = clampf(dx / 12.0f, -0.5f, 0.5f);
-                    }
+                    else out.stickX = airX;
                 }
-                else
-                {
-                    cpuAirWaitEnd(st, in.cpuAir, 30, 34, false);
-                }
+                else cpuAirWaitEnd(st, in.cpuAir, 30, 34, false);
                 return;
             }
-            if (!in.cpuAir && in.cpuStatus == kStAttackS3 && (in.lastButtons & cpu::button::kAttack) == 0)
+            bool repeatS3 = !in.cpuAir && in.cpuStatus == kStAttackS3 && (in.lastButtons & cpu::button::kAttack) == 0;
+            if (repeatS3 || (!tickCooldown(st) && cpuGndAct && !in.hmnAir && absDx < 22.0f && in.hmnHitstun == 0))
             {
                 out.active = true;
-                cpuEmit(out, cpu::button::kAttack, toward * 0.55f, 0.0f);
-                return;
+                emitScaled(out, kBtnAtk, toward, 11, 0);
+                if (!repeatS3) st.cooldown = 38;
             }
-            if (st.cooldown > 0) { st.cooldown--; return; }
-            if (!in.cpuAir && !in.hmnAir && in.cpuCanAct && absDx < 22.0f && in.hmnHitstun == 0)
-            {
-                out.active = true;
-                cpuEmit(out, cpu::button::kAttack, toward * 0.55f, 0.0f);
-                st.cooldown = 38;
-            }
-            return;
+            break;
         }
 
-        if (in.preset == kScenarioGrabEscape && in.grabAction != kGrabActStand)
+        case kScenarioGrabEscape:
         {
+            if (in.grabAction == kGrabActStand) return;
             out.active = true;
             bool holdingHmn = isCaptureHoldStatus(in.hmnStatus) || in.cpuStatus == kStCatchPull
                               || in.cpuStatus == kStCatchDashPull || in.cpuStatus == kStCatchWait;
@@ -2024,14 +1826,8 @@ namespace extra {
                                            ? static_cast<u8>(kGrabActFThrow + (in.rng & 3u))
                                            : in.grabAction;
                 }
-                else if (st.timer < 255)
-                {
-                    st.timer++;
-                }
-                if (in.grabAction != kGrabActRandThrow)
-                {
-                    st.resolvedThrow = in.grabAction;
-                }
+                else if (st.timer < 255) st.timer++;
+                if (in.grabAction != kGrabActRandThrow) st.resolvedThrow = in.grabAction;
                 if (in.grabAction != kGrabActHold && in.cpuStatus == kStCatchWait && st.timer >= 2)
                 {
                     if (st.resolvedThrow == kGrabActFThrow) out.stickX = in.cpuLr;
@@ -2040,64 +1836,19 @@ namespace extra {
                 }
                 return;
             }
-            if (st.phase == 2)
+            if (st.phase == 2) { st.phase = 3; st.cooldown = 40; return; }
+            if (tickCooldown(st) || cpuWaitDelay(st, in.rng, 40, 60)) return;
+            if (cpuGndAct && !cpuApproachOrFace(in, absDx, toward, 8.5f, 0.65f, true, out))
             {
-                st.phase = 3;
-                st.cooldown = 40;
-                return;
-            }
-            if (st.cooldown > 0)
-            {
-                st.cooldown--;
-                return;
-            }
-            if (cpuWaitDelay(st, in.rng, 40, 60))
-            {
-                return;
-            }
-            if (!in.cpuAir && in.cpuCanAct)
-            {
-                if (cpuApproachOrFace(in, absDx, toward, 8.5f, 0.65f, true, out))
-                {
-                    return;
-                }
                 out.buttons = cpu::button::kAttack | cpu::button::kGuard;
                 st.cooldown = 20;
             }
+            break;
         }
-    }
 
-    void stepPowershieldDrillCpu(const ScenarioCpuInput& in, ScenarioCpuState& st, ScenarioCpuOutput& out)
-    {
-        memset(&out, 0, sizeof(out));
-        if (in.hmnOutOfPlay || in.cpuOutOfPlay)
-        {
-            return;
+        default:
+            break;
         }
-        out.active = true;
-        if (st.cooldown > 0)
-        {
-            st.cooldown--;
-            return;
-        }
-        if (in.cpuAir || !in.cpuCanAct)
-        {
-            return;
-        }
-        float dx = in.hmnX - in.cpuX;
-        float toward = dx >= 0.0f ? 1.0f : -1.0f;
-        if (absf(dx) > 11.0f)
-        {
-            out.stickX = toward * 0.55f;
-            return;
-        }
-        if (in.cpuLr * toward < 0.0f)
-        {
-            out.stickX = toward * 0.35f;
-            return;
-        }
-        out.buttons = cpu::button::kAttack;
-        st.cooldown = 52;
     }
 }
 }

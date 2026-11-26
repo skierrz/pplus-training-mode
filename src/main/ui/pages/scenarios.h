@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string.h>
 #include <types.h>
 
 #include "main/ui/menu.h"
@@ -63,6 +64,12 @@ namespace pages {
         // Active Shield Drop & Under-Platform Slide-Off
         u8 shieldDropAttack;  // 0 = SH Aerial [def], 1 = Tilt, 2 = Down Smash, 3 = Off
         u8 slideOffAttack;    // 0 = Under Up Air [def], 1 = Under Fair, 2 = Under Nair, 3 = On-Plat Ftilt
+
+        ScenarioMenuState& operator=(const ScenarioMenuState& o)
+        {
+            memcpy(this, &o, sizeof(*this));
+            return *this;
+        }
     };
 
     TM_STATIC_ASSERT(kScenarioScratchOffset > kShowInactiveScratchOffset + 2,

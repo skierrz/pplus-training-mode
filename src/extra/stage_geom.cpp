@@ -57,11 +57,8 @@ namespace extra {
 
     bool readBlastZones(BlastZones& out)
     {
-        out.left = -220.0f;
-        out.right = 220.0f;
-        out.top = 180.0f;
-        out.bottom = -140.0f;
-        out.valid = false;
+        static const BlastZones kDef = {-220.0f, 220.0f, 180.0f, -140.0f, false};
+        memcpy(&out, &kDef, sizeof(out));
 
         // Primary: CameraController + 0x158 (verified in cpu/options.cpp:790
         // and extra/di_display.cpp:730).
@@ -97,21 +94,21 @@ namespace extra {
         return false;
     }
 
+#pragma dont_inline on
+    static bool rayCast(float x, float y, float dx, float dy, bool passThrough, Vec3f& hit, Vec3f& normal)
+    {
+        Vec3f start(x, y, 0.0f);
+        Vec3f dir(dx, dy, 0.0f);
+        hit.m_x = hit.m_y = hit.m_z = 0.0f;
+        normal.m_x = normal.m_y = normal.m_z = 0.0f;
+        return stRayCheck(&start, &dir, &hit, &normal, passThrough, NULL, false, kRayFighterMask);
+    }
+#pragma dont_inline reset
+
     bool rayCheckGround(float x, float y, float maxDist, float& hitY, bool passThrough)
     {
-        if (maxDist <= 0.0f)
-        {
-            return false;
-        }
-        Vec3f start(x, y, 0.0f);
-        Vec3f dir(0.0f, -maxDist, 0.0f);
-        Vec3f hit(0.0f, 0.0f, 0.0f);
-        Vec3f normal(0.0f, 0.0f, 0.0f);
-        if (!stRayCheck(&start, &dir, &hit, &normal, passThrough, NULL, false, kRayFighterMask))
-        {
-            return false;
-        }
-        if (normal.m_y < 0.5f)
+        Vec3f hit, normal;
+        if (maxDist <= 0.0f || !rayCast(x, y, 0.0f, -maxDist, passThrough, hit, normal) || normal.m_y < 0.5f)
         {
             return false;
         }
@@ -121,33 +118,15 @@ namespace extra {
 
     bool rayCheckCeiling(float x, float y, float dist)
     {
-        if (dist <= 0.0f)
-        {
-            return false;
-        }
-        Vec3f start(x, y, 0.0f);
-        Vec3f dir(0.0f, dist, 0.0f);
-        Vec3f hit(0.0f, 0.0f, 0.0f);
-        Vec3f normal(0.0f, 0.0f, 0.0f);
-        if (!stRayCheck(&start, &dir, &hit, &normal, false, NULL, false, kRayFighterMask))
-        {
-            return false;
-        }
-        return normal.m_y < 0.5f;
+        Vec3f hit, normal;
+        return dist > 0.0f && rayCast(x, y, 0.0f, dist, false, hit, normal) && normal.m_y < 0.5f;
     }
 
     bool rayCheckWall(float x, float y, float dirX, float dist, float* hitDist)
     {
-        if (dist <= 0.0f || dirX == 0.0f)
-        {
-            return false;
-        }
-        float sign = dirX > 0.0f ? 1.0f : -1.0f;
-        Vec3f start(x, y, 0.0f);
-        Vec3f dir(sign * dist, 0.0f, 0.0f);
-        Vec3f hit(0.0f, 0.0f, 0.0f);
-        Vec3f normal(0.0f, 0.0f, 0.0f);
-        if (!stRayCheck(&start, &dir, &hit, &normal, false, NULL, false, kRayFighterMask))
+        Vec3f hit, normal;
+        if (dist <= 0.0f || dirX == 0.0f
+            || !rayCast(x, y, (dirX > 0.0f ? dist : -dist), 0.0f, false, hit, normal))
         {
             return false;
         }
@@ -162,61 +141,6 @@ namespace extra {
             *hitDist = d < 0.0f ? -d : d;
         }
         return true;
-    }
-
-    // Finds one solid floor edge starting from an on-floor x (`inX`, `inY`)
-    // stepping outward along `stepSign` (-1 left, +1 right), then refining
-    // with 6 binary-search steps (~0.125 unit accuracy).
-    static void findFloorEdge(float inX, float inY, float stepSign, float limitX, float& edgeX, float& edgeY)
-    {
-        const float kCoarse = 8.0f;
-        const float kProbeLift = 20.0f;
-        const float kProbeDepth = 60.0f;
-        float lastX = inX;
-        float lastY = inY;
-        float curX = inX + stepSign * kCoarse;
-        bool leftStage = false;
-        for (int i = 0; i < 40; i++)
-        {
-            if ((stepSign < 0.0f && curX < limitX) || (stepSign > 0.0f && curX > limitX))
-            {
-                break;
-            }
-            float hy = 0.0f;
-            if (rayCheckGround(curX, lastY + kProbeLift, kProbeDepth, hy, false))
-            {
-                lastX = curX;
-                lastY = hy;
-                curX += stepSign * kCoarse;
-            }
-            else
-            {
-                leftStage = true;
-                break;
-            }
-        }
-        if (leftStage)
-        {
-            float lo = lastX;
-            float hi = curX;
-            for (int iter = 0; iter < 6; iter++)
-            {
-                float mid = 0.5f * (lo + hi);
-                float hy = 0.0f;
-                if (rayCheckGround(mid, lastY + kProbeLift, kProbeDepth, hy, false))
-                {
-                    lo = mid;
-                    lastY = hy;
-                }
-                else
-                {
-                    hi = mid;
-                }
-            }
-            lastX = lo;
-        }
-        edgeX = lastX;
-        edgeY = lastY;
     }
 
     static bool rayCheckPassThroughOnly(float x, float y, float maxDist, float& hitY)
@@ -235,39 +159,56 @@ namespace extra {
         return true;
     }
 
-    static float findPlatformEdge(float startX, float platY, float stepSign, float limitX)
+#pragma dont_inline on
+    static bool probeEdge(bool isPlat, float x, float refY, float& outY)
     {
-        const float kCoarse = 4.0f;
-        float lastX = startX;
-        float curX = startX + stepSign * kCoarse;
-        bool leftPlat = false;
-        for (int i = 0; i < 32; i++)
+        float hy = 0.0f;
+        if (isPlat)
+        {
+            return rayCheckPassThroughOnly(x, refY + 3.0f, 6.0f, hy) && (hy - refY) > -2.0f && (hy - refY) < 2.0f;
+        }
+        if (!rayCheckGround(x, refY + 20.0f, 60.0f, hy, false))
+        {
+            return false;
+        }
+        outY = hy;
+        return true;
+    }
+
+    static void findEdge(bool isPlat, float inX, float inY, float stepSign, float limitX, float& edgeX, float& edgeY)
+    {
+        float coarse = isPlat ? 4.0f : 8.0f;
+        int maxSteps = isPlat ? 32 : 40;
+        int refineIters = isPlat ? 5 : 6;
+        float lastX = inX;
+        float lastY = inY;
+        float curX = inX + stepSign * coarse;
+        bool left = false;
+        for (int i = 0; i < maxSteps; i++)
         {
             if ((stepSign < 0.0f && curX < limitX) || (stepSign > 0.0f && curX > limitX))
             {
                 break;
             }
-            float hy = 0.0f;
-            if (rayCheckPassThroughOnly(curX, platY + 3.0f, 6.0f, hy) && (hy - platY) > -2.0f && (hy - platY) < 2.0f)
+            if (probeEdge(isPlat, curX, lastY, lastY))
             {
                 lastX = curX;
-                curX += stepSign * kCoarse;
+                curX += stepSign * coarse;
             }
             else
             {
-                leftPlat = true;
+                left = true;
                 break;
             }
         }
-        if (leftPlat)
+        if (left)
         {
             float lo = lastX;
             float hi = curX;
-            for (int iter = 0; iter < 5; iter++)
+            for (int iter = 0; iter < refineIters; iter++)
             {
                 float mid = 0.5f * (lo + hi);
-                float hy = 0.0f;
-                if (rayCheckPassThroughOnly(mid, platY + 3.0f, 6.0f, hy) && (hy - platY) > -2.0f && (hy - platY) < 2.0f)
+                if (probeEdge(isPlat, mid, lastY, lastY))
                 {
                     lo = mid;
                 }
@@ -278,8 +219,33 @@ namespace extra {
             }
             lastX = lo;
         }
-        return lastX;
+        edgeX = lastX;
+        edgeY = lastY;
     }
+#pragma dont_inline reset
+
+    static float findPlatformEdge(float startX, float platY, float stepSign, float limitX)
+    {
+        float ex = startX, ey = platY;
+        findEdge(true, startX, platY, stepSign, limitX, ex, ey);
+        return ex;
+    }
+
+#pragma dont_inline on
+    static bool platformOverlaps(const StageGeometry& g, float y, float xLo, float xHi, float pad)
+    {
+        for (int k = 0; k < g.platformCount; k++)
+        {
+            const StagePlatform& e = g.platforms[k];
+            float dy = e.y - y;
+            if (dy > -3.0f && dy < 3.0f && xLo <= e.rightX + pad && xHi >= e.leftX - pad)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+#pragma dont_inline reset
 
     static void probePassThroughPlatforms(StageGeometry& g)
     {
@@ -309,38 +275,11 @@ namespace extra {
                 {
                     break;
                 }
-                bool covered = false;
-                for (int k = 0; k < g.platformCount; k++)
+                if (!platformOverlaps(g, hitY, sx, sx, 2.0f))
                 {
-                    const StagePlatform& e = g.platforms[k];
-                    float dy = e.y - hitY;
-                    if (dy > -3.0f && dy < 3.0f && sx >= e.leftX - 2.0f && sx <= e.rightX + 2.0f)
-                    {
-                        covered = true;
-                        break;
-                    }
-                }
-                if (covered)
-                {
-                    curTop = hitY - 2.0f;
-                    continue;
-                }
-                float plx = findPlatformEdge(sx, hitY, -1.0f, limitL);
-                float prx = findPlatformEdge(sx, hitY, 1.0f, limitR);
-                if (prx > plx + 6.0f)
-                {
-                    bool dup = false;
-                    for (int k = 0; k < g.platformCount; k++)
-                    {
-                        const StagePlatform& e = g.platforms[k];
-                        float dy = e.y - hitY;
-                        if (dy > -3.0f && dy < 3.0f && plx <= e.rightX + 4.0f && prx >= e.leftX - 4.0f)
-                        {
-                            dup = true;
-                            break;
-                        }
-                    }
-                    if (!dup)
+                    float plx = findPlatformEdge(sx, hitY, -1.0f, limitL);
+                    float prx = findPlatformEdge(sx, hitY, 1.0f, limitR);
+                    if (prx > plx + 6.0f && !platformOverlaps(g, hitY, plx, prx, 4.0f))
                     {
                         StagePlatform& p = g.platforms[g.platformCount++];
                         p.leftX = plx;
@@ -356,15 +295,16 @@ namespace extra {
 
     bool queryStageGeometry(StageGeometry& out, bool forceRefresh, bool includePlatforms)
     {
+        StageGeometry* cache = s_cache;
         s32 now = game::trackerFrame();
-        if (s_cache != NULL && !forceRefresh && s_cacheValid && now >= s_cacheFrame && now - s_cacheFrame < kCacheFrames)
+        if (cache != NULL && !forceRefresh && s_cacheValid && now >= s_cacheFrame && now - s_cacheFrame < kCacheFrames)
         {
             if (includePlatforms && !s_cacheHasPlatforms)
             {
-                probePassThroughPlatforms(*s_cache);
+                probePassThroughPlatforms(*cache);
                 s_cacheHasPlatforms = true;
             }
-            out = *s_cache;
+            memcpy(&out, cache, sizeof(out));
             return true;
         }
 
@@ -372,11 +312,6 @@ namespace extra {
         memset(&g, 0, sizeof(g));
         g.floor.leftX = -68.0f;
         g.floor.rightX = 68.0f;
-        g.floor.leftY = 0.0f;
-        g.floor.rightY = 0.0f;
-        g.floor.centerY = 0.0f;
-        g.floor.valid = false;
-        g.hasLedges = false;
 
         readBlastZones(g.blast);
 
@@ -402,8 +337,8 @@ namespace extra {
         {
             float lx = startX, ly = startY;
             float rx = startX, ry = startY;
-            findFloorEdge(startX, startY, -1.0f, g.blast.left + 5.0f, lx, ly);
-            findFloorEdge(startX, startY, 1.0f, g.blast.right - 5.0f, rx, ry);
+            findEdge(false, startX, startY, -1.0f, g.blast.left + 5.0f, lx, ly);
+            findEdge(false, startX, startY, 1.0f, g.blast.right - 5.0f, rx, ry);
             g.floor.leftX = lx;
             g.floor.rightX = rx;
             g.floor.leftY = ly;
@@ -426,57 +361,41 @@ namespace extra {
             }
         }
 
-        if (s_cache != NULL)
+        if (cache != NULL)
         {
-            *s_cache = g;
+            memcpy(cache, &g, sizeof(g));
             s_cacheFrame = now;
             s_cacheValid = g.floor.valid;
             s_cacheHasPlatforms = g.floor.valid && includePlatforms;
         }
-        out = g;
+        memcpy(&out, &g, sizeof(out));
         return g.floor.valid;
-    }
-
-    bool liveGeometry(StageGeometry& out, bool forceRefresh, bool includePlatforms)
-    {
-        return queryStageGeometry(out, forceRefresh, includePlatforms);
     }
 
     bool findSafeRandomPoint(const StageGeometry& g, u32& rng, bool onGround, float& outX, float& outY)
     {
         for (int attempt = 0; attempt < 16; attempt++)
         {
-            float cx = 0.0f;
-            float cy = 0.0f;
+            float cx = 0.0f, cy = 0.0f, hitY = 0.0f;
             if (!sampleSafeCandidate(g, rng, onGround, cx, cy))
             {
                 break;
             }
+            bool hasGround = rayCheckGround(cx, cy, 80.0f, hitY, true);
             if (onGround)
             {
-                float hitY = 0.0f;
-                if (rayCheckGround(cx, cy, 80.0f, hitY, true) && !rayCheckCeiling(cx, hitY + 4.0f, 150.0f))
-                {
-                    outX = cx;
-                    outY = hitY;
-                    return true;
-                }
+                if (!hasGround) continue;
+                cy = hitY;
             }
-            else
+            else if (hasGround && cy < hitY + 4.0f)
             {
-                float hitY = 0.0f;
-                // Keep airborne spawns over stage/platforms or with open headroom
-                // above and not embedded inside solid geometry.
-                if (!rayCheckCeiling(cx, cy + 4.0f, 150.0f))
-                {
-                    if (rayCheckGround(cx, cy, 80.0f, hitY, true) && cy < hitY + 4.0f)
-                    {
-                        cy = hitY + 8.0f;
-                    }
-                    outX = cx;
-                    outY = cy;
-                    return true;
-                }
+                cy = hitY + 8.0f;
+            }
+            if (!rayCheckCeiling(cx, cy + 4.0f, 150.0f))
+            {
+                outX = cx;
+                outY = cy;
+                return true;
             }
         }
         if (g.floor.valid)
@@ -544,68 +463,46 @@ namespace extra {
         {
             m->m_workManageModule->setInt(0, kHitstunLaBasic);
         }
+        soGroundModule* gm = game::isRam(m->m_groundModule) ? m->m_groundModule : NULL;
         if (falling)
         {
-            cpu::clearKnockback(f);
-            if (game::isRam(m->m_kineticModule))
+            if (setNoclip && gm != NULL)
             {
-                m->m_kineticModule->clearSpeedAll();
-            }
-            if (setNoclip && game::isRam(m->m_groundModule))
-            {
-                m->m_groundModule->setCorrect(soGroundShapeImpl::Correct_None, 0);
+                gm->setCorrect(soGroundShapeImpl::Correct_None, 0);
             }
             cpu::placeAt(f, x, y);
             if (lr != 0.0f)
             {
                 setFacingSingle(f, lr);
             }
-            if (game::isRam(m->m_statusModule) && game::isRam(f->m_moduleAccesser))
+        }
+        else
+        {
+            float useLr = lr;
+            if (useLr == 0.0f && game::isRam(m->m_postureModule))
             {
-                m->m_statusModule->changeStatusForce(game::kStatusFall, f->m_moduleAccesser);
+                float cur = *reinterpret_cast<const float*>(reinterpret_cast<u32>(m->m_postureModule) + 0x40);
+                useLr = cur < 0.0f ? -1.0f : 1.0f;
             }
-            if (setNoclip && game::isRam(m->m_groundModule))
+            Vec3f pos(x, y, 0.0f);
+            f->warp(&pos, useLr != 0.0f ? useLr : 1.0f, 0);
+            if (gm != NULL && gm->attachGround(0))
             {
-                m->m_groundModule->setCorrect(soGroundShapeImpl::Correct_None, 0);
-            }
-            return;
-        }
-
-        float useLr = lr;
-        if (useLr == 0.0f && game::isRam(m->m_postureModule))
-        {
-            float cur = *reinterpret_cast<const float*>(reinterpret_cast<u32>(m->m_postureModule) + 0x40);
-            useLr = cur < 0.0f ? -1.0f : 1.0f;
-        }
-        if (useLr == 0.0f)
-        {
-            useLr = 1.0f;
-        }
-        // Fighter::warp moves posture and resets ground shape (needed for
-        // cross-platform warps), then attachGround + setStGroundForce binds
-        // the target floor/platform, then changeStatusForce(Wait) clears
-        // Fighter::warp's pending Fall request.
-        Vec3f pos(x, y, 0.0f);
-        f->warp(&pos, useLr, 0);
-        if (game::isRam(m->m_groundModule))
-        {
-            if (m->m_groundModule->attachGround(0))
-            {
-                m->m_groundModule->setStGroundForce(0);
+                gm->setStGroundForce(0);
             }
         }
         if (game::isRam(m->m_statusModule) && game::isRam(f->m_moduleAccesser))
         {
-            m->m_statusModule->changeStatusForce(game::kStatusWait, f->m_moduleAccesser);
+            m->m_statusModule->changeStatusForce(falling ? game::kStatusFall : game::kStatusWait, f->m_moduleAccesser);
         }
         if (game::isRam(m->m_kineticModule))
         {
             m->m_kineticModule->clearSpeedAll();
         }
         cpu::clearKnockback(f);
-        if (setNoclip && game::isRam(m->m_groundModule))
+        if (setNoclip && gm != NULL)
         {
-            m->m_groundModule->setCorrect(soGroundShapeImpl::Correct_None, 0);
+            gm->setCorrect(soGroundShapeImpl::Correct_None, 0);
         }
     }
 #pragma dont_inline reset
@@ -621,65 +518,52 @@ namespace extra {
             kAirRuleFloatZero = 2
         };
 
-        struct AirResetRule {
-            u8 ftKind; // 0xFF = common (every fighter)
-            u8 type;   // kAirRuleBit / kAirRuleInt / kAirRuleFloatZero
-            u8 idx;
-            u8 val;
-        };
-
-        // Complete P+ 3.2.1 once-per-airtime resource table verified against
-        // ProjectM/Modifier/VariableSet.asm, Turbo.asm, MoveDef/Misc.asm,
-        // Ledge.asm, AirDodge.asm, and Fit*.pac Landing/Wait1 scripts.
-        static const AirResetRule kAirRules[] = {
+        // Packed 16-bit once-per-airtime reset entry:
+        // bits 15..10: ftKind (0x3F = common), bits 9..8: type, bit 7: val (0/1), bits 6..0: idx.
+#define AR(ft, ty, ix, v) static_cast<u16>((((ft) & 0x3F) << 10) | (((ty) & 3) << 8) | (((v) & 1) << 7) | ((ix) & 0x7F))
+        static const u16 kAirRules[] = {
             // Common airborne resets (all fighters)
-            {0xFF, kAirRuleInt, 2, 0},       // ledge regrab cooldown
-            {0xFF, kAirRuleInt, 3, 0},       // wall jump count
-            {0xFF, kAirRuleInt, 4, 0},       // wall jump past frame
-            {0xFF, kAirRuleInt, 11, 0},      // no attach wall frame
-            {0xFF, kAirRuleInt, 12, 0},      // attach wall count
-            {0xFF, kAirRuleInt, 62, 0},      // AirLassoHang tether count
-            {0xFF, kAirRuleInt, 79, 0},      // 5-ledge-grab invuln counter
-            {0xFF, kAirRuleInt, 81, 0},      // P+ AGT counter
-            {0xFF, kAirRuleBit, 22, 0},      // glide used
-            {0xFF, kAirRuleBit, 57, 0},      // P+ airdodge / momentum scratch
-            {0xFF, kAirRuleFloatZero, 0, 0}, // landing lag override
+            AR(0x3F, kAirRuleInt, 2, 0), AR(0x3F, kAirRuleInt, 3, 0), AR(0x3F, kAirRuleInt, 4, 0),
+            AR(0x3F, kAirRuleInt, 11, 0), AR(0x3F, kAirRuleInt, 12, 0), AR(0x3F, kAirRuleInt, 62, 0),
+            AR(0x3F, kAirRuleInt, 79, 0), AR(0x3F, kAirRuleInt, 81, 0), AR(0x3F, kAirRuleBit, 22, 0),
+            AR(0x3F, kAirRuleBit, 57, 0), AR(0x3F, kAirRuleFloatZero, 0, 0),
             // Per-fighter once-per-airtime resets
-            {0x00, kAirRuleBit, 62, 0}, {0x00, kAirRuleBit, 113, 0}, {0x00, kAirRuleBit, 116, 0}, {0x00, kAirRuleBit, 118, 0}, // Mario
-            {0x01, kAirRuleBit, 70, 0},                                                                                          // DK
-            {0x03, kAirRuleInt, 67, 0}, {0x03, kAirRuleBit, 120, 0},                                                             // Samus
-            {0x04, kAirRuleBit, 112, 0}, {0x04, kAirRuleBit, 113, 0},                                                            // Yoshi
-            {0x05, kAirRuleBit, 112, 0}, {0x05, kAirRuleBit, 114, 0}, {0x05, kAirRuleBit, 119, 0},                               // Kirby
-            {0x08, kAirRuleBit, 61, 0}, {0x08, kAirRuleBit, 115, 0}, {0x08, kAirRuleBit, 116, 0},                                // Luigi
-            {0x0A, kAirRuleBit, 66, 0}, {0x0A, kAirRuleBit, 112, 1},                                                             // Ness
-            {0x0B, kAirRuleBit, 119, 0},                                                                                         // Bowser
-            {0x0C, kAirRuleBit, 62, 0},                                                                                          // Peach
-            {0x0D, kAirRuleBit, 126, 0}, {0x0D, kAirRuleBit, 127, 0},                                                            // Zelda
-            {0x0E, kAirRuleBit, 114, 1},                                                                                         // Sheik
-            {0x11, kAirRuleBit, 115, 1},                                                                                         // Marth
-            {0x12, kAirRuleBit, 114, 0},                                                                                         // G&W
-            {0x14, kAirRuleBit, 115, 0}, {0x14, kAirRuleBit, 120, 1}, {0x14, kAirRuleInt, 98, 0},                                // Ganondorf
-            {0x15, kAirRuleBit, 118, 0}, {0x15, kAirRuleBit, 122, 0},                                                            // Wario
-            {0x16, kAirRuleBit, 61, 0}, {0x16, kAirRuleBit, 115, 0}, {0x16, kAirRuleBit, 116, 0},                                // MK
-            {0x17, kAirRuleBit, 113, 0}, {0x17, kAirRuleBit, 114, 1}, {0x17, kAirRuleBit, 125, 0},                               // Pit
-            {0x18, kAirRuleBit, 113, 0},                                                                                         // ZSS
-            {0x19, kAirRuleBit, 122, 1},                                                                                         // Olimar
-            {0x1A, kAirRuleBit, 122, 1},                                                                                         // Lucas
-            {0x1D, kAirRuleBit, 113, 0}, {0x1D, kAirRuleInt, 92, 0},                                                             // Charizard
-            {0x1E, kAirRuleBit, 115, 0},                                                                                         // Squirtle
-            {0x1F, kAirRuleInt, 75, 0},                                                                                          // Ivysaur
-            {0x21, kAirRuleBit, 66, 0}, {0x21, kAirRuleBit, 69, 0},                                                              // Lucario
-            {0x22, kAirRuleInt, 91, 1},                                                                                          // Ike
-            {0x23, kAirRuleBit, 111, 0}, {0x23, kAirRuleBit, 114, 0}, {0x23, kAirRuleInt, 75, 3},                                // R.O.B.
-            {0x26, kAirRuleBit, 114, 0}, {0x26, kAirRuleBit, 115, 0}, {0x26, kAirRuleBit, 117, 0}, {0x26, kAirRuleBit, 118, 0},
-            {0x26, kAirRuleInt, 98, 0},                                                                                          // Mewtwo
-            {0x27, kAirRuleBit, 115, 1},                                                                                         // Roy
-            {0x2D, kAirRuleBit, 61, 0}, {0x2D, kAirRuleBit, 113, 0}, {0x2D, kAirRuleBit, 122, 0},
-            {0x2D, kAirRuleInt, 91, 0}, {0x2D, kAirRuleInt, 92, 0}, {0x2D, kAirRuleInt, 93, 0},                                  // Knuckles
-            {0x2E, kAirRuleBit, 61, 0}, {0x2E, kAirRuleBit, 113, 0}, {0x2E, kAirRuleFloatZero, 52, 0},                           // Snake
-            {0x2F, kAirRuleBit, 61, 0}, {0x2F, kAirRuleBit, 112, 0}, {0x2F, kAirRuleBit, 113, 0},
-            {0x2F, kAirRuleBit, 114, 0}, {0x2F, kAirRuleInt, 91, 0}                                                              // Sonic
+            AR(0x00, kAirRuleBit, 62, 0), AR(0x00, kAirRuleBit, 113, 0), AR(0x00, kAirRuleBit, 116, 0), AR(0x00, kAirRuleBit, 118, 0),
+            AR(0x01, kAirRuleBit, 70, 0),
+            AR(0x03, kAirRuleInt, 67, 0), AR(0x03, kAirRuleBit, 120, 0),
+            AR(0x04, kAirRuleBit, 112, 0), AR(0x04, kAirRuleBit, 113, 0),
+            AR(0x05, kAirRuleBit, 112, 0), AR(0x05, kAirRuleBit, 114, 0), AR(0x05, kAirRuleBit, 119, 0),
+            AR(0x08, kAirRuleBit, 61, 0), AR(0x08, kAirRuleBit, 115, 0), AR(0x08, kAirRuleBit, 116, 0),
+            AR(0x0A, kAirRuleBit, 66, 0), AR(0x0A, kAirRuleBit, 112, 1),
+            AR(0x0B, kAirRuleBit, 119, 0),
+            AR(0x0C, kAirRuleBit, 62, 0),
+            AR(0x0D, kAirRuleBit, 126, 0), AR(0x0D, kAirRuleBit, 127, 0),
+            AR(0x0E, kAirRuleBit, 114, 1),
+            AR(0x11, kAirRuleBit, 115, 1),
+            AR(0x12, kAirRuleBit, 114, 0),
+            AR(0x14, kAirRuleBit, 115, 0), AR(0x14, kAirRuleBit, 120, 1), AR(0x14, kAirRuleInt, 98, 0),
+            AR(0x15, kAirRuleBit, 118, 0), AR(0x15, kAirRuleBit, 122, 0),
+            AR(0x16, kAirRuleBit, 61, 0), AR(0x16, kAirRuleBit, 115, 0), AR(0x16, kAirRuleBit, 116, 0),
+            AR(0x17, kAirRuleBit, 113, 0), AR(0x17, kAirRuleBit, 114, 1), AR(0x17, kAirRuleBit, 125, 0),
+            AR(0x18, kAirRuleBit, 113, 0),
+            AR(0x19, kAirRuleBit, 122, 1),
+            AR(0x1A, kAirRuleBit, 122, 1),
+            AR(0x1D, kAirRuleBit, 113, 0), AR(0x1D, kAirRuleInt, 92, 0),
+            AR(0x1E, kAirRuleBit, 115, 0),
+            AR(0x1F, kAirRuleInt, 75, 0),
+            AR(0x21, kAirRuleBit, 66, 0), AR(0x21, kAirRuleBit, 69, 0),
+            AR(0x22, kAirRuleInt, 91, 1),
+            AR(0x23, kAirRuleBit, 111, 0), AR(0x23, kAirRuleBit, 114, 0),
+            AR(0x26, kAirRuleBit, 114, 0), AR(0x26, kAirRuleBit, 115, 0), AR(0x26, kAirRuleBit, 117, 0), AR(0x26, kAirRuleBit, 118, 0),
+            AR(0x26, kAirRuleInt, 98, 0),
+            AR(0x27, kAirRuleBit, 115, 1),
+            AR(0x2D, kAirRuleBit, 61, 0), AR(0x2D, kAirRuleBit, 113, 0), AR(0x2D, kAirRuleBit, 122, 0),
+            AR(0x2D, kAirRuleInt, 91, 0), AR(0x2D, kAirRuleInt, 92, 0), AR(0x2D, kAirRuleInt, 93, 0),
+            AR(0x2E, kAirRuleBit, 61, 0), AR(0x2E, kAirRuleBit, 113, 0), AR(0x2E, kAirRuleFloatZero, 52, 0),
+            AR(0x2F, kAirRuleBit, 61, 0), AR(0x2F, kAirRuleBit, 112, 0), AR(0x2F, kAirRuleBit, 113, 0),
+            AR(0x2F, kAirRuleBit, 114, 0), AR(0x2F, kAirRuleInt, 91, 0)
         };
+#undef AR
 
 #pragma dont_inline on
         void refreshAirSingle(Fighter* f, int ftKind, bool grounded, bool spendDoubleJump)
@@ -690,23 +574,16 @@ namespace extra {
                 return;
             }
             soWorkManageModule* w = m->m_workManageModule;
+            soModuleAccesser* acc = f->m_moduleAccesser;
+            bool accOk = game::isRam(acc);
             int maxJumps = 2;
-            if (game::isRam(f->m_moduleAccesser))
+            if (accOk)
             {
-                int v = soValueAccesser::getConstantInt(f->m_moduleAccesser, kIcJumpCountMax, 0);
-                if (v >= 2 && v <= 10)
-                {
-                    maxJumps = v;
-                }
+                int v = soValueAccesser::getConstantInt(acc, kIcJumpCountMax, 0);
+                if (v >= 2 && v <= 10) maxJumps = v;
             }
-            int jumpVal = grounded ? 0 : (spendDoubleJump ? maxJumps : 1);
-            w->setInt(jumpVal, kLaBasicBase + 1);
-            // Stop any lingering CallEveryFrame (thread 9) PSA loop from an
-            // interrupted special (e.g. Snake's Cypher 0x28768 which otherwise
-            // re-sets LA-Bit[61] on the next frame after warping mid-Up-B).
-            // Verified against RSBE01/P+ 3.2.1 soAnimCmdModuleImpl::notifyEventAnimCmd
-            // 0x0D01 handler (0x8077D540 -> vtable +0x24 = 0x8077C618).
-            if (game::isRam(m->m_animCmdModule) && !m->m_animCmdModule->isNull() && game::isRam(f->m_moduleAccesser))
+            w->setInt(grounded ? 0 : (spendDoubleJump ? maxJumps : 1), kLaBasicBase + 1);
+            if (game::isRam(m->m_animCmdModule) && !m->m_animCmdModule->isNull() && accOk)
             {
                 const u32* vt = *reinterpret_cast<const u32* const*>(m->m_animCmdModule);
                 if (game::isRam(vt))
@@ -715,46 +592,28 @@ namespace extra {
                     ResetInterpFn fn = reinterpret_cast<ResetInterpFn>(vt[0x24 / 4]);
                     if (game::isRam(reinterpret_cast<const void*>(fn)))
                     {
-                        fn(m->m_animCmdModule, soAnimCmdControlUnitKind::InfiniteLoop, NULL, f->m_moduleAccesser);
+                        fn(m->m_animCmdModule, soAnimCmdControlUnitKind::InfiniteLoop, NULL, acc);
                     }
                 }
             }
-            // Re-enable air-special and air-escape transition terms disabled by
-            // an interrupted special's PSA 02090200 UnableTransitionTerm (e.g.
-            // Snake disables 0x2773 in kGroupAirSpecial and 0x274C in
-            // kGroupAirEscape until landing/reset).
             if (!grounded && game::isRam(m->m_statusModule))
             {
                 m->m_statusModule->enableTransitionTermAll(game::kGroupAirSpecial);
                 m->m_statusModule->enableTransitionTermAll(game::kGroupAirEscape);
             }
+            if (ftKind == 0x23) w->setInt(3, kLaBasicBase + 75); // R.O.B. 3 boosters
             const u32 count = static_cast<u32>(sizeof(kAirRules) / sizeof(kAirRules[0]));
             for (u32 i = 0; i < count; i++)
             {
-                const AirResetRule& r = kAirRules[i];
-                if (r.ftKind != 0xFF && static_cast<int>(r.ftKind) != ftKind)
-                {
-                    continue;
-                }
-                if (r.type == kAirRuleBit)
-                {
-                    if (r.val != 0)
-                    {
-                        w->onFlag(kLaBitBase + r.idx);
-                    }
-                    else
-                    {
-                        w->offFlag(kLaBitBase + r.idx);
-                    }
-                }
-                else if (r.type == kAirRuleInt)
-                {
-                    w->setInt(r.val, kLaBasicBase + r.idx);
-                }
-                else
-                {
-                    w->setFloat(0.0f, kLaFloatBase + r.idx);
-                }
+                u16 e = kAirRules[i];
+                u32 rf = (e >> 10) & 0x3Fu;
+                if (rf != 0x3Fu && static_cast<int>(rf) != ftKind) continue;
+                u32 ty = (e >> 8) & 3u;
+                u32 val = (e >> 7) & 1u;
+                u32 idx = e & 0x7Fu;
+                if (ty == kAirRuleBit) { if (val != 0) w->onFlag(kLaBitBase + idx); else w->offFlag(kLaBitBase + idx); }
+                else if (ty == kAirRuleInt) w->setInt(static_cast<int>(val), kLaBasicBase + idx);
+                else w->setFloat(0.0f, kLaFloatBase + idx);
             }
         }
 #pragma dont_inline reset
@@ -776,17 +635,17 @@ namespace extra {
     static void placePair(const game::FighterRef& ref, float x, float y, bool falling, bool setNoclip, float damage,
                           float lr)
     {
-        Fighter* fs[2] = {ref.fighter, (ref.partner != NULL && ref.partner != ref.fighter) ? ref.partner : NULL};
         for (int i = 0; i < 2; i++)
         {
-            if (fs[i] == NULL)
+            Fighter* f = i == 0 ? ref.fighter : ((ref.partner != NULL && ref.partner != ref.fighter) ? ref.partner : NULL);
+            if (f == NULL)
             {
                 continue;
             }
-            warpSingle(fs[i], x, y, falling, setNoclip, lr);
+            warpSingle(f, x, y, falling, setNoclip, lr);
             if (!falling)
             {
-                refreshAirSingle(fs[i], game::fighterKind(ref.entryId, i != 0), true, false);
+                refreshAirSingle(f, game::fighterKind(ref.entryId, i != 0), true, false);
             }
         }
         if (damage >= 0.0f)

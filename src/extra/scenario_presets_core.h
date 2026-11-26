@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string.h>
 #include <types.h>
 
 #include "extra/combo_trainer_core.h"
@@ -387,14 +388,10 @@ namespace extra {
         u16 snapshotPlayerPercent;
         u8 snapshotLockPlayerPercent;
         u8 snapshotPlayerInfShields;
-        bool snapshotPlayerValid;
         u16 snapshotCpuPercent;
         u8 snapshotLockCpuPercent;
-        bool snapshotCpuValid;
         u8 snapshotGrabBreakoutOsd;
-        bool snapshotOsdValid;
         main::TechInvisSettings snapshotTechInvis;
-        bool snapshotTechInvisValid;
 
         bool pendingReset;
         bool hasPlatform;
@@ -426,29 +423,8 @@ namespace extra {
         s16 techReactionFrames; // frames past fighter's kDistinguishable (-1 if n/a)
         u16 techStreak;
         u16 techBest;
-        u16 techFrames;
-        u16 techActFrames;
-        u8 techEarlyFrames;
-        bool techCoveredThisRep;
-        bool techLateRecorded;
 
-        // Multi-hit SDI live telemetry (latched across auto-reset until next hit).
-        u32 sdiHitCount;
-        u32 sdiHitlagFrames;
-        float sdiDispX;
-        float sdiDispY;
-        bool sdiEscaped;
-        bool sdiSequenceActive;
-        bool sdiLatchedReset;
-
-        // Live event flags (cleared on preset change or manual reset).
-        bool sawShieldDrop;
-        bool sawWallTech;
-        bool sawSlideOff;
-        bool sawGrabEscape;
-
-        // Internal per-preset tracking state.
-        bool havePrev;
+        // Previous-frame snapshots (preserved across cycle reset until havePrev is set).
         int prevHmnStatus;
         int prevHmnHitlag;
         bool prevHmnAir;
@@ -457,7 +433,28 @@ namespace extra {
         int prevCpuStatus;
         int prevCpuHitlag;
         bool prevCpuGuardDamage;
+        bool sdiLatchedReset;
 
+        // Contiguous event telemetry block (cleared together by clearEventTelemetry).
+        u32 sdiHitCount;
+        u32 sdiHitlagFrames;
+        float sdiDispX;
+        float sdiDispY;
+        bool sdiEscaped;
+        bool sawShieldDrop;
+        bool sawWallTech;
+        bool sawSlideOff;
+        bool sawGrabEscape;
+
+        // Contiguous per-cycle tracker block (cleared together by clearCycleTrackers).
+        bool havePrev;
+        u16 techFrames;
+        u16 techActFrames;
+        u8 techEarlyFrames;
+        bool techWasPassive;
+        bool techCoveredThisRep;
+        bool techLateRecorded;
+        bool sdiSequenceActive;
         u8 hmnGuardWindow;
         bool techEngaged;
         bool shieldEngaged;
@@ -525,7 +522,12 @@ namespace extra {
     };
 
     void sanitizeScenarioConfigInto(const ScenarioConfig& raw, ScenarioConfig& out);
-    ScenarioConfig sanitizeScenarioConfig(const ScenarioConfig& raw);
+    inline ScenarioConfig sanitizeScenarioConfig(const ScenarioConfig& raw)
+    {
+        ScenarioConfig c;
+        sanitizeScenarioConfigInto(raw, c);
+        return c;
+    }
     u8 resolveOosCounterShield(u8 oosAction);
     u8 resolveTechEscapeCounter(u8 techEscape);
     u8 resolveTechTdi(u8 techTdi);
@@ -553,23 +555,14 @@ namespace extra {
 
     // Transitions settings for `rawCfg` (snapshots on Off -> Preset, restores
     // from snapshot on Preset A -> Preset B or Preset -> Off).
-    bool applyScenarioConfig(ScenarioState& st, const ScenarioConfig& rawCfg, cpu::CpuOptions& cpuOpts,
-                             main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg = NULL,
-                             main::CpuSettings* cpuSettings = NULL, main::OsdSettings* osdCfg = NULL,
-                             main::TechInvisSettings* techInvisCfg = NULL);
+    bool applyScenarioConfig(ScenarioState& st, const ScenarioConfig& rawCfg, main::Settings& s);
 
     // Re-applies active preset overrides cleanly (e.g. after returning from
     // Brawl Training pause) without losing the original pre-preset snapshot.
-    void reapplyActiveScenarioOverrides(const ScenarioState& st, const ScenarioConfig& rawCfg,
-                                        cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg,
-                                        main::GeneralSettings* generalCfg = NULL,
-                                        main::CpuSettings* cpuSettings = NULL, main::OsdSettings* osdCfg = NULL,
-                                        main::TechInvisSettings* techInvisCfg = NULL);
+    void reapplyActiveScenarioOverrides(const ScenarioState& st, const ScenarioConfig& rawCfg, main::Settings& s);
 
     // Restores pre-preset snapshot on detach (no-op if snapshotActive is false).
-    void restoreScenarioSnapshot(ScenarioState& st, cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg,
-                                 main::GeneralSettings* generalCfg = NULL, main::CpuSettings* cpuSettings = NULL,
-                                 main::OsdSettings* osdCfg = NULL, main::TechInvisSettings* techInvisCfg = NULL);
+    void restoreScenarioSnapshot(ScenarioState& st, main::Settings& s);
 
     // Clears snapshot and active preset after a full Lab "Reset Settings" so
     // the freshly defaulted settings are never overwritten with stale snapshots.
@@ -577,10 +570,7 @@ namespace extra {
 
     // Projects the saved-settings view so temporary preset overrides never leak
     // to the SD card while a preset is active.
-    void projectScenarioSavedView(const ScenarioState& st, cpu::CpuOptions& cpuOpts,
-                                  main::ComboTrainerSettings& comboCfg, main::GeneralSettings* generalCfg = NULL,
-                                  main::CpuSettings* cpuSettings = NULL, main::OsdSettings* osdCfg = NULL,
-                                  main::TechInvisSettings* techInvisCfg = NULL);
+    void projectScenarioSavedView(const ScenarioState& st, main::Settings& s);
 
     // Requests an immediate manual reset on the next live frame (no-op if Off).
     void requestScenarioManualReset(ScenarioState& st);
@@ -590,19 +580,26 @@ namespace extra {
                                  ScenarioSpawns& out);
 
     // Convenience overload preserving simple 5-arg call sites.
-    void computeScenarioSpawns(u8 preset, u8 side, u8 multiHitMove, const StageGeometry& geom, ScenarioSpawns& out);
+    inline void computeScenarioSpawns(u8 preset, u8 side, u8 multiHitMove, const StageGeometry& geom,
+                                      ScenarioSpawns& out) {
+        ScenarioConfig cfg;
+        memset(&cfg, 0, sizeof(cfg));
+        cfg.preset = preset;
+        cfg.autoReset = 1;
+        cfg.side = side;
+        cfg.multiHitMove = multiHitMove;
+        cfg.shieldDropPlat = side == kScenarioSideLeft ? kSdPlatLeft : kSdPlatRight;
+        cfg.shieldDropSpacing = kSdSpaceClose;
+        cfg.shieldDropFacing = kSdFaceToward;
+        u32 rng = 0x51A7C0DEu;
+        computeScenarioSpawnsEx(cfg, -1, rng, geom, out);
+    }
 
     // Steps one live frame of the active scenario state machine.
-    void stepScenario(ScenarioState& st, const ScenarioConfig& rawCfg, const ScenarioStepInput& in,
-                      cpu::CpuOptions& cpuOpts, main::ComboTrainerSettings& comboCfg, ScenarioStepAction& act,
-                      main::GeneralSettings* generalCfg = NULL, main::CpuSettings* cpuSettings = NULL,
-                      main::OsdSettings* osdCfg = NULL, main::TechInvisSettings* techInvisCfg = NULL);
+    void stepScenario(ScenarioState& st, const ScenarioConfig& rawCfg, const ScenarioStepInput& in, main::Settings& s,
+                      ScenarioStepAction& act);
 
     // Steps optional CPU pressure input scripting for active scenarios.
     void stepScenarioCpu(const ScenarioCpuInput& in, ScenarioCpuState& st, ScenarioCpuOutput& out);
-
-    // Steps default repeating CPU jab/poke attacker for Boot > Skill Drills >
-    // P+ Powershield when no Scenario Preset or Recording overrides the CPU.
-    void stepPowershieldDrillCpu(const ScenarioCpuInput& in, ScenarioCpuState& st, ScenarioCpuOutput& out);
 }
 }

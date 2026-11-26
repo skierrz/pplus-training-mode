@@ -89,14 +89,15 @@ namespace extra {
 
     void comboTrainerSetAnchors(float hmnX, float hmnY, float hmnLr, float cpuX, float cpuY)
     {
-        if (s_net == NULL)
+        ComboNet* net = s_net;
+        if (net == NULL)
         {
             return;
         }
-        s_net->hmnAnchorX = hmnX;
-        s_net->hmnAnchorY = hmnY;
-        s_net->hmnAnchorLr = hmnLr != 0.0f ? hmnLr : 1.0f;
-        s_net->hmnAnchorValid = true;
+        net->hmnAnchorX = hmnX;
+        net->hmnAnchorY = hmnY;
+        net->hmnAnchorLr = hmnLr != 0.0f ? hmnLr : 1.0f;
+        net->hmnAnchorValid = true;
         game::FighterRef refs[game::kMaxFighters];
         int n = game::listFighters(refs, game::kMaxFighters);
         for (int i = 0; i < n; i++)
@@ -104,16 +105,17 @@ namespace extra {
             int p = refs[i].playerNo;
             if (refs[i].cpu && p >= 0 && p < game::kMaxFighters)
             {
-                s_net->slots[p].anchorX = cpuX;
-                s_net->slots[p].anchorY = cpuY;
-                s_net->slots[p].anchorValid = true;
+                net->slots[p].anchorX = cpuX;
+                net->slots[p].anchorY = cpuY;
+                net->slots[p].anchorValid = true;
             }
         }
     }
 
     void comboTrainerRepositionCpu()
     {
-        if (s_net == NULL)
+        ComboNet* net = s_net;
+        if (net == NULL)
         {
             return;
         }
@@ -186,22 +188,19 @@ namespace extra {
         int p = cpuRef.playerNo;
         if (p >= 0 && p < game::kMaxFighters)
         {
-            ComboSlotState& st = s_net->slots[p];
+            ComboSlotState& st = net->slots[p];
+            comboSlotReset(st);
             st.anchorX = targetX;
             st.anchorY = targetY;
             st.anchorValid = true;
-            st.wasInHitstun = false;
-            st.postResetArmed = false;
-            st.comboTimer = 0;
-            st.postResetTimer = 0;
             st.restoreCorrect = true;
             st.restoreCorrectKind = kCorrectGroundCliffStop;
             st.lastCorrectWritten = kCorrectNone;
         }
-        s_net->hmnAnchorX = hmnFs.x;
-        s_net->hmnAnchorY = hmnFs.y;
-        s_net->hmnAnchorLr = lr;
-        s_net->hmnAnchorValid = true;
+        net->hmnAnchorX = hmnFs.x;
+        net->hmnAnchorY = hmnFs.y;
+        net->hmnAnchorLr = lr;
+        net->hmnAnchorValid = true;
         float cpuDmg = static_cast<float>(main::settings().cpu.percent);
         warpGroundClean(cpuRef, targetX, targetY, true, cpuDmg, -lr, true);
         cpu::optionsResetSlot(p);
@@ -211,7 +210,8 @@ namespace extra {
 
     void comboTrainerReset()
     {
-        if (s_net == NULL)
+        ComboNet* net = s_net;
+        if (net == NULL)
         {
             return;
         }
@@ -220,30 +220,25 @@ namespace extra {
         for (int i = 0; i < n; i++)
         {
             int p = refs[i].playerNo;
-            if (p >= 0 && p < game::kMaxFighters && s_net->slots[p].restoreCorrect)
+            if (p >= 0 && p < game::kMaxFighters && net->slots[p].restoreCorrect)
             {
-                setFighterCorrect(refs[i], s_net->slots[p].restoreCorrectKind);
+                setFighterCorrect(refs[i], net->slots[p].restoreCorrectKind);
             }
-            if (s_net->hmnRestoreCorrect && p == s_net->hmnPlacedPlayer)
+            if (net->hmnRestoreCorrect && p == net->hmnPlacedPlayer)
             {
-                setFighterCorrect(refs[i], s_net->hmnRestoreCorrectKind);
+                setFighterCorrect(refs[i], net->hmnRestoreCorrectKind);
             }
         }
+        memset(net, 0, sizeof(*net));
         for (int i = 0; i < game::kMaxFighters; i++)
         {
-            comboSlotReset(s_net->slots[i]);
-            memset(&s_net->meters[i], 0, sizeof(s_net->meters[i]));
-            s_net->meterValid[i] = false;
+            net->slots[i].restoreCorrectKind = kCorrectAir;
+            net->slots[i].lastCorrectWritten = 0xFF;
         }
-        s_net->hmnAnchorX = 0.0f;
-        s_net->hmnAnchorY = 0.0f;
-        s_net->hmnAnchorLr = 1.0f;
-        s_net->hmnAnchorValid = false;
-        s_net->hmnRestoreCorrect = false;
-        s_net->hmnRestoreCorrectKind = kCorrectGroundCliffStop;
-        s_net->hmnPlacedPlayer = -1;
-        memset(&s_net->debug, 0, sizeof(s_net->debug));
-        s_net->debug.magic = kComboDebugMagic;
+        net->hmnAnchorLr = 1.0f;
+        net->hmnRestoreCorrectKind = kCorrectGroundCliffStop;
+        net->hmnPlacedPlayer = -1;
+        net->debug.magic = kComboDebugMagic;
     }
 
     void comboTrainerAttach()
@@ -276,9 +271,10 @@ namespace extra {
 
     static void copyDebugSlot(int p, Fighter* f)
     {
-        ComboDebugSlot& d = s_net->debug.slots[p];
-        const ComboSlotState& st = s_net->slots[p];
-        const ComboMeterValues& mv = s_net->meters[p];
+        ComboNet* net = s_net;
+        ComboDebugSlot& d = net->debug.slots[p];
+        const ComboSlotState& st = net->slots[p];
+        const ComboMeterValues& mv = net->meters[p];
         d.resetCount = st.resetCount;
         d.recoveryResets = st.recoveryResets;
         d.lastCorrectWritten = st.lastCorrectWritten;
@@ -288,34 +284,21 @@ namespace extra {
         d.restorePending = st.restoreCorrect ? 1 : 0;
         d.anchorX = st.anchorX;
         d.anchorY = st.anchorY;
-        d.hitlagRatio = mv.hitlagRatio;
-        d.hitstunRatio = mv.hitstunRatio;
-        d.shieldStunRatio = mv.shieldStunRatio;
-        d.diX = mv.diX;
-        d.diY = mv.diY;
-        d.iasaRatio = mv.iasaRatio;
-        d.ledgeIntangRatio = mv.ledgeIntangRatio;
-        d.intangRatio = mv.intangRatio;
-        d.hitlagFrames = mv.hitlagFrames;
-        d.hitstunFrames = mv.hitstunFrames;
-        d.shieldStunFrames = mv.shieldStunFrames;
-        d.iasaFrames = mv.iasaFrames;
-        d.ledgeIntangFrames = mv.ledgeIntangFrames;
-        d.intangFrames = mv.intangFrames;
+        const size_t kMeterTailBytes =
+            static_cast<size_t>(reinterpret_cast<const char*>(&mv + 1) - reinterpret_cast<const char*>(&mv.hitlagRatio));
+        memcpy(&d.hitlagRatio, &mv.hitlagRatio, kMeterTailBytes);
     }
 
     void comboTrainerFrame()
     {
-        if (s_net == NULL)
+        ComboNet* net = s_net;
+        if (net == NULL)
         {
             return;
         }
         const main::ComboTrainerSettings& cfg = main::settings().comboTrainer;
-        s_net->debug.frame = game::frameCounter();
-        for (int i = 0; i < game::kMaxFighters; i++)
-        {
-            s_net->meterValid[i] = false;
-        }
+        net->debug.frame = game::frameCounter();
+        memset(net->meterValid, 0, sizeof(net->meterValid));
 
         game::FighterRef refs[game::kMaxFighters];
         int n = game::listFighters(refs, game::kMaxFighters);
@@ -328,30 +311,28 @@ namespace extra {
                 hmnRef = refs[i];
                 haveHmn = true;
             }
-            if (s_net->hmnRestoreCorrect && refs[i].playerNo == s_net->hmnPlacedPlayer)
+            if (net->hmnRestoreCorrect && refs[i].playerNo == net->hmnPlacedPlayer)
             {
-                setFighterCorrect(refs[i], s_net->hmnRestoreCorrectKind);
-                s_net->hmnRestoreCorrect = false;
+                setFighterCorrect(refs[i], net->hmnRestoreCorrectKind);
+                net->hmnRestoreCorrect = false;
             }
         }
         if (!cfg.enabled)
         {
-            s_net->hmnAnchorValid = false;
+            net->hmnAnchorValid = false;
         }
-        else if (haveHmn && !s_net->hmnAnchorValid)
+        else if (haveHmn && !net->hmnAnchorValid)
         {
             game::FighterState hfs;
             const soModuleEnumeration* hm = game::fighterModules(hmnRef.fighter);
-            bool hmnGrounded = hm != NULL && game::isRam(hm->m_situationModule)
-                               && hm->m_situationModule->getKind() != Situation_Air;
-            if (hmnGrounded && game::readState(hmnRef, hfs) && !game::outOfPlay(hfs.status, true))
+            if (hm != NULL && !isFighterAir(hm) && game::readState(hmnRef, hfs) && !game::outOfPlay(hfs.status, true))
             {
-                s_net->hmnAnchorX = hfs.x;
-                s_net->hmnAnchorY = hfs.y;
-                s_net->hmnAnchorLr = (game::isRam(hm->m_postureModule) && hm->m_postureModule->getLr() < 0.0f)
-                                         ? -1.0f
-                                         : 1.0f;
-                s_net->hmnAnchorValid = true;
+                net->hmnAnchorX = hfs.x;
+                net->hmnAnchorY = hfs.y;
+                net->hmnAnchorLr = (game::isRam(hm->m_postureModule) && hm->m_postureModule->getLr() < 0.0f)
+                                       ? -1.0f
+                                       : 1.0f;
+                net->hmnAnchorValid = true;
             }
         }
         StageGeometry geom;
@@ -408,14 +389,15 @@ namespace extra {
             }
 
             // Compute all 7 meters for every fighter (human and CPU).
-            computeComboMeters(cfg.enabledMeters, in, s_net->slots[p], s_net->meters[p]);
-            s_net->meterValid[p] = true;
+            ComboSlotState& st = net->slots[p];
+            computeComboMeters(cfg.enabledMeters, in, st, net->meters[p]);
+            net->meterValid[p] = true;
 
             // Reset / noclip / recovery-trainer actions apply only to CPU fighters.
             if (ref.cpu)
             {
                 ComboStepAction act;
-                stepComboTrainer(cfg, in, s_net->slots[p], act);
+                stepComboTrainer(cfg, in, st, act);
                 if (act.restoreCorrect)
                 {
                     setFighterCorrect(ref, act.restoreCorrectKind);
@@ -423,8 +405,8 @@ namespace extra {
                 if (act.doWarp)
                 {
                     s_rng ^= game::frameCounter() * 0x9E3779B9u;
-                    float wx = s_net->slots[p].anchorX;
-                    float wy = s_net->slots[p].anchorY;
+                    float wx = st.anchorX;
+                    float wy = st.anchorY;
                     if (act.pickOffstagePos && haveGeom)
                     {
                         sampleRecoveryCandidate(geom, s_rng, wx, wy, scenarioPresetsEdgeguardSide());
@@ -450,31 +432,28 @@ namespace extra {
                     {
                         if (act.warpFalling)
                         {
-                            placeFalling(ref, wx, wy, act.setCorrectNone, dmg);
-                            refreshAirResources(ref, false);
+                            warpAirClean(ref, wx, wy, act.setCorrectNone, dmg, 0.0f, true, false);
                         }
                         else
                         {
-                            placeStanding(ref, wx, wy, act.setCorrectNone, dmg);
-                            finishStandingWarp(ref, act.setCorrectNone, true);
+                            warpGroundClean(ref, wx, wy, act.setCorrectNone, dmg, 0.0f, true);
                         }
-                        clearWarpIntang(ref);
                         cpu::optionsResetSlot(p);
                     }
                     pplusRecoveryReset(p);
 
                     // Reset P1 position + damage back to starting anchor when Reset P1 is On.
-                    if (act.resetP1 && haveHmn && s_net->hmnAnchorValid)
+                    if (act.resetP1 && haveHmn && net->hmnAnchorValid)
                     {
                         float hmnDmg = static_cast<float>(main::settings().general.playerPercent);
-                        float hlr = wx >= s_net->hmnAnchorX ? 1.0f : -1.0f;
-                        warpGroundClean(hmnRef, s_net->hmnAnchorX, s_net->hmnAnchorY, act.setCorrectNone, hmnDmg, hlr,
+                        float hlr = wx >= net->hmnAnchorX ? 1.0f : -1.0f;
+                        warpGroundClean(hmnRef, net->hmnAnchorX, net->hmnAnchorY, act.setCorrectNone, hmnDmg, hlr,
                                         true);
                         if (act.setCorrectNone)
                         {
-                            s_net->hmnRestoreCorrect = true;
-                            s_net->hmnRestoreCorrectKind = kCorrectGroundCliffStop;
-                            s_net->hmnPlacedPlayer = static_cast<s8>(hmnRef.playerNo);
+                            net->hmnRestoreCorrect = true;
+                            net->hmnRestoreCorrectKind = kCorrectGroundCliffStop;
+                            net->hmnPlacedPlayer = static_cast<s8>(hmnRef.playerNo);
                         }
                     }
                 }
@@ -520,8 +499,9 @@ namespace extra {
 
     void comboTrainerDraw(const game::MatchState& match)
     {
+        ComboNet* net = s_net;
         const main::ComboTrainerSettings& cfg = main::settings().comboTrainer;
-        if (s_net == NULL || !match.running || match.paused || cfg.enabledMeters == 0)
+        if (net == NULL || !match.running || match.paused || cfg.enabledMeters == 0)
         {
             return;
         }
@@ -530,11 +510,11 @@ namespace extra {
         for (int i = 0; i < n; i++)
         {
             int p = refs[i].playerNo;
-            if (p < 0 || p >= game::kMaxFighters || !s_net->meterValid[p])
+            if (p < 0 || p >= game::kMaxFighters || !net->meterValid[p])
             {
                 continue;
             }
-            const ComboMeterValues& mv = s_net->meters[p];
+            const ComboMeterValues& mv = net->meters[p];
             if (mv.activeMask == 0)
             {
                 continue;
@@ -549,35 +529,19 @@ namespace extra {
             float cy = top.m_y + 10.5f;
 
             // Main state bar (priority: shieldstun > hitlag > hitstun > timeUntilIASA).
-            const float kBarW = 14.0f;
-            const float kBarH = 2.4f;
-            if ((mv.activeMask & (main::kMeterShieldstun | main::kMeterHitlag | main::kMeterHitstun | main::kMeterIasa))
-                != 0)
+            static const u8 kMainBit[4] = {
+                main::kMeterShieldstun, main::kMeterHitlag, main::kMeterHitstun, main::kMeterIasa
+            };
+            static const gfx::Rgba kMainCol[4] = {0x3898FFFF, 0x40D060FF, 0xFF9830FF, 0xD0D840FF};
+            const float ratios[4] = {mv.shieldStunRatio, mv.hitlagRatio, mv.hitstunRatio, mv.iasaRatio};
+            for (int mi = 0; mi < 4; mi++)
             {
-                float ratio = 0.0f;
-                gfx::Rgba col = 0xCCCCCCFF;
-                if ((mv.activeMask & main::kMeterShieldstun) != 0)
+                if ((mv.activeMask & kMainBit[mi]) != 0)
                 {
-                    ratio = mv.shieldStunRatio;
-                    col = 0x3898FFFF;
+                    drawBar(cx, cy, 14.0f, 2.4f, ratios[mi], kMainCol[mi]);
+                    cy += 3.8f;
+                    break;
                 }
-                else if ((mv.activeMask & main::kMeterHitlag) != 0)
-                {
-                    ratio = mv.hitlagRatio;
-                    col = 0x40D060FF;
-                }
-                else if ((mv.activeMask & main::kMeterHitstun) != 0)
-                {
-                    ratio = mv.hitstunRatio;
-                    col = 0xFF9830FF;
-                }
-                else
-                {
-                    ratio = mv.iasaRatio;
-                    col = 0xD0D840FF;
-                }
-                drawBar(cx, cy, kBarW, kBarH, ratio, col);
-                cy += kBarH + 1.4f;
             }
 
             // Intangibility / Ledge Intangibility bar.

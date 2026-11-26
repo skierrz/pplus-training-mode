@@ -23,8 +23,8 @@
 #include "extra/combo_trainer.h"
 #include "extra/drill_core_engines.h"
 #include "extra/drill_hover_ps_engines.h"
-#include "extra/drill_hud.h"
 #include "extra/drill_pplus_tech_engines.h"
+#include "extra/hud_draw.h"
 #include "extra/net_alloc.h"
 #include "extra/pplus_recovery.h"
 #include "extra/scenario_presets_core.h"
@@ -41,6 +41,7 @@
 #include "main/services.h"
 #include "main/settings.h"
 #include "main/storage/notice.h"
+#include "main/ui/hud_layout.h"
 #include "main/ui/pages/scenarios.h"
 #include "shared/drill_session.h"
 #include "shared/game/frame.h"
@@ -172,48 +173,45 @@ namespace extra {
 
     static void syncDebugBlock(Fighter* hmn, Fighter* cpu)
     {
-        if (s_net == NULL)
+        ScenarioNet* net = s_net;
+        if (net == NULL)
         {
             return;
         }
-        ScenarioState& s_state = s_net->state;
-        ScenarioDebugBlock& s_debug = s_net->debug;
-        ScenarioConfig cfg;
-        readMenuConfigInto(cfg);
+        ScenarioState& s_state = net->state;
+        ScenarioDebugBlock& s_debug = net->debug;
+        const ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
         s_debug.magic = kScenarioDebugMagic;
         s_debug.frame = game::frameCounter();
-        s_debug.scratchAddr = reinterpret_cast<u32>(ui::pages::scenarioMenuState());
+        s_debug.scratchAddr = reinterpret_cast<u32>(m);
         s_debug.resetCount = s_state.resetCount;
         s_debug.completionCount = s_state.completionCount;
         s_debug.sdiHitCount = s_state.sdiHitCount;
         s_debug.sdiHitlagFrames = s_state.sdiHitlagFrames;
         s_debug.grabEscapeFrames = s_state.grabEscapeFrames;
         s_debug.shieldHitCount = s_state.shieldHitCount;
-        s_debug.hmnSpawnX = s_state.hmnSpawnX;
-        s_debug.hmnSpawnY = s_state.hmnSpawnY;
-        s_debug.cpuSpawnX = s_state.cpuSpawnX;
-        s_debug.cpuSpawnY = s_state.cpuSpawnY;
+        memcpy(&s_debug.hmnSpawnX, &s_state.hmnSpawnX, 4 * sizeof(float));
         s_debug.sdiDispX = s_state.sdiDispX;
         s_debug.sdiDispY = s_state.sdiDispY;
         s_debug.activePreset = s_state.activePreset;
-        s_debug.hasPlatform = s_state.hasPlatform ? 1 : 0;
-        s_debug.snapshotActive = s_state.snapshotActive ? 1 : 0;
-        s_debug.sdiEscaped = s_state.sdiEscaped ? 1 : 0;
+        s_debug.hasPlatform = static_cast<u8>(s_state.hasPlatform);
+        s_debug.snapshotActive = static_cast<u8>(s_state.snapshotActive);
+        s_debug.sdiEscaped = static_cast<u8>(s_state.sdiEscaped);
         s_debug.lastCorrectWritten[0] = s_state.lastCorrectWritten[0];
         s_debug.lastCorrectWritten[1] = s_state.lastCorrectWritten[1];
         int hObs = hmn != NULL ? getFighterCorrect(hmn) : -1;
         int cObs = cpu != NULL ? getFighterCorrect(cpu) : -1;
         s_debug.observedCorrect[0] = hObs >= 0 ? static_cast<u8>(hObs) : 0xFF;
         s_debug.observedCorrect[1] = cObs >= 0 ? static_cast<u8>(cObs) : 0xFF;
-        s_debug.restorePending[0] = s_state.restoreCorrect[0] ? 1 : 0;
-        s_debug.restorePending[1] = s_state.restoreCorrect[1] ? 1 : 0;
-        s_debug.sawShieldDrop = s_state.sawShieldDrop ? 1 : 0;
-        s_debug.sawWallTech = s_state.sawWallTech ? 1 : 0;
-        s_debug.sawSlideOff = s_state.sawSlideOff ? 1 : 0;
-        s_debug.sawGrabEscape = s_state.sawGrabEscape ? 1 : 0;
-        s_debug.autoReset = cfg.autoReset;
-        s_debug.side = cfg.side;
-        s_debug.multiHitMove = cfg.multiHitMove;
+        s_debug.restorePending[0] = static_cast<u8>(s_state.restoreCorrect[0]);
+        s_debug.restorePending[1] = static_cast<u8>(s_state.restoreCorrect[1]);
+        s_debug.sawShieldDrop = static_cast<u8>(s_state.sawShieldDrop);
+        s_debug.sawWallTech = static_cast<u8>(s_state.sawWallTech);
+        s_debug.sawSlideOff = static_cast<u8>(s_state.sawSlideOff);
+        s_debug.sawGrabEscape = static_cast<u8>(s_state.sawGrabEscape);
+        s_debug.autoReset = static_cast<u8>(m->autoReset != 0);
+        s_debug.side = m->side < kScenarioSideCount ? m->side : 0;
+        s_debug.multiHitMove = m->multiHitMove < kMultiHitMoveCount ? m->multiHitMove : 0;
         s_debug.resolvedMultiHit = s_state.resolvedMultiHit;
         s_debug.resolvedPlatformSlot = s_state.resolvedPlatformSlot;
         s_debug.resolvedLedgetechAtk = s_state.resolvedLedgetechAttack;
@@ -256,72 +254,75 @@ namespace extra {
         return false;
     }
 
-    static void applyPercentsIfChanged(u16 beforeHmn, u16 beforeCpu, const main::Settings& s)
+    static void applyBothPercents(bool hmn, bool cpu)
     {
-        if (s.general.playerPercent != beforeHmn)
+        if (hmn)
         {
             lab::applyPercent(main::kSideHuman);
         }
-        if (s.cpu.percent != beforeCpu)
+        if (cpu)
         {
             lab::applyPercent(main::kSideCpu);
         }
+    }
+    static void resetScenarioAndCpu()
+    {
+        requestScenarioManualReset(s_net->state);
+        scenarioCpuStateReset(s_net->cpuState);
+    }
+
+    static void resetPlacedGlobals()
+    {
+        s_placedPlayer[0] = -1;
+        s_placedPlayer[1] = -1;
+        s_wasPaused = false;
+        s_resumeFromPause = false;
     }
 #pragma dont_inline reset
 
     void scenarioPresetsAttach()
     {
         freeNetPtr(s_net);
-        s_net = allocNetArray<ScenarioNet>(1);
-        s_placedPlayer[0] = -1;
-        s_placedPlayer[1] = -1;
-        s_wasPaused = false;
-        s_resumeFromPause = false;
+        ScenarioNet* net = allocNetArray<ScenarioNet>(1);
+        s_net = net;
+        resetPlacedGlobals();
         initScratchDefaults();
-        if (s_net == NULL)
+        if (net == NULL)
         {
             return;
         }
-        scenarioStateInit(s_net->state);
-        scenarioCpuStateReset(s_net->cpuState);
-        s_net->revivalActive = false;
-        s_net->revivalPlayer = -1;
-        s_net->cpuMotionFrozen = false;
-        s_net->slidePassDisabled = false;
-        s_net->dropIntangActive = false;
-        s_net->ledgetechWallWarned = false;
-        s_net->techFlashFrames = 0;
-        s_net->spacingOffset = 0;
+        scenarioStateInit(net->state);
+        net->revivalPlayer = -1;
         drills::Session* sess = drills::sessionIn(main::services().settings());
         if (sess != NULL)
         {
-            s_net->state.techBest = sess->best[kTechBestSlot];
+            net->state.techBest = sess->best[kTechBestSlot];
             if (sess->pendingScenario >= kScenarioComboLab && sess->pendingScenario < kScenarioCount)
             {
                 u8 p = sess->pendingScenario;
                 sess->pendingScenario = 0;
                 ui::pages::scenarioMenuState()->preset = p;
-                TM_LOG("scenarios: arm %u\n", p);
+                TM_LOG("scenarios: armed preset %u from menu session\n", p);
             }
         }
-        memset(&s_net->debug, 0, sizeof(s_net->debug));
         syncDebugBlock(NULL, NULL);
-        TM_LOG("scenarios: debug block %08x\n", &s_net->debug);
+        TM_LOG("scenarios: debug block %08x\n", &net->debug);
     }
 
 #pragma dont_inline on
+    static Fighter* pairFighter(const game::FighterRef& ref, int idx)
+    {
+        return idx == 0 ? ref.fighter : ((ref.partner != NULL && ref.partner != ref.fighter) ? ref.partner : NULL);
+    }
+
     // Clears lingering respawn or ledge intangibility/invincibility when a
     // scenario warps a fighter into a fresh rep (soCollisionHitModule).
     void clearWarpIntang(const game::FighterRef& ref)
     {
-        Fighter* pair[2] = {ref.fighter, (ref.partner != NULL && ref.partner != ref.fighter) ? ref.partner : NULL};
         for (int i = 0; i < 2; i++)
         {
-            if (pair[i] == NULL)
-            {
-                continue;
-            }
-            const soModuleEnumeration* m = game::fighterModules(pair[i]);
+            Fighter* f = pairFighter(ref, i);
+            const soModuleEnumeration* m = f != NULL ? game::fighterModules(f) : NULL;
             if (m != NULL && game::isRam(m->m_collisionHitModule))
             {
                 m->m_collisionHitModule->setXluFrameGlobal(0, 0);
@@ -331,18 +332,29 @@ namespace extra {
         }
     }
 
-    static void killRevivalPlatform(Fighter* f)
+    static void clearRevivalFlags(Fighter* f, bool killEffect)
     {
         const soModuleEnumeration* m = game::fighterModules(f);
-        if (m == NULL || !game::isRam(m->m_workManageModule))
+        if (m == NULL)
         {
             return;
         }
-        int handle = m->m_workManageModule->getInt(kRaBasicRebirthEf);
-        if (handle != 0 && game::isRam(m->m_effectModule))
+        if (game::isRam(m->m_workManageModule))
         {
-            m->m_effectModule->kill(handle, true, true);
-            m->m_workManageModule->setInt(0, kRaBasicRebirthEf);
+            if (killEffect)
+            {
+                int handle = m->m_workManageModule->getInt(kRaBasicRebirthEf);
+                if (handle != 0 && game::isRam(m->m_effectModule))
+                {
+                    m->m_effectModule->kill(handle, true, true);
+                    m->m_workManageModule->setInt(0, kRaBasicRebirthEf);
+                }
+            }
+            m->m_workManageModule->offFlag(kLaBitRebirthNoInv);
+        }
+        if (game::isRam(m->m_cameraModule))
+        {
+            m->m_cameraModule->setWhole(true);
         }
     }
 
@@ -355,8 +367,8 @@ namespace extra {
         }
     }
 
-    static void warpAirClean(const game::FighterRef& ref, float x, float y, bool noclip, float dmg, float lr,
-                             bool refreshAir, bool spendDj)
+    void warpAirClean(const game::FighterRef& ref, float x, float y, bool noclip, float dmg, float lr,
+                      bool refreshAir, bool spendDj)
     {
         placeFalling(ref, x, y, noclip, dmg, lr);
         if (refreshAir)
@@ -379,9 +391,10 @@ namespace extra {
 #pragma dont_inline reset
 
 #pragma dont_inline on
-    static void restoreRuntimeMods()
+    static void restoreRuntimeMods(bool unconditional = false)
     {
-        if (s_net == NULL)
+        ScenarioNet* net = s_net;
+        if (net == NULL)
         {
             return;
         }
@@ -394,36 +407,38 @@ namespace extra {
             {
                 continue;
             }
-            if (!refs[i].cpu && s_net->revivalActive)
+            if (!refs[i].cpu && (net->revivalActive || unconditional))
             {
-                killRevivalPlatform(refs[i].fighter);
+                clearRevivalFlags(refs[i].fighter, net->revivalActive);
             }
             if (refs[i].cpu)
             {
-                if (s_net->cpuMotionFrozen && game::isRam(m->m_motionModule))
+                if (game::isRam(m->m_motionModule)
+                    && (net->cpuMotionFrozen
+                        || (unconditional && cpu::g_freezeCpuLabel[0] == 0 && m->m_motionModule->getRate() == 0.0f)))
                 {
                     m->m_motionModule->setRate(1.0f);
                 }
-                if (s_net->slidePassDisabled && game::isRam(m->m_groundModule))
+                if ((net->slidePassDisabled || unconditional) && game::isRam(m->m_groundModule))
                 {
                     m->m_groundModule->setPassableCheck(true, 0);
                 }
-                if (s_net->techFlashFrames > 0)
+                if (net->techFlashFrames > 0)
                 {
                     setTechFlashTint(refs[i].fighter, false);
                 }
-                if (s_net->dropIntangActive)
+                if (net->dropIntangActive)
                 {
                     clearWarpIntang(refs[i]);
                 }
             }
         }
-        s_net->revivalActive = false;
-        s_net->revivalPlayer = -1;
-        s_net->cpuMotionFrozen = false;
-        s_net->slidePassDisabled = false;
-        s_net->dropIntangActive = false;
-        s_net->techFlashFrames = 0;
+        net->revivalActive = false;
+        net->revivalPlayer = -1;
+        net->cpuMotionFrozen = false;
+        net->slidePassDisabled = false;
+        net->dropIntangActive = false;
+        net->techFlashFrames = 0;
     }
 #pragma dont_inline reset
 
@@ -454,9 +469,8 @@ namespace extra {
 #pragma dont_inline on
     static void placeOnRevivalPlatform(const game::FighterRef& ref, float x, float y, float lr, float dmg, bool spendDj)
     {
-        killRevivalPlatform(ref.fighter);
-        placeFalling(ref, x, y, true, dmg, lr);
-        refreshAirResources(ref, spendDj);
+        clearRevivalFlags(ref.fighter, true);
+        warpAirClean(ref, x, y, true, dmg, lr, true, spendDj);
         const soModuleEnumeration* m = game::fighterModules(ref.fighter);
         if (m == NULL || !game::isRam(m->m_statusModule) || !game::isRam(m->m_workManageModule)
             || !game::isRam(ref.fighter->m_moduleAccesser))
@@ -464,14 +478,19 @@ namespace extra {
             return;
         }
         // Clear LA-Bit[35] before entering Rebirth so Brawl spawns the revival
-        // platform effect (EfID 0x62), then immediately pin position, cancel
-        // descent, hold wait timer, and set LA-Bit[35] to suppress exit invuln.
-        m->m_workManageModule->offFlag(kLaBitRebirthNoInv);
+        // platform effect (EfID 0x62), restore camera tracking (setWhole(true)),
+        // cancel descent, hold wait timer, and set LA-Bit[35] to suppress exit invuln.
+        soWorkManageModule* wm = m->m_workManageModule;
+        wm->offFlag(kLaBitRebirthNoInv);
         forceStatus(ref.fighter, game::kStatusRebirth);
-        m->m_workManageModule->onFlag(kRaBitRebirthDone);
-        m->m_workManageModule->offFlag(kLaBitRebirthDesc);
-        m->m_workManageModule->onFlag(kLaBitRebirthNoInv);
-        m->m_workManageModule->setInt(0, kRaBasicRebirthWait);
+        if (game::isRam(m->m_cameraModule))
+        {
+            m->m_cameraModule->setWhole(true);
+        }
+        wm->onFlag(kRaBitRebirthDone);
+        wm->offFlag(kLaBitRebirthDesc);
+        wm->onFlag(kLaBitRebirthNoInv);
+        wm->setInt(0, kRaBasicRebirthWait);
         if (game::isRam(m->m_postureModule))
         {
             Vec3f pos(x, y, 0.0f);
@@ -495,9 +514,7 @@ namespace extra {
     static void applyEdgeguardLaunch(const game::FighterRef& ref, const StageGeometry& geom, u8 strengthMode,
                                      int sideChoice, u32& rng, bool setNoclip, float damage)
     {
-        bool leftSide = sideChoice == kScenarioSideLeft
-                            ? true
-                            : (sideChoice == kScenarioSideRight ? false : ((geomNextRng(rng) & 1u) != 0));
+        bool leftSide = sideChoice < 2 ? (sideChoice == kScenarioSideLeft) : ((geomNextRng(rng) & 1u) != 0);
         const LedgeInfo& ledge = leftSide ? geom.leftLedge : geom.rightLedge;
         float outward = leftSide ? -1.0f : 1.0f;
         EdgeguardLaunchParams lp;
@@ -514,6 +531,9 @@ namespace extra {
                 soDamageLog* log = m->m_damageModule->getDamageLog();
                 if (game::isRam(log))
                 {
+                    memset(log, 0, sizeof(*log));
+                    log->m_height = 1;
+                    log->m_isDamageAir = true;
                     log->m_reaction = lp.speed * 30.0f;
                     log->m_level = soDamage::Level_Fly;
                     log->m_speed.m_x = lp.kbX;
@@ -555,16 +575,12 @@ namespace extra {
 #pragma dont_inline on
     void finishStandingWarp(const game::FighterRef& ref, bool setNoclip, bool fallIfNoGround)
     {
-        Fighter* pair[2] = {ref.fighter, (ref.partner != NULL && ref.partner != ref.fighter) ? ref.partner : NULL};
         for (int i = 0; i < 2; i++)
         {
-            if (pair[i] == NULL)
-            {
-                continue;
-            }
-            const soModuleEnumeration* m = game::fighterModules(pair[i]);
+            Fighter* f = pairFighter(ref, i);
+            const soModuleEnumeration* m = f != NULL ? game::fighterModules(f) : NULL;
             if (m == NULL || !game::isRam(m->m_groundModule) || !game::isRam(m->m_statusModule)
-                || !game::isRam(pair[i]->m_moduleAccesser))
+                || !game::isRam(f->m_moduleAccesser))
             {
                 continue;
             }
@@ -575,8 +591,7 @@ namespace extra {
                 m->m_groundModule->setStGroundForce(0);
             }
             bool useFall = fallIfNoGround && !attached;
-            m->m_statusModule->changeStatusForce(useFall ? game::kStatusFall : game::kStatusWait,
-                                                 pair[i]->m_moduleAccesser);
+            m->m_statusModule->changeStatusForce(useFall ? game::kStatusFall : game::kStatusWait, f->m_moduleAccesser);
             m->m_groundModule->setCorrect(
                 setNoclip ? soGroundShapeImpl::Correct_None
                           : (useFall ? soGroundShapeImpl::Correct_Air : soGroundShapeImpl::Correct_Ground_Cliff_Stop),
@@ -623,20 +638,16 @@ namespace extra {
     {
         if (s_net != NULL)
         {
-            restoreRuntimeMods();
+            restoreRuntimeMods(true);
             main::Settings& s = main::settings();
             u16 prevHmn = s.general.playerPercent;
             u16 prevCpu = s.cpu.percent;
-            restoreScenarioSnapshot(s_net->state, s.cpu.options, s.comboTrainer, &s.general, &s.cpu, &s.osd,
-                                    &s.techInvis);
-            applyPercentsIfChanged(prevHmn, prevCpu, s);
+            restoreScenarioSnapshot(s_net->state, s);
+            applyBothPercents(s.general.playerPercent != prevHmn, s.cpu.percent != prevCpu);
             s_net->state.activePreset = kScenarioOff;
             freeNetPtr(s_net);
         }
-        s_placedPlayer[0] = -1;
-        s_placedPlayer[1] = -1;
-        s_wasPaused = false;
-        s_resumeFromPause = false;
+        resetPlacedGlobals();
     }
 
 #pragma dont_inline on
@@ -652,20 +663,21 @@ namespace extra {
         main::Settings& s = main::settings();
         u16 prevHmn = s.general.playerPercent;
         u16 prevCpu = s.cpu.percent;
-        applyScenarioConfig(st, *cfg, s.cpu.options, s.comboTrainer, &s.general, &s.cpu, &s.osd, &s.techInvis);
-        applyPercentsIfChanged(prevHmn, prevCpu, s);
+        applyScenarioConfig(st, *cfg, s);
+        applyBothPercents(s.general.playerPercent != prevHmn, s.cpu.percent != prevCpu);
     }
 #pragma dont_inline reset
 
     void scenarioPresetsPrepareSwap()
     {
-        if (s_net == NULL)
+        ScenarioNet* net = s_net;
+        if (net == NULL)
         {
             return;
         }
         restoreRuntimeMods();
-        ScenarioState& s_state = s_net->state;
-        ScenarioCpuState& s_cpuState = s_net->cpuState;
+        ScenarioState& s_state = net->state;
+        ScenarioCpuState& s_cpuState = net->cpuState;
         ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
         bool wasActive = s_state.activePreset != kScenarioOff || m->preset != kScenarioOff || s_state.snapshotActive;
         if (s_state.restoreCorrect[0] || s_state.restoreCorrect[1])
@@ -689,14 +701,11 @@ namespace extra {
         applyConfigAndPercents(s_state, NULL);
         scenarioTransientReset(s_state);
         scenarioCpuStateReset(s_cpuState);
-        s_placedPlayer[0] = -1;
-        s_placedPlayer[1] = -1;
-        s_wasPaused = false;
-        s_resumeFromPause = false;
+        resetPlacedGlobals();
         syncDebugBlock(NULL, NULL);
         if (wasActive)
         {
-            TM_LOG("scenarios: swap off\n");
+            TM_LOG("scenarios: deactivated for fighter swap\n");
         }
     }
 
@@ -706,14 +715,11 @@ namespace extra {
         {
             return;
         }
-        ScenarioState& s_state = s_net->state;
-        ScenarioCpuState& s_cpuState = s_net->cpuState;
         memcpy(ui::pages::scenarioMenuState(), &saved, sizeof(saved));
-        applyConfigAndPercents(s_state, NULL);
-        requestScenarioManualReset(s_state);
-        scenarioCpuStateReset(s_cpuState);
+        applyConfigAndPercents(s_net->state, NULL);
+        resetScenarioAndCpu();
         syncDebugBlock(NULL, NULL);
-        TM_LOG("scenarios: swap %u\n", saved.preset);
+        TM_LOG("scenarios: restored preset %u after fighter swap\n", saved.preset);
     }
 
     void scenarioPresetsOnRender(const game::MatchState& match)
@@ -736,6 +742,13 @@ namespace extra {
         return s_net != NULL && match.running && !match.paused && s_net->state.activePreset == kScenarioTechchase;
     }
 
+#pragma dont_inline on
+    static void drawHudTxt(float x, float y, const char* s, gfx::Rgba col, float sc, float xs)
+    {
+        gfx::text(x, y, s, col, sc * xs, sc);
+    }
+#pragma dont_inline reset
+
     void scenarioPresetsDraw(const game::MatchState& match)
     {
         if (!scenarioPresetsWantsDraw(match))
@@ -744,24 +757,48 @@ namespace extra {
         }
         const ScenarioState& st = s_net->state;
         const ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
-        // Compact Brawl/P+ Techchase HUD card (top-right, zero left-accent bars).
-        static const float kRects[6][4] = {
-            {426.0f, 26.0f, 188.0f, 54.0f},
-            {426.0f, 26.0f, 188.0f, 1.0f},
-            {426.0f, 79.0f, 188.0f, 1.0f},
-            {426.0f, 26.0f, 1.0f, 54.0f},
-            {613.0f, 26.0f, 1.0f, 54.0f},
-            {432.0f, 43.0f, 176.0f, 1.0f}
-        };
-        static const gfx::Rgba kCols[6] = {
-            0x0E1520D8, 0x8EA8C4B0, 0x8EA8C4B0, 0x8EA8C4B0, 0x8EA8C4B0, 0xFFFFFF24
-        };
-        for (int i = 0; i < 6; i++)
+        const main::Settings& s = main::settings();
+        float xs = ui::layout::xsOf(gfx::widescreen());
+        float bw = 168.0f * xs;
+        float x1 = ui::layout::kViewerRight;
+        float x0 = x1 - bw;
+        float y0 = ui::layout::kViewerTop;
+        ui::layout::Box band = ui::layout::topBand();
+        if (x0 < band.x1 && band.x0 < x1 && band.y1 > y0)
         {
-            gfx::fillRect(kRects[i][0], kRects[i][1], kRects[i][2], kRects[i][3], kCols[i]);
+            y0 = band.y1 + ui::layout::kStepGap;
         }
+        // Step cleanly below active right-column widgets (exact ui::layout heights).
+        int vSlots = ui::layout::inputViewerSlotCount(s.display.inputViewer);
+        int gap = static_cast<int>(ui::layout::kViewerGap);
+        int colR = vSlots > 0 ? (vSlots * (static_cast<int>(ui::layout::kViewerHeight) + gap) - gap) : 0;
+        if (s.general.diDisplay != 0 && s.display.diVectorMode != main::kDiVectorLive)
+        {
+            colR += (colR > 0 ? gap : 0) + static_cast<int>(ui::layout::kCompassHeight);
+        }
+        int colL = s.display.psaInspector != main::kPsaOff ? static_cast<int>(ui::layout::kPsaHeight) : 0;
+        if (s.cpu.options.control == cpu::kControlLab && s.cpu.options.adaptiveMode != cpu::kAdaptiveOff)
+        {
+            colL += (colL > 0 ? gap : 0) + static_cast<int>(ui::layout::kAdaptiveHudHeight);
+        }
+        int addH = colR > colL ? colR : colL;
+        if (addH > 0)
+        {
+            y0 += static_cast<float>(addH + gap);
+        }
+        if (y0 > 343.0f) y0 = 343.0f;
 
-        gfx::text(433.0f, 31.0f, "TECHCHASE", 0xDCE6F2FF, 0.48f);
+        // Brawl/P+ double-framed panel + bevel header (zero left-accent bars).
+        drawHudCard(x0, y0, bw, 52.0f, xs, 0x35B8C8FFu, 0xFFFFFF40u);
+        float ix = x0 + 4.0f * xs;
+        float iw = bw - 8.0f * xs;
+        gfx::fillGradV(ix, y0 + 4.0f, iw, 14.0f, 0x226874F0u, 0x123C46F0u);
+        gfx::fillRect(ix, y0 + 18.0f, iw, 1.5f, 0x2A5866E0u);
+
+        float lx = x0 + 8.0f * xs;
+        float dispSc = 8.0f / 24.0f;
+        gfx::displayText(lx, y0 + 5.5f, "TECHCHASE", 0xFFFFFFFFu, 0xB8E0EEFFu, dispSc * xs, dispSc, 1.0f, 0x050C12FFu);
+
         char buf[32];
         const char* posStr = "GROUND";
         if (st.resolvedTechPos != 0)
@@ -769,13 +806,13 @@ namespace extra {
             sprintf(buf, "PLAT %u", static_cast<unsigned>(st.resolvedTechPos));
             posStr = buf;
         }
-        gfx::text(550.0f, 31.0f, posStr, 0x9BB8D8FF, 0.48f);
+        drawHudTxt(x1 - 8.0f * xs - gfx::textWidth(posStr, 0.45f * xs), y0 + 6.5f, posStr, 0xB8E0EEFFu, 0.45f, xs);
 
         const char* midStr = "READY";
-        gfx::Rgba midCol = 0xB8C8DCFF;
+        gfx::Rgba midCol = 0xB8C8DCFFu;
         if (st.techResult == kTechResCover)
         {
-            midCol = 0x4CE088FF;
+            midCol = 0x4CE088FFu;
             if (m->techShowReaction != 0 && st.techReactionFrames >= 0)
             {
                 sprintf(buf, "COVER  REACT %df", static_cast<int>(st.techReactionFrames));
@@ -786,28 +823,24 @@ namespace extra {
                 midStr = "COVER";
             }
         }
-        else if (st.techResult == kTechResEarly || st.techResult == kTechResLate)
+        else if (st.techResult != kTechResNone)
         {
             bool early = st.techResult == kTechResEarly;
-            midCol = early ? 0xF2C24CFF : 0xF05E68FF;
+            midCol = early ? 0xF2C24CFFu : 0xF05E68FFu;
             sprintf(buf, early ? "%df EARLY" : "%df LATE", static_cast<int>(st.techDeltaFrames));
             midStr = buf;
         }
-        gfx::text(433.0f, 48.0f, midStr, midCol, 0.52f);
+        drawHudTxt(lx, y0 + 21.5f, midStr, midCol, 0.48f, xs);
 
         sprintf(buf, "STREAK %u  BEST %u", static_cast<unsigned>(st.techStreak),
                 static_cast<unsigned>(st.techBest));
-        gfx::text(433.0f, 65.0f, buf, 0xE6EEF8FF, 0.46f);
+        drawHudTxt(lx, y0 + 35.5f, buf, 0xE6EEF8FFu, 0.44f, xs);
     }
 
-    static void stepTechchasePosition(int delta)
+    static void stepTechchasePosition(ScenarioNet* net, int delta)
     {
-        if (s_net == NULL)
-        {
-            return;
-        }
         ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
-        if (s_net->state.activePreset != kScenarioTechchase && m->preset != kScenarioTechchase)
+        if (net->state.activePreset != kScenarioTechchase && m->preset != kScenarioTechchase)
         {
             return;
         }
@@ -817,9 +850,8 @@ namespace extra {
         int nPlats = sortPlatformsLowestLeftToRight(geom, sortedPlats);
         u8 nextPos = stepTechPosition(m->techPosition, nPlats, delta);
         m->techPosition = nextPos;
-        s_net->state.lastCfg.techPosition = nextPos;
-        requestScenarioManualReset(s_net->state);
-        scenarioCpuStateReset(s_net->cpuState);
+        net->state.lastCfg.techPosition = nextPos;
+        resetScenarioAndCpu();
         if (nextPos == 0)
         {
             storage::notice(storage::kNoticeOk, "Techchase: Ground");
@@ -830,29 +862,19 @@ namespace extra {
         }
     }
 
-    static void adjustScenarioSpacing(int delta)
+    static void adjustScenarioSpacing(ScenarioNet* net, int delta)
     {
-        if (s_net == NULL)
-        {
-            return;
-        }
-        int next = static_cast<int>(s_net->spacingOffset) + delta;
+        int next = static_cast<int>(net->spacingOffset) + delta;
         if (next < -8) next = -8;
         else if (next > 12) next = 12;
-        s_net->spacingOffset = static_cast<s8>(next);
-        requestScenarioManualReset(s_net->state);
-        scenarioCpuStateReset(s_net->cpuState);
+        net->spacingOffset = static_cast<s8>(next);
+        resetScenarioAndCpu();
         storage::notice(storage::kNoticeOk, "Spacing: %+d", next);
     }
 
-    static void cycleShieldDropPlatform()
+    static void cycleShieldDropPlatform(ScenarioNet* net)
     {
-        if (s_net == NULL)
-        {
-            return;
-        }
-        ScenarioState& s_state = s_net->state;
-        ScenarioCpuState& s_cpuState = s_net->cpuState;
+        ScenarioState& s_state = net->state;
         ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
         if (s_state.activePreset != kScenarioShieldDrop && m->preset != kScenarioShieldDrop)
         {
@@ -862,92 +884,81 @@ namespace extra {
         liveGeometry(geom, true, true);
         int slotIdx[3];
         classifyPlatforms(geom, slotIdx);
-        u8 avail[3];
-        int count = 0;
-        for (int s = 0; s < 3; s++)
+        u8 cur = m->shieldDropPlat < 3 ? m->shieldDropPlat : s_state.resolvedPlatformSlot;
+        int nextSlot = -1;
+        for (int i = 1; i <= 3; i++)
         {
-            if (slotIdx[s] >= 0)
+            int cand = (static_cast<int>(cur) + i) % 3;
+            if (slotIdx[cand] >= 0)
             {
-                avail[count++] = static_cast<u8>(s);
+                nextSlot = cand;
+                break;
             }
         }
-        if (count == 0)
+        if (nextSlot < 0)
         {
             storage::notice(storage::kNoticeWarn, "No platforms on this stage");
             return;
         }
-        u8 cur = m->shieldDropPlat < 3 ? m->shieldDropPlat : s_state.resolvedPlatformSlot;
-        u8 nextSlot = avail[0];
-        for (int i = 0; i < count; i++)
-        {
-            if (avail[i] > cur)
-            {
-                nextSlot = avail[i];
-                break;
-            }
-        }
-        m->shieldDropPlat = nextSlot;
-        s_state.lastCfg.shieldDropPlat = nextSlot;
-        requestScenarioManualReset(s_state);
-        scenarioCpuStateReset(s_cpuState);
+        m->shieldDropPlat = static_cast<u8>(nextSlot);
+        s_state.lastCfg.shieldDropPlat = static_cast<u8>(nextSlot);
+        resetScenarioAndCpu();
         static const char* const kSlotNames[3] = {"Left", "Right", "Top"};
         storage::notice(storage::kNoticeOk, "Platform: %s", kSlotNames[nextSlot]);
-        TM_LOG("scenarios: sd %s\n", kSlotNames[nextSlot]);
     }
 
     void scenarioPresetsCall(int call)
     {
-        if (s_net == NULL)
+        ScenarioNet* net = s_net;
+        if (net == NULL)
         {
             return;
         }
-        ScenarioState& s_state = s_net->state;
-        ScenarioCpuState& s_cpuState = s_net->cpuState;
+        ScenarioState& s_state = net->state;
+        if (call == main::kScenarioChanged || call == main::kScenarioResetNow || call == main::kScenarioSavestateSaving
+            || call == main::kScenarioSavestateLoaded || call == main::kScenarioSettingsReset)
+        {
+            restoreRuntimeMods(call == main::kScenarioSavestateLoaded);
+            if (call != main::kScenarioSavestateSaving) scenarioCpuStateReset(net->cpuState);
+            if (call == main::kScenarioChanged || call == main::kScenarioSettingsReset)
+            {
+                net->spacingOffset = 0;
+                net->ledgetechWallWarned = false;
+            }
+        }
         switch (call)
         {
         case main::kScenarioChanged:
-            restoreRuntimeMods();
-            s_net->spacingOffset = 0;
-            s_net->ledgetechWallWarned = false;
             applyConfigAndPercents(s_state, NULL);
-            scenarioCpuStateReset(s_cpuState);
             break;
         case main::kScenarioResetNow:
-            restoreRuntimeMods();
             requestScenarioManualReset(s_state);
-            scenarioCpuStateReset(s_cpuState);
             break;
         case main::kScenarioSavestateLoaded:
-            restoreRuntimeMods();
             scenarioTransientReset(s_state);
-            scenarioCpuStateReset(s_cpuState);
             stageGeomReset();
             break;
         case main::kScenarioSettingsReset:
-            restoreRuntimeMods();
-            s_net->spacingOffset = 0;
-            s_net->ledgetechWallWarned = false;
             discardScenarioSnapshot(s_state);
-            scenarioCpuStateReset(s_cpuState);
             initScratchDefaults();
             break;
         case main::kScenarioCyclePlatform:
-            cycleShieldDropPlatform();
+            cycleShieldDropPlatform(net);
             break;
         case main::kScenarioComboReposition:
             comboTrainerRepositionCpu();
             break;
         case main::kScenarioStepPosUp:
-            stepTechchasePosition(1);
+            stepTechchasePosition(net, 1);
             break;
         case main::kScenarioStepPosDown:
-            stepTechchasePosition(-1);
+            stepTechchasePosition(net, -1);
             break;
         case main::kScenarioSpacingCloser:
-            adjustScenarioSpacing(-2);
+            adjustScenarioSpacing(net, -2);
             break;
         case main::kScenarioSpacingFarther:
-            adjustScenarioSpacing(2);
+            adjustScenarioSpacing(net, 2);
             break;
         default:
             break;
@@ -1007,33 +1018,64 @@ namespace extra {
 
     static void cancelLandingLag(const game::FighterRef& target)
     {
-        Fighter* pair[2] = {target.fighter,
-                            (target.partner != NULL && target.partner != target.fighter) ? target.partner : NULL};
         for (int p = 0; p < 2; p++)
         {
-            if (pair[p] == NULL)
-            {
-                continue;
-            }
-            const soModuleEnumeration* tm = game::fighterModules(pair[p]);
+            Fighter* f = pairFighter(target, p);
+            const soModuleEnumeration* tm = f != NULL ? game::fighterModules(f) : NULL;
             int st = tm != NULL ? game::fighterStatus(tm) : -1;
             if (st >= game::kStatusLanding && st <= game::kStatusLandingFallSpecial)
             {
-                forceStatus(pair[p], game::kStatusWait);
+                forceStatus(f, game::kStatusWait);
             }
         }
     }
 #pragma dont_inline reset
 
+#pragma dont_inline on
+    static bool spawnEdgeguardCpu(const game::FighterRef& ref, const StageGeometry& geom, const ScenarioConfig& cfg,
+                                  int sideChoice, u32& rng, bool setNoclip, float damage, const ScenarioSpawns* preSp,
+                                  bool resetBrain)
+    {
+        if (cfg.edgeguardSetup == kEgSetupLaunch)
+        {
+            applyEdgeguardLaunch(ref, geom, cfg.edgeguardStrength, sideChoice, rng, setNoclip, damage);
+            return true;
+        }
+        float wx = 0.0f, wy = 0.0f, lr = 1.0f;
+        if (preSp != NULL)
+        {
+            wx = preSp->cpuX;
+            wy = preSp->cpuY;
+            lr = preSp->cpuLr;
+        }
+        else
+        {
+            if (!sampleEdgeguardSpawn(geom, cfg.edgeguardDist, sideChoice, rng, wx, wy))
+            {
+                return false;
+            }
+            lr = wx >= 0.5f * (geom.floor.leftX + geom.floor.rightX) ? -1.0f : 1.0f;
+        }
+        bool spendDj = cfg.edgeguardDj == kEgDjSpent || (cfg.edgeguardDj == kEgDjRandom && (geomNextRng(rng) & 1u) != 0);
+        warpAirClean(ref, wx, wy, setNoclip, damage, lr, true, spendDj);
+        if (resetBrain)
+        {
+            cpu::optionsResetSlot(ref.playerNo);
+        }
+        return true;
+    }
+#pragma dont_inline reset
+
     void scenarioPresetsFrame()
     {
-        if (s_net == NULL)
+        ScenarioNet* net = s_net;
+        if (net == NULL)
         {
             return;
         }
-        ScenarioState& s_state = s_net->state;
-        ScenarioCpuState& s_cpuState = s_net->cpuState;
-        ScenarioDebugBlock& s_debug = s_net->debug;
+        ScenarioState& s_state = net->state;
+        ScenarioCpuState& s_cpuState = net->cpuState;
+        ScenarioDebugBlock& s_debug = net->debug;
         ScenarioConfig cfg;
         readMenuConfigInto(cfg);
         // Fast path when Off: zero per-frame fighter reads, writes, or overrides.
@@ -1042,10 +1084,6 @@ namespace extra {
         {
             s_debug.frame = game::frameCounter();
             s_debug.activePreset = kScenarioOff;
-            s_debug.snapshotActive = s_state.snapshotActive ? 1 : 0;
-            s_debug.autoReset = cfg.autoReset;
-            s_debug.side = cfg.side;
-            s_debug.multiHitMove = cfg.multiHitMove;
             s_resumeFromPause = false;
             return;
         }
@@ -1071,14 +1109,9 @@ namespace extra {
             if (s_state.activePreset != kScenarioOff)
             {
                 restoreRuntimeMods();
-                main::Settings& s = main::settings();
-                reapplyActiveScenarioOverrides(s_state, cfg, s.cpu.options, s.comboTrainer, &s.general, &s.cpu, &s.osd,
-                                               &s.techInvis);
-                lab::applyPercent(main::kSideHuman);
-                lab::applyPercent(main::kSideCpu);
-                requestScenarioManualReset(s_state);
-                scenarioCpuStateReset(s_cpuState);
-                TM_LOG("scenarios: resume %u\n", s_state.activePreset);
+                reapplyActiveScenarioOverrides(s_state, cfg, main::settings());
+                applyBothPercents(true, true);
+                resetScenarioAndCpu();
             }
         }
 
@@ -1098,7 +1131,7 @@ namespace extra {
 
         // Maintain Ledgetech Revival Platform hold (pin wait timer & clear invuln on exit).
         bool hmnOnRevivalPlat = false;
-        if (s_net->revivalActive)
+        if (net->revivalActive)
         {
             if (hmnFs.status == game::kStatusRebirth)
             {
@@ -1111,7 +1144,8 @@ namespace extra {
             }
             else
             {
-                s_net->revivalActive = false;
+                net->revivalActive = false;
+                clearRevivalFlags(hmnRef.fighter, false);
                 clearWarpIntang(hmnRef);
                 if (cfg.preset == kScenarioLedgetech && cfg.ledgetechDj == kLtDjSpent)
                 {
@@ -1121,20 +1155,16 @@ namespace extra {
         }
 
         // Clear Techchase initial Tumble Drop intangibility once CPU leaves DamageFall.
-        if (s_net->dropIntangActive && cpuFs.status != kStatusDamageFallId)
+        if (net->dropIntangActive && cpuFs.status != kStatusDamageFallId)
         {
             clearWarpIntang(cpuRef);
-            s_net->dropIntangActive = false;
+            net->dropIntangActive = false;
         }
 
         // Tick down Techchase Intangible Flash pale tint cleanly.
-        if (s_net->techFlashFrames > 0)
+        if (net->techFlashFrames > 0 && --net->techFlashFrames == 0)
         {
-            s_net->techFlashFrames--;
-            if (s_net->techFlashFrames == 0)
-            {
-                setTechFlashTint(cpuRef.fighter, false);
-            }
+            setTechFlashTint(cpuRef.fighter, false);
         }
 
         game::Body cpuBody;
@@ -1167,14 +1197,13 @@ namespace extra {
         in.cpuActionable = readCanAct(cpuRef.fighter, in.cpuHitlag, in.cpuHitstun);
         in.cpuIntangible = haveCpuBody && cpuBody.intangible != 0;
 
+        u32 pMask = (1u << cfg.preset) | (1u << s_state.activePreset);
         bool needFreshGeom = s_state.pendingReset || cfg.preset != s_state.activePreset
                              || cfg.side != s_state.lastCfg.side || cfg.multiHitMove != s_state.lastCfg.multiHitMove
                              || cfg.shieldDropPlat != s_state.lastCfg.shieldDropPlat
                              || cfg.techPosition != s_state.lastCfg.techPosition;
-        bool needPlatforms = cfg.preset == kScenarioShieldDrop || cfg.preset == kScenarioSlideOff
-                             || cfg.preset == kScenarioTechchase || s_state.activePreset == kScenarioShieldDrop
-                             || s_state.activePreset == kScenarioSlideOff
-                             || s_state.activePreset == kScenarioTechchase;
+        bool needPlatforms =
+            (pMask & ((1u << kScenarioShieldDrop) | (1u << kScenarioSlideOff) | (1u << kScenarioTechchase))) != 0;
         liveGeometry(in.geom, needFreshGeom, needPlatforms);
 
         // Stir RNG with live frame counter so random choices vary cleanly across warps.
@@ -1187,7 +1216,7 @@ namespace extra {
         u16 prevBest = s_state.techBest;
         ScenarioStepAction act;
         main::Settings& s = main::settings();
-        stepScenario(s_state, cfg, in, s.cpu.options, s.comboTrainer, act, &s.general, &s.cpu, &s.osd, &s.techInvis);
+        stepScenario(s_state, cfg, in, s, act);
         if (s_state.techBest > prevBest)
         {
             drills::Session* sess = drills::sessionIn(main::services().settings());
@@ -1196,14 +1225,7 @@ namespace extra {
                 sess->best[kTechBestSlot] = s_state.techBest;
             }
         }
-        if (act.applyHmnPercent)
-        {
-            lab::applyPercent(main::kSideHuman);
-        }
-        if (act.applyCpuPercent)
-        {
-            lab::applyPercent(main::kSideCpu);
-        }
+        applyBothPercents(act.applyHmnPercent, act.applyCpuPercent);
 
         // Techchase Intangible Flash cue: grant pale tint + 12f intangibility
         // on the first actionable escape frame so late covers visibly whiff.
@@ -1211,7 +1233,7 @@ namespace extra {
         {
             setXlu(cm, 12);
             setTechFlashTint(cpuRef.fighter, true);
-            s_net->techFlashFrames = 12;
+            net->techFlashFrames = 12;
         }
 
         // Shield Pressure Defense: CPU becomes intangible once actionable after
@@ -1259,7 +1281,7 @@ namespace extra {
                 if (act.restoreCorrectKind[slot] == kCorrectAir)
                 {
                     bool spendDj = slot == 0 && cfg.preset == kScenarioLedgetech && cfg.ledgetechDj == kLtDjSpent;
-                    if (!(slot == 0 && s_net->revivalActive)
+                    if (!(slot == 0 && net->revivalActive)
                         && !(slot == 1 && s_state.activePreset == kScenarioEdgeguard
                              && cfg.edgeguardSetup == kEgSetupSpawn && cfg.edgeguardDj != kEgDjAvail))
                     {
@@ -1273,6 +1295,7 @@ namespace extra {
             }
         }
 
+        const ScenarioSpawns& sp = act.spawns;
         float hmnDmg = act.useExplicitHmnDmg ? act.hmnDmg : static_cast<float>(s.general.playerPercent);
         float cpuDmg = act.useExplicitCpuDmg ? act.cpuDmg : static_cast<float>(s.cpu.percent);
         if (act.warpHmn || act.warpCpu)
@@ -1281,33 +1304,32 @@ namespace extra {
         }
         if (act.warpHmn)
         {
-            if (act.spawns.hmnRevivalPlat)
+            if (sp.hmnRevivalPlat)
             {
-                placeOnRevivalPlatform(hmnRef, act.spawns.hmnX, act.spawns.hmnY, act.spawns.hmnLr, hmnDmg,
-                                       act.hmnSpendDj);
+                placeOnRevivalPlatform(hmnRef, sp.hmnX, sp.hmnY, sp.hmnLr, hmnDmg, act.hmnSpendDj);
             }
-            else if (act.spawns.hmnFalling)
+            else if (sp.hmnFalling)
             {
-                warpAirClean(hmnRef, act.spawns.hmnX, act.spawns.hmnY, act.setNoclip[0], hmnDmg, act.spawns.hmnLr,
-                             act.refreshHmnAir, act.hmnSpendDj);
+                warpAirClean(hmnRef, sp.hmnX, sp.hmnY, act.setNoclip[0], hmnDmg, sp.hmnLr, act.refreshHmnAir,
+                             act.hmnSpendDj);
             }
             else
             {
-                warpGroundClean(hmnRef, act.spawns.hmnX, act.spawns.hmnY, act.setNoclip[0], hmnDmg, act.spawns.hmnLr);
+                warpGroundClean(hmnRef, sp.hmnX, sp.hmnY, act.setNoclip[0], hmnDmg, sp.hmnLr);
             }
             s_placedPlayer[0] = static_cast<s8>(hmnRef.playerNo);
 
             // Non-intrusive notice if current stage lacks a vertical wall below ledge.
-            if (s_state.activePreset == kScenarioLedgetech && !s_net->ledgetechWallWarned && in.geom.hasLedges)
+            if (s_state.activePreset == kScenarioLedgetech && !net->ledgetechWallWarned && in.geom.hasLedges)
             {
                 bool leftSide = s_state.resolvedSide == kScenarioSideLeft;
                 const LedgeInfo& ledge = leftSide ? in.geom.leftLedge : in.geom.rightLedge;
                 float outward = leftSide ? -1.0f : 1.0f;
-                bool hasWall = rayCheckWall(ledge.x + outward * 14.0f, ledge.y - 12.0f, -outward, 24.0f)
-                               || rayCheckWall(ledge.x + outward * 14.0f, ledge.y - 22.0f, -outward, 24.0f);
-                if (!hasWall)
+                float wx = ledge.x + outward * 14.0f;
+                if (!rayCheckWall(wx, ledge.y - 12.0f, -outward, 24.0f)
+                    && !rayCheckWall(wx, ledge.y - 22.0f, -outward, 24.0f))
                 {
-                    s_net->ledgetechWallWarned = true;
+                    net->ledgetechWallWarned = true;
                     storage::notice(storage::kNoticeWarn, "No wall below ledge on this stage");
                 }
             }
@@ -1315,29 +1337,25 @@ namespace extra {
         bool cpuLaunchedEdgeguard = false;
         if (act.warpCpu)
         {
-            if (act.edgeguardLaunchCpu && in.geom.hasLedges)
+            if (s_state.activePreset == kScenarioEdgeguard && in.geom.hasLedges)
             {
-                applyEdgeguardLaunch(cpuRef, in.geom, cfg.edgeguardStrength, s_state.resolvedSide, s_state.rng,
-                                     act.setNoclip[1], cpuDmg);
-                cpuLaunchedEdgeguard = true;
+                spawnEdgeguardCpu(cpuRef, in.geom, cfg, s_state.resolvedSide, s_state.rng, act.setNoclip[1], cpuDmg,
+                                  &sp, false);
+                cpuLaunchedEdgeguard = act.edgeguardLaunchCpu;
             }
-            else if (act.spawns.cpuFalling)
+            else if (sp.cpuFalling)
             {
-                bool spendCpuDj = s_state.activePreset == kScenarioEdgeguard && cfg.edgeguardSetup == kEgSetupSpawn
-                                  && (cfg.edgeguardDj == kEgDjSpent
-                                      || (cfg.edgeguardDj == kEgDjRandom && (geomNextRng(s_state.rng) & 1u) != 0));
-                warpAirClean(cpuRef, act.spawns.cpuX, act.spawns.cpuY, act.setNoclip[1], cpuDmg, act.spawns.cpuLr,
-                             act.refreshCpuAir, spendCpuDj);
-                if (act.spawns.cpuTumbleDrop)
+                warpAirClean(cpuRef, sp.cpuX, sp.cpuY, act.setNoclip[1], cpuDmg, sp.cpuLr, act.refreshCpuAir, false);
+                if (sp.cpuTumbleDrop)
                 {
                     forceStatus(cpuRef.fighter, kStatusDamageFallId);
                     setXlu(cm, 28);
-                    s_net->dropIntangActive = true;
+                    net->dropIntangActive = true;
                 }
             }
             else
             {
-                warpGroundClean(cpuRef, act.spawns.cpuX, act.spawns.cpuY, act.setNoclip[1], cpuDmg, act.spawns.cpuLr);
+                warpGroundClean(cpuRef, sp.cpuX, sp.cpuY, act.setNoclip[1], cpuDmg, sp.cpuLr);
                 if (act.cpuDownWait)
                 {
                     forceStatus(cpuRef.fighter, kStatusDownWaitId);
@@ -1350,8 +1368,7 @@ namespace extra {
             comboTrainerReset();
             if (s_state.activePreset == kScenarioComboLab && act.warpHmn && act.warpCpu)
             {
-                comboTrainerSetAnchors(act.spawns.hmnX, act.spawns.hmnY, act.spawns.hmnLr, act.spawns.cpuX,
-                                       act.spawns.cpuY);
+                comboTrainerSetAnchors(sp.hmnX, sp.hmnY, sp.hmnLr, sp.cpuX, sp.cpuY);
             }
             coreDrillEnginesSavestateReset();
             hoverPsResetTransient();
@@ -1362,7 +1379,7 @@ namespace extra {
             }
             for (int i = 0; i < n; i++)
             {
-                if (refs[i].cpu && refs[i].playerNo >= 0 && refs[i].playerNo < game::kMaxFighters)
+                if (refs[i].cpu)
                 {
                     pplusRecoveryReset(refs[i].playerNo);
                 }
@@ -1376,49 +1393,38 @@ namespace extra {
     bool scenarioPresetsCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out,
                                 u32 lastButtons)
     {
-        if (s_net == NULL || !who.cpu || f == NULL)
+        ScenarioNet* net = s_net;
+        if (net == NULL || !who.cpu || f == NULL)
         {
             return false;
         }
-        ScenarioState& s_state = s_net->state;
-        ScenarioCpuState& s_cpuState = s_net->cpuState;
-        const bool psDrill = (s_state.activePreset == kScenarioOff)
-                             && (drillHudActiveId() == drills::kDrillPowershield)
-                             && !drillHudModalOpen();
+        ScenarioState& s_state = net->state;
+        u8 p = s_state.activePreset;
+        if (p < kScenarioShieldPressure)
+        {
+            return false;
+        }
         ScenarioConfig cfg;
         readMenuConfigInto(cfg);
-        if (!psDrill)
-        {
-            bool grabActive = s_state.activePreset == kScenarioGrabEscape && cfg.grabAction != kGrabActStand;
-            bool shieldDefActive =
-                s_state.activePreset == kScenarioShieldPressure && cfg.shieldRole == kShieldRoleDefense;
-            bool sdActive = s_state.activePreset == kScenarioShieldDrop && cfg.shieldDropAttack != kSdAtkOff;
-            if (s_state.activePreset != kScenarioMultiHitSdi && s_state.activePreset != kScenarioLedgetech
-                && s_state.activePreset != kScenarioSlideOff && !grabActive && !shieldDefActive && !sdActive)
-            {
-                return false;
-            }
-        }
 
         game::FighterRef refs[game::kMaxFighters];
         int n = game::listFighters(refs, game::kMaxFighters);
-        game::FighterRef hmnRef, cpuRef;
-        bool haveHmn = false, haveCpu = false;
-        findHmnAndCpu(refs, n, hmnRef, cpuRef, haveHmn, haveCpu);
-        if (!haveHmn)
+        int hi = -1;
+        for (int i = 0; i < n; i++)
         {
-            return false;
+            if (!refs[i].cpu) { hi = i; break; }
         }
+        if (hi < 0) return false;
         game::FighterState hmnFs;
-        const soModuleEnumeration* hm = game::fighterModules(hmnRef.fighter);
-        if (hm == NULL || !game::readState(hmnRef, hmnFs))
+        const soModuleEnumeration* hm = game::fighterModules(refs[hi].fighter);
+        if (hm == NULL || !game::readState(refs[hi], hmnFs))
         {
             return false;
         }
 
         ScenarioCpuInput in;
         memset(&in, 0, sizeof(in));
-        in.preset = s_state.activePreset;
+        in.preset = p;
         in.multiHitMove = cfg.multiHitMove;
         in.ledgetechAttack = s_state.resolvedLedgetechAttack;
         in.ledgetechTiming = cfg.ledgetechTiming;
@@ -1444,21 +1450,14 @@ namespace extra {
         in.hmnY = hmnFs.y;
         in.hmnAir = isFighterAir(hm);
         in.hmnHitstun = hmnFs.hitstun;
-        in.hmnOutOfPlay = (s_net->revivalActive && hmnFs.status == game::kStatusRebirth)
+        in.hmnOutOfPlay = (net->revivalActive && hmnFs.status == game::kStatusRebirth)
                               ? false
                               : game::outOfPlay(hmnFs.status, true);
         in.cpuOutOfPlay = game::outOfPlay(v.status, true);
         in.lastButtons = lastButtons;
 
         ScenarioCpuOutput cpuOut;
-        if (psDrill)
-        {
-            stepPowershieldDrillCpu(in, s_cpuState, cpuOut);
-        }
-        else
-        {
-            stepScenarioCpu(in, s_cpuState, cpuOut);
-        }
+        stepScenarioCpu(in, net->cpuState, cpuOut);
         if (!cpuOut.active)
         {
             return false;
@@ -1475,8 +1474,7 @@ namespace extra {
         {
             return;
         }
-        projectScenarioSavedView(s_net->state, out.cpu.options, out.comboTrainer, &out.general, &out.cpu, &out.osd,
-                                 &out.techInvis);
+        projectScenarioSavedView(s_net->state, out);
     }
 
     bool scenarioPresetsEdgeguardRespawn(const game::FighterRef& ref, const StageGeometry& geom, u32& rng,
@@ -1488,22 +1486,7 @@ namespace extra {
         }
         ScenarioConfig cfg;
         readMenuConfigInto(cfg);
-        if (cfg.edgeguardSetup == kEgSetupLaunch)
-        {
-            applyEdgeguardLaunch(ref, geom, cfg.edgeguardStrength, cfg.side, rng, setNoclip, damage);
-            return true;
-        }
-        float wx = 0.0f, wy = 0.0f;
-        if (!sampleEdgeguardSpawn(geom, cfg.edgeguardDist, cfg.side, rng, wx, wy))
-        {
-            return false;
-        }
-        float lr = wx >= 0.5f * (geom.floor.leftX + geom.floor.rightX) ? -1.0f : 1.0f;
-        bool spendDj =
-            cfg.edgeguardDj == kEgDjSpent || (cfg.edgeguardDj == kEgDjRandom && (geomNextRng(rng) & 1u) != 0);
-        warpAirClean(ref, wx, wy, setNoclip, damage, lr, true, spendDj);
-        cpu::optionsResetSlot(ref.playerNo);
-        return true;
+        return spawnEdgeguardCpu(ref, geom, cfg, cfg.side, rng, setNoclip, damage, NULL, true);
     }
 }
 }

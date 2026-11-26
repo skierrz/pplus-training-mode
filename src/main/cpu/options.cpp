@@ -1160,7 +1160,7 @@ namespace cpu {
                                          : framesToLand(kTechRollLead, lift);
                         checkedLand = true;
                     }
-                    float rx = techRollStickX(tech, toward, nLand, techPressed, v.hitlag, allowStick,
+                    float rx = techRollStickX(tech, toward, nLand, techPressed, 0, allowStick,
                                               param(kParamRollStick, 0.2f), param(kParamWiggleStick, 0.75f));
                     if (rx != 0.0f)
                     {
@@ -2789,12 +2789,14 @@ namespace cpu {
     static OptionsHeap* s_heap = NULL;
     static Saved* s_saved = NULL;
 
+#pragma dont_inline on
     static void copyBrainState(Brain& dst, const Brain& src)
     {
         const u8* s = reinterpret_cast<const u8*>(&src.slot);
         u32 bytes = sizeof(Brain) - static_cast<u32>(s - reinterpret_cast<const u8*>(&src));
         memcpy(&dst.slot, s, bytes);
     }
+#pragma dont_inline reset
 
     void optionsSaved(int which)
     {

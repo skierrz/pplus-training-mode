@@ -104,8 +104,7 @@ namespace extra {
 
     inline int comboResetDelayFrames(u8 delayMode)
     {
-        static const u8 kDelays[main::kComboDelayCount] = {0, 15, 30, 45, 60};
-        return delayMode < main::kComboDelayCount ? static_cast<int>(kDelays[delayMode]) : 30;
+        return delayMode < main::kComboDelayCount ? static_cast<int>(delayMode) * 15 : 30;
     }
 
     struct ComboMeterValues {
@@ -205,6 +204,17 @@ namespace extra {
             act.applyFixedDamage = true;
         }
     }
+    inline s16 pos16(int v)
+    {
+        return static_cast<s16>(v > 0 ? v : 0);
+    }
+
+    inline bool tickRecoveryGrace(ComboSlotState& st, u8 init)
+    {
+        if (st.recoveryGraceFrames == 0) st.recoveryGraceFrames = init;
+        if (st.recoveryGraceFrames > 1) { st.recoveryGraceFrames--; return false; }
+        return true;
+    }
 #ifdef __MWERKS__
 #pragma dont_inline reset
 #endif
@@ -223,10 +233,10 @@ namespace extra {
                                    ComboMeterValues& out)
     {
         memset(&out, 0, sizeof(out));
-        out.hitlagFrames = static_cast<s16>(in.hitlag > 0 ? in.hitlag : 0);
-        out.hitstunFrames = static_cast<s16>(in.hitstun > 0 ? in.hitstun : 0);
-        out.shieldStunFrames = static_cast<s16>(in.shieldStun > 0 ? in.shieldStun : 0);
-        out.iasaFrames = static_cast<s16>(in.framesUntilIasa > 0 ? in.framesUntilIasa : 0);
+        out.hitlagFrames = pos16(in.hitlag);
+        out.hitstunFrames = pos16(in.hitstun);
+        out.shieldStunFrames = pos16(in.shieldStun);
+        out.iasaFrames = pos16(in.framesUntilIasa);
 
         updateMeterPeak(in.hitlag, st.maxHitlag, main::kMeterHitlag, enabledMeters, out.activeMask, out.hitlagRatio);
         updateMeterPeak(in.hitstun, st.maxHitstun, main::kMeterHitstun, enabledMeters, out.activeMask, out.hitstunRatio);
@@ -266,7 +276,7 @@ namespace extra {
             st.maxLedgeIntang = 0;
         }
         int ledgeIntang = st.hadLedgeIntang ? in.xluFrames : 0;
-        out.ledgeIntangFrames = static_cast<s16>(ledgeIntang > 0 ? ledgeIntang : 0);
+        out.ledgeIntangFrames = pos16(ledgeIntang);
         if (ledgeIntang > 0)
         {
             updateMeterPeak(ledgeIntang, st.maxLedgeIntang, main::kMeterLedgeIntang, enabledMeters, out.activeMask,
@@ -279,7 +289,7 @@ namespace extra {
         {
             bodyIntang = 1;
         }
-        out.intangFrames = static_cast<s16>(bodyIntang > 0 ? bodyIntang : 0);
+        out.intangFrames = pos16(bodyIntang);
         updateMeterPeak(bodyIntang, st.maxIntang, main::kMeterIntang, enabledMeters, out.activeMask, out.intangRatio);
     }
 
@@ -315,17 +325,7 @@ namespace extra {
             }
             else if (cfg.recoveryTrainer && in.status == 0xBE)
             {
-                // CPU was KO'd and entered Rebirth: brief grace pause before next offstage rep.
-                if (st.recoveryGraceFrames == 0)
-                {
-                    st.recoveryGraceFrames = kRecoveryGraceFrames;
-                }
-                if (st.recoveryGraceFrames > 1)
-                {
-                    st.recoveryGraceFrames--;
-                    return;
-                }
-                emitComboWarp(cfg, st, act, true);
+                if (tickRecoveryGrace(st, kRecoveryGraceFrames)) emitComboWarp(cfg, st, act, true);
             }
             else if (cfg.fixPosition && !cfg.recoveryTrainer && in.status == 0xBE
                      && (st.wasInHitstun || st.postResetArmed))
@@ -358,25 +358,8 @@ namespace extra {
             bool needRespawn = in.belowRecoveryReset || initialPlace;
             if (!needRespawn)
             {
-                if (graceTrigger)
-                {
-                    if (st.recoveryGraceFrames == 0)
-                    {
-                        st.recoveryGraceFrames = kRecoveryGraceFrames;
-                    }
-                    else if (st.recoveryGraceFrames > 1)
-                    {
-                        st.recoveryGraceFrames--;
-                    }
-                    else
-                    {
-                        needRespawn = true;
-                    }
-                }
-                else
-                {
-                    st.recoveryGraceFrames = 0;
-                }
+                if (graceTrigger) needRespawn = tickRecoveryGrace(st, kRecoveryGraceFrames + 1);
+                else st.recoveryGraceFrames = 0;
             }
             if (needRespawn)
             {

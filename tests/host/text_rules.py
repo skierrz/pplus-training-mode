@@ -941,31 +941,31 @@ def adaptive_cpu_cpp(c, src):
 
 
 def scenario_presets_cpp(c, src):
-    # Compact Techchase HUD card (width 188, inner width 174 px).
+    # Compact Techchase HUD card (width 168*xs, inner width 152*xs px).
     for lit in src.literals:
         if c.taken(lit):
             continue
         if lit.func != "scenarioPresetsDraw":
             continue
-        if lit.name == "gfx::text":
-            c.item("fit", lit, lit.text, 0.48, 0, 112.0, 0.0)
+        if lit.name == "gfx::displayText":
+            c.item("fit", lit, lit.text, scale_for_cap(8.0), 0, 102.0, 0.0)
         elif not lit.calls:
             if lit.text == "GROUND":
-                c.item("fit", lit, lit.text, 0.48, 0, 58.0, 0.0)
+                c.item("fit", lit, lit.text, 0.45, 0, 50.0, 0.0)
             else:
-                c.item("fit", lit, lit.text, 0.52, 0, 174.0, 0.0)
+                c.item("fit", lit, lit.text, 0.48, 0, 152.0, 0.0)
         elif lit.name == "sprintf" and lit.arg == 1:
             if lit.text == "PLAT %u":
                 for t in c.expand(lit, 1):
-                    c.item("fit", lit, t, 0.48, 0, 58.0, 0.0)
+                    c.item("fit", lit, t, 0.45, 0, 50.0, 0.0)
                     c.buffer(lit, t, 16.0)
             elif lit.text == "STREAK %u  BEST %u":
                 for t in c.expand(lit, 1):
-                    c.item("fit", lit, t, 0.46, 0, 174.0, 0.0)
+                    c.item("fit", lit, t, 0.44, 0, 152.0, 0.0)
                     c.buffer(lit, t, 32.0)
             else:
                 for t in c.expand(lit, 1):
-                    c.item("fit", lit, t, 0.52, 0, 174.0, 0.0)
+                    c.item("fit", lit, t, 0.48, 0, 152.0, 0.0)
                     c.buffer(lit, t, 32.0)
         else:
             continue

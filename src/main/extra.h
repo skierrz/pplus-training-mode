@@ -120,6 +120,7 @@ namespace main {
     enum ScenarioCall {
         kScenarioChanged = 0,
         kScenarioResetNow,
+        kScenarioSavestateSaving,
         kScenarioSavestateLoaded,
         kScenarioSettingsReset,
         kScenarioCyclePlatform,
@@ -255,8 +256,6 @@ namespace main {
     void extraScenarioCall(int call);
     void extraScenarioChanged();
     void extraScenarioResetNow();
-    void extraScenarioSavestateLoaded();
-    void extraScenarioSettingsReset();
     bool extraScenarioCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons);
     void extraScenarioSavedView(Settings& out);
     // Mid-session Fighter Swap (extra/fighter_swap.h).

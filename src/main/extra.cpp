@@ -334,16 +334,6 @@ namespace main {
         extraScenarioCall(kScenarioResetNow);
     }
 
-    void extraScenarioSavestateLoaded()
-    {
-        extraScenarioCall(kScenarioSavestateLoaded);
-    }
-
-    void extraScenarioSettingsReset()
-    {
-        extraScenarioCall(kScenarioSettingsReset);
-    }
-
     bool extraScenarioCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons)
     {
         return s_hooks != NULL && s_hooks->scenarioCpuStep != NULL
