@@ -222,4 +222,27 @@ TEST(action_log, sf6_dual_strip_phase_classification_advantage_and_ring_wrap)
     }
     CHECK_EQ(kSf6MaxCells, static_cast<int>(sf.filled));
     CHECK_EQ(static_cast<int>(kSf6Empty), static_cast<int>(sf6CellAt(sf, 0, kSf6MaxCells - 1)));
+
+    // 4P attacker-hitlag exclusion: P1 hitting P3/P4 incurs attacker hitlag only
+    // (hitstun == 0, shieldStun == 0, hitReceived == 0, shieldReceived == 0).
+    // sf6IsDefenderStun must return false so idle P2 never triggers a bogus exchange.
+    CHECK(!sf6IsDefenderStun(kStatusAttackAirFirst, 0, 0, 0, 0));
+    CHECK(sf6IsDefenderStun(kStatusGuardDamage, 0, 0, 0, 0));
+    CHECK(sf6IsDefenderStun(kStatusWait, 5, 0, 0, 0));
+    CHECK(sf6IsDefenderStun(kStatusWait, 0, 4, 0, 0));
+    CHECK(sf6IsDefenderStun(kStatusWait, 0, 0, 1, 0));
+    CHECK(sf6IsDefenderStun(kStatusWait, 0, 0, 0, 1));
+
+    Sf6StripState sf4p;
+    sf6ResetState(sf4p);
+    s32 f4 = 500;
+    for (int i = 0; i < 6; i++)
+    {
+        bool stun0 = sf6IsDefenderStun(kStatusAttackAirFirst, 0, 0, 0, 0);
+        bool stun1 = sf6IsDefenderStun(kStatusWait, 0, 0, 0, 0);
+        sf6PushDualFrame(sf4p, f4++, kStatusAttackAirFirst, false, i == 2, stun0, kStatusWait, true, false, stun1);
+    }
+    sf6PushDualFrame(sf4p, f4++, kStatusWait, true, false, false, kStatusWait, true, false, false);
+    CHECK_EQ(0, static_cast<int>(sf4p.hasAdvantage));
+    CHECK_EQ(0, static_cast<int>(sf4p.activeExchange));
 }

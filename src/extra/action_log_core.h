@@ -110,6 +110,14 @@ namespace extra {
 
     inline u8 actionLogClassify(int status, bool airborne);
 
+    // True only when this fighter is a DEFENDER in hitstun, shieldstun, or victim
+    // hitlag (never attacker hitlag from landing an attack on a 3rd/4th player).
+    inline bool sf6IsDefenderStun(int status, s16 hitstun, s16 shieldStun, u8 hitReceived, u8 shieldReceived)
+    {
+        return hitstun > 0 || shieldStun > 0 || hitReceived != 0 || shieldReceived != 0
+               || status == game::kStatusGuardDamage || actionLogClassify(status, false) == kStateHitstun;
+    }
+
     inline u8 sf6ClassifyCell(int status, bool actionable, bool activeHitbox, bool inStun, bool sawActive)
     {
         if (inStun)

@@ -14,6 +14,7 @@
 #include "main/game/match.h"
 #include "main/gfx/text.h"
 #include "main/settings.h"
+#include "main/ui/match_hud.h"
 #include "main/ui/style.h"
 #include "shared/game/mem.h"
 #include "shared/game/scene.h"
@@ -480,26 +481,6 @@ namespace extra {
         return n;
     }
 
-    static bool nativeCounterShown()
-    {
-#ifdef __MWERKS__
-        u8* manager = *reinterpret_cast<u8**>(0x805A02D0u);
-        if (!game::isRam(manager) || game::wordAt(manager, 0x4) != 5u)
-        {
-            return false;
-        }
-        u8* centre = reinterpret_cast<u8*>(game::wordAt(manager, 0x44));
-        if (!game::isRam(centre))
-        {
-            return false;
-        }
-        u8* cm = reinterpret_cast<u8*>(game::wordAt(centre, 0x160));
-        return game::isRam(cm) && game::wordAt(cm, 0x4) != 0u;
-#else
-        return false;
-#endif
-    }
-
     float hudInfoStackBottom(bool wide)
     {
         using namespace ui::layout;
@@ -513,7 +494,7 @@ namespace extra {
         float wH = hr > 0 ? infoWidth(s.info[0].size, wide) : 0.0f;
         float wC = cr > 0 ? infoWidth(s.info[1].size, wide) : 0.0f;
         float w = wH > wC ? wH : wC;
-        bool counter = game::trainingGameMode() && s.display.hud != 0 && nativeCounterShown();
+        bool counter = game::trainingGameMode() && s.display.hud != 0 && ui::matchHudCounterShown();
         Box band = topBand();
         float top = infoTop(band, w, wide);
         if (counter)
@@ -552,15 +533,11 @@ namespace extra {
         const main::Settings& s = main::settings();
         Box band = topBand();
         int vSlots = viewerSlotsOverride >= 0 ? viewerSlotsOverride : inputViewerSlotCount(s.display.inputViewer);
-        if (kind == kHudCardDiCompass)
-        {
-            return diCompassBox(band, vSlots, wide);
-        }
         if (kind == kHudCardPsa)
         {
             float infoBot = hudInfoStackBottom(wide);
             Box b = psaInspectorBox(band, vSlots, false, wide, infoBot);
-            if (infoBot <= 0.0f && game::trainingGameMode() && s.display.hud != 0 && nativeCounterShown())
+            if (infoBot <= 0.0f && game::trainingGameMode() && s.display.hud != 0 && ui::matchHudCounterShown())
             {
                 float cX0 = wide ? 106.0f : 31.0f;
                 float cX1 = wide ? 183.0f : 130.0f;

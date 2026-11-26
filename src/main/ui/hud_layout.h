@@ -58,7 +58,7 @@ namespace layout {
     // (x = 34..252, clearing Brawl's 4:3 match timer at x = 258 by 6 px).
     static const float kInfoLeft = 34.0f;
     static const float kInfoTop = 28.0f;
-    static const float kInfoGap = 6.0f;
+    static const float kInfoGap = 0.0f; // flush Panel B stacking with 2px inset divider (matches info_display.cpp)
     static const float kInfoSizeScale[3] = {0.84f, 0.92f, 1.0f};
     static const float kInfoWidth43[3] = {206.0f, 214.0f, 218.0f};
     static const float kInfoPitch[3] = {12.5f, 13.0f, 14.5f};
@@ -246,6 +246,36 @@ namespace layout {
         return box(320.0f - w * 0.5f, kDrillHudTop, w, kDrillHudHeight);
     }
 
+    // Dynamic top-band box for Ledgedash Practice Drill, spanning both the
+    // dynamic-width timing bar (`frameBarBox`) and its calm white swatch legend
+    // (`half = 196 * xs`, matching `ledgeHeaderBox`) so Info Display steps below
+    // it cleanly on both 16:9 and 4:3.
+    inline Box drillLedgedashBand(int cells, bool wide)
+    {
+        float xs = xsOf(wide);
+        Box bar = frameBarBox(cells, wide);
+        float maxRight = 608.0f - 118.0f * xs - 6.0f;
+        float half = 196.0f * xs;
+        float hx0 = 320.0f - half;
+        float hx1 = 320.0f + half;
+        if (hx1 > maxRight)
+        {
+            float shift = hx1 - maxRight;
+            hx0 -= shift;
+            hx1 -= shift;
+        }
+        if (hx0 < kSafeMarginX)
+        {
+            hx0 = kSafeMarginX;
+        }
+        Box out;
+        out.x0 = bar.x0 < hx0 ? bar.x0 : hx0;
+        out.y0 = kKeyY;
+        out.x1 = bar.x1 > hx1 ? bar.x1 : hx1;
+        out.y1 = kBarBottom + 9.0f;
+        return out;
+    }
+
     // ---- Combo-Break Rush top HUD (extra/combo_break_rush.cpp) ----
     // Shares the centered top-band safe slot (y 24..64) so side panels step
     // cleanly below labBand on both 4:3 and 16:9.
@@ -303,8 +333,8 @@ namespace layout {
     // ---- Option A Bare Frameless GC Controller (extra/input_viewer.cpp) ----
     // Always anchored in Top-Right Sky (x1 = 608, y = 26..82, 56 scanlines tall)
     // so slot 0 never teleports across quadrants. Dual HMN+CPU: 16:9 side-by-side
-    // (w = 88.5, gap 8, x = 423..608, falling back to vertical stack only if a wide
-    // top-center band reaches x > 417); 4:3 stacked vertically (y = 26..82, 90..146).
+    // (w = 88.5, gap 6, x = 425..608, falling back to vertical stack only if a wide
+    // top-center band reaches x > 425); 4:3 stacked vertically (y = 26..82, 88..144).
     static const float kViewerRight = 608.0f;
     static const float kViewerTop = 26.0f;
     static const float kViewerWidth = 118.0f;

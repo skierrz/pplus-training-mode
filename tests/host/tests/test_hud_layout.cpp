@@ -1106,6 +1106,27 @@ TEST(hud_layout, stream2_live_hud_ergonomics_f1_to_f8_43_and_169)
         Box ledgeBand = layout::labBand(false, 64, wide);
         CHECK(layout::infoTop(ledgeBand, maxInfoW, wide) >= ledgeBand.y1 + layout::kStepGap - 0.01f);
 
+        // Ledgedash Practice Drill dynamic top band (cellCount >= 28 & 54) forces Large Info Display
+        // to step below y = 70 on both 16:9 and 4:3 (zero overlap with bar or swatch legend).
+        Box drillLedge28 = layout::drillLedgedashBand(28, wide);
+        Box drillLedge54 = layout::drillLedgedashBand(54, wide);
+        CHECK(inside(drillLedge28, safe));
+        CHECK(inside(drillLedge54, safe));
+        CHECK(layout::infoTop(drillLedge28, maxInfoW, wide) >= drillLedge28.y1 + layout::kStepGap - 0.01f);
+        CHECK(layout::infoTop(drillLedge54, maxInfoW, wide) >= drillLedge54.y1 + layout::kStepGap - 0.01f);
+        Box infoLedge54 = layout::box(layout::infoLeft(wide), layout::infoTop(drillLedge54, maxInfoW, wide), maxInfoW,
+                                      layout::infoHeight(4, 2));
+        CHECK(!layout::meets(infoLedge54, drillLedge54));
+
+        // Flush Panel B stacking: P1 + CPU Info Display stack with 0px gap so PSA sits flush below infoStackBottom.
+        float hmnH = layout::infoHeight(2, 1);
+        float cpuH = layout::infoHeight(1, 1);
+        float stackedBot = layout::infoStackBottom(timer, 2, 1, 1, 1, wide);
+        CHECK_NEAR(layout::kInfoTop + hmnH + cpuH, stackedBot, 0.01f);
+        Box psaFlush = layout::psaInspectorBox(timer, 1, false, wide, stackedBot);
+        CHECK_NEAR(stackedBot, psaFlush.y0, 0.01f);
+        CHECK_NEAR(layout::kInfoLeft, psaFlush.x0, 0.01f);
+
         // F3/F4: Option A Bare GC Controller never teleports; dual layout clears timer & Ledgedash bar.
         Box v0Timer = layout::inputViewerCardBox(0, timer, wide);
         Box v0Ledge = layout::inputViewerCardBox(0, ledgeBand, wide);

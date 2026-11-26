@@ -26,6 +26,7 @@
 #include "main/gfx/text.h"
 #include "main/settings.h"
 #include "main/ui/hud_layout.h"
+#include "main/ui/match_hud.h"
 #include "main/ui/menu_theme_core.h"
 #include "main/ui/style.h"
 #include "main/ui/wall_info_core.h"
@@ -675,35 +676,15 @@ namespace ui {
         return top + height;
     }
 
-    static bool nativeCounterShown()
-    {
-#ifdef __MWERKS__
-        u8* manager = *reinterpret_cast<u8**>(0x805A02D0u);
-        if (!game::isRam(manager) || game::wordAt(manager, 0x4) != 5u)
-        {
-            return false;
-        }
-        u8* centre = reinterpret_cast<u8*>(game::wordAt(manager, 0x44));
-        if (!game::isRam(centre))
-        {
-            return false;
-        }
-        u8* cm = reinterpret_cast<u8*>(game::wordAt(centre, 0x160));
-        return game::isRam(cm) && game::wordAt(cm, 0x4) != 0u;
-#else
-        return false;
-#endif
-    }
-
     void drawInfo()
     {
         if (gfx::lineHeight(1.0f) <= 0.0f)
         {
             return;
         }
-        // Step cleanly below Brawl's native top-left combo counter (y = 83) when
-        // actually visible in the HUD scene group, or labBand (y = 69) when either
-        // intersects horizontally; default y0 = 28.
+        // Step cleanly below Brawl's native top-left Training Info/Combo HUD (y = 83)
+        // when visible (IfTraining +0x30), or labBand (y = 69) when either intersects
+        // horizontally; default y0 = 28.
         bool wide = gfx::widescreen();
         float width = 0.0f;
         for (int side = 0; side < main::kSideCount; side++)
@@ -713,7 +694,7 @@ namespace ui {
             width = w > width ? w : width;
         }
         float top = layout::infoTop(layout::topBand(), width, wide);
-        if (game::trainingGameMode() && settings().display.hud != 0 && nativeCounterShown())
+        if (game::trainingGameMode() && settings().display.hud != 0 && ui::matchHudCounterShown())
         {
             float cX0 = wide ? 106.0f : 31.0f;
             float cX1 = wide ? 183.0f : 130.0f;

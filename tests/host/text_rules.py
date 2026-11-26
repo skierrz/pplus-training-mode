@@ -998,7 +998,7 @@ def adaptive_cpu_cpp(c, src):
         if lit.func != "adaptiveCpuDraw":
             continue
         if lit.var == "kBarLabels":
-            c.item("fit", lit, lit.text, scale_for_cap(8.2), 0, 26.0, 0.0)
+            c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 26.0, 0.0)
         elif lit.name in ("drawHudText", "drawShadowText", "drawShadowCapText"):
             c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 64.0, 0.0)
         elif lit.name == "strcpy":
@@ -1011,7 +1011,7 @@ def adaptive_cpu_cpp(c, src):
         elif lit.name == "snprintf" and lit.arg == 2:
             if lit.text == "%u%%":
                 for t in c.expand(lit, 2):
-                    c.item("fit", lit, t, scale_for_cap(8.2), 0, 34.0, 0.0)
+                    c.item("fit", lit, t, scale_for_cap(8.5), 0, 34.0, 0.0)
                     c.buffer(lit, t, 8.0)
             else:
                 for t in c.expand(lit, 2):

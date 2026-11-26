@@ -133,7 +133,7 @@ namespace extra {
             {
                 char tag[8];
                 viewerTagText(playerNo, cpu, tag);
-                drawShadowCapCenter(x + bw * 0.48f, y + 1.0f, tag, cpu ? 0x86D4E8F0u : 0xFF9494F0u, 7.5f);
+                drawShadowCapCenter(x + bw * 0.48f, y + 1.0f, tag, cpu ? 0x86D4E8F0u : 0xFF9494F0u, 8.5f);
             }
 
             // Thickened L & R trigger pills (6.8 scanlines tall for crisp 480i readability).
@@ -290,7 +290,7 @@ namespace extra {
             {
                 char tag[8];
                 viewerTagText(playerNo, cpu, tag);
-                drawShadowCapCenter(x + bw * 0.5f, y + 1.0f, tag, cpu ? 0x86D4E8F0u : 0xFF9494F0u, 7.5f);
+                drawShadowCapCenter(x + bw * 0.5f, y + 1.0f, tag, cpu ? 0x86D4E8F0u : 0xFF9494F0u, 8.5f);
             }
 
             for (int t = 0; t < 2; t++)

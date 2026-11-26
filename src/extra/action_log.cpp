@@ -219,11 +219,15 @@ namespace extra {
         int st0 = topRow != NULL ? static_cast<int>(topRow->cur.status) : 0;
         bool act0 = topRow == NULL || topRow->cur.actionable != 0;
         bool hit0 = trackedHasActiveHitbox(topRow);
-        bool stun0 = topRow != NULL && (topRow->cur.hitstun > 0 || topRow->cur.shieldStun > 0 || topRow->cur.hitlag > 0);
+        bool stun0 = topRow != NULL
+                     && sf6IsDefenderStun(st0, topRow->cur.hitstun, topRow->cur.shieldStun, topRow->cur.hitReceived,
+                                          topRow->cur.shieldReceived);
         int st1 = botRow != NULL ? static_cast<int>(botRow->cur.status) : 0;
         bool act1 = botRow == NULL || botRow->cur.actionable != 0;
         bool hit1 = trackedHasActiveHitbox(botRow);
-        bool stun1 = botRow != NULL && (botRow->cur.hitstun > 0 || botRow->cur.shieldStun > 0 || botRow->cur.hitlag > 0);
+        bool stun1 = botRow != NULL
+                     && sf6IsDefenderStun(st1, botRow->cur.hitstun, botRow->cur.shieldStun, botRow->cur.hitReceived,
+                                          botRow->cur.shieldReceived);
         sf6PushDualFrame(s_net->sf6, game::trackerFrame(), st0, act0, hit0, stun0, st1, act1, hit1, stun1);
         syncDebug(mode, slot);
     }

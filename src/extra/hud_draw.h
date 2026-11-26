@@ -54,7 +54,6 @@ namespace extra {
     void unitPoint16(int idx, float& ox, float& oy);
 
     enum HudRightCard {
-        kHudCardDiCompass = 0,
         kHudCardPsa = 1,
         kHudCardAdaptive = 2,
         kHudCardTechchase = 3

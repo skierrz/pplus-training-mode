@@ -907,8 +907,28 @@ namespace extra {
             bool topHud = active || tc;
             if (phase == 2u && topHud)
             {
-                float hw = 158.0f * ui::layout::xsOf(gfx::widescreen());
-                ui::layout::Box b = {320.0f - hw, 24.0f, 320.0f + hw, 64.0f};
+                bool wide = gfx::widescreen();
+                ui::layout::Box b = ui::layout::drillHudBox(wide);
+                if (active && st.activeDrill == drills::kDrillLedgedash)
+                {
+                    int cells = 16;
+                    int slot = primaryTrackedSlot();
+                    const LedgeCoreState* lg = slot >= 0 ? coreDrillLedgeState(slot) : NULL;
+                    if (lg != NULL && lg->seq > 0u && lg->last.cellCount > 0u)
+                    {
+                        int gal = lg->last.galint > 0 ? lg->last.galint : 0;
+                        cells = static_cast<int>(lg->last.cellCount) + gal;
+                        if (cells > 54)
+                        {
+                            cells = 54;
+                        }
+                        if (cells < 1)
+                        {
+                            cells = 1;
+                        }
+                    }
+                    b = ui::layout::drillLedgedashBand(cells, wide);
+                }
                 ui::layout::setLabBand(b);
             }
             const WdZoneState* wz = drillPracticeWdZone();

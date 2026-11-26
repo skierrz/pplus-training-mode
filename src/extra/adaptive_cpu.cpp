@@ -351,21 +351,21 @@ namespace extra {
         static const char* const kBarLabels[3] = {"ATK", "GRB", "DEF"};
         static const gfx::Rgba kBarCols[3] = {0xFF6B54FFu, 0xFFD300FFu, 0x38B8FFFFu};
         const u8 pcts[3] = {v.atkPct, v.grabPct, v.defPct};
-        float barX = x + 31.0f * xs;
-        float barW = 46.0f * xs;
+        float barX = x + 32.0f * xs;
+        float barW = 42.0f * xs;
         for (int r = 0; r < 3; r++)
         {
-            float ry = y + 17.0f + i2fScale(r, 8.5f);
-            drawShadowCapText(lx, ry, kBarLabels[r], 0xC6D4E0FFu, 7.8f);
-            gfx::fillRect(barX, ry + 1.0f, barW, 5.5f, 0x0A141CC8u);
+            float ry = y + 16.5f + i2fScale(r, 9.0f);
+            drawShadowCapText(lx, ry, kBarLabels[r], 0xC6D4E0FFu, 8.5f);
+            gfx::fillRect(barX, ry + 1.2f, barW, 5.5f, 0x0A141CC8u);
             if (pcts[r] > 0)
             {
                 float fw = barW * i2fScale(pcts[r], 0.01f);
-                gfx::fillRect(barX, ry + 1.0f, fw, 5.5f, kBarCols[r]);
+                gfx::fillRect(barX, ry + 1.2f, fw, 5.5f, kBarCols[r]);
             }
             char pctBuf[8];
             snprintf(pctBuf, sizeof(pctBuf), "%u%%", static_cast<unsigned>(pcts[r]));
-            drawShadowCapText(rx, ry, pctBuf, 0xF1F5F9FFu, 7.8f, true);
+            drawShadowCapText(rx, ry, pctBuf, 0xF1F5F9FFu, 8.5f, true);
         }
 
         char foot[28];
