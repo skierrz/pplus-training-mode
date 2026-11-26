@@ -57,9 +57,12 @@ namespace {
         return b;
     }
 
+    static host::fakes::FakeFighter* s_lastFake = NULL;
+
     static ftEntry* addEntry(int slotIdx, int playerNo, int entryId, int kind, s32 paramOdds)
     {
         host::fakes::FakeFighter& ff = host::fakes::addFighter();
+        s_lastFake = &ff;
         ff.accesser->setConstant(extra::kParamOdds, static_cast<float>(paramOdds));
         if (kind == extra::kFtDedede)
         {
@@ -241,4 +244,52 @@ TEST(character_rng, mid_swap_busy_skips_apply_and_resumes_after_swap)
     CHECK_NEAR(10.0f, dededePac->table[7], 0.001f);
     CHECK_NEAR(4.0f, dededePac->table[8], 0.001f);
     CHECK_NEAR(0.0f, dededePac->table[9], 0.001f);
+}
+
+TEST(character_rng, gnw_judge_preserves_visible_digit_during_status_0x113)
+{
+    setupRngWorld();
+    main::settings().characterRng.peachTurnip = main::kTurnipDefault;
+    main::settings().characterRng.peachSmash = main::kSmashDefault;
+    ftEntry* gnw = addEntry(0, 0, 0x10000, extra::kFtGameWatch, 0);
+    host::fakes::FakeFighter& ff = *s_lastFake;
+    const soModuleEnumeration* m = gnw->m_instances[0].m_fighter->m_moduleAccesser->m_enumerationStart;
+    soWorkManageModule* work = m->m_workManageModule;
+    soStatusModule* st = m->m_statusModule;
+
+    // Default leaves LA-Basic[67] and LA-Basic[68] untouched in idle and Judge.
+    main::settings().characterRng.gnwHammer = main::kHammerDefault;
+    work->setInt(2, extra::kJudgeNext);
+    work->setInt(5, extra::kJudgeBefore);
+    ff.status = 0;
+    st->m_statusKind = 0;
+    extra::characterRng(main::kRngApply);
+    CHECK_EQ(2, work->getInt(extra::kJudgeNext));
+    CHECK_EQ(5, work->getInt(extra::kJudgeBefore));
+
+    // For every forced Judge 1..9:
+    // - Outside status 0x113: sets kJudgeNext = choice - 1 and kJudgeBefore = choice % 9 (distinct).
+    // - During status 0x113: ft_gamewatch 0x11AE0 moves choice - 1 into kJudgeBefore; applyJudge must
+    //   NOT overwrite kJudgeBefore (which drives wnGameWatchPanel's visible digit), while keeping
+    //   kJudgeNext = choice - 1 for the 1-dot/2-dot next-Judge indicator.
+    for (int choice = 1; choice <= 9; choice++)
+    {
+        main::settings().characterRng.gnwHammer = static_cast<u8>(choice);
+        ff.status = 0;
+        st->m_statusKind = 0;
+        extra::characterRng(main::kRngApply);
+        CHECK_EQ(choice - 1, work->getInt(extra::kJudgeNext));
+        CHECK_EQ(choice % 9, work->getInt(extra::kJudgeBefore));
+        CHECK(work->getInt(extra::kJudgeNext) != work->getInt(extra::kJudgeBefore));
+
+        // Simulate ft_gamewatch 0x11AE0 entering status 0x113: active number copied to kJudgeBefore,
+        // random next placed in kJudgeNext.
+        ff.status = extra::kStatusJudge;
+        st->m_statusKind = extra::kStatusJudge;
+        work->setInt((choice + 3) % 9, extra::kJudgeNext);
+        work->setInt(choice - 1, extra::kJudgeBefore);
+        extra::characterRng(main::kRngApply);
+        CHECK_EQ(choice - 1, work->getInt(extra::kJudgeNext));
+        CHECK_EQ(choice - 1, work->getInt(extra::kJudgeBefore));
+    }
 }
