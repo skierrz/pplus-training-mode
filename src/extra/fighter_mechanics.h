@@ -12,7 +12,8 @@ namespace tm {
 namespace extra {
     void fighterMechanicsAttach();
     void fighterMechanicsSync();
-    void fighterMechanicsApplyFighter(Fighter* fighter, const soModuleEnumeration* m, int ftKind, int status);
+    void fighterMechanicsApplyFighter(Fighter* fighter, const soModuleEnumeration* m, int ftKind, int status,
+                                      int playerNo = 0);
     // Mid-match fighter swap: restores patched FitDedede.pac Waddle weights
     // while resident and clears the cache before stLoaderPlayer frees files.
     void fighterMechanicsPrepareSwap();

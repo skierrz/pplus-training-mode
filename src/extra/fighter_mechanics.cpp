@@ -6,12 +6,16 @@
 
 #include <ft/fighter.h>
 #include <ft/ft_common_data_accesser.h>
+#ifdef __MWERKS__
+#include <so/effect/so_effect_module_impl.h>
+#endif
 #include <so/so_module_accesser.h>
 #include <so/so_value_accesser.h>
 #include <so/work/so_work_manage_module_impl.h>
 
 #include "extra/fighter_mechanics_logic.h"
 #include "extra/net_alloc.h"
+#include "main/game/fighters.h"
 #include "main/settings.h"
 #include "shared/game/mem.h"
 #include "shared/log.h"
@@ -47,6 +51,160 @@ namespace extra {
 
         WeightCache s_dedede = {NULL, NULL, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f}, false};
         WeightCache s_olimar = {NULL, NULL, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f}, false};
+
+#ifdef __MWERKS__
+        struct VisualSlot {
+            const Fighter* fighter;
+            u8 ftKind;
+            u8 kind; // CustomVisualKind
+            u8 tier;
+            s32 h0;
+            s32 h1;
+        };
+
+        VisualSlot s_vis[game::kMaxFighters];
+
+        void resetVisualSlot(VisualSlot& v)
+        {
+            v.fighter = NULL;
+            v.ftKind = 0xFF;
+            v.kind = kVisNone;
+            v.tier = 0;
+            v.h0 = -1;
+            v.h1 = -1;
+        }
+
+        void clearVisualSlots()
+        {
+            for (int i = 0; i < game::kMaxFighters; i++)
+            {
+                resetVisualSlot(s_vis[i]);
+            }
+        }
+
+        // BrawlHeaders' soEffectModule::killKind(bool, bool, int) has swapped parameter
+        // order; sora_melee 0x807a48c8 (vtable + 0x64) takes (this, u32 effectId, bool, bool).
+        typedef void (*EffectKillKindFn)(soEffectModule*, u32, bool, bool);
+        void effectKillKind(soEffectModule* eff, u32 effectId, bool b1, bool b2)
+        {
+            u32* vtbl = *reinterpret_cast<u32**>(eff);
+            if (!game::isRam(vtbl))
+            {
+                return;
+            }
+            EffectKillKindFn fn = reinterpret_cast<EffectKillKindFn>(vtbl[0x64 / 4]);
+            if (game::isRam(reinterpret_cast<const void*>(fn)))
+            {
+                fn(eff, effectId, b1, b2);
+            }
+        }
+
+        struct CustomVisSpec {
+            u32 effectId;
+            u8 bone0, bone1;
+            u8 isExternal;
+            u8 killB1, killB2;
+            u8 killAfterImage;
+            float yOff;
+            float scale1, scale2;
+        };
+
+        // Verified against P+ 3.2.1 Fit*.pac PSA scripts:
+        //  - Lucas (FitLucas.pac ActExit[6] sub@0x28544): 0x1B0001 on bones 28 & 51, scale 0.5, external
+        //  - Ivysaur (FitPokeFushigisou.pac Wait1 0x206cc): 0x84 on bone 33, y=1.5, scale 0.06 / 0.16, common
+        //  - Lucario (FitLucario.pac 0x29b40): 0x220001 on bones 31 & 53, scale 0.8 / 1.0, external
+        static const CustomVisSpec kCustomSpecs[3] = {
+            {0x1B0001u, 28, 51, 1, 0, 1, 0, 0.0f, 0.5f, 0.5f},
+            {0x000084u, 33, 0,  0, 0, 0, 0, 1.5f, 0.06f, 0.16f},
+            {0x220001u, 31, 53, 1, 1, 1, 1, 0.0f, 0.8f, 1.0f}
+        };
+
+        void syncFighterVisuals(const Fighter* fighter, const soModuleEnumeration* m, int ftKind, int status,
+                                int playerNo, const FighterPlan& plan, bool hadPreVisual)
+        {
+            if (playerNo < 0 || playerNo >= game::kMaxFighters)
+            {
+                return;
+            }
+            VisualSlot& slot = s_vis[playerNo];
+            if (slot.fighter != fighter || slot.ftKind != static_cast<u8>(ftKind))
+            {
+                resetVisualSlot(slot);
+                slot.fighter = fighter;
+                slot.ftKind = static_cast<u8>(ftKind);
+            }
+            if (game::outOfPlay(status, true))
+            {
+                slot.kind = kVisNone;
+                slot.tier = 0;
+                slot.h0 = -1;
+                slot.h1 = -1;
+                return;
+            }
+            soEffectModule* eff = m->m_effectModule;
+            if (!game::isRam(eff) || eff->isNull())
+            {
+                return;
+            }
+            if (plan.commonEffectId != 0)
+            {
+                int cid = static_cast<int>(plan.commonEffectId);
+                bool exists = eff->isExistCommon(cid);
+                if (plan.commonEffectOn != 0)
+                {
+                    if (!exists)
+                    {
+                        eff->reqCommon(0.0f, cid);
+                    }
+                }
+                else if (exists)
+                {
+                    eff->removeCommon(cid);
+                }
+            }
+            if (plan.customVisual == kVisNone || plan.customVisual > kVisLucarioAura)
+            {
+                return;
+            }
+            const CustomVisSpec& sp = kCustomSpecs[plan.customVisual - 1];
+            bool alive = slot.kind == plan.customVisual && slot.h0 >= 0 && eff->isExistEffect(slot.h0);
+            if (plan.customTier == 0)
+            {
+                if ((slot.kind == plan.customVisual && slot.tier != 0) || hadPreVisual || alive)
+                {
+                    if (sp.killAfterImage != 0)
+                    {
+                        eff->removeAllAfterImage(0, 1);
+                    }
+                    effectKillKind(eff, sp.effectId, sp.killB1 != 0, sp.killB2 != 0);
+                }
+                slot.kind = plan.customVisual;
+                slot.tier = 0;
+                slot.h0 = -1;
+                slot.h1 = -1;
+                return;
+            }
+            if (slot.kind == plan.customVisual && slot.tier == plan.customTier && alive)
+            {
+                return;
+            }
+            if (sp.killAfterImage != 0)
+            {
+                eff->removeAllAfterImage(0, 1);
+            }
+            effectKillKind(eff, sp.effectId, sp.killB1 != 0, sp.killB2 != 0);
+            Vec3f pos(0.0f, sp.yOff, 0.0f);
+            Vec3f rot(0.0f, 0.0f, 0.0f);
+            float scale = plan.customTier == 1 ? sp.scale1 : sp.scale2;
+            EfID eid = static_cast<EfID>(sp.effectId);
+            slot.h0 = static_cast<s32>(eff->reqFollow(eid, sp.bone0, &pos, &rot, scale, sp.isExternal != 0, 0, 0, 0));
+            slot.h1 = sp.bone1 != 0
+                          ? static_cast<s32>(eff->reqFollow(eid, sp.bone1, &pos, &rot, scale, sp.isExternal != 0, 0, 0, 0))
+                          : -1;
+            slot.kind = plan.customVisual;
+            slot.tier = plan.customTier;
+        }
+#endif
 
         void clearCache(WeightCache& c)
         {
@@ -243,6 +401,9 @@ namespace extra {
     {
         clearCache(s_dedede);
         clearCache(s_olimar);
+#ifdef __MWERKS__
+        clearVisualSlots();
+#endif
     }
 
     void fighterMechanicsSync()
@@ -251,7 +412,8 @@ namespace extra {
         syncCache(s_olimar, kFtOlimar);
     }
 
-    void fighterMechanicsApplyFighter(Fighter* fighter, const soModuleEnumeration* m, int ftKind, int status)
+    void fighterMechanicsApplyFighter(Fighter* fighter, const soModuleEnumeration* m, int ftKind, int status,
+                                      int playerNo)
     {
         if (m == NULL || !game::isRam(m->m_workManageModule))
         {
@@ -261,9 +423,21 @@ namespace extra {
         const main::FighterMechanicsSettings& s = main::settings().fighterMechanics;
         bool mewtwoHoverActive = ftKind == kFtMewtwo && work->isFlag(kVarMewtwoHoverActive);
         bool lucasPreFirstAttack = ftKind == kFtLucas && work->getInt(kVarLucasAttackSerial) == 0;
+#ifdef __MWERKS__
+        // Read pre-plan state before executePlan() clears flags/floats so savestate loads
+        // into Off/Empty/0 cleanly kill any restored custom follow effects.
+        bool hadPreVisual = (ftKind == kFtLucas && work->isFlag(kVarLucasOffenseFlag))
+                            || (ftKind == kFtIvysaur && work->getFloat(kVarIvysaurSolarbeam) > 0.0f)
+                            || (ftKind == kFtLucario && work->getFloat(kVarLucarioAura) > 0.0f);
+#endif
         FighterPlan plan;
         buildFighterPlan(ftKind, status, mewtwoHoverActive, s, plan, lucasPreFirstAttack);
         executePlan(work, plan);
+#ifdef __MWERKS__
+        syncFighterVisuals(fighter, m, ftKind, status, playerNo, plan, hadPreVisual);
+#else
+        (void)playerNo;
+#endif
         if (ftKind == kFtDedede && fighter != NULL)
         {
             applyDededeWeights(fighter, s.dededeWaddle);
@@ -298,6 +472,9 @@ namespace extra {
         }
         clearCache(s_dedede);
         clearCache(s_olimar);
+#ifdef __MWERKS__
+        clearVisualSlots();
+#endif
     }
 }
 }

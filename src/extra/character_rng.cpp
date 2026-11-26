@@ -559,7 +559,7 @@ namespace extra {
                 applyDraw(turnip);
                 applyFace(m, status, turnip);
             }
-            fighterMechanicsApplyFighter(refs[i].fighter, m, kind, status);
+            fighterMechanicsApplyFighter(refs[i].fighter, m, kind, status, refs[i].playerNo);
         }
         if (call == main::kRngApply)
         {

@@ -345,6 +345,99 @@ TEST(fighter_mechanics, every_tier2_fighter_work_var_mappings)
     CHECK_EQ(0, findOp(plan, extra::kOpInt, extra::kVarGanonFloatCount)->intValue);
 }
 
+TEST(fighter_mechanics, systemic_visual_sync_plans_for_common_and_custom_fighters)
+{
+    main::FighterMechanicsSettings s;
+    extra::FighterPlan plan;
+
+    // Default emits zero visual overrides so native charge/savestate visuals stay untouched.
+    memset(&s, 0, sizeof(s));
+    static const int kAllVisFighters[] = {
+        extra::kFtGameWatch, extra::kFtSamus, extra::kFtMewtwo, extra::kFtLucario,
+        extra::kFtWario, extra::kFtDonkeyKong, extra::kFtIvysaur, extra::kFtRob,
+        extra::kFtLucas, extra::kFtSquirtle, extra::kFtSheik
+    };
+    for (u32 i = 0; i < sizeof(kAllVisFighters) / sizeof(kAllVisFighters[0]); i++)
+    {
+        extra::buildFighterPlan(kAllVisFighters[i], 0, false, s, plan);
+        CHECK_EQ(0, plan.commonEffectId);
+        CHECK_EQ(0, plan.commonEffectOn);
+        CHECK_EQ(extra::kVisNone, plan.customVisual);
+        CHECK_EQ(0, plan.customTier);
+    }
+
+    // All 9 common full-charge glow fighters (26 for 8 fighters, 39 for Wario Waft).
+    struct CommonCase {
+        int ft;
+        size_t off;
+        u8 nonFullVal;
+        u8 fullVal;
+        u8 expectedCid;
+    };
+    static const CommonCase kCases[] = {
+        {extra::kFtGameWatch, offsetof(main::FighterMechanicsSettings, gnwBucket), main::kBucket2, main::kBucketFull, 26},
+        {extra::kFtSamus, offsetof(main::FighterMechanicsSettings, samusCharge), main::kCharge3Half, main::kCharge3Full, 26},
+        {extra::kFtMewtwo, offsetof(main::FighterMechanicsSettings, mewtwoShadowBall), main::kCharge3Empty, main::kCharge3Full, 26},
+        {extra::kFtLucario, offsetof(main::FighterMechanicsSettings, lucarioSphere), main::kCharge2Empty, main::kCharge2Full, 26},
+        {extra::kFtWario, offsetof(main::FighterMechanicsSettings, warioWaft), main::kCharge3Half, main::kCharge3Full, 39},
+        {extra::kFtDonkeyKong, offsetof(main::FighterMechanicsSettings, dkPunch), main::kCharge2Empty, main::kCharge2Full, 26},
+        {extra::kFtRob, offsetof(main::FighterMechanicsSettings, robGyro), main::kCharge2Empty, main::kCharge2Full, 26},
+        {extra::kFtSquirtle, offsetof(main::FighterMechanicsSettings, squirtleWaterGun), main::kCharge2Empty, main::kCharge2Full, 26},
+        {extra::kFtSheik, offsetof(main::FighterMechanicsSettings, sheikNeedles), main::kNeedles0, main::kNeedles6, 26},
+    };
+    for (u32 i = 0; i < sizeof(kCases) / sizeof(kCases[0]); i++)
+    {
+        memset(&s, 0, sizeof(s));
+        u8* raw = reinterpret_cast<u8*>(&s);
+        raw[kCases[i].off] = kCases[i].fullVal;
+        extra::buildFighterPlan(kCases[i].ft, 0, false, s, plan);
+        CHECK_EQ(kCases[i].expectedCid, plan.commonEffectId);
+        CHECK_EQ(1, plan.commonEffectOn);
+
+        raw[kCases[i].off] = kCases[i].nonFullVal;
+        extra::buildFighterPlan(kCases[i].ft, 0, false, s, plan);
+        CHECK_EQ(kCases[i].expectedCid, plan.commonEffectId);
+        CHECK_EQ(0, plan.commonEffectOn);
+    }
+
+    // Lucas Offense Up: Charged spawns kVisLucasOffense (tier 1) outside smash statuses 0x2A..0x2C,
+    // skips visual respawn during smash statuses, and Off requests tier 0 kill.
+    memset(&s, 0, sizeof(s));
+    s.lucasOffenseUp = main::kOffenseCharged;
+    extra::buildFighterPlan(extra::kFtLucas, 0, false, s, plan, true);
+    CHECK_EQ(extra::kVisLucasOffense, plan.customVisual);
+    CHECK_EQ(1, plan.customTier);
+    for (int st = extra::kStatusAttackS4Start; st <= extra::kStatusAttackS4; st++)
+    {
+        extra::buildFighterPlan(extra::kFtLucas, st, false, s, plan, false);
+        CHECK_EQ(extra::kVisNone, plan.customVisual);
+    }
+    s.lucasOffenseUp = main::kOffenseOff;
+    extra::buildFighterPlan(extra::kFtLucas, 0, false, s, plan, false);
+    CHECK_EQ(extra::kVisLucasOffense, plan.customVisual);
+    CHECK_EQ(0, plan.customTier);
+
+    // Ivysaur Solarbeam bulb glow tiers: Empty (0), Half (1), Full (2).
+    memset(&s, 0, sizeof(s));
+    for (u8 v = main::kCharge3Empty; v <= main::kCharge3Full; v++)
+    {
+        s.ivysaurSolarbeam = v;
+        extra::buildFighterPlan(extra::kFtIvysaur, 0, false, s, plan);
+        CHECK_EQ(extra::kVisIvysaurBulb, plan.customVisual);
+        CHECK_EQ(v - 1, plan.customTier);
+    }
+
+    // Lucario combines custom Aura hand flames (0/1/2) independently with common Sphere glow (26).
+    memset(&s, 0, sizeof(s));
+    s.lucarioAura = main::kAura2;
+    s.lucarioSphere = main::kCharge2Full;
+    extra::buildFighterPlan(extra::kFtLucario, 0, false, s, plan);
+    CHECK_EQ(extra::kVisLucarioAura, plan.customVisual);
+    CHECK_EQ(2, plan.customTier);
+    CHECK_EQ(26, plan.commonEffectId);
+    CHECK_EQ(1, plan.commonEffectOn);
+}
+
 TEST(fighter_mechanics, dedede_waddle_table_swap_safety_and_detach_restore)
 {
     g_ftCommonDataAccesser.reset();
