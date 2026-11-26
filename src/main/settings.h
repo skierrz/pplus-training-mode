@@ -610,7 +610,7 @@ namespace main {
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
     Settings& x_settings();
 #ifndef TM_EXTRA_THUNK_IMPL
-    inline Settings& settings() { return x_settings(); }
+    static inline Settings& settings() { return x_settings(); }
 #else
     Settings& settings();
 #endif

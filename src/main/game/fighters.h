@@ -45,15 +45,15 @@ namespace game {
 #endif
 
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
-    inline int listFighters(FighterRef* out, int max) { return x_listFighters(out, max); }
-    inline bool findFighter(bool cpu, FighterRef& out) { return x_findFighter(cpu, out); }
-    inline bool readState(const FighterRef& ref, FighterState& out) { return x_readState(ref, out); }
-    inline const soModuleEnumeration* fighterModules(Fighter* fighter) { return x_fighterModules(fighter); }
-    inline int fighterKind(int entryId, bool partner = false) { return x_fighterKind(entryId, partner); }
-    inline int fighterStatus(const soModuleEnumeration* m) { return x_fighterStatus(m); }
+    static inline int listFighters(FighterRef* out, int max) { return x_listFighters(out, max); }
+    static inline bool findFighter(bool cpu, FighterRef& out) { return x_findFighter(cpu, out); }
+    static inline bool readState(const FighterRef& ref, FighterState& out) { return x_readState(ref, out); }
+    static inline const soModuleEnumeration* fighterModules(Fighter* fighter) { return x_fighterModules(fighter); }
+    static inline int fighterKind(int entryId, bool partner = false) { return x_fighterKind(entryId, partner); }
+    static inline int fighterStatus(const soModuleEnumeration* m) { return x_fighterStatus(m); }
     int fighterHitstun(const soModuleEnumeration* m);
     int fighterShieldStun(const soModuleEnumeration* m, int status);
-    inline bool outOfPlay(int status, bool platform = true) { return x_outOfPlay(status, platform); }
+    static inline bool outOfPlay(int status, bool platform = true) { return x_outOfPlay(status, platform); }
 #else
     // Fills out[0..n) with the match's fighters in entry order, skipping
     // entries whose fighter or owner is not readable yet. Returns n.

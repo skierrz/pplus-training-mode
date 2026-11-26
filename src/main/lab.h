@@ -33,7 +33,7 @@ namespace lab {
 #endif
     // True while the lab menu is open (other displays hide then).
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
-    inline bool menuOpen() { return x_menuOpen(); }
+    static inline bool menuOpen() { return x_menuOpen(); }
 #else
     bool menuOpen();
 #endif
@@ -43,7 +43,7 @@ namespace lab {
 
     // Menu actions.
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
-    inline void applyPercent(int side) { x_applyPercent(side); }
+    static inline void applyPercent(int side) { x_applyPercent(side); }
 #else
     void applyPercent(int side);
 #endif

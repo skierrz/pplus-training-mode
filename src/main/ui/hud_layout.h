@@ -210,7 +210,7 @@ namespace layout {
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
     Box x_topBand();
 #ifndef TM_EXTRA_THUNK_IMPL
-    inline Box topBand() { return x_topBand(); }
+    static inline Box topBand() { return x_topBand(); }
 #else
     Box topBand();
 #endif

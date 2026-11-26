@@ -49,7 +49,7 @@ namespace cpu {
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
     bool x_canAct(const View& v);
 #ifndef TM_EXTRA_THUNK_IMPL
-    inline bool canAct(const View& v) { return x_canAct(v); }
+    static inline bool canAct(const View& v) { return x_canAct(v); }
 #else
     bool canAct(const View& v);
 #endif

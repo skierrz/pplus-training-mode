@@ -42,6 +42,8 @@ to the first module, or to the module of kind KIND with --break-module:
 loader's test of a file far larger than the heaps it could once be read into.
 """
 import argparse
+import os
+import re
 import struct
 import sys
 
@@ -91,7 +93,45 @@ def imported_ids(data, h):
     return [mid for mid, _ in imports(data, h)]
 
 
+R_DOLPHIN_SECTION = 202
 R_DOLPHIN_END = 203
+
+
+def check_extra_thunks(data, h, path, match_id):
+    """Fail if any 4-byte tail-call slot in main_thunks.o resolved locally
+    instead of relocating against the match module (which would recurse into
+    an inline wrapper)."""
+    map_path = path[:-4] + ".map" if path.endswith(".rel") else ""
+    if not map_path or not os.path.exists(map_path):
+        return
+    m = re.search(r"^\s+([0-9a-fA-F]+)\s+([0-9a-fA-F]+)\s+[0-9a-fA-F]+\s+[0-9a-fA-F]+\s+\d+\s+\.text\s+main_thunks\.o\b",
+                  open(map_path, encoding="utf-8", errors="replace").read(), re.M)
+    if not m:
+        return
+    base, size = int(m.group(1), 16), int(m.group(2), 16)
+    if size == 0 or (size & 3) != 0:
+        raise SystemExit(f"error: {path}: unexpected main_thunks.o .text size 0x{size:x}")
+    covered = set()
+    for mid, at in imports(data, h):
+        if mid != match_id:
+            continue
+        cur_sec, cur_off = 0, 0
+        while at + 8 <= len(data):
+            delta, rtype, sec, _ = struct.unpack_from(">HBBI", data, at)
+            at += 8
+            if rtype == R_DOLPHIN_END:
+                break
+            if rtype == R_DOLPHIN_SECTION:
+                cur_sec, cur_off = sec, 0
+                continue
+            cur_off += delta
+            if cur_sec == 1 and base <= cur_off < base + size:
+                covered.add(cur_off - base)
+    missing = [off for off in range(0, size, 4) if off not in covered]
+    if missing:
+        offs = ", ".join(f"+0x{o:x}" for o in missing[:8])
+        raise SystemExit(f"error: {path}: main_thunks.o has {len(missing)}/{size // 4} slot(s) not relocated "
+                         f"against match module {match_id} ({offs}); check static inline thunk wrappers")
 
 
 def relocations_end(data, at, what):
@@ -193,6 +233,10 @@ def cmd_pack(a):
         if h["align"] > 32 or h["bss_align"] > 32:
             raise SystemExit(f"error: {path} needs alignment above 32, which the loader does not give")
         check_fixed(rel, h, path)
+        if kind == "extra":
+            match_ids = [m_id for m_kind, _, m_id, _ in parsed if m_kind == "match"]
+            if match_ids:
+                check_extra_thunks(rel, h, path, match_ids[0])
         target = kind == a.break_module if a.break_module else i == 0
         if target and a.break_kind == "badversion":
             note = f" (interface version {skew_version(rel)} reported as one higher)"

@@ -87,7 +87,7 @@ def last_page(emu):
 
 def go_to_page(emu, title, button="R"):
     """R steps to the next page, L to the one before."""
-    for _ in range(4):
+    for _ in range(5):
         if last_page(emu) == title:
             return
         n = count(emu, r"\] drills: page ")
@@ -97,7 +97,7 @@ def go_to_page(emu, title, button="R"):
 
 
 def go_to_row(emu, row):
-    for _ in range(16):
+    for _ in range(22):
         now = last_row(emu)
         if now == row:
             return
@@ -148,9 +148,10 @@ def shot(emu, taken, name):
 
 
 def check_list_screens(emu, taken, notes):
-    """Draft B 3-section boot menu (All Modes: 12 rows, Offense: 5 rows,
-    Defense: 5 rows), section switching, scrolling + key repeat, Recordings
-    browser toggle, and the character select left alone under it."""
+    """4-section boot menu (All Modes: 19 rows, Offense: 5 rows, Defense: 7
+    rows, Tech Practice: 8 rows), section switching, scrolling + key repeat,
+    Recordings browser (X), Quick OSDs (Y), and the character select left
+    alone under it."""
     emu.advance(40)
     path = shot(emu, taken, "drills-list-top")
     hi0, c0 = row_highlighted(path, 0)
@@ -160,39 +161,39 @@ def check_list_screens(emu, taken, notes):
         raise nav.NavError(f"the highlight is not on Training Lab alone (row 0 {c0}, row 1 {c1})")
 
     before = css_snapshot(emu)
-    # On All Modes (Page 0, 12 rows), step down to row 1 (Combo Lab).
+    # On All Modes (Page 0, 19 rows), step down to row 1 (L-Cancel).
     n = count(emu, r"\] drills: row ")
     emu.press(0, ["DDOWN"], frames=4, after=10)
-    wait_count(emu, "row 1 (Combo Lab)", r"\] drills: row ", n + 1, 90)
+    wait_count(emu, "row 1 (L-Cancel)", r"\] drills: row ", n + 1, 90)
     if last_row(emu) != 1:
         raise nav.NavError(f"expected row 1 after Down on All Modes, at {last_row(emu)}")
     path = shot(emu, taken, "drills-list-row1")
     hi0, c0 = row_highlighted(path, 0)
     hi1, c1 = row_highlighted(path, 1)
     if hi0 or not hi1:
-        raise nav.NavError(f"the highlight is not on Combo Lab alone (row 0 {c0}, row 1 {c1})")
+        raise nav.NavError(f"the highlight is not on L-Cancel alone (row 0 {c0}, row 1 {c1})")
 
-    # Hold Down with key repeat to row 16 (RAR / DACUS / B-Rev, scrolled by 7 -> visible row 9)
+    # Hold Down with key repeat to row 18 (Browse Recordings, scrolled by 9 -> visible row 9)
     # and verify bottom clamp.
     emu.hold(0, stick=DOWN)
-    emu.advance(130)
+    emu.advance(150)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 16:
-        raise nav.NavError(f"Down repeat did not reach bottom All Modes row 16, at {last_row(emu)}")
+    if last_row(emu) != 18:
+        raise nav.NavError(f"Down repeat did not reach bottom All Modes row 18, at {last_row(emu)}")
     emu.hold(0, stick=DOWN)
     emu.advance(20)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 16:
-        raise nav.NavError(f"Down at bottom row moved off row 16 to {last_row(emu)}")
+    if last_row(emu) != 18:
+        raise nav.NavError(f"Down at bottom row moved off row 18 to {last_row(emu)}")
     path = shot(emu, taken, "drills-list-all-bottom")
     hi9, c9 = row_highlighted(path, 9)
     hi8, c8 = row_highlighted(path, 8)
     if not hi9 or hi8:
         raise nav.NavError(f"the highlight is not on visible row 9 alone (row 8 {c8}, row 9 {c9})")
 
-    # Switch to Offense (Page 1, 5 rows: Combo Lab .. Grab Escape), check top and bottom clamp.
+    # Switch to Offense (Page 1, 5 rows: Combo Lab .. Grab Defense / Throw DI), check top and bottom clamp.
     go_to_page(emu, "Offense", "R")
     emu.advance(10)
     path = shot(emu, taken, "drills-list-offense-top")
@@ -218,7 +219,7 @@ def check_list_screens(emu, taken, notes):
     if not hi4 or hi3:
         raise nav.NavError(f"the highlight is not on Offense row 4 alone (row 3 {c3}, row 4 {c4})")
 
-    # Switch to Defense (Page 2, 5 rows: OoS / Reversal .. P+ Multi-Hit SDI), then wrap back to All Modes.
+    # Switch to Defense (Page 2, 7 rows: Shield Pressure / OoS .. P+ Multi-Hit SDI).
     go_to_page(emu, "Defense", "R")
     emu.advance(10)
     path = shot(emu, taken, "drills-list-defense")
@@ -226,20 +227,48 @@ def check_list_screens(emu, taken, notes):
     hi1, c1 = row_highlighted(path, 1)
     if not hi0 or hi1:
         raise nav.NavError(f"the highlight is not on Defense row 0 alone (row 0 {c0}, row 1 {c1})")
+
+    # Switch to Tech Practice (Page 3, 8 single-page rows: L-Cancel .. Float / Hover & DJC), then wrap to All Modes.
+    go_to_page(emu, "Tech Practice", "R")
+    emu.advance(10)
+    path = shot(emu, taken, "drills-list-tech-practice")
+    hi0, c0 = row_highlighted(path, 0)
+    hi1, c1 = row_highlighted(path, 1)
+    if not hi0 or hi1:
+        raise nav.NavError(f"the highlight is not on Tech Practice row 0 alone (row 0 {c0}, row 1 {c1})")
+    emu.hold(0, stick=DOWN)
+    emu.advance(80)
+    emu.neutral(0)
+    emu.advance(10)
+    if last_row(emu) != 7:
+        raise nav.NavError(f"Down repeat did not reach bottom Tech Practice row 7, at {last_row(emu)}")
     go_to_page(emu, "All Modes", "R")
     emu.advance(10)
 
     # Inputs that would act on the character select: none may reach it.
     for buttons in (["X"], ["Y"], ["Z"], ["START"]):
-        n = count(emu, r"\] browser: (opened|closed)")
-        emu.press(0, buttons, frames=4, after=6)
         if buttons == ["X"]:
-            # X opens Import Recording over the list; B goes back to it.
-            emu.wait_for("the import browser", lambda: count(emu, r"\] browser: (opened|closed)") >= n + 1, 60,
+            # X opens Recordings browser over the list; B goes back to it.
+            n = count(emu, r"\] browser: (opened|closed)")
+            emu.press(0, buttons, frames=4, after=6)
+            emu.wait_for("the recordings browser", lambda: count(emu, r"\] browser: (opened|closed)") >= n + 1, 60,
                          every=2)
             emu.press(0, ["B"], frames=4, after=6)
             emu.wait_for("the drill list again", lambda: count(emu, r"\] browser: (opened|closed)") >= n + 2, 60,
                          every=2)
+        elif buttons == ["Y"]:
+            # Y opens Quick OSDs over the list; B returns to the boot menu.
+            n = count(emu, r"\] osdquick: (opened|closed)")
+            emu.press(0, buttons, frames=4, after=6)
+            emu.wait_for("Quick OSDs screen", lambda: count(emu, r"\] osdquick: (opened|closed)") >= n + 1, 60,
+                         every=2)
+            emu.advance(8)
+            shot(emu, taken, "drills-osd-quick")
+            emu.press(0, ["B"], frames=4, after=6)
+            emu.wait_for("the drill list after Quick OSDs", lambda: count(emu, r"\] osdquick: (opened|closed)") >= n + 2,
+                         60, every=2)
+        else:
+            emu.press(0, buttons, frames=4, after=6)
     emu.hold(0, stick=(228, 128))
     emu.advance(30)
     emu.hold(0, stick=(28, 200))
@@ -336,9 +365,10 @@ def run(emu, opts, taken, notes, state):
     wait_count(emu, "the list to reopen after match",
                r"\] drills: list opened \(auto\) for port 1, row 0 Training Lab", 2, 300)
     emu.advance(15)
-    # Close with B and verify L+R still reopens without moving the CSS hand.
-    emu.press(0, ["B"], frames=4, after=10)
-    wait_count(emu, "B to close the reopened list", r"\] drills: list closed \(B\)", 1, 120)
+    # Enter Training Lab with A -> CSS, verify B recalls coin then steps back to
+    # Boot Menu cleanly, and verify L+R still reopens without moving the CSS hand.
+    emu.press(0, ["A"], frames=4, after=10)
+    wait_count(emu, "A (Training Lab) to close the reopened list", r"\] drills: list closed \(Training Lab\)", 2, 120)
     emu.advance(20)
     before = css_snapshot(emu)
     state["step"] = "L+R reopens the list"
@@ -347,6 +377,19 @@ def run(emu, opts, taken, notes, state):
     emu.advance(10)
     if css_snapshot(emu) != before:
         raise nav.NavError(f"L+R moved the character select: {before} -> {css_snapshot(emu)}")
+    # Test natural B step-back from CSS (after recalling placed coin): A -> CSS,
+    # B recalls placed Mario token into hand, second B reopens Boot Menu.
+    emu.press(0, ["A"], frames=4, after=10)
+    wait_count(emu, "A (Training Lab) to close before CSS B check", r"\] drills: list closed \(Training Lab\)", 3, 120)
+    emu.advance(15)
+    if not nav.css_area(emu, 0)["held"]:
+        emu.press(0, ["B"], frames=4, after=12)
+        emu.wait_for("B to recall P1 token on CSS", lambda: nav.css_area(emu, 0)["held"], 60, every=2)
+    emu.advance(10)
+    state["step"] = "B on CSS (empty coin) reopens Boot Menu"
+    emu.press(0, ["B"], frames=4, after=10)
+    wait_count(emu, "B on CSS to reopen Boot Menu", r"\] drills: list opened \(B\) for port 1", 1, 120)
+    emu.advance(10)
 
     # Arm a Scenario (Shield Pressure / OoS, preset 4) from Offense, verify backing
     # out of Stage Select with B keeps the list closed and preserves the armed
@@ -410,6 +453,15 @@ def run(emu, opts, taken, notes, state):
         state["drills"] += 1
     check_quick_stages(emu, taken, notes, state)
     emu.wait_for("the list to open by itself", lambda: nav.drill_list_state(emu) == "open", 600, every=5)
+    emu.advance(15)
+    # Natural Nintendo B hierarchy: B on Boot Menu exits cleanly to Solo menu.
+    state["step"] = "B on Boot Menu exits to Solo menu"
+    emu.press(0, ["B"], frames=4, after=10)
+    wait_count(emu, "B on Boot Menu to exit to Solo", r"\] drills: exiting to Solo \(B\)", 1, 120)
+    emu.wait_for("Solo menu after Boot Menu B", lambda: nav.scene(emu)[0] == "muMenuMain", 600, every=5)
+    emu.advance(20)
+    state["left_css"] = True
+    notes.append("natural B hierarchy: CSS B -> Boot Menu, Boot Menu B -> Solo menu (muMenuMain) ok")
 
 
 def analyse(log, opts, state):
@@ -671,7 +723,7 @@ WII_BY_NAME = {label: ctrl for label, _, _, ctrl in WII_CONTROLS}
 
 
 def wii_go_to_page(emu, title, controls):
-    for _ in range(4):
+    for _ in range(5):
         if last_page(emu) == title:
             return
         n = count(emu, r"\] drills: page ")
@@ -681,7 +733,7 @@ def wii_go_to_page(emu, title, controls):
 
 
 def wii_go_to_row(emu, row, controls):
-    for _ in range(16):
+    for _ in range(22):
         now = last_row(emu)
         if now == row:
             return
@@ -906,21 +958,22 @@ def run_wii_with_gc(emu, notes, state):
     for idx, (label, ext, pad_type, controls) in enumerate(WII_CONTROLS):
         check_wii_controller(emu, state, notes, label, ext, pad_type, controls, expect_takeover=(idx == 0))
 
-    # Leave Wii pad neutral; GC port 1 takes back ownership and closes the list.
+    # Leave Wii pad neutral; GC port 1 takes back ownership and enters Training Lab.
     state["step"] = "wii+gc: GC port 1 takes back list from idle Wii pad"
     n_hand = count(emu, r"\] drills: list handed to port 1")
     emu.press(0, ["B"], frames=3, after=6)
     wait_count(emu, "GC port 1 to take back list ownership", r"\] drills: list handed to port 1", n_hand + 1, 90)
-    n_close = count(emu, r"\] drills: list closed \(B\)")
-    emu.press(0, ["B"], frames=3, after=6)
-    wait_count(emu, "GC port 1 to close list with B", r"\] drills: list closed \(B\)", n_close + 1, 90)
+    n_close = count(emu, r"\] drills: list closed \(Training Lab\)")
+    emu.press(0, ["A"], frames=3, after=6)
+    wait_count(emu, "GC port 1 to enter Training Lab with A", r"\] drills: list closed \(Training Lab\)", n_close + 1, 90)
     emu.h.call("wiimote_input", index=0, clear=True)
-    notes.append("wii+gc: GC port 1 took back ownership and closed list with Wii pad connected")
+    notes.append("wii+gc: GC port 1 took back ownership and entered Training Lab with Wii pad connected")
 
 
 def run_wii_only(emu, notes, state):
     """GC port 1 unplugged (SIDevice0=0) + emulated Wiimote 1 only: auto-open
-    for port 5, sideways 1 close, '-' alone unhidden, '- + B' reopen."""
+    for port 5, sideways 2 enters Training Lab, '-' alone unhidden, '- + B'
+    reopens, and sideways 1 on Boot Menu exits cleanly to Solo."""
     state["step"] = "wii-only: boot into Training with no GC pads"
     emu.wait_for("Training CSS with no GC pads", lambda: nav.scene(emu)[0] == "scSelctCharacter", 60 * 120, every=5)
     name, seq, _ = nav.scene(emu)
@@ -933,23 +986,27 @@ def run_wii_only(emu, notes, state):
                  lambda: (p1 := nav.css_area(emu, 0)) is not None and (cpu := nav.css_area(emu, 1)) is not None
                  and p1["kind"] == 1 and cpu["kind"] == 2, 600, every=2)
     emu.advance(20)
-    # Switch to sideways Wii Remote, dismiss with 1, verify '-' alone reaches
-    # the game, reopen with '- + B' without stepping costume.
+    # Switch to sideways Wii Remote, select Training Lab with 2, verify '-' alone
+    # reaches the game, reopen with '- + B' without stepping costume, then exit to Solo with 1.
     wii_set_extension(emu, "none", PAD_TYPE_WIIMOTE)
     before = css_snapshot(emu)
-    state["step"] = "wii-only: dismiss auto-opened list with sideways 1"
-    n_close = count(emu, r"\] drills: list closed \(1\)")
-    wii_press(emu, {"wiimote": {"Buttons/1": 1}})
-    wait_count(emu, "sideways 1 to close auto-opened list", r"\] drills: list closed \(1\)", n_close + 1, 90)
+    state["step"] = "wii-only: select Training Lab with sideways 2"
+    n_close = count(emu, r"\] drills: list closed \(Training Lab\)")
+    wii_press(emu, {"wiimote": {"Buttons/2": 1}})
+    wait_count(emu, "sideways 2 to enter Training Lab", r"\] drills: list closed \(Training Lab\)", n_close + 1, 90)
     emu.advance(10)
     if nav.drill_list_state(emu) != "closed":
-        raise nav.NavError("wii-only: list stayed open after sideways 1")
+        raise nav.NavError("wii-only: list stayed open after sideways 2")
     if css_snapshot(emu) != before:
-        raise nav.NavError(f"wii-only: sideways 1 leaked into CSS: {before} -> {css_snapshot(emu)}")
+        raise nav.NavError(f"wii-only: sideways 2 leaked into CSS: {before} -> {css_snapshot(emu)}")
 
     state["step"] = "wii-only: sideways - alone unhidden, - + B reopens"
     check_sideways_reopen(emu, before, "wii-only")
-    notes.append("wii-only (no GC): list auto-opened for port 5, sideways 1 closed, '-' unhidden, '- + B' reopened")
+    state["step"] = "wii-only: sideways 1 on Boot Menu exits to Solo"
+    wii_press(emu, {"wiimote": {"Buttons/1": 1}})
+    wait_count(emu, "sideways 1 to exit to Solo", r"\] drills: exiting to Solo \(1\)", 1, 120)
+    emu.wait_for("wii-only: Solo menu after sideways 1", lambda: nav.scene(emu)[0] == "muMenuMain", 600, every=5)
+    notes.append("wii-only (no GC): list auto-opened for port 5, sideways 2 entered Lab, '-' unhidden, '- + B' reopened, 1 exited to Solo")
     emu.h.call("wiimote_input", index=0, clear=True)
 
 

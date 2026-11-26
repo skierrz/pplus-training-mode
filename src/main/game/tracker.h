@@ -131,9 +131,9 @@ namespace game {
     // listener, the frame being handed over. Reads the same wherever the
     // frame was handed over (docs/internals.md, "Frame hand-over").
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
-    inline s32 trackerFrame() { return x_trackerFrame(); }
+    static inline s32 trackerFrame() { return x_trackerFrame(); }
     int trackedCount();
-    inline const Tracked* tracked(int i) { return x_tracked(i); }
+    static inline const Tracked* tracked(int i) { return x_tracked(i); }
 #else
     s32 trackerFrame();
     int trackedCount();

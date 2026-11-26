@@ -357,14 +357,36 @@ def select_rule(emu):
     return {"drill": int(g[0]), "areas": int(g[1]), "p1": int(g[2]), "cpu": int(g[3]), "locked": int(g[4], 16)}
 
 
+def _drill_list_on_training_lab(emu):
+    """True when the open boot menu is on All Modes row 0 (Training Lab)."""
+    log = emu.log_text()
+    attached = log.rfind("] menu: attached")
+    if attached < 0:
+        return False
+    tail = log[attached:]
+    hits = list(re.finditer(r"\] drills: (list opened [^\r\n]+|page [^\r\n]+|row [^\r\n]+)", tail))
+    if not hits:
+        return False
+    last = hits[-1].group(1)
+    return last == "page All Modes" or last.endswith(", row 0 Training Lab") or last == "row 0 Training Lab"
+
+
 def close_drill_list(emu, timeout_frames=300, port=0):
-    """On Training's character select: close the drill list with B on `port`
-    if it is open. Returns True if it was open."""
+    """On Training's character select: enter Training Lab (All Modes, row 0)
+    with A on `port` to dismiss the boot menu to CSS if it is open.
+    Returns True if it was open."""
     state = emu.wait_for("the drill list's state in the log", lambda: drill_list_state(emu), timeout_frames,
                          every=2)
     if state != "open":
         return False
-    press_until(emu, "the drill list to close", ["B"], lambda: drill_list_state(emu) == "closed", 300,
+    # If the boot menu reopened on another section or row (e.g. after a
+    # Scenario or Tech Practice match), cycle R to All Modes (which resets
+    # cursor to row 0 Training Lab) before confirming with A.
+    for _ in range(5):
+        if _drill_list_on_training_lab(emu):
+            break
+        emu.press(port, ["R"], frames=3, after=8)
+    press_until(emu, "the drill list to close", ["A"], lambda: drill_list_state(emu) == "closed", 300,
                 every=20, port=port)
     emu.advance(5)
     return True
@@ -735,7 +757,11 @@ def pause_at_game_frame(emu, target):
     """Pause emulation exactly when the match's frame counter reads `target`
     (run to just before it, then step frame by frame). Returns with
     emulation paused; the caller resumes it with emu.h.call("resume")."""
+    start = emu.polls()
+    limit = max(600, (target + 300) * 2)
     while game_frame(emu) < target - 20:
+        if emu.polls() - start > limit:
+            raise Timeout(f"game frame {target - 20} (stuck at {game_frame(emu)}, scene={scene(emu)[:2]})")
         emu.advance(5)
     emu.h.call("pause")
     w = emu.watch(lambda: game_frame(emu))

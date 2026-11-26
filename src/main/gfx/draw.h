@@ -31,7 +31,7 @@ namespace gfx {
     // included; each calls it. Text calls it before its own setup, which keeps
     // the position matrix, culling and alpha test.
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
-    inline void prepare() { x_prepare(); }
+    static inline void prepare() { x_prepare(); }
 #else
     void prepare();
 #endif
@@ -42,7 +42,7 @@ namespace gfx {
     bool textStateKept();
     void keepTextState();
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
-    inline void forgetState() { x_forgetState(); }
+    static inline void forgetState() { x_forgetState(); }
 #else
     void forgetState();
 #endif
@@ -52,7 +52,7 @@ namespace gfx {
     // and shapes are not squeezed.
     void setXScale(float scale);
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
-    inline float xScale() { return x_xScale(); }
+    static inline float xScale() { return x_xScale(); }
 #else
     float xScale();
 #endif
@@ -63,15 +63,15 @@ namespace gfx {
     // `scale < 1`.
     void setWidescreen(bool wide);
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
-    inline bool widescreen() { return x_widescreen(); }
-    inline void fillRect(float x, float y, float width, float height, Rgba color) { x_fillRect(x, y, width, height, color); }
-    inline void fillGradV(float x, float y, float width, float height, Rgba top, Rgba bot) { x_fillGradV(x, y, width, height, top, bot); }
-    inline void frameRect(float x, float y, float width, float height, Rgba color) { x_frameRect(x, y, width, height, color); }
+    static inline bool widescreen() { return x_widescreen(); }
+    static inline void fillRect(float x, float y, float width, float height, Rgba color) { x_fillRect(x, y, width, height, color); }
+    static inline void fillGradV(float x, float y, float width, float height, Rgba top, Rgba bot) { x_fillGradV(x, y, width, height, top, bot); }
+    static inline void frameRect(float x, float y, float width, float height, Rgba color) { x_frameRect(x, y, width, height, color); }
     void arrow(float x, float y, float size, int dir, Rgba color);
-    inline void fillTri(float x0, float y0, float x1, float y1, float x2, float y2, Rgba color) { x_fillTri(x0, y0, x1, y1, x2, y2, color); }
-    inline void lineBegin(int primitive, int count, u8 width) { x_lineBegin(primitive, count, width); }
-    inline void vertex(float x, float y, Rgba color) { x_vertex(x, y, color); }
-    inline void fillEllipse(float x, float y, float rx, float ry, Rgba color) { x_fillEllipse(x, y, rx, ry, color); }
+    static inline void fillTri(float x0, float y0, float x1, float y1, float x2, float y2, Rgba color) { x_fillTri(x0, y0, x1, y1, x2, y2, color); }
+    static inline void lineBegin(int primitive, int count, u8 width) { x_lineBegin(primitive, count, width); }
+    static inline void vertex(float x, float y, Rgba color) { x_vertex(x, y, color); }
+    static inline void fillEllipse(float x, float y, float rx, float ry, Rgba color) { x_fillEllipse(x, y, rx, ry, color); }
 #else
     bool widescreen();
 

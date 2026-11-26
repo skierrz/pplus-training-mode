@@ -114,12 +114,14 @@ def pick_drill(emu, row, reopen=True, page_shift=0):
 
 
 def leave_css_to_versus_menu(emu):
-    """From Training CSS (drill list closed): back out through Training's
-    submenu to the Main Menu (SOLO -> VERSUS)."""
-    nav.close_drill_list(emu)
-    emu.advance(15)
-    emu.hold(0, buttons=["B"])
-    emu.wait_for("Main Menu from Training CSS", lambda: nav.scene(emu)[0] == "muMenuMain", 600, every=5)
+    """From Training CSS (boot menu open or closed): exit through the Boot
+    Menu (B) to Brawl's SOLO submenu, then step to VERSUS."""
+    if nav.drill_list_state(emu) == "closed":
+        emu.press(0, ["L", "R"], frames=4, after=12)
+        emu.wait_for("boot menu open before Solo exit", lambda: nav.drill_list_state(emu) == "open", 120, every=2)
+    emu.advance(12)
+    emu.press(0, ["B"], frames=4, after=10)
+    emu.wait_for("Main Menu from Training Boot Menu", lambda: nav.scene(emu)[0] == "muMenuMain", 600, every=5)
     emu.neutral(0)
     emu.advance(25)
     # Back out of SOLO submenu to SELECT MODE, then move LEFT to VERSUS and press A.

@@ -9,7 +9,7 @@ namespace game {
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
     u32 x_frameCounter();
 #ifndef TM_EXTRA_THUNK_IMPL
-    inline u32 frameCounter() { return x_frameCounter(); }
+    static inline u32 frameCounter() { return x_frameCounter(); }
 #else
     u32 frameCounter();
 #endif

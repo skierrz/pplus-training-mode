@@ -35,9 +35,9 @@ namespace game {
 #endif
 
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
-    inline bool readBody(Fighter* fighter, Body& out) { return x_readBody(fighter, out); }
+    static inline bool readBody(Fighter* fighter, Body& out) { return x_readBody(fighter, out); }
     void readWorkValues(const soModuleEnumeration* m, u32& flags, s32& lCancel);
-    inline s32 instanceInt(const soModuleEnumeration* m, u32 index) { return x_instanceInt(m, index); }
+    static inline s32 instanceInt(const soModuleEnumeration* m, u32 index) { return x_instanceInt(m, index); }
 #else
     bool readBody(Fighter* fighter, Body& out);
 

@@ -39,7 +39,7 @@ namespace ui {
 #if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
     u8* x_menuScratch();
 #ifndef TM_EXTRA_THUNK_IMPL
-    inline u8* menuScratch() { return x_menuScratch(); }
+    static inline u8* menuScratch() { return x_menuScratch(); }
 #else
     u8* menuScratch();
 #endif

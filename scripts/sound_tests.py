@@ -104,15 +104,15 @@ def run(emu, s, state):
     DT.wait_count(emu, "the launcher to open by itself", r"\[{name}\] drills: list opened \(auto\)", 1, 300)
     emu.advance(40)
 
-    state["step"] = "Draft B boot launcher (All Modes / Offense / Defense)"
+    state["step"] = "4-section boot launcher (All Modes / Offense / Defense / Tech Practice)"
     s.expect("menu", "launcher: opening by itself", lambda: None, [])
     if s.since(0):
         raise SoundError(f"sounds before any press: {s.since(0)}")
-    # Page 0 ("All Modes", 12 rows): row 0 = Training Lab.
+    # Page 0 ("All Modes", 19 rows): row 0 = Training Lab, row 1 = L-Cancel.
     s.expect("menu", "launcher: stick up on the first row", lambda: press(stick=UP), [])
-    s.expect("menu", "launcher: down to Combo Lab", lambda: press(stick=DOWN), [MOVE])
+    s.expect("menu", "launcher: down to L-Cancel", lambda: press(stick=DOWN), [MOVE])
     s.expect("menu", "launcher: back up to Training Lab", lambda: press(stick=UP), [MOVE])
-    # Switch sections with R / L: All Modes -> Offense (5 rows) -> Defense (5 rows) -> All Modes.
+    # Switch sections with R / L: All Modes -> Offense (5 rows) -> Defense (7 rows) -> Tech Practice (8 rows).
     s.expect("menu", "launcher: R to Offense page", lambda: press(["R"]), [MOVE])
     if DT.last_page(emu) != "Offense":
         raise SoundError(f"expected Offense after R, got {DT.last_page(emu)!r}")
@@ -122,13 +122,15 @@ def run(emu, s, state):
     s.expect("menu", "launcher: R to Defense page", lambda: press(["R"]), [MOVE])
     if DT.last_page(emu) != "Defense":
         raise SoundError(f"expected Defense after R, got {DT.last_page(emu)!r}")
-    s.expect("menu", "launcher: L back to Offense page", lambda: press(["L"]), [MOVE])
-    if DT.last_page(emu) != "Offense":
-        raise SoundError(f"expected Offense after L, got {DT.last_page(emu)!r}")
-    s.expect("menu", "launcher: L back to All Modes page", lambda: press(["L"]), [MOVE])
+    s.expect("menu", "launcher: R to Tech Practice page", lambda: press(["R"]), [MOVE])
+    if DT.last_page(emu) != "Tech Practice":
+        raise SoundError(f"expected Tech Practice after R, got {DT.last_page(emu)!r}")
+    s.expect("menu", "launcher: R wraps to All Modes page", lambda: press(["R"]), [MOVE])
     if DT.last_page(emu) != "All Modes":
-        raise SoundError(f"expected All Modes after L, got {DT.last_page(emu)!r}")
+        raise SoundError(f"expected All Modes after R wrap, got {DT.last_page(emu)!r}")
 
+    s.expect("menu", "launcher: Y opens Quick OSDs", lambda: press(["Y"]), [CONFIRM])
+    s.expect("menu", "Quick OSDs: B returns to launcher", lambda: press(["B"]), [MOVE])
     s.expect("menu", "launcher: X opens the browser", lambda: press(["X"]), [CONFIRM])
     if not re.search(r"\] browser: 0 recording\(s\) listed", emu.log_text()):
         raise SoundError("the browser lists recordings: this test expects none on the card")
@@ -138,14 +140,19 @@ def run(emu, s, state):
     s.expect("menu", "browser: the stick with nothing listed", lambda: press(stick=DOWN), [])
     s.expect("menu", "browser: B goes back", lambda: press(["B"]), [BACK])
     state["step"] = "the launcher again"
-    s.expect("menu", "launcher: B closes it", lambda: press(["B"]), [BACK])
-    if nav.drill_list_state(emu) != "closed":
-        raise SoundError("B did not close the launcher")
-    s.expect("menu", "launcher: L+R opens it", lambda: press(["L", "R"]), [OPEN])
-    emu.advance(20)
     s.expect("menu", "launcher: A on Training Lab", lambda: press(["A"]), [CONFIRM])
     if nav.drill_list_state(emu) != "closed":
         raise SoundError("Training Lab did not close the launcher")
+    s.expect("menu", "CSS: B reopens launcher", lambda: press(["B"]), [OPEN])
+    emu.advance(20)
+    s.expect("menu", "launcher: A on Training Lab (2)", lambda: press(["A"]), [CONFIRM])
+    if nav.drill_list_state(emu) != "closed":
+        raise SoundError("Training Lab did not close the launcher (2)")
+    s.expect("menu", "CSS: L+R reopens launcher", lambda: press(["L", "R"]), [OPEN])
+    emu.advance(20)
+    s.expect("menu", "launcher: A on Training Lab (3)", lambda: press(["A"]), [CONFIRM])
+    if nav.drill_list_state(emu) != "closed":
+        raise SoundError("Training Lab did not close the launcher (3)")
     in_css = s.counted
     if len(s.since(0)) != in_css:
         raise SoundError(f"{len(s.since(0))} sound lines on the character select, {in_css} of them from a press")
