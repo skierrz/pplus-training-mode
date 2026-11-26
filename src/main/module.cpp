@@ -62,7 +62,12 @@ namespace main {
     // the test script asks for (savestate/snapshot.cpp).
     static void perfOnRender()
     {
-        perf::Block& b = perf::block();
+        perf::Block* bp = perf::blockPtr();
+        if (bp == NULL)
+        {
+            return;
+        }
+        perf::Block& b = *bp;
         if ((b.control & perf::kControlCalibrate) != 0)
         {
             b.control &= ~static_cast<u32>(perf::kControlCalibrate);
@@ -250,6 +255,7 @@ namespace main {
         s_vsReadOnly = !game::trainingGameMode();
         s_vsPrevRan = false;
 #ifdef TM_PERF
+        perf::attach();
         perf::announce("main", perf::kMainNames, perf::kMainSections);
 #endif
         bool reset = loadSettings(block);
@@ -309,6 +315,9 @@ namespace main {
         {
             lab::detach();
             TM_LOG("main: detaching\n");
+#ifdef TM_PERF
+            perf::detach();
+#endif
             s_vsReadOnly = false;
             s_vsPrevRan = false;
             s_iface = NULL;
@@ -323,6 +332,9 @@ namespace main {
         game::trainingDamageRestore();
         game::trainingControllerRestore();
         TM_LOG("main: detaching\n");
+#ifdef TM_PERF
+        perf::detach();
+#endif
         s_recordPads = NULL;
         s_iface = NULL;
     }

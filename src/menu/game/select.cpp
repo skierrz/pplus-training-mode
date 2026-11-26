@@ -838,9 +838,15 @@ namespace select {
         {
             u8* a = areaAt(task, static_cast<int>(i));
             u8* h = a != NULL ? reinterpret_cast<u8*>(game::wordAt(a, kAreaHand)) : NULL;
-            if (isRam(h) && game::wordAt(h, kHandMode) != 0)
+            if (isRam(h))
             {
-                st.anyDropdownOpen = true;
+                // m_mode 0 = idle, 4 = hovering corner Back button (0x8068AAA4);
+                // 1..3 are coin animations and 5..8 are dropdowns/submenus.
+                u32 mode = game::wordAt(h, kHandMode);
+                if (mode != 0 && mode != 4)
+                {
+                    st.anyDropdownOpen = true;
+                }
             }
         }
         u8* p1 = areaAt(task, kAreaHuman);

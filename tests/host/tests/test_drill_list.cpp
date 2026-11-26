@@ -1231,6 +1231,9 @@ TEST(drill_list, natural_b_hierarchy_boot_to_solo_and_css_coin_safe_back)
     CHECK(!menu::select::canBackFromCss(st, 1)); // wrong port
     st.controllerPort = -1;
     CHECK(menu::select::canBackFromCss(st, 4)); // unmapped port allowed (e.g. Wii)
+    st.controllerPort = 4;
+    CHECK(menu::select::canBackFromCss(st, 4));  // Wii P1 port match
+    CHECK(!menu::select::canBackFromCss(st, 0)); // GC P1 rejected when P1 is Wii P1
     st.controllerPort = 0;
     st.ownCoinPlaced = true;
     CHECK(!menu::select::canBackFromCss(st, 0)); // B recalls P1's placed coin
@@ -1409,6 +1412,94 @@ TEST(drill_list, y_quick_osds_patches_osd_area_in_place_without_clobbering_other
     CHECK(host::card::has("settings-b.bin"));
     CHECK(host::log::contains("osdquick: saved to settings-b.bin (save 8"));
     menu::list::detach();
+}
+
+TEST(drill_list, y_quick_osds_blocks_edits_on_v1_and_newer_saves)
+{
+    static const u16 kLayouts[2] = {1u, static_cast<u16>(main::kSettingsVersion + 1)};
+    static const char* const kNotes[2] = {"v1 save on SD: upgrade in match", "Newer save on SD: read-only"};
+
+    for (int c = 0; c < 2; c++)
+    {
+        host::fakes::reset();
+        host::card::reset();
+        host::log::clear();
+        main::loadSettings(host::fakes::block());
+        main::settings().osd.maxMessages = 4;
+        main::settings().osd.wavedash = 1;
+
+        u8 file[storage::kSettingsFileCap];
+        memset(file, 0, sizeof(file));
+        storage::FileHeader* h = reinterpret_cast<storage::FileHeader*>(file);
+        storage::SettingsHead* head = reinterpret_cast<storage::SettingsHead*>(file + sizeof(storage::FileHeader));
+        u32 at = sizeof(storage::FileHeader) + sizeof(storage::SettingsHead);
+        u16 areaCount = 0;
+        u32 body = storage::writeAreas(file + at, sizeof(file) - at, at,
+                                       reinterpret_cast<const u8*>(&main::settings()), storage::kAllAreas, areaCount);
+        REQUIRE(body > 0);
+        head->areaCount = areaCount;
+        head->layout = kLayouts[c];
+        h->magic = storage::kSettingsMagic;
+        h->format = storage::kSettingsFormat;
+        h->headerSize = sizeof(storage::FileHeader);
+        h->size = at + body;
+        h->sequence = 3;
+        h->checksum = storage::checksum(file + storage::kChecksumFrom, h->size - storage::kChecksumFrom);
+        host::card::put("settings-a.bin", file, h->size);
+
+        gfPadStatus pads[iface::kPadCount];
+        initPads(pads, 1u << 0);
+        host::fakes::setMenuPort(0);
+        host::fakes::setTrainingSelectRunning(true);
+        menu::list::attach();
+        stepFrame(pads);
+
+        // Open Quick OSDs with Y.
+        setPadInput(pads[0], game::kPadY);
+        stepFrame(pads);
+        CHECK(menu::osdQuick::isOpen());
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+
+        // Footer shows "Back" (not "Back & Save") and header shows the read-only/upgrade note.
+        host::canvas::clear();
+        menu::list::onRender(0);
+        CHECK(canvasDrew(kNotes[c]));
+        CHECK(canvasDrew("Back"));
+        CHECK(!canvasDrew("Back & Save"));
+
+        // Attempting to edit row 2 (Max OSDs) with Right or A must not mutate live settings.
+        for (int i = 0; i < 2; i++)
+        {
+            setPadInput(pads[0], kDpadDown);
+            stepFrame(pads);
+            setPadInput(pads[0], 0);
+            stepFrame(pads);
+        }
+        setPadInput(pads[0], game::kPadDRight);
+        stepFrame(pads);
+        CHECK_EQ(4, static_cast<int>(main::settings().osd.maxMessages));
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+        setPadInput(pads[0], kButtonA);
+        stepFrame(pads);
+        CHECK_EQ(4, static_cast<int>(main::settings().osd.maxMessages));
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+
+        // Closing with B writes nothing to SD.
+        setPadInput(pads[0], kButtonB);
+        stepFrame(pads);
+        CHECK(!menu::osdQuick::isOpen());
+        setPadInput(pads[0], 0);
+        for (int i = 0; i < 4; i++)
+        {
+            menu::list::onRender(0);
+            stepFrame(pads);
+        }
+        CHECK(!host::card::has("settings-b.bin"));
+        menu::list::detach();
+    }
 }
 
 TEST(drill_list, return_from_match_reopens_but_stage_select_back_stays_closed)

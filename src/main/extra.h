@@ -114,6 +114,8 @@ namespace main {
         // Native Skill Drill HUD & End-Screen Modal (extra/drill_hud.h).
         // pads != NULL: handle pad phase, return 1 if consumed; pads == NULL: bit 0 active, bit 1 modal open.
         u32 (*drillHook)(u32 phase, gfPadStatus* pads);
+        // TopLeft/TopRight OSD start Y stepped below active extra overlay columns.
+        float (*osdTopStartY)(bool isTopRight);
     };
 
     // What the match module asks of the Scenario Presets engine.
@@ -291,5 +293,7 @@ namespace main {
     void extraTimingMeterDraw(const game::MatchState& match);
     // Native Skill Drill HUD & End-Screen Modal (extra/drill_hud.h).
     u32 extraDrill(u32 phase, gfPadStatus* pads);
+    // TopLeft/TopRight OSD start Y stepped below active extra overlays (0 when extra absent).
+    float extraOsdTopStartY(bool isTopRight);
 }
 }

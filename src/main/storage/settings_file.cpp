@@ -113,6 +113,18 @@ namespace storage {
     static u32 s_v1UnchangedMask = 0;
     static u32 s_v1FileSize = 0;
     static u8 s_v1SessionBuf[64];
+    enum {
+        kV1SessionBytes =
+            sizeof(((Settings*)0)->general.playerPercent) + sizeof(((Settings*)0)->general.lockPlayerPercent)
+            + sizeof(((Settings*)0)->general.frameAdvance) + sizeof(((Settings*)0)->general.gameSpeed)
+            + sizeof(((Settings*)0)->display.debugOverlay) + sizeof(((Settings*)0)->display.hud)
+            + sizeof(((Settings*)0)->display.models) + sizeof(((Settings*)0)->display.stageModel)
+            + sizeof(((Settings*)0)->display.effects) + sizeof(((Settings*)0)->cpu.percent)
+            + sizeof(((Settings*)0)->cpu.lockPercent) + sizeof(((Settings*)0)->cpu.options.control)
+            + sizeof(((Settings*)0)->comboTrainer.enabled)
+            + (offsetof(main::RecordingSettings, reserved) - offsetof(main::RecordingSettings, hmnMode))
+    };
+    TM_STATIC_ASSERT(kV1SessionBytes <= sizeof(s_v1SessionBuf), tm_v1_session_buf_fits);
 
     static void copySessionFields(Settings& s, u8* buf, bool toBuf)
     {

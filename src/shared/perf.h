@@ -128,11 +128,21 @@ namespace perf {
         Section s[kMaxSections];
     };
 
+#ifdef TM_MODULE_STUB
     extern const char* const kStubNames[kStubSections];
+#endif
+#ifdef TM_MODULE_MAIN
     extern const char* const kMainNames[kMainSections];
+#endif
 
+    void attach();
+    void detach();
+    Block* blockPtr();
+    bool legacy();
+#ifndef TM_MODULE_MAIN
     // This module's block.
     Block& block();
+#endif
 
     void add(u32 section, u32 ticks);
 
@@ -160,7 +170,7 @@ namespace perf {
 }
 
 #define TM_PERF_SCOPE(section) ::tm::perf::Scope tmPerfScope_(::tm::perf::section)
-#define TM_PERF_LEGACY() ((::tm::perf::block().control & ::tm::perf::kControlLegacy) != 0)
+#define TM_PERF_LEGACY() ::tm::perf::legacy()
 #define TM_PERF_COUNT(section, n) ::tm::perf::add(::tm::perf::section, (n))
 #else
 #define TM_PERF_SCOPE(section)

@@ -407,17 +407,19 @@ namespace storage {
         return result;
     }
 
-    // FAEntryInfo is large; one is enough (listing is synchronous). Spare
-    // room after it in case the library's record is longer than declared.
-    static struct {
-        FAEntryInfo e;
-        u8 spare[256];
-    } s_list;
-
     bool exists(const char* name)
     {
         return fileSize(name) >= 0;
     }
+
+#if !defined(TM_MODULE_MAIN) || !defined(__MWERKS__)
+    // FAEntryInfo is large; one is enough (listing is synchronous). Spare
+    // room after it in case the library's record is longer than declared.
+    // Only the menu module (and host tests) list files on SD.
+    static struct {
+        FAEntryInfo e;
+        u8 spare[256];
+    } s_list;
 
     int listFiles(const char* suffix, ListFn each, void* ctx)
     {
@@ -449,5 +451,6 @@ namespace storage {
         } while (FAFsnext(&s_list.e) == 0);
         return count;
     }
+#endif
 }
 }

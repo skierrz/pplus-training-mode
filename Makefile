@@ -197,7 +197,7 @@ MAIN_SRCS   := $(filter-out $(INFO_EXTRA_SRCS),$(sort $(call rwildcard,src/main,
 # The menu module draws with the main module's 2D helpers and reads the SD
 # card with its file helpers, compiled again from where they live.
 MENU_SRCS   := $(sort $(call rwildcard,src/menu,*.cpp)) src/main/gfx/draw.cpp src/main/gfx/text.cpp \
-               src/main/storage/file_io.cpp $(SHARED_SRCS)
+               src/main/ui/style.cpp src/main/storage/file_io.cpp $(SHARED_SRCS)
 # The extra module is linked against the main module and uses its code, so
 # it compiles only its own sources, info display/status names moved out of
 # match for headroom, and the destructor chain every module needs its own copy of.

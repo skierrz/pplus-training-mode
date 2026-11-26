@@ -163,19 +163,18 @@ namespace ui {
             if (sel && !main::extraDrawUiIcon(kIconCursorRight, cardX + 5.0f * xs, y + 18.0f, 12.0f * xs, 12.0f,
                                               0xFFFFFFFFu))
             {
-                float cs = scaleForCap(11.0f);
-                gfx::text(cardX + 6.0f * xs, textYForCap(y + 18.0f, cs), ">", kLabGoldInk, cs);
+                drawCursorTri(cardX + 6.0f * xs, y + 24.0f, 9.0f);
             }
             fitText(textX, y + 9.0f, kTitles[i], sel ? kLabGoldInk : kText, 10.5f, textMaxW);
             fitText(textX, y + 28.0f, subs[i], sel ? 0x2B2100FFu : kLabMutedText, 8.5f, textMaxW);
         }
 
-        // Native Brawl footer emblems.
+        // Native Brawl footer emblems (glossy GX pill fallback when icons are absent).
         static const u8 kOkIcons[4] = {kIconGcA, kIconClA, kIconWii2, kIconWiiA};
+        static const gfx::Rgba kFootCols[2][2] = {{kLabBtnZTop, kLabBtnZBot}, {kLabBtnATop, kLabBtnABot}};
         u8 icons[2] = {static_cast<u8>(s_ctrlType == gfPadType::GCC ? kIconGcDpad : kIconWiiDpad), kOkIcons[s_ctrlType]};
         const char* glyphs[2] = {"+", s_ctrlType == gfPadType::WIIMOTE ? "2" : "A"};
         const char* labels[2] = {"Choose", "Confirm & Save v2"};
-        gfx::Rgba cols[2] = {kLabBtnZTop, kLabBtnATop};
         float fx = left + 22.0f * xs;
         float ls = scaleForCap(9.5f);
         float gs = scaleForCap(8.5f);
@@ -184,8 +183,9 @@ namespace ui {
         {
             if (!main::extraDrawUiIcon(icons[i], fx, 360.0f, iw, 16.0f, 0xFFFFFFFFu))
             {
-                gfx::fillRect(fx, 360.0f, iw, 16.0f, cols[i]);
-                gfx::text(fx + 4.0f * xs, textYForCap(363.75f, gs), glyphs[i], kLabWhiteText, gs);
+                drawGlossyPillBadge(fx, 360.0f, iw, 16.0f, kFootCols[i][0], kFootCols[i][1]);
+                float gw = gfx::textWidth(glyphs[i], gs);
+                gfx::text(fx + (iw - gw) * 0.5f, textYForCap(363.75f, gs), glyphs[i], kLabWhiteText, gs);
             }
             fx = gfx::text(fx + 22.0f * xs, textYForCap(363.25f, ls), labels[i], kText, ls) + 26.0f * xs;
         }

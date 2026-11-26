@@ -427,6 +427,7 @@ TEST(drill_hud, geometry_within_crt_safe_area_43_and_169)
         ui::layout::Box hud = ui::layout::drillHudBox(wide);
         ui::layout::Box modal = ui::layout::drillModalBox(wide);
 
+        CHECK_NEAR(316.0f * ui::layout::xsOf(wide), hud.x1 - hud.x0, 0.01f);
         CHECK(hud.x0 >= safe.x0 && hud.x1 <= safe.x1);
         CHECK(hud.y0 >= safe.y0 && hud.y1 <= safe.y1);
         CHECK(hud.y1 < 397.0f);

@@ -35,7 +35,7 @@ namespace extra {
             kPorts = iface::kPadCount,
             // label() flags: bits 0..1 align (0 left, 1 right, 2 center),
             // bits 2..4 size/font preset (0=8pt, 1=10pt, 2=disp 8.5pt, 3=disp 13pt, 4=disp 20pt),
-            // bit 5 = gold display bottom, bit 6 = red display bottom, bit 7 = clamp to 152*xs.
+            // bit 5 = gold display bottom, bit 6 = red display bottom, bit 7 = clamp to 168*xs.
             kAlignRight = 1,
             kAlignCenter = 2,
             kSz10 = 1 << 2,
@@ -44,7 +44,7 @@ namespace extra {
             kSzDisp20 = 4 << 2,
             kDispGold = 1 << 5,
             kDispRed = 1 << 6,
-            kClamp152 = 1 << 7
+            kClamp168 = 1 << 7
         };
 
         const u32 kGradeCols[5] = {0xA0BCC4FFu, 0xFFD300FFu, 0x4CE688FFu, 0xFF6658FFu, 0xFFB848FFu};
@@ -106,9 +106,9 @@ namespace extra {
             float sc = kScales[sz];
             float tw = disp ? gfx::displayTextWidth(s, sc) : gfx::textWidth(s, sc);
             float sx = sc;
-            if (fl & kClamp152)
+            if (fl & kClamp168)
             {
-                float mw = 152.0f * s_rtPtr->xs;
+                float mw = 168.0f * s_rtPtr->xs;
                 if (tw > mw && tw > 0.0f)
                 {
                     sx = sc * mw / tw;
@@ -154,32 +154,21 @@ namespace extra {
             Runtime& s_rt = *s_rtPtr;
             DrillHudState& st = s_rt.st;
             float xs = s_rt.xs;
-            float ox = 320.0f - 148.0f * xs;
-            drawPanel(ox, 24.0f, 296.0f, 40.0f, st.alcNotice ? kGradeCols[4] : 0x35B8C8FFu, 0x0D1E26ECu, 0x071117ECu);
+            float ox = 320.0f - 158.0f * xs;
+            drawPanel(ox, 24.0f, 316.0f, 40.0f, st.alcNotice ? kGradeCols[4] : 0x35B8C8FFu, 0x0D1E26ECu, 0x071117ECu);
 
             float ix = ox + 4.0f * xs;
-            float iw = 288.0f * xs;
+            float iw = 308.0f * xs;
             gfx::fillGradV(ix, 28.0f, iw, 15.0f, 0x226874F0u, 0x123C46F0u);
             gfx::fillRect(ix, 43.0f, iw, 2.0f, 0x2A5866E0u);
 
             float lx = ox + 10.0f * xs;
-            float rx = ox + 286.0f * xs;
+            float rx = ox + 306.0f * xs;
             label(lx, 31.0f, drillHudTitle(st.activeDrill), 0xFFFFFFFFu, kSzDisp85);
 
-            // Compact Brawl-styled mode pill beside title (FREE / 10-REP / 20-REP).
+            // Format and measure top-right counter BEFORE drawing the mode pill so
+            // the pill never collides with the counter text.
             u8 target = drillModeTargetReps(st.mode);
-            const char* modeTxt = drillModeLabel(st.mode);
-            float titleW = gfx::displayTextWidth(drillHudTitle(st.activeDrill), kScales[2]);
-            float pillX = lx + titleW + 6.0f * xs;
-            float pillW = gfx::textWidth(modeTxt, kScales[0]) + 8.0f * xs;
-            if (pillX + pillW < rx - 110.0f * xs)
-            {
-                gfx::fillRect(pillX, 29.5f, pillW, 12.0f, 0x07141AE8u);
-                gfx::fillGradV(pillX + xs, 30.5f, pillW - 2.0f * xs, 10.0f,
-                               target == 0 ? 0x1B6B76FFu : 0xB88200FFu, target == 0 ? 0x0E3D45FFu : 0x7A5000FFu);
-                label(pillX + pillW * 0.5f, 31.5f, modeTxt, 0xFFFFFFFFu, kAlignCenter);
-            }
-
             char buf[28];
             if (target == 0)
             {
@@ -192,10 +181,25 @@ namespace extra {
                 snprintf(buf, sizeof(buf), "REP %u/%u  HIT %u", static_cast<unsigned>(st.repsDone),
                          static_cast<unsigned>(target), static_cast<unsigned>(st.repsHit));
             }
+            float rightTextW = gfx::textWidth(buf, kScales[0]);
+
+            // Compact Brawl-styled mode pill beside title (FREE / 10-REP / 20-REP).
+            const char* modeTxt = drillModeLabel(st.mode);
+            float titleW = gfx::displayTextWidth(drillHudTitle(st.activeDrill), kScales[2]);
+            float pillX = lx + titleW + 6.0f * xs;
+            float pillW = gfx::textWidth(modeTxt, kScales[0]) + 8.0f * xs;
+            if (pillX + pillW < rx - rightTextW - 6.0f * xs)
+            {
+                gfx::fillRect(pillX, 29.5f, pillW, 12.0f, 0x07141AE8u);
+                gfx::fillGradV(pillX + xs, 30.5f, pillW - 2.0f * xs, 10.0f,
+                               target == 0 ? 0x1B6B76FFu : 0xB88200FFu, target == 0 ? 0x0E3D45FFu : 0x7A5000FFu);
+                label(pillX + pillW * 0.5f, 31.5f, modeTxt, 0xFFFFFFFFu, kAlignCenter);
+            }
+
             label(rx, 31.5f, buf, 0xFFD300FFu, kAlignRight);
 
             u8 g = st.lastGrade < 5 ? st.lastGrade : 0;
-            label(lx, 46.0f, st.lastFeedback, kGradeCols[g], kClamp152);
+            label(lx, 46.0f, st.lastFeedback, kGradeCols[g], kClamp168);
 
             if (st.sessionBest)
             {
@@ -207,7 +211,7 @@ namespace extra {
                 snprintf(buf, sizeof(buf), "STK %u  BEST --", static_cast<unsigned>(st.streakFull));
             }
             label(rx, 46.0f, buf, kGradeCols[0], kAlignRight);
-            drawPips(lx, 56.0f, 276.0f * xs, 3.0f, target > 0 ? static_cast<int>(target) : kDrillFreePips);
+            drawPips(lx, 56.0f, 296.0f * xs, 3.0f, target > 0 ? static_cast<int>(target) : kDrillFreePips);
         }
 
         void drawEndModal()
@@ -479,7 +483,7 @@ namespace extra {
             bool active = isValidSkillDrill(st.activeDrill);
             if (phase == 2u && active)
             {
-                float hw = 148.0f * ui::layout::xsOf(gfx::widescreen());
+                float hw = 158.0f * ui::layout::xsOf(gfx::widescreen());
                 ui::layout::Box b = {320.0f - hw, 24.0f, 320.0f + hw, 64.0f};
                 ui::layout::setLabBand(b);
             }
@@ -516,9 +520,10 @@ namespace extra {
                     }
                 }
                 else if (!st.modalOpen && isValidSkillDrill(st.activeDrill) && (pr & game::kPadDUp) != 0
-                         && (held & game::kPadDDown) == 0)
+                         && (held & (game::kPadDDown | game::kPadR)) == 0)
                 {
-                    u32 modBit = game::inMatchPad(static_cast<u32>(p.m_controllerType)).prevCat;
+                    u32 ct = static_cast<u32>(p.m_controllerType);
+                    u32 modBit = ct == gfPadType::WIIMOTE ? game::kPadWiiMinus : game::inMatchPad(ct).prevCat;
                     if (modBit != 0 && (held & modBit) != 0)
                     {
                         drillHudCycleMode(st);

@@ -297,19 +297,6 @@ namespace osd {
         return false;
     }
 
-    static int infoRowCount(const main::InfoSettings& info)
-    {
-        int n = 0;
-        for (int r = 0; r < main::kInfoRows; r++)
-        {
-            if (info.rows[r] != 0)
-            {
-                n = r + 1;
-            }
-        }
-        return n;
-    }
-
     static void drawMessage(Message& m, s32 now, float scale, float floorY, float topY, int playerCount,
                             const ThemeColors& t)
     {
@@ -410,30 +397,13 @@ namespace osd {
         float topY = 0.0f;
         if (s_position == kPositionTopLeft || s_position == kPositionTopRight)
         {
-            using namespace ui::layout;
-            bool wide = gfx::widescreen();
-            bool extraReady = main::extraLoaded();
-            Box band = topBand();
-            float infoBot = 0.0f;
-            float rightBot = 0.0f;
-            if (s_position == kPositionTopLeft)
+            topY = main::extraOsdTopStartY(s_position == kPositionTopRight);
+            if (topY <= 0.0f)
             {
-                if (extraReady)
-                {
-                    infoBot = infoStackBottom(band, infoRowCount(s.info[0]), s.info[0].size,
-                                              infoRowCount(s.info[1]), s.info[1].size, wide);
-                }
+                using namespace ui::layout;
+                Box band = topBand();
+                topY = (!empty(band) && band.y1 + kStepGap > kSafeMarginY) ? (band.y1 + kStepGap) : kSafeMarginY;
             }
-            else if (extraReady)
-            {
-                bool training = game::trainingGameMode();
-                int vSlots = training ? inputViewerSlotCount(s.display.inputViewer) : 0;
-                bool hasComp = training && s.general.diDisplay != 0 && s.display.diVectorMode != main::kDiVectorLive;
-                bool hasPsa = s.display.psaInspector != main::kPsaOff;
-                bool hasAdaptive = training && s.cpu.options.adaptiveMode != cpu::kAdaptiveOff;
-                rightBot = rightColumnBottom(band, vSlots, hasComp, hasPsa, wide, hasAdaptive);
-            }
-            topY = osdTopStartY(s_position == kPositionTopRight, band, infoBot, rightBot);
         }
         int playerCount = 2;
         for (int i = 0; i < game::kMaxTracked; i++)

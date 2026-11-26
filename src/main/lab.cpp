@@ -1659,8 +1659,10 @@ namespace lab {
         bool drillHud = !ro && m.running && !m.paused && !s_st.open && !modal && (main::extraDrill(2, NULL) & 1u) != 0u;
         bool ledge = m.running && !m.paused && !s_st.open && !modal && !drillHud && ui::ledgedashHudVisible();
         // Training leaves Brawl's own timer off: it is turned on here instead
-        // (ui/match_hud.cpp), hidden while the Ledgedash HUD or Skill Drill HUD is shown.
-        bool timer = !ro && m.running && hud && !drillHud && !ui::ledgedashHudVisible() && (!m.paused || s_st.open);
+        // (ui/match_hud.cpp), hidden while the Ledgedash HUD, Skill Drill HUD,
+        // or settings update modal is shown.
+        bool timer = !ro && !modal && m.running && hud && !drillHud && !ui::ledgedashHudVisible()
+                     && (!m.paused || s_st.open);
         if (timer)
         {
             ui::showMatchTimer(game::trackerFrame());
@@ -1710,11 +1712,14 @@ namespace lab {
                 }
                 if (!ro)
                 {
-                    display::render2d(m, s_st.open);
-                    if (!m.paused && !s_st.open)
+                    if (!modal)
                     {
-                        main::extraInputViewerDraw(m, s_st.open);
-                        main::extraDiCompassDraw(m, s_st.open);
+                        display::render2d(m, s_st.open);
+                        if (!m.paused && !s_st.open)
+                        {
+                            main::extraInputViewerDraw(m, s_st.open);
+                            main::extraDiCompassDraw(m, s_st.open);
+                        }
                     }
                     if (s_st.open)
                     {
@@ -1730,7 +1735,7 @@ namespace lab {
                 {
                     main::extraPsaInspectorDraw(m, s_st.open);
                 }
-                if (hud && !ro && !(s_st.open && storage::noticeActive()))
+                if (hud && !ro && !modal && !(s_st.open && storage::noticeActive()))
                 {
                     TM_PERF_SCOPE(kWatermark);
                     ui::drawWatermark();

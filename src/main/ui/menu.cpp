@@ -793,11 +793,7 @@ namespace ui {
         float iconH = cursorSize + 2.0f;
         if (!main::extraDrawUiIcon(kIconCursorRight, cx(x43 + 2.0f), midY - iconH * 0.5f, w(iconH), iconH, 0xFFFFFFFF))
         {
-            float tx = cx(x43 + 3.0f);
-            float tw = w(2.0f);
-            gfx::fillRect(tx, midY - 4.0f, tw, 8.0f, kLabGoldInk);
-            gfx::fillRect(tx + tw, midY - 2.5f, tw, 5.0f, kLabGoldInk);
-            gfx::fillRect(tx + 2.0f * tw, midY - 1.0f, tw, 2.0f, kLabGoldInk);
+            drawCursorTri(cx(x43 + 3.0f), midY, cursorSize);
         }
     }
 
@@ -870,10 +866,7 @@ namespace ui {
                 {
                     float fbH = (flags & kEmblemTab) ? 18.0f : 16.0f;
                     float bx = (flags & kEmblemCentre) ? x - fbW * 0.5f : x;
-                    gfx::fillRect(bx, midY - fbH * 0.5f, fbW, fbH, kLabPillBorder);
-                    gfx::fillGradV(bx + xs, midY - fbH * 0.5f + 1.0f, fbW - 2.0f * xs, fbH - 2.0f,
-                                   kBtnTheme[theme][0], kBtnTheme[theme][1]);
-                    gfx::fillRect(bx + xs, midY - fbH * 0.5f + 1.0f, fbW - 2.0f * xs, 2.0f, kLabPillOnSheen);
+                    drawGlossyPillBadge(bx, midY - fbH * 0.5f, fbW, fbH, kBtnTheme[theme][0], kBtnTheme[theme][1]);
                     usedIcon = false;
                     return fbW;
                 }
@@ -902,17 +895,6 @@ namespace ui {
         gfx::fillGradV(x + pad, y + 2.0f, pw - 2.0f * pad, kLabRowH - 4.0f, c[0], c[1]);
         gfx::fillRect(x + pad, y + 2.0f, pw - 2.0f * pad, 2.0f, c[2]);
     }
-
-#ifdef __MWERKS__
-    // extra links against gfx::fillEllipse from main; keep it exported even
-    // when menu badges render through extraDrawUiIcon.
-#pragma force_active on
-    void keepGfxFillEllipse()
-    {
-        gfx::fillEllipse(0.0f, 0.0f, 0.0f, 0.0f, 0u);
-    }
-#pragma force_active reset
-#endif
 
     static void drawLabFrame()
     {

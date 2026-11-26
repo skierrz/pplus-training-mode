@@ -44,6 +44,7 @@
 #include "main/lab.h"
 #include "main/module.h"
 #include "main/settings.h"
+#include "main/ui/hud_layout.h"
 #include "main/ui/info_display.h"
 #include "shared/game/scene.h"
 #include "shared/log.h"
@@ -176,6 +177,44 @@ namespace extra {
         timingMeterReset();
     }
 
+    static int infoRowCount(const main::InfoSettings& info)
+    {
+        int n = 0;
+        for (int r = 0; r < main::kInfoRows; r++)
+        {
+            if (info.rows[r] != 0)
+            {
+                n = r + 1;
+            }
+        }
+        return n;
+    }
+
+    static float osdTopStartYHook(bool isTopRight)
+    {
+        using namespace ui::layout;
+        const main::Settings& s = main::settings();
+        bool wide = gfx::widescreen();
+        Box band = topBand();
+        float infoBot = 0.0f;
+        float rightBot = 0.0f;
+        if (!isTopRight)
+        {
+            infoBot = infoStackBottom(band, infoRowCount(s.info[0]), s.info[0].size,
+                                      infoRowCount(s.info[1]), s.info[1].size, wide);
+        }
+        else
+        {
+            bool training = game::trainingGameMode();
+            int vSlots = training ? inputViewerSlotCount(s.display.inputViewer) : 0;
+            bool hasComp = training && s.general.diDisplay != 0 && s.display.diVectorMode != main::kDiVectorLive;
+            bool hasPsa = s.display.psaInspector != main::kPsaOff;
+            bool hasAdaptive = training && s.cpu.options.adaptiveMode != cpu::kAdaptiveOff;
+            rightBot = rightColumnBottom(band, vSlots, hasComp, hasPsa, wide, hasAdaptive);
+        }
+        return osdTopStartY(isTopRight, band, infoBot, rightBot);
+    }
+
     static const main::ExtraHooks kHooks = {
         onRender,          alterRow,           alterEdited,        diDraw,
         diReset,           diHideDrawDi,       framesUntilActionable, onFrame,
@@ -187,7 +226,8 @@ namespace extra {
         optionDesc,        uiAssetsDrawIcon,   uiAssetsDrawPageOverlay,
         ui::infoWanted,    ui::infoStep,       ui::drawInfo,       ui::infoReset,
         ui::applyInfoPreset, inputViewerDraw,  drawColoredHitboxes, diCompassDraw,
-        reversalSlotsPick, psaInspectorDraw,   timingMeterDraw,    drillHudHook
+        reversalSlotsPick, psaInspectorDraw,   timingMeterDraw,    drillHudHook,
+        osdTopStartYHook
     };
 
     static bool attach(iface::Interface* iface)

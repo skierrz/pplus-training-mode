@@ -443,6 +443,8 @@ namespace osdQuick {
             storage::State* st = storage::blockState(services().settings());
             if (st != NULL && st->magic == storage::kStateMagic)
             {
+                // Keep alternating slot/sequence in sync; st->baseline is a full-settings
+                // checksum owned by settings_file.cpp (recomputed on next match save).
                 st->slot = s_cardSlot;
                 st->sequence = s_cardSeq;
             }
@@ -608,6 +610,11 @@ namespace osdQuick {
 
     static void adjustRow(int idx, int delta)
     {
+        if (s_newerOnCard || s_olderLayoutOnCard)
+        {
+            sound(game::kSoundError);
+            return;
+        }
         const QuickRow& r = kRows[idx];
         u8* raw = reinterpret_cast<u8*>(&s_osd);
         int cur = raw[r.offset];
@@ -779,6 +786,8 @@ namespace osdQuick {
             storage::State* st = storage::blockState(services().settings());
             if (st != NULL && st->magic == storage::kStateMagic)
             {
+                // Keep alternating slot/sequence in sync; st->baseline is a full-settings
+                // checksum owned by settings_file.cpp (recomputed on next match save).
                 st->slot = s_cardSlot;
                 st->sequence = s_cardSeq;
             }
@@ -944,7 +953,8 @@ namespace osdQuick {
         drawGlossyRoundBadge(fx + bw * 0.5f, fy, 8.5f, kLabBtnBTop, kLabBtnBBot);
         gfx::text(fx + (bw - gfx::textWidth(backGlyph, bScale)) * 0.5f, textYForCap(fy - bCap * 0.5f, bScale),
                   backGlyph, kLabWhiteText, bScale);
-        gfx::text(fx + bw + w(6.0f), textYForCap(fy - 5.0f, lScale), "Back & Save", kText, lScale);
+        const char* backLabel = (s_newerOnCard || s_olderLayoutOnCard) ? "Back" : "Back & Save";
+        gfx::text(fx + bw + w(6.0f), textYForCap(fy - 5.0f, lScale), backLabel, kText, lScale);
     }
 }
 }

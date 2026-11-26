@@ -500,5 +500,14 @@ namespace main {
         }
         return 0u;
     }
+
+    float extraOsdTopStartY(bool isTopRight)
+    {
+        if (s_hooks != NULL && s_hooks->osdTopStartY != NULL)
+        {
+            return s_hooks->osdTopStartY(isTopRight);
+        }
+        return 0.0f;
+    }
 }
 }

@@ -70,6 +70,7 @@ MOD_SOURCES = [
     "main/ui/menu.cpp",
     "main/ui/pages/*.cpp",  # every page of the lab menu
     "main/ui/settings_modal.cpp",
+    "main/ui/style.cpp",
     "main/ui/watermark.cpp",
     "menu/game/training.cpp",
     "menu/names.cpp",

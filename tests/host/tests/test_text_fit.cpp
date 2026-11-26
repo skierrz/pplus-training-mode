@@ -1976,7 +1976,13 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                                         }
 
                                         Box stack = none();
-                                        for (int sl = 0; sl < 3; sl++)
+                                        // On 4:3, the 316 px Drill HUD steps dual Input Viewers + DI Compass
+                                        // below y=64 (to y=258), leaving room for 2 stacked Sides CPU OSDs (to y=288).
+                                        int stackSlots = (!wide && drillHud && pl == 1 && pos == osd_real::kPositionSides
+                                                          && vSlots == 2 && hasComp)
+                                                             ? 2
+                                                             : 3;
+                                        for (int sl = 0; sl < stackSlots; sl++)
                                         {
                                             float sx = sp.x + sl * sp.dx;
                                             float sy = sp.y + sl * sp.dy;
