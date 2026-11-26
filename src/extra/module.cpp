@@ -102,6 +102,7 @@ namespace extra {
         {
             fighterSwapTick(match);
             scenarioPresetsOnRender(match);
+            drillPracticeApplyHudVisibility(match);
         }
         if (!match.running)
         {

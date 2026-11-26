@@ -64,6 +64,7 @@ namespace extra {
     void drillPracticeDetach();
     void drillPracticeReset();
     void drillPracticeFrame();
+    void drillPracticeApplyHudVisibility(const game::MatchState& match);
     void drillPracticeDraw(const game::MatchState& match);
     bool drillPracticeCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons);
     bool drillPracticeOnPad(u32 phase, gfPadStatus* pads);

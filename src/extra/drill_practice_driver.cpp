@@ -32,6 +32,7 @@
 #include "main/gfx/draw.h"
 #include "main/lab.h"
 #include "main/settings.h"
+#include "main/ui/match_hud.h"
 #include "main/ui/pages/scenarios.h"
 #include "shared/game/frame.h"
 #include "shared/game/mem.h"
@@ -230,6 +231,10 @@ namespace extra {
                         cpu::clearKnockback(pair[k]);
                         cpu::placeAt(pair[k], cx, py);
                     }
+                }
+                if (want)
+                {
+                    ui::hidePlayerDamageHud(refs[i].playerNo);
                 }
                 if (!want)
                 {
@@ -881,6 +886,27 @@ namespace extra {
             out.y = 0.0f;
         }
         return act;
+    }
+
+    // Called from extra::onRender on every 2D render frame (before matchHudApply)
+    // so P2's 0% / portrait stays hidden during gameplay, Frame Advance freezes,
+    // and behind the Drill End-Screen Modal, and restores on the first render
+    // after solo standby ends.
+    void drillPracticeApplyHudVisibility(const game::MatchState& match)
+    {
+        if (s_net == NULL || !match.running || (s_net->flags & kFlagStandby) == 0u)
+        {
+            return;
+        }
+        game::FighterRef refs[game::kMaxFighters];
+        int n = game::listFighters(refs, game::kMaxFighters);
+        for (int i = 0; i < n; i++)
+        {
+            if (refs[i].cpu)
+            {
+                ui::hidePlayerDamageHud(refs[i].playerNo);
+            }
+        }
     }
 
     // Draws the Wavedash / Waveland target zone in the 3D main world camera

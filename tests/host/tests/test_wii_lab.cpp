@@ -166,7 +166,6 @@ namespace ui {
     bool ledgedashHudVisible() { return false; }
     int ledgedashCells() { return 0; }
     void drawLedgedashHud() {}
-    void showMatchTimer(s32) {}
 }
 namespace osd {
     void reset() {}

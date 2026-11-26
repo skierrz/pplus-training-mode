@@ -18,6 +18,7 @@
 #include "host/log.h"
 #include "host/mem.h"
 #include "host/test.h"
+#include "main/gfx/draw.h"
 #include "main/settings.h"
 #include "main/storage/areas.h"
 #include "main/storage/file_io.h"
@@ -1699,5 +1700,58 @@ TEST(drill_list, challenges_and_character_trainers_tabs_arm_all_seven_and_show_s
         setPadInput(pads[0], 0);
         stepFrame(pads);
     }
+    menu::list::detach();
+}
+
+TEST(drill_list, golden_ratio_list_to_card_proportions)
+{
+    gfPadStatus pads[iface::kPadCount];
+    initPads(pads, 1u << 0);
+    host::fakes::setMenuPort(0);
+    host::fakes::setTrainingSelectRunning(true);
+    menu::list::attach();
+    stepFrame(pads);
+
+    for (int a = 0; a < 2; a++)
+    {
+        bool wide = (a == 1);
+        float xs = wide ? 0.75f : 1.0f;
+        gfx::setWidescreen(wide);
+        host::canvas::clear();
+        menu::list::onRender(0);
+
+        // Locate the right Details Card top border rect (W = 324 * xs, y = 94, H = 3)
+        // and the scrollbar track between list and card (x = 259..267 in 4:3).
+        float cardX0 = 0.0f, cardX1 = 0.0f;
+        float scrollX0 = 0.0f;
+        bool foundCard = false, foundScroll = false;
+        for (int i = 0; i < host::canvas::rects(); i++)
+        {
+            const host::canvas::Rect& r = host::canvas::rect(i);
+            if (!foundCard && r.x > 240.0f && r.y >= 93.0f && r.y <= 95.0f && r.width >= 320.0f * xs - 1.0f
+                && r.height >= 2.0f && r.height <= 4.0f)
+            {
+                cardX0 = r.x;
+                cardX1 = r.x + r.width;
+                foundCard = true;
+            }
+            if (!foundScroll && r.width >= 6.0f * xs - 0.5f && r.width <= 9.0f * xs + 0.5f && r.height >= 295.0f
+                && r.height <= 310.0f)
+            {
+                scrollX0 = r.x;
+                foundScroll = true;
+            }
+        }
+        CHECK(foundCard);
+        CHECK(foundScroll);
+        // Left bar ends 3*xs before the scrollbar track; list starts at 36 in 4:3.
+        float barX0 = 320.0f + (36.0f - 320.0f) * xs;
+        float barX1 = scrollX0 - 3.0f * xs;
+        CHECK(barX1 < cardX0);
+        float barW = barX1 - barX0;
+        float cardW = cardX1 - cardX0;
+        CHECK(cardW / barW >= 1.45f);
+    }
+    gfx::setWidescreen(false);
     menu::list::detach();
 }

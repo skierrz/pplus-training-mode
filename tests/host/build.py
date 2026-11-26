@@ -71,6 +71,7 @@ MOD_SOURCES = [
     "main/record/slots.cpp",
     "main/ui/hud_layout.cpp",
     "main/ui/lab_menu.cpp",
+    "main/ui/match_hud.cpp",
     "main/ui/menu.cpp",
     "main/ui/pages/*.cpp",  # every page of the lab menu
     "main/ui/settings_modal.cpp",

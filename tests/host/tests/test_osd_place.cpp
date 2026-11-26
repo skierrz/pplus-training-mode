@@ -198,7 +198,7 @@ TEST(osd_place, floor_lifts_lower_stacks_above_rec_bar_and_leaves_top_rows)
 {
     const float floorY = ui::layout::recBarOsdFloor();
     const float barTop = ui::layout::kRecBarCentreY - ui::layout::kRecBarHeight * 0.5f;
-    CHECK_NEAR(barTop - ui::layout::kStepGap, floorY, 0.001f);
+    CHECK_NEAR(barTop - 6.0f, floorY, 0.001f);
     const float xs[2] = {1.0f, 0.75f};
     for (int k = 0; k < 2; k++)
     {

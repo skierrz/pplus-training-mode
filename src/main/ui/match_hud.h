@@ -14,8 +14,21 @@ namespace tm {
 namespace ui {
     // Brawl's match timer showing `frames` (game frames, 60 a second).
     void showMatchTimer(s32 frames);
+    // Per-frame non-destructive hide of one player's Brawl bottom damage/portrait
+    // HUD (IfPlayer parts + ScnGroup roots via OPTID_DISABLE_GATHER). Call every
+    // frame while hidden; omitting the request restores visibility on the next frame.
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    void x_hidePlayerDamageHud(int playerNo);
+#ifndef TM_EXTRA_THUNK_IMPL
+    static inline void hidePlayerDamageHud(int playerNo) { x_hidePlayerDamageHud(playerNo); }
+#else
+    void hidePlayerDamageHud(int playerNo);
+#endif
+#else
+    void hidePlayerDamageHud(int playerNo);
+#endif
     // Once per render call, after everything that asks: shows, sets or hides
-    // the timer.
+    // the timer and applies per-player damage HUD visibility.
     void matchHudApply(const game::MatchState& m);
 
     // True while Brawl's native right-side Training Info/Combo HUD is visible:
