@@ -220,3 +220,104 @@ TEST(tech_sparkle, modes_cover_perfect_wavedash_shorthop_both_and_no_duplicate)
     addEv(in, game::kStatusLandingFallSpecial, game::kStatusEscapeAir);
     CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
 }
+
+TEST(tech_sparkle, isolation_across_multiframe_wavedashes_and_modes)
+{
+    extra::TechSparkleSlot slot;
+
+    // 1. Perfect Wavedash mode: NEVER fires Shorthop on clean shorthop, SH aerial,
+    //    or 2f/3f shorthop-button wavedashes.
+    extra::techSparkleResetSlot(slot);
+    extra::TechSparkleInput in = mkInput(100, main::kTechSparkleWavedash);
+    addEv(in, game::kStatusJumpSquat, game::kStatusWait);
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+    in = mkInput(103, main::kTechSparkleWavedash);
+    addEv(in, game::kStatusJump, game::kStatusJumpSquat, extra::kTsShortHopFlag);
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+    for (int f = 104; f <= 110; f++)
+    {
+        in = mkInput(f, main::kTechSparkleWavedash);
+        CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+    }
+
+    // 3f shorthop-button wavedash in Perfect Wavedash mode -> completely silent.
+    extra::techSparkleResetSlot(slot);
+    in = mkInput(120, main::kTechSparkleWavedash);
+    addEv(in, game::kStatusJumpSquat, game::kStatusWait);
+    extra::stepTechSparkle(slot, in);
+    in = mkInput(123, main::kTechSparkleWavedash);
+    addEv(in, game::kStatusJump, game::kStatusJumpSquat, extra::kTsShortHopFlag);
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+    in = mkInput(125, main::kTechSparkleWavedash);
+    addEv(in, game::kStatusEscapeAir, game::kStatusJump);
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+    in = mkInput(126, main::kTechSparkleWavedash);
+    addEv(in, game::kStatusLandingFallSpecial, game::kStatusEscapeAir);
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+
+    // 2. Both mode: 2f and 3f shorthop-button wavedashes NEVER fire Shorthop sparkle.
+    for (int delay = 1; delay <= 2; delay++)
+    {
+        extra::techSparkleResetSlot(slot);
+        in = mkInput(200, main::kTechSparkleBoth);
+        addEv(in, game::kStatusJumpSquat, game::kStatusWait);
+        CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+        in = mkInput(203, main::kTechSparkleBoth);
+        addEv(in, game::kStatusJump, game::kStatusJumpSquat, extra::kTsShortHopFlag);
+        CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+        for (int f = 1; f < delay; f++)
+        {
+            in = mkInput(203 + f, main::kTechSparkleBoth);
+            CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+        }
+        in = mkInput(203 + delay, main::kTechSparkleBoth);
+        addEv(in, game::kStatusEscapeAir, game::kStatusJump);
+        CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+        in = mkInput(204 + delay, main::kTechSparkleBoth);
+        addEv(in, game::kStatusLandingFallSpecial, game::kStatusEscapeAir);
+        CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+        // Subsequent idle frames stay silent (no delayed Shorthop leak).
+        for (int f = 205 + delay; f <= 210 + delay; f++)
+        {
+            in = mkInput(f, main::kTechSparkleBoth);
+            CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+        }
+    }
+
+    // 3. Both mode: clean shorthop emits Shorthop once after the 3f defer window.
+    extra::techSparkleResetSlot(slot);
+    in = mkInput(300, main::kTechSparkleBoth);
+    addEv(in, game::kStatusJumpSquat, game::kStatusWait);
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+    in = mkInput(303, main::kTechSparkleBoth);
+    addEv(in, game::kStatusJump, game::kStatusJumpSquat, extra::kTsShortHopFlag);
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, mkInput(304, main::kTechSparkleBoth)));
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, mkInput(305, main::kTechSparkleBoth)));
+    CHECK_EQ(static_cast<u8>(extra::kSparkleShorthop), extra::stepTechSparkle(slot, mkInput(306, main::kTechSparkleBoth)));
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, mkInput(307, main::kTechSparkleBoth)));
+
+    // 4. Both mode: immediate SH aerial emits Shorthop right away (no extra lag) and only once.
+    extra::techSparkleResetSlot(slot);
+    in = mkInput(400, main::kTechSparkleBoth);
+    addEv(in, game::kStatusJumpSquat, game::kStatusWait);
+    extra::stepTechSparkle(slot, in);
+    in = mkInput(403, main::kTechSparkleBoth);
+    addEv(in, game::kStatusJump, game::kStatusJumpSquat, extra::kTsShortHopFlag);
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+    in = mkInput(404, main::kTechSparkleBoth);
+    addEv(in, game::kStatusAttackAirFirst, game::kStatusJump);
+    CHECK_EQ(static_cast<u8>(extra::kSparkleShorthop), extra::stepTechSparkle(slot, in));
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, mkInput(407, main::kTechSparkleBoth)));
+
+    // 5. Savestate rewind clears pendingShorthop cleanly.
+    extra::techSparkleResetSlot(slot);
+    in = mkInput(500, main::kTechSparkleBoth);
+    addEv(in, game::kStatusJumpSquat, game::kStatusWait);
+    extra::stepTechSparkle(slot, in);
+    in = mkInput(503, main::kTechSparkleBoth);
+    addEv(in, game::kStatusJump, game::kStatusJumpSquat, extra::kTsShortHopFlag);
+    extra::stepTechSparkle(slot, in);
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, mkInput(450, main::kTechSparkleBoth)));
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, mkInput(455, main::kTechSparkleBoth)));
+}

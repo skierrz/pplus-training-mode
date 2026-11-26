@@ -39,6 +39,7 @@ namespace extra {
 
         TechSparkleSlot s_slots[game::kMaxFighters];
         TechSparkleDebugBlock s_debug;
+        s32 s_prevFrame = kTsNoFrame;
 
         // Spawns a strictly non-looping (emitLife == 1) native ef_common burst
         // in world space via g_ecMgr->setEffect (direct RSBE01.lst symbol,
@@ -91,6 +92,7 @@ namespace extra {
 
     void techSparkleReset()
     {
+        s_prevFrame = kTsNoFrame;
         resetAllSlots();
     }
 
@@ -101,6 +103,7 @@ namespace extra {
         s_debug.version = kDebugVersion;
         s_debug.lastPlayer = -1;
         s_debug.lastFrame = kTsNoFrame;
+        s_prevFrame = kTsNoFrame;
         resetAllSlots();
         TM_LOG("tech_sparkle: debug block at %08x\n", &s_debug);
     }
@@ -115,6 +118,11 @@ namespace extra {
         const game::MatchState& match = game::matchState();
         u8 mode = main::settings().osd.techSparkle;
         s32 f = game::trackerFrame();
+        if (s_prevFrame != kTsNoFrame && f <= s_prevFrame)
+        {
+            resetAllSlots();
+        }
+        s_prevFrame = f;
         s_debug.frame = static_cast<u32>(f >= 0 ? f : 0);
         s_debug.mode = mode;
 
