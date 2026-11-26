@@ -14,6 +14,10 @@ DESC_INFINITE_SHIELD = "Off (normal), Until Hit (full until struck), or On (alwa
 DESC_REV_ACTION = "Secondary reversal action mixed with the primary trigger option."
 DESC_REV_DELAY = "Actionable frame delay before the Slot 2 reversal fires."
 DESC_REV_CHANCE = "Probability weight for Slot 2 versus primary Slot 1."
+DESC_TECH_INVIS = "Hide models during techs, or Flash only on the tell frame."
+DESC_TECH_DELAY = "Frames after the distinguishable tech frame before hiding model."
+DESC_TECH_SOUND = "Play a sound cue when the CPU commits to a tech option."
+DESC_TECH_DRIFT = "Drift horizontally in tumble before landing to mix up spacing."
 
 TABLES = {
     "kGeneralDesc": [
@@ -35,13 +39,33 @@ TABLES = {
         "Load a preconfigured P+ practice setup with auto-warping.",
         "Automatically reset fighters when the current drill completes.",
         "Choose Right, Left, or Random side for scenario spawns.",
-        "Pick the CPU out-of-shield punish for Shield Pressure / OoS.",
-        "Choose offstage distance and height for Ledgetech spawns.",
-        "Start P1 with double jump available or already spent.",
-        "Pick which ledge-poke attack the CPU uses on Ledgetech.",
-        "Choose Left, Right, Top, or Random platform (D-Pad Up cycles).",
-        "Set where the CPU stands below your Shield Drop platform.",
-        "Choose whether the Shield Drop CPU faces toward or away.",
+        "Start Techchase with Tumble Drop or Free Hit neutral.",
+        "Pick Ground or Platform 1-4 (D-Pad Up/Down steps live).",
+        "CPU escape response when actionable, or Intangible Flash.",
+        "Show reaction frames past the fighter's tell frame on HUD.",
+        DESC_TECH_INVIS,
+        DESC_TECH_DELAY,
+        DESC_TECH_SOUND,
+        DESC_TECH_DRIFT,
+        "Set CPU launch and throw DI for Techchase.",
+        "Start Edgeguard with Knockback Launch or Offstage Spawn.",
+        "Set knockback launch strength for Edgeguard reps.",
+        "Set offstage spawn distance and height for Edgeguard.",
+        "Start the offstage CPU with double jump available or spent.",
+        "Set PPlusAI recovery profile (Mixed, Low, High, or Direct).",
+        "Switch between CPU shield Offense and OoS Defense.",
+        "Pick the CPU out-of-shield punish (including Custom Pool).",
+        "Pick the CPU attack to block and punish out of shield.",
+        "Start P1 on Revival Platform or Instant Drop offstage.",
+        "Hold Active freezes hitbox at ledge, or Timed Swing.",
+        "Set offstage spawn distance and height for Ledgetech.",
+        "Start P1 with double jump available or spent.",
+        "Pick the ledge-poke attack the CPU uses on Ledgetech.",
+        "Pick Left, Right, Top, or Random platform (D-Pad Up cycles).",
+        "Pick active CPU shield pressure below the platform, or Off.",
+        "Set CPU spacing below your Shield Drop platform.",
+        "Set whether the Shield Drop CPU faces toward or away.",
+        "Pick under-platform aerial or on-platform ftilt for Slide-Off.",
         "Pick Hold (Mash Out), Throw DI direction, or Stand for Grab Defense.",
         "Start P1 at Random 0-79% or Current P1 % on Grab Defense resets.",
         "Pick Auto (best for CPU fighter) or a specific multi-hit move.",
@@ -220,12 +244,12 @@ TABLES = {
     "kTechDesc": [
         "Choose how the CPU techs knockdowns (or Random weights).",
         "Choose the CPU wakeup action after a missed tech.",
-        "Hide models during techs, or Flash only on the tell frame.",
-        "Frames after the distinguishable tech frame before hiding model.",
-        "Play a sound cue when the CPU commits to a tech option.",
+        DESC_TECH_INVIS,
+        DESC_TECH_DELAY,
+        DESC_TECH_SOUND,
         "Simulate a bad mid-air press to test early/late tech lockouts.",
         "Choose early or late timing inside the valid CPU tech window.",
-        "Drift horizontally in tumble before landing to mix up spacing.",
+        DESC_TECH_DRIFT,
         "Weight for neutral tech in place when Tech is set to Random.",
         "Weight for tech roll away when Tech is set to Random.",
         "Weight for tech roll toward when Tech is set to Random.",

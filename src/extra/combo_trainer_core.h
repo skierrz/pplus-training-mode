@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string.h>
 #include <types.h>
 
 #include "main/settings.h"
@@ -127,31 +128,14 @@ namespace extra {
 
     inline void comboSlotReset(ComboSlotState& st)
     {
-        st.anchorX = 0.0f;
-        st.anchorY = 0.0f;
-        st.anchorValid = false;
-        st.wasInHitstun = false;
-        st.postResetArmed = false;
-        st.restoreCorrect = false;
+        memset(&st, 0, sizeof(st));
         st.restoreCorrectKind = kCorrectAir;
-        st.comboTimer = 0;
-        st.postResetTimer = 0;
-        st.recoveryAirFrames = 0;
-        st.recoveryGraceFrames = 0;
-        st.maxHitlag = 0;
-        st.maxHitstun = 0;
-        st.maxShieldStun = 0;
-        st.maxIasa = 0;
-        st.maxLedgeIntang = 0;
-        st.maxIntang = 0;
-        st.diX = 0.0f;
-        st.diY = 0.0f;
-        st.resetCount = 0;
-        st.recoveryResets = 0;
         st.lastCorrectWritten = 0xFF;
-        st.hadLedgeIntang = false;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline float ratioClamp(int cur, int peak)
     {
         if (cur <= 0 || peak <= 0)
@@ -161,6 +145,69 @@ namespace extra {
         float r = static_cast<float>(cur) / static_cast<float>(peak);
         return r > 1.0f ? 1.0f : (r < 0.0f ? 0.0f : r);
     }
+
+    inline void updateMeterPeak(int cur, int& peak, u8 bit, u8 enabled, u8& mask, float& ratio)
+    {
+        if (cur > 0)
+        {
+            if (cur > peak)
+            {
+                peak = cur;
+            }
+            if ((enabled & bit) != 0)
+            {
+                ratio = ratioClamp(cur, peak);
+                mask |= bit;
+            }
+        }
+        else
+        {
+            peak = 0;
+        }
+    }
+
+    inline void emitComboWarp(const main::ComboTrainerSettings& cfg, ComboSlotState& st, ComboStepAction& act,
+                              bool isRecovery)
+    {
+        st.wasInHitstun = false;
+        st.postResetArmed = false;
+        st.comboTimer = 0;
+        st.postResetTimer = 0;
+        act.doWarp = true;
+        if (isRecovery)
+        {
+            st.recoveryResets++;
+            st.recoveryAirFrames = 0;
+            st.recoveryGraceFrames = 0;
+            act.warpFalling = true;
+            act.pickOffstagePos = true;
+        }
+        else
+        {
+            st.resetCount++;
+            act.resetP1 = cfg.resetP1 != 0;
+            act.warpFalling = cfg.randomizePosition ? (cfg.randOnGround == 0) : false;
+            act.pickRandomPos = cfg.randomizePosition != 0;
+        }
+        if (cfg.noclip)
+        {
+            act.setCorrectNone = true;
+            st.restoreCorrect = true;
+            st.restoreCorrectKind = act.warpFalling ? kCorrectAir : kCorrectGroundCliffStop;
+            st.lastCorrectWritten = kCorrectNone;
+        }
+        if (cfg.randomizeDamage)
+        {
+            act.pickRandomDamage = true;
+        }
+        else
+        {
+            act.applyFixedDamage = true;
+        }
+    }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline bool isDownOrGrabStatus(int status)
     {
@@ -175,54 +222,20 @@ namespace extra {
     inline void computeComboMeters(u8 enabledMeters, const ComboStepInput& in, ComboSlotState& st,
                                    ComboMeterValues& out)
     {
-        out.activeMask = 0;
-        out.hitlagRatio = 0.0f;
-        out.hitstunRatio = 0.0f;
-        out.shieldStunRatio = 0.0f;
-        out.diX = 0.0f;
-        out.diY = 0.0f;
-        out.iasaRatio = 0.0f;
-        out.ledgeIntangRatio = 0.0f;
-        out.intangRatio = 0.0f;
+        memset(&out, 0, sizeof(out));
         out.hitlagFrames = static_cast<s16>(in.hitlag > 0 ? in.hitlag : 0);
         out.hitstunFrames = static_cast<s16>(in.hitstun > 0 ? in.hitstun : 0);
         out.shieldStunFrames = static_cast<s16>(in.shieldStun > 0 ? in.shieldStun : 0);
         out.iasaFrames = static_cast<s16>(in.framesUntilIasa > 0 ? in.framesUntilIasa : 0);
 
-        // Hitlag peak
-        if (in.hitlag > 0)
-        {
-            if (in.hitlag > st.maxHitlag)
-            {
-                st.maxHitlag = in.hitlag;
-            }
-            if ((enabledMeters & main::kMeterHitlag) != 0)
-            {
-                out.hitlagRatio = ratioClamp(in.hitlag, st.maxHitlag);
-                out.activeMask |= main::kMeterHitlag;
-            }
-        }
-        else
-        {
-            st.maxHitlag = 0;
-        }
-
-        // Hitstun peak + DI stick capture
+        updateMeterPeak(in.hitlag, st.maxHitlag, main::kMeterHitlag, enabledMeters, out.activeMask, out.hitlagRatio);
+        updateMeterPeak(in.hitstun, st.maxHitstun, main::kMeterHitstun, enabledMeters, out.activeMask, out.hitstunRatio);
         if (in.hitstun > 0)
         {
-            if (in.hitstun > st.maxHitstun)
-            {
-                st.maxHitstun = in.hitstun;
-            }
             if (in.hitlag > 0 || (st.diX == 0.0f && st.diY == 0.0f))
             {
                 st.diX = in.stickX;
                 st.diY = in.stickY;
-            }
-            if ((enabledMeters & main::kMeterHitstun) != 0)
-            {
-                out.hitstunRatio = ratioClamp(in.hitstun, st.maxHitstun);
-                out.activeMask |= main::kMeterHitstun;
             }
             if ((enabledMeters & main::kMeterDi) != 0)
             {
@@ -233,46 +246,14 @@ namespace extra {
         }
         else
         {
-            st.maxHitstun = 0;
             st.diX = 0.0f;
             st.diY = 0.0f;
         }
 
-        // Shieldstun peak
-        if (in.shieldStun > 0)
-        {
-            if (in.shieldStun > st.maxShieldStun)
-            {
-                st.maxShieldStun = in.shieldStun;
-            }
-            if ((enabledMeters & main::kMeterShieldstun) != 0)
-            {
-                out.shieldStunRatio = ratioClamp(in.shieldStun, st.maxShieldStun);
-                out.activeMask |= main::kMeterShieldstun;
-            }
-        }
-        else
-        {
-            st.maxShieldStun = 0;
-        }
-
-        // Time until IASA (actionable) peak
-        if (in.framesUntilIasa > 0 && in.hitstun == 0 && in.shieldStun == 0)
-        {
-            if (in.framesUntilIasa > st.maxIasa)
-            {
-                st.maxIasa = in.framesUntilIasa;
-            }
-            if ((enabledMeters & main::kMeterIasa) != 0)
-            {
-                out.iasaRatio = ratioClamp(in.framesUntilIasa, st.maxIasa);
-                out.activeMask |= main::kMeterIasa;
-            }
-        }
-        else
-        {
-            st.maxIasa = 0;
-        }
+        updateMeterPeak(in.shieldStun, st.maxShieldStun, main::kMeterShieldstun, enabledMeters, out.activeMask,
+                        out.shieldStunRatio);
+        int iasaCur = (in.hitstun == 0 && in.shieldStun == 0) ? in.framesUntilIasa : 0;
+        updateMeterPeak(iasaCur, st.maxIasa, main::kMeterIasa, enabledMeters, out.activeMask, out.iasaRatio);
 
         // Ledge intangibility (xluFrames acquired while on ledge, continuing post-ledge)
         if (in.onLedge && in.xluFrames > 0)
@@ -288,15 +269,8 @@ namespace extra {
         out.ledgeIntangFrames = static_cast<s16>(ledgeIntang > 0 ? ledgeIntang : 0);
         if (ledgeIntang > 0)
         {
-            if (ledgeIntang > st.maxLedgeIntang)
-            {
-                st.maxLedgeIntang = ledgeIntang;
-            }
-            if ((enabledMeters & main::kMeterLedgeIntang) != 0)
-            {
-                out.ledgeIntangRatio = ratioClamp(ledgeIntang, st.maxLedgeIntang);
-                out.activeMask |= main::kMeterLedgeIntang;
-            }
+            updateMeterPeak(ledgeIntang, st.maxLedgeIntang, main::kMeterLedgeIntang, enabledMeters, out.activeMask,
+                            out.ledgeIntangRatio);
         }
 
         // General intangibility / invincibility (invFrames, non-ledge xluFrames, or active bodyIntangible)
@@ -306,22 +280,7 @@ namespace extra {
             bodyIntang = 1;
         }
         out.intangFrames = static_cast<s16>(bodyIntang > 0 ? bodyIntang : 0);
-        if (bodyIntang > 0)
-        {
-            if (bodyIntang > st.maxIntang)
-            {
-                st.maxIntang = bodyIntang;
-            }
-            if ((enabledMeters & main::kMeterIntang) != 0)
-            {
-                out.intangRatio = ratioClamp(bodyIntang, st.maxIntang);
-                out.activeMask |= main::kMeterIntang;
-            }
-        }
-        else
-        {
-            st.maxIntang = 0;
-        }
+        updateMeterPeak(bodyIntang, st.maxIntang, main::kMeterIntang, enabledMeters, out.activeMask, out.intangRatio);
     }
 
     // Steps one frame of Combo Trainer reset/noclip/recovery-trainer logic for
@@ -329,16 +288,8 @@ namespace extra {
     inline void stepComboTrainer(const main::ComboTrainerSettings& cfg, const ComboStepInput& in, ComboSlotState& st,
                                  ComboStepAction& act)
     {
-        act.setCorrectNone = false;
-        act.restoreCorrect = false;
+        memset(&act, 0, sizeof(act));
         act.restoreCorrectKind = kCorrectAir;
-        act.doWarp = false;
-        act.warpFalling = false;
-        act.resetP1 = false;
-        act.pickRandomPos = false;
-        act.pickOffstagePos = false;
-        act.pickRandomDamage = false;
-        act.applyFixedDamage = false;
 
         // Explicit 1-frame restoreCorrect check: restores Correct_Ground_Cliff_Stop
         // after a grounded reset or Correct_Air after an airborne reset on the
@@ -374,66 +325,18 @@ namespace extra {
                     st.recoveryGraceFrames--;
                     return;
                 }
-                st.recoveryGraceFrames = 0;
-                st.recoveryResets++;
-                st.recoveryAirFrames = 0;
-                st.wasInHitstun = false;
-                st.comboTimer = 0;
-                act.doWarp = true;
-                act.warpFalling = true;
-                act.pickOffstagePos = true;
-                if (cfg.noclip)
-                {
-                    act.setCorrectNone = true;
-                    st.restoreCorrect = true;
-                    st.restoreCorrectKind = kCorrectAir;
-                    st.lastCorrectWritten = kCorrectNone;
-                }
-                if (cfg.randomizeDamage)
-                {
-                    act.pickRandomDamage = true;
-                }
-                else
-                {
-                    act.applyFixedDamage = true;
-                }
+                emitComboWarp(cfg, st, act, true);
             }
-            else if (cfg.fixPosition && !cfg.recoveryTrainer && (st.wasInHitstun || st.postResetArmed))
+            else if (cfg.fixPosition && !cfg.recoveryTrainer && in.status == 0xBE
+                     && (st.wasInHitstun || st.postResetArmed))
             {
-                // Immediate reset path on KO once out of Dead/Standby (Rebirth 0xBE).
-                if (in.status == 0xBE)
-                {
-                    st.wasInHitstun = false;
-                    st.postResetArmed = false;
-                    st.comboTimer = 0;
-                    st.postResetTimer = 0;
-                    st.resetCount++;
-                    act.doWarp = true;
-                    act.resetP1 = cfg.resetP1 != 0;
-                    act.warpFalling = cfg.randomizePosition ? (cfg.randOnGround == 0) : false;
-                    act.pickRandomPos = cfg.randomizePosition != 0;
-                    if (cfg.noclip)
-                    {
-                        act.setCorrectNone = true;
-                        st.restoreCorrect = true;
-                        st.restoreCorrectKind = act.warpFalling ? kCorrectAir : kCorrectGroundCliffStop;
-                        st.lastCorrectWritten = kCorrectNone;
-                    }
-                    if (cfg.randomizeDamage)
-                    {
-                        act.pickRandomDamage = true;
-                    }
-                    else
-                    {
-                        act.applyFixedDamage = true;
-                    }
-                }
+                emitComboWarp(cfg, st, act, false);
             }
             return;
         }
 
         // Capture initial fixPosition anchor when first enabled on a safe frame.
-        if (!st.anchorValid && !in.outOfPlay)
+        if (!st.anchorValid)
         {
             st.anchorX = in.x;
             st.anchorY = in.y;
@@ -467,7 +370,6 @@ namespace extra {
                     }
                     else
                     {
-                        st.recoveryGraceFrames = 0;
                         needRespawn = true;
                     }
                 }
@@ -478,30 +380,7 @@ namespace extra {
             }
             if (needRespawn)
             {
-                st.recoveryResets++;
-                st.recoveryAirFrames = 0;
-                st.recoveryGraceFrames = 0;
-                st.wasInHitstun = false;
-                st.comboTimer = 0;
-                act.doWarp = true;
-                act.warpFalling = true;
-                act.pickOffstagePos = true;
-                if (cfg.noclip)
-                {
-                    act.setCorrectNone = true;
-                    st.restoreCorrect = true;
-                    st.restoreCorrectKind = kCorrectAir;
-                    st.lastCorrectWritten = kCorrectNone;
-                }
-                if (cfg.randomizeDamage)
-                {
-                    act.pickRandomDamage = true;
-                }
-                else
-                {
-                    act.applyFixedDamage = true;
-                }
-                return;
+                emitComboWarp(cfg, st, act, true);
             }
             return;
         }
@@ -512,34 +391,10 @@ namespace extra {
         {
             if (in.status == 0xBE && (st.wasInHitstun || st.postResetArmed))
             {
-                st.wasInHitstun = false;
-                st.postResetArmed = false;
-                st.comboTimer = 0;
-                st.postResetTimer = 0;
-                st.resetCount++;
-                act.doWarp = true;
-                act.resetP1 = cfg.resetP1 != 0;
-                act.warpFalling = cfg.randomizePosition ? (cfg.randOnGround == 0) : false;
-                act.pickRandomPos = cfg.randomizePosition != 0;
-                if (cfg.noclip)
-                {
-                    act.setCorrectNone = true;
-                    st.restoreCorrect = true;
-                    st.restoreCorrectKind = act.warpFalling ? kCorrectAir : kCorrectGroundCliffStop;
-                    st.lastCorrectWritten = kCorrectNone;
-                }
-                if (cfg.randomizeDamage)
-                {
-                    act.pickRandomDamage = true;
-                }
-                else
-                {
-                    act.applyFixedDamage = true;
-                }
+                emitComboWarp(cfg, st, act, false);
                 return;
             }
-            int delayBase = comboResetDelayFrames(cfg.resetDelay);
-            int totalDelay = delayBase + static_cast<int>(cfg.comboTimerAdjustment);
+            int totalDelay = comboResetDelayFrames(cfg.resetDelay) + static_cast<int>(cfg.comboTimerAdjustment);
             if (in.hitstun > 0)
             {
                 int eff = in.hitstun + totalDelay;
@@ -556,7 +411,6 @@ namespace extra {
             {
                 if (isDownOrGrabStatus(in.status))
                 {
-                    // Stay in combo string through knockdown/tech/grab; cancel any reset timer.
                     st.postResetArmed = false;
                     st.postResetTimer = 0;
                     return;
@@ -574,31 +428,7 @@ namespace extra {
                         return;
                     }
                 }
-
-                st.wasInHitstun = false;
-                st.postResetArmed = false;
-                st.comboTimer = 0;
-                st.postResetTimer = 0;
-                st.resetCount++;
-                act.doWarp = true;
-                act.resetP1 = cfg.resetP1 != 0;
-                act.warpFalling = cfg.randomizePosition ? (cfg.randOnGround == 0) : false;
-                act.pickRandomPos = cfg.randomizePosition != 0;
-                if (cfg.noclip)
-                {
-                    act.setCorrectNone = true;
-                    st.restoreCorrect = true;
-                    st.restoreCorrectKind = act.warpFalling ? kCorrectAir : kCorrectGroundCliffStop;
-                    st.lastCorrectWritten = kCorrectNone;
-                }
-                if (cfg.randomizeDamage)
-                {
-                    act.pickRandomDamage = true;
-                }
-                else
-                {
-                    act.applyFixedDamage = true;
-                }
+                emitComboWarp(cfg, st, act, false);
             }
         }
     }

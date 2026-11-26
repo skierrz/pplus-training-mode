@@ -204,47 +204,71 @@ namespace extra {
         return true;
     }
 
-    // Selects an active pass-through platform from live geometry, preferring
-    // the lowest platform on the requested side (left or right of main floor
-    // center) and falling back to the lowest valid platform on the stage.
-    inline bool selectPlatform(const StageGeometry& g, bool preferLeft, StagePlatform& out)
+    // Collects all valid pass-through platforms sorted lowest-first (ascending Y),
+    // tie-breaking left-to-right (ascending midX within 2.0u Y tolerance).
+    inline int sortPlatformsLowestLeftToRight(const StageGeometry& g, StagePlatform out[kMaxStagePlatforms])
     {
         int n = g.platformCount;
         if (n <= 0)
         {
-            return false;
+            return 0;
         }
         if (n > kMaxStagePlatforms)
         {
             n = kMaxStagePlatforms;
         }
-        float floorMid = g.floor.valid ? 0.5f * (g.floor.leftX + g.floor.rightX) : 0.0f;
-        int bestSide = -1;
-        int bestAny = -1;
+        int count = 0;
         for (int i = 0; i < n; i++)
         {
             const StagePlatform& p = g.platforms[i];
-            if (!p.valid || p.rightX <= p.leftX + 4.0f)
+            if (p.valid && p.rightX > p.leftX + 4.0f)
             {
-                continue;
-            }
-            if (bestAny < 0 || p.y < g.platforms[bestAny].y)
-            {
-                bestAny = i;
-            }
-            float mid = 0.5f * (p.leftX + p.rightX);
-            bool matchesSide = preferLeft ? (mid <= floorMid + 2.0f) : (mid >= floorMid - 2.0f);
-            if (matchesSide && (bestSide < 0 || p.y < g.platforms[bestSide].y))
-            {
-                bestSide = i;
+                out[count++] = p;
             }
         }
-        int chosen = bestSide >= 0 ? bestSide : bestAny;
-        if (chosen < 0)
+        for (int i = 1; i < count; i++)
+        {
+            StagePlatform key = out[i];
+            float keyMid = 0.5f * (key.leftX + key.rightX);
+            int j = i - 1;
+            while (j >= 0)
+            {
+                float dy = out[j].y - key.y;
+                float jMid = 0.5f * (out[j].leftX + out[j].rightX);
+                if (!((dy > 2.0f) || (dy >= -2.0f && jMid > keyMid)))
+                {
+                    break;
+                }
+                out[j + 1] = out[j];
+                j--;
+            }
+            out[j + 1] = key;
+        }
+        return count;
+    }
+
+    // Selects an active pass-through platform from live geometry, preferring
+    // the lowest platform on the requested side (left or right of main floor
+    // center) and falling back to the lowest valid platform on the stage.
+    inline bool selectPlatform(const StageGeometry& g, bool preferLeft, StagePlatform& out)
+    {
+        StagePlatform sorted[kMaxStagePlatforms];
+        int count = sortPlatformsLowestLeftToRight(g, sorted);
+        if (count <= 0)
         {
             return false;
         }
-        out = g.platforms[chosen];
+        float floorMid = g.floor.valid ? 0.5f * (g.floor.leftX + g.floor.rightX) : 0.0f;
+        for (int i = 0; i < count; i++)
+        {
+            float mid = 0.5f * (sorted[i].leftX + sorted[i].rightX);
+            if (preferLeft ? (mid <= floorMid + 2.0f) : (mid >= floorMid - 2.0f))
+            {
+                out = sorted[i];
+                return true;
+            }
+        }
+        out = sorted[0];
         return true;
     }
 
@@ -297,9 +321,9 @@ namespace extra {
         return true;
     }
 
-    // Generates an offstage recovery-practice spawn point relative to the live
-    // stage's ledges and blast zones. sideChoice: 0 = Right, 1 = Left, 2 = Random.
-    inline bool sampleRecoveryCandidate(const StageGeometry& g, u32& rng, float& outX, float& outY, int sideChoice = 2)
+    // Shared offstage box sampler relative to the live stage's ledges & blast zones.
+    inline bool sampleOffstageBox(const StageGeometry& g, int sideChoice, float minD, float maxD, float minRelY,
+                                  float maxRelY, float edgePad, float loFrac, u32& rng, float& outX, float& outY)
     {
         if (!g.floor.valid || !g.blast.valid || !g.hasLedges)
         {
@@ -308,20 +332,43 @@ namespace extra {
         bool rightSide = sideChoice == 0 ? true : (sideChoice == 1 ? false : ((geomNextRng(rng) & 1u) != 0));
         const LedgeInfo& ledge = rightSide ? g.rightLedge : g.leftLedge;
         float outward = rightSide ? 1.0f : -1.0f;
-        float maxOut = rightSide ? (g.blast.right - ledge.x - 28.0f) : (ledge.x - g.blast.left - 28.0f);
-        maxOut = geomClamp(maxOut, 20.0f, 80.0f);
-        float minOut = geomMin(25.0f, maxOut * 0.5f);
-        float distOut = minOut + geomRand01(rng) * (maxOut - minOut);
-        outX = ledge.x + outward * distOut;
+        float maxOut = rightSide ? (g.blast.right - ledge.x - edgePad) : (ledge.x - g.blast.left - edgePad);
+        maxOut = geomMax(20.0f, maxOut);
+        float hiD = geomMin(maxD, maxOut);
+        float loD = geomMin(minD, hiD * loFrac);
+        outX = ledge.x + outward * (loD + geomRand01(rng) * (hiD - loD));
 
-        float loY = geomMax(g.blast.bottom + 38.0f, ledge.y - 42.0f);
-        float hiY = geomMin(g.blast.top - 35.0f, ledge.y + 30.0f);
+        float loY = geomMax(g.blast.bottom + 38.0f, ledge.y + minRelY);
+        float hiY = geomMin(g.blast.top - 32.0f, ledge.y + maxRelY);
         if (hiY <= loY)
         {
-            hiY = loY + 5.0f;
+            hiY = loY + 4.0f;
         }
         outY = loY + geomRand01(rng) * (hiY - loY);
         return true;
+    }
+
+    // Generates an offstage recovery-practice spawn point relative to the live
+    // stage's ledges and blast zones. sideChoice: 0 = Right, 1 = Left, 2 = Random.
+    inline bool sampleRecoveryCandidate(const StageGeometry& g, u32& rng, float& outX, float& outY, int sideChoice = 2)
+    {
+        return sampleOffstageBox(g, sideChoice, 25.0f, 80.0f, -42.0f, 30.0f, 28.0f, 0.5f, rng, outX, outY);
+    }
+
+    // Generates an offstage Edgeguard spawn point for explicit distance presets:
+    // distMode: 0 = Mid, 1 = Deep, 2 = High, 3 = Random.
+    // sideChoice: 0 = Right, 1 = Left, 2 = Random.
+    inline bool sampleEdgeguardSpawn(const StageGeometry& g, u8 distMode, int sideChoice, u32& rng, float& outX,
+                                     float& outY)
+    {
+        static const float kEgg[3][4] = {
+            {32.0f, 50.0f, -18.0f, 6.0f},   // Mid
+            {48.0f, 74.0f, -44.0f, -16.0f}, // Deep
+            {28.0f, 52.0f, 18.0f, 44.0f}    // High
+        };
+        u8 mode = distMode >= 3 ? static_cast<u8>(geomNextRng(rng) % 3u) : distMode;
+        return sampleOffstageBox(g, sideChoice, kEgg[mode][0], kEgg[mode][1], kEgg[mode][2], kEgg[mode][3], 26.0f,
+                                 0.75f, rng, outX, outY);
     }
 }
 }

@@ -139,30 +139,24 @@ namespace cpu {
             return 0.0f;
         }
         float side = 0.0f;
-        switch (driftMode)
+        if (driftMode == kDriftIn)
         {
-        case kDriftIn:
             side = toward;
-            break;
-        case kDriftOut:
+        }
+        else if (driftMode == kDriftOut)
+        {
             side = -toward;
-            break;
-        case kDriftRandom:
+        }
+        else if (driftMode == kDriftRandom)
         {
             u32 pick = roll % 3u;
             side = pick == 0u ? -toward : (pick == 2u ? toward : 0.0f);
-            break;
         }
-        case kDriftTowardTech:
-            if (tech == kTechTowards) side = toward;
-            else if (tech == kTechAway) side = -toward;
-            break;
-        case kDriftAwayTech:
-            if (tech == kTechTowards) side = -toward;
-            else if (tech == kTechAway) side = toward;
-            break;
-        default:
-            break;
+        else if ((driftMode == kDriftTowardTech || driftMode == kDriftAwayTech)
+                 && (tech == kTechTowards || tech == kTechAway))
+        {
+            float tSide = tech == kTechTowards ? toward : -toward;
+            side = driftMode == kDriftTowardTech ? tSide : -tSide;
         }
         if (side == 0.0f)
         {

@@ -313,13 +313,23 @@ TEST(scenario_presets, platform_selection_and_fd_fallback_for_shield_drop_and_sl
     CHECK(fabsf(sp.hmnY) < 0.1f);
     CHECK(fabsf(sp.cpuY) < 0.1f);
 
-    // Slide-Off on Battlefield places HMN near platform edge and CPU on platform
+    // Slide-Off on Battlefield defaults to Under-Platform Up Air: HMN near platform edge,
+    // CPU on main floor underneath the platform.
     computeScenarioSpawns(kScenarioSlideOff, kScenarioSideRight, kMultiHitUpAir, bf, sp);
     CHECK(sp.valid);
     CHECK(sp.hasPlatform);
     CHECK(sp.hmnX >= 20.0f && sp.hmnX <= 26.0f);
-    CHECK(sp.cpuX > sp.hmnX && sp.cpuX <= 57.6f);
     CHECK(fabsf(sp.hmnY - 27.2f) < 0.1f);
+    CHECK(fabsf(sp.cpuY - 0.0f) < 0.1f);
+
+    // Slide-Off On-Plat Ftilt places CPU on the platform beside HMN.
+    ScenarioConfig onPlatSlide = makeCfg(kScenarioSlideOff, 1, kScenarioSideRight, kMultiHitUpAir);
+    onPlatSlide.slideOffAttack = kSlideAtkOnPlatFtilt;
+    u32 slideRng = 77u;
+    computeScenarioSpawnsEx(onPlatSlide, -1, slideRng, bf, sp);
+    CHECK(sp.valid);
+    CHECK(sp.hasPlatform);
+    CHECK(sp.cpuX > sp.hmnX && sp.cpuX <= 57.6f);
     CHECK(fabsf(sp.cpuY - 27.2f) < 0.1f);
 
     // Slide-Off on FD falls back to main stage lip
@@ -603,21 +613,32 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK(strcmp(disp.options[22].name, "Advanced / Debug") == 0);
     CHECK_EQ(ui::pages::P_DEBUG, disp.options[22].max);
     const ui::Page& scen = ui::pages::kScenarios;
-    REQUIRE(scen.count == 15);
+    REQUIRE(scen.count == 35);
     CHECK(strcmp(scen.options[0].name, "Preset") == 0);
     CHECK_EQ(kScenarioCount - 1, scen.options[0].max);
-    CHECK(strcmp(scen.options[3].name, "CPU OoS") == 0);
-    CHECK(strcmp(scen.options[4].name, "Spawn Position") == 0);
-    CHECK(strcmp(scen.options[5].name, "P1 Double Jump") == 0);
-    CHECK(strcmp(scen.options[6].name, "CPU Edgeguard") == 0);
-    CHECK(strcmp(scen.options[7].name, "Platform") == 0);
-    CHECK(strcmp(scen.options[8].name, "CPU Spacing") == 0);
-    CHECK(strcmp(scen.options[9].name, "CPU Facing") == 0);
-    CHECK(strcmp(scen.options[10].name, "CPU Action") == 0);
-    CHECK(strcmp(scen.options[11].name, "P1 Damage") == 0);
-    CHECK(strcmp(scen.options[12].name, "Multi-Hit Move") == 0);
-    CHECK(strcmp(scen.options[14].name, "Combo Trainer") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[14].max);
+    CHECK(strcmp(scen.options[3].name, "Setup") == 0);
+    CHECK(strcmp(scen.options[4].name, "Position") == 0);
+    CHECK(strcmp(scen.options[5].name, "Escape") == 0);
+    CHECK(strcmp(scen.options[17].name, "Role") == 0);
+    CHECK(strcmp(scen.options[18].name, "CPU OoS") == 0);
+    CHECK_EQ(kOosCount - 1, scen.options[18].max);
+    CHECK(strcmp(scen.options[19].name, "CPU Attack") == 0);
+    CHECK(strcmp(scen.options[20].name, "Start") == 0);
+    CHECK(strcmp(scen.options[21].name, "Timing") == 0);
+    CHECK(strcmp(scen.options[22].name, "Spawn Position") == 0);
+    CHECK(strcmp(scen.options[23].name, "P1 Double Jump") == 0);
+    CHECK(strcmp(scen.options[24].name, "CPU Edgeguard") == 0);
+    CHECK_EQ(static_cast<int>(kLtAtkDsmash), static_cast<int>(scen.options[24].def));
+    CHECK(strcmp(scen.options[25].name, "Platform") == 0);
+    CHECK(strcmp(scen.options[26].name, "CPU Attack") == 0);
+    CHECK(strcmp(scen.options[27].name, "CPU Spacing") == 0);
+    CHECK(strcmp(scen.options[28].name, "CPU Facing") == 0);
+    CHECK(strcmp(scen.options[29].name, "CPU Attack") == 0);
+    CHECK(strcmp(scen.options[30].name, "CPU Action") == 0);
+    CHECK(strcmp(scen.options[31].name, "P1 Damage") == 0);
+    CHECK(strcmp(scen.options[32].name, "Multi-Hit Move") == 0);
+    CHECK(strcmp(scen.options[34].name, "Combo Trainer") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[34].max);
 }
 
 TEST(scenario_presets, multi_hit_sdi_ignores_attacker_hitlag)
@@ -810,7 +831,10 @@ TEST(scenario_presets, tightened_spawn_spacings_for_grab_ledgetech_slideoff_and_
     float slideFdDx = fabsf(sp.cpuX - sp.hmnX);
     CHECK(slideFdDx >= 8.0f && slideFdDx <= 9.6f);
 
-    computeScenarioSpawns(kScenarioSlideOff, kScenarioSideRight, kMultiHitUpAir, bf, sp);
+    ScenarioConfig slideOnPlat = makeCfg(kScenarioSlideOff, 1, kScenarioSideRight, kMultiHitUpAir);
+    slideOnPlat.slideOffAttack = kSlideAtkOnPlatFtilt;
+    u32 slideSpRng = 55u;
+    computeScenarioSpawnsEx(slideOnPlat, -1, slideSpRng, bf, sp);
     CHECK(sp.valid);
     CHECK(sp.hasPlatform);
     float slideBfDx = fabsf(sp.cpuX - sp.hmnX);
@@ -918,11 +942,12 @@ TEST(scenario_presets, multihit_aerial_cpu_steers_horizontally_and_ledgetech_wai
     }
     CHECK(firedUpAir);
 
-    // Ledgetech: CPU waits while HMN is still at far spawn offset (13.5u out, -12u low)
+    // Ledgetech Timed Swing: CPU waits while HMN is still at far spawn offset (13.5u out, -12u low)
     // and throws dtilt as soon as HMN enters ledge recovery proximity.
     scenarioCpuStateReset(cs);
     memset(&ci, 0, sizeof(ci));
     ci.preset = kScenarioLedgetech;
+    ci.ledgetechTiming = kLtTimeTimed;
     ci.cpuCanAct = true;
     ci.cpuLr = 1.0f;
     ci.cpuX = 81.0f;
@@ -1360,4 +1385,221 @@ TEST(scenario_presets, grab_defense_cpu_approach_delay_hold_throw_and_yoshi)
     // Restore snapshot restores osd.grabBreakout back to 0.
     restoreScenarioSnapshot(st, cpuOpts, comboCfg, &gen, &cpuSet, &osd);
     CHECK_EQ(0, static_cast<int>(osd.grabBreakout));
+}
+
+TEST(scenario_presets, techchase_platforms_tumble_drop_timing_streak_and_inline_invis)
+{
+    StageGeometry bf = makeBattlefieldGeometry();
+    // 1. Dynamic platform sorting: lowest-first, left-to-right (BF: Left -> Right -> Top).
+    StagePlatform sorted[kMaxStagePlatforms];
+    int nPlats = sortPlatformsLowestLeftToRight(bf, sorted);
+    CHECK_EQ(3, nPlats);
+    CHECK(sorted[0].leftX < 0.0f && fabsf(sorted[0].y - 27.2f) < 0.1f);
+    CHECK(sorted[1].leftX > 0.0f && fabsf(sorted[1].y - 27.2f) < 0.1f);
+    CHECK(fabsf(sorted[2].y - 54.4f) < 0.1f);
+
+    // Position stepping cycles Ground -> Platform 1 -> 2 -> 3 -> Ground cleanly.
+    CHECK_EQ(1, static_cast<int>(stepTechPosition(0, 3, 1)));
+    CHECK_EQ(3, static_cast<int>(stepTechPosition(0, 3, -1)));
+    CHECK_EQ(0, static_cast<int>(stepTechPosition(3, 3, 1)));
+    CHECK_EQ(0, static_cast<int>(stepTechPosition(0, 0, 1)));
+
+    // 2. Tumble Drop spawns CPU airborne in DamageFall above ground or chosen platform.
+    ScenarioConfig tc = makeCfg(kScenarioTechchase);
+    tc.techSetup = kTechSetupTumbleDrop;
+    tc.techPosition = 2; // BF right side platform
+    tc.techEscape = kTechEscIntangFlash;
+    tc.techInvisMode = main::kTechInvisFlash;
+    tc.techInvisDelay = 2;
+    tc.techSound = 1;
+    tc.techPreDrift = main::kPreTechDriftAwayTech;
+    tc.techTdi = kTechTdiSurvival;
+    u32 rng = 777u;
+    ScenarioSpawns sp;
+    computeScenarioSpawnsEx(tc, -1, rng, bf, sp);
+    CHECK(sp.valid && sp.hasPlatform && sp.cpuFalling && sp.cpuTumbleDrop);
+    CHECK_EQ(2, static_cast<int>(sp.resolvedTechPos));
+    CHECK(sp.cpuY > 40.0f); // above right platform (27.2 + 18)
+    CHECK(fabsf(sp.hmnY) < 0.1f);
+
+    // Inline Tech Invisibility / Pre-Tech Drift / Launch DI snapshot & restore without leak.
+    ScenarioState st;
+    scenarioStateInit(st);
+    cpu::CpuOptions cpuOpts = makeCustomCpuOpts();
+    main::ComboTrainerSettings comboCfg = makeCustomComboCfg();
+    main::TechInvisSettings invis = {main::kTechInvisOff, 0, main::kPreTechDriftOff, 0};
+    applyScenarioConfig(st, tc, cpuOpts, comboCfg, NULL, NULL, NULL, &invis);
+    CHECK_EQ(static_cast<int>(main::kTechInvisFlash), static_cast<int>(invis.mode));
+    CHECK_EQ(2, static_cast<int>(invis.delay));
+    CHECK_EQ(static_cast<int>(main::kPreTechDriftAwayTech), static_cast<int>(invis.preTechDrift));
+    CHECK_EQ(1, static_cast<int>(cpuOpts.techSound));
+    CHECK_EQ(cpu::kTdiSurvival, cpuOpts.tdi);
+    CHECK_EQ(0, cpuOpts.counterGround); // Intangible Flash leaves counterGround passive
+
+    // Counter escape responses map cleanly to exact kCounterGround indices.
+    CHECK(strcmp(ui::pages::kCounterGround[resolveTechEscapeCounter(kTechEscSpotdodge)], "Spotdodge") == 0);
+    CHECK(strcmp(ui::pages::kCounterGround[resolveTechEscapeCounter(kTechEscJab)], "Jab") == 0);
+    CHECK(strcmp(ui::pages::kCounterGround[resolveTechEscapeCounter(kTechEscJump)], "Short Hop") == 0);
+    CHECK(strcmp(ui::pages::kCounterGround[resolveTechEscapeCounter(kTechEscShield)], "Shield") == 0);
+    CHECK(strcmp(ui::pages::kCounterGround[resolveTechEscapeCounter(kTechEscRoll)], "Roll Random") == 0);
+
+    // 3. True cover increments streak/best + computes Reaction Frame; late cover triggers Intangible Flash + resets streak.
+    ScenarioStepInput in = makeIdleInput(bf);
+    in.cpuTechDist = 4; // Fox distinguishable frame 4
+    ScenarioStepAction act;
+    stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis); // initial warp
+    in.cpuStatus = 0x60; // Passive tech for 20 frames
+    for (int f = 0; f < 20; f++)
+    {
+        stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis);
+    }
+    // P1 hits CPU cleanly on frame 21 -> COVER, reaction = 20 - 4 = 16f, streak = 1, best = 1!
+    in.cpuStatus = 0x45;
+    in.cpuHitstun = 14;
+    stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis);
+    CHECK_EQ(static_cast<int>(kTechResCover), static_cast<int>(st.techResult));
+    CHECK_EQ(16, static_cast<int>(st.techReactionFrames));
+    CHECK_EQ(1, static_cast<int>(st.techStreak));
+    CHECK_EQ(1, static_cast<int>(st.techBest));
+
+    // Next tech: P1 is 3 frames late -> triggers techFlashCpu on frame 1 actionable, records 3f Late, resets streak!
+    requestScenarioManualReset(st);
+    in.cpuHitstun = 0;
+    in.cpuStatus = 0x00;
+    stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis); // warp
+    in.cpuStatus = 0x61; // Passive_Fb
+    stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis);
+    in.cpuStatus = 0x00; // Wait (actionable)
+    stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis);
+    CHECK(act.techFlashCpu);
+    stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis);
+    in.hmnStatus = 0x24; // Attack (3rd actionable frame)
+    stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis);
+    CHECK_EQ(static_cast<int>(kTechResLate), static_cast<int>(st.techResult));
+    CHECK_EQ(3, static_cast<int>(st.techDeltaFrames));
+    CHECK_EQ(0, static_cast<int>(st.techStreak));
+    CHECK_EQ(1, static_cast<int>(st.techBest)); // best preserved!
+
+    // Restore snapshot restores TechInvisSettings byte-for-byte.
+    restoreScenarioSnapshot(st, cpuOpts, comboCfg, NULL, NULL, NULL, &invis);
+    CHECK_EQ(static_cast<int>(main::kTechInvisOff), static_cast<int>(invis.mode));
+    CHECK_EQ(0, static_cast<int>(invis.delay));
+    CHECK_EQ(static_cast<int>(main::kPreTechDriftOff), static_cast<int>(invis.preTechDrift));
+}
+
+TEST(scenario_presets, edgeguard_ledgetech_shield_defense_shield_drop_and_underplat_slideoff)
+{
+    StageGeometry bf = makeBattlefieldGeometry();
+    u32 rng = 2468u;
+
+    // 1. Edgeguard Knockback Launch speeds scale Weak < Normal < Strong, and Offstage Spawn honors Mid/Deep/High.
+    EdgeguardLaunchParams w, n, s;
+    computeEdgeguardLaunch(kEgStrWeak, bf.rightLedge, 1.0f, rng, w);
+    computeEdgeguardLaunch(kEgStrNormal, bf.rightLedge, 1.0f, rng, n);
+    computeEdgeguardLaunch(kEgStrStrong, bf.rightLedge, 1.0f, rng, s);
+    CHECK(w.speed < n.speed && n.speed < s.speed);
+    CHECK(w.kbX > 0.0f && w.kbY > 0.0f);
+    CHECK(w.hitstun < n.hitstun && n.hitstun < s.hitstun);
+
+    float dx = 0.0f, dy = 0.0f, hx = 0.0f, hy = 0.0f;
+    CHECK(sampleEdgeguardSpawn(bf, kEgDistDeep, kScenarioSideRight, rng, dx, dy));
+    CHECK(sampleEdgeguardSpawn(bf, kEgDistHigh, kScenarioSideRight, rng, hx, hy));
+    CHECK(dy < bf.rightLedge.y - 10.0f);
+    CHECK(hy > bf.rightLedge.y + 10.0f);
+
+    // 2. Ledgetech Revival Platform + Hold Active predicate + Down Smash default spacing.
+    ScenarioConfig lt = makeCfg(kScenarioLedgetech);
+    lt.ledgetechStart = kLtStartRevival;
+    lt.ledgetechTiming = kLtTimeHoldActive;
+    lt.ledgetechAttack = kLtAtkDsmash;
+    ScenarioSpawns sp;
+    computeScenarioSpawnsEx(lt, -1, rng, bf, sp);
+    CHECK(sp.hmnRevivalPlat);
+    CHECK(fabsf((bf.rightLedge.x - sp.cpuX) - 4.2f) < 0.1f);
+    CHECK(shouldHoldLedgetechActive(kLtTimeHoldActive, true, false, false, false));
+    CHECK(!shouldHoldLedgetechActive(kLtTimeHoldActive, true, true, false, false));  // hit releases freeze
+    CHECK(!shouldHoldLedgetechActive(kLtTimeHoldActive, true, false, true, false));  // ledge grab releases freeze
+    CHECK(!shouldHoldLedgetechActive(kLtTimeTimed, true, false, false, false));
+
+    // 3. Shield Pressure / OoS: Offense Custom Pool == 49; Defense 45-74f randomized attack driver.
+    CHECK_EQ(kCounterShieldCustomPool, resolveOosCounterShield(kOosCustomPool));
+    CHECK(strcmp(ui::pages::kCounterShield[kCounterShieldCustomPool], "Custom Pool") == 0);
+    ScenarioCpuState cs;
+    ScenarioCpuInput ci;
+    ScenarioCpuOutput co;
+    scenarioCpuStateReset(cs);
+    memset(&ci, 0, sizeof(ci));
+    ci.preset = kScenarioShieldPressure;
+    ci.shieldRole = kShieldRoleDefense;
+    ci.shieldDefAttack = kShieldDefTilt;
+    ci.cpuCanAct = true;
+    ci.cpuLr = -1.0f;
+    ci.cpuX = 6.0f;
+    ci.hmnX = -4.0f;
+    ci.rng = 1001u;
+    stepScenarioCpu(ci, cs, co);
+    CHECK(co.active && co.buttons == 0);
+    CHECK(cs.delay >= 45 && cs.delay <= 74);
+    int defDelay = cs.delay;
+    for (int f = 1; f < defDelay - 1; f++)
+    {
+        stepScenarioCpu(ci, cs, co);
+        CHECK_EQ(0u, co.buttons);
+    }
+    stepScenarioCpu(ci, cs, co);
+    CHECK_EQ(static_cast<u32>(cpu::button::kAttack), co.buttons);
+
+    // 4. Active Shield Drop CPU attacks (SH Aerial) vs Off.
+    scenarioCpuStateReset(cs);
+    memset(&ci, 0, sizeof(ci));
+    ci.preset = kScenarioShieldDrop;
+    ci.shieldDropAttack = kSdAtkShAerial;
+    ci.cpuCanAct = true;
+    ci.cpuX = 35.0f;
+    ci.hmnX = 35.0f;
+    ci.rng = 333u;
+    stepScenarioCpu(ci, cs, co);
+    CHECK(co.active && cs.delay >= 30 && cs.delay <= 65);
+    int sdDelay = cs.delay;
+    for (int f = 1; f < sdDelay - 1; f++)
+    {
+        stepScenarioCpu(ci, cs, co);
+    }
+    stepScenarioCpu(ci, cs, co);
+    CHECK_EQ(static_cast<u32>(cpu::button::kJump), co.buttons);
+    ci.cpuAir = true;
+    stepScenarioCpu(ci, cs, co);
+    CHECK((co.buttons & cpu::button::kCStick) != 0 && co.stickY > 0.9f);
+
+    ci.shieldDropAttack = kSdAtkOff;
+    stepScenarioCpu(ci, cs, co);
+    CHECK(!co.active);
+
+    // 5. Under-Platform Slide-Off: full-hop from main floor + Up Air up through platform.
+    scenarioCpuStateReset(cs);
+    memset(&ci, 0, sizeof(ci));
+    ci.preset = kScenarioSlideOff;
+    ci.slideOffAttack = kSlideAtkUnderUair;
+    ci.hasPlatform = true;
+    ci.cpuCanAct = true;
+    ci.cpuX = 26.0f;
+    ci.cpuY = 0.0f;
+    ci.hmnX = 24.0f;
+    ci.hmnY = 27.2f;
+    stepScenarioCpu(ci, cs, co);
+    CHECK(co.active && co.buttons == static_cast<u32>(cpu::button::kJump));
+    ci.cpuAir = true;
+    ci.cpuCanAct = false;
+    bool firedUnderUair = false;
+    for (int f = 0; f < 12; f++)
+    {
+        ci.cpuY += 3.0f;
+        stepScenarioCpu(ci, cs, co);
+        if ((co.buttons & cpu::button::kCStick) != 0 && co.stickY > 0.9f)
+        {
+            firedUnderUair = true;
+            break;
+        }
+    }
+    CHECK(firedUnderUair);
 }

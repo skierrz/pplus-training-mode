@@ -87,57 +87,6 @@ namespace extra {
     static ComboNet* s_net = NULL;
     static u32 s_rng = 0x51A7F3C9u;
 
-    static void clearComboWarpIntang(const game::FighterRef& ref)
-    {
-        Fighter* pair[2] = {ref.fighter, (ref.partner != NULL && ref.partner != ref.fighter) ? ref.partner : NULL};
-        for (int i = 0; i < 2; i++)
-        {
-            if (pair[i] == NULL)
-            {
-                continue;
-            }
-            const soModuleEnumeration* m = game::fighterModules(pair[i]);
-            if (m != NULL && game::isRam(m->m_collisionHitModule))
-            {
-                m->m_collisionHitModule->setXluFrameGlobal(0, 0);
-                m->m_collisionHitModule->setInvincibleFrameGlobal(0, true, 0);
-                m->m_collisionHitModule->resetStatusGlobal(0);
-            }
-        }
-    }
-
-    static void finishComboStanding(const game::FighterRef& ref, bool setNoclip)
-    {
-        Fighter* pair[2] = {ref.fighter, (ref.partner != NULL && ref.partner != ref.fighter) ? ref.partner : NULL};
-        for (int i = 0; i < 2; i++)
-        {
-            if (pair[i] == NULL)
-            {
-                continue;
-            }
-            const soModuleEnumeration* m = game::fighterModules(pair[i]);
-            if (m == NULL || !game::isRam(m->m_groundModule) || !game::isRam(m->m_statusModule)
-                || !game::isRam(pair[i]->m_moduleAccesser))
-            {
-                continue;
-            }
-            m->m_groundModule->setCorrect(soGroundShapeImpl::Correct_Ground_Cliff_Stop, 0);
-            if (m->m_groundModule->attachGround(0))
-            {
-                m->m_groundModule->setStGroundForce(0);
-                m->m_statusModule->changeStatusForce(game::kStatusWait, pair[i]->m_moduleAccesser);
-                m->m_groundModule->setCorrect(
-                    setNoclip ? soGroundShapeImpl::Correct_None : soGroundShapeImpl::Correct_Ground_Cliff_Stop, 0);
-            }
-            else
-            {
-                m->m_statusModule->changeStatusForce(game::kStatusFall, pair[i]->m_moduleAccesser);
-                m->m_groundModule->setCorrect(
-                    setNoclip ? soGroundShapeImpl::Correct_None : soGroundShapeImpl::Correct_Air, 0);
-            }
-        }
-    }
-
     void comboTrainerSetAnchors(float hmnX, float hmnY, float hmnLr, float cpuX, float cpuY)
     {
         if (s_net == NULL)
@@ -174,20 +123,7 @@ namespace extra {
         game::FighterRef cpuRef;
         bool haveHmn = false;
         bool haveCpu = false;
-        for (int i = 0; i < n; i++)
-        {
-            if (!refs[i].cpu && !haveHmn)
-            {
-                hmnRef = refs[i];
-                haveHmn = true;
-            }
-            else if (refs[i].cpu && !haveCpu)
-            {
-                cpuRef = refs[i];
-                haveCpu = true;
-            }
-        }
-        if (!haveHmn || !haveCpu)
+        if (!findHmnAndCpu(refs, n, hmnRef, cpuRef, haveHmn, haveCpu))
         {
             return;
         }
@@ -197,7 +133,7 @@ namespace extra {
             return;
         }
         const soModuleEnumeration* hm = game::fighterModules(hmnRef.fighter);
-        if (hm == NULL || (game::isRam(hm->m_situationModule) && hm->m_situationModule->getKind() == Situation_Air))
+        if (hm == NULL || isFighterAir(hm))
         {
             return;
         }
@@ -267,9 +203,7 @@ namespace extra {
         s_net->hmnAnchorLr = lr;
         s_net->hmnAnchorValid = true;
         float cpuDmg = static_cast<float>(main::settings().cpu.percent);
-        placeStanding(cpuRef, targetX, targetY, true, cpuDmg, -lr);
-        finishComboStanding(cpuRef, true);
-        clearComboWarpIntang(cpuRef);
+        warpGroundClean(cpuRef, targetX, targetY, true, cpuDmg, -lr, true);
         cpu::optionsResetSlot(p);
         pplusRecoveryReset(p);
         storage::notice(storage::kNoticeOk, "CPU anchor updated");
@@ -443,11 +377,7 @@ namespace extra {
             ComboStepInput in;
             memset(&in, 0, sizeof(in));
             in.status = fs.status;
-            in.hitlag = game::isRam(m->m_stopModule) ? m->m_stopModule->getHitStopRealFrame() : 0;
-            if (in.hitlag < 0)
-            {
-                in.hitlag = 0;
-            }
+            in.hitlag = readFighterHitlag(m);
             in.hitstun = fs.hitstun;
             in.shieldStun = fs.shieldStun;
             ActIn actIn = frameDataActIn(ref.fighter);
@@ -456,7 +386,7 @@ namespace extra {
             in.invFrames = haveBody ? static_cast<int>(body.invFrames) : 0;
             in.bodyIntangible = haveBody && body.intangible != 0;
             in.onLedge = fs.status >= kCliffFirst && fs.status <= kCliffLast;
-            in.air = game::isRam(m->m_situationModule) && m->m_situationModule->getKind() == Situation_Air;
+            in.air = isFighterAir(m);
             in.outOfPlay = game::outOfPlay(fs.status, true);
             in.x = fs.x;
             in.y = fs.y;
@@ -526,9 +456,9 @@ namespace extra {
                         else
                         {
                             placeStanding(ref, wx, wy, act.setCorrectNone, dmg);
-                            finishComboStanding(ref, act.setCorrectNone);
+                            finishStandingWarp(ref, act.setCorrectNone, true);
                         }
-                        clearComboWarpIntang(ref);
+                        clearWarpIntang(ref);
                         cpu::optionsResetSlot(p);
                     }
                     pplusRecoveryReset(p);
@@ -538,9 +468,8 @@ namespace extra {
                     {
                         float hmnDmg = static_cast<float>(main::settings().general.playerPercent);
                         float hlr = wx >= s_net->hmnAnchorX ? 1.0f : -1.0f;
-                        placeStanding(hmnRef, s_net->hmnAnchorX, s_net->hmnAnchorY, act.setCorrectNone, hmnDmg, hlr);
-                        finishComboStanding(hmnRef, act.setCorrectNone);
-                        clearComboWarpIntang(hmnRef);
+                        warpGroundClean(hmnRef, s_net->hmnAnchorX, s_net->hmnAnchorY, act.setCorrectNone, hmnDmg, hlr,
+                                        true);
                         if (act.setCorrectNone)
                         {
                             s_net->hmnRestoreCorrect = true;

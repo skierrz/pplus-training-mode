@@ -172,6 +172,13 @@ NUMBERS = {
     ("status_names.cpp", "0x%X"): ["FFF"],
     ("adaptive_cpu.cpp", "READ %u%%"): ["100"],
     ("adaptive_cpu.cpp", "%u%%"): ["100"],
+    ("scenario_presets.cpp", "PLAT %u"): ["4"],
+    ("scenario_presets.cpp", "COVER  REACT %df"): ["99"],
+    ("scenario_presets.cpp", "%df EARLY"): ["99"],
+    ("scenario_presets.cpp", "%df LATE"): ["99"],
+    ("scenario_presets.cpp", "STREAK %u  BEST %u"): ["999", "999"],
+    ("scenario_presets.cpp", "Techchase: Platform %u"): ["4"],
+    ("scenario_presets.cpp", "Spacing: %+d"): ["+12"],
     # Players 1 to 4, frames of the match, state numbers up to 0xFFF.
     ("debug_overlay.cpp", "adv P%d>P%d %s %+d: hit %d, A %d %X<%X, D %d %X<%X, x%d"):
         ["4", "4", None, "-99", "99999", "99999", "FFF", "FFF", "99999", "FFF", "FFF", "99"],
@@ -933,6 +940,38 @@ def adaptive_cpu_cpp(c, src):
         c.take(lit)
 
 
+def scenario_presets_cpp(c, src):
+    # Compact Techchase HUD card (width 188, inner width 174 px).
+    for lit in src.literals:
+        if c.taken(lit):
+            continue
+        if lit.func != "scenarioPresetsDraw":
+            continue
+        if lit.name == "gfx::text":
+            c.item("fit", lit, lit.text, 0.48, 0, 112.0, 0.0)
+        elif not lit.calls:
+            if lit.text == "GROUND":
+                c.item("fit", lit, lit.text, 0.48, 0, 58.0, 0.0)
+            else:
+                c.item("fit", lit, lit.text, 0.52, 0, 174.0, 0.0)
+        elif lit.name == "sprintf" and lit.arg == 1:
+            if lit.text == "PLAT %u":
+                for t in c.expand(lit, 1):
+                    c.item("fit", lit, t, 0.48, 0, 58.0, 0.0)
+                    c.buffer(lit, t, 16.0)
+            elif lit.text == "STREAK %u  BEST %u":
+                for t in c.expand(lit, 1):
+                    c.item("fit", lit, t, 0.46, 0, 174.0, 0.0)
+                    c.buffer(lit, t, 32.0)
+            else:
+                for t in c.expand(lit, 1):
+                    c.item("fit", lit, t, 0.52, 0, 174.0, 0.0)
+                    c.buffer(lit, t, 32.0)
+        else:
+            continue
+        c.take(lit)
+
+
 def drill_hud_core_h(c, src):
     # Live Skill Drill HUD (kDrillHudWidth = 296) and End-Screen Modal (kDrillModalWidth = 384).
     for lit in src.literals:
@@ -1064,6 +1103,7 @@ HANDLERS = [
     ("extra/psa_inspector.cpp", psa_inspector_cpp),
     ("extra/adaptive_cpu_core.h", adaptive_cpu_core_h),
     ("extra/adaptive_cpu.cpp", adaptive_cpu_cpp),
+    ("extra/scenario_presets.cpp", scenario_presets_cpp),
     ("extra/drill_hud_core.h", drill_hud_core_h),
     ("extra/drill_hud.cpp", drill_hud_cpp),
     ("main/savestate/savestate.cpp", savestate),

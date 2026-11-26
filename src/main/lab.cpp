@@ -82,6 +82,7 @@ namespace lab {
         // 0x1000 (how and on what setup not recorded).
         kTauntUp = 0x400,
         kTauntDown = 0x1000,
+        kTauntSide = (1 << 11) | (1 << 13) | (1 << 14),
         kAppealAll = (1 << 10) | (1 << 11) | (1 << 12) | (1 << 13) | (1 << 14)
     };
 
@@ -199,28 +200,28 @@ namespace lab {
         return -1;
     }
 
-    static bool anyDpadDir(const Raw* raw, const game::MatchState& m, u32 bit, bool held)
+#pragma dont_inline on
+    static u32 dpadBits(const Raw* raw, const game::MatchState& m, bool held)
     {
         bool allowMinus = !minusBoundToFrameAdvance(m);
+        u32 mask = 0;
         for (int i = 0; i < kPorts; i++)
         {
-            u32 w = held ? raw[i].held : raw[i].pressed;
-            if ((w & bit) == 0)
+            u32 w = (held ? raw[i].held : raw[i].pressed) & kDpadAll;
+            if (w != 0
+                && (raw[i].controllerType != gfPadType::WIIMOTE
+                    || (allowMinus && (raw[i].held & game::kPadWiiMinus) != 0)))
             {
-                continue;
-            }
-            if (raw[i].controllerType != gfPadType::WIIMOTE
-                || (allowMinus && (raw[i].held & game::kPadWiiMinus) != 0))
-            {
-                return true;
+                mask |= w;
             }
         }
-        return false;
+        return mask;
     }
+#pragma dont_inline reset
 
     static bool anyDpadDown(const Raw* raw, const game::MatchState& m, bool held)
     {
-        return anyDpadDir(raw, m, kDpadDown, held);
+        return (dpadBits(raw, m, held) & kDpadDown) != 0;
     }
 
     // Bit 0: held on any port; bit 1: fresh press on any port.
@@ -337,9 +338,16 @@ namespace lab {
         pad.m_buttonsReleasedThisFrame.bits &= ~bits;
     }
 
-    static bool shieldDropShortcutActive()
+#pragma dont_inline on
+    static u8 activeScenarioPreset()
     {
-        return main::extraLoaded() && ui::pages::scenarioMenuState()->preset == ui::pages::kPresetShieldDrop;
+        return main::extraLoaded() ? ui::pages::scenarioMenuState()->preset : 0;
+    }
+
+    static bool spacingShortcutActive(u8 p)
+    {
+        return p == ui::pages::kPresetShieldDrop
+               || (p == ui::pages::kPresetShieldPressure && ui::pages::scenarioMenuState()->shieldRole == 1);
     }
 
     static bool comboShortcutActive()
@@ -347,6 +355,7 @@ namespace lab {
         const main::ComboTrainerSettings& ct = settings().comboTrainer;
         return main::extraLoaded() && ct.enabled != 0 && ct.recoveryTrainer == 0;
     }
+#pragma dont_inline reset
 
     static bool anyLHeld(const Raw* raw)
     {
@@ -372,7 +381,15 @@ namespace lab {
     bool comboLHeldOnPads(const gfPadStatus* pads)
     {
         game::MatchState m = game::matchState();
-        if (!m.running || !m.training || m.paused || s_st.open || !comboShortcutActive() || pads == NULL)
+        if (!m.running || !m.training || m.paused || s_st.open || pads == NULL)
+        {
+            return false;
+        }
+        bool comboOn = comboShortcutActive();
+        u8 preset = activeScenarioPreset();
+        bool spaceOn = spacingShortcutActive(preset);
+        u32 dMask = spaceOn ? (kDpadLeft | kDpadRight) : (preset != ui::pages::kPresetOff ? kDpadLeft : 0u);
+        if (!comboOn && dMask == 0)
         {
             return false;
         }
@@ -382,8 +399,17 @@ namespace lab {
             {
                 continue;
             }
-            u32 lBit = game::inMatchPad(static_cast<u32>(pads[i].m_controllerType)).prevCat;
-            if (lBit != 0 && (pads[i].m_buttonsCurrentFrame.bits & lBit) != 0)
+            u32 cur = pads[i].m_buttonsCurrentFrame.bits;
+            u32 anyD = cur | pads[i].m_buttonsPressedThisFrame.bits;
+            if (comboOn)
+            {
+                u32 lBit = game::inMatchPad(static_cast<u32>(pads[i].m_controllerType)).prevCat;
+                if (lBit != 0 && (cur & lBit) != 0)
+                {
+                    return true;
+                }
+            }
+            if ((anyD & dMask) != 0 && (spaceOn || (anyD & kDpadRight) == 0))
             {
                 return true;
             }
@@ -391,9 +417,9 @@ namespace lab {
         return false;
     }
 
-    // D-pad Up/Down bound to something other than their taunt (Up None: to
-    // nothing; Shield Drop preset: live platform cycle; Combo Lab: L+D-Pad %
-    // and D-Pad Down anchor reposition), hidden from the game.
+    // D-pad directions owned by Lab shortcuts (Up None, Shield Drop platform
+    // cycle, Techchase platform stepping, active scenario reset/spacing, Combo Lab),
+    // hidden from the game.
     static u32 boundDpad(const game::MatchState& m)
     {
         if (!m.running || !m.training || m.paused)
@@ -405,9 +431,17 @@ namespace lab {
             return kDpadAll;
         }
         const main::ControlSettings& c = settings().controls;
-        u32 up = (c.dpadUp == main::kUpNone || shieldDropShortcutActive()) ? kDpadUp : 0;
-        u32 down = (c.dpadDown != main::kDownNone || comboShortcutActive()) ? kDpadDown : 0;
-        return up | down;
+        u8 p = activeScenarioPreset();
+        bool spaceOn = spacingShortcutActive(p);
+        u32 up = (c.dpadUp == main::kUpNone || p == ui::pages::kPresetShieldDrop || p == ui::pages::kPresetTechchase)
+                     ? kDpadUp
+                     : 0;
+        u32 down = (c.dpadDown != main::kDownNone || comboShortcutActive() || p == ui::pages::kPresetTechchase)
+                       ? kDpadDown
+                       : 0;
+        u32 left = p != ui::pages::kPresetOff ? kDpadLeft : 0;
+        u32 right = spaceOn ? kDpadRight : 0;
+        return up | down | left | right;
     }
 
     static void hidePort(gfPadStatus& pad, u32 port, const game::MatchState& m, bool fighterPad)
@@ -801,23 +835,8 @@ namespace lab {
         bool comboL = comboLHeld(m);
         if (comboL)
         {
-            int delta = 0;
-            if (anyDpadDir(s_st.sys, m, kDpadRight, false))
-            {
-                delta = 1;
-            }
-            else if (anyDpadDir(s_st.sys, m, kDpadLeft, false))
-            {
-                delta = -1;
-            }
-            else if (anyDpadDir(s_st.sys, m, kDpadUp, false))
-            {
-                delta = 10;
-            }
-            else if (anyDpadDir(s_st.sys, m, kDpadDown, false))
-            {
-                delta = -10;
-            }
+            u32 dp = dpadBits(s_st.sys, m, false);
+            int delta = (dp & kDpadRight) ? 1 : ((dp & kDpadLeft) ? -1 : ((dp & kDpadUp) ? 10 : ((dp & kDpadDown) ? -10 : 0)));
             if (delta != 0)
             {
                 int pct = static_cast<int>(settings().cpu.percent) + delta;
@@ -841,16 +860,45 @@ namespace lab {
             settings().general.frameAdvance ^= 1;
             frameAdvanceChanged();
         }
-        else if (!comboL && !s_st.open && !m.paused && m.running && m.training && comboShortcutActive()
+        else if (!comboL && !s_st.open && !m.paused && m.running && m.training
                  && settings().controls.dpadDown != main::kDownFrameAdvance && anyDpadDown(s_st.sys, m, false))
         {
-            main::extraComboReposition();
+            if (activeScenarioPreset() == ui::pages::kPresetTechchase)
+            {
+                main::extraScenarioCall(main::kScenarioStepPosDown);
+            }
+            else if (comboShortcutActive())
+            {
+                main::extraScenarioCall(main::kScenarioComboReposition);
+            }
         }
-        // Scenario-scoped DPad Up while Shield Drop is active: cycle platforms.
-        if (!comboL && !s_st.open && !m.paused && m.running && m.training && shieldDropShortcutActive()
-            && anyDpadDir(s_st.sys, m, kDpadUp, false))
+        // Scenario-scoped D-Pad Up / Left / Right shortcuts.
+        if (!comboL && !s_st.open && !m.paused && m.running && m.training)
         {
-            main::extraScenarioCyclePlatform();
+            u8 p = activeScenarioPreset();
+            if (p != ui::pages::kPresetOff)
+            {
+                u32 dp = dpadBits(s_st.sys, m, false);
+                int call = -1;
+                if ((dp & kDpadUp) != 0)
+                {
+                    if (p == ui::pages::kPresetShieldDrop) call = main::kScenarioCyclePlatform;
+                    else if (p == ui::pages::kPresetTechchase) call = main::kScenarioStepPosUp;
+                }
+                else if (spacingShortcutActive(p))
+                {
+                    if ((dp & kDpadLeft) != 0) call = main::kScenarioSpacingCloser;
+                    else if ((dp & kDpadRight) != 0) call = main::kScenarioSpacingFarther;
+                }
+                else if ((dp & kDpadLeft) != 0)
+                {
+                    call = main::kScenarioResetNow;
+                }
+                if (call >= 0)
+                {
+                    main::extraScenarioCall(call);
+                }
+            }
         }
         // Frame Decrement: in frame advance a press steps back one frame; held
         // past the hold delay, repeats once per pass after the last arrives.
@@ -1024,7 +1072,8 @@ namespace lab {
             }
             return;
         }
-        *buttons &= ~(((bound & kDpadUp) ? kTauntUp : 0) | ((bound & kDpadDown) ? kTauntDown : 0));
+        *buttons &= ~(((bound & kDpadUp) ? kTauntUp : 0) | ((bound & kDpadDown) ? kTauntDown : 0)
+                      | ((bound & (kDpadLeft | kDpadRight)) ? kTauntSide : 0));
     }
 
     static void onGamePads(gfPadStatus* pads)

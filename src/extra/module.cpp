@@ -111,7 +111,8 @@ namespace extra {
         bool drawAdap = !s_vsReadOnly && !match.paused && !lab::menuOpen()
                         && main::settings().cpu.options.control == cpu::kControlLab
                         && main::settings().cpu.options.adaptiveMode != cpu::kAdaptiveOff;
-        if (drawDrill || drawAdap)
+        bool drawScen = !s_vsReadOnly && !match.paused && !lab::menuOpen() && scenarioPresetsWantsDraw(match);
+        if (drawDrill || drawAdap || drawScen)
         {
             gfx::begin();
             if (drawDrill)
@@ -121,6 +122,10 @@ namespace extra {
             if (drawAdap)
             {
                 adaptiveCpuDraw(match);
+            }
+            if (drawScen)
+            {
+                scenarioPresetsDraw(match);
             }
             gfx::end();
         }
