@@ -1248,7 +1248,10 @@ namespace cpu {
             tries = 0;
             playSlot = recording;
             playFrame = 0;
-            runPlay(out);
+            if (!runPlay(out) && v.air && tumbleStatus(v.status))
+            {
+                state = kTechFall;
+            }
         }
 
         // The counter has visibly started: the fighter left the statuses it

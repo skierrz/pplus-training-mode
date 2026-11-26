@@ -520,7 +520,8 @@ namespace cpu {
             return;
         }
         int count = kCounts[list];
-        for (int idx = 0; idx < 64; idx++)
+        // Bit 0 is always legal ("Nothing (Wait)" = roll no counter).
+        for (int idx = 1; idx < 64; idx++)
         {
             u8 mask = static_cast<u8>(1u << (idx & 7));
             if ((bits[idx >> 3] & mask) == 0)
@@ -547,6 +548,10 @@ namespace cpu {
         if (count > 64)
         {
             count = 64;
+        }
+        if ((bits[0] & 1u) != 0)
+        {
+            picks[n++] = 0;
         }
         for (int idx = 1; idx < count; idx++)
         {

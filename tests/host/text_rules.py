@@ -815,7 +815,7 @@ def cpu_options_page(c, src):
         elif lit.func == "poolPageActive" or "s_poolCatBuf" in lit.stmt or "s_poolStatusLabel" in lit.stmt:
             if lit.text == "%s (%d On)":
                 for nm in ("Ground", "Air", "Shield"):
-                    t = f"{nm} (28 On)"
+                    t = f"{nm} (53 On)"
                     c.item("menu-value", lit, t)
                     c.buffer(lit, t, 20.0)
             elif lit.text != "%s":

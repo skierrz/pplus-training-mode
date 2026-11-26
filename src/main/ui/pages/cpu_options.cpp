@@ -103,17 +103,28 @@ namespace pages {
 #undef TM_FFL_LABELS_P
 #endif
 
+    static int activeCpuKind()
+    {
+        game::FighterRef ref;
+        return game::findFighter(true, ref) ? cpu::fighterKind(ref.entryId) : -1;
+    }
+
+    static u8 cpuTechMask()
+    {
+        int kind = activeCpuKind();
+        static const cpu::Action kDjcProbe = {NULL, cpu::kForDjc, 0};
+        static const cpu::Action kFloatProbe = {NULL, cpu::kForFloat, 0};
+        return static_cast<u8>((cpu::fitsKind(&kDjcProbe, kind) ? 1 : 0)
+                               | (cpu::fitsKind(&kFloatProbe, kind) ? 2 : 0));
+    }
+
 #pragma dont_inline on
     bool counterLabels()
     {
-        game::FighterRef ref;
-        int kind = game::findFighter(true, ref) ? cpu::fighterKind(ref.entryId) : -1;
 #ifdef __MWERKS__
-        static const cpu::Action kDjcProbe = {NULL, cpu::kForDjc, 0};
-        static const cpu::Action kFloatProbe = {NULL, cpu::kForFloat, 0};
-        g_counterAvailMask = static_cast<u8>((cpu::fitsKind(&kDjcProbe, kind) ? 1 : 0)
-                                             | (cpu::fitsKind(&kFloatProbe, kind) ? 2 : 0));
+        g_counterAvailMask = cpuTechMask();
 #else
+        int kind = activeCpuKind();
         static const char** const kLists[2] = {kCounterGround, kCounterShield};
         for (int k = 0; k < 2; k++)
         {
@@ -197,8 +208,8 @@ namespace pages {
             }
         }
         if (cpu::actionKind(cpu::kListGround, c.counterGround) == cpu::kActionCustomPool
-            || cpu::actionKind(cpu::kListAir, c.counterAir) == cpu::kActionCustomPool
-            || cpu::actionKind(cpu::kListShield, c.counterShield) == cpu::kActionCustomPool)
+            && cpu::actionKind(cpu::kListAir, c.counterAir) == cpu::kActionCustomPool
+            && cpu::actionKind(cpu::kListShield, c.counterShield) == cpu::kActionCustomPool)
         {
             return kCtrModePool;
         }
@@ -223,16 +234,14 @@ namespace pages {
 
     static void restoreDefaultSingleCounters(cpu::CpuOptions& c)
     {
-        if (c.counterGround == 0 || cpu::actionKind(cpu::kListGround, c.counterGround) == cpu::kActionCustomPool)
+        bool allOff = c.counterGround == 0 && c.counterAir == 0 && c.counterShield == 0;
+        bool allPool = cpu::actionKind(cpu::kListGround, c.counterGround) == cpu::kActionCustomPool
+                       && cpu::actionKind(cpu::kListAir, c.counterAir) == cpu::kActionCustomPool
+                       && cpu::actionKind(cpu::kListShield, c.counterShield) == cpu::kActionCustomPool;
+        if (allOff || allPool)
         {
             c.counterGround = 13;
-        }
-        if (c.counterAir == 0 || cpu::actionKind(cpu::kListAir, c.counterAir) == cpu::kActionCustomPool)
-        {
             c.counterAir = 1;
-        }
-        if (c.counterShield == 0 || cpu::actionKind(cpu::kListShield, c.counterShield) == cpu::kActionCustomPool)
-        {
             c.counterShield = 1;
         }
     }
@@ -294,6 +303,7 @@ namespace pages {
         {
             return false;
         }
+        clearPoolCategoryPrime(0xFFu);
         activeCounterMode();
         return true;
     }
@@ -305,7 +315,7 @@ namespace pages {
             return false;
         }
         u8 m = activeCounterMode();
-        return m == kCtrModeSingle || m == kCtrModeReversals || m == kCtrModeAdaptive;
+        return m == kCtrModeSingle || m == kCtrModePool || m == kCtrModeReversals || m == kCtrModeAdaptive;
     }
 
     static bool counterNonOff()
@@ -315,7 +325,7 @@ namespace pages {
 
     static bool counterPoolRow()
     {
-        return cpuLabControl() && activeCounterMode() == kCtrModePool;
+        return counterNonOff();
     }
 
     static bool counterPerHitRow()
@@ -695,7 +705,21 @@ namespace pages {
 
     static char s_poolCatBuf[3][20] = {"Ground (12 On)", "Air (8 On)", "Shield (10 On)"};
     static const char* const s_poolCatPtrs[3] = {s_poolCatBuf[0], s_poolCatBuf[1], s_poolCatBuf[2]};
-    static char s_poolStatusLabel[20] = "Set Custom Pool";
+    static char s_poolStatusLabel[20] = "A: Use Pool";
+    static u8 s_pendingPoolCat = 0xFFu;
+
+    void primePoolCategory(u8 cat)
+    {
+        s_pendingPoolCat = cat;
+    }
+
+    void clearPoolCategoryPrime(u8 matchCat)
+    {
+        if (matchCat == 0xFFu || s_pendingPoolCat == matchCat)
+        {
+            s_pendingPoolCat = 0xFFu;
+        }
+    }
 
     static int activePoolCat()
     {
@@ -706,14 +730,19 @@ namespace pages {
     static int countPoolBits(int cat)
     {
         const u8* bits = main::settings().cpuTables.poolBits[cat];
-        int total = 0;
-        for (int b = 0; b < 8; b++)
+        int kind = activeCpuKind();
+        int checkKind = kind >= 0 ? kind : cpu::kKindAny;
+        int total = (bits[0] & 1u) != 0 ? 1 : 0;
+        int count = cpu::actionCount(cat);
+        if (count > 64)
         {
-            u8 v = bits[b];
-            while (v != 0)
+            count = 64;
+        }
+        for (int idx = 1; idx < count; idx++)
+        {
+            if ((bits[idx >> 3] & (1u << (idx & 7))) != 0 && cpu::actionFor(cat, idx, checkKind) != NULL)
             {
-                total += (v & 1u) != 0 ? 1 : 0;
-                v >>= 1;
+                total++;
             }
         }
         return total;
@@ -725,6 +754,11 @@ namespace pages {
         {
             return false;
         }
+        if (s_pendingPoolCat < cpu::kListCount)
+        {
+            menuScratch()[kPoolCatScratchOffset] = s_pendingPoolCat;
+            s_pendingPoolCat = 0xFFu;
+        }
         static const char* const kPoolNames[3] = {"Ground", "Air", "Shield"};
         for (int c = 0; c < 3; c++)
         {
@@ -732,10 +766,34 @@ namespace pages {
         }
         int cat = activePoolCat();
         const cpu::CpuOptions& co = main::settings().cpu.options;
+        const main::ComboTrainerSettings& ct = main::settings().comboTrainer;
         u8 cur = cat == cpu::kListGround ? co.counterGround : (cat == cpu::kListAir ? co.counterAir : co.counterShield);
-        bool live = cpu::actionKind(cat, cur) == cpu::kActionCustomPool;
-        snprintf(s_poolStatusLabel, sizeof(s_poolStatusLabel), "%s", live ? "Active" : "Set Custom Pool");
+        bool comboPool = cat != cpu::kListShield && ct.enabled != 0 && ct.fixPosition != 0 && ct.recoveryTrainer == 0
+                         && ct.postHitstunEscape == main::kComboEscapeCustomPool;
+        bool live = cpu::actionKind(cat, cur) == cpu::kActionCustomPool || comboPool;
+        snprintf(s_poolStatusLabel, sizeof(s_poolStatusLabel), "%s", live ? "Active" : "A: Use Pool");
         return true;
+    }
+
+    static void activateActivePool()
+    {
+        int cat = activePoolCat();
+        cpu::CpuOptions& c = main::settings().cpu.options;
+        u8 idx = static_cast<u8>(cpu::customPoolIndex(cat));
+        if (cat == cpu::kListGround)
+        {
+            c.counterGround = idx;
+        }
+        else if (cat == cpu::kListAir)
+        {
+            c.counterAir = idx;
+        }
+        else
+        {
+            c.counterShield = idx;
+        }
+        s_lastDerivedCtrMode = deriveCounterMode();
+        menuScratch()[kCounterModeScratchOffset] = s_lastDerivedCtrMode;
     }
 
     static void resetActivePool()
@@ -753,21 +811,25 @@ namespace pages {
     }
 
 #pragma dont_inline on
-    static bool poolCatIs(int cat)
+    static bool poolCatIs(int cat, u8 techBit)
     {
-        return cpuLabControl() && activePoolCat() == cat;
+        return cpuLabControl() && activePoolCat() == cat && (techBit == 0 || (cpuTechMask() & techBit) != 0);
     }
 #pragma dont_inline reset
 
-    static bool poolCat0() { return poolCatIs(cpu::kListGround); }
-    static bool poolCat1() { return poolCatIs(cpu::kListAir); }
-    static bool poolCat2() { return poolCatIs(cpu::kListShield); }
+    static bool poolCat0() { return poolCatIs(cpu::kListGround, 0); }
+    static bool poolCat1() { return poolCatIs(cpu::kListAir, 0); }
+    static bool poolCat2() { return poolCatIs(cpu::kListShield, 0); }
+    static bool poolCat0Djc() { return poolCatIs(cpu::kListGround, 1); }
+    static bool poolCat0Float() { return poolCatIs(cpu::kListGround, 2); }
+    static bool poolCat2Djc() { return poolCatIs(cpu::kListShield, 1); }
+    static bool poolCat2Float() { return poolCatIs(cpu::kListShield, 2); }
 
 #ifdef __MWERKS__
     static const Option kPoolHead[4] = {
         TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch, kPoolCatScratchOffset, 0, 2, 0,
                "Category", s_poolCatPtrs, NULL, poolPageActive),
-        TM_ROW(::tm::ui::kKindInfo, 0, 0, 0, 0, 0, "Pool Status", s_poolStatusLabel, NULL, poolPageActive),
+        TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Pool Status", s_poolStatusLabel, activateActivePool, poolPageActive),
         TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Reset Pool", "Reset", resetActivePool, poolPageActive),
         TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Clear Pool", "Clear", clearActivePool, poolPageActive)
     };
@@ -775,30 +837,42 @@ namespace pages {
     static void initPoolPage(Option* buf)
     {
 #define PBIT(idx, def) static_cast<u8>((idx) | ((def) << 7))
-        static const u8 kSpec[62] = {
-            // Ground (28)
-            PBIT(1, 1), PBIT(2, 1), PBIT(3, 1), PBIT(4, 0), PBIT(5, 0), PBIT(32, 0), PBIT(6, 0),
-            PBIT(7, 0), PBIT(8, 0), PBIT(9, 0), PBIT(10, 0), PBIT(11, 1), PBIT(12, 1), PBIT(13, 1),
-            PBIT(14, 1), PBIT(15, 1), PBIT(16, 1), PBIT(17, 0), PBIT(18, 1), PBIT(19, 0), PBIT(20, 1),
-            PBIT(21, 0), PBIT(23, 1), PBIT(34, 0), PBIT(35, 0), PBIT(36, 0), PBIT(37, 0), PBIT(38, 0),
-            // Air (17)
-            PBIT(1, 1), PBIT(2, 1), PBIT(3, 1), PBIT(4, 0), PBIT(5, 0), PBIT(6, 0), PBIT(7, 0),
-            PBIT(8, 0), PBIT(9, 0), PBIT(10, 0), PBIT(11, 1), PBIT(12, 1), PBIT(13, 1), PBIT(14, 1),
-            PBIT(15, 1), PBIT(16, 0), PBIT(17, 0),
-            // Shield (17)
-            PBIT(1, 1), PBIT(2, 1), PBIT(3, 0), PBIT(4, 1), PBIT(5, 1), PBIT(6, 1), PBIT(7, 1),
-            PBIT(10, 0), PBIT(12, 1), PBIT(15, 1), PBIT(16, 1), PBIT(17, 0), PBIT(18, 0), PBIT(19, 0),
-            PBIT(20, 1), PBIT(29, 0), PBIT(30, 0)
+        static const u8 kSpec[122] = {
+            // Ground (53)
+            PBIT(0, 0), PBIT(1, 1), PBIT(2, 1), PBIT(3, 1), PBIT(4, 0), PBIT(5, 0), PBIT(32, 0), PBIT(6, 0),
+            PBIT(7, 0), PBIT(8, 0), PBIT(9, 0), PBIT(10, 0), PBIT(11, 1), PBIT(12, 1), PBIT(33, 0), PBIT(13, 1),
+            PBIT(14, 1), PBIT(15, 1), PBIT(16, 1), PBIT(17, 0), PBIT(18, 1), PBIT(19, 0), PBIT(20, 1), PBIT(21, 0),
+            PBIT(22, 0), PBIT(23, 1), PBIT(24, 0), PBIT(34, 0), PBIT(35, 0), PBIT(36, 0), PBIT(37, 0), PBIT(38, 0),
+            PBIT(51, 0), PBIT(52, 0), PBIT(53, 0), PBIT(54, 0), PBIT(55, 0),
+            PBIT(41, 0), PBIT(42, 0), PBIT(43, 0), PBIT(44, 0), PBIT(45, 0),
+            PBIT(46, 0), PBIT(47, 0), PBIT(48, 0), PBIT(49, 0), PBIT(50, 0),
+            PBIT(25, 0), PBIT(26, 0), PBIT(27, 0), PBIT(28, 0), PBIT(29, 0), PBIT(30, 0),
+            // Air (29)
+            PBIT(0, 0), PBIT(1, 1), PBIT(2, 1), PBIT(3, 1), PBIT(4, 0), PBIT(5, 0), PBIT(6, 0), PBIT(7, 0),
+            PBIT(8, 0), PBIT(9, 0), PBIT(10, 0), PBIT(11, 1), PBIT(12, 1), PBIT(13, 1), PBIT(14, 1), PBIT(15, 1),
+            PBIT(29, 0), PBIT(30, 0), PBIT(31, 0), PBIT(32, 0), PBIT(33, 0),
+            PBIT(16, 0), PBIT(17, 0),
+            PBIT(20, 0), PBIT(21, 0), PBIT(22, 0), PBIT(23, 0), PBIT(24, 0), PBIT(25, 0),
+            // Shield (40)
+            PBIT(0, 0), PBIT(1, 1), PBIT(2, 1), PBIT(3, 0), PBIT(4, 1), PBIT(5, 1), PBIT(6, 1), PBIT(31, 0),
+            PBIT(7, 1), PBIT(10, 0), PBIT(12, 1), PBIT(15, 1), PBIT(16, 1), PBIT(17, 0), PBIT(18, 0), PBIT(19, 0),
+            PBIT(44, 0), PBIT(45, 0), PBIT(46, 0), PBIT(47, 0), PBIT(48, 0),
+            PBIT(34, 0), PBIT(35, 0), PBIT(36, 0), PBIT(37, 0), PBIT(38, 0),
+            PBIT(39, 0), PBIT(40, 0), PBIT(41, 0), PBIT(42, 0), PBIT(43, 0),
+            PBIT(20, 1), PBIT(29, 0), PBIT(30, 0),
+            PBIT(22, 0), PBIT(23, 0), PBIT(24, 0), PBIT(25, 0), PBIT(26, 0), PBIT(27, 0)
         };
 #undef PBIT
-        static const u8 kEnds[3] = {28, 45, 62};
+        static const u8 kEnds[3] = {53, 82, 122};
         const char* kLists[3] = {kCounterGround, kCounterAir, kCounterShield};
         typedef bool (*GateFn)();
-        static const GateFn kGates[3] = {poolCat0, poolCat1, poolCat2};
+        static const GateFn kGates[7] = {
+            poolCat0, poolCat1, poolCat2, poolCat0Djc, poolCat0Float, poolCat2Djc, poolCat2Float
+        };
 
         memcpy(buf, kPoolHead, sizeof(kPoolHead));
         int cat = 0;
-        for (int i = 0; i < 62; i++)
+        for (int i = 0; i < 122; i++)
         {
             while (i >= kEnds[cat])
             {
@@ -806,6 +880,16 @@ namespace pages {
             }
             u8 idx = static_cast<u8>(kSpec[i] & 0x7Fu);
             s8 def = static_cast<s8>(kSpec[i] >> 7);
+            const char* raw = idx == 0 ? pageStr(kPs_pool_nothing) : packedLabelAt(kLists[cat], idx);
+            u8 gateIdx = static_cast<u8>(cat);
+            if (raw[0] == TM_DJC_LABEL[0])
+            {
+                gateIdx = static_cast<u8>(cat == cpu::kListGround ? 3 : 5);
+            }
+            else if (raw[0] == TM_FLOAT_LABEL[0])
+            {
+                gateIdx = static_cast<u8>(cat == cpu::kListGround ? 4 : 6);
+            }
             Option& o = buf[4 + i];
             o.kind = ::tm::ui::kKindToggle;
             o.flags = ::tm::ui::kFlagBit | ::tm::ui::kFlagHideWhenDisabled;
@@ -813,13 +897,13 @@ namespace pages {
             o.min = static_cast<u8>(1u << (idx & 7));
             o.def = def;
             o.max = 1;
-            o.name = packedLabelAt(kLists[cat], idx);
+            o.name = stripMarker(raw);
             o.data = NULL;
             o.onChange = NULL;
-            o.enabled = kGates[cat];
+            o.enabled = kGates[gateIdx];
         }
         kCounterPool.options = buf;
-        kCounterPool.count = 66;
+        kCounterPool.count = 126;
     }
 
     extern Page kCounterPool = {"Custom Pools", NULL, 0, {0, 0, 0}};
@@ -924,10 +1008,11 @@ namespace pages {
     static const Option kPoolRows[] = {
         TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch, kPoolCatScratchOffset, 0, 2, 0,
                "Category", s_poolCatPtrs, NULL, poolPageActive),
-        TM_ROW(::tm::ui::kKindInfo, 0, 0, 0, 0, 0, "Pool Status", s_poolStatusLabel, NULL, poolPageActive),
+        TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Pool Status", s_poolStatusLabel, activateActivePool, poolPageActive),
         TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Reset Pool", "Reset", resetActivePool, poolPageActive),
         TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Clear Pool", "Clear", clearActivePool, poolPageActive),
-        // Ground Pool (indices match kGround in actions.cpp)
+        // Ground Pool (53 entries; indices match kGround in actions.cpp)
+        TM_POOL_BIT(0, 0, 0, "Nothing (Wait)", poolCat0),
         TM_POOL_BIT(0, 1, 1, "Spotdodge", poolCat0),
         TM_POOL_BIT(0, 2, 1, "Shield", poolCat0),
         TM_POOL_BIT(0, 3, 1, "Grab", poolCat0),
@@ -941,6 +1026,7 @@ namespace pages {
         TM_POOL_BIT(0, 10, 0, "Forward Smash", poolCat0),
         TM_POOL_BIT(0, 11, 1, "Roll Away", poolCat0),
         TM_POOL_BIT(0, 12, 1, "Roll Toward", poolCat0),
+        TM_POOL_BIT(0, 33, 0, "Roll Random", poolCat0),
         TM_POOL_BIT(0, 13, 1, "Jab", poolCat0),
         TM_POOL_BIT(0, 14, 1, "Forward Tilt", poolCat0),
         TM_POOL_BIT(0, 15, 1, "Up Tilt", poolCat0),
@@ -950,13 +1036,37 @@ namespace pages {
         TM_POOL_BIT(0, 19, 0, "Full Hop", poolCat0),
         TM_POOL_BIT(0, 20, 1, "Wavedash Away", poolCat0),
         TM_POOL_BIT(0, 21, 0, "Wavedash Toward", poolCat0),
+        TM_POOL_BIT(0, 22, 0, "Wavedash Down", poolCat0),
         TM_POOL_BIT(0, 23, 1, "Dash Back", poolCat0),
+        TM_POOL_BIT(0, 24, 0, "Dash Through", poolCat0),
         TM_POOL_BIT(0, 34, 0, "SH Nair", poolCat0),
         TM_POOL_BIT(0, 35, 0, "SH Fair", poolCat0),
         TM_POOL_BIT(0, 36, 0, "SH Bair", poolCat0),
         TM_POOL_BIT(0, 37, 0, "SH Uair", poolCat0),
         TM_POOL_BIT(0, 38, 0, "SH Dair", poolCat0),
-        // Air Pool (indices match kAir in actions.cpp)
+        TM_POOL_BIT(0, 51, 0, "SHFFL Nair", poolCat0),
+        TM_POOL_BIT(0, 52, 0, "SHFFL Fair", poolCat0),
+        TM_POOL_BIT(0, 53, 0, "SHFFL Bair", poolCat0),
+        TM_POOL_BIT(0, 54, 0, "SHFFL Uair", poolCat0),
+        TM_POOL_BIT(0, 55, 0, "SHFFL Dair", poolCat0),
+        TM_POOL_BIT(0, 41, 0, "DJC Nair", poolCat0Djc),
+        TM_POOL_BIT(0, 42, 0, "DJC Fair", poolCat0Djc),
+        TM_POOL_BIT(0, 43, 0, "DJC Bair", poolCat0Djc),
+        TM_POOL_BIT(0, 44, 0, "DJC Uair", poolCat0Djc),
+        TM_POOL_BIT(0, 45, 0, "DJC Dair", poolCat0Djc),
+        TM_POOL_BIT(0, 46, 0, "Float Nair", poolCat0Float),
+        TM_POOL_BIT(0, 47, 0, "Float Fair", poolCat0Float),
+        TM_POOL_BIT(0, 48, 0, "Float Bair", poolCat0Float),
+        TM_POOL_BIT(0, 49, 0, "Float Uair", poolCat0Float),
+        TM_POOL_BIT(0, 50, 0, "Float Dair", poolCat0Float),
+        TM_POOL_BIT(0, 25, 0, "Slot 1", poolCat0),
+        TM_POOL_BIT(0, 26, 0, "Slot 2", poolCat0),
+        TM_POOL_BIT(0, 27, 0, "Slot 3", poolCat0),
+        TM_POOL_BIT(0, 28, 0, "Slot 4", poolCat0),
+        TM_POOL_BIT(0, 29, 0, "Slot 5", poolCat0),
+        TM_POOL_BIT(0, 30, 0, "Slot 6", poolCat0),
+        // Air Pool (29 entries; indices match kAir in actions.cpp)
+        TM_POOL_BIT(1, 0, 0, "Nothing (Wait)", poolCat1),
         TM_POOL_BIT(1, 1, 1, "Airdodge", poolCat1),
         TM_POOL_BIT(1, 2, 1, "Jump Away", poolCat1),
         TM_POOL_BIT(1, 3, 1, "Jump Toward", poolCat1),
@@ -972,15 +1082,28 @@ namespace pages {
         TM_POOL_BIT(1, 13, 1, "Bair", poolCat1),
         TM_POOL_BIT(1, 14, 1, "Uair", poolCat1),
         TM_POOL_BIT(1, 15, 1, "Dair", poolCat1),
+        TM_POOL_BIT(1, 29, 0, "FFL Nair", poolCat1),
+        TM_POOL_BIT(1, 30, 0, "FFL Fair", poolCat1),
+        TM_POOL_BIT(1, 31, 0, "FFL Bair", poolCat1),
+        TM_POOL_BIT(1, 32, 0, "FFL Uair", poolCat1),
+        TM_POOL_BIT(1, 33, 0, "FFL Dair", poolCat1),
         TM_POOL_BIT(1, 16, 0, "Tumble Fastfall", poolCat1),
         TM_POOL_BIT(1, 17, 0, "Wiggle Fastfall", poolCat1),
-        // Shield Pool (indices match kShieldList in actions.cpp)
+        TM_POOL_BIT(1, 20, 0, "Slot 1", poolCat1),
+        TM_POOL_BIT(1, 21, 0, "Slot 2", poolCat1),
+        TM_POOL_BIT(1, 22, 0, "Slot 3", poolCat1),
+        TM_POOL_BIT(1, 23, 0, "Slot 4", poolCat1),
+        TM_POOL_BIT(1, 24, 0, "Slot 5", poolCat1),
+        TM_POOL_BIT(1, 25, 0, "Slot 6", poolCat1),
+        // Shield Pool (40 entries; indices match kShieldList in actions.cpp)
+        TM_POOL_BIT(2, 0, 0, "Nothing (Wait)", poolCat2),
         TM_POOL_BIT(2, 1, 1, "Grab", poolCat2),
         TM_POOL_BIT(2, 2, 1, "Short Hop", poolCat2),
         TM_POOL_BIT(2, 3, 0, "Full Hop", poolCat2),
         TM_POOL_BIT(2, 4, 1, "Spotdodge", poolCat2),
         TM_POOL_BIT(2, 5, 1, "Roll Away", poolCat2),
         TM_POOL_BIT(2, 6, 1, "Roll Toward", poolCat2),
+        TM_POOL_BIT(2, 31, 0, "Roll Random", poolCat2),
         TM_POOL_BIT(2, 7, 1, "Up B", poolCat2),
         TM_POOL_BIT(2, 10, 0, "Down B", poolCat2),
         TM_POOL_BIT(2, 12, 1, "Up Smash", poolCat2),
@@ -989,9 +1112,30 @@ namespace pages {
         TM_POOL_BIT(2, 17, 0, "SH Bair", poolCat2),
         TM_POOL_BIT(2, 18, 0, "SH Uair", poolCat2),
         TM_POOL_BIT(2, 19, 0, "SH Dair", poolCat2),
+        TM_POOL_BIT(2, 44, 0, "SHFFL Nair", poolCat2),
+        TM_POOL_BIT(2, 45, 0, "SHFFL Fair", poolCat2),
+        TM_POOL_BIT(2, 46, 0, "SHFFL Bair", poolCat2),
+        TM_POOL_BIT(2, 47, 0, "SHFFL Uair", poolCat2),
+        TM_POOL_BIT(2, 48, 0, "SHFFL Dair", poolCat2),
+        TM_POOL_BIT(2, 34, 0, "DJC Nair", poolCat2Djc),
+        TM_POOL_BIT(2, 35, 0, "DJC Fair", poolCat2Djc),
+        TM_POOL_BIT(2, 36, 0, "DJC Bair", poolCat2Djc),
+        TM_POOL_BIT(2, 37, 0, "DJC Uair", poolCat2Djc),
+        TM_POOL_BIT(2, 38, 0, "DJC Dair", poolCat2Djc),
+        TM_POOL_BIT(2, 39, 0, "Float Nair", poolCat2Float),
+        TM_POOL_BIT(2, 40, 0, "Float Fair", poolCat2Float),
+        TM_POOL_BIT(2, 41, 0, "Float Bair", poolCat2Float),
+        TM_POOL_BIT(2, 42, 0, "Float Uair", poolCat2Float),
+        TM_POOL_BIT(2, 43, 0, "Float Dair", poolCat2Float),
         TM_POOL_BIT(2, 20, 1, "Wavedash Away", poolCat2),
         TM_POOL_BIT(2, 29, 0, "Wavedash Toward", poolCat2),
-        TM_POOL_BIT(2, 30, 0, "Wavedash Down", poolCat2)
+        TM_POOL_BIT(2, 30, 0, "Wavedash Down", poolCat2),
+        TM_POOL_BIT(2, 22, 0, "Slot 1", poolCat2),
+        TM_POOL_BIT(2, 23, 0, "Slot 2", poolCat2),
+        TM_POOL_BIT(2, 24, 0, "Slot 3", poolCat2),
+        TM_POOL_BIT(2, 25, 0, "Slot 4", poolCat2),
+        TM_POOL_BIT(2, 26, 0, "Slot 5", poolCat2),
+        TM_POOL_BIT(2, 27, 0, "Slot 6", poolCat2)
     };
 #undef TM_POOL_BIT
 

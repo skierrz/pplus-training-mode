@@ -367,6 +367,7 @@ def collect_entries() -> list[tuple[str, bytes]]:
         ("rev_wgt", b"Slot 2 Chance\x00"),
         ("rec_save", b"Save Positions\x00"),
         ("rec_restore", b"Restore Positions\x00"),
+        ("pool_nothing", b"Nothing (Wait)\x00"),
     ]
 
     return entries

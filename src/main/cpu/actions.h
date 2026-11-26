@@ -100,9 +100,11 @@ namespace cpu {
     int randomAction(int list, u32 roll);
     // Seeds `bits[8]` with the curated default subset for `list`.
     void poolDefaults(int list, u8 bits[8]);
-    // Clears any bits in `bits[8]` that do not name a concrete script/slot action.
+    // Clears any bits in `bits[8]` that do not name a concrete script/slot
+    // action (preserving bit 0, which stands for Nothing / Wait).
     void poolSanitize(int list, u8 bits[8]);
-    // Picks a concrete action from `bits[8]` valid for `kind` (ftKind), or 0 if none.
+    // Picks a concrete action (or 0 when bit 0 is enabled and rolled) from
+    // `bits[8]` valid for `kind` (ftKind), or 0 if empty.
     int randomPoolAction(int list, const u8 bits[8], int kind, u32 roll);
     // False if `a` is for characters with a technique fighter kind `kind`
     // (ftKind) lacks.

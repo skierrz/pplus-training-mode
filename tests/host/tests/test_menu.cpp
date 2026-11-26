@@ -652,10 +652,10 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK(strcmp(osdP.options[10].name, "Shield Advantage") == 0);
 
     const ui::Page& scen = ui::pages::kScenarios;
-    REQUIRE(scen.count == 51);
-    CHECK(strcmp(scen.options[40].name, "Practice Mode") == 0);
-    CHECK(strcmp(scen.options[50].name, "More Combo Options") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[50].max);
+    REQUIRE(scen.count == 53);
+    CHECK(strcmp(scen.options[42].name, "Practice Mode") == 0);
+    CHECK(strcmp(scen.options[52].name, "More Combo Options") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[52].max);
 
     const ui::Page& sc = ui::pages::kStageCast;
     REQUIRE(sc.count == 35);
@@ -1166,40 +1166,46 @@ TEST(lab_menu, show_inactive_fighters_scoped_to_stage_cast_only)
     }
     CHECK(static_cast<int>(st.cursor[ui::pages::P_STAGE_CAST]) > 8);
 
-    // Scenarios MUST still compact hidden preset/drill rows (only Preset [0] and More Combo Options [50] visible).
+    // Scenarios MUST still compact hidden preset/drill rows (only Preset [0] and More Combo Options [52] visible).
     const u8 scenPath[] = {ui::pages::P_SCENARIOS};
     REQUIRE(ui::menuJump(menu, st, scenPath, 1));
     CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(50, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    CHECK_EQ(52, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(50, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    CHECK_EQ(52, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
 
     // Context-scoped Tab 1: when a Tech Practice drill is active, Preset and More Combo Options hide,
-    // leaving only the active drill's rows (Ledgedash: Practice Mode [40], Reset Ledge [44],
-    // Ledge Auto-Reset [45], Ledge Invuln [46]).
+    // leaving only the active drill's rows (Ledgedash: Practice Mode [42], Reset Ledge [46],
+    // Ledge Auto-Reset [47], Ledge Invuln [48]).
     ui::pages::practiceMenuState()->activeDrill = 1;
     REQUIRE(ui::menuJump(menu, st, scenPath, 1));
-    CHECK_EQ(40, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
-    ui::menuStep(menu, st, inDown);
-    CHECK_EQ(44, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
-    ui::menuStep(menu, st, inDown);
-    CHECK_EQ(45, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    CHECK_EQ(42, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::menuStep(menu, st, inDown);
     CHECK_EQ(46, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(46, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    CHECK_EQ(47, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(48, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(48, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::pages::practiceMenuState()->activeDrill = 0;
 
-    // CPU > Counters & Reversals: Counter Mode starts at Single Action (1), hiding Custom Pools,
-    // Per-Hit, Reversals, and Adaptive even while Show Inactive Fighters is On!
+    // CPU > Counters & Reversals: Counter Mode starts at Single Action (1), keeping Ground/Air/Shield
+    // and Custom Pools visible while hiding Per-Hit, Reversals, and Adaptive even while Show Inactive Fighters is On!
     const u8 ctrPath[] = {ui::pages::P_CPU, ui::pages::P_CPU_COUNTERS};
     REQUIRE(ui::menuJump(menu, st, ctrPath, 2));
     CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_CPU_COUNTERS]));
     CHECK_EQ(1, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
-    // Switch Counter Mode right to Custom Pool (2): reveals Custom Pools (row 6), hides Ground/Air/Shield (1..3).
+    // Switch Counter Mode right to Custom Pool (2): keeps Ground/Air/Shield (1..3) visible alongside Custom Pools (6).
     ui::menuStep(menu, st, inRight);
     CHECK_EQ(2, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(1, static_cast<int>(st.cursor[ui::pages::P_CPU_COUNTERS])); // Ground Counter
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(2, static_cast<int>(st.cursor[ui::pages::P_CPU_COUNTERS])); // Air Counter
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(3, static_cast<int>(st.cursor[ui::pages::P_CPU_COUNTERS])); // Shield Counter
     ui::menuStep(menu, st, inDown);
     CHECK_EQ(4, static_cast<int>(st.cursor[ui::pages::P_CPU_COUNTERS])); // Shield Timing
     ui::menuStep(menu, st, inDown);
@@ -1207,15 +1213,17 @@ TEST(lab_menu, show_inactive_fighters_scoped_to_stage_cast_only)
     ui::menuStep(menu, st, inDown);
     CHECK_EQ(6, static_cast<int>(st.cursor[ui::pages::P_CPU_COUNTERS])); // Custom Pools
 
-    // Enter Custom Pools: Category=Ground MUST still compact Air/Shield rows even while Show Inactive Fighters is On!
+    // Enter Custom Pools: Category=Ground MUST still compact Air/Shield rows (and non-matching DJC/Float)
+    // even while Show Inactive Fighters is On!
     ui::menuStep(menu, st, inA);
     CHECK_EQ(ui::pages::P_COUNTER_POOL, ui::currentPage(st));
-    for (int i = 0; i < 40; i++)
+    for (int i = 0; i < 65; i++)
     {
         ui::menuStep(menu, st, inDown);
     }
-    // 4 head rows (0..3) + 28 Ground pool rows (4..31) => bottom clamps at row 31, never reaches Air (32+).
-    CHECK_EQ(31, static_cast<int>(st.cursor[ui::pages::P_COUNTER_POOL]));
+    // 4 head rows (0..3) + 53 Ground pool rows (4..56, with 10 DJC/Float gated off when no fighter is spawned)
+    // => bottom clamps at Slot 6 (row 56), never reaches Air (57+).
+    CHECK_EQ(56, static_cast<int>(st.cursor[ui::pages::P_COUNTER_POOL]));
 
     main::setExtraHooks(NULL);
     storage::detach();
@@ -1766,31 +1774,31 @@ TEST(menu, tech_practice_lab_rows_gate_by_active_drill)
     ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
     memset(pm, 0, sizeof(*pm));
     const ui::Page& scen = ui::pages::kScenarios;
-    // Rows 40..49 are the 10 conditional Tech Practice rows.
-    for (int r = 40; r <= 49; r++)
+    // Rows 42..51 are the 10 conditional Tech Practice rows.
+    for (int r = 42; r <= 51; r++)
     {
         CHECK((scen.options[r].flags & (ui::kFlagScratch | ui::kFlagHideWhenDisabled))
               == (ui::kFlagScratch | ui::kFlagHideWhenDisabled));
         CHECK(!scen.options[r].enabled());
     }
-    // Powershield (5): Mode (40), Attack Mode (41), Shot Height (42, proj only), Cadence (43).
+    // Powershield (5): Mode (42), Attack Mode (43), Shot Height (44, proj only), Cadence (45).
     pm->activeDrill = 5;
     pm->psAttackMode = 0;
-    CHECK(scen.options[40].enabled() && scen.options[41].enabled() && scen.options[42].enabled()
-          && scen.options[43].enabled() && !scen.options[44].enabled());
+    CHECK(scen.options[42].enabled() && scen.options[43].enabled() && scen.options[44].enabled()
+          && scen.options[45].enabled() && !scen.options[46].enabled());
     pm->psAttackMode = 1;
-    CHECK(scen.options[41].enabled() && !scen.options[42].enabled() && scen.options[43].enabled());
-    // Ledgedash (1): Mode (40), Reset Ledge (44), Ledge Auto-Reset (45), Ledge Invuln (46).
+    CHECK(scen.options[43].enabled() && !scen.options[44].enabled() && scen.options[45].enabled());
+    // Ledgedash (1): Mode (42), Reset Ledge (46), Ledge Auto-Reset (47), Ledge Invuln (48).
     pm->activeDrill = 1;
-    CHECK(scen.options[40].enabled() && !scen.options[41].enabled() && scen.options[44].enabled()
-          && scen.options[45].enabled() && scen.options[46].enabled() && !scen.options[47].enabled());
-    // L-Cancel (3) -> row 47; Float/Hover (4) -> row 48; Wavedash (2) -> row 49.
+    CHECK(scen.options[42].enabled() && !scen.options[43].enabled() && scen.options[46].enabled()
+          && scen.options[47].enabled() && scen.options[48].enabled() && !scen.options[49].enabled());
+    // L-Cancel (3) -> row 49; Float/Hover (4) -> row 50; Wavedash (2) -> row 51.
     pm->activeDrill = 3;
-    CHECK(scen.options[40].enabled() && scen.options[47].enabled() && !scen.options[48].enabled());
+    CHECK(scen.options[42].enabled() && scen.options[49].enabled() && !scen.options[50].enabled());
     pm->activeDrill = 4;
-    CHECK(scen.options[40].enabled() && !scen.options[47].enabled() && scen.options[48].enabled());
+    CHECK(scen.options[42].enabled() && !scen.options[49].enabled() && scen.options[50].enabled());
     pm->activeDrill = 2;
-    CHECK(scen.options[40].enabled() && scen.options[49].enabled() && !scen.options[47].enabled());
+    CHECK(scen.options[42].enabled() && scen.options[51].enabled() && !scen.options[49].enabled());
     memset(pm, 0, sizeof(*pm));
     main::setExtraHooks(NULL);
 }
@@ -1974,7 +1982,7 @@ TEST(lab_menu, stream1_combo_lab_inline_rows_on_scenarios)
     CHECK_EQ(static_cast<int>(main::kComboEscapeJumpInvuln),
              static_cast<int>(main::settings().comboTrainer.postHitstunEscape));
 
-    st.cursor[ui::pages::P_SCENARIOS] = 8; // Noclip Reset
+    st.cursor[ui::pages::P_SCENARIOS] = 9; // Noclip Reset
     main::settings().comboTrainer.noclip = 0;
     CHECK(ui::menuStep(menu, st, inRight));
     CHECK_EQ(1, static_cast<int>(main::settings().comboTrainer.noclip));
