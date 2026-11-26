@@ -83,6 +83,8 @@ namespace game {
         return group >= 0 && group != before && groups[group] == kOverlaySound;
     }
 
+    void overlaysAttach();
+    void overlaysDetach();
     // Once per game step, after the trackers and techniques took the frame
     // that ended. `live`: the match runs unpaused; otherwise everything set
     // is put back.

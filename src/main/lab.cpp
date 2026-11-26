@@ -1872,9 +1872,15 @@ namespace lab {
         s_vsReadOnly = !game::trainingGameMode();
         memset(s_playerShieldHit, 0, sizeof(s_playerShieldHit));
         game::trackerAttach();
+#ifdef __MWERKS__
+        game::advantageAttach();
+#endif
         game::advantageReset(onAdvantage);
         game::techniquesAttach();
         game::techniquesReset(onTechnique);
+#ifdef __MWERKS__
+        game::overlaysAttach();
+#endif
         game::setFrameListener(onTrackerFrame);
         gfx::textAttach();
         osd::attach();
@@ -1910,11 +1916,18 @@ namespace lab {
         }
         osd::detach();
         gfx::textDetach();
+#ifdef __MWERKS__
+        game::overlaysDetach();
+#else
         if (!ro)
         {
             game::overlaysClear();
         }
+#endif
         game::techniquesDetach();
+#ifdef __MWERKS__
+        game::advantageDetach();
+#endif
         game::trackerDetach();
         if (ro)
         {

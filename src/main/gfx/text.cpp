@@ -24,7 +24,9 @@ namespace gfx {
     static void* const kSystemFont = reinterpret_cast<void*>(0x80497E44);
     static void* const kDisplayFont = reinterpret_cast<void*>(0x80497DA4);
 
+#if !(defined(TM_MODULE_MAIN) && defined(__MWERKS__))
     static float s_widths[kTextSlots];
+#endif
 
     static bool fontLoaded()
     {
@@ -85,6 +87,7 @@ namespace gfx {
     struct GlyphCache {
         Glyph glyphs[kGlyphCodes];
         TexSheet sheets[kMaxSheets];
+        float widths[kTextSlots];
         u8 haveGlyph[kGlyphCodes / 8];
         u32 sheetCount;
         u32 glyphResource;
@@ -92,6 +95,11 @@ namespace gfx {
         u32 glyphMagF;
     };
     static GlyphCache* s_glyphCache = NULL;
+
+    static float* widthSlots()
+    {
+        return s_glyphCache != NULL ? s_glyphCache->widths : NULL;
+    }
 
     static void syncGlyphCache(const ms::CharWriter& w)
     {
@@ -618,47 +626,62 @@ namespace gfx {
     }
 #endif
 
+#if !(defined(TM_MODULE_MAIN) && defined(__MWERKS__))
+    static float* widthSlots()
+    {
+        return s_widths;
+    }
+#endif
+
     void textRight(int slot, float right, float y, const char* str, Rgba color, float scale)
     {
-        if (slot < 0 || slot >= kTextSlots)
+        float* widths = widthSlots();
+        if (widths == NULL || slot < 0 || slot >= kTextSlots)
         {
             return;
         }
-        float x = right - s_widths[slot];
-        s_widths[slot] = text(x, y, str, color, scale) - x;
+        float x = right - widths[slot];
+        widths[slot] = text(x, y, str, color, scale) - x;
     }
 
     void textCentered(int slot, float centre, float y, const char* str, Rgba color, float scale)
     {
-        if (slot < 0 || slot >= kTextSlots)
+        float* widths = widthSlots();
+        if (widths == NULL || slot < 0 || slot >= kTextSlots)
         {
             return;
         }
-        float x = centre - s_widths[slot] * 0.5f;
-        s_widths[slot] = text(x, y, str, color, scale) - x;
+        float x = centre - widths[slot] * 0.5f;
+        widths[slot] = text(x, y, str, color, scale) - x;
     }
 
     void textBox(int slot, float x, float y, const char* str, Rgba color, Rgba box, float scale, bool centre)
     {
-        if (slot < 0 || slot >= kTextSlots)
+        float* widths = widthSlots();
+        if (widths == NULL || slot < 0 || slot >= kTextSlots)
         {
             return;
         }
         const float pad = 6.0f;
-        float w = s_widths[slot];
+        float w = widths[slot];
         float left = centre ? x - w * 0.5f : x;
         if (w > 0.0f)
         {
             fillRect(left - pad, y - pad * 0.5f, w + 2 * pad, lineHeight(scale) + pad, box);
         }
-        s_widths[slot] = text(left, y, str, color, scale) - left;
+        widths[slot] = text(left, y, str, color, scale) - left;
     }
 
     void forgetWidths()
     {
+        float* widths = widthSlots();
+        if (widths == NULL)
+        {
+            return;
+        }
         for (int i = 0; i < kTextSlots; i++)
         {
-            s_widths[i] = 0.0f;
+            widths[i] = 0.0f;
         }
     }
 

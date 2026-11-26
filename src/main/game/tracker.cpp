@@ -149,28 +149,13 @@ namespace game {
     // entering any means it could act during that frame.
     static bool freeStatus(int s)
     {
-        switch (s)
-        {
-        case kStatusWait:
-        case kStatusWalk:
-        case kStatusWalkBrake:
-        case kStatusDash:
-        case kStatusRun:
-        case kStatusTurn:
-        case kStatusTurnDash:
-        case kStatusTurnRun:
-        case kStatusSquat:
-        case kStatusSquatWait:
-        case kStatusFall:
-        case kStatusFallAerial:
-        case kStatusJumpSquat:
-        case kStatusGuardOn:
-        case kStatusGuard:
-        case kStatusGuardOff:
-            return true;
-        default:
-            return false;
-        }
+        const u32 kMask = (1u << kStatusWait) | (1u << kStatusWalk) | (1u << kStatusWalkBrake)
+                          | (1u << kStatusDash) | (1u << kStatusRun) | (1u << kStatusTurn)
+                          | (1u << kStatusTurnDash) | (1u << kStatusTurnRun) | (1u << kStatusSquat)
+                          | (1u << kStatusSquatWait) | (1u << kStatusFall) | (1u << kStatusFallAerial)
+                          | (1u << kStatusJumpSquat) | (1u << kStatusGuardOn) | (1u << kStatusGuard)
+                          | (1u << kStatusGuardOff);
+        return static_cast<u32>(s) < 32u && ((kMask >> s) & 1u) != 0u;
     }
 
     // Moves: entering one from something that is not itself a move is a

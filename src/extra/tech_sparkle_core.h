@@ -42,6 +42,9 @@ namespace extra {
         s32 pendingShorthop;
     };
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline void techSparkleResetSlot(TechSparkleSlot& slot)
     {
         slot.jumpSquat = kTsNoFrame;
@@ -49,6 +52,9 @@ namespace extra {
         slot.airdodge = kTsNoFrame;
         slot.pendingShorthop = kTsNoFrame;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline bool techSparkleIsImmediateShAction(int s)
     {

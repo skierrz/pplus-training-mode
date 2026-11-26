@@ -1,6 +1,7 @@
 #include "main/game/advantage.h"
 
 #include "main/game/tracker.h"
+#include "shared/game/heap.h"
 #include "shared/log.h"
 
 // Adapted from ProjectPunch's on-hit / on-shield advantage (main.cpp,
@@ -25,17 +26,39 @@ namespace game {
         s16 defenderPrev;
     };
 
-    static Exchange s_exchanges[kMaxTracked];
-    static Advantage s_last;
+    struct AdvantageNet {
+        Exchange exchanges[kMaxTracked];
+        Advantage last;
+    };
+
+    static AdvantageNet* s_net = NULL;
     static bool s_haveLast = false;
     static int s_tolerance = 1;
     static AdvantageSink s_sink = NULL;
 
+    void advantageAttach()
+    {
+        if (s_net == NULL)
+        {
+            s_net = static_cast<AdvantageNet*>(allocNetworkZero(static_cast<u32>(sizeof(AdvantageNet))));
+        }
+    }
+
+    void advantageDetach()
+    {
+        freeNetworkSlot(reinterpret_cast<void**>(&s_net));
+        s_haveLast = false;
+        s_sink = NULL;
+    }
+
     void advantageReset(AdvantageSink sink)
     {
-        for (int i = 0; i < kMaxTracked; i++)
+        if (s_net != NULL)
         {
-            s_exchanges[i].active = false;
+            for (int i = 0; i < kMaxTracked; i++)
+            {
+                s_net->exchanges[i].active = false;
+            }
         }
         s_haveLast = false;
         s_sink = sink;
@@ -48,14 +71,14 @@ namespace game {
 
     const Advantage* lastAdvantage()
     {
-        return s_haveLast ? &s_last : NULL;
+        return s_net != NULL && s_haveLast ? &s_net->last : NULL;
     }
 
     static void finish(int d, const Exchange& ex)
     {
         const Tracked* a = tracked(ex.attacker);
         const Tracked* def = tracked(d);
-        Advantage& r = s_last;
+        Advantage& r = s_net->last;
         r.attacker = ex.attacker;
         r.defender = static_cast<s8>(d);
         r.attackerPlayer = a != NULL ? a->playerNo : -1;
@@ -88,10 +111,14 @@ namespace game {
 
     void advantageFrame()
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
         s32 now = trackerFrame();
         for (int d = 0; d < kMaxTracked; d++)
         {
-            Exchange& ex = s_exchanges[d];
+            Exchange& ex = s_net->exchanges[d];
             const Tracked* def = tracked(d);
             if (def == NULL)
             {

@@ -28,6 +28,8 @@ namespace game {
 
     typedef void (*AdvantageSink)(const Advantage& result);
 
+    void advantageAttach();
+    void advantageDetach();
     // Clears every open exchange; `sink` receives each result, those past
     // the display limit too (`hidden`).
     void advantageReset(AdvantageSink sink);

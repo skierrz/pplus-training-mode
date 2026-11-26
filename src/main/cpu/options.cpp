@@ -177,7 +177,6 @@ namespace cpu {
         bool counter;
         int hits;
     };
-    static Handed s_handed[kMaxSlots];
     enum { kHandFrames = 2 };
     // playbackCounterHit's view of the CPU on the step before, by player.
     struct PlaybackSeen {
@@ -185,7 +184,6 @@ namespace cpu {
         int hitlag, hitstun, status;
         int hits;
     };
-    static PlaybackSeen s_playbackSeen[kMaxSlots];
 
     // xorshift32 stirred with the frame counter, so a replayed savestate does
     // not repeat its choices; the game's own generators are never touched.
@@ -432,12 +430,6 @@ namespace cpu {
         float holdX, holdY;
         const Action* custom; // cueAction's own action (NULL: the list's)
     };
-    static Cue s_cues[kMaxSlots];
-
-    static Cue* cueOf(int playerNo)
-    {
-        return playerNo >= 0 && playerNo < kMaxSlots ? &s_cues[playerNo] : NULL;
-    }
 
     // Test hook (scripts/cpu_tests.py), read each frame the options drive that
     // player: a new generation runs `op` once.
@@ -460,11 +452,27 @@ namespace cpu {
     };
     enum { kCueTestMagic = 0x544D4355 }; // "TMCU"
     enum CueTestOp { kOpCue = 1, kOpCancel, kOpHold, kOpHoldRepeat, kOpRelease };
-    static CueTestBlock s_cueTest;
+
+    struct OptionsAux {
+        Handed handed[kMaxSlots];
+        PlaybackSeen playbackSeen[kMaxSlots];
+        Cue cues[kMaxSlots];
+        CueTestBlock cueTest;
+    };
+    static OptionsAux* s_aux = NULL;
+
+    static Cue* cueOf(int playerNo)
+    {
+        return s_aux != NULL && playerNo >= 0 && playerNo < kMaxSlots ? &s_aux->cues[playerNo] : NULL;
+    }
 
     static void cueTest(int playerNo)
     {
-        CueTestBlock& b = s_cueTest;
+        if (s_aux == NULL)
+        {
+            return;
+        }
+        CueTestBlock& b = s_aux->cueTest;
         if (b.playerNo != playerNo)
         {
             return;
@@ -1313,7 +1321,7 @@ namespace cpu {
         // The hold of cue.h, if one is set.
         bool held(Frame& out, const Owner& who)
         {
-            const Cue& q = s_cues[who.playerNo & 3];
+            const Cue& q = s_aux->cues[who.playerNo & 3];
             if (q.hold)
             {
                 out.buttons = q.repeat && (lastButtons(slot) & q.holdButtons) != 0 ? 0 : q.holdButtons;
@@ -2266,7 +2274,7 @@ namespace cpu {
             return true;
         }
         // A hit the recording handed over: the options have the CPU again.
-        Handed& hand = s_handed[who.playerNo & 3];
+        Handed& hand = s_aux->handed[who.playerNo & 3];
         bool handed = false;
         bool handedCounter = false;
         if (hand.frame != game::kNoFrame)
@@ -2291,7 +2299,7 @@ namespace cpu {
         bool shieldLag = v.status == game::kStatusGuardDamage && v.hitlag > prevHitlag;
         bool newHit = handed
                       || (havePrev && (damageLag || shieldLag || v.hitstun > prevHitstun) && !grabbedStatus(v.status));
-        Cue& q = s_cues[who.playerNo & 3];
+        Cue& q = s_aux->cues[who.playerNo & 3];
         cueTest(who.playerNo);
 
         if (!v.air && v.hitstun == 0 && v.hitlag == 0)
@@ -2760,6 +2768,7 @@ namespace cpu {
     struct OptionsHeap {
         Brain brains[kMaxSlots];
         Saved saved[2];
+        OptionsAux aux;
     };
     static OptionsHeap* s_heap = NULL;
     static Saved* s_saved = NULL;
@@ -2793,7 +2802,7 @@ namespace cpu {
         c.freezeRequest = s_freezeRequest;
         memcpy(c.moveLabel, g_moveCpuLabel, sizeof(c.moveLabel));
         memcpy(c.freezeLabel, g_freezeCpuLabel, sizeof(c.freezeLabel));
-        memcpy(c.cues, s_cues, sizeof(s_cues));
+        memcpy(c.cues, s_aux->cues, sizeof(s_aux->cues));
     }
 
     void optionsLoaded(int which)
@@ -2813,7 +2822,7 @@ namespace cpu {
         s_freezeRequest = c.freezeRequest;
         memcpy(g_moveCpuLabel, c.moveLabel, sizeof(c.moveLabel));
         memcpy(g_freezeCpuLabel, c.freezeLabel, sizeof(c.freezeLabel));
-        memcpy(s_cues, c.cues, sizeof(s_cues));
+        memcpy(s_aux->cues, c.cues, sizeof(s_aux->cues));
         bool want = opts().control == kControlLab && opts().controlledBy != 0;
         for (int i = 0; i < kMaxSlots; i++)
         {
@@ -2886,7 +2895,11 @@ namespace cpu {
 
     static void handHit(int playerNo, bool counter, int hits)
     {
-        Handed& h = s_handed[playerNo & 3];
+        if (s_aux == NULL)
+        {
+            return;
+        }
+        Handed& h = s_aux->handed[playerNo & 3];
         h.frame = game::trackerFrame();
         h.counter = counter;
         h.hits = hits;
@@ -2894,11 +2907,11 @@ namespace cpu {
 
     bool playbackCounterHit(int playerNo, int hitlag, int hitstun, int status)
     {
-        if (playerNo < 0 || playerNo >= kMaxSlots)
+        if (s_aux == NULL || playerNo < 0 || playerNo >= kMaxSlots)
         {
             return false;
         }
-        PlaybackSeen& p = s_playbackSeen[playerNo];
+        PlaybackSeen& p = s_aux->playbackSeen[playerNo];
         s32 now = game::trackerFrame();
         // A new playback (no call on the step before) counts from 0.
         bool havePrev = p.frame != game::kNoFrame && now - p.frame == 1;
@@ -2959,6 +2972,7 @@ namespace cpu {
                 }
                 s_brains = s_heap->brains;
                 s_saved = s_heap->saved;
+                s_aux = &s_heap->aux;
             }
         }
         if (s_brains == NULL)
@@ -2977,14 +2991,14 @@ namespace cpu {
             s_brains[i].reset();
             s_portChanged[i] = false;
             s_origPort[i] = static_cast<s8>(controllerOf(i));
-            s_handed[i].frame = game::kNoFrame;
-            s_playbackSeen[i].frame = game::kNoFrame;
+            s_aux->handed[i].frame = game::kNoFrame;
+            s_aux->playbackSeen[i].frame = game::kNoFrame;
         }
-        memset(s_cues, 0, sizeof(s_cues));
-        memset(&s_cueTest, 0, sizeof(s_cueTest));
-        s_cueTest.magic = kCueTestMagic;
-        s_cueTest.playerNo = -1;
-        TM_LOG("cpu: cue test block at %08x\n", &s_cueTest);
+        memset(s_aux->cues, 0, sizeof(s_aux->cues));
+        memset(&s_aux->cueTest, 0, sizeof(s_aux->cueTest));
+        s_aux->cueTest.magic = kCueTestMagic;
+        s_aux->cueTest.playerNo = -1;
+        TM_LOG("cpu: cue test block at %08x\n", &s_aux->cueTest);
         s_rng = game::frameCounter() | 1;
         s_moving = false;
         s_freezeRequest = false;
@@ -3009,6 +3023,7 @@ namespace cpu {
             s_heap = NULL;
             s_brains = NULL;
             s_saved = NULL;
+            s_aux = NULL;
         }
     }
 
@@ -3038,8 +3053,11 @@ namespace cpu {
                 s_brains[i].noReaction = false;
             }
             restorePort(i, false);
-            s_handed[i].frame = game::kNoFrame;
-            s_playbackSeen[i].frame = game::kNoFrame;
+            if (s_aux != NULL)
+            {
+                s_aux->handed[i].frame = game::kNoFrame;
+                s_aux->playbackSeen[i].frame = game::kNoFrame;
+            }
         }
         game::trainingControllerSuppress(game::kControllerOwnerControlledBy, false);
         s_moving = false;
@@ -3047,7 +3065,10 @@ namespace cpu {
         s_moveX = s_moveY = 0.0f;
         s_freezeRequest = false;
         g_moveCpuLabel[0] = g_freezeCpuLabel[0] = '\0';
-        memset(s_cues, 0, sizeof(s_cues));
+        if (s_aux != NULL)
+        {
+            memset(s_aux->cues, 0, sizeof(s_aux->cues));
+        }
         if (cpuSwapped)
         {
             CpuOptions& mutableOpts = main::settings().cpu.options;
@@ -3083,9 +3104,12 @@ namespace cpu {
                 }
             }
         }
-        s_handed[playerNo].frame = game::kNoFrame;
-        s_playbackSeen[playerNo].frame = game::kNoFrame;
-        memset(&s_cues[playerNo], 0, sizeof(s_cues[playerNo]));
+        if (s_aux != NULL)
+        {
+            s_aux->handed[playerNo].frame = game::kNoFrame;
+            s_aux->playbackSeen[playerNo].frame = game::kNoFrame;
+            memset(&s_aux->cues[playerNo], 0, sizeof(s_aux->cues[playerNo]));
+        }
     }
 
     void optionsResetAll()
@@ -3098,10 +3122,16 @@ namespace cpu {
                 s_brains[i].revAction = 0;
                 s_brains[i].revDelay = 0;
             }
-            s_handed[i].frame = game::kNoFrame;
-            s_playbackSeen[i].frame = game::kNoFrame;
+            if (s_aux != NULL)
+            {
+                s_aux->handed[i].frame = game::kNoFrame;
+                s_aux->playbackSeen[i].frame = game::kNoFrame;
+            }
         }
-        memset(s_cues, 0, sizeof(s_cues));
+        if (s_aux != NULL)
+        {
+            memset(s_aux->cues, 0, sizeof(s_aux->cues));
+        }
     }
 #pragma force_active reset
 
