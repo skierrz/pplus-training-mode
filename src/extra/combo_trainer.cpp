@@ -371,6 +371,7 @@ namespace extra {
             in.invFrames = haveBody ? static_cast<int>(body.invFrames) : 0;
             in.bodyIntangible = haveBody && body.intangible != 0;
             in.onLedge = fs.status >= kCliffFirst && fs.status <= kCliffLast;
+            in.ignoreLedgeReset = !scenarioPresetsEdgeguardResetOnLedge();
             in.air = isFighterAir(m);
             in.outOfPlay = game::outOfPlay(fs.status, true);
             in.x = fs.x;

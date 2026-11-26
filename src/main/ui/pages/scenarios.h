@@ -64,6 +64,8 @@ namespace pages {
         // Active Shield Drop & Under-Platform Slide-Off
         u8 shieldDropAttack;  // 0 = SH Aerial [def], 1 = Tilt, 2 = Down Smash, 3 = Off
         u8 slideOffAttack;    // 0 = Under Up Air [def], 1 = Under Fair, 2 = Under Nair, 3 = On-Plat Ftilt
+        u8 slideOffStart;     // 0 = Knockdown [def], 1 = Tumble, 2 = Standing
+        u8 edgeguardReset;    // 0 = Stage Safe [def], 1 = Ledge Grab
 
         ScenarioMenuState& operator=(const ScenarioMenuState& o)
         {

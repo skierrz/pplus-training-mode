@@ -121,6 +121,7 @@ namespace extra {
         bool dropIntangActive;
         bool ledgetechWallWarned;
         bool pendingRevivalExit;
+        bool hmnPendingDownWait;
         u8 techFlashFrames;
         s8 spacingOffset;
     };
@@ -130,7 +131,7 @@ namespace extra {
     static bool s_wasPaused = false;
     static bool s_resumeFromPause = false;
 
-    TM_STATIC_ASSERT(sizeof(ui::pages::ScenarioMenuState) == 33, tm_scenario_menu_state_size);
+    TM_STATIC_ASSERT(sizeof(ui::pages::ScenarioMenuState) == 35, tm_scenario_menu_state_size);
 
     static void readMenuConfigInto(ScenarioConfig& out)
     {
@@ -171,7 +172,9 @@ namespace extra {
             kShieldRoleOffense,  // shieldRole
             kShieldDefAerial,    // shieldDefAttack
             kSdAtkShAerial,      // shieldDropAttack
-            kSlideAtkUnderUair   // slideOffAttack
+            kSlideAtkUnderUair,  // slideOffAttack
+            kSlideStartKnockdown,// slideOffStart
+            kEgResetStageSafe    // edgeguardReset
         };
         memcpy(ui::pages::scenarioMenuState(), &kDef, sizeof(kDef));
     }
@@ -1047,6 +1050,15 @@ namespace extra {
         return cfg.side < kScenarioSideCount ? static_cast<int>(cfg.side) : static_cast<int>(kScenarioSideRandom);
     }
 
+    bool scenarioPresetsEdgeguardResetOnLedge()
+    {
+        if (s_net == NULL || s_net->state.activePreset != kScenarioEdgeguard)
+        {
+            return true;
+        }
+        return ui::pages::scenarioMenuState()->edgeguardReset == kEgResetLedgeGrab;
+    }
+
 #pragma dont_inline on
     int readFighterHitlag(const soModuleEnumeration* m)
     {
@@ -1378,6 +1390,18 @@ namespace extra {
                 cancelLandingLag(target);
             }
         }
+        if (net->hmnPendingDownWait && !act.warpHmn)
+        {
+            if (s_state.activePreset != kScenarioSlideOff || s_state.sinceResetFrames > 6)
+            {
+                net->hmnPendingDownWait = false;
+            }
+            else if (!isFighterAir(hm))
+            {
+                forceStatus(hmnRef.fighter, kStatusDownWaitId);
+                net->hmnPendingDownWait = false;
+            }
+        }
 
         const ScenarioSpawns& sp = act.spawns;
         float hmnDmg = act.useExplicitHmnDmg ? act.hmnDmg : i2f(s.general.playerPercent);
@@ -1388,6 +1412,7 @@ namespace extra {
         }
         if (act.warpHmn)
         {
+            net->hmnPendingDownWait = false;
             if (sp.hmnRevivalPlat)
             {
                 placeOnRevivalPlatform(hmnRef, sp.hmnX, sp.hmnY, act.setNoclip[0], sp.hmnLr, hmnDmg, act.hmnSpendDj);
@@ -1396,10 +1421,20 @@ namespace extra {
             {
                 warpAirClean(hmnRef, sp.hmnX, sp.hmnY, act.setNoclip[0], hmnDmg, sp.hmnLr, act.refreshHmnAir,
                              act.hmnSpendDj);
+                if (sp.hmnTumbleDrop)
+                {
+                    forceStatus(hmnRef.fighter, kStatusDamageFallId);
+                }
             }
             else
             {
                 warpGroundClean(hmnRef, sp.hmnX, sp.hmnY, act.setNoclip[0], hmnDmg, sp.hmnLr);
+                if (sp.hmnDownWait)
+                {
+                    forceStatus(hmnRef.fighter, kStatusDownWaitId);
+                    // Re-apply after 1-frame noclip restore if platform snap briefly fell on frame 0.
+                    net->hmnPendingDownWait = true;
+                }
             }
             s_placedPlayer[0] = static_cast<s8>(hmnRef.playerNo);
 
@@ -1517,6 +1552,7 @@ namespace extra {
         in.shieldDropAttack = cfg.shieldDropAttack;
         in.slideOffAttack = cfg.slideOffAttack;
         in.grabAction = cfg.grabAction;
+        in.spacingOffset = net->spacingOffset;
         in.hasPlatform = s_state.hasPlatform;
         in.rng = geomNextRng(s_state.rng) ^ game::frameCounter();
         in.cpuFtKind = game::fighterKind(who.entryId, who.sub);

@@ -37,6 +37,9 @@ namespace extra {
     // Returns 0 (Right), 1 (Left), or 2 (Random) for Combo Trainer's
     // Recovery Trainer loop when Edgeguard scenario is active (2 otherwise).
     int scenarioPresetsEdgeguardSide();
+    // Returns true when grabbing ledge should trigger Recovery Trainer reset
+    // (always true outside Edgeguard scenario, or when Reset On == Ledge Grab).
+    bool scenarioPresetsEdgeguardResetOnLedge();
     // Shared fighter warp cleanups and module reads (used by Combo Trainer and Scenario Presets).
     void clearWarpIntang(const game::FighterRef& ref);
     void finishStandingWarp(const game::FighterRef& ref, bool setNoclip, bool fallIfNoGround = false);

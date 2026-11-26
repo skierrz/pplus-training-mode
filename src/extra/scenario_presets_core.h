@@ -111,6 +111,12 @@ namespace extra {
         kEgDjCount = 3
     };
 
+    enum EdgeguardReset {
+        kEgResetStageSafe = 0,
+        kEgResetLedgeGrab = 1,
+        kEgResetCount = 2
+    };
+
     enum LedgetechStart {
         kLtStartRevival = 0,
         kLtStartInstant = 1,
@@ -153,6 +159,13 @@ namespace extra {
         kSlideAtkUnderNair = 2,
         kSlideAtkOnPlatFtilt = 3,
         kSlideAtkCount = 4
+    };
+
+    enum SlideOffStart {
+        kSlideStartKnockdown = 0,
+        kSlideStartTumble = 1,
+        kSlideStartStanding = 2,
+        kSlideStartCount = 3
     };
 
     enum {
@@ -293,6 +306,8 @@ namespace extra {
         u8 shieldDefAttack;   // ShieldDefAttack
         u8 shieldDropAttack;  // ShieldDropAttack
         u8 slideOffAttack;    // SlideOffAttack
+        u8 slideOffStart;     // SlideOffStart
+        u8 edgeguardReset;    // EdgeguardReset
         s8 spacingOffset;     // live D-Pad Left/Right spacing nudge (-8..+12)
     };
 
@@ -302,6 +317,8 @@ namespace extra {
         float hmnLr;
         bool hmnFalling;
         bool hmnRevivalPlat;
+        bool hmnDownWait;
+        bool hmnTumbleDrop;
         float cpuX;
         float cpuY;
         float cpuLr;
@@ -484,6 +501,7 @@ namespace extra {
         u8 shieldDropAttack; // ShieldDropAttack (0..3)
         u8 slideOffAttack;   // SlideOffAttack (0..3)
         u8 grabAction;       // GrabAction
+        s8 spacingOffset;    // Live D-Pad Left/Right spacing offset (-8..+12)
         bool hasPlatform;    // true if active scenario spawned on a platform
         u32 rng;             // Per-frame stirred RNG for delays & random picks
         int cpuFtKind;

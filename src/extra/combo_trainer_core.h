@@ -80,7 +80,8 @@ namespace extra {
         int xluFrames;       // game::Body::xluFrames (ledge / respawn intangibility)
         int invFrames;       // game::Body::invFrames
         bool bodyIntangible; // game::Body::intangible (spotdodge, roll, airdodge, invincible moves)
-        bool onLedge;        // CliffCatch / CliffWait / Cliff*
+        bool onLedge;          // CliffCatch / CliffWait / Cliff*
+        bool ignoreLedgeReset; // Edgeguard Stage Safe: let CPU hang/getup for ledge-trap continuity
         bool air;
         bool outOfPlay;
         bool belowRecoveryReset;
@@ -352,9 +353,12 @@ namespace extra {
             {
                 st.recoveryAirFrames++;
             }
-            bool initialPlace = st.recoveryResets == 0 && (in.landedSafeOnStage || in.onLedge);
-            bool graceTrigger = st.recoveryResets > 0 && st.recoveryAirFrames >= 12
-                                && (in.landedSafeOnStage || in.onLedge) && in.hitstun == 0 && in.hitlag == 0;
+            bool ledgeTriggersReset = !in.ignoreLedgeReset && in.onLedge;
+            bool initialPlace = st.recoveryResets == 0 && st.recoveryAirFrames < 12
+                                && (in.landedSafeOnStage || ledgeTriggersReset);
+            bool graceTrigger = st.recoveryAirFrames >= 12
+                                && (in.landedSafeOnStage || ledgeTriggersReset)
+                                && in.hitstun == 0 && in.hitlag == 0;
             bool needRespawn = in.belowRecoveryReset || initialPlace;
             if (!needRespawn)
             {

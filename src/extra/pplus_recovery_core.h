@@ -124,7 +124,7 @@ namespace extra {
         u8 ledgeWaitFrames;
         s16 prevStatus;
         u8 cliffChoice;
-        u8 reserved;
+        u8 ledgeWaitTarget;
     };
 
     struct RecoveryInput {

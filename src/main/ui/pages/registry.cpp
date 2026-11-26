@@ -54,7 +54,7 @@ namespace pages {
         kOverlayRowCount = 34,                        // 17 P1 + 17 CPU
         kInfoRowCount = 20,                           // 10 P1 + 10 CPU
         kStageCastRowCount = 35,
-        kScenariosRowCount = 53,
+        kScenariosRowCount = 55,
         kOsdMenuRowCount = 26,
         kComboTrainerRowCount = 23,                  // 16 + 7 meters
         kTechOptionsRowCount = 17,
