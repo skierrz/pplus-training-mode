@@ -9,6 +9,7 @@
 #include "extra/di_cstick_core.h"
 #include "extra/hud_draw.h"
 #include "extra/input_viewer_core.h"
+#include "extra/net_alloc.h"
 #include "extra/ui_assets.h"
 #include "main/cpu/driver.h"
 #include "main/display/display.h"
@@ -52,15 +53,10 @@ namespace extra {
 
         InputViewerDebugBlock s_debug;
 
-        float floatAt(const void* base, u32 offset)
-        {
-            return *reinterpret_cast<const float*>(reinterpret_cast<u32>(base) + offset);
-        }
-
         bool readFighterViewerPad(const game::FighterRef& ref, display::ViewerPad& out)
         {
             memset(&out, 0, sizeof(out));
-            ftEntryManager* entries = g_ftEntryManager;
+            ftEntryManager* entries = extraEntryManager();
             ftEntry* entry = game::isRam(entries) ? entries->getEntity(ref.entryId) : NULL;
             int slot = game::isRam(entry) ? entry->m_slotIndex : -1;
 

@@ -1,6 +1,11 @@
 #include "extra/hud_draw.h"
 
+#include <GX/GXTypes.h>
+#include <string.h>
+
+#include "main/display/display.h"
 #include "main/gfx/text.h"
+#include "main/settings.h"
 
 namespace tm {
 namespace extra {
@@ -24,6 +29,67 @@ namespace extra {
         {
             gfx::fillRect(x + px, y + 2.0f, innerW, 2.0f, sheen);
         }
+    }
+
+    void drawHudDivider(float x, float y, float bw, float xs)
+    {
+        gfx::fillRect(x + 4.0f * xs, y, bw - 8.0f * xs, 2.0f, 0x2A4C58C0u);
+    }
+
+    void drawUnitDial(float cx, float cy, float rx, float ry, gfx::Rgba fillCol, gfx::Rgba rimCol)
+    {
+        gfx::fillEllipse(cx, cy, rx, ry, fillCol);
+        gfx::lineBegin(GX_LINES, 4, 6);
+        gfx::vertex(cx - rx, cy, 0x3A586888u);
+        gfx::vertex(cx + rx, cy, 0x3A586888u);
+        gfx::vertex(cx, cy - ry, 0x3A586888u);
+        gfx::vertex(cx, cy + ry, 0x3A586888u);
+        gfx::lineBegin(GX_LINESTRIP, 17, 10);
+        for (int i = 0; i < 17; i++)
+        {
+            float ux, uy;
+            unitPoint16(i, ux, uy);
+            gfx::vertex(cx + ux * rx, cy - uy * ry, rimCol);
+        }
+    }
+
+    void clipTextToWidth(char* buf, float scale, float maxW)
+    {
+        if (gfx::textWidth(buf, scale) <= maxW)
+        {
+            return;
+        }
+        int len = static_cast<int>(strlen(buf));
+        while (len > 3)
+        {
+            len--;
+            buf[len - 2] = '.';
+            buf[len - 1] = '.';
+            buf[len] = '\0';
+            if (gfx::textWidth(buf, scale) <= maxW)
+            {
+                return;
+            }
+        }
+    }
+
+    int countInputViewerSlots(const game::FighterRef* refs, int n)
+    {
+        u8 who = main::settings().display.inputViewer;
+        if (who == display::kWhoNone)
+        {
+            return 0;
+        }
+        int slots = 0;
+        for (int i = 0; i < n && slots < 2; i++)
+        {
+            bool cpu = display::cpuPlayer(refs[i]);
+            if ((who & (cpu ? display::kWhoCpu : display::kWhoHuman)) != 0)
+            {
+                slots++;
+            }
+        }
+        return slots;
     }
 
     void unitPoint16(int idx, float& ox, float& oy)

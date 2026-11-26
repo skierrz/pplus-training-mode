@@ -15,6 +15,7 @@
 #include <st/st_trigger.h>
 #include <st/stage.h>
 
+#include "extra/net_alloc.h"
 #include "extra/stage_options_logic.h"
 #include "main/extra.h"
 #include "main/settings.h"
@@ -362,11 +363,12 @@ namespace extra {
 
         static void* fetchStageStdt(int miscIndex)
         {
-            if (!game::isRam(g_Stage))
+            Stage* stage = extraStage();
+            if (!game::isRam(stage))
             {
                 return NULL;
             }
-            stCommonGimmick* st = static_cast<stCommonGimmick*>(g_Stage);
+            stCommonGimmick* st = static_cast<stCommonGimmick*>(stage);
             if (!game::isRam(st->m_fileData))
             {
                 return NULL;
@@ -461,11 +463,12 @@ namespace extra {
 
         static void applyDreamLandPositions(bool hazardOff)
         {
-            if (!game::isRam(g_Stage) || !game::isRam(g_Stage->m_stagePositions))
+            Stage* stage = extraStage();
+            if (!game::isRam(stage) || !game::isRam(stage->m_stagePositions))
             {
                 return;
             }
-            stCommonGimmick* st = static_cast<stCommonGimmick*>(g_Stage);
+            stCommonGimmick* st = static_cast<stCommonGimmick*>(stage);
             if (!game::isRam(st->m_fileData))
             {
                 return;
@@ -476,22 +479,23 @@ namespace extra {
                 return;
             }
             nw4r::g3d::ResFile res(posData);
-            g_Stage->m_stagePositions->loadPositionData(&res);
-            g_Stage->updateStagePositions();
+            stage->m_stagePositions->loadPositionData(&res);
+            stage->updateStagePositions();
         }
 
         static void applyDreamLand(bool hazardOff, bool hazardChanged, bool force)
         {
             Ground* whispy = s_live.whispy;
-            if (!game::isRam(whispy) || !game::isRam(g_Stage))
+            Stage* stage = extraStage();
+            if (!game::isRam(whispy) || !game::isRam(stage))
             {
                 return;
             }
             void* desiredStdt = fetchStageStdt(hazardOff ? 21 : 20);
-            bool stdtMismatch = desiredStdt != NULL && (g_Stage->m_stageData != desiredStdt || whispy->m_stageData != desiredStdt);
+            bool stdtMismatch = desiredStdt != NULL && (stage->m_stageData != desiredStdt || whispy->m_stageData != desiredStdt);
             if (desiredStdt != NULL && stdtMismatch)
             {
-                g_Stage->m_stageData = desiredStdt;
+                stage->m_stageData = desiredStdt;
                 whispy->m_stageData = desiredStdt;
             }
 
@@ -787,12 +791,13 @@ namespace extra {
         static void detectStage()
         {
             memset(&s_live, 0, sizeof(s_live));
-            if (!game::isRam(g_Stage))
+            Stage* stage = extraStage();
+            if (!game::isRam(stage))
             {
                 main::setStagePlatformRowPreset(kPresetNone);
                 return;
             }
-            s_live.stage = g_Stage;
+            s_live.stage = stage;
             s_live.initialHazardOff = readGameHazardOff();
             s_live.appliedHazardOff = s_live.initialHazardOff;
 
@@ -807,7 +812,7 @@ namespace extra {
             Ground* platLeftGround = NULL;
             Ground* randallGround = NULL;
 
-            Ground* g = g_Stage->m_headGround;
+            Ground* g = stage->m_headGround;
             for (int n = 0; n < kMaxGroundWalk && game::isRam(g); n++, g = g->m_nextGround)
             {
                 u16 mdl = g->m_mdlIndex;
@@ -889,13 +894,14 @@ namespace extra {
                 so.platformMode = static_cast<u8>(clampPlatformMode(s_live.preset, so.platformMode));
             }
             TM_LOG("stage_options: detected preset %d (stage %08x kind %x initHazOff %d moving %d)\n", s_live.preset,
-                   g_Stage, static_cast<int>(g_Stage->m_stageKind), s_live.initialHazardOff ? 1 : 0,
+                   stage, static_cast<int>(stage->m_stageKind), s_live.initialHazardOff ? 1 : 0,
                    s_live.movingCount);
         }
 
         static void ensureDetected()
         {
-            if (!game::isRam(g_Stage))
+            Stage* stage = extraStage();
+            if (!game::isRam(stage))
             {
                 if (s_live.initialized || s_live.stage != NULL)
                 {
@@ -905,7 +911,7 @@ namespace extra {
                 }
                 return;
             }
-            if (!s_live.initialized || s_live.stage != g_Stage)
+            if (!s_live.initialized || s_live.stage != stage)
             {
                 restoreGlobalHazardOff();
                 detectStage();

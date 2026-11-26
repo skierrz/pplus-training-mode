@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "extra/net_alloc.h"
 #include "extra/stage_geom_math.h"
 
 namespace tm {
@@ -74,14 +75,9 @@ namespace extra {
         out.buttons = (lastButtons & btn) != 0 ? 0u : btn;
     }
 
-    static float recClamp(float v, float lo, float hi)
+    static inline float recClamp(float v, float lo, float hi)
     {
-        return v < lo ? lo : (v > hi ? hi : v);
-    }
-
-    static float i2f(int v)
-    {
-        return static_cast<float>(v);
+        return clampf(v, lo, hi);
     }
 #pragma dont_inline reset
 

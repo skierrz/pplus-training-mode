@@ -20,7 +20,16 @@ namespace game {
 
     // Fills `out` for heap `id` (an index into g_HeapInfos); false if that
     // heap does not exist right now.
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    bool x_heapUsage(u32 id, HeapUsage& out);
+#ifndef TM_EXTRA_THUNK_IMPL
+    static inline bool heapUsage(u32 id, HeapUsage& out) { return x_heapUsage(id, out); }
+#else
     bool heapUsage(u32 id, HeapUsage& out);
+#endif
+#else
+    bool heapUsage(u32 id, HeapUsage& out);
+#endif
 
     // The heap's name from g_HeapInfos, or "?" if it has none.
     const char* heapName(u32 id);

@@ -325,7 +325,7 @@ namespace extra {
         out.cstickMode = kCStickNone;
         out.hasHumanPad = false;
         out.cstickWasActive = false;
-        ftEntryManager* entries = g_ftEntryManager;
+        ftEntryManager* entries = extraEntryManager();
         ftEntry* entry = game::isRam(entries) ? entries->getEntity(ref.entryId) : NULL;
         if (!game::isRam(entry) || !game::isRam(entry->m_input))
         {
@@ -468,7 +468,7 @@ namespace extra {
 #ifdef TM_EXPERIMENTS
         experiments::g_rayCount++;
 #endif
-        if (!stRayCheck(&pos, &dir, &hit, &normal, true, NULL, false, kRayFighter))
+        if (!extraRayCheck(&pos, &dir, &hit, &normal, true, NULL, false, kRayFighter))
         {
             return;
         }
@@ -993,7 +993,7 @@ namespace extra {
         s_body.half *= 0.5f;
         s_body.mid = left.m_y - s.y;
         soModuleAccesser* accesser = reinterpret_cast<soModuleAccesser*>(game::wordAt(f, 0x60));
-        s_body.brake = soValueAccesser::getConstantFloat(accesser, kGroundBrake, 0) * s_env.groundMul;
+        s_body.brake = extraConstFloat(accesser, kGroundBrake) * s_env.groundMul;
         s_body.brake = within(s_body.brake, 0.0f, 1.0f) ? s_body.brake : 0.0f;
         if (s_body.down < kLowEcb)
         {
@@ -1278,20 +1278,10 @@ namespace extra {
         }
 
         // Count active Input Viewer slots so the compass stacks cleanly below them.
-        int viewerSlots = 0;
-        if (set.display.inputViewer != display::kWhoNone)
-        {
-            game::FighterRef refs[game::kMaxFighters];
-            int n = game::listFighters(refs, game::kMaxFighters);
-            for (int i = 0; i < n && viewerSlots < 2; i++)
-            {
-                bool cpu = display::cpuPlayer(refs[i]);
-                if ((set.display.inputViewer & (cpu ? display::kWhoCpu : display::kWhoHuman)) != 0)
-                {
-                    viewerSlots++;
-                }
-            }
-        }
+        game::FighterRef refs[game::kMaxFighters];
+        int viewerSlots = set.display.inputViewer != display::kWhoNone
+                              ? countInputViewerSlots(refs, game::listFighters(refs, game::kMaxFighters))
+                              : 0;
 
         ui::layout::Box b = ui::layout::diCompassBox(ui::layout::topBand(), viewerSlots, gfx::widescreen());
         float xs = gfx::xScale();
@@ -1308,20 +1298,7 @@ namespace extra {
         float ry = 22.0f;
         float rx = ry * xs;
 
-        gfx::fillEllipse(cx, cy, rx, ry, 0x060E14D0u);
-        gfx::lineBegin(GX_LINES, 4, 6);
-        gfx::vertex(cx - rx, cy, 0x3A586888u);
-        gfx::vertex(cx + rx, cy, 0x3A586888u);
-        gfx::vertex(cx, cy - ry, 0x3A586888u);
-        gfx::vertex(cx, cy + ry, 0x3A586888u);
-
-        gfx::lineBegin(GX_LINESTRIP, 17, 10);
-        for (int i = 0; i < 17; i++)
-        {
-            float ux, uy;
-            unitPoint16(i, ux, uy);
-            gfx::vertex(cx + ux * rx, cy - uy * ry, 0x5A96A8F0u);
-        }
+        drawUnitDial(cx, cy, rx, ry, 0x060E14D0u, 0x5A96A8F0u);
 
         // Launch direction arrow (amber-gold).
         float lLen = root(launchX * launchX + launchY * launchY);
@@ -1403,23 +1380,10 @@ namespace extra {
         float cx = cardX + ui::style::w(46.0f);
         float cy = topY + 5.0f + (cardH - 7.0f) * 0.5f;
 
-        gfx::fillEllipse(cx, cy, rx, ry, 0x060E14D8u);
-        gfx::lineBegin(GX_LINES, 4, 6);
-        gfx::vertex(cx - rx, cy, 0x3A586888u);
-        gfx::vertex(cx + rx, cy, 0x3A586888u);
-        gfx::vertex(cx, cy - ry, 0x3A586888u);
-        gfx::vertex(cx, cy + ry, 0x3A586888u);
+        drawUnitDial(cx, cy, rx, ry, 0x060E14D8u, 0x5A96A8F0u);
 
-        gfx::lineBegin(GX_LINESTRIP, 17, 10);
-        for (int i = 0; i < 17; i++)
-        {
-            float ux, uy;
-            unitPoint16(i, ux, uy);
-            gfx::vertex(cx + ux * rx, cy - uy * ry, 0x5A96A8F0u);
-        }
-
-        float vx = static_cast<float>(set.cpuTables.customDiX) / 100.0f;
-        float vy = static_cast<float>(set.cpuTables.customDiY) / 100.0f;
+        float vx = i2fScale(set.cpuTables.customDiX, 0.01f);
+        float vy = i2fScale(set.cpuTables.customDiY, 0.01f);
         clampLength(vx, vy, 1.0f);
         float tipX = cx + vx * rx * 0.90f;
         float tipY = cy - vy * ry * 0.90f;

@@ -88,45 +88,14 @@ namespace extra {
         u32 s_resetCount = 0;
         s32 s_prevFrame = game::kNoFrame;
 
-        float floatAt(const void* base, u32 offset)
-        {
-            return *reinterpret_cast<const float*>(reinterpret_cast<u32>(base) + offset);
-        }
-
-        const void* workBank(const soModuleEnumeration* m, u32 which)
-        {
-            if (m == NULL || !game::isRam(m->m_workManageModule))
-            {
-                return NULL;
-            }
-            const void* w = reinterpret_cast<const void*>(game::wordAt(m->m_workManageModule, which));
-            return game::isRam(w) ? w : NULL;
-        }
-
         s32 statusInt(const soModuleEnumeration* m, u32 index)
         {
-            const void* w = workBank(m, kWorkStatus);
-            if (w == NULL || index >= game::wordAt(w, kWorkIntCount))
-            {
-                return 0;
-            }
-            const s32* ints = reinterpret_cast<const s32*>(game::wordAt(w, kWorkInts));
-            return game::isRam(ints) ? ints[index] : 0;
+            return workInt(m, kWorkStatus, index);
         }
 
         float instanceFloat(const soModuleEnumeration* m, u32 index)
         {
-            const void* w = workBank(m, kWorkInstance);
-            if (w == NULL || index >= game::wordAt(w, kWorkFloatCount))
-            {
-                return 0.0f;
-            }
-            const float* floats = reinterpret_cast<const float*>(game::wordAt(w, kWorkFloats));
-            if (!game::isRam(floats))
-            {
-                return 0.0f;
-            }
-            float v = floats[index];
+            float v = workFloat(m, kWorkInstance, index);
             return (v >= -1.5f && v <= 1.5f) ? v : 0.0f;
         }
 
@@ -153,7 +122,7 @@ namespace extra {
             {
                 return kDefaultLandingFrame;
             }
-            float lf = soValueAccesser::getConstantFloat(accesser, kParamLandingFrame, 0);
+            float lf = extraConstFloat(accesser, kParamLandingFrame);
             return (lf >= 0.0f && lf <= 30.0f) ? lf : kDefaultLandingFrame;
         }
 

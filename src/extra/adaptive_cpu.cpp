@@ -328,7 +328,7 @@ namespace extra {
         u32 accent = activeMode ? 0xFFD300FFu : 0x35B8C8FFu;
 
         drawHudCard(x, y, bw, bh, xs, accent, 0xFFFFFF40u);
-        gfx::fillRect(x + 4.0f * xs, y + 15.0f, bw - 8.0f * xs, 1.0f, 0x2A4C58C0u);
+        drawHudDivider(x, y + 15.0f, bw, xs);
 
         float hdrScale = ui::style::scaleForCap(6.4f);
         float hdrY = ui::style::textYForCap(y + 6.2f, hdrScale);
@@ -356,13 +356,13 @@ namespace extra {
         float barW = 73.0f * xs;
         for (int r = 0; r < 3; r++)
         {
-            float ry = y + 18.0f + static_cast<float>(r) * 9.0f;
+            float ry = y + 18.0f + i2fScale(r, 9.0f);
             float ty = ui::style::textYForCap(ry, rowScale);
             drawShadowText(x + 5.5f * xs, ty, kBarLabels[r], 0xC6D8E0FFu, rowScale);
             gfx::fillRect(barX, ry + 0.4f, barW, 5.2f, 0x0A151CE8u);
             if (pcts[r] > 0)
             {
-                float fw = barW * (static_cast<float>(pcts[r]) * 0.01f);
+                float fw = barW * i2fScale(pcts[r], 0.01f);
                 gfx::fillRect(barX, ry + 0.4f, fw, 5.2f, kBarCols[r]);
             }
             char pctBuf[8];

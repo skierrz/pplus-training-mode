@@ -148,7 +148,16 @@ namespace ui {
     // or value change, a page or function, B leaving a page, A on an
     // unavailable row), not menuJump or the value setters, so only a button
     // press does. Silent while g_menuQuiet is set (Frame Decrement's replay).
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    void x_menuSound(int id);
+#ifndef TM_EXTRA_THUNK_IMPL
+    static inline void menuSound(int id) { x_menuSound(id); }
+#else
     void menuSound(int id);
+#endif
+#else
+    void menuSound(int id);
+#endif
     extern bool g_menuQuiet;
 
     // The page shown and the option under the cursor (NULL on an empty page).

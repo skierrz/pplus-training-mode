@@ -62,11 +62,23 @@ namespace display {
     // Whether the fighter's player is a CPU in the match setup. A CPU with its
     // AI off (Training's Control, the lab's CPU control) is operated like a
     // human (ftManager's operation type), but keeps the CPU's options.
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    bool x_cpuPlayer(const game::FighterRef& ref);
+    void* x_cameraController();
+#ifndef TM_EXTRA_THUNK_IMPL
+    static inline bool cpuPlayer(const game::FighterRef& ref) { return x_cpuPlayer(ref); }
+    static inline void* cameraController() { return x_cameraController(); }
+#else
+    bool cpuPlayer(const game::FighterRef& ref);
+    void* cameraController();
+#endif
+#else
     bool cpuPlayer(const game::FighterRef& ref);
 
     // The game's CameraController (its blast zones at +0x158: left, right,
     // top, bottom), or NULL if its code was not as expected.
     void* cameraController();
+#endif
 
     // HUD on: the lab's watermark is drawn.
     bool hudShown();

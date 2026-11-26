@@ -16,6 +16,7 @@
 #include "shared/game/stick.h"
 
 #include "extra/frame_data.h"
+#include "extra/net_alloc.h"
 #include "main/cpu/view.h"
 #include "main/extra.h"
 #include "main/game/body.h"
@@ -246,54 +247,64 @@ namespace ui {
     }
 
     // Shadows libc snprintf in this translation unit with typed overloads for
-    // hot info-panel formats (%d, %s, %[+].[0-4]f) so MWCC's slow float
-    // formatter is bypassed without varargs (__va_arg) while keeping full
-    // vsnprintf fallback for everything else.
+    // hot info-panel formats (%d, %s, %[+].[0-4]f) via a single non-inline
+    // formatFast dispatch so MWCC does not inline formatFast 7 times into drawSide.
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
+    static int fastFmt(char* buf, u32 size, const char* format, const gfx::FmtArg* args, int count)
+    {
+        return gfx::formatFast(buf, size, format, args, count);
+    }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
+
     static int snprintf(char* buf, u32 size, const char* format)
     {
-        int n = gfx::formatFast(buf, size, format, NULL, 0);
+        int n = fastFmt(buf, size, format, NULL, 0);
         return n >= 0 ? n : std::snprintf(buf, size, format);
     }
 
     static int snprintf(char* buf, u32 size, const char* format, int a)
     {
         gfx::FmtArg args[1] = {gfx::FmtArg::fromInt(a)};
-        int n = gfx::formatFast(buf, size, format, args, 1);
+        int n = fastFmt(buf, size, format, args, 1);
         return n >= 0 ? n : std::snprintf(buf, size, format, a);
     }
 
     static int snprintf(char* buf, u32 size, const char* format, int a, int b)
     {
         gfx::FmtArg args[2] = {gfx::FmtArg::fromInt(a), gfx::FmtArg::fromInt(b)};
-        int n = gfx::formatFast(buf, size, format, args, 2);
+        int n = fastFmt(buf, size, format, args, 2);
         return n >= 0 ? n : std::snprintf(buf, size, format, a, b);
     }
 
     static int snprintf(char* buf, u32 size, const char* format, const char* s)
     {
         gfx::FmtArg args[1] = {gfx::FmtArg::fromStr(s)};
-        int n = gfx::formatFast(buf, size, format, args, 1);
+        int n = fastFmt(buf, size, format, args, 1);
         return n >= 0 ? n : std::snprintf(buf, size, format, s);
     }
 
     static int snprintf(char* buf, u32 size, const char* format, float a)
     {
         gfx::FmtArg args[1] = {gfx::FmtArg::fromFloat(a)};
-        int n = gfx::formatFast(buf, size, format, args, 1);
+        int n = fastFmt(buf, size, format, args, 1);
         return n >= 0 ? n : std::snprintf(buf, size, format, a);
     }
 
     static int snprintf(char* buf, u32 size, const char* format, float a, float b)
     {
         gfx::FmtArg args[2] = {gfx::FmtArg::fromFloat(a), gfx::FmtArg::fromFloat(b)};
-        int n = gfx::formatFast(buf, size, format, args, 2);
+        int n = fastFmt(buf, size, format, args, 2);
         return n >= 0 ? n : std::snprintf(buf, size, format, a, b);
     }
 
     static int snprintf(char* buf, u32 size, const char* format, const char* s, float a, float b)
     {
         gfx::FmtArg args[3] = {gfx::FmtArg::fromStr(s), gfx::FmtArg::fromFloat(a), gfx::FmtArg::fromFloat(b)};
-        int n = gfx::formatFast(buf, size, format, args, 3);
+        int n = fastFmt(buf, size, format, args, 3);
         return n >= 0 ? n : std::snprintf(buf, size, format, s, a, b);
     }
 
@@ -382,8 +393,8 @@ namespace ui {
             if (value == kInfoSystemTrigger)
             {
                 format = "%s: (%+.3f , %+.3f)";
-                x = static_cast<u8>(pad->m_lTriggerAnalog) / 255.0f;
-                y = static_cast<u8>(pad->m_rTriggerAnalog) / 255.0f;
+                x = extra::i2fScale(static_cast<u8>(pad->m_lTriggerAnalog), 1.0f / 255.0f);
+                y = extra::i2fScale(static_cast<u8>(pad->m_rTriggerAnalog), 1.0f / 255.0f);
             }
             break;
         case kInfoEngineTrigger:
@@ -398,7 +409,7 @@ namespace ui {
             break;
         }
         case kInfoLedgegrabTimer:
-            x = game::instanceInt(m, kLedgeInt);
+            x = extra::i2f(game::instanceInt(m, kLedgeInt));
             break;
         case kInfoIntangibility:
         {
@@ -407,7 +418,7 @@ namespace ui {
             {
                 return false;
             }
-            x = b.xluFrames > b.invFrames ? b.xluFrames : b.invFrames;
+            x = extra::i2f(b.xluFrames > b.invFrames ? b.xluFrames : b.invFrames);
             if (side == main::kSideCpu && settings().cpu.options.intangible && x > 0.0f)
             {
                 format = "%s: lab";
@@ -433,7 +444,7 @@ namespace ui {
                 s32 air = static_cast<s32>(game::wordAt(info, kAirFrames));
                 s32 drop = static_cast<s32>(game::wordAt(info, kDropLock));
                 s32 left = air >= 1 && air <= 9 ? 10 - air : 0;
-                x = drop > left ? drop : left;
+                x = extra::i2f(drop > left ? drop : left);
             }
             break;
         }
@@ -452,20 +463,20 @@ namespace ui {
         case kInfoJumps:
             // The accesser is in RAM: fighterModules checked it.
             format = "%s: %.0f/%.0f";
-            x = game::instanceInt(m, kJumpsInt);
-            y = soValueAccesser::getConstantInt(acc, kJumpMax, 0);
+            x = extra::i2f(game::instanceInt(m, kJumpsInt));
+            y = extra::i2f(extra::extraConstInt(acc, kJumpMax));
             break;
         case kInfoWalljumps:
             // Brawl's wall jump count (LA int 3), read by the wall jump at
             // 0x8086e4a4 with parameter 3224; landing clears it (Mario, FD).
-            x = game::instanceInt(m, kWallJumpsInt);
+            x = extra::i2f(game::instanceInt(m, kWallJumpsInt));
             break;
         case kInfoCanWalljump:
         {
             // P+ ftInfo +0x24 via getConstantInt(23189); LA-Basic[4] counts
             // down from IC-Basic[23069] (20f) after a walljump.
             bool air = game::isRam(m->m_situationModule) && m->m_situationModule->getKind() == Situation_Air;
-            int can = soValueAccesser::getConstantInt(acc, kParamCanWalljump, 0);
+            int can = extra::extraConstInt(acc, kParamCanWalljump);
             int count = game::instanceInt(m, kWallJumpCountLa);
             int cd = game::instanceInt(m, kWallJumpCooldownLa);
             formatCanWalljump(can, air, count, cd, buf, size);
@@ -476,7 +487,7 @@ namespace ui {
             // P+ ftInfo +0x28 via getConstantInt(23190); Knuckles (0x2D) uses
             // custom WallClimb* actions; LA-Basic[11..12] track 1 cling/airtime.
             bool air = game::isRam(m->m_situationModule) && m->m_situationModule->getKind() == Situation_Air;
-            int can = soValueAccesser::getConstantInt(acc, kParamCanWallCling, 0);
+            int can = extra::extraConstInt(acc, kParamCanWallCling);
             int kind = game::fighterKind(ref.entryId);
             int count = game::instanceInt(m, kWallClingCountLa);
             int noAttach = game::instanceInt(m, kWallClingNoAttachLa);

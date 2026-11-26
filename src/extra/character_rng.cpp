@@ -24,6 +24,7 @@
 #include "extra/fighter_mechanics.h"
 #include "extra/fighter_mechanics_logic.h"
 #include "extra/fighter_swap.h"
+#include "extra/net_alloc.h"
 #include "main/extra.h"
 #include "main/game/fighters.h"
 #include "main/settings.h"
@@ -142,7 +143,7 @@ namespace extra {
 
     static int activeKind(const game::FighterRef& ref)
     {
-        ftEntryManager* entries = g_ftEntryManager;
+        ftEntryManager* entries = extraEntryManager();
         if (!game::isRam(entries))
         {
             return -1;
@@ -414,14 +415,14 @@ namespace extra {
         {
             return false;
         }
-        const void* data = g_ftCommonDataAccesser.getData(Fighter_Peach);
+        const void* data = extraFtCommonData(Fighter_Peach);
         return data == s_oddsData && game::isRam(data)
                && reinterpret_cast<s32*>(game::wordAt(data, kDataOdds)) == s_odds && game::isRam(s_odds);
     }
 
     static void syncOddsCache()
     {
-        const void* data = g_ftCommonDataAccesser.getData(Fighter_Peach);
+        const void* data = extraFtCommonData(Fighter_Peach);
         if (data == NULL || data != s_oddsData)
         {
             clearOddsCache();
@@ -434,7 +435,7 @@ namespace extra {
     static void findOdds(Fighter* fighter)
     {
         s_oddsTried = true;
-        const void* data = g_ftCommonDataAccesser.getData(Fighter_Peach);
+        const void* data = extraFtCommonData(Fighter_Peach);
         if (!game::isRam(data))
         {
             s_oddsData = NULL;
@@ -446,7 +447,7 @@ namespace extra {
         const ItemEntry* items = reinterpret_cast<const ItemEntry*>(game::wordAt(data, kDataItems));
         u32 count = game::wordAt(data, kDataItemCount);
         bool ok = game::isRam(odds) && game::isRam(items) && count == kItemEntries
-                  && soValueAccesser::getConstantInt(fighter->m_moduleAccesser, kParamOdds, 0) == *odds && *odds > 1
+                  && extraConstInt(fighter->m_moduleAccesser, kParamOdds) == *odds && *odds > 1
                   && items[0].kind == Item_BobOmb && items[0].weight == 0.0f && items[1].kind == Item_MrSaturn
                   && items[1].weight > 0.0f && items[2].kind == Item_BeamSword && items[2].weight == 0.0f;
         TM_LOG("character rng: Peach's item odds at %08x (1 in %d), table at %08x (%d): %s\n", odds,
@@ -491,7 +492,7 @@ namespace extra {
         fighterMechanicsPrepareSwap();
         if (oddsResident())
         {
-            const void* liveData = g_ftCommonDataAccesser.getData(Fighter_Peach);
+            const void* liveData = extraFtCommonData(Fighter_Peach);
             TM_LOG("character rng: pre-swap restore item odds %08x (was %d, put back %d, live data %08x)\n", s_odds,
                    *s_odds, s_oddsFile, liveData);
             *s_odds = s_oddsFile;
@@ -505,7 +506,7 @@ namespace extra {
         fighterMechanicsDetach();
         if (oddsResident())
         {
-            const void* liveData = g_ftCommonDataAccesser.getData(Fighter_Peach);
+            const void* liveData = extraFtCommonData(Fighter_Peach);
             TM_LOG("character rng: detach item odds %08x (was %d, put back %d, live data %08x)\n", s_odds, *s_odds,
                    s_oddsFile, liveData);
             *s_odds = s_oddsFile;

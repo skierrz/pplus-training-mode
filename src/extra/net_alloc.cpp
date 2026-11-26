@@ -2,9 +2,15 @@
 
 #include <cstdarg>
 #include <cstdio>
+#include <ft/ft_common_data_accesser.h>
+#include <ft/ft_entry_manager.h>
 #include <gf/gf_heap_manager.h>
 #include <gf/gf_memory_pool.h>
 #include <memory.h>
+#include <so/so_module_accesser.h>
+#include <so/so_value_accesser.h>
+#include <st/st_utility.h>
+#include <st/stage.h>
 #include <string.h>
 
 #include "extra/lz77_ascii.h"
@@ -142,6 +148,121 @@ namespace extra {
     bool indexPackedStrings(const char* text, u32 len, u16* offsets, u32 count)
     {
         return indexPackedStringsImpl(text, len, offsets, count);
+    }
+
+    Stage* extraStage()
+    {
+        return g_Stage;
+    }
+
+    ftEntryManager* extraEntryManager()
+    {
+        return g_ftEntryManager;
+    }
+
+    const void* extraFtCommonData(int ftKind)
+    {
+        return g_ftCommonDataAccesser.getData(static_cast< ::ftKind>(ftKind));
+    }
+
+    float extraConstFloat(soModuleAccesser* acc, u32 id)
+    {
+        return soValueAccesser::getConstantFloat(acc, id, 0);
+    }
+
+    s32 extraConstInt(soModuleAccesser* acc, u32 id)
+    {
+        return soValueAccesser::getConstantInt(acc, id, 0);
+    }
+
+    bool extraRayCheck(Vec3f* pos, Vec3f* dir, Vec3f* hit, Vec3f* normal, bool passThrough, grCollision* col,
+                       bool b2, u8 mask)
+    {
+        return stRayCheck(pos, dir, hit, normal, passThrough, col, b2, mask);
+    }
+
+    float i2f(s32 v)
+    {
+        return static_cast<float>(v);
+    }
+
+    float u2f(u32 v)
+    {
+        return static_cast<float>(v);
+    }
+
+    s32 f2i(float v)
+    {
+        return static_cast<s32>(v);
+    }
+
+    float i2fScale(s32 v, float s)
+    {
+        return static_cast<float>(v) * s;
+    }
+
+    float minf(float a, float b)
+    {
+        return a < b ? a : b;
+    }
+
+    float maxf(float a, float b)
+    {
+        return a > b ? a : b;
+    }
+
+    float clampf(float v, float lo, float hi)
+    {
+        return v < lo ? lo : (v > hi ? hi : v);
+    }
+
+    float floatAt(const void* base, u32 offset)
+    {
+        return *reinterpret_cast<const float*>(reinterpret_cast<u32>(base) + offset);
+    }
+
+    const void* workBank(const soModuleEnumeration* m, u32 which)
+    {
+        if (m == NULL || !game::isRam(m->m_workManageModule))
+        {
+            return NULL;
+        }
+        const void* w = reinterpret_cast<const void*>(game::wordAt(m->m_workManageModule, which));
+        return game::isRam(w) ? w : NULL;
+    }
+
+    s32 workInt(const soModuleEnumeration* m, u32 which, u32 index)
+    {
+        const void* w = workBank(m, which);
+        if (w == NULL || index >= game::wordAt(w, 0x10))
+        {
+            return 0;
+        }
+        const s32* ints = reinterpret_cast<const s32*>(game::wordAt(w, 0x0C));
+        return game::isRam(ints) ? ints[index] : 0;
+    }
+
+    float workFloat(const soModuleEnumeration* m, u32 which, u32 index)
+    {
+        const void* w = workBank(m, which);
+        if (w == NULL || index >= game::wordAt(w, 0x18))
+        {
+            return 0.0f;
+        }
+        const float* flts = reinterpret_cast<const float*>(game::wordAt(w, 0x14));
+        return game::isRam(flts) ? flts[index] : 0.0f;
+    }
+
+    bool workBit(const soModuleEnumeration* m, u32 which, u32 index)
+    {
+        const void* w = workBank(m, which);
+        u32 wordIdx = index >> 5;
+        if (w == NULL || wordIdx >= game::wordAt(w, 0x20))
+        {
+            return false;
+        }
+        const u32* words = reinterpret_cast<const u32*>(game::wordAt(w, 0x1C));
+        return game::isRam(words) && ((words[wordIdx] >> (index & 31u)) & 1u) != 0u;
     }
 }
 }

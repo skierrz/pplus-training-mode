@@ -9,7 +9,16 @@ namespace game {
     };
 
     // Reads the state from the game each call; a few loads, no allocation.
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    MatchState x_matchState();
+#ifndef TM_EXTRA_THUNK_IMPL
+    static inline MatchState matchState() { return x_matchState(); }
+#else
     MatchState matchState();
+#endif
+#else
+    MatchState matchState();
+#endif
 
     // Ends the running Training match as Training's Finish does, back to its
     // character select (docs/internals.md, "How Training's Finish ends a

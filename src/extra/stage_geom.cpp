@@ -78,7 +78,7 @@ namespace extra {
             }
         }
         // Fallback: Stage::m_deadRange (BrawlHeaders st/stage.h:123).
-        Stage* stage = g_Stage;
+        Stage* stage = extraStage();
         if (game::isRam(stage))
         {
             const Rect2D& r = stage->m_deadRange;
@@ -102,7 +102,7 @@ namespace extra {
         Vec3f dir(dx, dy, 0.0f);
         hit.m_x = hit.m_y = hit.m_z = 0.0f;
         normal.m_x = normal.m_y = normal.m_z = 0.0f;
-        return stRayCheck(&start, &dir, &hit, &normal, passThrough, NULL, false, kRayFighterMask);
+        return extraRayCheck(&start, &dir, &hit, &normal, passThrough, NULL, false, kRayFighterMask);
     }
 #pragma dont_inline reset
 
@@ -584,7 +584,7 @@ namespace extra {
             int maxJumps = 2;
             if (accOk)
             {
-                int v = soValueAccesser::getConstantInt(acc, kIcJumpCountMax, 0);
+                int v = extraConstInt(acc, kIcJumpCountMax);
                 if (v >= 2 && v <= 10) maxJumps = v;
             }
             w->setInt(grounded ? 0 : (spendDoubleJump ? maxJumps : 1), kLaBasicBase + 1);

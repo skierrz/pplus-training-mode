@@ -3,6 +3,7 @@
 #include <string.h>
 #include <types.h>
 
+#include "extra/net_alloc.h"
 #include "main/cpu/cpu_settings.h"
 
 // Pure host-testable adaptive CPU backend (zero Brawl headers,
@@ -67,69 +68,35 @@ namespace extra {
     // MovementTracker's 16 movement/action categories.
     inline u8 classifyStatusToMov(int status)
     {
-        if ((status >= 0x24 && status <= 0x33) || status >= 0x112 || status == 0x53 || status == 0x76
-            || status == 0x8F)
+        if (status >= 0x112)
         {
             return kMovAttack;
         }
-        if (status == 0x34 || status == 0x36 || status == 0x38 || status == 0x7F)
+        if (status < 0 || status > 0x91)
         {
-            return kMovGrab;
+            return kMovNone;
         }
-        if (status >= 0x3D && status <= 0x49)
+        struct StRange { u8 lo, hi, mov; };
+        static const StRange kRanges[] = {
+            {0x00, 0x02, kMovIdle},    {0x03, 0x03, kMovDash},    {0x04, 0x05, kMovRun},
+            {0x06, 0x06, kMovIdle},    {0x07, 0x07, kMovDash},    {0x08, 0x09, kMovRun},
+            {0x0A, 0x0B, kMovJump},    {0x0C, 0x0D, kMovDjump},   {0x0E, 0x10, kMovFall},
+            {0x11, 0x15, kMovCrouch},  {0x16, 0x19, kMovIdle},    {0x1A, 0x1D, kMovShield},
+            {0x1E, 0x20, kMovRoll},    {0x21, 0x21, kMovAirdodge},{0x24, 0x33, kMovAttack},
+            {0x34, 0x34, kMovGrab},    {0x36, 0x36, kMovGrab},    {0x38, 0x38, kMovGrab},
+            {0x3D, 0x49, kMovHitstun}, {0x4A, 0x50, kMovMissedTech},{0x51, 0x52, kMovRoll},
+            {0x53, 0x53, kMovAttack},  {0x54, 0x55, kMovMissedTech},{0x60, 0x64, kMovTech},
+            {0x75, 0x75, kMovIdle},    {0x76, 0x76, kMovAttack},  {0x77, 0x78, kMovRoll},
+            {0x79, 0x7B, kMovJump},    {0x7F, 0x7F, kMovGrab},    {0x89, 0x8A, kMovMissedTech},
+            {0x8D, 0x8D, kMovMissedTech},{0x8E, 0x8E, kMovRoll},  {0x8F, 0x8F, kMovAttack},
+            {0x90, 0x91, kMovRoll}
+        };
+        for (int i = 0; i < static_cast<int>(sizeof(kRanges) / sizeof(kRanges[0])); i++)
         {
-            return kMovHitstun;
-        }
-        if ((status >= 0x4A && status <= 0x50) || status == 0x54 || status == 0x55 || status == 0x89
-            || status == 0x8A || status == 0x8D)
-        {
-            return kMovMissedTech;
-        }
-        if (status >= 0x1A && status <= 0x1D)
-        {
-            return kMovShield;
-        }
-        if (status == 0x21)
-        {
-            return kMovAirdodge;
-        }
-        if ((status >= 0x1E && status <= 0x20) || status == 0x51 || status == 0x52 || status == 0x77
-            || status == 0x78 || status == 0x8E || status == 0x90 || status == 0x91)
-        {
-            return kMovRoll;
-        }
-        if (status >= 0x60 && status <= 0x64)
-        {
-            return kMovTech;
-        }
-        if (status == 0x03 || status == 0x07)
-        {
-            return kMovDash;
-        }
-        if (status == 0x04 || status == 0x05 || status == 0x08 || status == 0x09)
-        {
-            return kMovRun;
-        }
-        if (status >= 0x11 && status <= 0x15)
-        {
-            return kMovCrouch;
-        }
-        if (status == 0x0A || status == 0x0B || (status >= 0x79 && status <= 0x7B))
-        {
-            return kMovJump;
-        }
-        if (status == 0x0C || status == 0x0D)
-        {
-            return kMovDjump;
-        }
-        if (status >= 0x0E && status <= 0x10)
-        {
-            return kMovFall;
-        }
-        if (status == 0x00 || status == 0x01 || status == 0x02 || status == 0x06
-            || (status >= 0x16 && status <= 0x19) || status == 0x75)
-        {
-            return kMovIdle;
+            if (status >= kRanges[i].lo && status <= kRanges[i].hi)
+            {
+                return kRanges[i].mov;
+            }
         }
         return kMovNone;
     }
@@ -138,73 +105,41 @@ namespace extra {
     inline u8 statusToRps(int status)
     {
         u8 mov = classifyStatusToMov(status);
-        if (mov == kMovAttack)
-        {
-            return kRpsAttack;
-        }
-        if (mov == kMovGrab)
-        {
-            return kRpsGrab;
-        }
-        if (mov == kMovShield || mov == kMovRoll || mov == kMovAirdodge)
-        {
-            return kRpsDefend;
-        }
+        if (mov == kMovAttack) return kRpsAttack;
+        if (mov == kMovGrab) return kRpsGrab;
+        if (mov == kMovShield || mov == kMovRoll || mov == kMovAirdodge) return kRpsDefend;
         return kRpsNull;
     }
 
     inline float movDiffMultiplier(int source, int comparison)
     {
-        switch (source)
+        if (static_cast<u32>(source) >= kMovCount || static_cast<u32>(comparison) >= kMovCount)
         {
-        case kMovNone:
-        case kMovIdle:
-        case kMovMissedTech:
-        case kMovRun:
-        case kMovCrouch:
-            switch (comparison)
-            {
-            case kMovNone:
-            case kMovIdle:
-            case kMovMissedTech:
-            case kMovRun:
-            case kMovCrouch:
-                return 1.0f;
-            case kMovDash:
-                return 0.5f;
-            default:
-                return 0.0f;
-            }
-        case kMovDash:
-        case kMovHitstun:
-            return comparison == kMovHitstun ? 1.0f : (source == comparison ? 1.0f : 0.0f);
-        case kMovJump:
-            if (comparison == kMovDjump)
-            {
-                return 0.5f;
-            }
-            return (comparison == kMovJump || comparison == kMovFall) ? 1.0f : 0.0f;
-        case kMovDjump:
-        case kMovFall:
-            if (comparison == kMovJump || comparison == kMovDjump || comparison == kMovFall)
-            {
-                return 1.0f;
-            }
-            return 0.0f;
-        case kMovRoll:
-        case kMovTech:
-            if (comparison == kMovRoll || comparison == kMovTech)
-            {
-                return 1.0f;
-            }
-            if (comparison == kMovShield)
-            {
-                return 0.5f;
-            }
-            return 0.0f;
-        default:
             return source == comparison ? 1.0f : 0.0f;
         }
+        enum {
+            kIdleGrp = (1u << kMovNone) | (1u << kMovIdle) | (1u << kMovMissedTech) | (1u << kMovRun) | (1u << kMovCrouch),
+            kAirGrp = (1u << kMovJump) | (1u << kMovDjump) | (1u << kMovFall),
+            kRollGrp = (1u << kMovRoll) | (1u << kMovTech)
+        };
+        static const u16 kFull[kMovCount] = {
+            kIdleGrp, kIdleGrp, kIdleGrp, kIdleGrp,
+            (1u << kMovDash) | (1u << kMovHitstun), 1u << kMovHitstun, kIdleGrp,
+            (1u << kMovJump) | (1u << kMovFall), kAirGrp, kAirGrp,
+            1u << kMovShield, 1u << kMovAirdodge, kRollGrp, kRollGrp,
+            1u << kMovAttack, 1u << kMovGrab
+        };
+        static const u16 kHalf[kMovCount] = {
+            1u << kMovDash, 1u << kMovDash, 1u << kMovDash, 1u << kMovDash,
+            0, 0, 1u << kMovDash,
+            1u << kMovDjump, 0, 0,
+            0, 0, 1u << kMovShield, 1u << kMovShield,
+            0, 0
+        };
+        u16 bit = static_cast<u16>(1u << comparison);
+        if ((kFull[source] & bit) != 0) return 1.0f;
+        if ((kHalf[source] & bit) != 0) return 0.5f;
+        return 0.0f;
     }
 
     // 128-entry static circular history computing similarity-weighted Markov
@@ -435,6 +370,9 @@ namespace extra {
             invalidateCaches();
         }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
         void calcWeight(int actionType)
         {
             int offsets[kMovHistoryLen];
@@ -459,14 +397,15 @@ namespace extra {
 
             float score = 0.0f;
             float totalScore = 0.0f;
-            static const float kInv60 = 1.0f / 60.0f;
-            static const float kInv35 = 1.0f / 35.0f;
-            static const float kInv75 = 1.0f / 75.0f;
-            static const float kInv125 = 1.0f / 125.0f;
-            static const float kInv250 = 1.0f / 250.0f;
-            static const float kTotalFeatureWeight = 2.0f + 3.0f + 6.0f + 4.0f + 4.0f + 4.0f + 2.0f;
-            static const float kInvTotalFeatureWeight = 1.0f / kTotalFeatureWeight;
+            static const float kInvTotalFeatureWeight = 1.0f / 25.0f;
             static const float kInvLookBack = 1.0f / static_cast<float>(kMovLookBack);
+            const u8* const featArr[6] = {
+                duration_, yDistFloor_, xDist_, attackChance_, shieldChance_, xPos_
+            };
+            static const u8 kFeatLim[6] = {60, 35, 75, 125, 125, 250};
+            static const float kFeatCoeff[6] = {
+                2.0f / 60.0f, 3.0f / 35.0f, 6.0f / 75.0f, 4.0f / 125.0f, 4.0f / 125.0f, 4.0f / 250.0f
+            };
 
             for (int i = 0; i < offsetCount; i++)
             {
@@ -481,41 +420,22 @@ namespace extra {
 
                 while (offsetTracker != static_cast<int>(idx_) && looked < kMovLookBack)
                 {
-                    if (startTracker < 0)
-                    {
-                        startTracker = kMovHistoryLen - 1;
-                    }
-                    if (offsetTracker < 0)
-                    {
-                        offsetTracker = kMovHistoryLen - 1;
-                    }
-                    if (action_[offsetTracker] == kMovNone)
-                    {
-                        break;
-                    }
+                    if (startTracker < 0) startTracker = kMovHistoryLen - 1;
+                    if (offsetTracker < 0) offsetTracker = kMovHistoryLen - 1;
+                    if (action_[offsetTracker] == kMovNone) break;
 
-                    float toAdd = static_cast<float>(200 - categoryWeight(action_[offsetTracker])) * 0.01f;
-                    toAdd *= scoreMult;
+                    float toAdd = i2fScale(200 - categoryWeight(action_[offsetTracker]), 0.01f) * scoreMult;
                     totalScore += toAdd;
 
                     float diffMult = movDiffMultiplier(action_[startTracker], action_[offsetTracker]);
                     if (diffMult > 0.0f)
                     {
-                        int timeDiff = absDiff(duration_[startTracker], duration_[offsetTracker]);
-                        int yDiff = absDiff(yDistFloor_[startTracker], yDistFloor_[offsetTracker]);
-                        int distDiff = absDiff(xDist_[startTracker], xDist_[offsetTracker]);
-                        int atkDiff = absDiff(attackChance_[startTracker], attackChance_[offsetTracker]);
-                        int shdDiff = absDiff(shieldChance_[startTracker], shieldChance_[offsetTracker]);
-                        int xDiff = absDiff(xPos_[startTracker], xPos_[offsetTracker]);
-                        int movDiff = otherMov_[startTracker] != otherMov_[offsetTracker] ? 1 : 0;
-
-                        float sim = (2.0f * kInv60) * static_cast<float>(60 - timeDiff)
-                                    + (3.0f * kInv35) * static_cast<float>(35 - yDiff)
-                                    + (6.0f * kInv75) * static_cast<float>(75 - distDiff)
-                                    + (4.0f * kInv125) * static_cast<float>(125 - atkDiff)
-                                    + (4.0f * kInv125) * static_cast<float>(125 - shdDiff)
-                                    + (4.0f * kInv250) * static_cast<float>(250 - xDiff)
-                                    + 2.0f * static_cast<float>(1 - movDiff);
+                        float sim = otherMov_[startTracker] == otherMov_[offsetTracker] ? 2.0f : 0.0f;
+                        for (int f = 0; f < 6; f++)
+                        {
+                            int d = absDiff(featArr[f][startTracker], featArr[f][offsetTracker]);
+                            sim += i2fScale(static_cast<int>(kFeatLim[f]) - d, kFeatCoeff[f]);
+                        }
                         float weighted = toAdd * (sim * kInvTotalFeatureWeight);
                         if (weighted > 0.0f)
                         {
@@ -524,7 +444,7 @@ namespace extra {
                     }
 
                     looked++;
-                    scoreMult = static_cast<float>(kMovLookBack - looked) * kInvLookBack;
+                    scoreMult = i2fScale(kMovLookBack - looked, kInvLookBack);
                     startTracker--;
                     offsetTracker--;
                 }
@@ -534,6 +454,9 @@ namespace extra {
             weightCache_[actionType] = result;
             weightTotal_ += result;
         }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
         u16 idx_;
         u32 samples_;
@@ -647,63 +570,33 @@ namespace extra {
             }
         }
 
-        u8 dominantRps(int player, int lookAmount = kPatternLen) const
+        u8 dominantWithScore(int player, int lookAmount, int& bestOut) const
         {
             int atk = 0, grab = 0, def = 0;
             runCalc(player, lookAmount, atk, grab, def);
-            if (atk > grab && atk > def)
-            {
-                return kRpsAttack;
-            }
-            if (grab > atk && grab > def)
-            {
-                return kRpsGrab;
-            }
-            if (def > atk && def > grab)
-            {
-                return kRpsDefend;
-            }
+            if (atk > grab && atk > def) { bestOut = atk; return kRpsAttack; }
+            if (grab > atk && grab > def) { bestOut = grab; return kRpsGrab; }
+            if (def > atk && def > grab) { bestOut = def; return kRpsDefend; }
+            bestOut = 0;
             return kRpsNull;
+        }
+
+        u8 dominantRps(int player, int lookAmount = kPatternLen) const
+        {
+            int best = 0;
+            return dominantWithScore(player, lookAmount, best);
         }
 
         // Confidence in [0.0, 1.0]: weighted score of the dominant RPS option
         // over the maximum possible triangle sum lookAmount*(lookAmount+1)/2.
         float confidence(int player, int lookAmount = kPatternLen) const
         {
-            if (lookAmount <= 0)
-            {
-                return 0.0f;
-            }
-            if (lookAmount > kPatternLen)
-            {
-                lookAmount = kPatternLen;
-            }
-            int atk = 0, grab = 0, def = 0;
-            runCalc(player, lookAmount, atk, grab, def);
+            if (lookAmount <= 0) return 0.0f;
+            if (lookAmount > kPatternLen) lookAmount = kPatternLen;
             int best = 0;
-            if (atk > grab && atk > def)
-            {
-                best = atk;
-            }
-            else if (grab > atk && grab > def)
-            {
-                best = grab;
-            }
-            else if (def > atk && def > grab)
-            {
-                best = def;
-            }
-            else
-            {
-                return 0.0f;
-            }
-            float maxScore = static_cast<float>(lookAmount * (lookAmount + 1) / 2);
-            float ratio = static_cast<float>(best) / maxScore;
-            if (ratio < 0.0f)
-            {
-                return 0.0f;
-            }
-            return ratio > 1.0f ? 1.0f : ratio;
+            if (dominantWithScore(player, lookAmount, best) == kRpsNull) return 0.0f;
+            float ratio = i2f(best) / i2f(lookAmount * (lookAmount + 1) / 2);
+            return clampf(ratio, 0.0f, 1.0f);
         }
 
     private:
@@ -751,40 +644,11 @@ namespace extra {
         // Indices match src/main/cpu/actions.cpp kGround and kShieldList:
         //   Ground: 1=Spotdodge, 2=Shield, 3=Grab, 13=Jab, 18=Short Hop
         //   Shield: 1=Grab, 2=Short Hop, 4=Spotdodge
-        if (list == 0) // kListGround
-        {
-            switch (biasAction)
-            {
-            case kBiasShield:
-                return 2;
-            case kBiasSpotdodge:
-                return 1;
-            case kBiasGrab:
-                return 3;
-            case kBiasJab:
-                return 13;
-            case kBiasJump:
-                return 18;
-            default:
-                return -1;
-            }
-        }
-        if (list == 2) // kListShield
-        {
-            switch (biasAction)
-            {
-            case kBiasGrab:
-                return 1;
-            case kBiasJump:
-                return 2;
-            case kBiasSpotdodge:
-                return 4;
-            case kBiasShield:
-                return 1; // OoS punish for Attack habit
-            default:
-                return -1;
-            }
-        }
+        static const s8 kGroundIdx[6] = {-1, 2, 1, 3, 13, 18};
+        static const s8 kShieldIdx[6] = {-1, 1, 4, 1, -1, 2};
+        if (biasAction >= 6u) return -1;
+        if (list == 0) return kGroundIdx[biasAction];
+        if (list == 2) return kShieldIdx[biasAction];
         return -1;
     }
 
@@ -847,36 +711,14 @@ namespace extra {
 
     inline const char* adaptiveRpsLabel(u8 rps)
     {
-        switch (rps)
-        {
-        case kRpsAttack:
-            return "Attack";
-        case kRpsGrab:
-            return "Grab";
-        case kRpsDefend:
-            return "Defend";
-        default:
-            return "Balanced";
-        }
+        static const char* const kLabels[4] = {"Balanced", "Attack", "Grab", "Defend"};
+        return rps < 4u ? kLabels[rps] : kLabels[0];
     }
 
     inline const char* adaptiveBiasLabel(u8 bias)
     {
-        switch (bias)
-        {
-        case kBiasShield:
-            return "Shield";
-        case kBiasSpotdodge:
-            return "Spotdodge";
-        case kBiasGrab:
-            return "Grab";
-        case kBiasJab:
-            return "Jab";
-        case kBiasJump:
-            return "Short Hop";
-        default:
-            return "None";
-        }
+        static const char* const kLabels[6] = {"None", "Shield", "Spotdodge", "Grab", "Jab", "Short Hop"};
+        return bias < 6u ? kLabels[bias] : kLabels[0];
     }
 
     inline void adaptiveBuildHudView(u8 mode, const PatternManager& patterns, int player, u8 lastBiasAction,

@@ -648,8 +648,8 @@ namespace extra {
                     float brake = 0.08f, walkMax = 1.5f;
                     if (game::isRam(hmn->fighter->m_moduleAccesser))
                     {
-                        brake = soValueAccesser::getConstantFloat(hmn->fighter->m_moduleAccesser, kParamGroundBrake, 0);
-                        walkMax = soValueAccesser::getConstantFloat(hmn->fighter->m_moduleAccesser, kParamWalkSpeedMax, 0);
+                        brake = extraConstFloat(hmn->fighter->m_moduleAccesser, kParamGroundBrake);
+                        walkMax = extraConstFloat(hmn->fighter->m_moduleAccesser, kParamWalkSpeedMax);
                     }
                     spawnWavedashZone(z, hmnFs.x, hmnFs.y, hmnFacing(hm), brake, geom, walkMax);
                 }

@@ -47,7 +47,16 @@ namespace cpu {
 
     bool take(const Owner& who, Source* source, u32 flags);
     void release(int slot, const char* why);
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    bool x_controlled(int slot);
+#ifndef TM_EXTRA_THUNK_IMPL
+    static inline bool controlled(int slot) { return x_controlled(slot); }
+#else
     bool controlled(int slot);
+#endif
+#else
+    bool controlled(int slot);
+#endif
     Source* sourceOf(int slot);
     // From a source's next() before it returns true: its frame replaces the
     // AI's and the AI stays on (a silenced slot gets its flag back).

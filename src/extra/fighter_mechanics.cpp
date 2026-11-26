@@ -11,6 +11,7 @@
 #include <so/work/so_work_manage_module_impl.h>
 
 #include "extra/fighter_mechanics_logic.h"
+#include "extra/net_alloc.h"
 #include "main/settings.h"
 #include "shared/game/mem.h"
 #include "shared/log.h"
@@ -68,7 +69,7 @@ namespace extra {
             {
                 return false;
             }
-            const void* data = g_ftCommonDataAccesser.getData(static_cast<ftKind>(kFtOlimar));
+            const void* data = extraFtCommonData(kFtOlimar);
             if (data != s_olimarData || !game::isRam(data))
             {
                 return false;
@@ -81,7 +82,7 @@ namespace extra {
 
         void syncOlimarCache()
         {
-            const void* data = g_ftCommonDataAccesser.getData(static_cast<ftKind>(kFtOlimar));
+            const void* data = extraFtCommonData(kFtOlimar);
             if (data == NULL || data != s_olimarData)
             {
                 clearOlimarCache();
@@ -91,7 +92,7 @@ namespace extra {
         void findOlimarWeights()
         {
             s_olimarTried = true;
-            const void* data = g_ftCommonDataAccesser.getData(static_cast<ftKind>(kFtOlimar));
+            const void* data = extraFtCommonData(kFtOlimar);
             if (!game::isRam(data))
             {
                 s_olimarData = NULL;
@@ -167,7 +168,7 @@ namespace extra {
             {
                 return false;
             }
-            const void* data = g_ftCommonDataAccesser.getData(static_cast<ftKind>(kFtDedede));
+            const void* data = extraFtCommonData(kFtDedede);
             if (data != s_dededeData || !game::isRam(data))
             {
                 return false;
@@ -180,7 +181,7 @@ namespace extra {
 
         void syncDededeCache()
         {
-            const void* data = g_ftCommonDataAccesser.getData(static_cast<ftKind>(kFtDedede));
+            const void* data = extraFtCommonData(kFtDedede);
             if (data == NULL || data != s_dededeData)
             {
                 clearDededeCache();
@@ -190,7 +191,7 @@ namespace extra {
         void findDededeWeights(Fighter* fighter)
         {
             s_dededeTried = true;
-            const void* data = g_ftCommonDataAccesser.getData(static_cast<ftKind>(kFtDedede));
+            const void* data = extraFtCommonData(kFtDedede);
             if (!game::isRam(data))
             {
                 s_dededeData = NULL;
@@ -211,9 +212,9 @@ namespace extra {
             }
             // Validate against both FitDedede.pac's known P+ 3.2.1 weights
             // (35, 10, 4, 0) and soValueAccesser's live IC-Float[4015..4017].
-            float cDee = soValueAccesser::getConstantFloat(fighter->m_moduleAccesser, kDededeParamDee, 0);
-            float cDoo = soValueAccesser::getConstantFloat(fighter->m_moduleAccesser, kDededeParamDoo, 0);
-            float cGordo = soValueAccesser::getConstantFloat(fighter->m_moduleAccesser, kDededeParamGordo, 0);
+            float cDee = extraConstFloat(fighter->m_moduleAccesser, kDededeParamDee);
+            float cDoo = extraConstFloat(fighter->m_moduleAccesser, kDededeParamDoo);
+            float cGordo = extraConstFloat(fighter->m_moduleAccesser, kDededeParamGordo);
             bool ok = weights[0] == 35.0f && weights[1] == 10.0f && weights[2] == 4.0f && weights[3] == 0.0f
                       && cDee == weights[0] && cDoo == weights[1] && cGordo == weights[2];
             TM_LOG("fighter mech: Dedede Waddle weights at %08x (%.1f/%.1f/%.1f/%.1f, const %.1f/%.1f/%.1f): %s\n",
@@ -330,7 +331,7 @@ namespace extra {
     {
         if (dededeResident())
         {
-            const void* liveData = g_ftCommonDataAccesser.getData(static_cast<ftKind>(kFtDedede));
+            const void* liveData = extraFtCommonData(kFtDedede);
             TM_LOG("fighter mech: detach Dedede Waddle weights %08x (put back %.1f/%.1f/%.1f/%.1f, live data %08x)\n",
                    s_dededeWeights, s_dededeOrig[0], s_dededeOrig[1], s_dededeOrig[2], s_dededeOrig[3], liveData);
             for (int i = 0; i < kDededeWeightCount; i++)
@@ -340,7 +341,7 @@ namespace extra {
         }
         if (olimarResident())
         {
-            const void* liveData = g_ftCommonDataAccesser.getData(static_cast<ftKind>(kFtOlimar));
+            const void* liveData = extraFtCommonData(kFtOlimar);
             TM_LOG("fighter mech: detach Olimar Pikmin weights %08x (put back %.1f/%.1f/%.1f/%.1f/%.1f, live data %08x)\n",
                    s_olimarWeights, s_olimarOrig[0], s_olimarOrig[1], s_olimarOrig[2], s_olimarOrig[3], s_olimarOrig[4],
                    liveData);

@@ -41,6 +41,7 @@ namespace game {
     const soModuleEnumeration* x_fighterModules(Fighter* fighter);
     int x_fighterKind(int entryId, bool partner);
     int x_fighterStatus(const soModuleEnumeration* m);
+    int x_fighterHitstun(const soModuleEnumeration* m);
     bool x_outOfPlay(int status, bool platform);
 #endif
 
@@ -51,7 +52,7 @@ namespace game {
     static inline const soModuleEnumeration* fighterModules(Fighter* fighter) { return x_fighterModules(fighter); }
     static inline int fighterKind(int entryId, bool partner = false) { return x_fighterKind(entryId, partner); }
     static inline int fighterStatus(const soModuleEnumeration* m) { return x_fighterStatus(m); }
-    int fighterHitstun(const soModuleEnumeration* m);
+    static inline int fighterHitstun(const soModuleEnumeration* m) { return x_fighterHitstun(m); }
     int fighterShieldStun(const soModuleEnumeration* m, int status);
     static inline bool outOfPlay(int status, bool platform = true) { return x_outOfPlay(status, platform); }
 #else

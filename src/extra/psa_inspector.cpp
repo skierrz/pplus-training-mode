@@ -70,11 +70,6 @@ namespace extra {
 
         PsaDebugBlock* s_debug = NULL;
 
-        float floatAt(const void* base, u32 offset)
-        {
-            return *reinterpret_cast<const float*>(reinterpret_cast<u32>(base) + offset);
-        }
-
         s16 s16At(const void* base, u32 offset)
         {
             return *reinterpret_cast<const s16*>(reinterpret_cast<u32>(base) + offset);
@@ -314,45 +309,6 @@ namespace extra {
             return true;
         }
 
-        int countActiveViewerSlots(const game::FighterRef* refs, int n)
-        {
-            u8 who = main::settings().display.inputViewer;
-            if (who == display::kWhoNone)
-            {
-                return 0;
-            }
-            int slots = 0;
-            for (int i = 0; i < n && slots < 2; i++)
-            {
-                bool cpu = display::cpuPlayer(refs[i]);
-                if ((who & (cpu ? display::kWhoCpu : display::kWhoHuman)) != 0)
-                {
-                    slots++;
-                }
-            }
-            return slots;
-        }
-
-        void clipToWidth(char* buf, float scale, float maxW)
-        {
-            if (gfx::textWidth(buf, scale) <= maxW)
-            {
-                return;
-            }
-            int len = static_cast<int>(strlen(buf));
-            while (len > 3)
-            {
-                len--;
-                buf[len - 2] = '.';
-                buf[len - 1] = '.';
-                buf[len] = '\0';
-                if (gfx::textWidth(buf, scale) <= maxW)
-                {
-                    return;
-                }
-            }
-        }
-
         void drawCard(const ui::layout::Box& b, bool isCpu)
         {
             float xs = gfx::xScale();
@@ -364,7 +320,7 @@ namespace extra {
             bool hasFocus = s_debug->focusText[0] != '\0';
             int fitRows = rowCount > 0 ? rowCount : 1;
             float maxBh = b.y1 - b.y0;
-            float rowsBot = 28.0f + static_cast<float>(fitRows) * 10.0f;
+            float rowsBot = 28.0f + i2fScale(fitRows, 10.0f);
             float bh = rowsBot + (hasFocus ? 16.0f : 4.0f);
             if (bh > maxBh)
             {
@@ -374,7 +330,7 @@ namespace extra {
             drawHudCard(x, y, bw, bh, xs, isCpu ? 0x4E86B8FFu : 0xD83838FFu, 0xFFFFFF40u);
 
             // Crisp 2.0px integer header divider below Act/Sub/AnimFrame line.
-            gfx::fillRect(x + 4.0f * xs, y + 24.0f, bw - 8.0f * xs, 2.0f, 0x2A4C58C0u);
+            drawHudDivider(x, y + 24.0f, bw, xs);
 
             // Header line 1: PSA target + FSM rate.
             char title[16];
@@ -414,7 +370,7 @@ namespace extra {
             {
                 int idx = shown[r];
                 const PsaThreadSnapshot& th = s_debug->threads[idx];
-                float ry = ui::style::textYForCap(y + 28.0f + static_cast<float>(r) * 10.0f, rowScale);
+                float ry = ui::style::textYForCap(y + 28.0f + i2fScale(r, 10.0f), rowScale);
 
                 char frameBuf[12];
                 char waitBuf[12];
@@ -422,7 +378,7 @@ namespace extra {
                 psaFormatFrame(th.logicalFrame, frameBuf, sizeof(frameBuf));
                 psaFormatWait(th.waitKind, th.waitFrames, waitBuf, sizeof(waitBuf));
                 psaFormatOpcodeName(th.cmdHeader, opBuf, sizeof(opBuf));
-                clipToWidth(opBuf, rowScale, opMaxW);
+                clipTextToWidth(opBuf, rowScale, opMaxW);
 
                 gfx::Rgba nameCol = (idx == s_debug->focusThread) ? 0xFFE24AFFu
                                                                    : ((idx <= 1) ? 0xF1F5F9FFu : 0xB8CDD6FFu);
@@ -449,11 +405,11 @@ namespace extra {
                 float divY = y + rowsBot + 1.0f;
                 if (divY + 11.0f <= y + bh)
                 {
-                    gfx::fillRect(x + 4.0f * xs, divY, bw - 8.0f * xs, 2.0f, 0x2A4C58C0u);
+                    drawHudDivider(x, divY, bw, xs);
                     char focusLine[56];
                     snprintf(focusLine, sizeof(focusLine), "%s:%s", psaThreadName(s_debug->focusThread),
                              s_debug->focusText);
-                    clipToWidth(focusLine, rowScale, bw - 12.0f * xs);
+                    clipTextToWidth(focusLine, rowScale, bw - 12.0f * xs);
                     float fy = ui::style::textYForCap(divY + 4.0f, rowScale);
                     drawShadowText(colName, fy, focusLine, 0x8EF5EAFFu, rowScale);
                 }
@@ -512,7 +468,7 @@ namespace extra {
         {
             return;
         }
-        int viewerSlots = match.training ? countActiveViewerSlots(refs, n) : 0;
+        int viewerSlots = match.training ? countInputViewerSlots(refs, n) : 0;
         bool hasCompass = match.training && diCompassVisible(match, menuOpen);
         ui::layout::Box box = ui::layout::psaInspectorBox(ui::layout::topBand(), viewerSlots, hasCompass,
                                                           gfx::widescreen());

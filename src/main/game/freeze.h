@@ -22,7 +22,16 @@ namespace game {
     // game's own gfTaskScheduler::setPauseCategory, leaving the HUD, the
     // camera and the match operators (Training's pause menu among them)
     // running. Takes effect from the next game step.
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    void x_setGameplayPaused(bool paused);
+#ifndef TM_EXTRA_THUNK_IMPL
+    static inline void setGameplayPaused(bool paused) { x_setGameplayPaused(paused); }
+#else
     void setGameplayPaused(bool paused);
+#endif
+#else
+    void setGameplayPaused(bool paused);
+#endif
 
     // Pauses or resumes the camera's tasks the same way (the Start-opened lab
     // menu freezes both simulation and camera while Start is held).

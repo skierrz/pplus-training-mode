@@ -72,7 +72,16 @@ namespace record {
     // Stores frame `t`; the slot then ends at t + 1 (later frames dropped).
     void slotWrite(Slot& s, int t, const Input& in);
     // False outside start..end.
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    bool x_slotRead(const Slot& s, int t, Input& out);
+#ifndef TM_EXTRA_THUNK_IMPL
+    static inline bool slotRead(const Slot& s, int t, Input& out) { return x_slotRead(s, t, out); }
+#else
     bool slotRead(const Slot& s, int t, Input& out);
+#endif
+#else
+    bool slotRead(const Slot& s, int t, Input& out);
+#endif
     void slotCopy(Slot& to, const Slot& from);
     // Drops the first `frames` frames: frame `frames` becomes frame 0.
     void slotDropFront(Slot& s, int frames);

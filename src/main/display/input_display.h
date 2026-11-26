@@ -26,7 +26,19 @@ namespace display {
     bool inputStick(int port, s8* out);
     // Same as inputStick, also returning gfPadStatus::m_controllerType (0 GCC,
     // 1 Classic, 2 Wiimote, 3 Nunchuk) in `*controllerType` when non-NULL.
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    bool x_inputStickWithType(int port, s8* out, u8* controllerType);
+#ifndef TM_EXTRA_THUNK_IMPL
+    static inline bool inputStickWithType(int port, s8* out, u8* controllerType)
+    {
+        return x_inputStickWithType(port, out, controllerType);
+    }
+#else
     bool inputStickWithType(int port, s8* out, u8* controllerType);
+#endif
+#else
+    bool inputStickWithType(int port, s8* out, u8* controllerType);
+#endif
     // Full live pad snapshot for the extra module's input viewer.
     bool inputViewerPad(int port, ViewerPad& out);
 

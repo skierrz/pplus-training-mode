@@ -216,7 +216,16 @@ namespace main {
     // Updates the Platforms row's choice labels and max index for the active
     // stage preset (implemented in main/ui/pages/stage_cast.cpp, called by
     // extra/stage_options.cpp).
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__)
+    void x_setStagePlatformRowPreset(int preset);
+    void x_setFighterSwapLabels(const char* const* names, int maxIndex);
+    void x_setFighterSwapCostumeMax(int side, int maxIndex);
+#endif
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
+    static inline void setStagePlatformRowPreset(int preset) { x_setStagePlatformRowPreset(preset); }
+#else
     void setStagePlatformRowPreset(int preset);
+#endif
     // The DI Display, through the hooks. Without the extra module its row
     // is grey, nothing is drawn and Project+'s own Draw DI is left alone.
     bool extraDiRow();
@@ -269,8 +278,13 @@ namespace main {
     // Binds the roster choice labels (stored in extra) and per-side costume
     // upper bounds onto the P_FIGHTER_SWAP page (implemented in
     // main/ui/pages/fighter_swap.cpp, called by extra/fighter_swap.cpp).
+#if defined(TM_MODULE_EXTRA) && defined(__MWERKS__) && !defined(TM_EXTRA_THUNK_IMPL)
+    static inline void setFighterSwapLabels(const char* const* names, int maxIndex) { x_setFighterSwapLabels(names, maxIndex); }
+    static inline void setFighterSwapCostumeMax(int side, int maxIndex) { x_setFighterSwapCostumeMax(side, maxIndex); }
+#else
     void setFighterSwapLabels(const char* const* names, int maxIndex);
     void setFighterSwapCostumeMax(int side, int maxIndex);
+#endif
     // Single-line lab menu option descriptions (extra/menu_descriptions.h).
     const char* extraOptionDesc(u8 pageId, u8 row);
     // Native Brawl/P+ UI button emblems & page overlays (extra/ui_assets.h).

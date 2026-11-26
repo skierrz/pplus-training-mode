@@ -1432,8 +1432,13 @@ namespace extra {
             {
                 return -1;
             }
+#ifdef __MWERKS__
+            float at = extraConstFloat(
+                accesser, v.status == game::kStatusLanding ? kLandingFrame : kLandingLightFrame);
+#else
             float at = soValueAccesser::getConstantFloat(
                 accesser, v.status == game::kStatusLanding ? kLandingFrame : kLandingLightFrame, 0);
+#endif
             if (at == -1.0f || !(v.rate > 0.0f))
             {
                 return -1;
