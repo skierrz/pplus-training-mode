@@ -241,7 +241,8 @@ INCLUDES := -Isrc -I- \
             -I$(BH)/std/Include \
             -I$(BH)/utils/include
 
-CFLAGS   := -msgstyle gcc -Cpp_exceptions off -proc gekko -nostdinc -O4,s \
+CFLAGS   := -msgstyle gcc -Cpp_exceptions off -proc gekko -nostdinc \
+            -opt level=4,space,peephole,nostrength \
             -inline auto -fp hard -enum int -sdata 0 -sdata2 0 -func_align 4
 CXXFLAGS := -lang=c++ $(CFLAGS) -DTM_STUB_MODULE_ID=$(STUB_ID)
 ifeq ($(EXPERIMENTS),1)
@@ -263,7 +264,7 @@ ifeq ($(PERF),1)
 CXXFLAGS += -DTM_PERF=1
 endif
 # -r1: partial link (elf2rel resolves game symbols); -m: module entry point.
-LDFLAGS  := -lcf $(LCF) -r1 -fp hard -m _prolog -g -strip_partial
+LDFLAGS  := -lcf $(LCF) -r1 -fp hard -m _prolog -g -strip_partial -code_merging all
 
 # MWCC writes dependency files with CRLF, backslashes and absolute Windows
 # paths (C:\...), which make cannot parse. Rewrite build/x.d into build/x.dep

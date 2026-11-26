@@ -19,6 +19,21 @@
 
 namespace tm {
 namespace extra {
+    namespace {
+        // Single contiguous Heaps::Network slab for all resident extra buffers
+        // (eliminates ~20 separate pool headers and prevents fragmenting
+        // Heaps::Network against P+'s 0x10BA20 costume decompression buffer).
+        enum {
+            kArenaCap = 80 * 1024,
+            kCostumeReserve = 0x110000
+        };
+
+        u8* s_arena = NULL;
+        u32 s_arenaUsed = 0;
+        u32 s_arenaCap = 0;
+        u32 s_arenaRefs = 0;
+    }
+
     void logf(const char* fmt, ...)
     {
 #ifdef TM_PERF
@@ -40,7 +55,33 @@ namespace extra {
         {
             return NULL;
         }
+        if (s_arena == NULL && need <= kArenaCap)
+        {
+            game::HeapUsage u;
+            u.largest = 0;
+            u32 cap = kArenaCap;
+            if (game::heapUsage(Heaps::Network, u) && u.largest >= cap + kCostumeReserve)
+            {
+                void* slab = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), cap, 32);
+                if (game::isRam(slab))
+                {
+                    s_arena = static_cast<u8*>(slab);
+                    s_arenaUsed = 0;
+                    s_arenaCap = cap;
+                    s_arenaRefs = 0;
+                }
+            }
+        }
+        if (s_arena != NULL && need <= s_arenaCap - s_arenaUsed)
+        {
+            void* p = s_arena + s_arenaUsed;
+            s_arenaUsed += need;
+            s_arenaRefs++;
+            memset(p, 0, need);
+            return p;
+        }
         game::HeapUsage u;
+        u.largest = 0;
         if (!game::heapUsage(Heaps::Network, u) || u.largest < need)
         {
             TM_LOG("extra: net_alloc refused %u B (largest %x)\n", need, u.largest);
@@ -58,6 +99,26 @@ namespace extra {
 
     void freeNetRaw(void* ptr)
     {
+        if (s_arena != NULL)
+        {
+            u32 a = reinterpret_cast<u32>(ptr);
+            u32 lo = reinterpret_cast<u32>(s_arena);
+            if (a >= lo && a < lo + s_arenaCap)
+            {
+                if (s_arenaRefs > 0)
+                {
+                    s_arenaRefs--;
+                }
+                if (s_arenaRefs == 0)
+                {
+                    free(s_arena);
+                    s_arena = NULL;
+                    s_arenaUsed = 0;
+                    s_arenaCap = 0;
+                }
+                return;
+            }
+        }
         if (game::isRam(ptr))
         {
             free(ptr);
