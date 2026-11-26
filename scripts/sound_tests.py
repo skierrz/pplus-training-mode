@@ -181,9 +181,9 @@ def run(emu, s, state):
     LT.write_u8(emu, lab, LT.SET_START_OPENS, 0)
     nav.pause_training(emu)
     emu.advance(20)
-    # Opens on Lab row 0 (Frame Advance) with options pane focused; B moves to rail.
+    # Opens on Lab row 0 (Frame Advance) with options pane focused; B moves to rail (soft MOVE tick).
     s.expect("ui", "lab menu: Z opens it", lambda: tap(["Z"]), [OPEN])
-    s.expect("ui", "lab menu: B focuses Draft C rail", lambda: tap(["B"]), [BACK])
+    s.expect("ui", "lab menu: B focuses Draft C rail", lambda: tap(["B"]), [MOVE])
     s.expect("ui", "lab menu: stick up on first rail row", lambda: tap(stick=UP), [])
     s.expect("ui", "lab menu: down to Scenarios on rail", lambda: tap(stick=DOWN), [MOVE])
     s.expect("ui", "lab menu: back up to Lab on rail", lambda: tap(stick=UP), [MOVE])
@@ -198,7 +198,7 @@ def run(emu, s, state):
     s.expect("ui", "lab menu: Left changes it back", lambda: tap(stick=LEFT), [MOVE])
     if lab.setting(S_PLAYER_PERCENT, half=True) != 0:
         raise SoundError("P1 Damage is not back at 0")
-    s.expect("ui", "lab menu: B returns to Draft C rail", lambda: tap(["B"]), [BACK])
+    s.expect("ui", "lab menu: B returns to Draft C rail", lambda: tap(["B"]), [MOVE])
     s.moves("ui", "lab menu: down to Display on rail", lambda: lab.main_to(LT.MAIN_DISPLAY),
             lambda pos: sum(1 for r in range(1, LT.MAIN_DISPLAY + 1) if r not in LT.MAIN_DISABLED))
     s.expect("ui", "lab menu: A enters Display", lambda: tap(["A"]), [CONFIRM])
@@ -208,7 +208,7 @@ def run(emu, s, state):
     s.expect("ui", "lab menu: Z closes it from Display", lambda: tap(["Z"]), [CLOSE])
     # Reopens where it was left: on Display; B returns to rail (Display), second B closes.
     s.expect("ui", "lab menu: Z opens it again", lambda: tap(["Z"]), [OPEN])
-    s.expect("ui", "lab menu: B back to Draft C rail", lambda: tap(["B"]), [BACK])
+    s.expect("ui", "lab menu: B back to Draft C rail", lambda: tap(["B"]), [MOVE])
     s.expect("ui", "lab menu: B on the rail closes it", lambda: tap(["B"]), [CLOSE])
     s.expect("ui", "lab menu: Z opens it again on rail", lambda: tap(["Z"]), [OPEN])
     s.moves("ui", "lab menu: down to Return to CSS on rail", lambda: lab.main_to(LT.MAIN_EXIT, LT.MAIN_DISPLAY),

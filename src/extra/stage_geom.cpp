@@ -544,33 +544,6 @@ namespace extra {
         {
             m->m_workManageModule->setInt(0, kHitstunLaBasic);
         }
-        if (falling)
-        {
-            cpu::clearKnockback(f);
-            if (game::isRam(m->m_kineticModule))
-            {
-                m->m_kineticModule->clearSpeedAll();
-            }
-            if (setNoclip && game::isRam(m->m_groundModule))
-            {
-                m->m_groundModule->setCorrect(soGroundShapeImpl::Correct_None, 0);
-            }
-            cpu::placeAt(f, x, y);
-            if (lr != 0.0f)
-            {
-                setFacingSingle(f, lr);
-            }
-            if (game::isRam(m->m_statusModule) && game::isRam(f->m_moduleAccesser))
-            {
-                m->m_statusModule->changeStatusForce(game::kStatusFall, f->m_moduleAccesser);
-            }
-            if (setNoclip && game::isRam(m->m_groundModule))
-            {
-                m->m_groundModule->setCorrect(soGroundShapeImpl::Correct_None, 0);
-            }
-            return;
-        }
-
         float useLr = lr;
         if (useLr == 0.0f && game::isRam(m->m_postureModule))
         {
@@ -581,11 +554,35 @@ namespace extra {
         {
             useLr = 1.0f;
         }
+        Vec3f pos(x, y, 0.0f);
+        if (falling)
+        {
+            // Fighter::warp atomically detaches any cliff/ground attachment,
+            // resets grCollStatus to the new coordinates, sets facing, and
+            // transitions cleanly into Fall so Cliff_Wait never snaps back.
+            f->warp(&pos, useLr, 0);
+            if (game::isRam(m->m_statusModule) && game::isRam(f->m_moduleAccesser))
+            {
+                m->m_statusModule->changeStatusForce(game::kStatusFall, f->m_moduleAccesser);
+            }
+            cpu::clearKnockback(f);
+            if (game::isRam(m->m_kineticModule))
+            {
+                m->m_kineticModule->clearSpeedAll();
+            }
+            cpu::placeAt(f, x, y);
+            setFacingSingle(f, useLr);
+            if (setNoclip && game::isRam(m->m_groundModule))
+            {
+                m->m_groundModule->setCorrect(soGroundShapeImpl::Correct_None, 0);
+            }
+            return;
+        }
+
         // Fighter::warp moves posture and resets ground shape (needed for
         // cross-platform warps), then attachGround + setStGroundForce binds
         // the target floor/platform, then changeStatusForce(Wait) clears
         // Fighter::warp's pending Fall request.
-        Vec3f pos(x, y, 0.0f);
         f->warp(&pos, useLr, 0);
         if (game::isRam(m->m_groundModule))
         {

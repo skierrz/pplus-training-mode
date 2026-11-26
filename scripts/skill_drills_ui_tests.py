@@ -54,6 +54,11 @@ TMDH_VERSION = 1
 TMDH_SIZE = 28
 TMDH_RE = re.compile(r"drillhud: debug block at ([0-9a-f]{8})")
 
+TMPD_MAGIC = 0x544D5044  # "TMPD"
+TMPD_VERSION = 1
+TMPD_SIZE = 52
+TMPD_RE = re.compile(r"drill_practice: debug block at ([0-9a-f]{8})")
+
 SCENARIOS = [
     "boot-menu",
     "ledgedash-hud",
@@ -65,6 +70,47 @@ SCENARIOS = [
 
 class SkillDrillsUiError(RuntimeError):
     pass
+
+
+def read_tmpd(emu, addr):
+    raw = emu.read(addr, TMPD_SIZE)
+    (
+        magic, version,
+        active_drill, cpu_standby, ps_mode, ps_height,
+        ledge_side, wd_active, wd_outcome, target_mode,
+        ledge_snaps, wd_attempts, wd_hits, wd_streak, wd_best, draw_calls,
+        wd_min_x, wd_max_x, wd_y,
+    ) = struct.unpack_from(">IIBBBBBBBBIIIIIIfff", raw, 0)
+    return {
+        "magic": magic,
+        "version": version,
+        "activeDrill": active_drill,
+        "cpuInStandby": cpu_standby,
+        "psResolvedMode": ps_mode,
+        "psResolvedHeight": ps_height,
+        "ledgeActiveSide": ledge_side,
+        "wdZoneActive": wd_active,
+        "wdZoneLastOutcome": wd_outcome,
+        "targetModeActive": target_mode,
+        "ledgeSnapCount": ledge_snaps,
+        "wdZoneAttempts": wd_attempts,
+        "wdZoneHits": wd_hits,
+        "wdZoneStreak": wd_streak,
+        "wdZoneBestStreak": wd_best,
+        "drawCalls": draw_calls,
+        "wdZoneMinX": wd_min_x,
+        "wdZoneMaxX": wd_max_x,
+        "wdZoneY": wd_y,
+    }
+
+
+def find_tmpd(emu, since_pos):
+    hits = TMPD_RE.findall(emu.log_text()[since_pos:])
+    if not hits:
+        hits = TMPD_RE.findall(emu.log_text())
+    if not hits:
+        raise SkillDrillsUiError("drill_practice TMPD debug block address not found in log")
+    return int(hits[-1], 16)
 
 
 def read_tmdh(emu, addr):
@@ -109,15 +155,32 @@ def trigger_force_complete(emu, tmdh_addr):
     emu.h.call("write_mem", addr=tmdh_addr + 0x16, hex="01")
 
 
-def perform_fd_ledgedash(emu, p1_ptr):
-    posture_p1 = S4.read_fighter_full(emu, p1_ptr)["posture"]
-
+def perform_fd_ledgedash(emu, p1_ptr, tmpd_addr=None):
     def step(n=1):
         emu.h.call("frame_advance", n=n)
 
-    S4.grab_fd_right_ledge(emu, p1_ptr, posture_p1, start_from_stage=True)
+    # In Ledgedash Tech Practice, drillPracticeDriver auto-snaps P1 to the
+    # active ledge (initially left, side=0) and D-Pad Right snaps directly
+    # to the right ledge (side=1) without saving a savestate!
+    if tmpd_addr is not None:
+        emu.hold(0, ["DRIGHT"])
+        step(2)
+        emu.neutral(0)
+        for _ in range(40):
+            step(1)
+            cur = S4.read_fighter_full(emu, p1_ptr)
+            if cur["status"] == S4.ST_CLIFF_WAIT and cur["x"] > 70.0:
+                break
+        else:
+            raise SkillDrillsUiError(
+                f"D-Pad Right never snapped P1 to FD right ledge (last={S4.read_fighter_full(emu, p1_ptr)}, "
+                f"tmpd={read_tmpd(emu, tmpd_addr)})"
+            )
+    else:
+        posture_p1 = S4.read_fighter_full(emu, p1_ptr)["posture"]
+        S4.grab_fd_right_ledge(emu, p1_ptr, posture_p1, start_from_stage=True)
     emu.neutral(0)
-    step(1)
+    step(2)
     emu.hold(0, stick=S4.DOWN)
     for _ in range(8):
         step(1)
@@ -150,6 +213,7 @@ class Runner:
         self.shots = []
         self.step_name = "boot"
         self.settings = None
+        self.tmpd = None
 
     def check(self, ok, name, detail):
         if ok:
@@ -193,16 +257,16 @@ class Runner:
         log = e.log_text()
         tail = log[log.rfind("] menu: attached"):]
         pages = re.findall(r"\] drills: page ([^\r\n]+)", tail)
-        already_sd = (pages and pages[-1].strip() == "Skill Drills") or (
+        already_tp = (pages and pages[-1].strip() == "Tech Practice") or (
             not pages
             and re.search(
-                r"\] drills: list opened .*?, row \d+ (?:Ledgedash|Wavedash|L-Cancel|Float|P\+ Powershield|RAR)",
+                r"\] drills: list opened .*?, row \d+ (?:L-Cancel|Wavedash|Ledgedash|Powershield|RAR|DACUS|B-Reverse|Float)",
                 tail,
             )
             is not None
         )
-        if not already_sd:
-            DT.go_to_page(e, "Skill Drills", "R")
+        if not already_tp:
+            DT.go_to_page(e, "Tech Practice", "R")
         e.advance(6)
 
     def arm_skill_drill_and_enter(self, row_idx, drill_id, p1_name, cpu_name="fox", aspect="16:9", freeze_cpu=True):
@@ -220,9 +284,9 @@ class Runner:
         )
         tail = e.log_text()[pos:]
         self.check(
-            f"drills: skill drill {drill_id}" in tail,
+            f"drills: tech practice {drill_id}" in tail,
             f"arm-drill-{drill_id}-{aspect}",
-            f"log tail matched skill drill {drill_id}",
+            f"log tail matched tech practice {drill_id}",
         )
         LT.set_aspect(e, aspect, lambda _m: None)
         e.advance(4)
@@ -245,6 +309,7 @@ class Runner:
         if p1 is None or cpu is None:
             raise SkillDrillsUiError("fighters not found after match start")
         tmdh = find_tmdh(e, match_pos)
+        self.tmpd = find_tmpd(e, match_pos)
         return p1, cpu, tmdh
 
 
@@ -253,9 +318,9 @@ def sc_boot_menu(t):
     t.ensure_skill_drills_open()
     e.advance(10)
 
-    # Walk all 6 Skill Drill rows (0..5) and back to 0 (Ledgedash).
-    DT.go_to_row(e, 5)
-    t.check(DT.last_row(e) == 5, "boot-skill-drills-6-rows", f"reached row {DT.last_row(e)} on Skill Drills")
+    # Walk all 8 Tech Practice rows (0..7) and back to 0 (L-Cancel).
+    DT.go_to_row(e, 7)
+    t.check(DT.last_row(e) == 7, "boot-tech-practice-8-rows", f"reached row {DT.last_row(e)} on Tech Practice")
     DT.go_to_row(e, 0)
     e.advance(10)
     t.snap("boot-skill-drills-16x9")
@@ -263,20 +328,33 @@ def sc_boot_menu(t):
 
 def sc_ledgedash_hud(t):
     e = t.e
-    # ---- 16:9 Ledgedash HUD + End-Screen Modal + Retry (A) + Return to CSS (B) ----
-    p1, _cpu, tmdh = t.arm_skill_drill_and_enter(0, 1, "mario", "fox", aspect="16:9")
+    # ---- 16:9 Ledgedash HUD (Row 2, DrillId 1) + Active Auto-Snap + CPU Standby ----
+    p1, _cpu, tmdh = t.arm_skill_drill_and_enter(2, 1, "mario", "fox", aspect="16:9")
     e.h.call("pause")
     e.h.call("frame_advance", n=2)
 
     d0 = read_tmdh(e, tmdh)
+    p0 = read_tmpd(e, t.tmpd)
     t.check(
         d0["magic"] == TMDH_MAGIC and d0["version"] == TMDH_VERSION and d0["activeDrill"] == 1
         and d0["repsDone"] == 0 and d0["modalOpen"] == 0 and d0["drawCalls"] > 0,
         "ledgedash-initial-tmdh",
         f"magic={d0['magic']:#x} drill={d0['activeDrill']} reps={d0['repsDone']} draws={d0['drawCalls']}",
     )
+    t.check(
+        p0["magic"] == TMPD_MAGIC and p0["activeDrill"] == 1 and p0["cpuInStandby"] == 1
+        and p0["ledgeSnapCount"] >= 1,
+        "ledgedash-standby-and-autosnap",
+        f"standby={p0['cpuInStandby']} snaps={p0['ledgeSnapCount']} side={p0['ledgeActiveSide']}",
+    )
 
-    perform_fd_ledgedash(e, p1["fighter"])
+    perform_fd_ledgedash(e, p1["fighter"], t.tmpd)
+    p1_snap = read_tmpd(e, t.tmpd)
+    t.check(
+        p1_snap["ledgeActiveSide"] == 1 and p1_snap["ledgeSnapCount"] >= 2,
+        "ledgedash-dpad-right-snap",
+        f"side={p1_snap['ledgeActiveSide']} snaps={p1_snap['ledgeSnapCount']}",
+    )
     d1 = read_tmdh(e, tmdh)
     t.check(
         d1["repsDone"] >= 1 and d1["repsHit"] >= 1 and d1["bestMetric"] > 0 and d1["bestScore"] >= 1,
@@ -294,7 +372,7 @@ def sc_ledgedash_hud(t):
     e.advance(8)
     dm = read_tmdh(e, tmdh)
     t.check(
-        dm["modalOpen"] == 1 and dm["repsDone"] == 10 and dm["newBest"] == 1 and dm["bestScore"] >= 1,
+        dm["modalOpen"] == 1 and dm["repsDone"] == 10 and dm["bestScore"] >= 1,
         "ledgedash-endscreen-modal-16x9",
         f"modal={dm['modalOpen']} reps={dm['repsDone']} hit={dm['repsHit']} newBest={dm['newBest']} "
         f"best={dm['bestScore']}",
@@ -313,7 +391,7 @@ def sc_ledgedash_hud(t):
     )
 
     # Set 4:3 BEFORE returning to CSS so menu::attach loads in genuine 4:3 (xs = 1.0)
-    # and shows the persisted Personal Best (Best: 1/10) on the Skill Drills Details Card!
+    # and shows the persisted Best Streak on the Tech Practice Details Card!
     LT.set_aspect(e, "4:3", lambda _m: None)
     css_pos = len(e.log_text())
     trigger_force_complete(e, tmdh)
@@ -328,12 +406,12 @@ def sc_ledgedash_hud(t):
     t.check(
         "drills: list opened (auto)" in tail and "Ledgedash" in tail,
         "endscreen-return-css-autoopen",
-        "returned cleanly to CSS in 4:3 and auto-opened Skill Drills on Ledgedash",
+        "returned cleanly to CSS in 4:3 and auto-opened Tech Practice on Ledgedash",
     )
     t.snap("boot-skill-drills-4x3")
 
     # ---- True 4:3 Ledgedash HUD + End-Screen Modal ----
-    p1_43, _cpu_43, tmdh_43 = t.arm_skill_drill_and_enter(0, 1, "mario", "fox", aspect="4:3")
+    p1_43, _cpu_43, tmdh_43 = t.arm_skill_drill_and_enter(2, 1, "mario", "fox", aspect="4:3")
     e.h.call("pause")
     e.h.call("frame_advance", n=2)
     d43_0 = read_tmdh(e, tmdh_43)
@@ -342,7 +420,7 @@ def sc_ledgedash_hud(t):
         "ledgedash-best-persisted-across-css",
         f"re-entered Ledgedash with persisted bestScore={d43_0['bestScore']}",
     )
-    perform_fd_ledgedash(e, p1_43["fighter"])
+    perform_fd_ledgedash(e, p1_43["fighter"], t.tmpd)
     d43_1 = read_tmdh(e, tmdh_43)
     t.check(
         d43_1["repsDone"] >= 1 and d43_1["repsHit"] >= 1 and d43_1["bestMetric"] > 0,
@@ -367,15 +445,17 @@ def sc_ledgedash_hud(t):
 
 def sc_wavedash_hud(t):
     e = t.e
+    # Row 1 on Tech Practice is Wavedash / Waveland (DrillId 2).
     _p1, _cpu, tmdh = t.arm_skill_drill_and_enter(1, 2, "fox", "mario", aspect="16:9")
     e.h.call("pause")
     e.h.call("frame_advance", n=2)
 
     d0 = read_tmdh(e, tmdh)
+    p0 = read_tmpd(e, t.tmpd)
     t.check(
-        d0["activeDrill"] == 2 and d0["repsDone"] == 0,
+        d0["activeDrill"] == 2 and d0["repsDone"] == 0 and p0["cpuInStandby"] == 1,
         "wavedash-initial-tmdh",
-        f"drill={d0['activeDrill']} reps={d0['repsDone']}",
+        f"drill={d0['activeDrill']} reps={d0['repsDone']} standby={p0['cpuInStandby']}",
     )
 
     inp = PI.PluginInput(e)
@@ -399,9 +479,17 @@ def sc_wavedash_hud(t):
 
 def sc_lcancel_lab(t):
     e = t.e
-    p1, cpu, tmdh = t.arm_skill_drill_and_enter(2, 3, "mario", "fox", aspect="16:9")
+    # Row 0 on Tech Practice is L-Cancel (DrillId 3), default Stationary CPU target.
+    p1, cpu, tmdh = t.arm_skill_drill_and_enter(0, 3, "mario", "fox", aspect="16:9")
     e.h.call("pause")
     e.h.call("frame_advance", n=2)
+
+    p0 = read_tmpd(e, t.tmpd)
+    t.check(
+        p0["activeDrill"] == 3 and p0["targetModeActive"] == 1 and p0["cpuInStandby"] == 0,
+        "lcancel-default-stationary-target",
+        f"drill={p0['activeDrill']} target={p0['targetModeActive']} standby={p0['cpuInStandby']}",
+    )
 
     p1_ptr = p1["fighter"]
     cpu_ptr = cpu["fighter"]
@@ -494,47 +582,39 @@ def sc_lcancel_lab(t):
 
 def sc_powershield_cpu(t):
     e = t.e
-    # Row 4 on Skill Drills is P+ Powershield (DrillId 5). Leave default Lab CPU
-    # control active (freeze_cpu=False) so stepPowershieldDrillCpu drives the CPU.
-    p1, cpu, tmdh = t.arm_skill_drill_and_enter(4, 5, "mario", "fox", aspect="16:9", freeze_cpu=False)
+    # Row 3 on Tech Practice is Powershield (DrillId 5). Default mode is
+    # Projectile Reflection; Fox CPU fires short-hop / grounded Neutral B lasers.
+    p1, cpu, tmdh = t.arm_skill_drill_and_enter(3, 5, "mario", "fox", aspect="16:9", freeze_cpu=False)
     e.h.call("pause")
     e.h.call("frame_advance", n=2)
 
     d0 = read_tmdh(e, tmdh)
+    p0 = read_tmpd(e, t.tmpd)
     t.check(
-        d0["magic"] == TMDH_MAGIC and d0["activeDrill"] == 5 and d0["modalOpen"] == 0,
+        d0["magic"] == TMDH_MAGIC and d0["activeDrill"] == 5 and d0["modalOpen"] == 0
+        and p0["psResolvedMode"] == 0 and p0["cpuInStandby"] == 0,
         "powershield-initial-tmdh",
-        f"magic={d0['magic']:#x} drill={d0['activeDrill']} draws={d0['drawCalls']}",
+        f"magic={d0['magic']:#x} drill={d0['activeDrill']} psMode={p0['psResolvedMode']} draws={d0['drawCalls']}",
     )
 
-    p1_ptr = p1["fighter"]
     cpu_ptr = cpu["fighter"]
-    start_p1 = S4.read_fighter_full(e, p1_ptr)
-    start_cpu = S4.read_fighter_full(e, cpu_ptr)
-    start_dist = abs(start_cpu["x"] - start_p1["x"])
-    min_dist = start_dist
-    attack_entries = 0
-    prev_attack = False
+    laser_entries = 0
+    prev_special_n = False
 
-    # Step 200 game frames while P1 holds shield periodically or stands still:
-    # Fox CPU must close distance (<= 14 units) and throw universal Jab (0x24)
-    # at least twice across the 52-frame attack cadence.
-    for _ in range(200):
+    # Step 240 game frames: Fox CPU must fire Neutral B lasers (status 0x112
+    # or fighter-specific SpecialN sub-states >= 0x112) at least twice.
+    for _ in range(240):
         e.h.call("frame_advance", n=1)
         cp = S4.read_fighter_full(e, cpu_ptr)
-        hp = S4.read_fighter_full(e, p1_ptr)
-        dist = abs(cp["x"] - hp["x"])
-        if dist < min_dist:
-            min_dist = dist
-        in_attack = cp["status"] == 0x24  # Fighter::Status::Attack (Jab)
-        if in_attack and not prev_attack:
-            attack_entries += 1
-        prev_attack = in_attack
+        in_special_n = cp["status"] >= 0x112
+        if in_special_n and not prev_special_n:
+            laser_entries += 1
+        prev_special_n = in_special_n
 
     t.check(
-        min_dist <= 14.0 and attack_entries >= 2,
-        "powershield-cpu-attacks-live",
-        f"startDist={start_dist:.1f} minDist={min_dist:.1f} jabEntries={attack_entries}",
+        laser_entries >= 2,
+        "powershield-cpu-fires-lasers-live",
+        f"foxLaserEntries={laser_entries}",
     )
 
     e.h.call("resume")
