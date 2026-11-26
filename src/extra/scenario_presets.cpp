@@ -119,6 +119,7 @@ namespace extra {
         bool slidePassDisabled;
         bool dropIntangActive;
         bool ledgetechWallWarned;
+        bool pendingRevivalExit;
         u8 techFlashFrames;
         s8 spacingOffset;
     };
@@ -933,6 +934,7 @@ namespace extra {
             return;
         }
         ScenarioState& s_state = net->state;
+        bool wasRevival = net->revivalActive;
         if (call == main::kScenarioChanged || call == main::kScenarioResetNow || call == main::kScenarioSavestateSaving
             || call == main::kScenarioSavestateLoaded || call == main::kScenarioSettingsReset)
         {
@@ -955,6 +957,7 @@ namespace extra {
                 drillHudDisable();
             }
             applyConfigAndPercents(s_state, NULL);
+            net->pendingRevivalExit = (s_state.activePreset == kScenarioOff && wasRevival);
             break;
         case main::kScenarioResetNow:
             requestScenarioManualReset(s_state);
@@ -1109,7 +1112,7 @@ namespace extra {
         readMenuConfigInto(cfg);
         // Fast path when Off: zero per-frame fighter reads, writes, or overrides.
         if (cfg.preset == kScenarioOff && s_state.activePreset == kScenarioOff && !s_state.restoreCorrect[0]
-            && !s_state.restoreCorrect[1])
+            && !s_state.restoreCorrect[1] && !net->pendingRevivalExit)
         {
             s_debug.frame = game::frameCounter();
             s_debug.activePreset = kScenarioOff;
@@ -1242,10 +1245,25 @@ namespace extra {
             s_state.rng = 0x51A7C0DEu;
         }
 
+        u8 prevPreset = s_state.activePreset;
         u16 prevBest = s_state.techBest;
         ScenarioStepAction act;
         main::Settings& s = main::settings();
         stepScenario(s_state, cfg, in, s, act);
+        if ((prevPreset != kScenarioOff && s_state.activePreset == kScenarioOff)
+            || (net->pendingRevivalExit && s_state.activePreset == kScenarioOff))
+        {
+            bool wasRevival = net->pendingRevivalExit || net->revivalActive || hmnFs.status == game::kStatusRebirth;
+            net->pendingRevivalExit = false;
+            restoreRuntimeMods(kRestoreNormal);
+            scenarioCpuStateReset(s_cpuState);
+            if (wasRevival && in.geom.floor.valid)
+            {
+                float cx = 0.5f * (in.geom.floor.leftX + in.geom.floor.rightX);
+                warpGroundClean(hmnRef, cx, in.geom.floor.centerY, false,
+                                static_cast<float>(s.general.playerPercent), 1.0f);
+            }
+        }
         if (s_state.techBest > prevBest)
         {
             drills::Session* sess = drills::sessionIn(main::services().settings());

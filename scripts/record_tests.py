@@ -1625,7 +1625,7 @@ EDIT_JUMP_T, EDIT_STICK_T, EDIT_STICK = 3, 12, -40
 # Recording page row indices (src/main/ui/pages/recording.cpp).
 ROW_RESAVE, ROW_SLOT_MANAGE = 12, 15
 # CPU page row index for Port Control (src/main/ui/pages/cpu_options.cpp).
-CPU_CONTROLLED_BY_ROW = 12
+CPU_CONTROLLED_BY_ROW = 13
 
 
 def rec_down_to(lab, rec, target_row):
