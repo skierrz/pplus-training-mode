@@ -81,6 +81,36 @@ namespace pages {
     {
         return reinterpret_cast<ScenarioMenuState*>(menuScratch() + kScenarioScratchOffset);
     }
+
+    // Session-only Tech Practice Lab Menu values, stored past ScenarioMenuState
+    // in ui::menuScratch() and synced live with extra's drillHud + drillPractice.
+    enum {
+        kPracticeScratchOffset = 72
+    };
+
+    struct PracticeMenuState {
+        u8 activeDrill;      // 0 = none, 1..8 = drills::DrillId
+        u8 mode;             // 0 = Free Practice, 1 = 10-Rep Set, 2 = 20-Rep Set
+        u8 psAttackMode;     // 0 = Projectile, 1 = Physical
+        u8 psHeight;         // 0 = Low, 1 = Mid, 2 = High, 3 = Ground, 4 = Random
+        u8 psCadence;        // 0 = Slow, 1 = Medium, 2 = Fast, 3 = Random
+        u8 ledgeResetSide;   // 0 = Same, 1 = Opposite, 2 = Random
+        u8 ledgeAutoReset;   // 0 = Off, 1 = On
+        u8 ledgeInvulnLimit; // 0 = P+ 5-Grab, 1 = Unlimited
+        u8 lcancelTarget;    // 0 = Off, 1 = Stationary CPU, 2 = Shielding CPU, 3 = Moving CPU
+        u8 floatDjcTarget;   // 0 = Off, 1 = Stationary CPU, 2 = Shielding CPU, 3 = Moving CPU
+        u8 wdTargetZone;     // 0 = Off, 1 = On
+    };
+
+    TM_STATIC_ASSERT(kPracticeScratchOffset >= kScenarioScratchOffset + sizeof(ScenarioMenuState),
+                     tm_practice_scratch_after_scenarios);
+    TM_STATIC_ASSERT(kPracticeScratchOffset + sizeof(PracticeMenuState) <= kScratchBytes,
+                     tm_practice_scratch_fits_menu_scratch);
+
+    inline PracticeMenuState* practiceMenuState()
+    {
+        return reinterpret_cast<PracticeMenuState*>(menuScratch() + kPracticeScratchOffset);
+    }
 }
 }
 }

@@ -458,10 +458,12 @@ namespace display {
         return settings().display.hud != 0;
     }
 
+#pragma force_active on
     bool cpuPlayer(const game::FighterRef& ref)
     {
         return ref.cpu; // from the match setup (game::cpuPlayer)
     }
+#pragma force_active reset
 
     u8 hiddenModels()
     {

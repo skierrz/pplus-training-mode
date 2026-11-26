@@ -193,7 +193,8 @@ rwildcard = $(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(
 SHARED_SRCS := $(sort $(call rwildcard,src/shared,*.cpp))
 STUB_SRCS   := $(sort $(call rwildcard,src/stub,*.cpp)) $(SHARED_SRCS)
 INFO_EXTRA_SRCS := src/main/ui/info_display.cpp src/main/game/status_names.cpp
-MAIN_SRCS   := $(filter-out $(INFO_EXTRA_SRCS),$(sort $(call rwildcard,src/main,*.cpp))) $(SHARED_SRCS)
+MAIN_MOVED_SRCS := src/extra/tech_sparkle.cpp src/extra/reversal_slots.cpp
+MAIN_SRCS   := $(filter-out $(INFO_EXTRA_SRCS),$(sort $(call rwildcard,src/main,*.cpp))) $(MAIN_MOVED_SRCS) $(SHARED_SRCS)
 # The menu module draws with the main module's 2D helpers and reads the SD
 # card with its file helpers, compiled again from where they live.
 MENU_SRCS   := $(sort $(call rwildcard,src/menu,*.cpp)) src/main/gfx/draw.cpp src/main/gfx/text.cpp \
@@ -201,7 +202,7 @@ MENU_SRCS   := $(sort $(call rwildcard,src/menu,*.cpp)) src/main/gfx/draw.cpp sr
 # The extra module is linked against the main module and uses its code, so
 # it compiles only its own sources, info display/status names moved out of
 # match for headroom, and the destructor chain every module needs its own copy of.
-EXTRA_SRCS  := $(sort $(call rwildcard,src/extra,*.cpp)) $(INFO_EXTRA_SRCS) src/shared/global_chain.cpp
+EXTRA_SRCS  := $(filter-out $(MAIN_MOVED_SRCS),$(sort $(call rwildcard,src/extra,*.cpp))) $(INFO_EXTRA_SRCS) src/shared/global_chain.cpp
 ifneq ($(STAGE4C),1)
 EXTRA_SRCS  := $(filter-out src/extra/challenge_backends.cpp,$(EXTRA_SRCS))
 endif
@@ -351,10 +352,31 @@ $(BUILD)/stub/%.o: src/%.cpp Makefile | $(MWCC)
 	$(Q)$(MWCC) $(CXXFLAGS) -DTM_MODULE_STUB=1 -MMD -gccdep $(INCLUDES) -c $< -o $@
 	$(Q)$(FIXDEPS)
 
-$(BUILD)/main/%.o: src/%.cpp Makefile | $(MWCC)
+# Main and extra use -O4,s -ipa file -inline on,noauto -schedule off
+# -func_align 4 -use_lmw_stmw on -str pool,reuse,readonly -fp_contract on for
+# strong code-size headroom while keeping global_chain.cpp and rel.cpp at
+# standard CXXFLAGS. All main_thunks wrappers are static inline and verified at
+# pack time by scripts/pack-rel.py check_extra_thunks.
+COMMA := ,
+COMPACT_CXXFLAGS := $(subst -inline auto,-inline on$(COMMA)noauto,$(CXXFLAGS)) \
+                    -ipa file -schedule off -func_align 4 -use_lmw_stmw on -str pool,reuse,readonly -fp_contract on
+
+$(BUILD)/main/shared/global_chain.o: src/shared/global_chain.cpp Makefile | $(MWCC)
 	@echo "c++     $< (main)"
 	@mkdir -p $(@D)
 	$(Q)$(MWCC) $(CXXFLAGS) -DTM_MODULE_MAIN=1 -MMD -gccdep $(INCLUDES) -c $< -o $@
+	$(Q)$(FIXDEPS)
+
+$(BUILD)/main/main/rel.o: src/main/rel.cpp Makefile | $(MWCC)
+	@echo "c++     $< (main)"
+	@mkdir -p $(@D)
+	$(Q)$(MWCC) $(CXXFLAGS) -DTM_MODULE_MAIN=1 -MMD -gccdep $(INCLUDES) -c $< -o $@
+	$(Q)$(FIXDEPS)
+
+$(BUILD)/main/%.o: src/%.cpp Makefile | $(MWCC)
+	@echo "c++     $< (main)"
+	@mkdir -p $(@D)
+	$(Q)$(MWCC) $(COMPACT_CXXFLAGS) -DTM_MODULE_MAIN=1 -MMD -gccdep $(INCLUDES) -c $< -o $@
 	$(Q)$(FIXDEPS)
 
 $(BUILD)/menu/%.o: src/%.cpp Makefile | $(MWCC)
@@ -363,10 +385,22 @@ $(BUILD)/menu/%.o: src/%.cpp Makefile | $(MWCC)
 	$(Q)$(MWCC) $(CXXFLAGS) -DTM_MODULE_MENU=1 -MMD -gccdep $(INCLUDES) -c $< -o $@
 	$(Q)$(FIXDEPS)
 
-$(BUILD)/extra/%.o: src/%.cpp Makefile | $(MWCC)
+$(BUILD)/extra/shared/global_chain.o: src/shared/global_chain.cpp Makefile | $(MWCC)
 	@echo "c++     $< (extra)"
 	@mkdir -p $(@D)
 	$(Q)$(MWCC) $(CXXFLAGS) -DTM_MODULE_EXTRA=1 -MMD -gccdep $(INCLUDES) -c $< -o $@
+	$(Q)$(FIXDEPS)
+
+$(BUILD)/extra/extra/rel.o: src/extra/rel.cpp Makefile | $(MWCC)
+	@echo "c++     $< (extra)"
+	@mkdir -p $(@D)
+	$(Q)$(MWCC) $(CXXFLAGS) -DTM_MODULE_EXTRA=1 -MMD -gccdep $(INCLUDES) -c $< -o $@
+	$(Q)$(FIXDEPS)
+
+$(BUILD)/extra/%.o: src/%.cpp Makefile | $(MWCC)
+	@echo "c++     $< (extra)"
+	@mkdir -p $(@D)
+	$(Q)$(MWCC) $(COMPACT_CXXFLAGS) -DTM_MODULE_EXTRA=1 -MMD -gccdep $(INCLUDES) -c $< -o $@
 	$(Q)$(FIXDEPS)
 
 $(BH)/RSBE01.lst:

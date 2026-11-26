@@ -130,7 +130,8 @@ namespace main {
         kScenarioStepPosUp,
         kScenarioStepPosDown,
         kScenarioSpacingCloser,
-        kScenarioSpacingFarther
+        kScenarioSpacingFarther,
+        kScenarioPracticeChanged
     };
 
     // What the match module asks of the Character RNG / Fighter Mechanics code.

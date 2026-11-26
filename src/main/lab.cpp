@@ -4,6 +4,10 @@
 #include <string.h>
 #include <gf/gf_pad_status.h>
 
+#include "extra/reversal_slots.h"
+#ifdef __MWERKS__
+#include "extra/tech_sparkle.h"
+#endif
 #include "main/cpu/fighter_input.h"
 #include "main/cpu/options.h"
 #include "main/cpu/view.h"
@@ -1654,6 +1658,9 @@ namespace lab {
                 main::extraCharacterRng();
             }
             main::extraStageOptionsTick();
+#ifdef __MWERKS__
+            extra::techSparkleFrame();
+#endif
         }
     }
 
@@ -1846,6 +1853,9 @@ namespace lab {
         main::extraInfoReset();
         main::extraDiReset();
         main::extraComboReset();
+#ifdef __MWERKS__
+        extra::techSparkleReset();
+#endif
         main::extraHeatmapReset();
         main::extraAdaptiveReset();
         main::extraScenarioCall(main::kScenarioSavestateLoaded);
@@ -1877,6 +1887,10 @@ namespace lab {
         if (!s_vsReadOnly)
         {
             display::attach();
+            extra::reversalSlotsAttach();
+#ifdef __MWERKS__
+            extra::techSparkleAttach();
+#endif
         }
         bool wide = game::widescreen();
         gfx::setWidescreen(wide);
@@ -1899,6 +1913,9 @@ namespace lab {
             return;
         }
         display::detach();
+#ifdef __MWERKS__
+        extra::techSparkleDetach();
+#endif
         osd::detach();
         gfx::textDetach();
         game::overlaysClear();

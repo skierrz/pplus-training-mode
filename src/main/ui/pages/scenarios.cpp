@@ -81,6 +81,21 @@ namespace pages {
     static bool scenarioGrabActive() { return presetIs(kPresetGrabEscape); }
     static bool scenarioMultiHitActive() { return presetIs(kPresetMultiHitSdi); }
 
+    static void practiceChanged() { main::extraScenarioCall(main::kScenarioPracticeChanged); }
+
+    static bool practiceActive() { return main::extraLoaded() && practiceMenuState()->activeDrill != 0; }
+
+#pragma dont_inline on
+    static bool practiceDrillIs(u8 id) { return main::extraLoaded() && practiceMenuState()->activeDrill == id; }
+#pragma dont_inline reset
+
+    static bool practiceLedgeActive() { return practiceDrillIs(1); }
+    static bool practiceWdActive() { return practiceDrillIs(2); }
+    static bool practiceLcActive() { return practiceDrillIs(3); }
+    static bool practiceFloatActive() { return practiceDrillIs(4); }
+    static bool practicePsActive() { return practiceDrillIs(5); }
+    static bool practicePsProjActive() { return practiceDrillIs(5) && practiceMenuState()->psAttackMode == 0; }
+
     static const char* const kPresets[] = {
         "Off", "Combo Lab", "Techchase", "Edgeguard", "Shield Pressure / OoS",
         "Shield Drop", "Ledgetech", "Slide-Off", "Grab Defense / Throw DI", "P+ Multi-Hit SDI"
@@ -122,11 +137,25 @@ namespace pages {
     static const char* const kMultiHitMoves[] = {
         "Auto (Best)", "Nair", "Fair", "Up Air", "Down Air", "Rapid Jab", "Up B", "Side B", "Down B"
     };
+    static const char* const kPracticeModes[] = {"Free Practice", "10-Rep Set", "20-Rep Set"};
+    static const char* const kPsAtkModes[] = {"Projectile", "Physical"};
+    static const char* const kPsHeights[] = {"Low", "Mid", "High", "Ground", "Random"};
+    static const char* const kPsCadences[] = {"Slow", "Medium", "Fast", "Random"};
+    static const char* const kLedgeSides[] = {"Same", "Opposite", "Random"};
+    static const char* const kLedgeInvulns[] = {"P+ 5-Grab", "Unlimited"};
+    static const char* const kPracticeTargets[] = {"Off", "Stationary CPU", "Shielding CPU", "Moving CPU"};
 
 #define TM_SCEN_OFF(f) static_cast<u16>(kScenarioScratchOffset + offsetof(ScenarioMenuState, f))
 #define TM_SCEN_CHOICE(name, field, labels, def, en)                                                      \
     TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,               \
            TM_SCEN_OFF(field), 0, TM_COUNT(labels) - 1, def, name, labels, main::extraScenarioChanged, en)
+#define TM_PRAC_OFF(f) static_cast<u16>(kPracticeScratchOffset + offsetof(PracticeMenuState, f))
+#define TM_PRAC_CHOICE(name, field, labels, def, en)                                        \
+    TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled, \
+           TM_PRAC_OFF(field), 0, TM_COUNT(labels) - 1, def, name, labels, practiceChanged, en)
+#define TM_PRAC_TOGGLE(name, field, def, en)                                                \
+    TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled, \
+           TM_PRAC_OFF(field), 0, 1, def, name, NULL, practiceChanged, en)
 
     static const Option kRows[] = {
         TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagScratch, TM_SCEN_OFF(preset), 0, TM_COUNT(kPresets) - 1, 0,
@@ -182,8 +211,22 @@ namespace pages {
         TM_SCEN_CHOICE("Multi-Hit Move", multiHitMove, kMultiHitMoves, 0, scenarioMultiHitActive),
         TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, "Reset Now", NULL,
                main::extraScenarioResetNow, scenarioActive),
+        // Active Tech Practice drill options (hidden unless a Tech Practice drill is running)
+        TM_PRAC_CHOICE("Practice Mode", mode, kPracticeModes, 0, practiceActive),
+        TM_PRAC_CHOICE("Attack Mode", psAttackMode, kPsAtkModes, 0, practicePsActive),
+        TM_PRAC_CHOICE("Shot Height", psHeight, kPsHeights, 0, practicePsProjActive),
+        TM_PRAC_CHOICE("Cadence", psCadence, kPsCadences, 1, practicePsActive),
+        TM_PRAC_CHOICE("Reset Ledge", ledgeResetSide, kLedgeSides, 0, practiceLedgeActive),
+        TM_PRAC_TOGGLE("Ledge Auto-Reset", ledgeAutoReset, 1, practiceLedgeActive),
+        TM_PRAC_CHOICE("Ledge Invuln", ledgeInvulnLimit, kLedgeInvulns, 0, practiceLedgeActive),
+        TM_PRAC_CHOICE("Target", lcancelTarget, kPracticeTargets, 1, practiceLcActive),
+        TM_PRAC_CHOICE("Target", floatDjcTarget, kPracticeTargets, 1, practiceFloatActive),
+        TM_PRAC_TOGGLE("Target Zone", wdTargetZone, 0, practiceWdActive),
         TM_MENU_IF("Combo Trainer", P_COMBO_TRAINER, comboTrainerAvailable)
     };
+#undef TM_PRAC_TOGGLE
+#undef TM_PRAC_CHOICE
+#undef TM_PRAC_OFF
 #undef TM_SCEN_CHOICE
 #undef TM_SCEN_OFF
 

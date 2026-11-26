@@ -55,6 +55,7 @@ namespace extra {
     bool drillPracticeOnPad(u32 phase, gfPadStatus* pads);
     bool drillPracticeClaimsDpadLR();
     void drillPracticeSetActiveDrill(u8 drillId);
+    void drillPracticeApplyMenu();
     PracticeConfig& drillPracticeConfig();
 
     const WdZoneState* drillPracticeWdZone();

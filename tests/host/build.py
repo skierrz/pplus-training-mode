@@ -45,6 +45,7 @@ MOD_SOURCES = [
     "extra/fighter_mechanics.cpp",
     "extra/menu_descriptions.cpp",
     "extra/pplus_recovery_core.cpp",
+    "extra/reversal_slots.cpp",
     "extra/scenario_presets_core.cpp",
     "main/cpu/actions.cpp",
     "main/cpu/lab_data.cpp",

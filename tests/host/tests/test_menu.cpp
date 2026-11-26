@@ -19,6 +19,7 @@
 #include "main/ui/lab_menu.h"
 #include "main/ui/menu.h"
 #include "main/ui/pages/pages.h"
+#include "main/ui/pages/scenarios.h"
 #include "main/ui/style.h"
 #include "shared/game/menu_sound.h"
 
@@ -636,9 +637,10 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK(strcmp(osdP.options[10].name, "Shield Advantage") == 0);
 
     const ui::Page& scen = ui::pages::kScenarios;
-    REQUIRE(scen.count == 35);
-    CHECK(strcmp(scen.options[34].name, "Combo Trainer") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[34].max);
+    REQUIRE(scen.count == 45);
+    CHECK(strcmp(scen.options[34].name, "Practice Mode") == 0);
+    CHECK(strcmp(scen.options[44].name, "Combo Trainer") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[44].max);
 
     const ui::Page& sc = ui::pages::kStageCast;
     REQUIRE(sc.count == 34);
@@ -1594,4 +1596,42 @@ TEST(lab_menu, rail_focus_suppresses_competing_category_highlight_and_uses_move_
     }
     CHECK(activeBevelRects >= 1);
     storage::detach();
+}
+
+TEST(menu, tech_practice_lab_rows_gate_by_active_drill)
+{
+    main::loadSettings(host::fakes::block());
+    main::ExtraHooks hooks;
+    memset(&hooks, 0, sizeof(hooks));
+    main::setExtraHooks(&hooks);
+    ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
+    memset(pm, 0, sizeof(*pm));
+    const ui::Page& scen = ui::pages::kScenarios;
+    // Rows 34..43 are the 10 conditional Tech Practice rows.
+    for (int r = 34; r <= 43; r++)
+    {
+        CHECK((scen.options[r].flags & (ui::kFlagScratch | ui::kFlagHideWhenDisabled))
+              == (ui::kFlagScratch | ui::kFlagHideWhenDisabled));
+        CHECK(!scen.options[r].enabled());
+    }
+    // Powershield (5): Mode (34), Attack Mode (35), Shot Height (36, proj only), Cadence (37).
+    pm->activeDrill = 5;
+    pm->psAttackMode = 0;
+    CHECK(scen.options[34].enabled() && scen.options[35].enabled() && scen.options[36].enabled()
+          && scen.options[37].enabled() && !scen.options[38].enabled());
+    pm->psAttackMode = 1;
+    CHECK(scen.options[35].enabled() && !scen.options[36].enabled() && scen.options[37].enabled());
+    // Ledgedash (1): Mode (34), Reset Ledge (38), Ledge Auto-Reset (39), Ledge Invuln (40).
+    pm->activeDrill = 1;
+    CHECK(scen.options[34].enabled() && !scen.options[35].enabled() && scen.options[38].enabled()
+          && scen.options[39].enabled() && scen.options[40].enabled() && !scen.options[41].enabled());
+    // L-Cancel (3) -> row 41; Float/Hover (4) -> row 42; Wavedash (2) -> row 43.
+    pm->activeDrill = 3;
+    CHECK(scen.options[34].enabled() && scen.options[41].enabled() && !scen.options[42].enabled());
+    pm->activeDrill = 4;
+    CHECK(scen.options[34].enabled() && !scen.options[41].enabled() && scen.options[42].enabled());
+    pm->activeDrill = 2;
+    CHECK(scen.options[34].enabled() && scen.options[43].enabled() && !scen.options[41].enabled());
+    memset(pm, 0, sizeof(*pm));
+    main::setExtraHooks(NULL);
 }

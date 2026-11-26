@@ -31,6 +31,7 @@
 #include "main/gfx/draw.h"
 #include "main/lab.h"
 #include "main/settings.h"
+#include "main/ui/pages/scenarios.h"
 #include "shared/game/frame.h"
 #include "shared/game/mem.h"
 #include "shared/game/pad_bits.h"
@@ -332,6 +333,12 @@ namespace extra {
             net.padFresh = 1u;
             net.flags &= static_cast<u8>(~kFlagFrameSnap);
         }
+        static void syncPracticeMenuFromCfg(const PracticeNet& net)
+        {
+            ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
+            pm->activeDrill = net.debug.activeDrill;
+            memcpy(&pm->psAttackMode, &net.cfg.psAttackMode, 9);
+        }
     }
 
     void drillPracticeAttach()
@@ -347,6 +354,7 @@ namespace extra {
         s_net->debug.magic = kPracticeDebugMagic;
         s_net->debug.version = kPracticeDebugVersion;
         resetSubsystems(false);
+        syncPracticeMenuFromCfg(*s_net);
         TM_LOG("drill_practice: debug block at %08x\n", &s_net->debug);
     }
 
@@ -370,6 +378,19 @@ namespace extra {
             s_net->debug.activeDrill = clean;
             resetSubsystems(clean == kPracticeDrillNone);
         }
+        syncPracticeMenuFromCfg(*s_net);
+    }
+
+    void drillPracticeApplyMenu()
+    {
+        if (s_net == NULL)
+        {
+            return;
+        }
+        const ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
+        memcpy(&s_net->cfg.psAttackMode, &pm->psAttackMode, 9);
+        sanitizePracticeConfig(s_net->cfg);
+        syncPracticeMenuFromCfg(*s_net);
     }
 
     PracticeConfig& drillPracticeConfig()

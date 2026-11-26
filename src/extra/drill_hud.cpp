@@ -22,6 +22,7 @@
 #include "main/services.h"
 #include "main/ui/hud_layout.h"
 #include "main/ui/menu.h"
+#include "main/ui/pages/scenarios.h"
 #include "shared/drill_session.h"
 #include "shared/game/menu_sound.h"
 #include "shared/game/pad_bits.h"
@@ -334,6 +335,9 @@ namespace extra {
                                                                    : static_cast<u8>(drills::kDrillNone);
         drillHudInit(s_rt.st, id, id ? s_rt.sess->best[id] : 0u);
         drillPracticeSetActiveDrill(id);
+        ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
+        pm->activeDrill = id;
+        pm->mode = s_rt.st.mode;
         if (id)
         {
             s_rt.sess->drillRan = 1;
@@ -533,6 +537,7 @@ namespace extra {
                     if (modBit != 0 && (held & modBit) != 0)
                     {
                         drillHudCycleMode(st);
+                        ui::pages::practiceMenuState()->mode = st.mode;
                         s_rt.synced = 0;
                         s_rt.releaseMask[i] |= game::kPadDUp;
                         ui::menuSound(game::kSoundMove);
@@ -568,6 +573,7 @@ namespace extra {
                         if (act == 2)
                         {
                             st.activeDrill = drills::kDrillNone;
+                            ui::pages::practiceMenuState()->activeDrill = drills::kDrillNone;
                             drillPracticeSetActiveDrill(drills::kDrillNone);
                             if (s_rt.sess)
                             {
@@ -654,6 +660,23 @@ namespace extra {
     bool drillHudModalOpen()
     {
         return s_rtPtr != NULL && s_rtPtr->st.modalOpen != 0;
+    }
+
+    void drillHudSetMode(u8 mode)
+    {
+        if (s_rtPtr == NULL || !isValidSkillDrill(s_rtPtr->st.activeDrill))
+        {
+            return;
+        }
+        u8 clean = mode < kDrillModeCount ? mode : static_cast<u8>(kDrillModeFree);
+        Runtime& s_rt = *s_rtPtr;
+        ui::pages::practiceMenuState()->mode = clean;
+        if (clean != s_rt.st.mode)
+        {
+            drillHudInitMode(s_rt.st, s_rt.st.activeDrill, s_rt.st.sessionBest, clean);
+            s_rt.synced = 0;
+            syncDebug();
+        }
     }
 }
 }

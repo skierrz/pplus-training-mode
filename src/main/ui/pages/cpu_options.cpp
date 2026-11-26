@@ -130,6 +130,19 @@ namespace pages {
         return a != NULL && (a->flags & (cpu::kForShffl | cpu::kForFfl)) != 0;
     }
 
+    static bool poolHasShffl(int list, const u8 bits[8])
+    {
+        int n = cpu::actionCount(list);
+        for (int i = 0; i < n && i < 64; i++)
+        {
+            if ((bits[i >> 3] & (1u << (i & 7))) != 0 && isShfflAction(list, i))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static bool cpuShfflActive()
     {
         if (!cpuLabControl())
@@ -137,11 +150,15 @@ namespace pages {
             return false;
         }
         const cpu::CpuOptions& c = main::settings().cpu.options;
-        if (isShfflAction(cpu::kListGround, c.counterGround)
-            || isShfflAction(cpu::kListAir, c.counterAir)
-            || isShfflAction(cpu::kListShield, c.counterShield))
+        const cpu::CpuTables& t = main::settings().cpuTables;
+        const u8 ctr[3] = {c.counterGround, c.counterAir, c.counterShield};
+        for (int list = 0; list < 3; list++)
         {
-            return true;
+            if (isShfflAction(list, ctr[list])
+                || (cpu::actionKind(list, ctr[list]) == cpu::kActionCustomPool && poolHasShffl(list, t.poolBits[list])))
+            {
+                return true;
+            }
         }
         if (c.multiReversal != 0
             && (isShfflAction(cpu::kListGround, c.revSlot2Action[cpu::kRevOnHit])
@@ -149,7 +166,6 @@ namespace pages {
         {
             return true;
         }
-        const cpu::CpuTables& t = main::settings().cpuTables;
         for (int h = 0; h < cpu::kAdvancedHits; h++)
         {
             if (t.hits[h].logic == cpu::kLogicCustom

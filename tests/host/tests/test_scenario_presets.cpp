@@ -698,7 +698,7 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK(strcmp(disp.options[22].name, "Advanced / Debug") == 0);
     CHECK_EQ(ui::pages::P_DEBUG, disp.options[22].max);
     const ui::Page& scen = ui::pages::kScenarios;
-    REQUIRE(scen.count == 35);
+    REQUIRE(scen.count == 45);
     CHECK(strcmp(scen.options[0].name, "Preset") == 0);
     CHECK_EQ(kScenarioCount - 1, scen.options[0].max);
     CHECK(strcmp(scen.options[3].name, "Setup") == 0);
@@ -722,8 +722,10 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK(strcmp(scen.options[30].name, "CPU Action") == 0);
     CHECK(strcmp(scen.options[31].name, "P1 Damage") == 0);
     CHECK(strcmp(scen.options[32].name, "Multi-Hit Move") == 0);
-    CHECK(strcmp(scen.options[34].name, "Combo Trainer") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[34].max);
+    CHECK(strcmp(scen.options[34].name, "Practice Mode") == 0);
+    CHECK(strcmp(scen.options[43].name, "Target Zone") == 0);
+    CHECK(strcmp(scen.options[44].name, "Combo Trainer") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[44].max);
 }
 
 TEST(scenario_presets, multi_hit_sdi_ignores_attacker_hitlag)

@@ -23,7 +23,9 @@
 #include "extra/combo_trainer.h"
 #include "extra/drill_core_engines.h"
 #include "extra/drill_hover_ps_engines.h"
+#include "extra/drill_hud.h"
 #include "extra/drill_pplus_tech_engines.h"
+#include "extra/drill_practice_driver.h"
 #include "extra/hud_draw.h"
 #include "extra/net_alloc.h"
 #include "extra/pplus_recovery.h"
@@ -955,6 +957,10 @@ namespace extra {
             break;
         case main::kScenarioSpacingFarther:
             adjustScenarioSpacing(net, 2);
+            break;
+        case main::kScenarioPracticeChanged:
+            drillPracticeApplyMenu();
+            drillHudSetMode(ui::pages::practiceMenuState()->mode);
             break;
         default:
             break;
