@@ -94,7 +94,7 @@ CONTROLS_MENU_BUTTON, CONTROLS_CODE_MENU, CONTROLS_MENU_STYLE = 7, 8, 9
 OSD_POWERSHIELD = 14  # visible row at default (OSD Preset=Essentials; Advantage Tolerance visible at 12)
 OSD_ROWS = 26         # visible OSD rows at default (all 26 rows visible under Essentials defaults)
 DISPLAY_HMN_INFO, DISPLAY_CPU_INFO, DISPLAY_DEBUG = 13, 14, 17  # visible Display rows at default
-DISPLAY_ROWS = 18     # visible Display rows at default (Hitbox Colors, Heatmap*, DI Vector hidden)
+DISPLAY_ROWS = 19     # visible Display rows at default (Hitbox Colors, Heatmap*, DI Vector hidden; Action Log last)
 DEBUG_OVERLAY_ROW = 1  # Display > Advanced / Debug: 0 PSA Debugger, 1 Debug Overlay
 PRESETS = {"none": 0, "state": 1, "ledge": 2, "damage": 3, "debug": 4}
 SIZES = {"small": 0, "medium": 1, "large": 2}
@@ -1917,7 +1917,7 @@ def cmd_test_lab(rest):
                 moves = len(re.findall(r"\] ui: sound 0 ", emu.synced_log_text()[pos:]))
                 shot("lab-display-last-row")
                 note(f"Display Options: {DISPLAY_ROWS + 2} downs from the top moved the cursor {moves} rows "
-                     f"(to Ledgedash HUD, the last)")
+                     f"(to Action Log, the last)")
                 if moves != DISPLAY_ROWS - 1:
                     raise LabError(f"down moved {moves} rows on Display Options, want {DISPLAY_ROWS - 1} "
                                    "(stopping on the last row)")
