@@ -25,7 +25,9 @@ namespace extra {
     void scenarioPresetsPrepareSwap();
     void scenarioPresetsRestoreAfterSwap(const ui::pages::ScenarioMenuState& saved);
     void scenarioPresetsOnRender(const game::MatchState& match);
+    bool scenarioPresetsWantsTopBand(const game::MatchState& match);
     bool scenarioPresetsWantsDraw(const game::MatchState& match);
+    int scenarioPresetsPlateRows(const game::MatchState& match);
     void scenarioPresetsDraw(const game::MatchState& match);
     void scenarioPresetsFrame();
     void scenarioPresetsCall(int call);

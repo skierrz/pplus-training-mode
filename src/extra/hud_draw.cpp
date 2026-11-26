@@ -588,9 +588,12 @@ namespace extra {
             int vSlots = training ? inputViewerSlotCount(s.display.inputViewer) : 0;
             bool hasAdaptive = training && s.cpu.options.control == cpu::kControlLab
                                && s.cpu.options.adaptiveMode != cpu::kAdaptiveOff;
-            bool hasDrillPlate = !vsReadOnly && training
-                                 && (drillHudActiveId() != 0 || scenarioPresetsWantsDraw(game::matchState()));
-            sideBot = rightColumnBottom(band, vSlots, false, false, wide, hasAdaptive, hasDrillPlate ? 3 : 0);
+            int plateRows = 0;
+            if (!vsReadOnly && training)
+            {
+                plateRows = drillHudActiveId() != 0 ? 3 : scenarioPresetsPlateRows(game::matchState());
+            }
+            sideBot = rightColumnBottom(band, vSlots, false, false, wide, hasAdaptive, plateRows);
             if (s.display.psaInspector != main::kPsaOff)
             {
                 Box psa = hudRightCardBox(kHudCardPsa, wide);

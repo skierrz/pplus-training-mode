@@ -903,7 +903,7 @@ namespace extra {
         if (pads == NULL)
         {
             bool active = isValidSkillDrill(st.activeDrill);
-            bool tc = scenarioPresetsWantsDraw(game::matchState());
+            bool tc = scenarioPresetsWantsTopBand(game::matchState());
             bool topHud = active || tc;
             if (phase == 2u && topHud)
             {

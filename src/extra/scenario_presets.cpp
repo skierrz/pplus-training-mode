@@ -779,9 +779,19 @@ namespace extra {
         s_wasPaused = match.paused;
     }
 
+    bool scenarioPresetsWantsTopBand(const game::MatchState& match)
+    {
+        return s_net != NULL && match.running && !match.paused && scenarioHasTopBand(s_net->state.activePreset);
+    }
+
     bool scenarioPresetsWantsDraw(const game::MatchState& match)
     {
-        return s_net != NULL && match.running && !match.paused && s_net->state.activePreset == kScenarioTechchase;
+        return s_net != NULL && match.running && !match.paused && scenarioHasStatPlate(s_net->state.activePreset);
+    }
+
+    int scenarioPresetsPlateRows(const game::MatchState& match)
+    {
+        return scenarioPresetsWantsDraw(match) ? 3 : 0;
     }
 
     void scenarioPresetsDraw(const game::MatchState& match)
@@ -791,8 +801,27 @@ namespace extra {
             return;
         }
         const ScenarioState& st = s_net->state;
-        const ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
         bool wide = gfx::widescreen();
+        if (st.activePreset != kScenarioTechchase)
+        {
+            ScenarioConfig cfg;
+            readMenuConfigInto(cfg);
+            ScenarioHudPlate plate;
+            if (!formatScenarioStatPlate(st, cfg, plate))
+            {
+                return;
+            }
+            StatPlateRow rows[3];
+            for (int i = 0; i < plate.count; i++)
+            {
+                rows[i].label = plate.rows[i].label;
+                rows[i].value = plate.rows[i].value;
+                rows[i].valueColor = plate.rows[i].valueColor;
+            }
+            drawStatPlate(rows, plate.count, hudViewerColumnBottom(wide), wide);
+            return;
+        }
+        const ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
 
         // Zone 1: Calm white-label timing bar (Early | Cover | Late) with ^ pointer.
         static const gfx::Rgba kTcCells[11] = {

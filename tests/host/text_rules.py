@@ -207,6 +207,13 @@ NUMBERS = {
     ("scenario_presets.cpp", "%u"): ["999"],
     ("scenario_presets.cpp", "Techchase: Platform %u"): ["4"],
     ("scenario_presets.cpp", "Spacing: %+d"): ["+12"],
+    ("scenario_presets_core.h", "%u / %u"): ["999", "999"],
+    ("scenario_presets_core.h", "%u"): ["999"],
+    ("scenario_presets_core.h", "Plat %u"): ["4"],
+    ("scenario_presets_core.h", "%uf Out"): ["999"],
+    ("scenario_presets_core.h", "%uf Held"): ["999"],
+    ("scenario_presets_core.h", "%u Hits"): ["999"],
+    ("scenario_presets_core.h", "%u.%u u"): ["99", "9"],
     # Players 1 to 4, frames of the match, state numbers up to 0xFFF.
     ("debug_overlay.cpp", "adv P%d>P%d %s %+d: hit %d, A %d %X<%X, D %d %X<%X, x%d"):
         ["4", "4", None, "-99", "99999", "99999", "FFF", "FFF", "99999", "FFF", "FFF", "99"],
@@ -1022,6 +1029,28 @@ def adaptive_cpu_cpp(c, src):
         c.take(lit)
 
 
+def scenario_presets_core_h(c, src):
+    # Panel B right-margin stat plates for the 7 non-Techchase Lab Scenarios (102 px inner).
+    for lit in src.literals:
+        if c.taken(lit):
+            continue
+        if lit.func == "scenarioSetRow" and lit.name == "snprintf" and lit.arg == 2 and lit.text == "%s":
+            c.take(lit)
+            continue
+        if lit.func != "formatScenarioStatPlate":
+            continue
+        if lit.name == "snprintf" and lit.arg == 2:
+            for t in c.expand(lit, 2):
+                c.item("squeeze", lit, t, scale_for_cap(11.5), 0, 102.0, 0.0)
+                c.buffer(lit, t, 24.0)
+        elif lit.name == "scenarioSetRow" or lit.var or not lit.calls:
+            c.item("squeeze", lit, lit.text, scale_for_cap(11.5), 0, 102.0, 0.0)
+            c.buffer(lit, lit.text, 24.0)
+        else:
+            continue
+        c.take(lit)
+
+
 def scenario_presets_cpp(c, src):
     # Unified Techchase timing bar legend + Panel B right-margin stat plate (102 px inner).
     for lit in src.literals:
@@ -1261,6 +1290,7 @@ HANDLERS = [
     ("extra/psa_inspector.cpp", psa_inspector_cpp),
     ("extra/adaptive_cpu_core.h", adaptive_cpu_core_h),
     ("extra/adaptive_cpu.cpp", adaptive_cpu_cpp),
+    ("extra/scenario_presets_core.h", scenario_presets_core_h),
     ("extra/scenario_presets.cpp", scenario_presets_cpp),
     ("extra/drill_hud_core.h", drill_hud_core_h),
     ("extra/drill_hud.cpp", drill_hud_cpp),
