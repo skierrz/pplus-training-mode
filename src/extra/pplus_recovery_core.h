@@ -161,6 +161,7 @@ namespace extra {
         float pktX, pktY;
         float pktVx, pktVy;
         u32 lastButtons;
+        u8 recoveryMixup; // main::RecoveryMixup (0 Mixed, 1 Low, 2 High, 3 Direct)
     };
 
     struct RecoveryOutput {

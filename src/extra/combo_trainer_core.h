@@ -13,8 +13,36 @@ namespace extra {
     enum {
         kCorrectNone = 0,            // soGroundShapeImpl::Correct_None
         kCorrectGroundCliffStop = 2, // soGroundShapeImpl::Correct_Ground_Cliff_Stop
-        kCorrectAir = 5              // soGroundShapeImpl::Correct_Air
+        kCorrectAir = 5,             // soGroundShapeImpl::Correct_Air
+        kRecoveryGraceFrames = 28    // grace delay after actionable onstage / ledge / KO before next rep
     };
+
+    // True only when grounded on the main stage floor AND truly actionable in a
+    // neutral/defensive ground status (Wait/Walk/Dash/Run/Turn/Squat/Guard) or
+    // Teeter (Ottoto 0x7C / Ottoto_Wait 0x7D). Never true during Landing
+    // (0x16..0x18), LandingFallSpecial (0x19), hitstun, or hitlag.
+    inline bool isLandedSafeOnStage(int status, bool air, bool actionable, int hitstun, int hitlag, float x,
+                                    float floorLeftX, float floorRightX)
+    {
+        if (air || hitstun > 0 || hitlag > 0 || x < floorLeftX || x > floorRightX)
+        {
+            return false;
+        }
+        if (status >= 0x16 && status <= 0x19)
+        {
+            return false;
+        }
+        if (status == 0x7C || status == 0x7D)
+        {
+            return true;
+        }
+        if (!actionable)
+        {
+            return false;
+        }
+        return (status >= 0x00 && status <= 0x09) || (status >= 0x11 && status <= 0x15)
+               || status == 0x1A || status == 0x1B;
+    }
 
     struct ComboSlotState {
         float anchorX;
@@ -27,6 +55,7 @@ namespace extra {
         int comboTimer;
         int postResetTimer;
         int recoveryAirFrames;
+        u8 recoveryGraceFrames; // countdown before next recovery rep warps
         int maxHitlag;
         int maxHitstun;
         int maxShieldStun;
@@ -108,6 +137,7 @@ namespace extra {
         st.comboTimer = 0;
         st.postResetTimer = 0;
         st.recoveryAirFrames = 0;
+        st.recoveryGraceFrames = 0;
         st.maxHitlag = 0;
         st.maxHitstun = 0;
         st.maxShieldStun = 0;
@@ -330,6 +360,43 @@ namespace extra {
                 st.comboTimer = 0;
                 st.postResetTimer = 0;
                 st.recoveryAirFrames = 0;
+                st.recoveryGraceFrames = 0;
+            }
+            else if (cfg.recoveryTrainer && in.status == 0xBE)
+            {
+                // CPU was KO'd and entered Rebirth: brief grace pause before next offstage rep.
+                if (st.recoveryGraceFrames == 0)
+                {
+                    st.recoveryGraceFrames = kRecoveryGraceFrames;
+                }
+                if (st.recoveryGraceFrames > 1)
+                {
+                    st.recoveryGraceFrames--;
+                    return;
+                }
+                st.recoveryGraceFrames = 0;
+                st.recoveryResets++;
+                st.recoveryAirFrames = 0;
+                st.wasInHitstun = false;
+                st.comboTimer = 0;
+                act.doWarp = true;
+                act.warpFalling = true;
+                act.pickOffstagePos = true;
+                if (cfg.noclip)
+                {
+                    act.setCorrectNone = true;
+                    st.restoreCorrect = true;
+                    st.restoreCorrectKind = kCorrectAir;
+                    st.lastCorrectWritten = kCorrectNone;
+                }
+                if (cfg.randomizeDamage)
+                {
+                    act.pickRandomDamage = true;
+                }
+                else
+                {
+                    act.applyFixedDamage = true;
+                }
             }
             else if (cfg.fixPosition && !cfg.recoveryTrainer && (st.wasInHitstun || st.postResetArmed))
             {
@@ -374,19 +441,46 @@ namespace extra {
         }
 
         // 1. Recovery Trainer loop: repeatedly places CPU offstage for edgeguard
-        // practice once it falls too low, grabs ledge, or returns safely to stage.
+        // practice once it falls too low, or after a clean grace window once it
+        // grabs ledge or becomes truly actionable back on stage.
         if (cfg.recoveryTrainer)
         {
             if (in.air)
             {
                 st.recoveryAirFrames++;
             }
-            bool needRespawn = in.belowRecoveryReset
-                               || (in.landedSafeOnStage && (st.recoveryResets == 0 || st.recoveryAirFrames >= 12));
+            bool initialPlace = st.recoveryResets == 0 && (in.landedSafeOnStage || in.onLedge);
+            bool graceTrigger = st.recoveryResets > 0 && st.recoveryAirFrames >= 12
+                                && (in.landedSafeOnStage || in.onLedge) && in.hitstun == 0 && in.hitlag == 0;
+            bool needRespawn = in.belowRecoveryReset || initialPlace;
+            if (!needRespawn)
+            {
+                if (graceTrigger)
+                {
+                    if (st.recoveryGraceFrames == 0)
+                    {
+                        st.recoveryGraceFrames = kRecoveryGraceFrames;
+                    }
+                    else if (st.recoveryGraceFrames > 1)
+                    {
+                        st.recoveryGraceFrames--;
+                    }
+                    else
+                    {
+                        st.recoveryGraceFrames = 0;
+                        needRespawn = true;
+                    }
+                }
+                else
+                {
+                    st.recoveryGraceFrames = 0;
+                }
+            }
             if (needRespawn)
             {
                 st.recoveryResets++;
                 st.recoveryAirFrames = 0;
+                st.recoveryGraceFrames = 0;
                 st.wasInHitstun = false;
                 st.comboTimer = 0;
                 act.doWarp = true;

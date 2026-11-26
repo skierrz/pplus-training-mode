@@ -11,10 +11,14 @@ class Fighter;
 
 // Unified P+ Lab Scenario Presets runtime backend (src/extra/).
 namespace tm {
+namespace game {
+    struct FighterRef;
+}
 namespace main {
     struct Settings;
 }
 namespace extra {
+    struct StageGeometry;
     void scenarioPresetsAttach();
     void scenarioPresetsDetach();
     void scenarioPresetsPrepareSwap();
@@ -28,5 +32,8 @@ namespace extra {
     // Returns 0 (Right), 1 (Left), or 2 (Random) for Combo Trainer's
     // Recovery Trainer loop when Edgeguard scenario is active (2 otherwise).
     int scenarioPresetsEdgeguardSide();
+    // Runs Edgeguard scenario's configured offstage launch/spawn when active.
+    bool scenarioPresetsEdgeguardRespawn(const game::FighterRef& ref, const StageGeometry& geom, u32& rng,
+                                         bool setNoclip, float damage);
 }
 }

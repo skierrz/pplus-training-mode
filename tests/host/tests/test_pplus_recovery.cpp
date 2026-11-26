@@ -801,3 +801,119 @@ TEST(pplus_recovery, ivysaur_tether_requires_in_range_and_below_ledge)
     }
     CHECK(sawVineWhip);
 }
+
+TEST(pplus_recovery, recovery_mixup_profiles_and_tumble_dj_wall_underside_guards)
+{
+    u32 rng = 0x8100u;
+    RecoveryState st;
+    RecoveryOutput out;
+
+    // 1. Recovery Mixup profiles (Low vs High vs Direct) steer Fox 360-aim Up-B distinctly.
+    recoveryStateReset(st);
+    RecoveryInput foxLow = offstageInput(0x06, 105.0f, -25.0f, false);
+    foxLow.status = 0x114;
+    foxLow.recoveryMixup = 1; // Low (Sweetspot)
+    stepRecovery(foxLow, st, rng, out);
+    float lowY = out.stickY;
+
+    recoveryStateReset(st);
+    RecoveryInput foxHigh = foxLow;
+    foxHigh.recoveryMixup = 2; // High
+    stepRecovery(foxHigh, st, rng, out);
+    float highY = out.stickY;
+    CHECK(highY > lowY);
+
+    // Low mixup never rolls kOptUpBHigh; High mixup sets highMixup > 0.
+    for (u32 trial = 0; trial < 32; trial++)
+    {
+        recoveryStateReset(st);
+        u32 trng = 0x8200u + trial * 37u;
+        RecoveryInput inL = offstageInput(0x06, 100.0f, -20.0f, false);
+        inL.recoveryMixup = 1;
+        stepRecovery(inL, st, trng, out);
+        CHECK(st.option != kOptUpBHigh);
+        CHECK_EQ(0, static_cast<int>(st.highMixup));
+
+        recoveryStateReset(st);
+        RecoveryInput inH = inL;
+        inH.recoveryMixup = 2;
+        stepRecovery(inH, st, trng, out);
+        CHECK(st.highMixup > 0);
+    }
+
+    // 2. Tumble (Damage_Fall 0x49) wiggles stick X across opposite directions to exit tumble.
+    recoveryStateReset(st);
+    RecoveryInput tumble = offstageInput(0x11, 130.0f, 25.0f, true);
+    tumble.status = 0x49;
+    tumble.vy = 0.5f; // rising -> preserves DJ, so drifts & wiggles out of tumble
+    stepRecovery(tumble, st, rng, out);
+    float firstX = out.stickX;
+    stepRecovery(tumble, st, rng, out);
+    float secondX = out.stickX;
+    CHECK(firstX * secondX < -0.5f);
+
+    // 3. Double jump preservation while rising or well above ledge near stage.
+    for (u32 trial = 0; trial < 32; trial++)
+    {
+        recoveryStateReset(st);
+        u32 trng = 0x8300u + trial * 41u;
+        RecoveryInput rising = offstageInput(0x11, 100.0f, 15.0f, true);
+        rising.vy = 1.2f;
+        stepRecovery(rising, st, trng, out);
+        CHECK(st.option != kOptJump);
+
+        recoveryStateReset(st);
+        RecoveryInput highNear = offstageInput(0x0E, 105.0f, 25.0f, true);
+        highNear.vy = -0.3f;
+        stepRecovery(highNear, st, trng, out);
+        CHECK(st.option != kOptJump);
+    }
+
+    // 4. Wall-clearance aiming for Sheik/Fox 360-UpB and wall guard for Falco/Falcon Side-B.
+    recoveryStateReset(st);
+    RecoveryInput sheikWall = offstageInput(0x0E, 80.0f, -30.0f, false);
+    sheikWall.status = 0x114;
+    sheikWall.wallAhead = true;
+    sheikWall.wallDist = 8.0f;
+    stepRecovery(sheikWall, st, rng, out);
+    CHECK(out.stickY > 0.85f); // aims steeply up along the wall to the ledge
+
+    for (u32 trial = 0; trial < 32; trial++)
+    {
+        recoveryStateReset(st);
+        u32 trng = 0x8400u + trial * 29u;
+        RecoveryInput falcoWall = offstageInput(0x13, 86.0f, -6.0f, false);
+        falcoWall.wallAhead = true;
+        falcoWall.wallDist = 10.0f;
+        stepRecovery(falcoWall, st, trng, out);
+        CHECK(st.option != kOptSideB && st.option != kOptSideBShort);
+
+        // Falcon Raptor Boost blocked below ledge.
+        recoveryStateReset(st);
+        RecoveryInput falconLow = offstageInput(0x09, 95.0f, -2.0f, false);
+        stepRecovery(falconLow, st, trng, out);
+        CHECK(st.option != kOptSideB);
+
+        // Mario Cape blocked deep below ledge.
+        recoveryStateReset(st);
+        RecoveryInput marioDeep = offstageInput(0x00, 100.0f, -28.0f, false);
+        marioDeep.vy = -1.0f;
+        stepRecovery(marioDeep, st, trng, out);
+        CHECK(st.option != kOptSideB);
+
+        // Meta Knight with 3 jumps left saves freefall specials near ledge height.
+        recoveryStateReset(st);
+        RecoveryInput mkJumps = offstageInput(0x16, 100.0f, -10.0f, true);
+        mkJumps.numJumps = 3;
+        stepRecovery(mkJumps, st, trng, out);
+        CHECK(st.option != kOptGlide && st.option != kOptUpB && st.option != kOptSideB);
+    }
+
+    // 5. Underside ceiling emergency: never fires Up-B straight up into solid stage underside.
+    recoveryStateReset(st);
+    RecoveryInput underEmerg = offstageInput(0x06, 50.0f, -125.0f, false);
+    underEmerg.ceilingAbove = true;
+    stepRecovery(underEmerg, st, rng, out);
+    CHECK(out.stickX > 0.5f); // drifts outward from under right half
+    CHECK_EQ(0u, out.buttons & kRecBtnSpecial);
+}

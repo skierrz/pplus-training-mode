@@ -18,6 +18,7 @@
 #include "extra/scenario_presets.h"
 #include "extra/stage_geom.h"
 #include "main/cpu/options.h"
+#include "main/cpu/view.h"
 #include "main/game/body.h"
 #include "main/game/fighters.h"
 #include "main/game/status_ids.h"
@@ -465,10 +466,15 @@ namespace extra {
             if (haveGeom && geom.floor.valid)
             {
                 float lowY = geomMax(geom.blast.bottom + 24.0f, geom.floor.centerY - 95.0f);
-                in.belowRecoveryReset = fs.y < lowY || fs.status == kCliffWait;
-                bool onMainFloor = !in.air && fs.x >= geom.floor.leftX && fs.x <= geom.floor.rightX;
-                in.landedSafeOnStage = onMainFloor && fs.status <= game::kStatusLandingFallSpecial
-                                       && !(fs.status >= game::kStatusJump && fs.status <= 0x10);
+                in.belowRecoveryReset = fs.y < lowY;
+                bool actionable = false;
+                if (ref.cpu && cfg.recoveryTrainer && !in.air && in.hitstun == 0 && in.hitlag == 0)
+                {
+                    cpu::View cv;
+                    actionable = cpu::readView(ref.fighter, cv) && cpu::canAct(cv);
+                }
+                in.landedSafeOnStage = isLandedSafeOnStage(fs.status, in.air, actionable, in.hitstun, in.hitlag, fs.x,
+                                                           geom.floor.leftX, geom.floor.rightX);
             }
 
             // Compute all 7 meters for every fighter (human and CPU).
@@ -507,18 +513,24 @@ namespace extra {
                         dmg = static_cast<float>(cfg.fixedDamageMode != main::kComboDmgCpu ? cfg.fixedDamage
                                                                                            : main::settings().cpu.percent);
                     }
-                    if (act.warpFalling)
+                    bool customEdgeguard = act.pickOffstagePos && haveGeom
+                                           && scenarioPresetsEdgeguardRespawn(ref, geom, s_rng, act.setCorrectNone,
+                                                                              dmg);
+                    if (!customEdgeguard)
                     {
-                        placeFalling(ref, wx, wy, act.setCorrectNone, dmg);
-                        refreshAirResources(ref, false);
+                        if (act.warpFalling)
+                        {
+                            placeFalling(ref, wx, wy, act.setCorrectNone, dmg);
+                            refreshAirResources(ref, false);
+                        }
+                        else
+                        {
+                            placeStanding(ref, wx, wy, act.setCorrectNone, dmg);
+                            finishComboStanding(ref, act.setCorrectNone);
+                        }
+                        clearComboWarpIntang(ref);
+                        cpu::optionsResetSlot(p);
                     }
-                    else
-                    {
-                        placeStanding(ref, wx, wy, act.setCorrectNone, dmg);
-                        finishComboStanding(ref, act.setCorrectNone);
-                    }
-                    clearComboWarpIntang(ref);
-                    cpu::optionsResetSlot(p);
                     pplusRecoveryReset(p);
 
                     // Reset P1 position + damage back to starting anchor when Reset P1 is On.

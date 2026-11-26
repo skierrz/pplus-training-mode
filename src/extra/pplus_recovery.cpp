@@ -13,6 +13,7 @@
 #include "main/game/body.h"
 #include "main/game/fighters.h"
 #include "main/game/motion.h"
+#include "main/settings.h"
 #include "shared/game/frame.h"
 #include "shared/game/mem.h"
 #include "shared/log.h"
@@ -311,6 +312,7 @@ namespace extra {
             in.hasPkt = findPkThunderWeapon(founderTaskId, in.pktX, in.pktY, in.pktVx, in.pktVy);
         }
         in.lastButtons = lastButtons;
+        in.recoveryMixup = main::settings().comboTrainer.recoveryMixup;
 
         s_rng ^= game::frameCounter() * 0x9E3779B9u;
         RecoveryOutput recOut;

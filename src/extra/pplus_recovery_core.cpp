@@ -31,7 +31,12 @@ namespace extra {
         kStSpecialN = 0x112,
         kStSpecialS = 0x113,
         kStSpecialHi = 0x114,
-        kStSpecialLw = 0x115
+        kStSpecialLw = 0x115,
+        kStDamageFall = 0x49,
+        kMixupMixed = 0,
+        kMixupLow = 1,
+        kMixupHigh = 2,
+        kMixupDirect = 3
     };
 
     // Portable fast square root (zero libm dependency for MWCC and MSVC).
@@ -586,8 +591,8 @@ namespace extra {
 
         out.active = true;
 
-        // First frame of a new recovery: roll high-recovery mixup (PPlusAI:
-        // ledgeOccupied && rnd < 0.80, else rnd < 0.25).
+        // First frame of a new recovery: apply Recovery Mixup profile (Mixed,
+        // Low sweetspot, High, or Direct).
         if (!st.initialized)
         {
             st.initialized = 1;
@@ -595,9 +600,20 @@ namespace extra {
             st.usedFloat = 0;
             st.holdFrames = 0;
             st.mashPhase = 0;
-            float r = geomRand01(rng);
-            bool goHigh = (in.ledgeOccupied && r < 0.80f) || (!in.ledgeOccupied && r < 0.25f);
-            st.highMixup = goHigh ? static_cast<u8>(15.0f + 40.0f * geomRand01(rng)) : 0;
+            if (in.recoveryMixup == kMixupLow || in.recoveryMixup == kMixupDirect)
+            {
+                st.highMixup = 0;
+            }
+            else if (in.recoveryMixup == kMixupHigh)
+            {
+                st.highMixup = static_cast<u8>(28.0f + 27.0f * geomRand01(rng));
+            }
+            else
+            {
+                float r = geomRand01(rng);
+                bool goHigh = (in.ledgeOccupied && r < 0.80f) || (!in.ledgeOccupied && r < 0.25f);
+                st.highMixup = goHigh ? static_cast<u8>(15.0f + 40.0f * geomRand01(rng)) : 0;
+            }
         }
 
         // Vector from fighter to nearest ledge.
@@ -724,7 +740,9 @@ namespace extra {
             if ((spec.flags & kRf360Aim) != 0)
             {
                 float targetDx = toLedgeX;
-                float targetDy = belowLedgeY >= 0.0f ? (toLedgeY + 8.0f) : 4.0f;
+                float targetDy = belowLedgeY >= 0.0f
+                                     ? (toLedgeY + (in.recoveryMixup == kMixupLow ? 4.0f : 8.0f))
+                                     : (in.recoveryMixup == kMixupLow ? 2.0f : 4.0f);
                 if (insideStageX && !in.ceilingAbove && in.y >= in.stageY - 4.0f)
                 {
                     // Already horizontally over the stage: aim inward onto stage, never outward offstage.
@@ -737,12 +755,23 @@ namespace extra {
                 }
                 else if (in.ceilingAbove)
                 {
-                    targetDx += -stageCenterDir * 12.0f;
+                    // Directly under the stage: angle outward to clear the lip instead of bonking the underside.
+                    targetDx = -stageCenterDir * 35.0f;
+                    targetDy = 12.0f;
                 }
-                else if (in.ledgeOccupied || st.option == kOptUpBHigh)
+                else if (in.wallAhead && in.wallDist < 20.0f && belowLedgeY > 6.0f)
                 {
-                    targetDy += 25.0f;
-                    targetDx += towardGoal * 15.0f;
+                    // Hugging a vertical wall below ledge: ride steeply up the wall to the lip.
+                    targetDx = towardGoal * 4.0f;
+                    targetDy = belowLedgeY + 18.0f;
+                }
+                else if (in.recoveryMixup == kMixupHigh
+                         || (in.recoveryMixup != kMixupLow && in.recoveryMixup != kMixupDirect
+                             && (in.ledgeOccupied || st.option == kOptUpBHigh))
+                         || (in.recoveryMixup == kMixupLow && in.ledgeOccupied))
+                {
+                    targetDy += in.recoveryMixup == kMixupHigh ? 28.0f : 25.0f;
+                    targetDx += towardGoal * (in.recoveryMixup == kMixupHigh ? 18.0f : 15.0f);
                 }
                 if (!in.ceilingAbove && in.y >= in.stageY - 4.0f && targetDx * stageCenterDir < 0.0f)
                 {
@@ -1032,30 +1061,42 @@ namespace extra {
             }
         }
 
-        // If directly underneath the stage, steer outward first unless dangerously close
-        // to the bottom blastzone (where emergency recovery must trigger).
+        // If directly underneath the stage, steer outward first. Even in an
+        // emergency, avoid firing a straight-up special into the solid underside.
         bool emergency = (in.y - in.blastBottom) <= 25.0f || belowLedgeY >= static_cast<float>(spec.upBY) + 40.0f;
-        if (in.ceilingAbove && !emergency)
+        if (in.ceilingAbove)
         {
             out.stickX = -stageCenterDir;
+            if (emergency && in.jumpsLeft)
+            {
+                out.buttons = freshButton(kRecBtnJump, in.lastButtons);
+            }
             st.prevStatus = static_cast<s16>(in.status);
             return;
         }
 
         // Populate stack-only WeightedDie based on fighter family & recovery rects.
         WeightedDie die;
-        die.add(kOptNone, 3.0f);
+        die.add(kOptNone, in.recoveryMixup == kMixupDirect ? 0.5f : 3.0f);
 
         float dist2D = recSqrt(toLedgeX * toLedgeX + toLedgeY * toLedgeY);
 
-        // Double jump option (all fighters).
+        // Double jump option (all fighters), preserving DJ while rising or high and close.
         if (in.jumpsLeft)
         {
-            if (inRect(absNCX, 0.0f, 300.0f, highBelowY, -15.0f, 150.0f))
+            bool preserveDj = in.vy > 0.2f
+                              || (belowLedgeY < -10.0f && absNCX < 65.0f && in.recoveryMixup != kMixupHigh)
+                              || (in.recoveryMixup == kMixupLow && belowLedgeY <= 2.0f
+                                  && absNCX <= static_cast<float>(spec.upBX) * 0.85f);
+            if (!preserveDj && inRect(absNCX, 0.0f, 300.0f, highBelowY, -15.0f, 150.0f))
             {
                 float jumpW = spec.family == kFamMultiJump
                                   ? static_cast<float>(in.numJumps > 0 ? in.numJumps * 8 : 10)
                                   : (in.ftKind == 0x04 ? 25.0f : 8.0f);
+                if (in.recoveryMixup == kMixupHigh && belowLedgeY < 10.0f)
+                {
+                    jumpW += 16.0f;
+                }
                 // Prefer jumping sooner when falling below ledge height.
                 if (belowLedgeY > 5.0f && in.vy <= 0.0f)
                 {
@@ -1068,6 +1109,9 @@ namespace extra {
         // Family-specific recovery options when outside stage (not under ceiling).
         if (!in.ceilingAbove)
         {
+            // Meta Knight with 2+ multi-jumps left prefers saving freefall specials
+            // while still near or above ledge height.
+            bool mkSaveSpecials = in.ftKind == 0x16 && in.numJumps >= 2 && belowLedgeY < 20.0f;
             // Tether grab (Z / Guard in air when facing ledge within tether box).
             if ((spec.flags & kRfTether) != 0 && absNCX <= static_cast<float>(spec.upBX)
                 && belowLedgeY >= -15.0f && belowLedgeY <= static_cast<float>(spec.upBY) + 10.0f)
@@ -1115,7 +1159,7 @@ namespace extra {
             }
 
             // Glide (Meta Knight, Pit, Charizard).
-            if ((spec.flags & kRfGlide) != 0
+            if ((spec.flags & kRfGlide) != 0 && !mkSaveSpecials
                 && inRect(absNCX, 15.0f, static_cast<float>(spec.altX), belowLedgeY, -35.0f,
                           static_cast<float>(spec.altY) + 25.0f))
             {
@@ -1123,25 +1167,47 @@ namespace extra {
             }
 
             // Side-B recovery (Spacies, Marth, Roy, Falcon, Ike, Diddy, Luigi, Mario, MK, Wario, etc.).
-            if (spec.sideBX > 0)
+            if (spec.sideBX > 0 && !mkSaveSpecials)
             {
                 float sbMinY = static_cast<float>(spec.sideBY) - 25.0f;
                 float sbMaxY = static_cast<float>(spec.sideBY) + 35.0f;
                 bool allowSideB = inRect(absNCX, 12.0f, static_cast<float>(spec.sideBX), highBelowY, sbMinY, sbMaxY);
                 // Horizontal freefall Side-B (Spacies Illusion/Flash, Falcon/Ganon Raptor Boost/Flame Choke):
-                // only fire near or above ledge height and within real travel reach, never deep below ledge.
+                // only fire near or above ledge height and within real travel reach, never into a wall below ledge.
                 if (in.ftKind == 0x06 || in.ftKind == 0x13 || in.ftKind == 0x2C)
                 {
                     float maxBelow = in.ftKind == 0x2C ? 8.0f : 4.0f;
                     allowSideB = inRect(absNCX, 12.0f, 62.0f, belowLedgeY, -35.0f, maxBelow);
-                    if (in.jumpsLeft && absNCX > 45.0f)
+                    if ((in.jumpsLeft && absNCX > 45.0f) || (in.wallAhead && in.wallDist < 24.0f && belowLedgeY > 4.0f))
+                    {
+                        allowSideB = false;
+                    }
+                    if (in.recoveryMixup == kMixupLow && belowLedgeY < -8.0f)
                     {
                         allowSideB = false;
                     }
                 }
-                else if (in.ftKind == 0x09 || in.ftKind == 0x14)
+                else if (in.ftKind == 0x09)
                 {
-                    allowSideB = inRect(absNCX, 12.0f, static_cast<float>(spec.sideBX), belowLedgeY, -40.0f, 2.0f);
+                    // Falcon Raptor Boost drops on miss: only fire strictly above ledge with clear runway.
+                    allowSideB = inRect(absNCX, 12.0f, 48.0f, belowLedgeY, -40.0f, -4.0f) && !in.wallAhead;
+                }
+                else if (in.ftKind == 0x14)
+                {
+                    allowSideB = inRect(absNCX, 12.0f, static_cast<float>(spec.sideBX), belowLedgeY, -40.0f, 2.0f)
+                                 && !(in.wallAhead && in.wallDist < 24.0f && belowLedgeY > 4.0f);
+                }
+                else if (in.ftKind == 0x00)
+                {
+                    // Mario Cape: high horizontal stall only, never deep below ledge.
+                    allowSideB = allowSideB && belowLedgeY <= 12.0f && absNCX > 25.0f && in.vy < 0.0f
+                                 && in.recoveryMixup != kMixupDirect;
+                }
+                else if (in.ftKind == 0x11)
+                {
+                    // Marth Dancing Blade 1: mid/high stall only, never deep below Up-B sweetspot.
+                    allowSideB = allowSideB && belowLedgeY <= 25.0f && absNCX > 24.0f && in.vy < -0.2f
+                                 && in.recoveryMixup != kMixupDirect;
                 }
                 // Jigglypuff Pound (fudgepop01 PPlusAI purin): y_rangeAbove(100, 250) covers [-150, 100].
                 if (in.ftKind == 0x25)
@@ -1168,8 +1234,9 @@ namespace extra {
                 {
                     if ((spec.flags & kRfSideBShorten) != 0)
                     {
-                        die.add(kOptSideB, 4.0f);
-                        if (absNCX <= 16.0f)
+                        float sbW = in.recoveryMixup == kMixupHigh ? 14.0f : 4.0f;
+                        die.add(kOptSideB, sbW);
+                        if (absNCX <= 16.0f && in.recoveryMixup != kMixupHigh)
                         {
                             die.add(kOptSideBShort, 12.0f);
                         }
@@ -1187,8 +1254,8 @@ namespace extra {
             }
 
             // Down-B stall/recovery (Samus bomb, ZSS flip, Lucario Double Team, Luigi/Mario tornado, MK cape, Wario waft).
-            if ((spec.flags & kRfBombStall) != 0 && in.vy < -1.0f && absNCX > 25.0f && belowLedgeY > -20.0f
-                && belowLedgeY < spec.upBY)
+            if ((spec.flags & kRfBombStall) != 0 && in.recoveryMixup != kMixupDirect && in.vy < -1.0f && absNCX > 25.0f
+                && belowLedgeY > -20.0f && belowLedgeY < spec.upBY)
             {
                 die.add(kOptDownB, 14.0f);
             }
@@ -1211,20 +1278,21 @@ namespace extra {
             }
 
             // Meta Knight Neutral-B Mach Tornado recovery.
-            if (in.ftKind == 0x16 && inRect(absNCX, 10.0f, 80.0f, belowLedgeY, -10.0f, 45.0f))
+            if (in.ftKind == 0x16 && !mkSaveSpecials && inRect(absNCX, 10.0f, 80.0f, belowLedgeY, -10.0f, 45.0f))
             {
                 die.add(kOptNeutralB, 10.0f);
             }
 
             // Ivysaur Dair stall when high and far.
-            if ((spec.flags & kRfDairStall) != 0 && in.vy < -0.5f && absNCX > 45.0f && belowLedgeY < -10.0f)
+            if ((spec.flags & kRfDairStall) != 0 && in.recoveryMixup != kMixupDirect && in.vy < -0.5f && absNCX > 45.0f
+                && belowLedgeY < -10.0f)
             {
                 die.add(kOptDairStall, 8.0f);
             }
 
             // Up-B recovery window (360-aim radius vs rectangular Up-B reach).
             bool inUpB = false;
-            if (spec.upBY > 0)
+            if (spec.upBY > 0 && !mkSaveSpecials)
             {
                 if ((spec.flags & kRf360Aim) != 0)
                 {
@@ -1263,10 +1331,11 @@ namespace extra {
                 {
                     die.add(kOptUpBCancel, 25.0f);
                 }
-                die.add(kOptUpB, 40.0f);
-                if (spec.family == kFamSpacie)
+                float upBW = in.recoveryMixup == kMixupHigh && spec.family == kFamSpacie ? 12.0f : 40.0f;
+                die.add(kOptUpB, upBW);
+                if (spec.family == kFamSpacie && in.recoveryMixup != kMixupLow && in.recoveryMixup != kMixupDirect)
                 {
-                    die.add(kOptUpBHigh, 15.0f);
+                    die.add(kOptUpBHigh, in.recoveryMixup == kMixupHigh ? 40.0f : 15.0f);
                 }
             }
         }
@@ -1379,6 +1448,13 @@ namespace extra {
             out.stickY = -1.0f;
             break;
         default:
+            // When actionable in tumble (Damage_Fall 0x49) and drifting without
+            // spending a jump or special, alternate stick X to wiggle out cleanly.
+            if (in.status == kStDamageFall)
+            {
+                out.stickX = (st.mashPhase & 1u) != 0 ? -towardGoal * 0.95f : towardGoal * 0.95f;
+                st.mashPhase++;
+            }
             break;
         }
 

@@ -309,3 +309,89 @@ TEST(combo_trainer, post_hitstun_delay_frame_trap_cancel_ko_reset_and_reset_p1)
     CHECK(isDownOrGrabStatus(0x107));
     CHECK(isDownOrGrabStatus(0x10A));
 }
+
+TEST(combo_trainer, edgeguard_landed_safe_rejects_landing_lag_accepts_teeter_and_uses_grace)
+{
+    // Landing (0x16..0x18) and LandingFallSpecial (0x19) must NEVER count as landed safe.
+    for (int st = 0x16; st <= 0x19; st++)
+    {
+        CHECK(!isLandedSafeOnStage(st, false, true, 0, 0, 0.0f, -68.0f, 68.0f));
+    }
+    // Non-actionable Wait/Guard, airborne, hitstun, hitlag, or offstage must be rejected.
+    CHECK(!isLandedSafeOnStage(0x00, false, false, 0, 0, 0.0f, -68.0f, 68.0f));
+    CHECK(!isLandedSafeOnStage(0x00, true, true, 0, 0, 0.0f, -68.0f, 68.0f));
+    CHECK(!isLandedSafeOnStage(0x00, false, true, 4, 0, 0.0f, -68.0f, 68.0f));
+    CHECK(!isLandedSafeOnStage(0x00, false, true, 0, 2, 0.0f, -68.0f, 68.0f));
+    CHECK(!isLandedSafeOnStage(0x00, false, true, 0, 0, 75.0f, -68.0f, 68.0f));
+
+    // Actionable grounded neutral / guard / crouch and Teeter (Ottoto 0x7C / 0x7D) are accepted.
+    CHECK(isLandedSafeOnStage(0x00, false, true, 0, 0, 0.0f, -68.0f, 68.0f));
+    CHECK(isLandedSafeOnStage(0x03, false, true, 0, 0, 10.0f, -68.0f, 68.0f));
+    CHECK(isLandedSafeOnStage(0x12, false, true, 0, 0, 10.0f, -68.0f, 68.0f));
+    CHECK(isLandedSafeOnStage(0x1B, false, true, 0, 0, 10.0f, -68.0f, 68.0f));
+    CHECK(isLandedSafeOnStage(0x7C, false, false, 0, 0, 66.0f, -68.0f, 68.0f));
+    CHECK(isLandedSafeOnStage(0x7D, false, false, 0, 0, -66.0f, -68.0f, 68.0f));
+
+    // Grace delay after becoming actionable onstage, and cancellation if P1 lands a punish.
+    main::ComboTrainerSettings cfg = defaultCfg();
+    cfg.recoveryTrainer = 1;
+    ComboSlotState st;
+    comboSlotReset(st);
+    ComboStepAction act;
+    ComboStepInput in = baseInput();
+
+    // Initial warp is immediate.
+    in.landedSafeOnStage = true;
+    stepComboTrainer(cfg, in, st, act);
+    CHECK(act.doWarp);
+    CHECK_EQ(1u, st.recoveryResets);
+
+    // Spend 15 frames airborne offstage.
+    in.landedSafeOnStage = false;
+    in.air = true;
+    for (int f = 0; f < 15; f++)
+    {
+        stepComboTrainer(cfg, in, st, act);
+        CHECK(!act.doWarp);
+    }
+
+    // Lands in actionable Wait: must hold for kRecoveryGraceFrames before warping.
+    in.air = false;
+    in.landedSafeOnStage = true;
+    for (int f = 0; f < 10; f++)
+    {
+        stepComboTrainer(cfg, in, st, act);
+        CHECK(!act.doWarp);
+    }
+    // P1 punishes during grace: hitstun cancels the grace countdown cleanly.
+    in.hitstun = 8;
+    in.landedSafeOnStage = false;
+    stepComboTrainer(cfg, in, st, act);
+    CHECK(!act.doWarp);
+    CHECK_EQ(0, static_cast<int>(st.recoveryGraceFrames));
+
+    // Ledge grab triggers full kRecoveryGraceFrames countdown before next rep.
+    in.hitstun = 0;
+    in.onLedge = true;
+    for (int f = 0; f < kRecoveryGraceFrames; f++)
+    {
+        stepComboTrainer(cfg, in, st, act);
+        CHECK(!act.doWarp);
+    }
+    stepComboTrainer(cfg, in, st, act);
+    CHECK(act.doWarp);
+    CHECK_EQ(2u, st.recoveryResets);
+
+    // KO -> Rebirth (0xBE) also waits kRecoveryGraceFrames then warps cleanly.
+    in.onLedge = false;
+    in.outOfPlay = true;
+    in.status = 0xBE;
+    for (int f = 0; f < kRecoveryGraceFrames - 1; f++)
+    {
+        stepComboTrainer(cfg, in, st, act);
+        CHECK(!act.doWarp);
+    }
+    stepComboTrainer(cfg, in, st, act);
+    CHECK(act.doWarp);
+    CHECK_EQ(3u, st.recoveryResets);
+}

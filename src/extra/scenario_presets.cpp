@@ -871,5 +871,10 @@ namespace extra {
         }
         projectScenarioSavedView(s_net->state, out.cpu.options, out.comboTrainer, &out.general, &out.cpu, &out.osd);
     }
+
+    bool scenarioPresetsEdgeguardRespawn(const game::FighterRef&, const StageGeometry&, u32&, bool, float)
+    {
+        return false;
+    }
 }
 }
