@@ -140,7 +140,7 @@ namespace extra {
         static const char* const kNames[drills::kDrillIdCount] = {
             "TECH PRACTICE", "LEDGEDASH",     "WAVEDASH",      "L-CANCEL",      "FLOAT / HOVER",
             "POWERSHIELD",   "RAR",           "DACUS",         "B-REVERSE",     "CANCEL SPRINT",
-            "FLOW COURSE",   "REACTION LAB",  "TECHCHASE ESC", "SWEETSPOT",     "FLOORHUG TECH",
+            "FLOW COURSE",   "REACTION LAB",  "TECHCHASE ESC", "SWEETSPOT",     "CC / ASDI-DOWN",
             "SNAKE RECOVERY", "TECHCHASE",    "COMBO-BREAK"
         };
         return kNames[drillId < drills::kDrillIdCount ? drillId : 0];
@@ -430,10 +430,10 @@ namespace extra {
             "SWEETSPOT +%df",        // 50
             "HIGH OVERSHOOT",        // 51
             "SD / MISSED LEDGE",     // 52
-            "FLOORHUG -%df",         // 53
+            "CC / ASDI-DN -%df",     // 53
             "ASDI-DOWN TECH",        // 54
             "BROKEN TUMBLE",         // 55
-            "MISSED FLOORHUG",       // 56
+            "MISSED ASDI-DN",        // 56
             "TRUE PUNISH!",          // 57
             "C4 REFRESH x%d",        // 58
             "NADE REFRESH x%d",      // 59

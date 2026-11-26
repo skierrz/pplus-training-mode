@@ -773,13 +773,24 @@ def cpu_options(c, src):
 
 
 def cpu_options_page(c, src):
-    # Dynamic Slot 1 (Primary) label buffer in P_REVERSALS (28 bytes).
+    # Dynamic Slot 1 (Primary) label buffer in P_REVERSALS (28 bytes) and
+    # live Custom Pool category/status buffers in P_COUNTER_POOL (20 bytes).
     for lit in src.literals:
         if c.taken(lit):
             continue
         if lit.func in ("stripMarker", "revEnabled") or "s_revSlot1Label" in lit.stmt:
             c.item("menu-value", lit, lit.text)
             c.buffer(lit, lit.text, 28.0)
+            c.take(lit)
+        elif lit.func == "poolPageActive" or "s_poolCatBuf" in lit.stmt or "s_poolStatusLabel" in lit.stmt:
+            if lit.text == "%s (%d On)":
+                for nm in ("Ground", "Air", "Shield"):
+                    t = f"{nm} (28 On)"
+                    c.item("menu-value", lit, t)
+                    c.buffer(lit, t, 20.0)
+            elif lit.text != "%s":
+                c.item("menu-value", lit, lit.text)
+                c.buffer(lit, lit.text, 20.0)
             c.take(lit)
 
 

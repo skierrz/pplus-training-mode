@@ -85,8 +85,8 @@ namespace pages {
         s_stageCastRows = buf;
         static const Option kHead[2] = {
             TM_MENU_IF("Fighter Swap", P_FIGHTER_SWAP, main::extraFighterSwapRow),
-            TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch, kShowInactiveScratchOffset, 0, 1, 0, "Show Inactive",
-                   NULL, showInactiveChanged, NULL)
+            TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch, kShowInactiveScratchOffset, 0, 1, 0,
+                   "Show Inactive Fighters", NULL, showInactiveChanged, NULL)
         };
         buf[0] = kHead[0];
         buf[1] = kHead[1];
@@ -182,8 +182,8 @@ namespace pages {
     // and max index to match the active stage.
     static Option kRows[] = {
         TM_MENU_IF("Fighter Swap", P_FIGHTER_SWAP, main::extraFighterSwapRow),
-        TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch, kShowInactiveScratchOffset, 0, 1, 0, "Show Inactive",
-               NULL, showInactiveChanged, NULL),
+        TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch, kShowInactiveScratchOffset, 0, 1, 0,
+               "Show Inactive Fighters", NULL, showInactiveChanged, NULL),
         TM_SROW_P(stageOptions.hazards, kHazards, main::kStageHazardCount, "Hazards", main::extraStageHazardsRow),
         TM_SROW_P(stageOptions.platformMode, kPlatDefault, main::kStagePlatMaxChoices, "Platforms", main::extraStagePlatformsRow),
         TM_SROW_P(stageOptions.fodLeft, kFodHeight, main::kFodHeightCount, "Left Platform", main::extraStageFodRow),

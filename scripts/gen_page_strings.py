@@ -258,8 +258,8 @@ def collect_entries() -> list[tuple[str, bytes]]:
             "kCounterGround", "kCounterAir", "kCounterShield",
             "kInfiniteShields", "kShieldAngle", "kGrabEscape", "kGrabRelease",
             "kControlledBy", "kRecovery", "kLedgeOption", "kAdaptiveMode",
-            "kShfflTiming", "kShieldTiming",
-            "kRevTriggers", "kRevGetup", "kRevSlot1Getup", "kRevLedge", "kPoolCats",
+            "kShfflTiming", "kShieldTiming", "kCounterModes",
+            "kRevTriggers", "kRevGetup", "kRevSlot1Getup", "kRevLedge",
         ],
     )
     entries.append(("cpu_main_names", _extract_host_option_names(cpu, "kRows")))

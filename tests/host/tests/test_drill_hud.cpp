@@ -638,7 +638,7 @@ TEST(drill_hud, stage4c_all_seven_challenges_modes_timed60_and_bests)
         rf.lastFhOutcome = kFhCcFloorhugCancel;
         rf.lastHitstunSaved = 9;
         CHECK(drillHudStep(hud, f));
-        CHECK(strcmp(hud.lastFeedback, "FLOORHUG -9f") == 0);
+        CHECK(strcmp(hud.lastFeedback, "CC / ASDI-DN -9f") == 0);
         CHECK_EQ(1u, static_cast<unsigned>(hud.totalHit));
         drillHudFormatHighlight(hud, hl, sizeof(hl));
         CHECK(strcmp(hl, "9f") == 0);
@@ -646,7 +646,7 @@ TEST(drill_hud, stage4c_all_seven_challenges_modes_timed60_and_bests)
         rf.out.fhReps = 2;
         rf.lastFhOutcome = kFhMissedFloorhug;
         CHECK(drillHudStep(hud, f));
-        CHECK(strcmp(hud.lastFeedback, "MISSED FLOORHUG") == 0);
+        CHECK(strcmp(hud.lastFeedback, "MISSED ASDI-DN") == 0);
     }
 
     // 7. Snake Infinite Recovery: ineligible warning, C4 refresh hit, recovery completed.

@@ -10,6 +10,7 @@
 #include "main/settings.h"
 #include "main/ui/menu_theme_core.h"
 #include "main/ui/pages/pages.h"
+#include "main/ui/pages/scenarios.h"
 #include "main/ui/style.h"
 #include "shared/game/menu_sound.h"
 #include "shared/log.h"
@@ -22,8 +23,14 @@ namespace ui {
     static int s_activeRow = 0;
     static u8 s_scratch[kScratchBytes];
     static bool s_rail = false;
+    static bool s_allowShowInactive = false;
     bool g_menuQuiet = false;
     bool g_showInactiveRows = false;
+
+    static bool allowShowInactive(const MenuDef& def, int pageId)
+    {
+        return g_showInactiveRows && (def.categoryCount == 0 || pageId == pages::P_STAGE_CAST);
+    }
 #ifdef __MWERKS__
     u8 g_counterAvailMask = 0;
 #endif
@@ -297,7 +304,7 @@ namespace ui {
         {
             return true;
         }
-        return !g_showInactiveRows && (o.flags & kFlagHideWhenDisabled) != 0 && o.enabled != NULL && !o.enabled();
+        return !s_allowShowInactive && (o.flags & kFlagHideWhenDisabled) != 0 && o.enabled != NULL && !o.enabled();
     }
 
     static bool selectable(const Option& o)
@@ -307,7 +314,7 @@ namespace ui {
             return false;
         }
         bool disabled = o.enabled != NULL && !o.enabled();
-        if (disabled && !(g_showInactiveRows && (o.flags & kFlagHideWhenDisabled) != 0))
+        if (disabled && !(s_allowShowInactive && (o.flags & kFlagHideWhenDisabled) != 0))
         {
             return false;
         }
@@ -376,6 +383,7 @@ namespace ui {
     static void enterPage(MenuState& state, const MenuDef& def, int id)
     {
         s_rail = isRailStyle(def);
+        s_allowShowInactive = allowShowInactive(def, id);
         int first = nextRow(pageAt(def, id), -1, 1);
         state.cursor[id] = static_cast<u8>(first < 0 ? 0 : first);
         state.scroll[id] = 0;
@@ -558,6 +566,7 @@ namespace ui {
             }
             u8 shown = state.stack[state.depth];
             s_rail = isRailStyle(def);
+            s_allowShowInactive = allowShowInactive(def, shown);
             if (!s_rail)
             {
                 state.railFocus = false;
@@ -572,6 +581,7 @@ namespace ui {
         }
 
         u8 pageId = state.stack[state.depth];
+        s_allowShowInactive = allowShowInactive(def, pageId);
         const Page& p = pageAt(def, pageId);
         u8& cur = state.cursor[pageId];
         if (p.count > 0)
@@ -623,6 +633,7 @@ namespace ui {
                 }
             }
             s_rail = isRailStyle(def);
+            s_allowShowInactive = allowShowInactive(def, pageId);
             if (!s_rail)
             {
                 state.railFocus = false;
@@ -643,6 +654,7 @@ namespace ui {
                 state.scroll[left] = 0;
                 state.depth--;
                 u8 parentId = state.stack[state.depth];
+                s_allowShowInactive = allowShowInactive(def, parentId);
                 const Page& parent = pageAt(def, parentId);
                 if (parent.count > 0
                     && (state.cursor[parentId] >= parent.count || !selectable(parent.options[state.cursor[parentId]])))
@@ -675,6 +687,7 @@ namespace ui {
         }
         u8 shown = state.stack[state.depth];
         s_rail = isRailStyle(def);
+        s_allowShowInactive = allowShowInactive(def, shown);
         fixScroll(pageAt(def, shown), state.cursor[shown], state.scroll[shown], visibleRowLimit(def, state));
         return true;
     }
@@ -715,6 +728,7 @@ namespace ui {
         for (int k = start; k < count; k++)
         {
             u8 from = next.stack[next.depth];
+            s_allowShowInactive = allowShowInactive(def, from);
             const Page& p = pageAt(def, from);
             int row = -1;
             for (int i = 0; i < p.count && row < 0; i++)
@@ -1047,6 +1061,22 @@ namespace ui {
         it.label = label;
     }
 
+    static const char* pageTitle(const MenuDef& def, int id)
+    {
+        if (id == pages::P_SCENARIOS)
+        {
+            if (pages::practiceMenuState()->activeDrill != 0)
+            {
+                return "Drill";
+            }
+            if (pages::scenarioMenuState()->preset != pages::kPresetOff)
+            {
+                return "Scenario";
+            }
+        }
+        return pageAt(def, id).title;
+    }
+
     static void drawBreadcrumb(const MenuDef& def, const MenuState& state, float x43, float yCenter, float cap,
                                float maxW, const MenuPalette& pal)
     {
@@ -1055,7 +1085,7 @@ namespace ui {
         trail[0] = '\0';
         for (int d = 0; d < state.depth; d++)
         {
-            const char* t = pageAt(def, state.stack[d]).title;
+            const char* t = pageTitle(def, state.stack[d]);
             int wrote = snprintf(trail + pos, sizeof(trail) - pos, "%s > ", t);
             if (wrote > 0 && pos + static_cast<size_t>(wrote) < sizeof(trail))
             {
@@ -1066,7 +1096,7 @@ namespace ui {
                 break;
             }
         }
-        const char* leaf = pageAt(def, state.stack[state.depth]).title;
+        const char* leaf = pageTitle(def, state.stack[state.depth]);
         float scale = displayScaleForCap(cap);
         float prefixW = trail[0] != '\0' ? gfx::displayTextWidth(trail, scale) : 0.0f;
         float leafW = gfx::displayTextWidth(leaf, scale);
@@ -1163,6 +1193,7 @@ namespace ui {
         const CtrlSpec& cs = ctrlSpec(state.controllerType);
         bool railMode = isRailStyle(def);
         s_rail = railMode;
+        s_allowShowInactive = allowShowInactive(def, pageId);
         bool diPicking = diPickerActiveFor(pageId, state);
 
         FooterItem items[5];
@@ -1288,7 +1319,7 @@ namespace ui {
         }
         else if (state.depth == 0)
         {
-            fitDisplay(48.0f, headerMid - 6.25f, pageAt(def, state.stack[0]).title, 0, 12.5f, 390.0f, 2);
+            fitDisplay(48.0f, headerMid - 6.25f, pageTitle(def, state.stack[0]), 0, 12.5f, 390.0f, 2);
             float subScale = displayScaleForCap(8.5f);
             const char* tag = "Training Lab";
             float tagW = gfx::displayTextWidth(tag, subScale);
@@ -1307,7 +1338,7 @@ namespace ui {
             gfx::Rgba col = focused ? kLabGoldInk
                                     : (!state.railFocus && state.category == i ? pal.activeTabText : pal.mutedText);
             fitDisplay(kRailTextX, kRailItemTop + i * kRailItemPitch + capOff,
-                       pageAt(def, def.categoryPages[i]).title, col, kRailCap, kRailTextMaxW, 0);
+                       pageTitle(def, def.categoryPages[i]), col, kRailCap, kRailTextMaxW, 0);
         }
         for (u8 u = 0; u < def.utilityCount; u++)
         {
@@ -1378,9 +1409,18 @@ namespace ui {
         for (u8 i = 0; i < def.categoryCount && i < 7; i++)
         {
             float tw = kTabWidths[i];
-            const char* label = (def.tabLabels != NULL && def.tabLabels[i] != NULL)
-                                    ? def.tabLabels[i]
-                                    : pageAt(def, def.categoryPages[i]).title;
+            int catPage = def.categoryPages[i];
+            const char* label = NULL;
+            if (catPage == pages::P_SCENARIOS
+                && (pages::practiceMenuState()->activeDrill != 0
+                    || pages::scenarioMenuState()->preset != pages::kPresetOff))
+            {
+                label = pageTitle(def, catPage);
+            }
+            else
+            {
+                label = (def.tabLabels != NULL && def.tabLabels[i] != NULL) ? def.tabLabels[i] : pageTitle(def, catPage);
+            }
             gfx::Rgba col = i == state.category ? pal.activeTabText : pal.tabInactiveText;
             fitDisplay(tx + tw * 0.5f, labelTop, label, col, kTabsCap, tw - 6.0f, 1);
             tx += tw + 4.0f;
@@ -1415,6 +1455,7 @@ namespace ui {
         int visRows = visibleRowLimit(def, state);
         bool railMode = isRailStyle(def);
         s_rail = railMode;
+        s_allowShowInactive = allowShowInactive(def, pageId);
         bool tabsMode = isTabsStyle(def);
         char buf[32];
 
