@@ -377,9 +377,9 @@ namespace extra {
 
         // Single indexed feedback string table (shared phrases reused across drills).
         static const char* const kMsg[] = {
-            "GALINT +%df",           // 0
+            "GALINT +%df INVULN",    // 0
             "GRAB %d/5 (NO INVULN)", // 1
-            "GALINT %df",            // 2
+            "GALINT %df (VULN)",     // 2
             "TOURNEY WINNER",        // 3
             "LEDGESLIP / SD",        // 4
             "NO AIRDODGE",           // 5

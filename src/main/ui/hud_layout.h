@@ -88,16 +88,18 @@ namespace layout {
     }
 
     // ---- Ledgedash HUD top band (ui/ledgedash_hud.cpp) ----
-    static const float kBarTop = 78.0f;
-    static const float kBarBottom = 92.0f;
+    static const float kBarTop = 52.0f;
+    static const float kBarBottom = 66.0f;
     // Spans 32..608 at most on 4:3 (inside the 5% CRT safe area).
     static const float kBarMaxW = 576.0f;
-    static const float kKeyY = 42.0f;
-    static const float kKeyLabelTop = 58.0f;
+    static const float kKeyY = 26.0f;
+    static const float kKeyLabelTop = 34.0f;
+    static const float kLegendTop = 72.0f;
+    static const float kLegendCap = 7.2f;
 
     static const float kCellW = 10.8f;
     static const float kCellGap = 1.0f;
-    static const float kKeySwatch = 11.0f;
+    static const float kKeySwatch = 8.0f;
     static const float kKeyCap = 8.0f;
 
     // The Ledgedash HUD's bar of `cells` cells, centred and narrowed to kBarMaxW.
@@ -105,6 +107,9 @@ namespace layout {
 
     // The Ledgedash HUD's summary strip above the bar.
     Box ledgeHeaderBox(bool wide);
+
+    // The Ledgedash HUD's compact 1-line color legend directly below the bar.
+    Box ledgeLegendBox(bool wide);
 
     // ---- Pause-menu hint (lab.cpp) ----
     // textBox pads 3 px above kHintY and 6 px right of text, so right-aligning
@@ -414,36 +419,21 @@ namespace layout {
         return bottom;
     }
 
-    // ---- Techchase Scenario HUD card (extra/scenario_presets.cpp) ----
-    // Right-aligned inside CRT safe bounds (x1 = 608), stepping cleanly below
-    // both topBand() and the full active right-column stack (Input Viewer,
-    // DI Compass, PSA Inspector, Adaptive CPU HUD).
-    static const float kTechchaseHudWidth = 168.0f;
-    static const float kTechchaseHudHeight = 52.0f;
+    // ---- Techchase Scenario HUD banner (extra/scenario_presets.cpp) ----
+    // Unified onto the same centered top-band slot as drillHudBox(wide)
+    // (316*xs x 40 at y = 24), cleanly inside the 5% CRT safe area on 4:3 and 16:9.
+    static const float kTechchaseHudWidth = kDrillHudWidth;
+    static const float kTechchaseHudHeight = kDrillHudHeight;
 
     inline Box techchaseHudBox(const Box& band, int viewerSlots, bool hasCompass, bool hasPsa, bool wide,
                                bool hasAdaptive = false)
     {
-        float xs = xsOf(wide);
-        float bw = kTechchaseHudWidth * xs;
-        float x1 = kViewerRight;
-        float x0 = x1 - bw;
-        float y0 = kViewerTop;
-        Box probe = {x0, y0, x1, y0 + 1.0f};
-        if (meetsX(probe, band) && band.y1 > y0)
-        {
-            y0 = band.y1 + kStepGap;
-        }
-        float colBot = rightColumnBottom(band, viewerSlots, hasCompass, hasPsa, wide, hasAdaptive);
-        if (colBot > 0.0f && colBot + kViewerGap > y0)
-        {
-            y0 = colBot + kViewerGap;
-        }
-        if (y0 > 343.0f)
-        {
-            y0 = 343.0f;
-        }
-        return box(x0, y0, bw, kTechchaseHudHeight);
+        (void)band;
+        (void)viewerSlots;
+        (void)hasCompass;
+        (void)hasPsa;
+        (void)hasAdaptive;
+        return drillHudBox(wide);
     }
 
     // Starting top y for TopLeft / TopRight OSD stacks so they step cleanly

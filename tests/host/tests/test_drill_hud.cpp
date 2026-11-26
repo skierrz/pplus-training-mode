@@ -163,7 +163,7 @@ TEST(drill_hud, ledgedash_10_rep_set_opens_modal_and_tracks_best)
     CHECK_EQ(11, static_cast<int>(hud.bestMetric));
     CHECK_EQ(1, static_cast<int>(hud.newBest));
     CHECK_EQ(7, static_cast<int>(hud.sessionBest));
-    CHECK(strcmp(hud.lastFeedback, "GALINT +11f") == 0);
+    CHECK(strcmp(hud.lastFeedback, "GALINT +11f INVULN") == 0);
 
     ledge.seq++;
     ledge.last.outcome = kLedgeOutcomeNoInvulnLimit;

@@ -1272,7 +1272,8 @@ TEST(lab_menu, footer_hides_confirm_badge_on_disabled_row_and_invokes_page_overl
     CHECK(!menuCanvasDrew("Toggle"));
     CHECK(!menuCanvasDrew("Open"));
     CHECK(menuCanvasDrew("B"));
-    CHECK(menuCanvasDrew("Rail"));
+    CHECK(menuCanvasDrew("Categories"));
+    CHECK(menuCanvasDrew("START"));
 
     ui::g_showInactiveRows = false;
     main::setExtraHooks(NULL);
