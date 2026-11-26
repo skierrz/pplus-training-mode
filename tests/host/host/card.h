@@ -31,9 +31,9 @@ namespace card {
     // short FAFread, so readSDFile frees the destination buffer and returns
     // status 2 (0x8001CD50..0x8001CDD8).
     void setShortRead(int onRead);
-    // Fault injection: the Nth read from now fails with `status` without
-    // freeing the destination buffer.
-    void setReadStatus(int onRead, int status);
+    // Fault injection: the Nth read from now fails with `status`; when
+    // `freeBuf` is true, readSDFile also frees the destination buffer first.
+    void setReadStatus(int onRead, int status, bool freeBuf = false);
     // The date and time the console's clock gives.
     void setClock(int year, int month, int day, int hour, int minute, int second);
 

@@ -314,7 +314,9 @@ namespace osdQuick {
 
     static storage::Job s_job;
     static u8 s_cardBuf[storage::kSettingsFileCap] __attribute__((aligned(32)));
-    static u8 s_writeBuf[storage::kSettingsFileCap] __attribute__((aligned(32)));
+    // Heap-allocated in Heaps::Network so module unload after a kBusy timeout
+    // never frees active SDIO DMA memory.
+    static u8* s_writeBuf = NULL;
     static u32 s_cardSize = 0;
     static u32 s_cardSeq = 0;
     static u8 s_cardSlot = 1;
@@ -423,17 +425,18 @@ namespace osdQuick {
     {
         if (s_phase == kIdle)
         {
+            storage::freeWriteBuffer(s_writeBuf, storage::kOk);
             return;
         }
         int status = 0;
         int r = s_job.wait(kWaitMs, status);
-        if (s_phase == kFolder && r != storage::kBusy)
+        if (s_phase == kFolder && r != storage::kBusy && s_writeBuf != NULL)
         {
             s_phase = kWrite;
             r = s_job.write(kNames[s_pendingSlot], s_writeBuf, s_pendingSize) ? s_job.wait(kWaitMs, status)
                                                                               : storage::kBusy;
         }
-        if (r == storage::kOk)
+        if (r == storage::kOk && s_writeBuf != NULL)
         {
             s_cardSlot = s_pendingSlot;
             s_cardSeq = s_pendingSeq;
@@ -450,6 +453,7 @@ namespace osdQuick {
             }
             TM_LOG("osdquick: saved to %s (save %u, %u bytes)\n", kNames[s_cardSlot], s_cardSeq, s_cardSize);
         }
+        storage::freeWriteBuffer(s_writeBuf, r);
         s_phase = kIdle;
     }
 
@@ -559,9 +563,17 @@ namespace osdQuick {
         }
         u32 nextSeq = storage::nextSequence(s_cardSeq);
         u32 outSz = 0;
-        if (!patchOsdAreaInFile(s_hasCard ? s_cardBuf : NULL, s_hasCard ? s_cardSize : 0, s_osd, s_writeBuf,
-                                sizeof(s_writeBuf), nextSeq, outSz))
+        storage::freeWriteBuffer(s_writeBuf, storage::kOk);
+        s_writeBuf = storage::allocWriteBuffer(storage::kSettingsFileCap);
+        if (s_writeBuf == NULL)
         {
+            TM_LOG("osdquick: not saved: %s\n", storage::resultText(storage::kNoMemory));
+            return;
+        }
+        if (!patchOsdAreaInFile(s_hasCard ? s_cardBuf : NULL, s_hasCard ? s_cardSize : 0, s_osd, s_writeBuf,
+                                storage::kSettingsFileCap, nextSeq, outSz))
+        {
+            storage::freeWriteBuffer(s_writeBuf, storage::kOk);
             TM_LOG("osdquick: patch failed\n");
             return;
         }
@@ -571,6 +583,7 @@ namespace osdQuick {
         s_phase = kFolder;
         if (!s_job.makeFolder())
         {
+            storage::freeWriteBuffer(s_writeBuf, storage::kWriteFailed);
             s_phase = kIdle;
         }
     }
@@ -769,14 +782,15 @@ namespace osdQuick {
         if (s_phase == kFolder)
         {
             s_phase = kWrite;
-            if (!s_job.write(kNames[s_pendingSlot], s_writeBuf, s_pendingSize))
+            if (s_writeBuf == NULL || !s_job.write(kNames[s_pendingSlot], s_writeBuf, s_pendingSize))
             {
+                storage::freeWriteBuffer(s_writeBuf, storage::kWriteFailed);
                 s_phase = kIdle;
             }
             return;
         }
         s_phase = kIdle;
-        if (result == storage::kOk)
+        if (result == storage::kOk && s_writeBuf != NULL)
         {
             s_cardSlot = s_pendingSlot;
             s_cardSeq = s_pendingSeq;
@@ -797,6 +811,7 @@ namespace osdQuick {
         {
             TM_LOG("osdquick: save failed (status %d)\n", status);
         }
+        storage::freeWriteBuffer(s_writeBuf, result);
     }
 
     void draw()

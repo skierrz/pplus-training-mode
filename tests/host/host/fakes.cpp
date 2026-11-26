@@ -330,6 +330,19 @@ namespace fakes {
 // one test fails it. A pointer this test never got is let pass: the mod's
 // static state outlives a test, and one that stopped early can leave a
 // block of its own behind for the next one's clean-up.
+bool host_game_block_live(const void* block)
+{
+    for (int i = 0; i < host::fakes::kMaxBlocks; i++)
+    {
+        const host::fakes::Block& b = host::fakes::s_blocks[i];
+        if (b.at == block && block != NULL)
+        {
+            return b.live;
+        }
+    }
+    return false;
+}
+
 void host_game_free(void* block)
 {
     for (int i = 0; i < host::fakes::kMaxBlocks; i++)

@@ -30,8 +30,9 @@ namespace bests {
 
     static const char* const kNames[2] = {"bests-a.bin", "bests-b.bin"};
     static storage::Job s_job;
-    // One file read or written; a second for the newest file while both are read.
-    static u8 s_file[kCap] __attribute__((aligned(32)));
+    // Write buffer heap-allocated in Heaps::Network so module unload after a
+    // kBusy timeout never frees active SDIO DMA memory; s_newest stays main-thread only.
+    static u8* s_writeBuf = NULL;
     static u8 s_newest[kCap] __attribute__((aligned(32)));
 
     enum Phase { kIdle, kFolder, kWrite };
@@ -47,8 +48,8 @@ namespace bests {
         return storage::checksum(best, drills::kBestSlots * sizeof(u16));
     }
 
-    // Blocking read of one of the two files into s_file via a heap buffer: a storage::Result.
-    static int readFile(int slot, u32& sequence)
+    // Blocking read of one of the two files into `dst` via a heap buffer: a storage::Result.
+    static int readFile(int slot, u32& sequence, u8* dst)
     {
         int status = 0;
         sequence = 0;
@@ -110,7 +111,7 @@ namespace bests {
         if (r == storage::kOk)
         {
             sequence = reinterpret_cast<const FileHeader*>(buf)->sequence;
-            memcpy(s_file, buf, size);
+            memcpy(dst, buf, size);
         }
         storage::freeReadBuffer(buf, storage::kOk, 0);
         return r;
@@ -118,19 +119,21 @@ namespace bests {
 
     void load(Session& s)
     {
+        u32 tmpWords[kCap / 4];
+        u8* tmp = reinterpret_cast<u8*>(tmpWords);
         int results[2];
         u32 seqs[2];
         int newest = -1;
         for (int slot = 0; slot < 2; slot++)
         {
-            results[slot] = readFile(slot, seqs[slot]);
+            results[slot] = readFile(slot, seqs[slot], tmp);
             bool usable = results[slot] == storage::kOk || results[slot] == storage::kNewer;
             if (usable && (newest < 0 || storage::sequenceNewer(seqs[slot], seqs[newest])))
             {
                 newest = slot;
                 if (results[slot] == storage::kOk)
                 {
-                    memcpy(s_newest, s_file, kCap);
+                    memcpy(s_newest, tmp, kCap);
                 }
             }
         }
@@ -165,7 +168,7 @@ namespace bests {
         }
     }
 
-    static void finished(bool ok, int status)
+    static void finished(bool ok, int status, int result)
     {
         if (ok && s_session != NULL)
         {
@@ -179,6 +182,7 @@ namespace bests {
         {
             TM_LOG("bests: save to %s failed: status %d\n", kNames[s_pendingSlot], status);
         }
+        storage::freeWriteBuffer(s_writeBuf, result);
         s_phase = kIdle;
     }
 
@@ -203,19 +207,25 @@ namespace bests {
             TM_LOG("bests: not saved: %s\n", storage::resultText(w));
             return;
         }
-        memset(s_file, 0, sizeof(s_file));
-        FileHeader* h = reinterpret_cast<FileHeader*>(s_file);
-        Head* head = reinterpret_cast<Head*>(s_file + sizeof(FileHeader));
+        storage::freeWriteBuffer(s_writeBuf, storage::kOk);
+        s_writeBuf = storage::allocWriteBuffer(kCap);
+        if (s_writeBuf == NULL)
+        {
+            TM_LOG("bests: not saved: %s\n", storage::resultText(storage::kNoMemory));
+            return;
+        }
+        FileHeader* h = reinterpret_cast<FileHeader*>(s_writeBuf);
+        Head* head = reinterpret_cast<Head*>(s_writeBuf + sizeof(FileHeader));
         u32 size = kHeadBytes + sizeof(s.best);
         head->slotCount = drills::kBestSlots;
         head->revision = kRevision;
-        memcpy(s_file + kHeadBytes, s.best, sizeof(s.best));
+        memcpy(s_writeBuf + kHeadBytes, s.best, sizeof(s.best));
         h->magic = kMagic;
         h->format = kFormat;
         h->headerSize = sizeof(FileHeader);
         h->size = size;
         h->sequence = storage::nextSequence(s.cardSequence);
-        h->checksum = storage::checksum(s_file + storage::kChecksumFrom, size - storage::kChecksumFrom);
+        h->checksum = storage::checksum(s_writeBuf + storage::kChecksumFrom, size - storage::kChecksumFrom);
         s_pendingSlot = static_cast<u8>(s.cardSlot ^ 1);
         s_pendingSequence = h->sequence;
         s_pendingSum = sum;
@@ -224,7 +234,7 @@ namespace bests {
         s_phase = kFolder;
         if (!s_job.makeFolder())
         {
-            finished(false, 0);
+            finished(false, 0, storage::kWriteFailed);
         }
     }
 
@@ -239,30 +249,32 @@ namespace bests {
         if (s_phase == kFolder)
         {
             s_phase = kWrite;
-            if (!s_job.write(kNames[s_pendingSlot], s_file, s_pendingSize))
+            if (s_writeBuf == NULL || !s_job.write(kNames[s_pendingSlot], s_writeBuf, s_pendingSize))
             {
-                finished(false, 0);
+                finished(false, 0, storage::kWriteFailed);
             }
             return;
         }
-        finished(result == storage::kOk, status);
+        finished(result == storage::kOk, status, result);
     }
 
     void detach()
     {
         if (s_phase == kIdle)
         {
+            storage::freeWriteBuffer(s_writeBuf, storage::kOk);
+            s_session = NULL;
             return;
         }
         int status = 0;
         int r = s_job.wait(kWaitMs, status);
-        if (s_phase == kFolder && r != storage::kBusy)
+        if (s_phase == kFolder && r != storage::kBusy && s_writeBuf != NULL)
         {
             s_phase = kWrite;
-            r = s_job.write(kNames[s_pendingSlot], s_file, s_pendingSize) ? s_job.wait(kWaitMs, status)
-                                                                           : storage::kBusy;
+            r = s_job.write(kNames[s_pendingSlot], s_writeBuf, s_pendingSize) ? s_job.wait(kWaitMs, status)
+                                                                              : storage::kBusy;
         }
-        finished(r == storage::kOk, status);
+        finished(r == storage::kOk, status, r);
         s_session = NULL;
     }
 }

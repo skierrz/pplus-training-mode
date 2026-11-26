@@ -295,6 +295,23 @@ TEST(bests_file, a_short_read_uses_heap_and_does_not_double_free)
     CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
     CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
     menu::bests::detach();
+
+    // Errored read returning status == 1 after readSDFile freed `buf`: no double-free.
+    host::card::setReadStatus(1, 1, true);
+    Session& v = boot();
+    CHECK_EQ(9, v.best[kSlotA]);
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
+    menu::bests::detach();
+
+    // Write uses Heaps::Network buffer and frees it cleanly once complete; on kBusy
+    // timeout at detach, leaves the heap block allocated so async DMA stays safe.
+    v.best[kSlotA] = 12;
+    host::card::setDelay(10);
+    menu::attachSession(host::fakes::block());
+    CHECK_EQ(1, host::fakes::heapBlocks(Heaps::Network));
+    menu::bests::detach();
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
 }
 
 TEST(bests_file, corrupt_sequence_is_ignored_and_wrap_around_is_harmless)

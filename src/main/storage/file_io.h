@@ -3,6 +3,8 @@
 #include <gf/gf_file_io_handle.h>
 #include <types.h>
 
+#include "shared/version.h"
+
 // Files in one folder of ours on the SD card: <MOD_PATCH_DIR>tm/ (on
 // Project+ "/Project+/tm/"), the folder the build loads its own files from,
 // as the stub finds its plugin file.
@@ -63,10 +65,10 @@ namespace storage {
     }
 
     // A 32-byte aligned buffer from a game heap (Network, else MenuInstance)
-    // for Job::read(): Brawl's gfFileIO::readSDFile frees its destination via
-    // gfHeapManager::free and returns status 2 on a short FAFread
-    // (0x8001CD50-0x8001CDD8), so every read destination must be a heap block
-    // and must not be freed again when readFreedBuffer() is true.
+    // for Job::read(): Brawl's gfFileIO::readSDFile can free its destination
+    // via gfHeapManager::free on short/failed reads (0x8001CD50-0x8001CDD8),
+    // so every read destination must be a heap block and freeReadBuffer()
+    // verifies pool liveness before freeing on any error result.
     u8* allocReadBuffer(u32 bytes);
     inline bool readFreedBuffer(int result, int status)
     {
@@ -74,7 +76,16 @@ namespace storage {
     }
     void freeReadBuffer(u8*& buf, int result, int status);
 
-    // One asynchronous request at a time.
+    // A 32-byte aligned write buffer in Heaps::Network so async SDIO writes
+    // never reference a module's static .bss across module unload. On kBusy,
+    // freeWriteBuffer() drops the pointer without freeing so DMA stays safe.
+    u8* allocWriteBuffer(u32 bytes);
+    void freeWriteBuffer(u8*& buf, int result);
+
+    // One asynchronous request at a time. Stores gfFileIOHandle in raw
+    // pointer-aligned storage so Job is trivially destructible and module
+    // unload (_epilog / __destroy_global_chain) never calls ~gfFileIOHandle()
+    // on an in-flight SDIO request after a kBusy timeout.
     class Job {
     public:
         Job();
@@ -100,10 +111,22 @@ namespace storage {
     private:
         enum Kind { kIdle, kFolder, kWrite, kRead, kDelete };
         bool start(int kind, const char* name);
-        gfFileIOHandle m_handle;
+        gfFileIOHandle& handle()
+        {
+            return *reinterpret_cast<gfFileIOHandle*>(m_handle.raw);
+        }
+        const gfFileIOHandle& handle() const
+        {
+            return *reinterpret_cast<const gfFileIOHandle*>(m_handle.raw);
+        }
+        union {
+            void* align;
+            u8 raw[sizeof(gfFileIOHandle)];
+        } m_handle;
         int m_kind;
         int m_preset; // a read refused before it was sent: its Result
     };
+    TM_STATIC_ASSERT(sizeof(gfFileIOHandle) == sizeof(void*), tm_file_io_handle_size);
 
     // The folder's files matching "*<suffix>", by the FA library
     // (synchronous). Calls each(name, size, ctx) per file; returns the count,

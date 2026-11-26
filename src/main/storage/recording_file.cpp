@@ -694,9 +694,13 @@ namespace storage {
             }
             TM_LOG("storage: %s finished at detach: %s\n", s_phase == kImportRead ? "import" : "export",
                    resultText(r));
-            if (r == kBusy || (s_phase == kImportRead && readFreedBuffer(r, status)))
+            if (s_phase == kImportRead)
             {
-                // Never free memory the file thread may still use or already freed.
+                freeReadBuffer(s_buffer, r, status);
+            }
+            else if (r == kBusy)
+            {
+                // Never free memory the file thread may still use.
                 s_buffer = NULL;
             }
         }

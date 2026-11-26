@@ -48,6 +48,7 @@ namespace card {
     static int s_shortRead = 0;
     static int s_failRead = 0;
     static int s_failStatus = 0;
+    static bool s_failFreeBuf = false;
     static int s_writes = 0, s_reads = 0, s_deletes = 0;
     static OSCalendarTime s_clock;
     static int s_listNext = 0;
@@ -71,6 +72,7 @@ namespace card {
         s_shortRead = 0;
         s_failRead = 0;
         s_failStatus = 0;
+        s_failFreeBuf = false;
         s_writes = s_reads = s_deletes = 0;
         s_listNext = kMaxFiles;
         setClock(2026, 1, 2, 3, 4, 5);
@@ -98,10 +100,11 @@ namespace card {
         s_shortRead = onRead;
     }
 
-    void setReadStatus(int onRead, int status)
+    void setReadStatus(int onRead, int status, bool freeBuf)
     {
         s_failRead = onRead;
         s_failStatus = status;
+        s_failFreeBuf = freeBuf;
     }
 
     void setClock(int year, int month, int day, int hour, int minute, int second)
@@ -308,6 +311,10 @@ namespace card {
             }
             else if (s_failRead > 0 && --s_failRead == 0)
             {
+                if (s_failFreeBuf)
+                {
+                    fakes::freeByGame(r.address);
+                }
                 r.status = s_failStatus;
             }
             else

@@ -371,6 +371,12 @@ TEST(settings_file, a_damaged_file_is_refused)
         }
         storage::detach();
     }
+    // Status == 1 read error where readSDFile already freed `buf`: no double-free.
+    host::card::setReadStatus(1, 1, true);
+    boot();
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
+    storage::detach();
 }
 
 // A file of a newer format is left alone: not used, and while it is the
