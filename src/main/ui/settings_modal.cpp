@@ -119,11 +119,11 @@ namespace ui {
             float y, h;
             gfx::Rgba top, bot;
         } kBands[5] = {
-            {95.0f,  40.0f,  kLabHeaderTop,    kLabHeaderBot},
-            {135.0f, 2.0f,   kLabDivider,      kLabDivider},
-            {137.0f, 214.0f, kLabBaseTop,      kLabBaseBot},
-            {351.0f, 2.0f,   kLabDivider,      kLabDivider},
-            {353.0f, 32.0f,  kLabFooterTopCol, kLabFooterBotCol}
+            {95.0f,  kFibBandH, kLabHeaderTop,    kLabHeaderBot},
+            {129.0f, kFibHair,  kLabDivider,      kLabDivider},
+            {131.0f, 218.0f,    kLabBaseTop,      kLabBaseBot},
+            {349.0f, kFibHair,  kLabDivider,      kLabDivider},
+            {351.0f, kFibBandH, kLabFooterTopCol, kLabFooterBotCol}
         };
         float bodyX = cx(inL43);
         float bodyW = w(inR43 - inL43);
@@ -134,17 +134,18 @@ namespace ui {
 
         // Flush-left emerald-teal slanted header ribbon + // diagonal stripes.
         float ribbonRight43 = 446.0f;
-        drawSlantBar(inL43, ribbonRight43, 95.0f, 40.0f, true, kLabTealTop, kLabTealBot, 0);
-        drawDiagStripes(cx(ribbonRight43 - 6.0f), 95.0f, 135.0f, w(40.0f * slantTan), w(4.5f), w(3.5f), kLabStripeCol);
+        drawSlantBar(inL43, ribbonRight43, inTop, kFibBandH, true, kLabTealTop, kLabTealBot, 0);
+        drawDiagStripes(cx(ribbonRight43 - 6.0f), inTop, inTop + kFibBandH, w(kFibBandH * slantTan), w(4.5f), w(3.5f),
+                        kLabStripeCol);
 
-        float titleCap = 12.5f;
+        float titleCap = kTypeHeading;
         float ts = displayScaleForCap(titleCap);
         const char* title = "UPDATE SAVED SETTINGS";
-        gfx::displayText(cx(inL43 + 14.0f), displayYForCap(115.0f - titleCap * 0.5f, ts), title, kLabActiveTabText,
-                         kLabActiveTabText, ts, ts, 0.0f, 0);
-        float ss = scaleForCap(8.8f);
+        gfx::displayText(cx(inL43 + kFibPad), displayYForCap(inTop + (kFibBandH - titleCap) * 0.5f, ts), title,
+                         kLabActiveTabText, kLabActiveTabText, ts, ts, 0.0f, 0);
+        float ss = scaleForCap(kTypeMeta);
         const char* sub = "Settings from an older build were found on SD.";
-        gfx::text(320.0f - gfx::textWidth(sub, ss) * 0.5f, textYForCap(150.0f, ss), sub, kLabDescText, ss);
+        gfx::text(320.0f - gfx::textWidth(sub, ss) * 0.5f, textYForCap(144.0f, ss), sub, kLabDescText, ss);
 
         // 3 v1 Direction A slanted choice cards (Solo-Gold focused / dark-slate unselected).
         static const char* const kTitles[3] = {
@@ -161,20 +162,20 @@ namespace ui {
             affectedSub,
             "Keeps compatible choices and removes obsolete options."
         };
-        const float cardL43 = 110.0f;
-        const float cardR43 = 530.0f;
+        const float cardL43 = inL43 + kFibPad;
+        const float cardR43 = inR43 - kFibPad;
         const float cardH = 48.0f;
-        float textX = cx(144.0f);
+        float textX = cx(cardL43 + 34.0f);
         float textMaxW = w(348.0f);
         for (int i = 0; i < 3; i++)
         {
-            float y = 175.0f + i * 56.0f;
+            float y = 169.0f + i * (cardH + kFibGap);
             bool sel = i == s_cursor;
             if (sel)
             {
                 drawSlantBar(cardL43, cardR43, y, cardH, false, kLabGoldTop, kLabGoldBot, kLabGoldEdge);
-                drawDiagStripes(cx(cardR43 - 10.0f), y + 2.0f, y + cardH - 2.0f, w((cardH - 4.0f) * slantTan),
-                                w(4.5f), w(3.5f), kLabStripeCol);
+                drawDiagStripes(cx(cardR43 - 10.0f), y + kFibHair, y + cardH - kFibHair,
+                                w((cardH - 2.0f * kFibHair) * slantTan), w(4.5f), w(3.5f), kLabStripeCol);
                 float iconX = cx(cardL43 + cardH * slantTan * 0.55f + 2.0f);
                 if (!main::extraDrawUiIcon(kIconCursorRight, iconX, y + 18.0f, 12.0f * xs, 12.0f, 0xFFFFFFFFu))
                 {
@@ -185,8 +186,8 @@ namespace ui {
             {
                 drawSlantBar(cardL43, cardR43, y, cardH, false, kLabRowSlateTop, kLabRowSlateBot, kLabRowSlateEdge);
             }
-            fitText(textX, y + 9.0f, kTitles[i], sel ? kLabGoldInk : kText, 10.5f, textMaxW);
-            fitText(textX, y + 28.0f, subs[i], sel ? kLabGoldInkMuted : kLabMutedText, 8.5f, textMaxW);
+            fitText(textX, y + kFibGap, kTitles[i], sel ? kLabGoldInk : kText, kTypeBody, textMaxW);
+            fitText(textX, y + 27.0f, subs[i], sel ? kLabGoldInkMuted : kLabMutedText, kTypeMeta, textMaxW);
         }
 
         // Native Brawl footer emblems (neutral silver D-Pad + green glossy A).
@@ -198,25 +199,29 @@ namespace ui {
         u8 icons[2] = {static_cast<u8>(s_ctrlType == gfPadType::GCC ? kIconGcDpad : kIconWiiDpad), kOkIcons[s_ctrlType]};
         const char* glyphs[2] = {"+", s_ctrlType == gfPadType::WIIMOTE ? "2" : "A"};
         const char* labels[2] = {"Choose", "Confirm & Save"};
-        float fx = cx(inL43 + 14.0f);
-        float ls = scaleForCap(9.5f);
-        float gs = scaleForCap(8.5f);
+        float fx = cx(inL43 + kFibPad);
+        float footMid = 351.0f + kFibBandH * 0.5f;
+        float ls = scaleForCap(kTypeMeta);
+        float gs = scaleForCap(kTypeMeta);
         float iw = 16.0f * xs;
         for (int i = 0; i < 2; i++)
         {
             bool forceGreenA = (i == 1 && (s_ctrlType == gfPadType::GCC || s_ctrlType == gfPadType::WII_CLASSIC));
-            if (forceGreenA || !main::extraDrawUiIcon(icons[i], fx, 361.0f, iw, 16.0f, 0xFFFFFFFFu))
+            if (forceGreenA || !main::extraDrawUiIcon(icons[i], fx, footMid - 8.0f, iw, 16.0f, 0xFFFFFFFFu))
             {
-                drawGlossyPillBadge(fx, 361.0f, iw, 16.0f, kFootCols[i][0], kFootCols[i][1]);
+                drawGlossyPillBadge(fx, footMid - 8.0f, iw, 16.0f, kFootCols[i][0], kFootCols[i][1]);
                 float gw = gfx::textWidth(glyphs[i], gs);
-                gfx::text(fx + (iw - gw) * 0.5f, textYForCap(364.75f, gs), glyphs[i], kFootCols[i][2], gs);
+                gfx::text(fx + (iw - gw) * 0.5f, textYForCap(footMid - kTypeMeta * 0.5f, gs), glyphs[i],
+                          kFootCols[i][2], gs);
             }
-            fx = gfx::text(fx + 22.0f * xs, textYForCap(364.25f, ls), labels[i], kLabMutedText, ls) + 24.0f * xs;
+            fx = gfx::text(fx + iw + kFibTight * xs, textYForCap(footMid - kTypeMeta * 0.5f, ls), labels[i],
+                           kLabMutedText, ls)
+                 + (kFibPad + kFibGap) * xs;
         }
 
         // Subtle 2px dark inner top/bottom bevel matching menu.cpp.
-        gfx::fillRect(bodyX, inTop, bodyW, 2.0f, kLabDivider);
-        gfx::fillRect(bodyX, inBot - 2.0f, bodyW, 2.0f, kLabBevelDark);
+        gfx::fillRect(bodyX, inTop, bodyW, kFibHair, kLabDivider);
+        gfx::fillRect(bodyX, inBot - kFibHair, bodyW, kFibHair, kLabBevelDark);
     }
 }
 }

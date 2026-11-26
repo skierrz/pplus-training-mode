@@ -78,8 +78,8 @@ namespace style {
             topCol = on ? kLabPillOffTop : kLabPillOffMutedTop;
             botCol = on ? kLabPillOffBot : kLabPillOffMutedBot;
         }
-        float py = y + 2.0f;
-        float ph = rowH - 4.0f;
+        float ph = (rowH >= kLabPillH + 4.0f) ? kLabPillH : (rowH - 4.0f);
+        float py = y + (rowH - ph) * 0.5f;
         float slant = ph * kStyleSlantTan;
         float xs = gfx::xScale();
         float x0Top = 320.0f + (left43 + slant - 320.0f) * xs;
@@ -200,9 +200,9 @@ namespace style {
         gfx::fillRect(left, kScrollTop, width, height, kLabDivider);
         float inner = height - 4.0f;
         float length = inner * visible / count;
-        if (length < 14.0f)
+        if (length < kFibRowH)
         {
-            length = 14.0f;
+            length = kFibRowH;
         }
         float top = kScrollTop + 2.0f + (inner - length) * scroll / (count - visible);
         gfx::fillGradV(left + w(1.0f), top, width - w(2.0f), length, kLabTealTop, kLabTealBot);

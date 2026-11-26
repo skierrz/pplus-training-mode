@@ -531,53 +531,53 @@ namespace list {
     static const gfx::Rgba kBadgeOsdTop = 0x3AC8B8FF;
     static const gfx::Rgba kBadgeOsdBot = 0x1C8B7EFF;
 
-    // ---- Boot menu geometry (640x480 2D space; clears stock P+ CSS BACK & TRAINING top-left) ----
+    // ---- Boot menu geometry (640x480 2D space; Golden Ratio Option G1: 220:324 in 36..604) ----
     static const float kSlantTan = 0.445f; // ~24 deg stock P+ slant
-    static const float kBannerTop = 28.0f;
-    static const float kBannerBottom = 66.0f;
-    static const float kBannerRuleH = 2.0f;
+    static const float kBannerTop = 26.0f;
+    static const float kBannerBottom = 60.0f; // H = kFibBandH (34 = F9)
+    static const float kBannerRuleH = kFibHair;
     static const float kBannerLeftTop = 166.0f;
-    static const float kBannerLeftBot = 149.0f;
-    static const float kBannerRightTop = 602.0f;
-    static const float kBannerRightBot = 585.0f;
-    static const float kBannerTitleX = 192.0f;
-    static const float kBannerTitleCap = 10.5f;
+    static const float kBannerLeftBot = 151.0f;
+    static const float kBannerRightTop = 604.0f;
+    static const float kBannerRightBot = 589.0f;
+    static const float kBannerTitleX = 190.0f;
+    static const float kBannerTitleCap = kTypeBody;
     static const float kBannerPillLeftX = 314.0f;
     static const float kBannerPillW = 22.0f;
     static const float kBannerPillH = 18.0f;
-    static const float kBannerPillCap = 9.0f;
+    static const float kBannerPillCap = kTypeMeta;
     static const float kBannerSecSlotL = 340.0f;
-    static const float kBannerSecSlotR = 514.0f;
-    static const float kBannerSecCap = 9.5f;
-    static const float kBannerPillRightX = 518.0f;
+    static const float kBannerSecSlotR = 516.0f;
+    static const float kBannerSecCap = kTypeMeta;
+    static const float kBannerPillRightX = 520.0f;
 
     static const float kColLeft = 36.0f;
-    static const float kColBarRight = 294.0f;
-    static const float kColScrollLeft = 297.0f;
-    static const float kColScrollW = 7.0f;
-    static const float kColRight = 304.0f;
+    static const float kColBarRight = 256.0f;   // W = 220
+    static const float kColScrollLeft = 259.0f; // 3 px (F4) gap from bar
+    static const float kColScrollW = kFibGap;   // 8 px (F6) track (259..267)
+    static const float kColRight = 267.0f;
     static const float kColTop = 94.0f;
     static const float kColRowH = 26.0f;
-    static const float kColPitch = 30.0f;
-    static const float kColTextX = 56.0f;
+    static const float kColPitch = 31.0f;       // kColRowH (26) + kFibTight (5)
+    static const float kColTextX = 52.0f;       // kColLeft (36) + 16
 
-    static const float kCardLeft = 318.0f;
-    static const float kCardRight = 604.0f;
+    static const float kCardLeft = 280.0f;      // 13 px (F7) gutter from scrollbar (267..280)
+    static const float kCardRight = 604.0f;     // W = 324 (324 / 220 = 1.473)
     static const float kCardTop = 94.0f;
-    static const float kCardBottom = 398.0f;
-    static const float kCardBorder = 4.0f;
-    static const float kCardPadX = 16.0f;
-    static const float kCardTitleCap = 14.5f;
-    static const float kCardBodyCap = 10.0f;
-    static const float kCardMetaCap = 9.0f;
-    static const float kCardChipCap = 9.5f;
+    static const float kCardBottom = 399.0f;    // flush with 10-row list bottom (94 + 9*31 + 26)
+    static const float kCardBorder = kLabBorder;
+    static const float kCardPadX = 16.0f;       // border (3) + kFibPad (13) -> contentW = 292
+    static const float kCardTitleCap = kTypeHeading;
+    static const float kCardBodyCap = kTypeBody;
+    static const float kCardMetaCap = kTypeMeta;
+    static const float kCardChipCap = kTypeMeta;
 
-    static const float kStripTop = 424.0f;
-    static const float kStripH = 56.0f;
-    static const float kStripCenterY = 442.0f;
+    static const float kStripTop = 422.0f;
+    static const float kStripH = 58.0f;         // background extends to bottom; content inside 422..456 (SMPTE)
+    static const float kStripCenterY = 439.0f;  // centered in 422..456 (H = 34 = F9)
     static const float kBadgeH = 18.0f;
-    static const float kBadgeCap = 9.5f;
-    static const float kBadgeLabelCap = 10.0f;
+    static const float kBadgeCap = kTypeMeta;
+    static const float kBadgeLabelCap = kTypeMeta;
 
     struct Raw {
         u32 held;
@@ -1216,10 +1216,10 @@ namespace list {
         char secCount[8];
         snprintf(secCount, sizeof(secCount), "(%d/%d)", s_page + 1, kSectionCount);
         float secScale = displayScaleForCap(kBannerSecCap);
-        float cntScale = scaleForCap(8.5f);
+        float cntScale = scaleForCap(kTypeMeta);
         float secW = gfx::displayTextWidth(secName, secScale);
         float cntW = gfx::textWidth(secCount, cntScale);
-        float gapPx = w(9.0f);
+        float gapPx = w(kFibPad);
         float totalW = secW + gapPx + cntW;
         float slotCenter = (cx(kBannerSecSlotL) + cx(kBannerSecSlotR)) * 0.5f;
         float slotLimit = cx(kBannerSecSlotR) - cx(kBannerSecSlotL);
@@ -1231,13 +1231,13 @@ namespace list {
         float startX = slotCenter - (drawSecW + gapPx + drawCntW) * 0.5f;
         gfx::displayText(startX, displayYForCap(midY - kBannerSecCap * 0.5f, secScale), secName, kBannerInk,
                          kBannerInk, secScale * ratio, secScale, 0.0f, 0);
-        gfx::text(startX + drawSecW + gapPx, textYForCap(midY - 4.25f, cntScale), secCount, kBannerInk,
+        gfx::text(startX + drawSecW + gapPx, textYForCap(midY - kTypeMeta * 0.5f, cntScale), secCount, kBannerInk,
                   cntScale * ratio, cntScale);
 
         // Version mark right-aligned in the dark band directly above the details card.
-        float verScale = scaleForCap(7.5f);
+        float verScale = scaleForCap(kTypeMicro);
         float verW = boldWidth(TM_VERSION_MARK, verScale);
-        boldText(cx(kCardRight) - verW, textYForCap(74.0f, verScale), TM_VERSION_MARK, kCardMuted, verScale, verScale);
+        boldText(cx(kCardRight) - verW, textYForCap(70.0f, verScale), TM_VERSION_MARK, kCardMuted, verScale, verScale);
     }
 
     static void drawLeftColumn()
@@ -1250,15 +1250,15 @@ namespace list {
         float x0Bot = cx(kColLeft);
         float x1Top = cx(kColBarRight);
         float x1Bot = cx(kColBarRight - slant);
-        float padX = w(2.0f);
-        float dySlant = w(2.0f * kSlantTan);
+        float padX = w(kFibHair);
+        float dySlant = w(kFibHair * kSlantTan);
         float ix0Top = x0Top - dySlant + padX;
         float ix0Bot = x0Bot + dySlant + padX;
         float ix1Top = x1Top - dySlant - padX;
         float ix1Bot = x1Bot + dySlant - padX;
         float inSlantPx = w((kColRowH - 4.0f) * kSlantTan);
         float textX = cx(kColTextX);
-        float textMaxW = cx(kColBarRight - 24.0f) - textX;
+        float textMaxW = cx(kColBarRight - kFibRowH) - textX;
 
         for (int r = 0; r < kVisibleRows && s_scroll + r < sec.count; r++)
         {
@@ -1268,16 +1268,16 @@ namespace list {
             if (selected)
             {
                 drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + kColRowH, kLabGoldEdge, kLabGoldEdge);
-                drawSlantGradV(ix0Top, ix0Bot, ix1Top, ix1Bot, y + 2.0f, y + kColRowH - 2.0f, kLabGoldTop,
+                drawSlantGradV(ix0Top, ix0Bot, ix1Top, ix1Bot, y + kFibHair, y + kColRowH - kFibHair, kLabGoldTop,
                                kLabGoldBot);
-                drawDiagStripes(ix1Top - w(8.0f), y + 2.0f, y + kColRowH - 2.0f, inSlantPx, w(4.5f), w(3.5f),
-                                kLabStripeCol);
-                drawCursorTri(cx(kColLeft + slant * 0.55f + 2.0f), y + kColRowH * 0.5f, 8.5f);
+                drawDiagStripes(ix1Top - w(kFibGap), y + kFibHair, y + kColRowH - kFibHair, inSlantPx, w(4.5f),
+                                w(3.5f), kLabStripeCol);
+                drawCursorTri(cx(kColLeft + slant * 0.55f + 1.5f), y + kColRowH * 0.5f, 8.0f);
             }
             else
             {
                 drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + kColRowH, kLabBorderColor, kLabBorderColor);
-                drawSlantGradV(ix0Top, ix0Bot, ix1Top, ix1Bot, y + 2.0f, y + kColRowH - 2.0f, kRowFillTop,
+                drawSlantGradV(ix0Top, ix0Bot, ix1Top, ix1Bot, y + kFibHair, y + kColRowH - kFibHair, kRowFillTop,
                                kRowFillBot);
             }
 
@@ -1295,9 +1295,9 @@ namespace list {
             gfx::fillRect(sbLeft, kColTop, sbW, sbH, kLabDivider);
             float inner = sbH - 4.0f;
             float thumbH = inner * kVisibleRows / sec.count;
-            if (thumbH < 18.0f)
+            if (thumbH < kFibRowH)
             {
-                thumbH = 18.0f;
+                thumbH = kFibRowH;
             }
             int maxScroll = sec.count - kVisibleRows;
             int sc = s_scroll > maxScroll ? maxScroll : s_scroll;
@@ -1312,25 +1312,18 @@ namespace list {
         float right = cx(kCardRight);
         float width = right - left;
         float height = kCardBottom - kCardTop;
-        float bOut = w(2.0f);
-        float bIn = w(2.0f);
+        float b = kCardBorder;
+        float bx = w(b);
 
-        // Smoked charcoal translucent card with crisp dark double border (zero bright wireframe).
-        gfx::fillRect(left, kCardTop, width, 2.0f, kLabBorderColor);
-        gfx::fillRect(left, kCardBottom - 2.0f, width, 2.0f, kLabBorderColor);
-        gfx::fillRect(left, kCardTop + 2.0f, bOut, height - 4.0f, kLabBorderColor);
-        gfx::fillRect(right - bOut, kCardTop + 2.0f, bOut, height - 4.0f, kLabBorderColor);
-
-        float il = left + bOut;
-        float iw = width - 2.0f * bOut;
-        float it = kCardTop + 2.0f;
-        float ih = height - 4.0f;
-        gfx::fillRect(il, it, iw, 2.0f, kCardBorderIn);
-        gfx::fillRect(il, kCardBottom - 4.0f, iw, 2.0f, kCardBorderIn);
-        gfx::fillRect(il, it + 2.0f, bIn, ih - 4.0f, kCardBorderIn);
-        gfx::fillRect(il + iw - bIn, it + 2.0f, bIn, ih - 4.0f, kCardBorderIn);
-
-        gfx::fillGradV(il + bIn, it + 2.0f, iw - 2.0f * bIn, ih - 4.0f, kCardFillTop, kCardFillBot);
+        // Smoked charcoal translucent card with unified 3 px (F4) dark outer frame + 2 px (F3) subtle inner hairline.
+        drawFrameBorder(kCardLeft, kCardRight, kCardTop, kCardBottom, b, kLabBorderColor);
+        float il = left + bx;
+        float iw = width - 2.0f * bx;
+        float it = kCardTop + b;
+        float ih = height - 2.0f * b;
+        gfx::fillGradV(il, it, iw, ih, kCardFillTop, kCardFillBot);
+        gfx::fillRect(il, it, iw, kFibHair, kCardBorderIn);
+        gfx::fillRect(il, kCardBottom - b - kFibHair, iw, kFibHair, kLabBevelDark);
 
         const LauncherRow& row = current();
         float contentX = cx(kCardLeft + kCardPadX);
@@ -1358,10 +1351,10 @@ namespace list {
         gfx::displayText(contentX, displayYForCap(110.0f + (kCardTitleCap - titleCap) * 0.5f, titleScale), row.name,
                          kLabTitleTop, kLabTitleBot, tsx, titleScale, 1.2f, kLabTitleEdge);
 
-        float subScale = scaleForCap(8.5f);
-        gfx::text(contentX, textYForCap(132.0f, subScale), currentSection().name, kBannerTopCol, subScale);
+        float subScale = scaleForCap(kTypeMeta);
+        gfx::text(contentX, textYForCap(131.0f, subScale), currentSection().name, kBannerTopCol, subScale);
 
-        gfx::fillRect(contentX, 148.0f, contentW, 2.0f, kRowEdge);
+        gfx::fillRect(contentX, 148.0f, contentW, kFibHair, kRowEdge);
 
         float bodyScale = scaleForCap(kCardBodyCap);
         for (int i = 0; i < 3; i++)
@@ -1373,7 +1366,7 @@ namespace list {
             }
             float lw = gfx::textWidth(line, bodyScale);
             float lsx = lw > contentW && lw > 0.0f ? bodyScale * contentW / lw : bodyScale;
-            gfx::text(contentX, textYForCap(162.0f + i * 18.0f, bodyScale), line, kCardBody, lsx, bodyScale);
+            gfx::text(contentX, textYForCap(163.0f + i * 18.0f, bodyScale), line, kCardBody, lsx, bodyScale);
         }
 
         // Clean flat SETUP metadata text (zero clickable-looking pill boxes).
@@ -1383,7 +1376,7 @@ namespace list {
         float chipScale = scaleForCap(kCardChipCap);
         float wA = gfx::textWidth(row.chipA, chipScale);
         float wB = gfx::textWidth(row.chipB, chipScale);
-        float metaGap = w(14.0f);
+        float metaGap = w(kFibPad);
         float availMeta = contentW - metaGap;
         float textSum = wA + wB;
         float ratioM = textSum > availMeta && textSum > 0.0f ? availMeta / textSum : 1.0f;
@@ -1391,10 +1384,10 @@ namespace list {
         bool highlightChipA = (row.kind == kRowSkillDrill
                                && (row.targetId == drills::kDrillSnakeRecovery
                                    || row.targetId == drills::kDrillHoverFloat));
-        float metaY = textYForCap(254.0f, chipScale);
+        float metaY = textYForCap(252.0f, chipScale);
         gfx::text(contentX, metaY, row.chipA, highlightChipA ? kLabFocusGold : kCardBody, msx, chipScale);
         float sepX = contentX + wA * ratioM + metaGap * 0.5f - w(1.0f);
-        gfx::fillRect(sepX, 253.0f, w(2.0f), 11.0f, kCardMuted);
+        gfx::fillRect(sepX, 251.0f, w(kFibHair), 11.0f, kCardMuted);
         gfx::text(contentX + wA * ratioM + metaGap, metaY, row.chipB, kCardBody, msx, chipScale);
 
         if (row.caption != NULL && row.caption[0] != '\0')
@@ -1402,7 +1395,7 @@ namespace list {
             float capScale = scaleForCap(kCardChipCap);
             float cw = gfx::textWidth(row.caption, capScale);
             float csx = cw > contentW && cw > 0.0f ? capScale * contentW / cw : capScale;
-            gfx::text(contentX, textYForCap(288.0f, capScale), row.caption, kCardMuted, csx, capScale);
+            gfx::text(contentX, textYForCap(286.0f, capScale), row.caption, kCardMuted, csx, capScale);
         }
 
         int bestSlot = -1;
@@ -1427,9 +1420,9 @@ namespace list {
                 snprintf(bestText, sizeof(bestText), "%u", static_cast<unsigned>(best));
             }
             float divY = 330.0f;
-            gfx::fillRect(contentX, divY, contentW, 2.0f, kRowEdge);
-            float bScale = scaleForCap(10.0f);
-            float textY = textYForCap(divY + 14.0f, bScale);
+            gfx::fillRect(contentX, divY, contentW, kFibHair, kRowEdge);
+            float bScale = scaleForCap(kTypeBody);
+            float textY = textYForCap(divY + kFibPad, bScale);
             const char* bestLabel =
                 (row.kind == kRowSkillDrill && row.targetId == drills::kDrillComboBreakRush) ? "Best Score"
                                                                                              : "Best Streak";
@@ -1452,8 +1445,8 @@ namespace list {
         float glyphScale = scaleForCap(kBadgeCap);
         float labelScale = scaleForCap(kBadgeLabelCap);
         float gw = gfx::textWidth(glyph, glyphScale);
-        float badgeW = round ? w(kBadgeH) : (gw + w(10.0f));
-        float minW = w(kBadgeH);
+        float badgeW = round ? w(kBadgeH) : (gw + w(kFibGap));
+        float minW = round ? w(kBadgeH) : w(kFibRowH);
         if (badgeW < minW)
         {
             badgeW = minW;
@@ -1469,10 +1462,10 @@ namespace list {
         }
         gfx::text(x + (badgeW - gw) * 0.5f, textYForCap(kStripCenterY - kBadgeCap * 0.5f, glyphScale), glyph, fg,
                   glyphScale);
-        float lx = x + badgeW + w(6.0f);
+        float lx = x + badgeW + w(kFibTight);
         float endX = gfx::text(lx, textYForCap(kStripCenterY - kBadgeLabelCap * 0.5f, labelScale), label, kText,
                                labelScale);
-        return endX + w(15.0f);
+        return endX + w(kFibPad);
     }
 
     static void drawFooterStrip(u32 type)

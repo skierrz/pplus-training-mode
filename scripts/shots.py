@@ -143,14 +143,14 @@ PAUSE_MENU_GONE = 0.05
 
 def pause_menu_behind_panel(xscale):
     """The part of PAUSE_MENU_BOX the lab menu's Draft C rail covers and draws
-    no text on (empty right gutter of the rail, x 190-195, strictly clear of
-    kRailTextX + kRailTextMaxW = 189.0), as fractions of the frame. On 16:9 the
+    no text on (empty right gutter of the rail, x 189-194, strictly clear of
+    kRailTextX + kRailTextMaxW = 180.0), as fractions of the frame. On 16:9 the
     panel is narrower than the screen, so Training's menu shows beside it;
     behind it the menu's white boxes must be dimmed."""
     def fx(gx):
         return (320 + (gx - 320) * xscale) / 640
-    return (max(PAUSE_MENU_BOX[0], fx(190)), 63 / 480, min(PAUSE_MENU_BOX[2], fx(195)),
-            min(PAUSE_MENU_BOX[3], 368 / 480))
+    return (max(PAUSE_MENU_BOX[0], fx(189)), 73 / 480, min(PAUSE_MENU_BOX[2], fx(194)),
+            min(PAUSE_MENU_BOX[3], 362 / 480))
 
 
 # ---- the lab menu's geometry ---------------------------------------------------
@@ -162,9 +162,9 @@ def pause_menu_behind_panel(xscale):
 
 PANEL = {"left": 36.0, "right": 604.0, "top": 26.0, "bottom": 432.0}
 BORDER = (6, 8, 13)
-TITLE_TOP, TITLE_BOT, TITLE_Y, TITLE_ALPHA = (21, 27, 36), (14, 18, 25), (29.0, 57.0), 0xF2 / 255.0
-RAIL_TOP, RAIL_BOT, RAIL_Y, RAIL_ALPHA = (17, 22, 30), (11, 14, 20), (58.0, 373.0), 0xF2 / 255.0
-ROWS_TOP, ROWS_BOT, ROWS_Y, BAND_ALPHA = (20, 26, 34), (13, 17, 23), (58.0, 373.0), 0xE6 / 255.0
+TITLE_TOP, TITLE_BOT, TITLE_Y, TITLE_ALPHA = (21, 27, 36), (14, 18, 25), (29.0, 63.0), 0xF2 / 255.0
+RAIL_TOP, RAIL_BOT, RAIL_Y, RAIL_ALPHA = (17, 22, 30), (11, 14, 20), (65.0, 366.0), 0xF2 / 255.0
+ROWS_TOP, ROWS_BOT, ROWS_Y, BAND_ALPHA = (20, 26, 34), (13, 17, 23), (65.0, 366.0), 0xE6 / 255.0
 ROW_SLATE_TOP, ROW_SLATE_BOT, ROW_SLATE_ALPHA = (42, 50, 62), (33, 40, 50), 0xE8 / 255.0
 ROW_BOX_TOP, ROW_BOX_BOT, BOX_ALPHA = (26, 32, 41), (19, 24, 32), 0xEE / 255.0
 ROW_BOX_FOCUS_TOP, ROW_BOX_FOCUS_BOT, BOX_FOCUS_ALPHA = (246, 249, 252), (226, 232, 240), 1.0
@@ -173,14 +173,14 @@ ROW_BOX, ROW_BOX_ON = (23, 28, 37), (29, 145, 60)
 GOLD_TOP, GOLD_BOT, GOLD_ALPHA = (247, 206, 56), (221, 169, 20), 1.0
 SCROLL_TRACK = (38, 48, 62)
 THUMB, THUMB_ALPHA = (39, 164, 147), 1.0
-VISIBLE_ROWS = 11
-ROW_TOP, ROW_PITCH, ROW_H = 63.0, 28.0, 23.0
-NAME_X, ROW_CAP = 220.0, 10.5
-TITLE_X, TITLE_CAP_TOP, TITLE_CAP = 48.0, 37.0, 12.0
-HIGHLIGHT_X = (203.0, 581.0)
-BOX_X = (410.0, 577.0)
-SCROLL_X, SCROLL_W, SCROLL_TOP, SCROLL_H = 586.0, 8.0, 63.0, 303.0
-VALUE_CENTRE = 493.5
+VISIBLE_ROWS = 10
+ROW_TOP, ROW_PITCH, ROW_H = 73.0, 28.0, 23.0
+NAME_X, ROW_CAP = 223.0, 10.5
+TITLE_X, TITLE_CAP_TOP, TITLE_CAP = 52.0, 39.5, 13.0
+HIGHLIGHT_X = (202.0, 580.0)
+BOX_X = (410.0, 575.0)
+SCROLL_X, SCROLL_W, SCROLL_TOP, SCROLL_H = 585.0, 8.0, 73.0, 275.0
+VALUE_CENTRE = 492.5
 TEXT_DISABLED = (122, 134, 153)
 
 
@@ -454,9 +454,9 @@ def check_menu(closed_path, open_path, xscale, cursor_row, count, disabled_rows=
 
     # Sample header, rail, and right-pane gutters guaranteed free of text and highlights.
     for name, top_c, bot_c, band_y, want_alpha, rect in (
-        ("title band", TITLE_TOP, TITLE_BOT, TITLE_Y, TITLE_ALPHA, (405, 34, 475, 52)),
-        ("rail band", RAIL_TOP, RAIL_BOT, RAIL_Y, RAIL_ALPHA, (44, 354, 192, 370)),
-        ("rows band", ROWS_TOP, ROWS_BOT, ROWS_Y, BAND_ALPHA, (582, 250, 585, 365)),
+        ("title band", TITLE_TOP, TITLE_BOT, TITLE_Y, TITLE_ALPHA, (405, 34, 475, 58)),
+        ("rail band", RAIL_TOP, RAIL_BOT, RAIL_Y, RAIL_ALPHA, (44, 356, 190, 364)),
+        ("rows band", ROWS_TOP, ROWS_BOT, ROWS_Y, BAND_ALPHA, (581, 250, 584, 348)),
     ):
         a, rms = fit_alpha_grad(closed, opened, top_c, bot_c, band_y, rect)
         add(f"{name} alpha (rms)", round(want_alpha, 3), f"{a:.3f} ({rms:.1f})",
@@ -532,9 +532,9 @@ def check_menu(closed_path, open_path, xscale, cursor_row, count, disabled_rows=
             add(name + " text centre", VALUE_CENTRE, round(centre, 1), abs(centre - VALUE_CENTRE) <= 3)
 
     if count > VISIBLE_ROWS:
-        inner = SCROLL_H - 2
-        length = max(14.0, inner * VISIBLE_ROWS / count)
-        start = SCROLL_TOP + 1 + (inner - length) * scroll / (count - VISIBLE_ROWS)
+        inner = SCROLL_H - 4
+        length = max(21.0, inner * VISIBLE_ROWS / count)
+        start = SCROLL_TOP + 2 + (inner - length) * scroll / (count - VISIBLE_ROWS)
         rect = (SCROLL_X + 2.0, start + 2, SCROLL_X + SCROLL_W - 2.0, start + length - 2)
         exp = predicted(closed, rect, [(THUMB, THUMB_ALPHA)])
         got = opened.mean(*rect)
@@ -568,7 +568,7 @@ def check_menu(closed_path, open_path, xscale, cursor_row, count, disabled_rows=
         add(f"row {name_row} name glyph top, height", (round(top, 1), ROW_CAP), (round(tb[1], 1), round(tb[3] - tb[1], 1)),
             abs(tb[1] - top) <= 2.5 and abs(tb[3] - tb[1] - ROW_CAP) <= 2.5)
         add(f"row {name_row} name left", NAME_X, round(tb[0], 1), abs(tb[0] - NAME_X) <= 3)
-    tb = dark_text_box(opened, (TITLE_X, 30, 240, 56), hi=60)
+    tb = dark_text_box(opened, (TITLE_X, 30, 240, 62), hi=60)
     if tb:
         th = tb[3] - tb[1]
         add("title glyph top, height", (TITLE_CAP_TOP, TITLE_CAP), (round(tb[1], 1), round(th, 1)),
