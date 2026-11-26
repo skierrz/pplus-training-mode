@@ -1358,55 +1358,70 @@ namespace extra {
         float xs = gfx::xScale();
         float paneCenter = railMode ? 392.0f : 315.0f;
         bool compact = !railMode;
-        float topY = compact ? 298.0f : 278.0f;
-        float cardW = ui::style::w(224.0f);
-        float cardH = compact ? 74.0f : 92.0f;
+        float topY = compact ? 258.0f : 246.0f;
+        float cardW = ui::style::w(268.0f);
+        float cardH = compact ? 98.0f : 112.0f;
         float cardX = ui::style::cx(paneCenter) - cardW * 0.5f;
 
-        drawHudCard(cardX, topY, cardW, cardH, xs, picking ? 0xFFD300FFu : 0x2BB7ABFFu,
-                    picking ? 0xFFF2A0A0u : 0x8EF5EA90u);
+        // v1 Direction A smoked-charcoal card with crisp dark border (zero neon wireframe).
+        float bx = ui::style::w(2.0f);
+        gfx::Rgba borderCol = picking ? 0xF4C830FFu : 0x3A4656FFu;
+        gfx::fillRect(cardX - bx, topY - 2.0f, cardW + 2.0f * bx, cardH + 4.0f, 0x06080DFFu);
+        gfx::fillRect(cardX, topY, cardW, cardH, borderCol);
+        gfx::fillGradV(cardX + bx, topY + 2.0f, cardW - 2.0f * bx, cardH - 4.0f, 0x121822F4u, 0x0A0E15F4u);
 
-        float ry = compact ? 24.0f : 30.0f;
+        float ry = compact ? 30.0f : 35.0f;
         float rx = ry * xs;
-        float cx = cardX + ui::style::w(46.0f);
-        float cy = topY + 6.0f + (cardH - 8.0f) * 0.5f;
+        float cx = cardX + ui::style::w(52.0f);
+        float cy = topY + cardH * 0.5f;
 
-        drawUnitDial(cx, cy, rx, ry, 0x060E14D8u, picking ? 0xFFD300E0u : 0x5A96A8F0u);
+        // Octagonal GameCube stick gate background + crosshairs + crisp white rim.
+        gfx::fillEllipse(cx, cy, rx * 0.94f, ry * 0.94f, 0x080C12E8u);
+        gfx::lineBegin(GX_LINES, 4, 8);
+        gfx::vertex(cx - rx * 0.92f, cy, 0x3E4958C0u);
+        gfx::vertex(cx + rx * 0.92f, cy, 0x3E4958C0u);
+        gfx::vertex(cx, cy - ry * 0.92f, 0x3E4958C0u);
+        gfx::vertex(cx, cy + ry * 0.92f, 0x3E4958C0u);
 
-        // 8 GameCube octagonal gate notches around the rim.
-        gfx::lineBegin(GX_LINES, 16, 12);
-        for (int k = 0; k < 16; k += 2)
+        gfx::Rgba rimCol = picking ? 0xF4C830FFu : 0xDCE5EEFFu;
+        gfx::lineBegin(GX_LINESTRIP, 9, 12);
+        for (int k = 0; k <= 16; k += 2)
         {
             float ux, uy;
-            unitPoint16(k, ux, uy);
-            gfx::vertex(cx + ux * rx * 0.84f, cy - uy * ry * 0.84f, 0x8EF5EAD0u);
-            gfx::vertex(cx + ux * rx * 1.04f, cy - uy * ry * 1.04f, 0x8EF5EAD0u);
+            unitPoint16(k & 15, ux, uy);
+            gfx::vertex(cx + ux * rx, cy - uy * ry, rimCol);
         }
 
         float vx = i2fScale(set.cpuTables.customDiX, 0.01f);
         float vy = i2fScale(set.cpuTables.customDiY, 0.01f);
         clampLength(vx, vy, 1.0f);
         bool hasVec = (vx * vx + vy * vy > 0.0004f);
-        gfx::Rgba vecCol = picking ? 0xFFD300FFu : 0x22D3EEFFu;
-        drawDialRayDot(cx, cy, rx, ry, vx, vy, 0.90f, 2.6f, xs, vecCol, vecCol, 16, hasVec);
+        drawDialRayDot(cx, cy, rx, ry, vx, vy, 0.90f, 3.0f, xs, 0x2DB3A1FFu, 0xF4C830FFu, 16, hasVec);
 
-        float tx = cardX + ui::style::w(90.0f);
-        float rowStep = compact ? 15.0f : 19.0f;
-        float row0 = topY + (compact ? 10.0f : 12.0f);
-        drawShadowCapText(tx, row0, picking ? "AIMING DI" : "CUSTOM DI", 0xFFD300FFu, compact ? 7.5f : 8.2f);
-        char line[32];
-        snprintf(line, sizeof(line), "X %+d%%  Y %+d%%",
-                 static_cast<int>(set.cpuTables.customDiX), static_cast<int>(set.cpuTables.customDiY));
-        drawShadowCapText(tx, row0 + rowStep, line, 0xE2EEF4FFu, 7.5f);
-        const char* degLine = "Neutral  Screen X/Y";
+        float tx = cardX + ui::style::w(102.0f);
+        float rowStep = compact ? 20.0f : 23.0f;
+        float row0 = topY + (compact ? 14.0f : 16.0f);
+        drawShadowCapText(tx, row0, picking ? "AIMING DI ANGLE" : "CUSTOM DI ANGLE", 0xF4C830FFu, 8.5f);
+        char line[40];
         if (hasVec)
         {
-            snprintf(line, sizeof(line), "%d deg  Screen X/Y", atan2Deg360(vx, vy));
-            degLine = line;
+            int deg = atan2Deg360(vx, vy);
+            if (deg > 180)
+            {
+                deg -= 360;
+            }
+            snprintf(line, sizeof(line), "%+d deg  (X %+d%%  Y %+d%%)", deg,
+                     static_cast<int>(set.cpuTables.customDiX), static_cast<int>(set.cpuTables.customDiY));
         }
-        drawShadowCapText(tx, row0 + rowStep * 2.0f, degLine, 0xB8D4E2FFu, 7.5f);
-        drawShadowCapText(tx, row0 + rowStep * 3.0f, picking ? "A: Lock  B: Cancel" : "Press A to aim",
-                          picking ? 0xFFD300FFu : 0x9CB4C4FFu, 7.5f);
+        else
+        {
+            snprintf(line, sizeof(line), "0 deg  (Neutral)");
+        }
+        drawShadowCapText(tx, row0 + rowStep, line, 0xEEF4F8FFu, 7.8f);
+        drawShadowCapText(tx, row0 + rowStep * 2.0f, "Orientation: Screen X / Y", 0x9AA7B4FFu, 7.5f);
+        drawShadowCapText(tx, row0 + rowStep * 3.0f,
+                          picking ? "A: Lock Angle   B: Cancel" : "C-Stick: Aim   A: Stick / Lock",
+                          picking ? 0xF4C830FFu : 0xB8C6D4FFu, 7.5f);
     }
 
     void diReset()

@@ -244,7 +244,8 @@ namespace {
 TEST(scenario_presets, all_nine_presets_map_settings_and_snapshot_restores_cleanly)
 {
     const cpu::CpuOptions origCpu = makeCustomCpuOpts();
-    const main::ComboTrainerSettings origCombo = makeCustomComboCfg();
+    main::ComboTrainerSettings origCombo = makeCustomComboCfg();
+    origCombo.enabledMeters = 0;
     cpu::CpuOptions cpuOpts = origCpu;
     main::ComboTrainerSettings comboCfg = origCombo;
     main::GeneralSettings gen;
@@ -261,12 +262,13 @@ TEST(scenario_presets, all_nine_presets_map_settings_and_snapshot_restores_clean
     ScenarioState st;
     scenarioStateInit(st);
 
-    // 1. Combo Lab
+    // 1. Combo Lab (calm Hitstun | DI Ring starter meters when unset, noclip = 0)
     applyScenarioConfig(st, makeCfg(kScenarioComboLab), cpuOpts, comboCfg, &gen, &cpuSet);
     CHECK(st.snapshotActive);
     CHECK_EQ(1, comboCfg.enabled);
     CHECK_EQ(1, comboCfg.fixPosition);
-    CHECK_EQ(1, comboCfg.noclip);
+    CHECK_EQ(0, comboCfg.noclip);
+    CHECK_EQ(static_cast<int>(main::kMeterHitstun | main::kMeterDi), static_cast<int>(comboCfg.enabledMeters));
     CHECK_EQ(0, comboCfg.comboTimerAdjustment);
     CHECK_EQ(0, comboCfg.recoveryTrainer);
     CHECK_EQ(cpu::kControlLab, cpuOpts.control);
@@ -686,47 +688,53 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK_EQ(static_cast<int>(kSdFaceToward), static_cast<int>(clean.shieldDropFacing));
 
     // Lab (kGeneral) places Offline VS Displays at row 8 and Controls at row 9;
-    // Display exposes Floating Meters at row 21 and Advanced / Debug at row 22.
+    // Display exposes Frame Meter at row 0, Floating Meters at row 14, and Lab Debug at row 17.
     const ui::Page& gen = ui::pages::kGeneral;
     REQUIRE(gen.count == 13);
     CHECK(strcmp(gen.options[8].name, "Offline VS Displays") == 0);
     CHECK(strcmp(gen.options[9].name, "Controls") == 0);
     const ui::Page& disp = ui::pages::kDisplayOptions;
-    REQUIRE(disp.count == 24);
-    CHECK(strcmp(disp.options[21].name, "Floating Meters") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_METERS, disp.options[21].max);
-    CHECK(strcmp(disp.options[22].name, "Advanced / Debug") == 0);
-    CHECK_EQ(ui::pages::P_DEBUG, disp.options[22].max);
-    CHECK(strcmp(disp.options[23].name, "Action Log") == 0);
+    REQUIRE(disp.count == 18);
+    CHECK(strcmp(disp.options[0].name, "Frame Meter") == 0);
+    CHECK(strcmp(disp.options[14].name, "Floating Meters") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_METERS, disp.options[14].max);
+    CHECK(strcmp(disp.options[17].name, "Lab Debug") == 0);
+    CHECK_EQ(ui::pages::P_DEBUG, disp.options[17].max);
     const ui::Page& scen = ui::pages::kScenarios;
-    REQUIRE(scen.count == 45);
+    REQUIRE(scen.count == 51);
     CHECK(strcmp(scen.options[0].name, "Preset") == 0);
     CHECK_EQ(kScenarioCount - 1, scen.options[0].max);
-    CHECK(strcmp(scen.options[3].name, "Setup") == 0);
-    CHECK(strcmp(scen.options[4].name, "Position") == 0);
-    CHECK(strcmp(scen.options[5].name, "Escape") == 0);
-    CHECK(strcmp(scen.options[17].name, "Role") == 0);
-    CHECK(strcmp(scen.options[18].name, "CPU OoS") == 0);
-    CHECK_EQ(kOosCount - 1, scen.options[18].max);
-    CHECK(strcmp(scen.options[19].name, "CPU Attack") == 0);
-    CHECK(strcmp(scen.options[20].name, "Start") == 0);
-    CHECK(strcmp(scen.options[21].name, "Timing") == 0);
-    CHECK(strcmp(scen.options[22].name, "Spawn Position") == 0);
-    CHECK(strcmp(scen.options[23].name, "P1 Double Jump") == 0);
-    CHECK(strcmp(scen.options[24].name, "CPU Edgeguard") == 0);
-    CHECK_EQ(static_cast<int>(kLtAtkDsmash), static_cast<int>(scen.options[24].def));
-    CHECK(strcmp(scen.options[25].name, "Platform") == 0);
-    CHECK(strcmp(scen.options[26].name, "CPU Attack") == 0);
-    CHECK(strcmp(scen.options[27].name, "CPU Spacing") == 0);
-    CHECK(strcmp(scen.options[28].name, "CPU Facing") == 0);
-    CHECK(strcmp(scen.options[29].name, "CPU Attack") == 0);
-    CHECK(strcmp(scen.options[30].name, "CPU Action") == 0);
-    CHECK(strcmp(scen.options[31].name, "P1 Damage") == 0);
-    CHECK(strcmp(scen.options[32].name, "Multi-Hit Move") == 0);
-    CHECK(strcmp(scen.options[34].name, "Practice Mode") == 0);
-    CHECK(strcmp(scen.options[43].name, "Target Zone") == 0);
-    CHECK(strcmp(scen.options[44].name, "Combo Trainer") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[44].max);
+    CHECK(strcmp(scen.options[3].name, "Post-Hitstun") == 0);
+    CHECK(strcmp(scen.options[4].name, "Reset Delay") == 0);
+    CHECK(strcmp(scen.options[5].name, "Trajectory DI") == 0);
+    CHECK(strcmp(scen.options[6].name, "Tech Option") == 0);
+    CHECK(strcmp(scen.options[7].name, "Reset P1") == 0);
+    CHECK(strcmp(scen.options[8].name, "Noclip Reset") == 0);
+    CHECK(strcmp(scen.options[9].name, "Setup") == 0);
+    CHECK(strcmp(scen.options[10].name, "Position") == 0);
+    CHECK(strcmp(scen.options[11].name, "Escape") == 0);
+    CHECK(strcmp(scen.options[23].name, "Role") == 0);
+    CHECK(strcmp(scen.options[24].name, "CPU OoS") == 0);
+    CHECK_EQ(kOosCount - 1, scen.options[24].max);
+    CHECK(strcmp(scen.options[25].name, "CPU Attack") == 0);
+    CHECK(strcmp(scen.options[26].name, "Start") == 0);
+    CHECK(strcmp(scen.options[27].name, "Timing") == 0);
+    CHECK(strcmp(scen.options[28].name, "Spawn Position") == 0);
+    CHECK(strcmp(scen.options[29].name, "P1 Double Jump") == 0);
+    CHECK(strcmp(scen.options[30].name, "CPU Edgeguard") == 0);
+    CHECK_EQ(static_cast<int>(kLtAtkDsmash), static_cast<int>(scen.options[30].def));
+    CHECK(strcmp(scen.options[31].name, "Platform") == 0);
+    CHECK(strcmp(scen.options[32].name, "CPU Attack") == 0);
+    CHECK(strcmp(scen.options[33].name, "CPU Spacing") == 0);
+    CHECK(strcmp(scen.options[34].name, "CPU Facing") == 0);
+    CHECK(strcmp(scen.options[35].name, "CPU Attack") == 0);
+    CHECK(strcmp(scen.options[36].name, "CPU Action") == 0);
+    CHECK(strcmp(scen.options[37].name, "P1 Damage") == 0);
+    CHECK(strcmp(scen.options[38].name, "Multi-Hit Move") == 0);
+    CHECK(strcmp(scen.options[40].name, "Practice Mode") == 0);
+    CHECK(strcmp(scen.options[49].name, "Target Zone") == 0);
+    CHECK(strcmp(scen.options[50].name, "More Combo Options") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[50].max);
 }
 
 TEST(scenario_presets, multi_hit_sdi_ignores_attacker_hitlag)

@@ -46,33 +46,33 @@ namespace ui {
     static inline const MenuPalette& menuPalette(u8 accent)
     {
         static const MenuPalette kMenuPalettes[main::kMenuAccentCount] = {
-            // 0: P+ Teal (exact baseline colors from ui/style.h)
+            // 0: P+ Teal (v1 Direction A smoked charcoal + emerald-teal, matching ui/style.h)
             {
-                0x5A96A890u, 0x040B0EFFu, 0x1A3946F2u, 0x0E212AF2u, 0x0E1D25F5u, 0x081117F5u,
-                0x102029EEu, 0x091319EEu, 0x0F222AF5u, 0x081318F5u, 0x24424CFFu, 0x36CFC2FFu,
-                0x1A8C83FFu, 0x8EF5EA90u, 0x0D4D48FFu, 0x041B1AFFu, 0x1D3D4AFFu, 0x11252EFFu,
-                0xB8CDD6FFu, 0x9FB4BDFFu, 0xC6D8E0FFu
+                0x2A3544A0u, 0x05070BFFu, 0x151B24F2u, 0x0E1219F2u, 0x11161EF2u, 0x0B0E14F2u,
+                0x141A22E6u, 0x0D1117E6u, 0x0F141BF5u, 0x090C11F5u, 0x26303EFFu, 0x2DB3A1FFu,
+                0x209485FFu, 0x7CE4D670u, 0x125B52FFu, 0x061413FFu, 0x242C38FFu, 0x181E27FFu,
+                0xC0CCD6FFu, 0x9AA7B4FFu, 0xD2DCE4FFu
             },
-            // 1: Brawl Navy (deep cobalt steel chrome)
+            // 1: Brawl Navy (smoked charcoal + cobalt accent)
             {
-                0x648EC290u, 0x040814FFu, 0x1B3156F2u, 0x0E1B34F2u, 0x0E182DF5u, 0x080D1BF5u,
-                0x101B32EEu, 0x09101FEEu, 0x0F1C34F5u, 0x08101FF5u, 0x263E68FFu, 0x4AA4F2FFu,
-                0x2266B8FFu, 0xA6D8FF90u, 0x103668FFu, 0x041224FFu, 0x1E355CFFu, 0x11203AFFu,
-                0xBCCBE0FFu, 0x9EB2CCFFu, 0xC8D8ECFFu
+                0x304260A0u, 0x05070EFFu, 0x141B2CF2u, 0x0C111DF2u, 0x101524F2u, 0x090C16F2u,
+                0x131826E6u, 0x0C101AE6u, 0x0F1422F5u, 0x080B14F5u, 0x263552FFu, 0x4A9CEEFFu,
+                0x286CB8FFu, 0x9CD0FF70u, 0x143C6EFFu, 0x051020FFu, 0x222C42FFu, 0x161D2EFFu,
+                0xC2CDE0FFu, 0x9AA8C0FFu, 0xD2DCEEFFu
             },
-            // 2: Subspace Violet (royal indigo/plum chrome)
+            // 2: Subspace Violet (smoked charcoal + royal indigo accent)
             {
-                0x9672B890u, 0x0A0512FFu, 0x321D4AF2u, 0x1D102DF2u, 0x1B1028F5u, 0x100918F5u,
-                0x1E122DEEu, 0x110A1BEEu, 0x1F122FF5u, 0x110A1BF5u, 0x462A64FFu, 0xB27CF2FFu,
-                0x723EC2FFu, 0xDEC2FF90u, 0x3A1B6BFFu, 0x140624FFu, 0x35204EFFu, 0x1F1230FFu,
-                0xD0C2E0FFu, 0xB4A2C8FFu, 0xDCD0ECFFu
+                0x463662A0u, 0x08060EFFu, 0x1E162BF2u, 0x130E1DF2u, 0x181224F2u, 0x0F0B18F2u,
+                0x1A1426E6u, 0x110C1AE6u, 0x171122F5u, 0x0E0A16F5u, 0x3C2A54FFu, 0xA874EEFFu,
+                0x7440C2FFu, 0xD8BEFF70u, 0x3A1E6AFFu, 0x120620FFu, 0x2E2242FFu, 0x1E162CFFu,
+                0xD0C4E0FFu, 0xB0A0C4FFu, 0xDCD2ECFFu
             },
-            // 3: Crimson Steel (gunmetal crimson chrome)
+            // 3: Crimson Steel (smoked charcoal + crimson accent)
             {
-                0xB86A7490u, 0x120508FFu, 0x461C24F2u, 0x291016F2u, 0x241015F5u, 0x15090CF5u,
-                0x271217EEu, 0x160A0DEEu, 0x281218F5u, 0x160A0DF5u, 0x5E2834FFu, 0xEA6474FFu,
-                0xB02A3CFFu, 0xFFB2BC90u, 0x5C121EFFu, 0x24040AFFu, 0x4A1F28FFu, 0x2C1118FFu,
-                0xE0C2C8FFu, 0xC6A2AAFFu, 0xECD0D6FFu
+                0x5C303AA0u, 0x0C0508FFu, 0x26151AF2u, 0x180D11F2u, 0x201216F2u, 0x130A0DF2u,
+                0x221318E6u, 0x150B0FE6u, 0x1E1116F5u, 0x120A0DF5u, 0x4C2630FFu, 0xE25C6EFFu,
+                0xAC2C3EFFu, 0xFFACB670u, 0x5A1620FFu, 0x20050AFFu, 0x3B2028FFu, 0x26141AFFu,
+                0xE0C6CCFFu, 0xC09EA6FFu, 0xECD2D8FFu
             }
         };
         return kMenuPalettes[clampMenuAccent(accent)];

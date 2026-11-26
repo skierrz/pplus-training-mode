@@ -28,10 +28,10 @@ namespace pages {
     }
 
     static const Option kRows[] = {
-        TM_TOGGLE("Match HUD", display.hud, 1, NULL),
+        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(general.actionLog), 0, TM_COUNT(kPsaTargets) - 1, 0,
+               "Frame Meter", kPsaTargets, NULL, main::extraLoaded),
         TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(display.inputViewer), 0, TM_COUNT(kWho) - 1, 0,
                "Input Viewer", kWho, NULL, main::extraLoaded),
-        TM_MENU("Theme", P_THEME),
         TM_CHOICE("Hitboxes", display.hitboxes, kWho, 0, NULL),
         TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(display.hitboxColorMode), 0,
                TM_COUNT(kHitboxColors) - 1, 0, "Hitbox Colors", kHitboxColors, NULL, hitboxColorsEnabled),
@@ -50,29 +50,29 @@ namespace pages {
         TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(display.diVectorMode), 0,
                TM_COUNT(kDiVectors) - 1, 0, "DI Vector", kDiVectors, NULL, diVectorEnabled),
         TM_TOGGLE("Stage Collision", display.envCollision, 0, NULL),
-        TM_CHOICE("Fighter Models", display.models, kWho, 3, NULL),
-        TM_TOGGLE("Stage Model", display.stageModel, 1, NULL),
-        TM_TOGGLE("Effects", display.effects, 1, NULL),
         TM_MENU("P1 Overlays", P_HMN_OVERLAYS),
         TM_MENU("CPU Overlays", P_CPU_OVERLAYS),
-        TM_MENU("P1 Info Display", P_HMN_INFO),
-        TM_MENU("CPU Info Display", P_CPU_INFO),
-        TM_MENU("Ledgedash HUD", P_LEDGEDASH_HUD),
         TM_MENU_IF("Floating Meters", P_COMBO_METERS, main::extraLoaded),
-        TM_MENU("Advanced / Debug", P_DEBUG),
-        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(general.actionLog), 0, TM_COUNT(kPsaTargets) - 1, 0,
-               "Action Log", kPsaTargets, NULL, main::extraLoaded)
+        TM_MENU("Ledgedash HUD", P_LEDGEDASH_HUD),
+        TM_MENU("Theme", P_THEME),
+        TM_MENU("Lab Debug", P_DEBUG)
     };
 
     extern const Page kDisplayOptions = TM_PAGE("Display", kRows);
 
     static const Option kDebugRows[] = {
+        TM_MENU("P1 Info Display", P_HMN_INFO),
+        TM_MENU("CPU Info Display", P_CPU_INFO),
         TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(display.psaInspector), 0, TM_COUNT(kPsaTargets) - 1, 0,
                "PSA Debugger", kPsaTargets, NULL, main::extraLoaded),
-        TM_TOGGLE("Debug Overlay", display.debugOverlay, 0, NULL)
+        TM_TOGGLE("Debug Overlay", display.debugOverlay, 0, NULL),
+        TM_TOGGLE("Match HUD", display.hud, 1, NULL),
+        TM_CHOICE("Fighter Models", display.models, kWho, 3, NULL),
+        TM_TOGGLE("Stage Model", display.stageModel, 1, NULL),
+        TM_TOGGLE("Effects", display.effects, 1, NULL)
     };
 
-    extern const Page kDebug = TM_PAGE("Advanced / Debug", kDebugRows);
+    extern const Page kDebug = TM_PAGE("Lab Debug", kDebugRows);
 }
 }
 }

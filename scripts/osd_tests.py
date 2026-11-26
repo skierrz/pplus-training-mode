@@ -63,7 +63,7 @@ GROUP_WAIT, GROUP_DASH, GROUP_RUN, GROUP_IASA = 8, 10, 11, 15
 COLOR_NONE, COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_CYAN, COLOR_ORANGE, COLOR_INVISIBLE = 0, 1, 2, 3, 7, 8, 11
 
 # Lab menu rows (src/main/ui/pages/display_options.cpp, osd_menu.cpp; visible indices at default).
-DISPLAY_HMN_OVERLAYS, DISPLAY_LEDGE_HUD, DISPLAY_THEME = 11, 15, 2
+DISPLAY_HMN_OVERLAYS, DISPLAY_LEDGE_HUD, DISPLAY_THEME = 7, 10, 11
 OSD_ROWS = {"wavedash": 6, "lcancel": 7, "ledgedash": 8, "actoos": 9,
             "dashback": 13, "powershield": 14, "actoolag": 15, "actooairborne": 16,
             "actoohitstun": 17, "jumpcancel": 18, "fastfall": 19, "boostgrab": 20,

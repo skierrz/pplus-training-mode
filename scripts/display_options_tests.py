@@ -95,7 +95,7 @@ S_CPU_CONTROL, S_CPU_BEHAVIOR, S_CPU_TDI, S_CPU_SDI = 123, 124, 125, 126  # cpu:
 # P1 Color Overlays (main::OverlaySettings at +248: preset, then the 17
 # groups), its Wait row, and Display page row indices (src/main/ui/pages/display_options.cpp).
 S_OVERLAY_HMN, GROUP_WAIT = 248, 8
-DISPLAY_MODELS, DISPLAY_HMN_OVERLAYS = 8, 11
+DISPLAY_HMN_OVERLAYS, DISPLAY_DEBUG, DEBUG_MODELS = 7, 12, 5
 SHOW_COLLISION, PLAY_SOUND = 10, 12
 OVERLAY_SOUND = re.compile(r"overlays: P(\d) play sound, group (\d+) \(handle (-?\d+)\)")
 WAIT, JUMP_SQUAT = 0x0, 0xA
@@ -691,12 +691,14 @@ DEAD, REBIRTH, STANDBY = 0xBD, 0xBE, 0x10B
 
 
 def set_models_menu(r, value):
-    """Set Display > Fighter Models through the lab menu (controller path)."""
+    """Set Display > Lab Debug > Fighter Models through the lab menu (controller path)."""
     lab = r.lab
     lab.open_menu()
     lab.main_to(LT.MAIN_DISPLAY)
     lab.tap(["A"])
-    lab.down(DISPLAY_MODELS)  # Fighter Models (row 8)
+    lab.down(DISPLAY_DEBUG)
+    lab.tap(["A"])
+    lab.down(DEBUG_MODELS)  # Fighter Models (Lab Debug row 5)
     lab.set_choice(S_MODELS, value)
     lab.close_menu()
 

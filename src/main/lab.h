@@ -5,6 +5,7 @@
 #include "main/cpu/cpu_settings.h"
 #include "main/game/match.h"
 #include "main/game/status_ids.h"
+#include "shared/game/stick.h"
 #include "shared/interface.h"
 
 struct gfPadStatus;
@@ -79,6 +80,67 @@ namespace lab {
     // Pre-swap teardown for overlays, OSDs, advantage/technique trackers,
     // info display, and per-player shield hit flags.
     void prepareSwap();
+
+    // Syncs a menu damage setting from live fighter damage when unlocked.
+    // Returns true if updated; leaves locked target percents untouched.
+    static inline bool syncUnlockedPercentValue(u16& settingPct, bool locked, float liveDamage)
+    {
+        if (locked)
+        {
+            return false;
+        }
+        int dmg = static_cast<int>(liveDamage);
+        if (dmg < 0)
+        {
+            dmg = 0;
+        }
+        else if (dmg > 999)
+        {
+            dmg = 999;
+        }
+        settingPct = static_cast<u16>(dmg);
+        return true;
+    }
+
+    // True when openMenu() may sync unlocked P1/CPU percent fields to live match
+    // damage. Skips whenever a reset-owning mode (Combo Lab / Combo Trainer,
+    // active Scenario preset, or active Skill Drill) owns those fields as
+    // starting/reset damage.
+    static inline bool shouldSyncUnlockedPercentsOnOpen(u8 comboTrainerEnabled, u8 scenarioPreset, u8 activeDrill)
+    {
+        return comboTrainerEnabled == 0 && scenarioPreset == 0 && activeDrill == 0;
+    }
+
+    // Converts a normalized 2D stick vector into Custom DI [-100, +100] coordinates.
+    // When `allowNeutral` is false (non-modal C-Stick), neutral stick preserves the
+    // existing aimed angle and returns false.
+    static inline bool stickToCustomDi(float sx, float sy, bool allowNeutral, s8& outX, s8& outY)
+    {
+        float mag2 = sx * sx + sy * sy;
+        if (mag2 < 0.15f * 0.15f)
+        {
+            if (!allowNeutral)
+            {
+                return false;
+            }
+            sx = sy = 0.0f;
+        }
+        else if (mag2 > 1.0f)
+        {
+            float inv = 1.0f / game::stickRoot(mag2);
+            sx *= inv;
+            sy *= inv;
+        }
+        int ix = static_cast<int>(sx >= 0.0f ? (sx * 100.0f + 0.5f) : (sx * 100.0f - 0.5f));
+        int iy = static_cast<int>(sy >= 0.0f ? (sy * 100.0f + 0.5f) : (sy * 100.0f - 0.5f));
+        if (ix < -100) ix = -100;
+        else if (ix > 100) ix = 100;
+        if (iy < -100) iy = -100;
+        else if (iy > 100) iy = 100;
+        outX = static_cast<s8>(ix);
+        outY = static_cast<s8>(iy);
+        return true;
+    }
 
     // Per-frame HMN shield upkeep decision for one fighter (main or partner).
     // Returns true when shield health should be held at cpu::kShieldFull.

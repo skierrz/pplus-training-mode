@@ -22,6 +22,7 @@
 #include "shared/game/pad_map.h"
 #include "shared/interface.h"
 #include "shared/log.h"
+#include "shared/version.h"
 
 namespace tm {
 namespace menu {
@@ -336,7 +337,7 @@ namespace list {
             "In-match L + D-Up: Free / 10 / 20-Rep"
         },
         {
-            "Cancel Sprint",
+            "Cancel Practice: Endurance",
             kRowSkillDrill,
             drills::kDrillCancelSprint,
             {
@@ -414,16 +415,16 @@ namespace list {
             "In-match L + D-Up: Free / 10 / 20 / 60s"
         },
         {
-            "Combo-Break Rush",
+            "Break the Targets!",
             kRowSkillDrill,
             drills::kDrillComboBreakRush,
             {
-                "Break 3D stage target orbs to",
-                "build x1-x8 combo chains in",
-                "Timed Rush or Free Practice."
+                "Break Brawl targets across the",
+                "stage for x1-x8 chains in Timed",
+                "or Free mode."
             },
             "Any Fighter",
-            "3D Target Orbs",
+            "Brawl Targets",
             "In-match L + D-Up: Free / 30s / 60s"
         },
         {
@@ -510,68 +511,66 @@ namespace list {
 
     using namespace ui::style;
 
-    // ---- Boot menu palette (Native Project+ slanted teal banner & metallic craft) ----
-    static const gfx::Rgba kBackdropDim = 0x050C10D4;
-    static const gfx::Rgba kBannerTopCol = 0x36CFC2FF;
-    static const gfx::Rgba kBannerBotCol = 0x1C9288FF;
-    static const gfx::Rgba kBannerSheen = 0x9AF8EEB0;
-    static const gfx::Rgba kBannerInk = 0x041B1AFF;
-    static const gfx::Rgba kRowFillTop = 0x11242EE0;
-    static const gfx::Rgba kRowFillBot = 0x0A161CE0;
-    static const gfx::Rgba kRowSheen = 0x3A687A40;
-    static const gfx::Rgba kRowEdge = 0x24424CFF;
-    static const gfx::Rgba kCardFillTop = 0x10242EF2;
-    static const gfx::Rgba kCardFillBot = 0x09151CF2;
+    // ---- Boot menu palette (v1 Direction A smoked charcoal + P+ emerald-teal & Solo-Gold) ----
+    static const gfx::Rgba kBackdropDim = 0x070B12B0;
+    static const gfx::Rgba kBannerTopCol = 0x2DB3A1FF;
+    static const gfx::Rgba kBannerBotCol = 0x209485FF;
+    static const gfx::Rgba kBannerSheen = 0x7CE4D660;
+    static const gfx::Rgba kBannerInk = 0x061413FF;
+    static const gfx::Rgba kRowFillTop = 0x28303CE8;
+    static const gfx::Rgba kRowFillBot = 0x1F2630E8;
+    static const gfx::Rgba kRowEdge = 0x26303EFF;
+    static const gfx::Rgba kCardFillTop = 0x111720E8;
+    static const gfx::Rgba kCardFillBot = 0x0A0E15E8;
+    static const gfx::Rgba kCardBorderIn = 0x2A3544FF;
     static const gfx::Rgba kCardTitle = 0xFFFFFFFF;
-    static const gfx::Rgba kCardBody = 0xD8E6ECFF;
-    static const gfx::Rgba kCardMuted = 0x9FB4BDFF;
-    static const gfx::Rgba kChipTop = 0x2A4F5EFF;
-    static const gfx::Rgba kChipBot = 0x162E38FF;
+    static const gfx::Rgba kCardBody = 0xDCE5EEFF;
+    static const gfx::Rgba kCardMuted = 0x9AA7B4FF;
     static const gfx::Rgba kBadgeImportTop = 0xD6E0E6FF;
     static const gfx::Rgba kBadgeImportBot = 0x8E9EA8FF;
-    static const gfx::Rgba kBadgeOsdTop = 0x4ED6E4FF;
-    static const gfx::Rgba kBadgeOsdBot = 0x1B8C98FF;
+    static const gfx::Rgba kBadgeOsdTop = 0x3AC8B8FF;
+    static const gfx::Rgba kBadgeOsdBot = 0x1C8B7EFF;
 
-    // ---- Boot menu geometry (640x480 2D space; text/glyphs inside 5% CRT safe area) ----
-    static const float kBannerTop = 32.0f;
-    static const float kBannerBottom = 82.0f;
+    // ---- Boot menu geometry (640x480 2D space; clears stock P+ CSS BACK & TRAINING top-left) ----
+    static const float kSlantTan = 0.445f; // ~24 deg stock P+ slant
+    static const float kBannerTop = 28.0f;
+    static const float kBannerBottom = 66.0f;
     static const float kBannerRuleH = 2.0f;
-    static const float kBannerRightTop = 532.0f;
-    static const float kBannerRightBot = 506.0f;
-    static const float kBannerTitleX = 40.0f;
-    static const float kBannerTitleCap = 16.0f;
-    static const float kBannerPillLeftX = 250.0f;
-    static const float kBannerPillW = 24.0f;
+    static const float kBannerLeftTop = 166.0f;
+    static const float kBannerLeftBot = 149.0f;
+    static const float kBannerRightTop = 602.0f;
+    static const float kBannerRightBot = 585.0f;
+    static const float kBannerTitleX = 192.0f;
+    static const float kBannerTitleCap = 10.5f;
+    static const float kBannerPillLeftX = 314.0f;
+    static const float kBannerPillW = 22.0f;
     static const float kBannerPillH = 18.0f;
-    static const float kBannerPillCap = 9.5f;
-    static const float kBannerSecSlotL = 278.0f;
-    static const float kBannerSecSlotR = 434.0f;
-    static const float kBannerSecCap = 10.0f;
-    static const float kBannerPillRightX = 438.0f;
+    static const float kBannerPillCap = 9.0f;
+    static const float kBannerSecSlotL = 340.0f;
+    static const float kBannerSecSlotR = 514.0f;
+    static const float kBannerSecCap = 9.5f;
+    static const float kBannerPillRightX = 518.0f;
 
     static const float kColLeft = 36.0f;
     static const float kColBarRight = 294.0f;
     static const float kColScrollLeft = 297.0f;
     static const float kColScrollW = 7.0f;
     static const float kColRight = 304.0f;
-    static const float kColTop = 100.0f;
+    static const float kColTop = 94.0f;
     static const float kColRowH = 26.0f;
     static const float kColPitch = 30.0f;
-    static const float kColTextX = 52.0f;
+    static const float kColTextX = 56.0f;
 
-    static const float kCardLeft = 320.0f;
+    static const float kCardLeft = 318.0f;
     static const float kCardRight = 604.0f;
-    static const float kCardTop = 100.0f;
-    static const float kCardBottom = 404.0f;
+    static const float kCardTop = 94.0f;
+    static const float kCardBottom = 398.0f;
     static const float kCardBorder = 4.0f;
     static const float kCardPadX = 16.0f;
     static const float kCardTitleCap = 14.5f;
-    static const float kCardBodyCap = 10.5f;
-    static const float kCardMetaCap = 9.5f;
+    static const float kCardBodyCap = 10.0f;
+    static const float kCardMetaCap = 9.0f;
     static const float kCardChipCap = 9.5f;
-    static const float kCardChipH = 24.0f;
-    static const float kCardChipPadX = 8.0f;
-    static const float kCardChipGap = 8.0f;
 
     static const float kStripTop = 424.0f;
     static const float kStripH = 56.0f;
@@ -1170,37 +1169,30 @@ namespace list {
 
     // ---- Boot menu drawing helpers ----
 
-    static void fillSlantedGradV(float x0, float x1Top, float x1Bot, float y0, float y1, gfx::Rgba topCol,
-                                 gfx::Rgba botCol)
-    {
-#ifdef __MWERKS__
-        gfx::prepare();
-        GXBegin(GX_QUADS, GX_VTXFMT1, 4);
-        gfx::vertex(x0, y0, topCol);
-        gfx::vertex(x1Top, y0, topCol);
-        gfx::vertex(x1Bot, y1, botCol);
-        gfx::vertex(x0, y1, botCol);
-#else
-        gfx::vertex(x0, y0, topCol);
-        gfx::vertex(x1Top, y0, topCol);
-        gfx::vertex(x1Bot, y1, botCol);
-        gfx::vertex(x0, y1, botCol);
-#endif
-    }
-
     static void drawBanner(u32 type)
     {
-        fillSlantedGradV(0.0f, cx(kBannerRightTop), cx(kBannerRightBot), kBannerTop, kBannerBottom, kBannerTopCol,
-                         kBannerBotCol);
-        fillSlantedGradV(0.0f, cx(kBannerRightTop), cx(kBannerRightTop - 1.0f), kBannerTop, kBannerTop + 2.0f,
-                         kBannerSheen, kBannerSheen);
-        fillSlantedGradV(0.0f, cx(kBannerRightBot), cx(kBannerRightBot - 1.0f), kBannerBottom,
-                         kBannerBottom + kBannerRuleH, kBannerInk, kBannerInk);
+        float bLeftTop = cx(kBannerLeftTop);
+        float bLeftBot = cx(kBannerLeftBot);
+        float bRightTop = cx(kBannerRightTop);
+        float bRightBot = cx(kBannerRightBot);
+        float slantPx = bRightTop - bRightBot;
+
+        // Crisp dark outline + emerald-teal slanted ribbon seated right of CSS BACK & TRAINING.
+        drawSlantGradV(bLeftTop - w(2.0f), bLeftBot - w(2.0f), bRightTop + w(2.0f), bRightBot + w(2.0f),
+                       kBannerTop - 2.0f, kBannerBottom + kBannerRuleH, kLabBorderColor, kLabBorderColor);
+        drawSlantGradV(bLeftTop, bLeftBot, bRightTop, bRightBot, kBannerTop, kBannerBottom, kBannerTopCol,
+                       kBannerBotCol);
+        drawSlantGradV(bLeftTop, bLeftTop - w(0.9f), bRightTop, bRightTop - w(0.9f), kBannerTop, kBannerTop + 2.0f,
+                       kBannerSheen, kBannerSheen);
+        drawDiagStripes(bRightTop - w(12.0f), kBannerTop, kBannerBottom, slantPx, w(5.0f), w(4.0f), kLabStripeCol);
 
         float midY = (kBannerTop + kBannerBottom) * 0.5f;
         float titleScale = displayScaleForCap(kBannerTitleCap);
+        float titleMaxW = w(114.0f);
+        float titleW = gfx::displayTextWidth("TRAINING MODE", titleScale);
+        float titleSx = titleW > titleMaxW && titleW > 0.0f ? titleScale * titleMaxW / titleW : titleScale;
         gfx::displayText(cx(kBannerTitleX), displayYForCap(midY - kBannerTitleCap * 0.5f, titleScale), "TRAINING MODE",
-                         kLabTitleTop, kLabTitleBot, titleScale, titleScale, 1.4f, kBannerInk);
+                         kBannerInk, kBannerInk, titleSx, titleScale, 0.0f, 0);
 
         bool wiiShoulder = type == gfPadType::WIIMOTE || type == gfPadType::NUNCHUK;
         const char* prevGlyph = wiiShoulder ? "-" : "L";
@@ -1221,19 +1213,31 @@ namespace list {
         gfx::text(rightPillX + (pillW - nextW) * 0.5f, pillTextY, nextGlyph, kLabBtnDarkText, pillScale);
 
         const char* secName = currentSection().name;
+        char secCount[8];
+        snprintf(secCount, sizeof(secCount), "(%d/%d)", s_page + 1, kSectionCount);
         float secScale = displayScaleForCap(kBannerSecCap);
+        float cntScale = scaleForCap(8.5f);
         float secW = gfx::displayTextWidth(secName, secScale);
+        float cntW = gfx::textWidth(secCount, cntScale);
+        float gapPx = w(9.0f);
+        float totalW = secW + gapPx + cntW;
         float slotCenter = (cx(kBannerSecSlotL) + cx(kBannerSecSlotR)) * 0.5f;
         float slotLimit = cx(kBannerSecSlotR) - cx(kBannerSecSlotL);
-        float secSx = secW > slotLimit && secW > 0.0f ? secScale * slotLimit / secW : secScale;
-        float drawW = secW > slotLimit ? slotLimit : secW;
-        gfx::displayText(slotCenter - drawW * 0.5f, displayYForCap(midY - kBannerSecCap * 0.5f, secScale), secName,
-                         kBannerInk, kBannerInk, secSx, secScale, 0.0f, 0);
+        float availText = slotLimit - gapPx;
+        float textSum = secW + cntW;
+        float ratio = totalW > slotLimit && textSum > 0.0f ? availText / textSum : 1.0f;
+        float drawSecW = secW * ratio;
+        float drawCntW = cntW * ratio;
+        float startX = slotCenter - (drawSecW + gapPx + drawCntW) * 0.5f;
+        gfx::displayText(startX, displayYForCap(midY - kBannerSecCap * 0.5f, secScale), secName, kBannerInk,
+                         kBannerInk, secScale * ratio, secScale, 0.0f, 0);
+        gfx::text(startX + drawSecW + gapPx, textYForCap(midY - 4.25f, cntScale), secCount, kBannerInk,
+                  cntScale * ratio, cntScale);
 
-        char secCount[8];
-        snprintf(secCount, sizeof(secCount), "%d/%d", s_page + 1, kSectionCount);
-        float cntScale = scaleForCap(8.5f);
-        gfx::text(rightPillX + pillW + w(8.0f), textYForCap(midY - 4.25f, cntScale), secCount, kBannerInk, cntScale);
+        // Version mark right-aligned in the dark band directly above the details card.
+        float verScale = scaleForCap(7.5f);
+        float verW = boldWidth(TM_VERSION_MARK, verScale);
+        boldText(cx(kCardRight) - verW, textYForCap(74.0f, verScale), TM_VERSION_MARK, kCardMuted, verScale, verScale);
     }
 
     static void drawLeftColumn()
@@ -1241,10 +1245,20 @@ namespace list {
         const LauncherSection& sec = currentSection();
         float scale = scaleForCap(kRowCap);
         float capOffset = (kColRowH - kRowCap) * 0.5f;
-        float left = cx(kColLeft);
-        float width = w(kColBarRight - kColLeft);
+        float slant = kColRowH * kSlantTan;
+        float x0Top = cx(kColLeft + slant);
+        float x0Bot = cx(kColLeft);
+        float x1Top = cx(kColBarRight);
+        float x1Bot = cx(kColBarRight - slant);
+        float padX = w(2.0f);
+        float dySlant = w(2.0f * kSlantTan);
+        float ix0Top = x0Top - dySlant + padX;
+        float ix0Bot = x0Bot + dySlant + padX;
+        float ix1Top = x1Top - dySlant - padX;
+        float ix1Bot = x1Bot + dySlant - padX;
+        float inSlantPx = w((kColRowH - 4.0f) * kSlantTan);
         float textX = cx(kColTextX);
-        float textMaxW = cx(kColBarRight) - w(8.0f) - textX;
+        float textMaxW = cx(kColBarRight - 24.0f) - textX;
 
         for (int r = 0; r < kVisibleRows && s_scroll + r < sec.count; r++)
         {
@@ -1253,12 +1267,18 @@ namespace list {
             float y = kColTop + r * kColPitch;
             if (selected)
             {
-                drawBevelBar(left, y, width, kColRowH, kLabGoldTop, kLabGoldBot, kLabGoldSheen, kLabGoldEdge);
-                drawCursorTri(cx(kColLeft + 4.0f), y + kColRowH * 0.5f, 8.5f);
+                drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + kColRowH, kLabGoldEdge, kLabGoldEdge);
+                drawSlantGradV(ix0Top, ix0Bot, ix1Top, ix1Bot, y + 2.0f, y + kColRowH - 2.0f, kLabGoldTop,
+                               kLabGoldBot);
+                drawDiagStripes(ix1Top - w(8.0f), y + 2.0f, y + kColRowH - 2.0f, inSlantPx, w(4.5f), w(3.5f),
+                                kLabStripeCol);
+                drawCursorTri(cx(kColLeft + slant * 0.55f + 2.0f), y + kColRowH * 0.5f, 8.5f);
             }
             else
             {
-                drawBevelBar(left, y, width, kColRowH, kRowFillTop, kRowFillBot, kRowSheen, kLabBevelDark);
+                drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + kColRowH, kLabBorderColor, kLabBorderColor);
+                drawSlantGradV(ix0Top, ix0Bot, ix1Top, ix1Bot, y + 2.0f, y + kColRowH - 2.0f, kRowFillTop,
+                               kRowFillBot);
             }
 
             const char* name = rowAt(sec, idx).name;
@@ -1286,30 +1306,6 @@ namespace list {
         }
     }
 
-    // Flat subtle metadata tag (distinct from interactive glossy button badges).
-    static float drawChip(float x, float y, const char* label, float maxW, bool highlight = false)
-    {
-        float scale = scaleForCap(kCardChipCap);
-        float tw = gfx::textWidth(label, scale);
-        float pad = w(kCardChipPadX);
-        float chipW = tw + 2.0f * pad;
-        float sx = scale;
-        if (chipW > maxW && tw > 0.0f)
-        {
-            float avail = maxW - 2.0f * pad;
-            sx = scale * avail / tw;
-            chipW = maxW;
-        }
-        float bx = w(2.0f);
-        gfx::Rgba borderCol = highlight ? 0xC8A220D0u : 0x2E5868C8u;
-        gfx::Rgba fillCol = highlight ? 0x262008E8u : 0x0E1E28E4u;
-        gfx::Rgba txtCol = highlight ? kLabFocusGold : kCardBody;
-        gfx::fillRect(x, y, chipW, kCardChipH, borderCol);
-        gfx::fillRect(x + bx, y + 2.0f, chipW - 2.0f * bx, kCardChipH - 4.0f, fillCol);
-        gfx::text(x + pad, textYForCap(y + (kCardChipH - kCardChipCap) * 0.5f, scale), label, txtCol, sx, scale);
-        return x + chipW;
-    }
-
     static void drawDetailsCard()
     {
         float left = cx(kCardLeft);
@@ -1319,7 +1315,7 @@ namespace list {
         float bOut = w(2.0f);
         float bIn = w(2.0f);
 
-        // Brawl double-framed metallic border: 2px black outer + 2px P+ teal inner.
+        // Smoked charcoal translucent card with crisp dark double border (zero bright wireframe).
         gfx::fillRect(left, kCardTop, width, 2.0f, kLabBorderColor);
         gfx::fillRect(left, kCardBottom - 2.0f, width, 2.0f, kLabBorderColor);
         gfx::fillRect(left, kCardTop + 2.0f, bOut, height - 4.0f, kLabBorderColor);
@@ -1329,10 +1325,10 @@ namespace list {
         float iw = width - 2.0f * bOut;
         float it = kCardTop + 2.0f;
         float ih = height - 4.0f;
-        gfx::fillRect(il, it, iw, 2.0f, kLabAccent);
-        gfx::fillRect(il, kCardBottom - 4.0f, iw, 2.0f, kLabAccent);
-        gfx::fillRect(il, it + 2.0f, bIn, ih - 4.0f, kLabAccent);
-        gfx::fillRect(il + iw - bIn, it + 2.0f, bIn, ih - 4.0f, kLabAccent);
+        gfx::fillRect(il, it, iw, 2.0f, kCardBorderIn);
+        gfx::fillRect(il, kCardBottom - 4.0f, iw, 2.0f, kCardBorderIn);
+        gfx::fillRect(il, it + 2.0f, bIn, ih - 4.0f, kCardBorderIn);
+        gfx::fillRect(il + iw - bIn, it + 2.0f, bIn, ih - 4.0f, kCardBorderIn);
 
         gfx::fillGradV(il + bIn, it + 2.0f, iw - 2.0f * bIn, ih - 4.0f, kCardFillTop, kCardFillBot);
 
@@ -1359,8 +1355,11 @@ namespace list {
                 tsx = titleScale * ratio;
             }
         }
-        gfx::displayText(contentX, displayYForCap(120.0f + (kCardTitleCap - titleCap) * 0.5f, titleScale), row.name,
+        gfx::displayText(contentX, displayYForCap(110.0f + (kCardTitleCap - titleCap) * 0.5f, titleScale), row.name,
                          kLabTitleTop, kLabTitleBot, tsx, titleScale, 1.2f, kLabTitleEdge);
+
+        float subScale = scaleForCap(8.5f);
+        gfx::text(contentX, textYForCap(132.0f, subScale), currentSection().name, kBannerTopCol, subScale);
 
         gfx::fillRect(contentX, 148.0f, contentW, 2.0f, kRowEdge);
 
@@ -1374,38 +1373,36 @@ namespace list {
             }
             float lw = gfx::textWidth(line, bodyScale);
             float lsx = lw > contentW && lw > 0.0f ? bodyScale * contentW / lw : bodyScale;
-            gfx::text(contentX, textYForCap(164.0f + i * 18.0f, bodyScale), line, kCardBody, lsx, bodyScale);
+            gfx::text(contentX, textYForCap(162.0f + i * 18.0f, bodyScale), line, kCardBody, lsx, bodyScale);
         }
 
+        // Clean flat SETUP metadata text (zero clickable-looking pill boxes).
         float metaScale = scaleForCap(kCardMetaCap);
-        gfx::text(contentX, textYForCap(242.0f, metaScale), "Setup", kCardMuted, metaScale);
+        gfx::text(contentX, textYForCap(234.0f, metaScale), "Setup", kCardMuted, metaScale);
 
         float chipScale = scaleForCap(kCardChipCap);
-        float wA = gfx::textWidth(row.chipA, chipScale) + 2.0f * w(kCardChipPadX);
-        float wB = gfx::textWidth(row.chipB, chipScale) + 2.0f * w(kCardChipPadX);
-        float gap = w(kCardChipGap);
-        float captionY = 302.0f;
+        float wA = gfx::textWidth(row.chipA, chipScale);
+        float wB = gfx::textWidth(row.chipB, chipScale);
+        float metaGap = w(14.0f);
+        float availMeta = contentW - metaGap;
+        float textSum = wA + wB;
+        float ratioM = textSum > availMeta && textSum > 0.0f ? availMeta / textSum : 1.0f;
+        float msx = chipScale * ratioM;
         bool highlightChipA = (row.kind == kRowSkillDrill
                                && (row.targetId == drills::kDrillSnakeRecovery
                                    || row.targetId == drills::kDrillHoverFloat));
-        if (wA + gap + wB <= contentW)
-        {
-            float chipX = drawChip(contentX, 260.0f, row.chipA, contentW, highlightChipA);
-            drawChip(chipX + gap, 260.0f, row.chipB, contentX + contentW - (chipX + gap));
-        }
-        else
-        {
-            drawChip(contentX, 256.0f, row.chipA, contentW, highlightChipA);
-            drawChip(contentX, 286.0f, row.chipB, contentW);
-            captionY = 318.0f;
-        }
+        float metaY = textYForCap(254.0f, chipScale);
+        gfx::text(contentX, metaY, row.chipA, highlightChipA ? kLabFocusGold : kCardBody, msx, chipScale);
+        float sepX = contentX + wA * ratioM + metaGap * 0.5f - w(1.0f);
+        gfx::fillRect(sepX, 253.0f, w(2.0f), 11.0f, kCardMuted);
+        gfx::text(contentX + wA * ratioM + metaGap, metaY, row.chipB, kCardBody, msx, chipScale);
 
         if (row.caption != NULL && row.caption[0] != '\0')
         {
             float capScale = scaleForCap(kCardChipCap);
             float cw = gfx::textWidth(row.caption, capScale);
             float csx = cw > contentW && cw > 0.0f ? capScale * contentW / cw : capScale;
-            gfx::text(contentX, textYForCap(captionY, capScale), row.caption, kCardMuted, csx, capScale);
+            gfx::text(contentX, textYForCap(288.0f, capScale), row.caption, kCardMuted, csx, capScale);
         }
 
         int bestSlot = -1;
@@ -1429,24 +1426,22 @@ namespace list {
             {
                 snprintf(bestText, sizeof(bestText), "%u", static_cast<unsigned>(best));
             }
-            float barY = captionY + 24.0f;
-            float barH = 26.0f;
-            drawBevelBar(contentX, barY, contentW, barH, kRowFillTop, kRowFillBot, kRowSheen, kLabBevelDark);
-            float bScale = scaleForCap(kCardChipCap);
-            float textY = textYForCap(barY + (barH - kCardChipCap) * 0.5f, bScale);
+            float divY = 330.0f;
+            gfx::fillRect(contentX, divY, contentW, 2.0f, kRowEdge);
+            float bScale = scaleForCap(10.0f);
+            float textY = textYForCap(divY + 14.0f, bScale);
             const char* bestLabel =
                 (row.kind == kRowSkillDrill && row.targetId == drills::kDrillComboBreakRush) ? "Best Score"
                                                                                              : "Best Streak";
-            gfx::text(contentX + w(10.0f), textY, bestLabel, kCardMuted, bScale);
+            gfx::text(contentX, textY, bestLabel, kCardBody, bScale);
             float bw = boldWidth(bestText, bScale);
-            boldText(contentX + contentW - w(10.0f) - bw, textY, bestText, best > 0 ? kLabFocusGold : kCardMuted,
-                     bScale, bScale);
+            boldText(contentX + contentW - bw, textY, bestText, best > 0 ? kLabFocusGold : kCardMuted, bScale, bScale);
         }
 
         if (s_starting)
         {
             float startScale = scaleForCap(kRowCap);
-            boldText(contentX, textYForCap(368.0f, startScale), "Starting match...", kLabFocusGold, startScale,
+            boldText(contentX, textYForCap(366.0f, startScale), "Starting match...", kLabFocusGold, startScale,
                      startScale);
         }
     }
@@ -1566,9 +1561,9 @@ namespace list {
             static const char* const kDrillTags[drills::kDrillIdCount] = {
                 "TRAINING LAB",      "LEDGEDASH",         "WAVEDASH",      "L-CANCEL",
                 "FLOAT / HOVER",     "POWERSHIELD",       "RAR",           "DACUS",
-                "B-REVERSE",         "CANCEL SPRINT",     "MOVEMENT FLOW", "REACTION LAB",
+                "B-REVERSE",         "CANCEL PRACTICE: ENDURANCE", "MOVEMENT FLOW COURSE", "REACTION LAB",
                 "TECHCHASE ESCAPE",  "RECOVERY SWEETSPOT","CC / ASDI-DOWN","SNAKE RECOVERY",
-                "TRAINING LAB",      "COMBO-BREAK RUSH"
+                "TRAINING LAB",      "BREAK THE TARGETS!"
             };
             return kDrillTags[dr];
         }

@@ -139,6 +139,9 @@ namespace lab {
         bool diPickActive;
         s8 diPickSavedX;
         s8 diPickSavedY;
+        bool diCstickLocked;
+        s8 diCstickLockX;
+        s8 diCstickLockY;
         // Exit was chosen and the game is ending the match (exitMatch): from
         // then until the module detaches every step runs and none is handed
         // over, the observers are off, savestates are refused and the pads
@@ -564,6 +567,35 @@ namespace lab {
         return after >= ui::style::kRepeatStart && (after - ui::style::kRepeatStart) % ui::style::kRepeatEvery == 0;
     }
 
+    static void syncUnlockedPercents()
+    {
+        u8 preset = activeScenarioPreset();
+        u8 drill = main::extraLoaded() ? ui::pages::practiceMenuState()->activeDrill : 0;
+        if (!shouldSyncUnlockedPercentsOnOpen(settings().comboTrainer.enabled, preset, drill))
+        {
+            return;
+        }
+        game::FighterRef refs[game::kMaxFighters];
+        int n = game::listFighters(refs, game::kMaxFighters);
+        bool synced[main::kSideCount] = {false, false};
+        for (int i = 0; i < n; i++)
+        {
+            int side = refs[i].cpu ? main::kSideCpu : main::kSideHuman;
+            if (synced[side])
+            {
+                continue;
+            }
+            u16& dst = side == main::kSideHuman ? settings().general.playerPercent : settings().cpu.percent;
+            syncUnlockedPercentValue(dst, main::lockSetting(side), game::damage(refs[i]));
+            synced[side] = true;
+        }
+    }
+
+    static bool applyStickToCustomDi(float sx, float sy, bool allowNeutral)
+    {
+        return stickToCustomDi(sx, sy, allowNeutral, settings().cpuTables.customDiX, settings().cpuTables.customDiY);
+    }
+
     static void openMenu(int port, bool start)
     {
         LabNet& net = *s_net;
@@ -571,7 +603,10 @@ namespace lab {
         st.open = true;
         g_resetLabel[0] = 0;
         st.diPickActive = false;
-        strcpy(g_diPickLabel, "Tilt + A");
+        st.diCstickLocked = false;
+        ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
+        strcpy(g_diPickLabel, "C-Stick / A");
+        syncUnlockedPercents();
         record::clearDeleteConfirm();
         st.openStart = start;
         st.owner = port;
@@ -632,7 +667,7 @@ namespace lab {
             st.diPickActive = false;
         }
         ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
-        strcpy(g_diPickLabel, "Set Angle");
+        strcpy(g_diPickLabel, "C-Stick / A");
         record::clearDeleteConfirm();
         // Whatever is still held when the menu closes stays hidden until it
         // is let go, so it neither moves Training's menu nor the fighters.
@@ -690,37 +725,29 @@ namespace lab {
             openTrainingMenu();
             return;
         }
-        // Live 2D stick capture for CPU > DI & SDI > Pick DI Angle.
+        // Live 2D stick capture for CPU > DI & SDI > Pick DI Angle:
+        // Control-Stick modal fallback when A is pressed, plus non-modal C-Stick live aiming.
+        bool onCustomDi = !net.menu.railFocus && ui::currentPage(net.menu) == ui::pages::P_CPU_DI
+                          && settings().cpu.options.control == cpu::kControlLab
+                          && settings().cpu.options.tdi == cpu::kTdiCustom;
         if (st.diPickActive)
         {
-            if (ui::currentPage(net.menu) != ui::pages::P_CPU_DI
-                || settings().cpu.options.tdi != cpu::kTdiCustom)
+            if (!onCustomDi)
             {
                 st.diPickActive = false;
                 ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
-                strcpy(g_diPickLabel, "Set Angle");
+                strcpy(g_diPickLabel, "C-Stick / A");
             }
             else
             {
                 float sx = 0.0f, sy = 0.0f;
                 game::mainStick(in.stickX, in.stickY, &sx, &sy);
-                if (sx * sx + sy * sy < 0.15f * 0.15f)
-                {
-                    sx = sy = 0.0f;
-                }
-                int ix = game::f2i(sx >= 0.0f ? (sx * 100.0f + 0.5f) : (sx * 100.0f - 0.5f));
-                int iy = game::f2i(sy >= 0.0f ? (sy * 100.0f + 0.5f) : (sy * 100.0f - 0.5f));
-                if (ix < -100) ix = -100;
-                else if (ix > 100) ix = 100;
-                if (iy < -100) iy = -100;
-                else if (iy > 100) iy = 100;
-                settings().cpuTables.customDiX = static_cast<s8>(ix);
-                settings().cpuTables.customDiY = static_cast<s8>(iy);
+                applyStickToCustomDi(sx, sy, true);
                 if ((in.pressed & kButtonA) != 0)
                 {
                     st.diPickActive = false;
                     ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
-                    strcpy(g_diPickLabel, "Set Angle");
+                    strcpy(g_diPickLabel, "Locked");
                     ui::menuSound(game::kSoundConfirm);
                 }
                 else if ((in.pressed & kButtonB) != 0)
@@ -729,11 +756,55 @@ namespace lab {
                     settings().cpuTables.customDiY = st.diPickSavedY;
                     st.diPickActive = false;
                     ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
-                    strcpy(g_diPickLabel, "Set Angle");
+                    strcpy(g_diPickLabel, "C-Stick / A");
                     ui::menuSound(game::kSoundMove);
                 }
                 return;
             }
+        }
+        else if (onCustomDi)
+        {
+            float cx = 0.0f, cy = 0.0f;
+            game::cStick(in.cStickX, in.cStickY, &cx, &cy);
+            s8 aimX = settings().cpuTables.customDiX;
+            s8 aimY = settings().cpuTables.customDiY;
+            if (stickToCustomDi(cx, cy, false, aimX, aimY))
+            {
+                int dx = aimX - st.diCstickLockX;
+                int dy = aimY - st.diCstickLockY;
+                if (st.diCstickLocked && dx * dx + dy * dy <= 100)
+                {
+                    strcpy(g_diPickLabel, "Locked");
+                }
+                else
+                {
+                    st.diCstickLocked = false;
+                    settings().cpuTables.customDiX = aimX;
+                    settings().cpuTables.customDiY = aimY;
+                    strcpy(g_diPickLabel, "Aiming...");
+                    if ((in.pressed & kButtonA) != 0 && net.menu.cursor[ui::pages::P_CPU_DI] == 1)
+                    {
+                        st.diCstickLocked = true;
+                        st.diCstickLockX = aimX;
+                        st.diCstickLockY = aimY;
+                        strcpy(g_diPickLabel, "Locked");
+                        ui::menuSound(game::kSoundConfirm);
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                st.diCstickLocked = false;
+                if (strcmp(g_diPickLabel, "Aiming...") == 0)
+                {
+                    strcpy(g_diPickLabel, "C-Stick / A");
+                }
+            }
+        }
+        else
+        {
+            st.diCstickLocked = false;
         }
         ui::MenuInput mi;
         bool up = (in.held & kDpadUp) || in.stickY > kStickDeadZone;
@@ -1368,7 +1439,7 @@ namespace lab {
     }
 
     char g_resetLabel[12];
-    char g_diPickLabel[16] = "Set Angle";
+    char g_diPickLabel[16] = "C-Stick / A";
 
     void toggleDiStickPicker()
     {
@@ -1389,7 +1460,7 @@ namespace lab {
         {
             st.diPickActive = false;
             ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
-            strcpy(g_diPickLabel, "Set Angle");
+            strcpy(g_diPickLabel, "C-Stick / A");
         }
     }
 

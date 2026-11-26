@@ -301,7 +301,7 @@ def scenario_hide_hud(emu, aspect, notes, shots, ref_holder):
     lab.open_menu()
     lab.main_to(LT.MAIN_DISPLAY)
     lab.tap(["A"])
-    lab.down(1)  # Hitboxes: Off -> P1
+    lab.down(2)  # Hitboxes: Off -> P1
     lab.tap(stick=LT.RIGHT)
     lab.back_to_main(1)
     lab.close_menu()

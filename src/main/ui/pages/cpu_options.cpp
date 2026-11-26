@@ -454,10 +454,6 @@ namespace pages {
         TM_CPU_CHOICE_P("Trajectory DI", cpu.options.tdi, kTdiLabels, cpu::kTdiCount, 0),
         TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, "Pick DI Angle",
                lab::g_diPickLabel, lab::toggleDiStickPicker, cpuCustomDiActive),
-        TM_ROW(::tm::ui::kKindInt, ::tm::ui::kFlagSigned | ::tm::ui::kFlagHideWhenDisabled,
-               TM_FIELD(cpuTables.customDiX), -100, 100, 100, "Custom DI X", "%+d", NULL, cpuCustomDiActive),
-        TM_ROW(::tm::ui::kKindInt, ::tm::ui::kFlagSigned | ::tm::ui::kFlagHideWhenDisabled,
-               TM_FIELD(cpuTables.customDiY), -100, 100, 0, "Custom DI Y", "%+d", NULL, cpuCustomDiActive),
         TM_CPU_INT("SDI Inputs", cpu.options.sdiAmount, 0, 7, 0, "%d"),
         TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.sdiDir), 8, 0, "SDI Direction",
                         kSdiDirection, NULL, cpuSdiActive),
@@ -869,11 +865,9 @@ namespace pages {
             {kKindFunc,   0, 0, 0, 0, 0, 0xF1, 3, 1, 0},
             {kKindChoice, 0, TM_FIELD(cpu.options.controlledBy), TM_CHOICE_LO, 0, 4, 5, 4, 1, 0}
         };
-        static const RowSpec kDiS[8] = {
+        static const RowSpec kDiS[6] = {
             {kKindChoice, 0, TM_FIELD(cpu.options.tdi), TM_CHOICE_LO, 0, cpu::kTdiCount - 1, 6, 0, 1, 0},
             {kKindFunc,   kFlagHideWhenDisabled, 0, 0, 0, 0, 0xF2, 5, 2, 0},
-            {kKindInt,    kFlagSigned | kFlagHideWhenDisabled, TM_FIELD(cpuTables.customDiX), -100, 100, 100, 7, 0, 2, 0},
-            {kKindInt,    kFlagSigned | kFlagHideWhenDisabled, TM_FIELD(cpuTables.customDiY), -100, 0, 100, 7, 0, 2, 0},
             {kKindInt,    0, TM_FIELD(cpu.options.sdiAmount), 0, 0, 7, 8, 0, 1, 0},
             {kKindChoice, kFlagHideWhenDisabled, TM_FIELD(cpu.options.sdiDir), TM_CHOICE_LO, 0, 7, 9, 0, 3, 0},
             {kKindToggle, kFlagHideWhenDisabled, TM_FIELD(cpu.options.dualStickSdi), 0, 0, 1, 0xFF, 0, 3, 0},
@@ -904,8 +898,8 @@ namespace pages {
         };
         fillPageRows(kCpuOptions, buf, 14, kMainS, kPs_cpu_main_names, kStrs, kExtra, kCbs, kGates);
         buf += 14;
-        fillPageRows(kCpuDi, buf, 8, kDiS, kPs_cpu_di_names, kStrs, kExtra, kCbs, kGates);
-        buf += 8;
+        fillPageRows(kCpuDi, buf, 6, kDiS, kPs_cpu_di_names, kStrs, kExtra, kCbs, kGates);
+        buf += 6;
         fillPageRows(kCpuCounters, buf, 12, kCtrS, kPs_cpu_ctr_names, kStrs, kExtra, kCbs, kGates);
         buf += 12;
         fillPageRows(kCpuDefense, buf, 7, kDefS, kPs_cpu_def_names, kStrs, kExtra, kCbs, kGates);

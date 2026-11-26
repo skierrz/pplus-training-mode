@@ -1,5 +1,6 @@
 #include "main/ui/menu.h"
 
+#include <stddef.h>
 #include <cstdio>
 #include <string.h>
 #include <gf/gf_pad_status.h>
@@ -452,6 +453,13 @@ namespace ui {
         enterPage(state, def, pageId);
     }
 
+    static bool isDamageOption(int pageId, const Option& o)
+    {
+        return o.kind == kKindInt && (o.flags & kFlagScratch) == 0
+               && ((pageId == pages::P_GENERAL && o.offset == offsetof(main::Settings, general.playerPercent))
+                   || (pageId == pages::P_CPU && o.offset == offsetof(main::Settings, cpu.percent)));
+    }
+
     // True if the value changed.
     static bool change(const MenuDef& def, const Option& o, int delta)
     {
@@ -630,6 +638,15 @@ namespace ui {
                 else if (o.kind == kKindToggle && change(def, o, 1))
                 {
                     sound = game::kSoundMove;
+                }
+                else if (isDamageOption(pageId, o))
+                {
+                    setOptionValue(def, o, 0);
+                    if (o.onChange != NULL)
+                    {
+                        o.onChange();
+                    }
+                    sound = game::kSoundConfirm;
                 }
             }
             s_rail = isRailStyle(def);
@@ -811,7 +828,6 @@ namespace ui {
     struct BevelCols {
         gfx::Rgba top, bot, sheen, edge;
     };
-    static const BevelCols kGoldBevel = {kLabGoldTop, kLabGoldBot, kLabGoldSheen, kLabGoldEdge};
 
     static const MenuPalette& activePalette()
     {
@@ -848,14 +864,51 @@ namespace ui {
         gfx::fillRect(x, y + h - 2.0f, bw, 2.0f, c.edge);
     }
 
-    static void drawGoldBar(float x43, float w43, float y, float h, float cursorSize)
+    static const float kSlantTan = 0.445f; // ~24 deg stock P+ slant
+
+    static void drawSlantRow(float x043, float x143, float y, float h, bool flushLeft, gfx::Rgba topCol,
+                             gfx::Rgba botCol, gfx::Rgba edgeCol)
     {
-        bevelBox(x43, y, w43, h, kGoldBevel);
+        float slant = h * kSlantTan;
+        float x0Top = cx(flushLeft ? x043 : (x043 + slant));
+        float x0Bot = cx(x043);
+        float x1Top = cx(x143);
+        float x1Bot = cx(x143 - slant);
+        if (edgeCol != 0)
+        {
+            drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + h, edgeCol, edgeCol);
+            float padX = w(2.0f);
+            float dySlant = w(2.0f * kSlantTan);
+            float ix0Top = flushLeft ? x0Top : (x0Top - dySlant + padX);
+            float ix0Bot = flushLeft ? x0Bot : (x0Bot + dySlant + padX);
+            float ix1Top = x1Top - dySlant - padX;
+            float ix1Bot = x1Bot + dySlant - padX;
+            drawSlantGradV(ix0Top, ix0Bot, ix1Top, ix1Bot, y + 2.0f, y + h - 2.0f, topCol, botCol);
+        }
+        else
+        {
+            drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + h, topCol, botCol);
+        }
+    }
+
+    static void drawGoldBar(float x43, float w43, float y, float h, float cursorSize, bool flushLeft = false,
+                            float stripeRight43 = 0.0f)
+    {
+        float slant = h * kSlantTan;
+        float x143 = x43 + w43;
+        drawSlantRow(x43, x143, y, h, flushLeft, kLabGoldTop, kLabGoldBot, kLabGoldEdge);
+        if (stripeRight43 > 0.0f)
+        {
+            float inH = h - 4.0f;
+            drawDiagStripes(cx(stripeRight43), y + 2.0f, y + h - 2.0f, w(inH * kSlantTan), w(4.0f), w(3.0f),
+                            kLabStripeCol);
+        }
         float midY = y + h * 0.5f;
         float iconH = cursorSize + 2.0f;
-        if (!main::extraDrawUiIcon(kIconCursorRight, cx(x43 + 2.0f), midY - iconH * 0.5f, w(iconH), iconH, 0xFFFFFFFF))
+        float triX43 = flushLeft ? (x43 + 4.0f) : (x43 + slant * 0.55f + 3.0f);
+        if (!main::extraDrawUiIcon(kIconCursorRight, cx(triX43), midY - iconH * 0.5f, w(iconH), iconH, 0xFFFFFFFF))
         {
-            drawCursorTri(cx(x43 + 3.0f), midY, cursorSize);
+            drawCursorTri(cx(triX43 + 1.0f), midY, cursorSize);
         }
     }
 
@@ -948,22 +1001,39 @@ namespace ui {
         return total;
     }
 
-    static void drawPillBox(float left43, float right43, float y, bool isOn, bool on)
+    static void drawPillBox(float left43, float right43, float y, bool isOn, bool on, bool selected)
     {
-        static const gfx::Rgba kPillCols[4][3] = {
-            {kLabPillOffMutedTop, kLabPillOffMutedBot, kLabPillOffSheen},
-            {kLabPillOffTop, kLabPillOffBot, kLabPillOffSheen},
-            {kLabPillOnMutedTop, kLabPillOnMutedBot, kLabPillOnSheen},
-            {kLabPillOnTop, kLabPillOnBot, kLabPillOnSheen}
-        };
-        const gfx::Rgba* c = kPillCols[(isOn ? 2 : 0) + (on ? 1 : 0)];
+        gfx::Rgba topCol, botCol;
+        if (isOn)
+        {
+            topCol = on ? kLabPillOnTop : kLabPillOnMutedTop;
+            botCol = on ? kLabPillOnBot : kLabPillOnMutedBot;
+        }
+        else if (selected && on)
+        {
+            topCol = kLabPillFocusTop;
+            botCol = kLabPillFocusBot;
+        }
+        else
+        {
+            topCol = on ? kLabPillOffTop : kLabPillOffMutedTop;
+            botCol = on ? kLabPillOffBot : kLabPillOffMutedBot;
+        }
+        float py = y + 2.0f;
+        float ph = kLabRowH - 4.0f;
+        float slant = ph * kSlantTan;
         float xs = gfx::xScale();
-        float x = 320.0f + (left43 - 320.0f) * xs;
-        float pw = (right43 - left43) * xs;
-        float pad = 1.5f * xs;
-        gfx::fillRect(x, y, pw, kLabRowH, kLabPillBorder);
-        gfx::fillGradV(x + pad, y + 2.0f, pw - 2.0f * pad, kLabRowH - 4.0f, c[0], c[1]);
-        gfx::fillRect(x + pad, y + 2.0f, pw - 2.0f * pad, 2.0f, c[2]);
+        float x0Top = 320.0f + (left43 + slant - 320.0f) * xs;
+        float x0Bot = 320.0f + (left43 - 320.0f) * xs;
+        float x1Top = 320.0f + (right43 - 320.0f) * xs;
+        float x1Bot = 320.0f + (right43 - slant - 320.0f) * xs;
+        float pad = 2.0f * xs;
+        if (selected || isOn)
+        {
+            drawSlantGradV(x0Top - pad, x0Bot - pad, x1Top + pad, x1Bot + pad, py - 2.0f, py + ph + 2.0f,
+                           kLabPillBorder, kLabPillBorder);
+        }
+        drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, py, py + ph, topCol, botCol);
     }
 
     static void drawLabFrame()
@@ -1078,7 +1148,7 @@ namespace ui {
     }
 
     static void drawBreadcrumb(const MenuDef& def, const MenuState& state, float x43, float yCenter, float cap,
-                               float maxW, const MenuPalette& pal)
+                               float maxW, const MenuPalette& pal, bool onRibbon = false)
     {
         char trail[96];
         size_t pos = 0;
@@ -1110,21 +1180,32 @@ namespace ui {
         }
         float ty = displayYForCap(yCenter - cap * 0.5f, scale);
         float x = cx(x43);
-        if (trail[0] != '\0')
+        if (onRibbon)
         {
-            gfx::displayText(x, ty, trail, pal.mutedText, pal.mutedText, sx, scale, 0.0f, 0);
+            if (trail[0] != '\0')
+            {
+                gfx::displayText(x, ty, trail, pal.activeTabText, pal.activeTabText, sx, scale, 0.0f, 0);
+            }
+            gfx::displayText(x + prefixW, ty, leaf, pal.activeTabText, pal.activeTabText, sx, scale, 0.0f, 0);
         }
-        gfx::displayText(x + prefixW, ty, leaf, kLabTitleTop, kLabTitleBot, sx, scale, 1.0f, kLabTitleEdge);
+        else
+        {
+            if (trail[0] != '\0')
+            {
+                gfx::displayText(x, ty, trail, pal.mutedText, pal.mutedText, sx, scale, 0.0f, 0);
+            }
+            gfx::displayText(x + prefixW, ty, leaf, kLabTitleTop, kLabTitleBot, sx, scale, 1.0f, kLabTitleEdge);
+        }
     }
 
-    static void drawHorizArrows(float pillLeft43, float pillRight43, float rowY)
+    static void drawHorizArrows(float pillLeft43, float pillRight43, float rowY, gfx::Rgba col)
     {
         float xs = gfx::xScale();
         float midY = rowY + kLabRowH * 0.5f;
-        float l = 320.0f + (pillLeft43 - 320.0f) * xs;
-        float r = 320.0f + (pillRight43 - 320.0f) * xs;
-        gfx::fillTri(l + 5.0f * xs, midY, l + 11.5f * xs, midY - 4.5f, l + 11.5f * xs, midY + 4.5f, kLabFocusGold);
-        gfx::fillTri(r - 5.0f * xs, midY, r - 11.5f * xs, midY - 4.5f, r - 11.5f * xs, midY + 4.5f, kLabFocusGold);
+        float l = 320.0f + (pillLeft43 + 4.0f - 320.0f) * xs;
+        float r = 320.0f + (pillRight43 - 4.0f - 320.0f) * xs;
+        gfx::fillTri(l + 4.0f * xs, midY, l + 10.0f * xs, midY - 4.0f, l + 10.0f * xs, midY + 4.0f, col);
+        gfx::fillTri(r - 4.0f * xs, midY, r - 10.0f * xs, midY - 4.0f, r - 10.0f * xs, midY + 4.0f, col);
     }
 
     static void drawSubmenuChevron(float right43, float rowY, gfx::Rgba color)
@@ -1210,7 +1291,14 @@ namespace ui {
             if (!state.railFocus && p.count > 0 && cur < p.count)
             {
                 u8 k = p.options[cur].kind;
-                aLabel = k == kKindToggle ? "Toggle" : (k == kKindMenu ? "Open" : "Select");
+                if (isDamageOption(pageId, p.options[cur]))
+                {
+                    aLabel = "Reset 0%";
+                }
+                else
+                {
+                    aLabel = k == kKindToggle ? "Toggle" : (k == kKindMenu ? "Open" : "Select");
+                }
             }
             const char* bLabel =
                 state.depth > 0
@@ -1279,50 +1367,60 @@ namespace ui {
 
         float bodyH = kLabDescTop - kRailBodyTop;
         gradBox(kLabInnerLeft, kRailBodyTop, railW, bodyH, pal.railTop, pal.railBot);
-        fillBox(kRailRight, kRailBodyTop, 1.5f, bodyH, pal.divider);
-        gradBox(kRailPaneLeft, kRailBodyTop, kLabInnerRight - kRailPaneLeft, bodyH, pal.baseTop, pal.baseBot);
+        fillBox(kRailRight, kRailBodyTop, 2.0f, bodyH, pal.divider);
+        gradBox(kRailPaneLeft + 1.0f, kRailBodyTop, kLabInnerRight - (kRailPaneLeft + 1.0f), bodyH, pal.baseTop,
+                pal.baseBot);
         fillBox(47.0f, kRailUtilDivY, 141.0f, 2.0f, pal.divider);
 
-        BevelCols accentBevel = {pal.accentTop, pal.accentBot, pal.accentSheen, pal.accentEdge};
-        float itemX = kLabInnerLeft + 3.0f;
-        float itemW = railW - 6.0f;
+        // Flush vertical left edge on top emerald-teal breadcrumb header ribbon + // stripes.
+        bool utilFoc = railUtilityFocused(def, state);
+        float hdrH = kRailHeaderBottom - kLabInnerTop;
+        float hdrSlant = hdrH * kSlantTan;
+        float ribbonRight = state.depth > 0 ? 394.0f : 268.0f;
+        drawSlantRow(kLabInnerLeft, ribbonRight, kLabInnerTop, hdrH, true, pal.accentTop, pal.accentBot, 0);
+        drawDiagStripes(cx(ribbonRight - 6.0f), kLabInnerTop, kRailHeaderBottom, w(hdrSlant), w(4.5f), w(3.5f),
+                        kLabStripeCol);
+
+        // Flush vertical left edge on active left-rail category/utility bar (slanted right edge).
+        float itemW = railW - 4.0f;
         for (u8 i = 0; i < def.categoryCount; i++)
         {
             float y = kRailItemTop + i * kRailItemPitch;
             if (state.railFocus && state.railCursor == i)
             {
-                drawGoldBar(itemX, itemW, y, kRailItemH, 8.5f);
+                drawGoldBar(kLabInnerLeft, itemW, y, kRailItemH, 8.5f, true, kLabInnerLeft + itemW - 5.0f);
             }
             else if (!state.railFocus && state.category == i)
             {
-                bevelBox(itemX, y, itemW, kRailItemH, accentBevel);
+                drawSlantRow(kLabInnerLeft, kLabInnerLeft + itemW, y, kRailItemH, true, pal.accentTop, pal.accentBot,
+                             0);
             }
         }
         for (u8 u = 0; u < def.utilityCount; u++)
         {
             if (state.railFocus && state.railCursor == def.categoryCount + u)
             {
-                drawGoldBar(itemX, itemW, kRailUtilTop + u * kRailItemPitch, kRailItemH, 8.5f);
+                drawGoldBar(kLabInnerLeft, itemW, kRailUtilTop + u * kRailItemPitch, kRailItemH, 8.5f, true,
+                            kLabInnerLeft + itemW - 5.0f);
             }
         }
 
         float headerMid = (kLabInnerTop + kRailHeaderBottom) * 0.5f;
-        bool utilFoc = railUtilityFocused(def, state);
+        float ribbonMaxW = ribbonRight - kLabInnerLeft - 38.0f;
         if (utilFoc || state.depth == 0)
         {
             const char* hdr = utilFoc ? def.utilities[state.railCursor - def.categoryCount].name
                                       : pageTitle(def, state.stack[0]);
-            const char* tag = utilFoc ? "Quick Action" : "Training Lab";
-            fitDisplay(48.0f, headerMid - 6.25f, hdr, 0, 12.5f, 390.0f, 2);
-            float subScale = displayScaleForCap(8.5f);
-            float tagW = gfx::displayTextWidth(tag, subScale);
-            gfx::displayText(cx(592.0f) - tagW, displayYForCap(headerMid - 4.25f, subScale), tag, pal.mutedText,
-                             subScale);
+            fitDisplay(48.0f, headerMid - 6.0f, hdr, pal.activeTabText, 12.0f, ribbonMaxW, 0);
         }
         else
         {
-            drawBreadcrumb(def, state, 48.0f, headerMid, 10.0f, 540.0f, pal);
+            drawBreadcrumb(def, state, 48.0f, headerMid, 10.0f, ribbonMaxW, pal, true);
         }
+        float verScale = scaleForCap(7.5f);
+        float verW = boldWidth(TM_VERSION_MARK, verScale);
+        boldText(cx(594.0f) - verW, textYForCap(headerMid - 3.75f, verScale), TM_VERSION_MARK, pal.mutedText,
+                 verScale, verScale);
 
         float capOff = (kRailItemH - kRailCap) * 0.5f;
         for (u8 i = 0; i < def.categoryCount; i++)
@@ -1331,7 +1429,7 @@ namespace ui {
             gfx::Rgba col = focused ? kLabGoldInk
                                     : (!state.railFocus && state.category == i ? pal.activeTabText : pal.mutedText);
             fitDisplay(kRailTextX, kRailItemTop + i * kRailItemPitch + capOff,
-                       pageTitle(def, def.categoryPages[i]), col, kRailCap, kRailTextMaxW, 0);
+                       pageTitle(def, def.categoryPages[i]), col, kRailCap, kRailTextMaxW - 8.0f, 0);
         }
         for (u8 u = 0; u < def.utilityCount; u++)
         {
@@ -1340,7 +1438,8 @@ namespace ui {
             const char* label = confirming ? def.utilities[u].label : def.utilities[u].name;
             gfx::Rgba col = focused ? (confirming ? 0x7A0C00FF : kLabGoldInk)
                                     : (confirming ? kLabFocusGold : pal.mutedText);
-            fitDisplay(kRailTextX, kRailUtilTop + u * kRailItemPitch + capOff, label, col, kRailCap, kRailTextMaxW, 0);
+            fitDisplay(kRailTextX, kRailUtilTop + u * kRailItemPitch + capOff, label, col, kRailCap,
+                       kRailTextMaxW - 8.0f, 0);
         }
     }
 
@@ -1540,26 +1639,33 @@ namespace ui {
                 float y = rowTop + r * kLabRowPitch;
                 bool selected = !state.railFocus && i == cur;
                 bool on = active(o) && (!diPicking || selected);
-                if (selected)
-                {
-                    drawGoldBar(g.hlLeft, g.hlRight - g.hlLeft, y, kLabRowH, 9.5f);
-                }
                 bool grey = false;
                 const char* value = valueText(def, o, buf, sizeof(buf), grey);
-                if (value != NULL && value[0] != '\0')
+                bool hasVal = value != NULL && value[0] != '\0';
+                if (selected)
+                {
+                    float stripeX = hasVal ? (g.pillLeft + 3.0f) : (g.hlRight - 18.0f);
+                    drawGoldBar(g.hlLeft, g.hlRight - g.hlLeft, y, kLabRowH, 9.5f, false, stripeX);
+                }
+                else
+                {
+                    drawSlantRow(g.hlLeft, g.hlRight, y, kLabRowH, false, kLabRowSlateTop, kLabRowSlateBot,
+                                 kLabRowSlateEdge);
+                }
+                if (hasVal)
                 {
                     bool isOnToggle = o.kind == kKindToggle && optionValue(def, o) != 0;
-                    drawPillBox(g.pillLeft, g.pillRight, y, isOnToggle, on);
+                    drawPillBox(g.pillLeft, g.pillRight, y, isOnToggle, on, selected);
                     if (selected && hasValue(o) && on)
                     {
-                        drawHorizArrows(g.pillLeft, g.pillRight, y);
+                        drawHorizArrows(g.pillLeft, g.pillRight, y, isOnToggle ? kLabFocusGold : kLabGoldInk);
                     }
                 }
                 else if (o.kind == kKindMenu)
                 {
                     gfx::Rgba chevCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted)
                                                  : (on ? pal.mutedText : kTextDisabled);
-                    drawSubmenuChevron(g.hlRight - 4.0f, y, chevCol);
+                    drawSubmenuChevron(g.hlRight - 10.0f, y, chevCol);
                 }
             }
             drawLabScrollBar(totalVis, first, visRows, rowTop, scrollH, pal);
@@ -1575,12 +1681,14 @@ namespace ui {
                 bool on = active(o) && (!diPicking || selected);
                 bool grey = false;
                 gfx::Rgba nameCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted) : (on ? kText : kTextDisabled);
-                fitText(g.nameX, y, o.name, nameCol, scale, g.nameMaxW, false);
+                fitText(g.nameX + 4.0f, y, o.name, nameCol, scale, g.nameMaxW - 20.0f, false);
                 const char* value = valueText(def, o, buf, sizeof(buf), grey);
                 if (value != NULL && value[0] != '\0')
                 {
-                    gfx::Rgba valCol = on && !grey ? kLabWhiteText : kTextDisabled;
-                    fitText(g.valCenter, y, value, valCol, scale, g.valMaxW, true);
+                    bool isOnToggle = o.kind == kKindToggle && optionValue(def, o) != 0;
+                    gfx::Rgba valCol =
+                        (on && !grey) ? ((selected && !isOnToggle) ? kLabGoldInk : kLabWhiteText) : kTextDisabled;
+                    fitText(g.valCenter, y, value, valCol, scale, g.valMaxW - 14.0f, true);
                 }
             }
 
@@ -1588,11 +1696,11 @@ namespace ui {
             main::extraDrawPageOverlay(pageId, railMode);
         }
 
-        // 5. Shared 1-line description strip, Nintendo button footer strip, and inner bevels.
+        // 5. Shared 1-line description strip, Nintendo button footer strip, and subtle dark inner frame.
         drawDescStrip(def, state, pageId, cur, p, pal);
         drawFooterStrip(def, state, pageId, p, cur, pal);
         float iw = kLabInnerRight - kLabInnerLeft;
-        fillBox(kLabInnerLeft, kLabInnerTop, iw, 2.0f, pal.bevelLight);
+        fillBox(kLabInnerLeft, kLabInnerTop, iw, 2.0f, pal.divider);
         fillBox(kLabInnerLeft, kLabInnerBottom - 2.0f, iw, 2.0f, pal.bevelDark);
     }
 }

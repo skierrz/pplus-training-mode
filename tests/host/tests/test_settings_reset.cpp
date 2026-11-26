@@ -479,8 +479,8 @@ TEST(settings_reset, reset_settings_page_resets_only_target_page)
     main::settings() = dirty;
     u8 scratchBefore[ui::kScratchBytes];
     populateValidScratch(scratchBefore);
-    CHECK(main::resetSettingsPage(ui::pages::P_SCENARIOS));
-    CHECK_BYTES("P_SCENARIOS leaves Settings untouched", &dirty, &main::settings(), sizeof(Settings));
+    CHECK(main::resetSettingsPage(ui::pages::P_ALTER_INPUTS));
+    CHECK_BYTES("P_ALTER_INPUTS leaves Settings untouched", &dirty, &main::settings(), sizeof(Settings));
     CHECK(memcmp(scratchBefore, ui::menuScratch(), sizeof(scratchBefore)) == 0);
 
     // Out-of-range pages return false with zero mutations (even on out-of-range fields).
@@ -548,7 +548,7 @@ TEST(settings_reset, reset_settings_option_resets_single_row_and_preserves_sibli
     CHECK_BYTES("single choice option", &expected, &main::settings(), sizeof(Settings));
 
     main::settings() = dirty;
-    CHECK(main::resetSettingsOption(ui::pages::P_DISPLAY, 0)); // Match HUD (toggle)
+    CHECK(main::resetSettingsOption(ui::pages::P_DEBUG, 4)); // Match HUD (toggle in Lab Debug)
     expected = dirty;
     expected.display.hud = defaults.display.hud;
     CHECK_BYTES("single toggle option", &expected, &main::settings(), sizeof(Settings));

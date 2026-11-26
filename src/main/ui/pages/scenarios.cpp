@@ -65,6 +65,7 @@ namespace pages {
         return p != kPresetOff && p != kPresetShieldDrop;
     }
 
+    static bool scenarioComboLabActive() { return presetIs(kPresetComboLab); }
     static bool scenarioTechchaseActive() { return presetIs(kPresetTechchase); }
     static bool scenarioTechInvisDelayActive()
     {
@@ -110,7 +111,7 @@ namespace pages {
     static bool practicePsProjActive() { return practiceDrillIs(5) && practiceMenuState()->psAttackMode == 0; }
 
 #ifdef __MWERKS__
-    static const u16 kScenLblOffs[36] = {
+    static const u16 kScenLblOffs[40] = {
         kPs_scen_kPresets, kPs_scen_kSides, kPs_scen_kTechSetups, kPs_scen_kTechPositions, kPs_scen_kTechEscapes,
         kPs_tech_kTechInvisLabels, kPs_tech_kPreTechDriftLabels, kPs_scen_kTechTdis, kPs_scen_kEdgeSetups,
         kPs_scen_kEdgeStrengths, kPs_scen_kEdgeDists, kPs_scen_kEdgeDjs, kPs_scen_kEdgeMixups, kPs_scen_kShieldRoles,
@@ -119,7 +120,8 @@ namespace pages {
         kPs_scen_kShieldDropSpacing, kPs_scen_kShieldDropFacing, kPs_scen_kSlideOffAttacks, kPs_scen_kGrabActions,
         kPs_scen_kGrabPctModes, kPs_scen_kMultiHitMoves, kPs_scen_kPracticeModes, kPs_scen_kPsAtkModes,
         kPs_scen_kPsHeights, kPs_scen_kPsCadences, kPs_scen_kLedgeSides, kPs_scen_kLedgeInvulns,
-        kPs_scen_kPracticeTargets, kPs_fmt_df
+        kPs_scen_kPracticeTargets, kPs_fmt_df,
+        kPs_ct_kPostEscapes, kPs_ct_kResetDelays, kPs_cpu_kTdiLabels, kPs_tech_kTech
     };
     static bool (*const kScenGates[])() = {
         NULL, presetRowVisible, scenarioActive, scenarioSideActive, scenarioTechchaseActive,
@@ -127,13 +129,14 @@ namespace pages {
         scenarioEdgeguardSpawnActive, scenarioShieldPressureActive, scenarioShieldOffenseActive,
         scenarioShieldDefenseActive, scenarioLedgetechActive, scenarioShieldDropActive, scenarioSlideOffActive,
         scenarioGrabActive, scenarioMultiHitActive, practiceActive, practicePsActive, practicePsProjActive,
-        practiceLedgeActive, practiceLcActive, practiceFloatActive, practiceWdActive, comboTrainerRowVisible
+        practiceLedgeActive, practiceLcActive, practiceFloatActive, practiceWdActive, comboTrainerRowVisible,
+        scenarioComboLabActive
     };
     static void (*const kScenCbs[])() = {
         NULL, main::extraScenarioChanged, main::extraScenarioResetNow, practiceChanged
     };
     enum {
-        kScenRows = 45,
+        kScenRows = 51,
         kScenFlagHide = ::tm::ui::kFlagHideWhenDisabled,
         kScenFlagSH = ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled
     };
@@ -143,6 +146,15 @@ namespace pages {
         {kKindChoice, kScenFlagSH, SC_OFF(preset), TM_CHOICE_LO, 0, 9, 0, 1, 1, 0},
         {kKindToggle, kScenFlagSH, SC_OFF(autoReset), 0, 1, 1, 0xFF, 1, 2, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(side), TM_CHOICE_LO, 0, 2, 1, 1, 3, 0},
+        // Combo Lab inline quick-knobs
+        {kKindChoice, kScenFlagHide, TM_FIELD(comboTrainer.postHitstunEscape), TM_CHOICE_LO, main::kComboEscapeDodge,
+         main::kComboEscapeCount - 1, 36, 0, 25, 0},
+        {kKindChoice, kScenFlagHide, TM_FIELD(comboTrainer.resetDelay), TM_CHOICE_LO, main::kComboDelay30,
+         main::kComboDelayCount - 1, 37, 0, 25, 0},
+        {kKindChoice, kScenFlagHide, TM_FIELD(cpu.options.tdi), TM_CHOICE_LO, 0, cpu::kTdiCount - 1, 38, 0, 25, 0},
+        {kKindChoice, kScenFlagHide, TM_FIELD(cpu.options.tech), TM_CHOICE_LO, 0, 4, 39, 0, 25, 0},
+        {kKindToggle, kScenFlagHide, TM_FIELD(comboTrainer.resetP1), 0, 1, 1, 0xFF, 0, 25, 0},
+        {kKindToggle, kScenFlagHide, TM_FIELD(comboTrainer.noclip), 0, 1, 1, 0xFF, 0, 25, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(techSetup), TM_CHOICE_LO, 0, 1, 2, 1, 4, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(techPosition), TM_CHOICE_LO, 0, 4, 3, 1, 4, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(techEscape), TM_CHOICE_LO, 0, 6, 4, 1, 4, 0},
@@ -244,6 +256,9 @@ namespace pages {
     TM_LABELS_BEGIN(kLedgeSides) TM_L("Same Side") TM_L("Opposite") TM_L("Random") TM_LABELS_END
     TM_LABELS_BEGIN(kLedgeInvulns) TM_L("P+ 5-Grab Limit") TM_L("Unlimited") TM_LABELS_END
     TM_LABELS_BEGIN(kPracticeTargets) TM_L("Off") TM_L("Stationary CPU") TM_L("Shielding CPU") TM_L("Moving CPU") TM_LABELS_END
+    TM_LABELS_BEGIN(kComboPostEscapes) TM_L("Dodge") TM_L("Jump-Invuln") TM_L("Counter") TM_L("Custom Pool") TM_L("None") TM_LABELS_END
+    TM_LABELS_BEGIN(kComboResetDelays) TM_L("Instant") TM_L("15f") TM_L("30f") TM_L("45f") TM_L("60f") TM_LABELS_END
+    TM_LABELS_BEGIN(kComboTechLabels) TM_L("Random") TM_L("In Place") TM_L("Away") TM_L("Toward") TM_L("Miss") TM_LABELS_END
 
 #define TM_SCEN_OFF(f) static_cast<u16>(kScenarioScratchOffset + offsetof(ScenarioMenuState, f))
 #define TM_SCEN_CHOICE(name, field, labels, count, def, en)                                               \
@@ -263,6 +278,20 @@ namespace pages {
         TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled, TM_SCEN_OFF(autoReset),
                0, 1, 1, "Auto-Reset", NULL, main::extraScenarioChanged, scenarioActive),
         TM_SCEN_CHOICE("Side", side, kSides, 3, 0, scenarioSideActive),
+        // Combo Lab inline quick-knobs
+        TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(comboTrainer.postHitstunEscape),
+                        main::kComboEscapeCount, main::kComboEscapeDodge, "Post-Hitstun", kComboPostEscapes, NULL,
+                        scenarioComboLabActive),
+        TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(comboTrainer.resetDelay), main::kComboDelayCount,
+                        main::kComboDelay30, "Reset Delay", kComboResetDelays, NULL, scenarioComboLabActive),
+        TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.tdi), cpu::kTdiCount, 0,
+                        "Trajectory DI", kTdiLabels, NULL, scenarioComboLabActive),
+        TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.tech), 5, 0,
+                        "Tech Option", kComboTechLabels, NULL, scenarioComboLabActive),
+        TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(comboTrainer.resetP1), 0, 1, 1,
+               "Reset P1", NULL, NULL, scenarioComboLabActive),
+        TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(comboTrainer.noclip), 0, 1, 1,
+               "Noclip Reset", NULL, NULL, scenarioComboLabActive),
         // Techchase inline rows
         TM_SCEN_CHOICE("Setup", techSetup, kTechSetups, 2, 0, scenarioTechchaseActive),
         TM_SCEN_CHOICE("Position", techPosition, kTechPositions, 5, 0, scenarioTechchaseActive),
@@ -322,7 +351,7 @@ namespace pages {
         TM_PRAC_CHOICE("Target", lcancelTarget, kPracticeTargets, 4, 1, practiceLcActive),
         TM_PRAC_CHOICE("Target", floatDjcTarget, kPracticeTargets, 4, 1, practiceFloatActive),
         TM_PRAC_TOGGLE("Target Zone", wdTargetZone, 0, practiceWdActive),
-        TM_ROW(::tm::ui::kKindMenu, ::tm::ui::kFlagHideWhenDisabled, 0, 0, P_COMBO_TRAINER, 0, "Combo Trainer",
+        TM_ROW(::tm::ui::kKindMenu, ::tm::ui::kFlagHideWhenDisabled, 0, 0, P_COMBO_TRAINER, 0, "More Combo Options",
                NULL, NULL, comboTrainerRowVisible)
     };
 #undef TM_PRAC_TOGGLE

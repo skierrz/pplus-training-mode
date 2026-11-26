@@ -260,7 +260,7 @@ class Runner:
         pages = re.findall(r"\] drills: page ([^\r\n]+)", tail)
         page_patterns = {
             "Tech Practice": r"(?:L-Cancel|Wavedash|Ledgedash|Powershield|RAR|DACUS|B-Reverse)",
-            "Challenges": r"(?:Cancel Sprint|Movement Flow|Situational Reaction|Universal Techchase|Universal Recovery|CC / ASDI-Down|Combo-Break Rush)",
+            "Challenges": r"(?:Cancel Practice: Endurance|Movement Flow Course|Situational Reaction|Universal Techchase|Universal Recovery|CC / ASDI-Down|Break the Targets!)",
             "Character Trainers": r"(?:Float|Snake Infinite Recovery)",
         }
         pat = page_patterns.get(page_name, "")
