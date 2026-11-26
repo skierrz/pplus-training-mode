@@ -40,6 +40,7 @@
 #include "shared/game/frame.h"
 #include "shared/game/heap.h"
 #include "shared/game/mem.h"
+#include "shared/game/stick.h"
 #include "shared/log.h"
 
 namespace tm {
@@ -133,20 +134,9 @@ namespace cpu {
         return v < 0.0f ? -1.0f : 1.0f;
     }
 
-    // sqrt by Newton's method (the module links no libm sqrt).
-    static float length(float x, float y)
+    static inline float length(float x, float y)
     {
-        float s = x * x + y * y;
-        float g = (x < 0.0f ? -x : x) + (y < 0.0f ? -y : y);
-        if (g <= 0.0f)
-        {
-            return 0.0f;
-        }
-        for (int i = 0; i < 6; i++)
-        {
-            g = 0.5f * (g + s / g);
-        }
-        return g;
+        return game::stickRoot(x * x + y * y);
     }
 
     static const CpuOptions& opts()
@@ -505,6 +495,9 @@ namespace cpu {
 
     // ---- the state machine ------------------------------------------------------
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     class Brain : public Source {
     public:
         static void* operator new(size_t, void* p)
@@ -611,7 +604,6 @@ namespace cpu {
         View v;
         Fighter* f;
 
-#pragma dont_inline on
         void stick(Frame& out, float x, float y, int ref)
         {
             switch (ref)
@@ -659,7 +651,6 @@ namespace cpu {
             script = NULL;
             pending = NULL;
         }
-#pragma dont_inline reset
         void startScript(const Step* steps, bool again = false);
 
         bool reached(int until) const
@@ -864,7 +855,6 @@ namespace cpu {
                             game::i2fScale(t.customDiY, 0.01f), tdiX, tdiY);
         }
 
-#pragma dont_inline on
         static bool dirStick(int code, float away, float& x, float& y)
         {
             // code 0..5: Away, Towards, Left, Right, Up, Down
@@ -900,7 +890,6 @@ namespace cpu {
                 setMotionRate(nana, rate);
             }
         }
-#pragma dont_inline reset
 
         void chooseDi(const Owner&)
         {
@@ -1200,7 +1189,6 @@ namespace cpu {
             }
         }
 
-#pragma dont_inline on
         bool pickMultiRev(int trigger, int entryId)
         {
             revAction = 0;
@@ -1213,7 +1201,6 @@ namespace cpu {
             revDelay = static_cast<u8>(rd);
             return true;
         }
-#pragma dont_inline reset
 
         void getupInput(Frame& out, const Owner& who)
         {
@@ -1959,7 +1946,6 @@ namespace cpu {
         }
 
         // What the next frame compares with.
-#pragma dont_inline on
         bool stepLedge(Frame& out, const Owner& who, const CpuOptions& c, bool busy)
         {
             u8 base = busy ? 0 : (c.ledgeOption ? c.ledgeOption : (c.multiReversal ? c.revSlot2Action[kRevOnLedge] : 0));
@@ -2023,9 +2009,7 @@ namespace cpu {
             }
             return false;
         }
-#pragma dont_inline reset
 
-#pragma dont_inline on
         void remember()
         {
             havePrev = true;
@@ -2036,8 +2020,10 @@ namespace cpu {
             prevVy = v.vy;
             prevAir = v.air;
         }
-#pragma dont_inline reset
     };
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
 #pragma dont_inline on
     void Brain::reset()

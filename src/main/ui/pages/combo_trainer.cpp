@@ -1,10 +1,12 @@
 #include "main/extra.h"
 #include "main/ui/pages/cpu_rows.h"
+#include "main/ui/pages/page_strings.h"
 #include "main/ui/pages/pages.h"
 
 namespace tm {
 namespace ui {
 namespace pages {
+#ifndef __MWERKS__
     TM_LABELS_BEGIN(kResetDamageMode) TM_L("Use CPU %") TM_L("Custom %") TM_LABELS_END
     TM_LABELS_ASSERT(kResetDamageMode, main::kComboDmgModeCount, tm_combo_dmg_mode_labels_match);
     TM_LABELS_BEGIN(kResetDelays) TM_L("Instant") TM_L("15f") TM_L("30f") TM_L("45f") TM_L("60f") TM_LABELS_END
@@ -13,6 +15,7 @@ namespace pages {
     TM_LABELS_ASSERT(kPostEscapes, main::kComboEscapeCount, tm_combo_escape_labels_match);
     TM_LABELS_BEGIN(kRecMixups) TM_L("Mixed") TM_L("Low (Sweetspot)") TM_L("High") TM_L("Direct") TM_LABELS_END
     TM_LABELS_ASSERT(kRecMixups, main::kRecMixupCount, tm_rec_mixup_labels_match);
+#endif
 
     static bool comboActive()
     {
@@ -61,6 +64,52 @@ namespace pages {
         return comboOptionEnabled() && main::settings().comboTrainer.recoveryTrainer != 0;
     }
 
+#ifdef __MWERKS__
+    extern Page kComboTrainer = {"Combo Trainer", NULL, 0, {0, 0, 0}};
+    extern Page kComboMeters = {"Floating Meters", NULL, 0, {0, 0, 0}};
+
+    void initComboTrainerPages(Option* buf)
+    {
+        const void* dataTbl[6] = {
+            pageStr(kPs_ct_kResetDelays), pageStr(kPs_ct_kPostEscapes), pageStr(kPs_ct_kResetDamageMode),
+            "%d%%", "%+df", pageStr(kPs_ct_kRecMixups)
+        };
+        static bool (*const kGates[11])() = {
+            NULL, comboActive, comboAnyResetEnabled, comboFixPosEligible, comboFixPosChildEnabled,
+            comboRandGroundEnabled, comboDamageSourceEnabled, comboFixedDmgEnabled, comboOptionEnabled,
+            comboRecChildEnabled, main::extraLoaded
+        };
+        static const RowSpec kCt[23] = {
+            {kKindToggle, 0, TM_FIELD(comboTrainer.enabled), 0, 0, 1, 0xFF, 0, 1, 0},
+            {kKindToggle, 0, TM_FIELD(comboTrainer.noclip), 0, 1, 1, 0xFF, 0, 2, 0},
+            {kKindToggle, 0, TM_FIELD(comboTrainer.fixPosition), 0, 0, 1, 0xFF, 0, 3, 0},
+            {kKindToggle, 0, TM_FIELD(comboTrainer.resetP1), 0, 1, 1, 0xFF, 0, 4, 0},
+            {kKindChoice, 0, TM_FIELD(comboTrainer.resetDelay), TM_CHOICE_LO, main::kComboDelay30, main::kComboDelayCount - 1, 0, 0, 4, 0},
+            {kKindChoice, 0, TM_FIELD(comboTrainer.postHitstunEscape), TM_CHOICE_LO, main::kComboEscapeDodge, main::kComboEscapeCount - 1, 1, 0, 4, 0},
+            {kKindMenu,   0, 0, 0, 0, P_CPU_DI, 0xFF, 0, 4, 0},
+            {kKindToggle, 0, TM_FIELD(comboTrainer.randomizePosition), 0, 0, 1, 0xFF, 0, 4, 0},
+            {kKindToggle, 0, TM_FIELD(comboTrainer.randOnGround), 0, 0, 1, 0xFF, 0, 5, 0},
+            {kKindToggle, 0, TM_FIELD(comboTrainer.randomizeDamage), 0, 0, 1, 0xFF, 0, 2, 0},
+            {kKindChoice, 0, TM_FIELD(comboTrainer.fixedDamageMode), TM_CHOICE_LO, main::kComboDmgCpu, main::kComboDmgModeCount - 1, 2, 0, 6, 0},
+            {kKindInt,    kFlagHalf | kFlagHideWhenDisabled, TM_FIELD(comboTrainer.fixedDamage), 0, 0, 999, 3, 0, 7, 0},
+            {kKindInt,    kFlagSigned, TM_FIELD(comboTrainer.comboTimerAdjustment), -60, 0, 60, 4, 0, 4, 0},
+            {kKindToggle, 0, TM_FIELD(comboTrainer.recoveryTrainer), 0, 0, 1, 0xFF, 0, 8, 0},
+            {kKindChoice, kFlagHideWhenDisabled, TM_FIELD(comboTrainer.recoveryMixup), TM_CHOICE_LO, main::kRecMixupMixed, main::kRecMixupCount - 1, 5, 0, 9, 0},
+            {kKindMenu,   0, 0, 0, 0, P_COMBO_METERS, 0xFF, 0, 10, 0},
+            {kKindToggle, kFlagBit, TM_FIELD(comboTrainer.enabledMeters), main::kMeterHitlag, 0, 1, 0xFF, 0, 10, 0},
+            {kKindToggle, kFlagBit, TM_FIELD(comboTrainer.enabledMeters), main::kMeterHitstun, 0, 1, 0xFF, 0, 10, 0},
+            {kKindToggle, kFlagBit, TM_FIELD(comboTrainer.enabledMeters), main::kMeterShieldstun, 0, 1, 0xFF, 0, 10, 0},
+            {kKindToggle, kFlagBit, TM_FIELD(comboTrainer.enabledMeters), main::kMeterDi, 0, 1, 0xFF, 0, 10, 0},
+            {kKindToggle, kFlagBit, TM_FIELD(comboTrainer.enabledMeters), main::kMeterIasa, 0, 1, 0xFF, 0, 10, 0},
+            {kKindToggle, kFlagBit, TM_FIELD(comboTrainer.enabledMeters), main::kMeterLedgeIntang, 0, 1, 0xFF, 0, 10, 0},
+            {kKindToggle, kFlagBit, TM_FIELD(comboTrainer.enabledMeters), main::kMeterIntang, 0, 1, 0xFF, 0, 10, 0}
+        };
+        fillPageRows(kComboTrainer, buf, 23, kCt, pageStr(kPs_ct_names), dataTbl, NULL, kGates);
+        kComboTrainer.count = 16;
+        kComboMeters.options = buf + 16;
+        kComboMeters.count = 7;
+    }
+#else
 #define TM_COMBO_TOGGLE(name, f, def, en) \
     TM_ROW(::tm::ui::kKindToggle, TM_HALF(f), TM_FIELD(f), 0, 1, def, name, NULL, NULL, en)
 #define TM_COMBO_INT(name, f, lo, hi, def, format, en) \
@@ -108,6 +157,7 @@ namespace pages {
 
     extern const Page kComboTrainer = TM_PAGE("Combo Trainer", kRows);
     extern const Page kComboMeters = TM_PAGE("Floating Meters", kMeterRows);
+#endif
 }
 }
 }

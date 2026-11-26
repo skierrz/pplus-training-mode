@@ -277,11 +277,12 @@ def main(argv):
             return 2
         i += 1
     start = time.time()
-    psa_gen = os.path.join(ROOT, "scripts", "gen_psa_opcodes.py")
-    if os.path.isfile(psa_gen):
-        chk = subprocess.run([sys.executable, psa_gen, "--check"], cwd=ROOT)
-        if chk.returncode != 0:
-            return chk.returncode
+    for gen_name in ("gen_psa_opcodes.py", "gen_page_strings.py"):
+        gen_path = os.path.join(ROOT, "scripts", gen_name)
+        if os.path.isfile(gen_path):
+            chk = subprocess.run([sys.executable, gen_path, "--check"], cwd=ROOT)
+            if chk.returncode != 0:
+                return chk.returncode
     found = compiler_environment()
     if found is None:
         print(NO_COMPILER)

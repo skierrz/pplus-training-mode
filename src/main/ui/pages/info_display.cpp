@@ -1,5 +1,6 @@
 #include "main/extra.h"
 #include "main/ui/info_display.h"
+#include "main/ui/pages/page_strings.h"
 #include "main/ui/pages/pages.h"
 
 #include <string.h>
@@ -9,17 +10,7 @@ namespace ui {
 namespace pages {
     // In InfoValue order. Entries prefixed with NA are reserved placeholders.
 #define NA TM_UNAVAILABLE_LABEL
-#ifdef __MWERKS__
-    static const char kValues[] =
-        TM_L("None") TM_L("Position") TM_L("State Name") TM_L("State Frame") TM_L("Velocity - Self")
-        TM_L("Velocity - KB") TM_L("Velocity - Total") TM_L("Engine LStick") TM_L("System LStick")
-        TM_L(NA "Engine CStick") TM_L("System CStick") TM_L("Engine Trigger") TM_L("System Trigger")
-        TM_L("Ledgegrab Timer") TM_L("Intangibility") TM_L("Hitlag") TM_L("Hitstun") TM_L("Shield Health")
-        TM_L("Shield Stun") TM_L("Grip Strength") TM_L("ECB Lock") TM_L("ECB Bottom") TM_L("Jumps")
-        TM_L("Walljumps") TM_L("Can Walljump") TM_L(NA "Jab Counter") TM_L("Line Info") TM_L("Blastzone X")
-        TM_L("Blastzone Y") TM_L("Damage") TM_L("Subaction") TM_L("Cancel Flags") TM_L("Actionable")
-        TM_L("Airborne") TM_L("Last Hit") TM_L("Actionable In") TM_L("Wall Cling");
-#else
+#ifndef __MWERKS__
     static const char* const kValues[kInfoValueCount] = {
         "None", "Position", "State Name", "State Frame", "Velocity - Self", "Velocity - KB", "Velocity - Total",
         "Engine LStick", "System LStick", NA "Engine CStick", "System CStick", "Engine Trigger", "System Trigger",
@@ -31,10 +22,12 @@ namespace pages {
 #endif
 #undef NA
 
+#ifndef __MWERKS__
     TM_LABELS_BEGIN(kPresets) TM_L("None") TM_L("Basic") TM_L("Ledge") TM_L("Combat") TM_L("Frame Data") TM_LABELS_END
     TM_LABELS_BEGIN(kSizes) TM_L("Small") TM_L("Medium") TM_L("Large") TM_LABELS_END
     TM_LABELS_ASSERT(kPresets, kInfoPresetCount, tm_info_presets_match);
     TM_LABELS_ASSERT(kSizes, main::kInfoSizeCount, tm_info_sizes_match);
+#endif
 
     static void hmnPreset()
     {
@@ -79,21 +72,29 @@ namespace pages {
         return infoHasRows(main::kSideCpu);
     }
 
-#define TM_INFO_ROW(side, n, name, onEdit) TM_CHOICE_P(name, info[side].rows[n], kValues, kInfoValueCount, kInfoNone, onEdit)
+#ifdef __MWERKS__
+#define TM_INFO_ROW(side, n, name, onEdit) TM_CHOICE_P(name, info[side].rows[n], NULL, kInfoValueCount, kInfoNone, onEdit)
 #define TM_INFO_PAGE(side, onPreset, onEdit, hasRows)                                                         \
-    TM_CHOICE_P("Preset", info[side].preset, kPresets, kInfoPresetCount, kInfoPresetNone, onPreset),          \
+    TM_CHOICE_P("Preset", info[side].preset, NULL, kInfoPresetCount, kInfoPresetNone, onPreset),              \
         TM_ROW_CHOICE_P(0, TM_FIELD(info[side].size), main::kInfoSizeCount, main::kInfoMedium,                \
-                        "Size", kSizes, NULL, hasRows),                                                       \
+                        "Size", NULL, NULL, hasRows),                                                         \
         TM_INFO_ROW(side, 0, "Row 1", onEdit), TM_INFO_ROW(side, 1, "Row 2", onEdit),                         \
         TM_INFO_ROW(side, 2, "Row 3", onEdit), TM_INFO_ROW(side, 3, "Row 4", onEdit),                         \
         TM_INFO_ROW(side, 4, "Row 5", onEdit), TM_INFO_ROW(side, 5, "Row 6", onEdit),                         \
         TM_INFO_ROW(side, 6, "Row 7", onEdit), TM_INFO_ROW(side, 7, "Row 8", onEdit)
 
-    static const Option kHmnRows[] = {TM_INFO_PAGE(0, hmnPreset, hmnRowEdited, hmnHasRows)};
-#ifdef __MWERKS__
-    void initCpuInfoPage(Option* buf)
+    static Option kHmnRows[] = {TM_INFO_PAGE(0, hmnPreset, hmnRowEdited, hmnHasRows)};
+
+    void initInfoPages(Option* buf)
     {
         const u8 n = static_cast<u8>(TM_COUNT(kHmnRows));
+        const char* vals = pageStr(kPs_info_kValues);
+        kHmnRows[0].data = pageStr(kPs_info_kPresets);
+        kHmnRows[1].data = pageStr(kPs_info_kSizes);
+        for (int i = 2; i < n; i++)
+        {
+            kHmnRows[i].data = vals;
+        }
         memcpy(buf, kHmnRows, sizeof(kHmnRows));
         const u16 delta = static_cast<u16>(TM_FIELD(info[1]) - TM_FIELD(info[0]));
         for (int i = 0; i < n; i++)
@@ -112,6 +113,17 @@ namespace pages {
     extern const Page kHmnInfo = TM_PAGE("P1 Info Display", kHmnRows);
     extern Page kCpuInfo = {"CPU Info Display", NULL, 0, {0, 0, 0}};
 #else
+#define TM_INFO_ROW(side, n, name, onEdit) TM_CHOICE_P(name, info[side].rows[n], kValues, kInfoValueCount, kInfoNone, onEdit)
+#define TM_INFO_PAGE(side, onPreset, onEdit, hasRows)                                                         \
+    TM_CHOICE_P("Preset", info[side].preset, kPresets, kInfoPresetCount, kInfoPresetNone, onPreset),          \
+        TM_ROW_CHOICE_P(0, TM_FIELD(info[side].size), main::kInfoSizeCount, main::kInfoMedium,                \
+                        "Size", kSizes, NULL, hasRows),                                                       \
+        TM_INFO_ROW(side, 0, "Row 1", onEdit), TM_INFO_ROW(side, 1, "Row 2", onEdit),                         \
+        TM_INFO_ROW(side, 2, "Row 3", onEdit), TM_INFO_ROW(side, 3, "Row 4", onEdit),                         \
+        TM_INFO_ROW(side, 4, "Row 5", onEdit), TM_INFO_ROW(side, 5, "Row 6", onEdit),                         \
+        TM_INFO_ROW(side, 6, "Row 7", onEdit), TM_INFO_ROW(side, 7, "Row 8", onEdit)
+
+    static const Option kHmnRows[] = {TM_INFO_PAGE(0, hmnPreset, hmnRowEdited, hmnHasRows)};
     static const Option kCpuRows[] = {TM_INFO_PAGE(1, cpuPreset, cpuRowEdited, cpuHasRows)};
 
     extern const Page kHmnInfo = TM_PAGE("P1 Info Display", kHmnRows);
@@ -131,14 +143,22 @@ namespace pages {
         {
             return "?";
         }
+#ifdef __MWERKS__
+        const char* s = pages::packedLabelAt(pages::pageStr(pages::kPs_info_kValues), value);
+#else
         const char* s = pages::packedLabelAt(pages::kValues, value);
+#endif
         return s[0] == TM_UNAVAILABLE_LABEL[0] ? s + 1 : s;
     }
 
     bool infoValueAvailable(int value)
     {
         return value >= 0 && value < kInfoValueCount
+#ifdef __MWERKS__
+               && pages::packedLabelAt(pages::pageStr(pages::kPs_info_kValues), value)[0] != TM_UNAVAILABLE_LABEL[0];
+#else
                && pages::packedLabelAt(pages::kValues, value)[0] != TM_UNAVAILABLE_LABEL[0];
+#endif
     }
 #ifdef TM_MODULE_MAIN
 #pragma force_active reset

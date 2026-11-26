@@ -6,6 +6,7 @@
 #include "main/lab.h"
 #include "main/savestate/settings.h"
 #include "main/ui/pages/cpu_rows.h"
+#include "main/ui/pages/page_strings.h"
 #include "main/ui/pages/pages.h"
 
 #include <string.h>
@@ -26,6 +27,12 @@ namespace pages {
         return main::settings().cpu.options.control == cpu::kControlLab;
     }
 
+#ifdef __MWERKS__
+    extern const char* kTdiLabels = NULL;
+    extern const char* kCounterGround = NULL;
+    extern const char* kCounterAir = NULL;
+    extern const char* kCounterShield = NULL;
+#else
     TM_LABELS_BEGIN(kControl) TM_L("Training") TM_L("Lab") TM_LABELS_END
     TM_LABELS_EXTERN_BEGIN(kTdiLabels, cpu::kTdiCount)
         TM_L("Random") TM_L("In") TM_L("Out") TM_L("Survival") TM_L("None") TM_L("Combo")
@@ -48,13 +55,8 @@ namespace pages {
 
 #define TM_PLAY_SLOT_LABELS_P \
     TM_L("Slot 1") TM_L("Slot 2") TM_L("Slot 3") TM_L("Slot 4") TM_L("Slot 5") TM_L("Slot 6") TM_L("Random Slot")
-#ifdef __MWERKS__
-#define DJC_M TM_DJC_LABEL
-#define FLT_M TM_FLOAT_LABEL
-#else
 #define DJC_M NA
 #define FLT_M NA
-#endif
 #define TM_DJC_LABELS_P \
     TM_L(DJC_M "DJC Nair") TM_L(DJC_M "DJC Fair") TM_L(DJC_M "DJC Bair") TM_L(DJC_M "DJC Uair") TM_L(DJC_M "DJC Dair")
 #define TM_FLOAT_LABELS_P \
@@ -63,11 +65,7 @@ namespace pages {
 #define TM_FFL_LABELS_P TM_L("FFL Nair") TM_L("FFL Fair") TM_L("FFL Bair") TM_L("FFL Uair") TM_L("FFL Dair")
 
     // Indexed to match cpu/actions.cpp action tables.
-#ifdef __MWERKS__
-    extern const char kCounterGround[] =
-#else
     extern const char* kCounterGround[kCounterGroundSize] = {
-#endif
         TM_L("None") TM_L("Spotdodge") TM_L("Shield") TM_L("Grab") TM_L("Up B") TM_L("Side B Toward")
         TM_L("Down B") TM_L("Neutral B") TM_L("Up Smash") TM_L("Down Smash") TM_L("Forward Smash")
         TM_L("Roll Away") TM_L("Roll Toward") TM_L("Jab") TM_L("Forward Tilt") TM_L("Up Tilt") TM_L("Down Tilt")
@@ -76,11 +74,7 @@ namespace pages {
         TM_L("Roll Random") TM_L("SH Nair") TM_L("SH Fair") TM_L("SH Bair") TM_L("SH Uair") TM_L("SH Dair")
         TM_L("Random Custom") TM_L("Random") TM_DJC_LABELS_P TM_FLOAT_LABELS_P TM_SHFFL_LABELS_P
         TM_L("Custom Pool")
-#ifdef __MWERKS__
-        ;
-#else
     };
-#endif
     TM_LABELS_EXTERN_BEGIN(kCounterAir, kCounterAirSize)
         TM_L("None") TM_L("Airdodge") TM_L("Jump Away") TM_L("Jump Toward") TM_L("Jump Neutral")
         TM_L("Up B Away") TM_L("Up B Toward") TM_L("Neutral B") TM_L("Side B Away") TM_L("Side B Toward")
@@ -89,11 +83,7 @@ namespace pages {
         TM_PLAY_SLOT_LABELS_P TM_L("Random Custom") TM_L("Random") TM_FFL_LABELS_P TM_L("Custom Pool")
     TM_LABELS_END
     TM_LABELS_ASSERT(kCounterAir, kCounterAirSize, tm_counter_air_match);
-#ifdef __MWERKS__
-    extern const char kCounterShield[] =
-#else
     extern const char* kCounterShield[kCounterShieldSize] = {
-#endif
         TM_L("None") TM_L("Grab") TM_L("Short Hop") TM_L("Full Hop") TM_L("Spotdodge") TM_L("Roll Away")
         TM_L("Roll Toward") TM_L("Up B") TM_L(DROPPED "Side B Away") TM_L(DROPPED "Side B Toward")
         TM_L("Down B") TM_L(DROPPED "Neutral B") TM_L("Up Smash") TM_L(DROPPED "Down Smash")
@@ -102,11 +92,7 @@ namespace pages {
         TM_PLAY_SLOT_LABELS_P TM_L("Wavedash Toward") TM_L("Wavedash Down") TM_L("Roll Random")
         TM_L("Random Custom") TM_L("Random") TM_DJC_LABELS_P TM_FLOAT_LABELS_P TM_SHFFL_LABELS_P
         TM_L("Custom Pool")
-#ifdef __MWERKS__
-        ;
-#else
     };
-#endif
 #undef DJC_M
 #undef FLT_M
 #undef TM_PLAY_SLOT_LABELS_P
@@ -114,6 +100,7 @@ namespace pages {
 #undef TM_FLOAT_LABELS_P
 #undef TM_SHFFL_LABELS_P
 #undef TM_FFL_LABELS_P
+#endif
 
 #pragma dont_inline on
     bool counterLabels()
@@ -150,6 +137,7 @@ namespace pages {
     }
 #pragma dont_inline reset
 
+#ifndef __MWERKS__
     TM_LABELS_BEGIN(kInfiniteShields) TM_L("Off") TM_L("Until Hit") TM_L("On") TM_LABELS_END
     TM_LABELS_BEGIN(kShieldAngle) TM_L("Neutral") TM_L("Up") TM_L("Toward") TM_L("Down") TM_L("Away") TM_LABELS_END
     TM_LABELS_BEGIN(kGrabEscape) TM_L("None") TM_L("Medium") TM_L("High") TM_L("Max") TM_LABELS_END
@@ -170,6 +158,7 @@ namespace pages {
     TM_LABELS_ASSERT(kAdaptiveMode, 3, tm_adapt_match);
     TM_LABELS_ASSERT(kShfflTiming, 5, tm_shffl_match);
     TM_LABELS_ASSERT(kShieldTiming, 2, tm_sh_time_match);
+#endif
 
 #pragma dont_inline on
     static bool cpuExtraAvailable()
@@ -258,6 +247,17 @@ namespace pages {
         cpu::freezeCpuToggle();
     }
 
+    static bool cpuCustomDiActive()
+    {
+        return cpuLabControl() && main::settings().cpu.options.tdi == cpu::kTdiCustom;
+    }
+
+#ifdef __MWERKS__
+    extern Page kCpuOptions = {"CPU", NULL, 0, {0, 0, 0}};
+    extern Page kCpuDi = {"DI & SDI", NULL, 0, {0, 0, 0}};
+    extern Page kCpuCounters = {"Counters & Reversals", NULL, 0, {0, 0, 0}};
+    extern Page kCpuDefense = {"Shield & Grab", NULL, 0, {0, 0, 0}};
+#else
 #define TM_COUNTER_CHOICE(name, f, labels, count, def)                                              \
     TM_ROW(::tm::ui::kKindChoice, TM_HALF(f), TM_FIELD(f), TM_CHOICE_LO, (count) - 1, def, name, labels, NULL, \
            counterLabels)
@@ -282,11 +282,6 @@ namespace pages {
         TM_ROW_CHOICE_P(0, TM_FIELD(cpu.options.controlledBy), 5, 0, "Port Control", kControlledBy,
                         controlledByChanged, cpuLabControl)
     };
-
-    static bool cpuCustomDiActive()
-    {
-        return cpuLabControl() && main::settings().cpu.options.tdi == cpu::kTdiCustom;
-    }
 
     // CPU > DI & SDI (P_CPU_DI)
     static const Option kDiRows[] = {
@@ -342,6 +337,7 @@ namespace pages {
     extern const Page kCpuDi = TM_PAGE("DI & SDI", kDiRows);
     extern const Page kCpuCounters = TM_PAGE("Counters & Reversals", kCounterRows);
     extern const Page kCpuDefense = TM_PAGE("Shield & Grab", kDefenseRows);
+#endif
 
     // CPU > Counters & Reversals > Reversal Slots (P_REVERSALS)
     enum {
@@ -351,6 +347,7 @@ namespace pages {
                          && kRevTriggerScratchOffset < kScratchBytes,
                      tm_reversal_trigger_scratch_fits);
 
+#ifndef __MWERKS__
     TM_LABELS_BEGIN(kRevTriggers) TM_L("On-Hit") TM_L("On-Shield") TM_L("On-Getup") TM_L("On-Ledge") TM_LABELS_END
     TM_LABELS_BEGIN(kRevGetup) TM_L("None") TM_L("Stand") TM_L("Away") TM_L("Toward") TM_L("Attack") TM_LABELS_END
     TM_LABELS_BEGIN(kRevSlot1Getup) TM_L("Random") TM_L("Stand") TM_L("Away") TM_L("Toward") TM_L("Attack") TM_LABELS_END
@@ -359,6 +356,7 @@ namespace pages {
     TM_LABELS_ASSERT(kRevGetup, 5, tm_rev_getup_match);
     TM_LABELS_ASSERT(kRevSlot1Getup, 5, tm_rev_s1_getup_match);
     TM_LABELS_ASSERT(kRevLedge, 6, tm_rev_ledge_match);
+#endif
     static char s_revSlot1Label[28] = "Jab";
 
     static const char* stripMarker(const char* s)
@@ -393,11 +391,19 @@ namespace pages {
         }
         else if (trig == cpu::kRevOnGetup && c.getup < 5)
         {
+#ifdef __MWERKS__
+            src = packedLabelAt(pageStr(kPs_cpu_kRevSlot1Getup), c.getup);
+#else
             src = packedLabelAt(kRevSlot1Getup, c.getup);
+#endif
         }
         else if (trig == cpu::kRevOnLedge && c.ledgeOption < 7)
         {
+#ifdef __MWERKS__
+            src = packedLabelAt(pageStr(kPs_cpu_kLedgeOption), c.ledgeOption);
+#else
             src = packedLabelAt(kLedgeOption, c.ledgeOption);
+#endif
         }
         strncpy(s_revSlot1Label, src, sizeof(s_revSlot1Label) - 1);
         s_revSlot1Label[sizeof(s_revSlot1Label) - 1] = '\0';
@@ -416,6 +422,59 @@ namespace pages {
     static bool revTrig2() { return revTrig(cpu::kRevOnGetup); }
     static bool revTrig3() { return revTrig(cpu::kRevOnLedge); }
 
+#ifdef __MWERKS__
+    extern Page kReversalSlots = {"Reversal Slots", NULL, 0, {0, 0, 0}};
+
+    static void initReversalPage(Option* buf)
+    {
+        static const Option kRevHead[3] = {
+            TM_ROW(::tm::ui::kKindToggle, 0, TM_FIELD(cpu.options.multiReversal), 0, 1, 0, "Enabled", NULL, NULL,
+                   cpuExtraAvailable),
+            TM_ROW_CHOICE_P(::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled,
+                            kRevTriggerScratchOffset, 4, 0, "Trigger", NULL, NULL, revEnabled),
+            TM_ROW(::tm::ui::kKindInfo, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, "Slot 1 (Primary)", s_revSlot1Label,
+                   NULL, revEnabled)
+        };
+        const char* kActLbls[4] = {
+            kCounterGround, kCounterShield, pageStr(kPs_cpu_kRevGetup), pageStr(kPs_cpu_kRevLedge)
+        };
+        static const u8 kActMax[4] = {kCounterGroundSize - 1, kCounterShieldSize - 1, 4, 5};
+        static bool (*const kGates[4])() = {revTrig0, revTrig1, revTrig2, revTrig3};
+        memcpy(buf, kRevHead, sizeof(kRevHead));
+        buf[1].data = pageStr(kPs_cpu_kRevTriggers);
+        for (int i = 0; i < 4; i++)
+        {
+            Option* g = buf + 3 + i * 3;
+            g[0].kind = kKindChoice;
+            g[0].flags = kFlagHideWhenDisabled;
+            g[0].offset = static_cast<u16>(TM_FIELD(cpu.options.revSlot2Action) + i);
+            g[0].min = TM_CHOICE_LO;
+            g[0].max = kActMax[i];
+            g[0].name = pageStr(kPs_rev_act);
+            g[0].data = kActLbls[i];
+            g[0].enabled = kGates[i];
+
+            g[1].kind = kKindInt;
+            g[1].flags = kFlagHideWhenDisabled;
+            g[1].offset = static_cast<u16>(TM_FIELD(cpu.options.revSlot2Delay) + i);
+            g[1].max = 30;
+            g[1].name = pageStr(kPs_rev_dly);
+            g[1].data = pageStr(kPs_fmt_df);
+            g[1].enabled = kGates[i];
+
+            g[2].kind = kKindInt;
+            g[2].flags = kFlagHideWhenDisabled;
+            g[2].offset = static_cast<u16>(TM_FIELD(cpu.options.revSlot2Weight) + i);
+            g[2].def = 50;
+            g[2].max = 100;
+            g[2].name = pageStr(kPs_rev_wgt);
+            g[2].data = pageStr(kPs_fmt_pct);
+            g[2].enabled = kGates[i];
+        }
+        kReversalSlots.options = buf;
+        kReversalSlots.count = 15;
+    }
+#else
 #define TM_REV_ACT_P(idx, labels, count, gate)                                                                   \
     TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.revSlot2Action[idx]), count, 0,        \
                     "Slot 2 Action", labels, NULL, gate)
@@ -452,6 +511,7 @@ namespace pages {
 #undef TM_REV_WEIGHT
 
     extern const Page kReversalSlots = TM_PAGE("Reversal Slots", kRevRows);
+#endif
 
     // CPU > Counters & Reversals > Custom Pools (P_COUNTER_POOL)
     enum {
@@ -460,8 +520,10 @@ namespace pages {
     TM_STATIC_ASSERT(kPoolCatScratchOffset > kRevTriggerScratchOffset && kPoolCatScratchOffset < kScratchBytes,
                      tm_pool_cat_scratch_fits);
 
+#ifndef __MWERKS__
     TM_LABELS_BEGIN(kPoolCats) TM_L("Ground") TM_L("Air") TM_L("Shield") TM_LABELS_END
     TM_LABELS_ASSERT(kPoolCats, 3, tm_pool_cats_match);
+#endif
 
     static int activePoolCat()
     {
@@ -497,12 +559,12 @@ namespace pages {
 #ifdef __MWERKS__
     static const Option kPoolHead[3] = {
         TM_ROW_CHOICE_P(::tm::ui::kFlagScratch, kPoolCatScratchOffset, 3, 0,
-                        "Category", kPoolCats, NULL, cpuLabControl),
+                        "Category", NULL, NULL, cpuLabControl),
         TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Reset Pool", NULL, resetActivePool, cpuLabControl),
         TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Clear Pool", NULL, clearActivePool, cpuLabControl)
     };
 
-    void initPoolPage(Option* buf)
+    static void initPoolPage(Option* buf)
     {
 #define PBIT(idx, def) static_cast<u8>((idx) | ((def) << 7))
         static const u8 kSpec[62] = {
@@ -522,11 +584,12 @@ namespace pages {
         };
 #undef PBIT
         static const u8 kEnds[3] = {28, 45, 62};
-        static const char* const kLists[3] = {kCounterGround, kCounterAir, kCounterShield};
+        const char* kLists[3] = {kCounterGround, kCounterAir, kCounterShield};
         typedef bool (*GateFn)();
         static const GateFn kGates[3] = {poolCat0, poolCat1, poolCat2};
 
         memcpy(buf, kPoolHead, sizeof(kPoolHead));
+        buf[0].data = pageStr(kPs_cpu_kPoolCats);
         int cat = 0;
         for (int i = 0; i < 62; i++)
         {
@@ -553,6 +616,93 @@ namespace pages {
     }
 
     extern Page kCounterPool = {"Custom Pools", NULL, 0, {0, 0, 0}};
+
+    void initCpuPages(Option* buf)
+    {
+        kTdiLabels = pageStr(kPs_cpu_kTdiLabels);
+        kCounterGround = pageStr(kPs_cpu_kCounterGround);
+        kCounterAir = pageStr(kPs_cpu_kCounterAir);
+        kCounterShield = pageStr(kPs_cpu_kCounterShield);
+
+        const void* dataTbl[23] = {
+            "%d%%", pageStr(kPs_cpu_kControl), pageStr(kPs_cpu_kBehavior), pageStr(kPs_cpu_kRecovery),
+            pageStr(kPs_cpu_kLedgeOption), cpu::g_moveCpuLabel, cpu::g_freezeCpuLabel,
+            pageStr(kPs_cpu_kControlledBy), kTdiLabels, lab::g_diPickLabel, "%+d", "%d",
+            pageStr(kPs_cpu_kSdiDirection), pageStr(kPs_cpu_kAsdi), kCounterGround, kCounterAir,
+            kCounterShield, pageStr(kPs_cpu_kShieldTiming), "%df", pageStr(kPs_cpu_kAdaptiveMode),
+            pageStr(kPs_cpu_kShfflTiming), pageStr(kPs_cpu_kInfiniteShields), pageStr(kPs_cpu_kShieldAngle)
+        };
+        const void* defData[2] = {pageStr(kPs_cpu_kGrabEscape), pageStr(kPs_cpu_kGrabRelease)};
+        static void (*const kCbs[6])() = {
+            NULL, cpuPercent, moveCpu, freezeCpu, controlledByChanged, lab::toggleDiStickPicker
+        };
+        static bool (*const kGates[8])() = {
+            NULL, cpuLabControl, cpuCustomDiActive, cpuSdiActive, counterLabels, cpuExtraAvailable,
+            cpuShfflActive, cpuShieldHealthActive
+        };
+        static const RowSpec kMainS[14] = {
+            {kKindInt,    kFlagHalf, TM_FIELD(cpu.percent), 0, 0, 999, 0, 1, 0, 0},
+            {kKindToggle, 0, TM_FIELD(cpu.lockPercent), 0, 0, 1, 0xFF, 1, 0, 0},
+            {kKindInt,    0, TM_FIELD(recording.randomPercent[1]), 0, 0, savestate::kMaxRandomPercent, 0, 0, 0, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.control), TM_CHOICE_LO, cpu::kControlLab, 1, 1, 0, 0, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.behavior), TM_CHOICE_LO, 0, 4, 2, 0, 1, 0},
+            {kKindMenu,   0, 0, 0, 0, P_CPU_DI, 0xFF, 0, 1, 0},
+            {kKindMenu,   0, 0, 0, 0, P_CPU_COUNTERS, 0xFF, 0, 1, 0},
+            {kKindMenu,   0, 0, 0, 0, P_TECH, 0xFF, 0, 1, 0},
+            {kKindMenu,   0, 0, 0, 0, P_CPU_DEFENSE, 0xFF, 0, 1, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.recovery), TM_CHOICE_LO, cpu::kRecoveryPPlusAi, 2, 3, 0, 1, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.ledgeOption), TM_CHOICE_LO, cpu::kLedgeDefault, 6, 4, 0, 1, 0},
+            {kKindFunc,   0, 0, 0, 0, 0, 5, 2, 1, 0},
+            {kKindFunc,   0, 0, 0, 0, 0, 6, 3, 1, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.controlledBy), TM_CHOICE_LO, 0, 4, 7, 4, 1, 0}
+        };
+        static const RowSpec kDiS[8] = {
+            {kKindChoice, 0, TM_FIELD(cpu.options.tdi), TM_CHOICE_LO, 0, cpu::kTdiCount - 1, 8, 0, 1, 0},
+            {kKindFunc,   kFlagHideWhenDisabled, 0, 0, 0, 0, 9, 5, 2, 0},
+            {kKindInt,    kFlagSigned | kFlagHideWhenDisabled, TM_FIELD(cpuTables.customDiX), -100, 100, 100, 10, 0, 2, 0},
+            {kKindInt,    kFlagSigned | kFlagHideWhenDisabled, TM_FIELD(cpuTables.customDiY), -100, 0, 100, 10, 0, 2, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.sdiAmount), 0, 0, 7, 11, 0, 1, 0},
+            {kKindChoice, kFlagHideWhenDisabled, TM_FIELD(cpu.options.sdiDir), TM_CHOICE_LO, 0, 7, 12, 0, 3, 0},
+            {kKindToggle, kFlagHideWhenDisabled, TM_FIELD(cpu.options.dualStickSdi), 0, 0, 1, 0xFF, 0, 3, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.asdi), TM_CHOICE_LO, 0, 6, 13, 0, 1, 0}
+        };
+        static const RowSpec kCtrS[11] = {
+            {kKindChoice, 0, TM_FIELD(cpu.options.counterGround), TM_CHOICE_LO, 13, kCounterGroundSize - 1, 14, 0, 4, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.counterAir), TM_CHOICE_LO, 1, kCounterAirSize - 1, 15, 0, 4, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.counterShield), TM_CHOICE_LO, 1, kCounterShieldSize - 1, 16, 0, 4, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.shieldTiming), TM_CHOICE_LO, cpu::kShieldTimingFullMove, 1, 17, 0, 1, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.counterDelay), 0, 0, 99, 18, 0, 1, 0},
+            {kKindMenu,   0, 0, 0, 0, P_COUNTER_POOL, 0xFF, 0, 1, 0},
+            {kKindMenu,   0, 0, 0, 0, P_ADVANCED_COUNTER, 0xFF, 0, 1, 0},
+            {kKindMenu,   0, 0, 0, 0, P_REVERSALS, 0xFF, 0, 5, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.adaptiveMode), TM_CHOICE_LO, cpu::kAdaptiveOff, 2, 19, 0, 5, 0},
+            {kKindToggle, 0, TM_FIELD(cpu.options.autoLCancel), 0, 1, 1, 0xFF, 0, 1, 0},
+            {kKindChoice, kFlagHideWhenDisabled, TM_FIELD(cpu.options.shfflTiming), TM_CHOICE_LO, cpu::kShfflFramePerfect, 4, 20, 0, 6, 0}
+        };
+        static const RowSpec kDefS[7] = {
+            {kKindChoice, 0, TM_FIELD(cpu.options.infiniteShields), TM_CHOICE_LO, 1, 2, 21, 0, 1, 0},
+            {kKindInt,    kFlagHideWhenDisabled, TM_FIELD(cpu.options.shieldHealth), 0, 60, 60, 11, 0, 7, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.shieldAngle), TM_CHOICE_LO, 0, 4, 22, 0, 1, 0},
+            {kKindToggle, 0, TM_FIELD(cpu.options.intangible), 0, 0, 1, 0xFF, 0, 1, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.grabEscape), TM_CHOICE_LO, 0, 3, 0, 0, 1, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.grabRelease), TM_CHOICE_LO, 0, 1, 1, 0, 1, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.clatterEscape), TM_CHOICE_LO, cpu::kMashNone, 3, 0, 0, 1, 0}
+        };
+        fillPageRows(kCpuOptions, buf, 14, kMainS, pageStr(kPs_cpu_main_names), dataTbl, kCbs, kGates);
+        buf += 14;
+        fillPageRows(kCpuDi, buf, 8, kDiS, pageStr(kPs_cpu_di_names), dataTbl, kCbs, kGates);
+        buf += 8;
+        fillPageRows(kCpuCounters, buf, 11, kCtrS, pageStr(kPs_cpu_ctr_names), dataTbl, kCbs, kGates);
+        buf += 11;
+        fillPageRows(kCpuDefense, buf, 7, kDefS, pageStr(kPs_cpu_def_names), dataTbl, kCbs, kGates);
+        buf[4].data = defData[0];
+        buf[5].data = defData[1];
+        buf[6].data = defData[0];
+        buf += 7;
+        initReversalPage(buf);
+        buf += 15;
+        initPoolPage(buf);
+    }
 #else
 #define TM_POOL_BIT(cat, idx, def, name, gate)                                                                    \
     TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagBit | ::tm::ui::kFlagHideWhenDisabled,                           \

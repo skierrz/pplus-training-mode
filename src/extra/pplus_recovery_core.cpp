@@ -4,6 +4,9 @@
 
 #include "extra/net_alloc.h"
 #include "extra/stage_geom_math.h"
+#ifdef __MWERKS__
+#include "shared/game/stick.h"
+#endif
 
 namespace tm {
 namespace extra {
@@ -43,7 +46,12 @@ namespace extra {
     };
 
     // Portable fast square root (zero libm dependency for MWCC and MSVC).
-#pragma dont_inline on
+#ifdef __MWERKS__
+    static inline float recSqrt(float s)
+    {
+        return game::stickRoot(s);
+    }
+#else
     static float recSqrt(float s)
     {
         if (s <= 0.0f)
@@ -57,7 +65,7 @@ namespace extra {
         }
         return g;
     }
-#pragma dont_inline reset
+#endif
 
     static inline float recAbs(float v)
     {

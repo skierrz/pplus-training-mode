@@ -56,10 +56,15 @@ namespace ui {
         int stunLeft;
         int stunTotal;
     };
-    static StatusClock s_clock[main::kSideCount] = {{-1, -1, 0, 0, 0}, {-1, -1, 0, 0, 0}};
+    static StatusClock s_clock[main::kSideCount];
+    static bool s_clockInit = false;
 
     void infoStep(bool previousRan)
     {
+        if (!s_clockInit)
+        {
+            infoReset();
+        }
         for (int side = 0; side < main::kSideCount; side++)
         {
             game::FighterRef ref;
@@ -94,9 +99,14 @@ namespace ui {
 
     void infoReset()
     {
+        s_clockInit = true;
         for (int side = 0; side < main::kSideCount; side++)
         {
             s_clock[side].entryId = -1;
+            s_clock[side].status = -1;
+            s_clock[side].frames = 0;
+            s_clock[side].stunLeft = 0;
+            s_clock[side].stunTotal = 0;
         }
     }
 

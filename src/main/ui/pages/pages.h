@@ -52,17 +52,17 @@ namespace pages {
 #endif
 
     extern const Page kGeneral;
-    extern const Page kScenarios;
-    extern const Page kCpuOptions;
+    extern TM_PAGE_QUAL Page kScenarios;
+    extern TM_PAGE_QUAL Page kCpuOptions;
     extern const Page kRecording;
     extern const Page kDisplayOptions;
-    extern const Page kOsdMenu;
+    extern TM_PAGE_QUAL Page kOsdMenu;
     extern TM_PAGE_QUAL Page kStageCast;
     extern const Page kControls;
     extern const Page kDebug;
-    extern const Page kComboTrainer;
-    extern const Page kComboMeters;
-    extern const Page kTechOptions;
+    extern TM_PAGE_QUAL Page kComboTrainer;
+    extern TM_PAGE_QUAL Page kComboMeters;
+    extern TM_PAGE_QUAL Page kTechOptions;
     extern const Page kAdvancedCounter;
     extern const Page kSlotManagement;
     extern const Page kAlterInputs;
@@ -75,19 +75,39 @@ namespace pages {
     extern const Page kLedgedashHud;
     extern const Page kFighterSwap;
     extern const Page kTheme;
-    extern const Page kReversalSlots;
-    extern const Page kCpuDi;
-    extern const Page kCpuCounters;
-    extern const Page kCpuDefense;
+    extern TM_PAGE_QUAL Page kReversalSlots;
+    extern TM_PAGE_QUAL Page kCpuDi;
+    extern TM_PAGE_QUAL Page kCpuCounters;
+    extern TM_PAGE_QUAL Page kCpuDefense;
     extern TM_PAGE_QUAL Page kCounterPool;
 
 #ifdef __MWERKS__
+    struct RowSpec {
+        u8 kind;
+        u8 flags;
+        u16 off;
+        s8 lo;
+        s8 def;
+        s16 hi;
+        u8 dataIdx; // 0xFF = NULL
+        u8 cbIdx;   // 0 = NULL
+        u8 gateIdx; // 0 = NULL
+        u8 pad;
+    };
+
+    void fillPageRows(Page& page, Option* buf, int count, const RowSpec* specs, const char* names,
+                      const void* const* dataTbl, void (*const* cbTbl)(), bool (*const* gateTbl)());
     void pagesAttach();
     void pagesDetach();
-    void initPoolPage(Option* buf);
-    void initCpuOverlaysPage(Option* buf);
-    void initCpuInfoPage(Option* buf);
+    void initCpuPages(Option* buf);
+    void initAdvancedCounterPage();
+    void initOverlayPages(Option* buf);
+    void initInfoPages(Option* buf);
     void initStageCastPage(Option* buf);
+    void initScenariosPage(Option* buf);
+    void initOsdMenuPage(Option* buf);
+    void initComboTrainerPages(Option* buf);
+    void initTechOptionsPage(Option* buf);
 #endif
 
     // Indexed by PageId (registry.cpp).

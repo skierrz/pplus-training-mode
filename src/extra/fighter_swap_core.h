@@ -64,15 +64,12 @@ namespace extra {
     }
 
     // Alphabetical P+ 3.2.1 roster (41 standard fighters + Ice Climbers/Sopo +
-    // Giga Bowser + Wario-Man = 45 entries). Out-of-line on MWCC so ui_assets.o
-    // does not emit a duplicate copy of the 45-entry table.
-#if defined(__MWERKS__) && !defined(TM_FIGHTER_SWAP_IMPL)
+    // Giga Bowser + Wario-Man = 45 entries). Out-of-line on MWCC (built in
+    // Heaps::Network inside fighter_swap.cpp with zero pointer relocations).
+#if defined(__MWERKS__)
     const FighterSwapEntry* fighterSwapRoster();
 #else
-#ifndef __MWERKS__
-    inline
-#endif
-    const FighterSwapEntry* fighterSwapRoster()
+    inline const FighterSwapEntry* fighterSwapRoster()
     {
         static const FighterSwapEntry kRoster[kFighterSwapCount] = {
             {"Bowser",           0x0C, 0x0C, 0x0C},
@@ -127,16 +124,21 @@ namespace extra {
 
     inline const FighterSwapEntry* fighterSwapAt(int index)
     {
-        if (index < 0 || index >= kFighterSwapCount)
+        const FighterSwapEntry* r = fighterSwapRoster();
+        if (r == NULL || index < 0 || index >= kFighterSwapCount)
         {
             return NULL;
         }
-        return &fighterSwapRoster()[index];
+        return &r[index];
     }
 
     inline int fighterSwapIndexOfKind(u8 gmKind)
     {
         const FighterSwapEntry* r = fighterSwapRoster();
+        if (r == NULL)
+        {
+            return -1;
+        }
         for (int i = 0; i < kFighterSwapCount; i++)
         {
             if (r[i].gmKind == gmKind)

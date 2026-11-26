@@ -29,6 +29,28 @@ namespace pages {
 #define TM_ADV_DELAY(name, f) \
     TM_ROW(::tm::ui::kKindInt, 0, TM_FIELD(f), 0, 99, 0, name, "%df", valueChanged, custom)
 
+#ifdef __MWERKS__
+    static Option kRows[] = {
+        TM_ROW(::tm::ui::kKindInt, 0, TM_FIELD(cpu.options.advHit), 1, cpu::kAdvancedHits, 1, "Hit Index", "%d",
+               hitChanged, cpuLabControl),
+        TM_ROW_CHOICE_P(0, TM_FIELD(cpu.options.advLogic), kLogicCount, 0, "Hit Rule",
+                        kLogic, valueChanged, cpuLabControl),
+        TM_ADV_CHOICE("Ground Action", cpu.options.advGround, NULL, kCounterGroundSize, 13),
+        TM_ROW_CHOICE_P(0, TM_FIELD(cpu.options.advAir), kCounterAirSize, 1, "Air Action",
+                        NULL, valueChanged, custom),
+        TM_ADV_CHOICE("Shield Action", cpu.options.advShield, NULL, kCounterShieldSize, 1),
+        TM_ADV_DELAY("Ground Delay", cpu.options.advDelayGround),
+        TM_ADV_DELAY("Air Delay", cpu.options.advDelayAir),
+        TM_ADV_DELAY("Shield Delay", cpu.options.advDelayShield)
+    };
+
+    void initAdvancedCounterPage()
+    {
+        kRows[2].data = kCounterGround;
+        kRows[3].data = kCounterAir;
+        kRows[4].data = kCounterShield;
+    }
+#else
     static const Option kRows[] = {
         TM_ROW(::tm::ui::kKindInt, 0, TM_FIELD(cpu.options.advHit), 1, cpu::kAdvancedHits, 1, "Hit Index", "%d",
                hitChanged, cpuLabControl),
@@ -42,6 +64,7 @@ namespace pages {
         TM_ADV_DELAY("Air Delay", cpu.options.advDelayAir),
         TM_ADV_DELAY("Shield Delay", cpu.options.advDelayShield)
     };
+#endif
 
 #undef TM_ADV_CHOICE
 #undef TM_ADV_DELAY

@@ -1,9 +1,11 @@
 #include "main/ui/pages/cpu_rows.h"
+#include "main/ui/pages/page_strings.h"
 #include "main/ui/pages/pages.h"
 
 namespace tm {
 namespace ui {
 namespace pages {
+#ifndef __MWERKS__
     TM_LABELS_EXTERN_BEGIN(kTechInvisLabels, 4) TM_L("Off") TM_L("CPU") TM_L("All") TM_L("Flash") TM_LABELS_END
     TM_LABELS_EXTERN_BEGIN(kPreTechDriftLabels, 6)
         TM_L("Off") TM_L("Random") TM_L("In") TM_L("Out") TM_L("Toward Tech") TM_L("Away From Tech")
@@ -18,6 +20,7 @@ namespace pages {
     TM_LABELS_ASSERT(kGetUp, 5, tm_getup_match);
     TM_LABELS_ASSERT(kTechTrap, 3, tm_tech_trap_match);
     TM_LABELS_ASSERT(kLockout, 2, tm_lockout_match);
+#endif
 
     static bool techInvisActive()
     {
@@ -79,6 +82,41 @@ namespace pages {
     TM_REBALANCE(getup3, getupChance, 3)
 #undef TM_REBALANCE
 
+#ifdef __MWERKS__
+    extern Page kTechOptions = {"Tech & Getup", NULL, 0, {0, 0, 0}};
+
+    void initTechOptionsPage(Option* buf)
+    {
+        const void* dataTbl[8] = {
+            pageStr(kPs_tech_kTech), pageStr(kPs_tech_kGetUp), pageStr(kPs_tech_kTechInvisLabels), "%df",
+            pageStr(kPs_tech_kTechTrap), pageStr(kPs_tech_kLockout), pageStr(kPs_tech_kPreTechDriftLabels), "%d%%"
+        };
+        static bool (*const kGates[6])() = {
+            NULL, cpuLabControl, techInvisActive, techNotMiss, techRandom, getupRandom
+        };
+        static void (*const kCbs[9])() = {NULL, tech0, tech1, tech2, tech3, getup0, getup1, getup2, getup3};
+        static const RowSpec kTs[17] = {
+            {kKindChoice, 0, TM_FIELD(cpu.options.tech), TM_CHOICE_LO, 0, 4, 0, 0, 1, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.getup), TM_CHOICE_LO, 0, 4, 1, 0, 1, 0},
+            {kKindChoice, 0, TM_FIELD(techInvis.mode), TM_CHOICE_LO, 0, 3, 2, 0, 0, 0},
+            {kKindInt,    kFlagHideWhenDisabled, TM_FIELD(techInvis.delay), 0, 0, 15, 3, 0, 2, 0},
+            {kKindToggle, 0, TM_FIELD(cpu.options.techSound), 0, 0, 1, 0xFF, 0, 3, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.techTrap), TM_CHOICE_LO, 0, 2, 4, 0, 3, 0},
+            {kKindChoice, 0, TM_FIELD(cpu.options.techLockout), TM_CHOICE_LO, 0, 1, 5, 0, 3, 0},
+            {kKindChoice, 0, TM_FIELD(techInvis.preTechDrift), TM_CHOICE_LO, 0, 5, 6, 0, 1, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.techChance[0]), 0, 25, 100, 7, 1, 4, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.techChance[1]), 0, 25, 100, 7, 2, 4, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.techChance[2]), 0, 25, 100, 7, 3, 4, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.techChance[3]), 0, 25, 100, 7, 4, 4, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.missTechWait), 0, 0, 100, 7, 0, 1, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.getupChance[0]), 0, 25, 100, 7, 5, 5, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.getupChance[1]), 0, 25, 100, 7, 6, 5, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.getupChance[2]), 0, 25, 100, 7, 7, 5, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.getupChance[3]), 0, 25, 100, 7, 8, 5, 0}
+        };
+        fillPageRows(kTechOptions, buf, 17, kTs, pageStr(kPs_tech_names), dataTbl, kCbs, kGates);
+    }
+#else
 #define TM_CHANCE(name, f, onChange, enabled) \
     TM_ROW(::tm::ui::kKindInt, 0, TM_FIELD(f), 0, 100, 25, name, "%d%%", onChange, enabled)
 
@@ -106,6 +144,7 @@ namespace pages {
 #undef TM_CHANCE
 
     extern const Page kTechOptions = TM_PAGE("Tech & Getup", kRows);
+#endif
 }
 }
 }

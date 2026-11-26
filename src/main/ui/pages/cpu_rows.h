@@ -9,15 +9,17 @@ namespace pages {
     bool cpuLabControl();
 
     enum { kCounterGroundSize = 57, kCounterAirSize = 35, kCounterShieldSize = 50 };
-    TM_LABELS_EXTERN_DECL(kTdiLabels, cpu::kTdiCount);
 #ifdef __MWERKS__
-    extern const char kCounterGround[];
-    extern const char kCounterShield[];
+    extern const char* kTdiLabels;
+    extern const char* kCounterGround;
+    extern const char* kCounterAir;
+    extern const char* kCounterShield;
 #else
+    TM_LABELS_EXTERN_DECL(kTdiLabels, cpu::kTdiCount);
     extern const char* kCounterGround[kCounterGroundSize];
     extern const char* kCounterShield[kCounterShieldSize];
-#endif
     TM_LABELS_EXTERN_DECL(kCounterAir, kCounterAirSize);
+#endif
     // Enables/disables fighter-specific DJC/Float counter labels for the active CPU.
     bool counterLabels();
 }

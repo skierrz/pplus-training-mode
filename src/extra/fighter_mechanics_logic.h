@@ -243,13 +243,13 @@ namespace extra {
     {
         plan.clear();
         struct MechRule {
-            u8 ft, fieldOff, count, kind;
-            u32 varId;
-            s16 vals[4]; // choice - 1 (value -2 means skip op for this choice)
+            u8 ft, fieldOff, count, kindScale, varLo;
+            s8 vals[4]; // choice - 1 (value -2 means skip op; kindScale & 0x80 multiplies value by 30)
         };
-        enum { kSkip = -2 };
+        enum { kSkip = -2, kScale30 = 0x80 };
 #define MR(f, fld, cnt, knd, id, v1, v2, v3, v4) \
-    {f, static_cast<u8>(offsetof(main::FighterMechanicsSettings, fld)), cnt, knd, id, {v1, v2, v3, v4}}
+    {f, static_cast<u8>(offsetof(main::FighterMechanicsSettings, fld)), cnt, knd, static_cast<u8>((id) & 0xFFu), \
+     {v1, v2, v3, v4}}
         static const MechRule kRules[] = {
             MR(kFtGameWatch, gnwBucket, main::kGnwBucketCount, kOpFloat, kVarGnwBucketCount, 0, 1, 2, 3),
             MR(kFtGameWatch, gnwBucket, main::kGnwBucketCount, kOpFloat, kVarGnwBucketDamage, 0, 12, 24, 36),
@@ -268,7 +268,7 @@ namespace extra {
             MR(kFtLucario, lucarioSphere, main::kCharge2Count, kOpInt, kVarLucarioSphereStored, -1, 4, 0, 0),
             MR(kFtLucario, lucarioSphere, main::kCharge2Count, kOpFlag, kVarLucarioSphereHas, 0, 1, 0, 0),
             MR(kFtLucario, lucarioSphere, main::kCharge2Count, kOpFlag, kVarLucarioSphereFull, 0, 1, 0, 0),
-            MR(kFtWario, warioWaft, main::kCharge3Count, kOpInt, kVarWarioWaftFrames, 0, 1800, 3600, 0),
+            MR(kFtWario, warioWaft, main::kCharge3Count, kOpInt | kScale30, kVarWarioWaftFrames, 0, 60, 120, 0),
             MR(kFtWario, warioWaft, main::kCharge3Count, kOpInt, kVarWarioWaftStage, 0, 2, 3, 0),
             MR(kFtWario, warioWaft, main::kCharge3Count, kOpFlag, kVarWarioWaftFull, 0, 0, 1, 0),
             MR(kFtDonkeyKong, dkPunch, main::kCharge2Count, kOpInt, kVarDkPunch, 0, 10, 0, 0),
@@ -276,7 +276,7 @@ namespace extra {
             MR(kFtRob, robAirBoosts, main::kMechToggleCount, kOpInt, kVarRobAirBoosts, 3, 0, 0, 0),
             MR(kFtRob, robAirBoosts, main::kMechToggleCount, kOpFlag, kVarRobBoostExhausted, 0, 0, 0, 0),
             MR(kFtRob, robGyro, main::kCharge2Count, kOpFloat, kVarRobGyro, 0, 90, 0, 0),
-            MR(kFtRob, robBeam, main::kRobBeamCount, kOpFloat, kVarRobBeam, 0, 300, 900, 0),
+            MR(kFtRob, robBeam, main::kRobBeamCount, kOpFloat | kScale30, kVarRobBeam, 0, 10, 30, 0),
             MR(kFtSquirtle, squirtleWaterGun, main::kCharge2Count, kOpInt, kVarSquirtleWaterGun, 0, 60, 0, 0),
             MR(kFtSheik, sheikNeedles, main::kSheikNeedlesCount, kOpInt, kVarSheikNeedles, 0, 6, 0, 0),
             MR(kFtSheik, sheikNeedles, main::kSheikNeedlesCount, kOpFlag, kVarSheikNeedlesFull, 0, 1, 0, 0),
@@ -300,22 +300,28 @@ namespace extra {
             {
                 continue;
             }
-            s16 v = r.vals[choice - 1];
+            int v = r.vals[choice - 1];
             if (v == kSkip)
             {
                 continue;
             }
-            if (r.kind == kOpInt)
+            if ((r.kindScale & kScale30) != 0)
             {
-                plan.addInt(r.varId, v);
+                v *= 30;
             }
-            else if (r.kind == kOpFloat)
+            u8 kind = r.kindScale & 0x7Fu;
+            u32 varId = 0x10000000u | (static_cast<u32>(kind) << 24) | static_cast<u32>(r.varLo);
+            if (kind == kOpInt)
             {
-                plan.addFloat(r.varId, static_cast<float>(v));
+                plan.addInt(varId, v);
+            }
+            else if (kind == kOpFloat)
+            {
+                plan.addFloat(varId, static_cast<float>(v));
             }
             else
             {
-                plan.addFlag(r.varId, v != 0);
+                plan.addFlag(varId, v != 0);
             }
         }
         if (ftKind == kFtPeach && clampChoice(s.peachFloat, main::kMechToggleCount) == main::kMechAlways)

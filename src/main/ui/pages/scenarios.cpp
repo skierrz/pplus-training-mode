@@ -4,6 +4,7 @@
 
 #include "main/extra.h"
 #include "main/ui/pages/cpu_rows.h"
+#include "main/ui/pages/page_strings.h"
 #include "main/ui/pages/pages.h"
 
 // Unified P+ Lab Scenario Presets and Combo Trainer entry.
@@ -11,8 +12,10 @@
 namespace tm {
 namespace ui {
 namespace pages {
+#ifndef __MWERKS__
     TM_LABELS_EXTERN_DECL(kTechInvisLabels, 4);
     TM_LABELS_EXTERN_DECL(kPreTechDriftLabels, 6);
+#endif
 
 #pragma dont_inline on
     static u8 activePreset()
@@ -96,6 +99,99 @@ namespace pages {
     static bool practicePsActive() { return practiceDrillIs(5); }
     static bool practicePsProjActive() { return practiceDrillIs(5) && practiceMenuState()->psAttackMode == 0; }
 
+#ifdef __MWERKS__
+    static const u16 kScenLblOffs[35] = {
+        kPs_scen_kPresets, kPs_scen_kSides, kPs_scen_kTechSetups, kPs_scen_kTechPositions, kPs_scen_kTechEscapes,
+        kPs_tech_kTechInvisLabels, kPs_tech_kPreTechDriftLabels, kPs_scen_kTechTdis, kPs_scen_kEdgeSetups,
+        kPs_scen_kEdgeStrengths, kPs_scen_kEdgeDists, kPs_scen_kEdgeDjs, kPs_scen_kEdgeMixups, kPs_scen_kShieldRoles,
+        kPs_scen_kOosActions, kPs_scen_kShieldDefAttacks, kPs_scen_kLtStarts, kPs_scen_kLtTimings,
+        kPs_scen_kLedgetechSpawns, kPs_scen_kLedgetechAttacks, kPs_scen_kShieldDropPlats, kPs_scen_kShieldDropAttacks,
+        kPs_scen_kShieldDropSpacing, kPs_scen_kShieldDropFacing, kPs_scen_kSlideOffAttacks, kPs_scen_kGrabActions,
+        kPs_scen_kGrabPctModes, kPs_scen_kMultiHitMoves, kPs_scen_kPracticeModes, kPs_scen_kPsAtkModes,
+        kPs_scen_kPsHeights, kPs_scen_kPsCadences, kPs_scen_kLedgeSides, kPs_scen_kLedgeInvulns,
+        kPs_scen_kPracticeTargets
+    };
+    static bool (*const kScenGates[])() = {
+        NULL, main::extraLoaded, scenarioActive, scenarioSideActive, scenarioTechchaseActive,
+        scenarioTechInvisDelayActive, scenarioEdgeguardActive, scenarioEdgeguardLaunchActive,
+        scenarioEdgeguardSpawnActive, scenarioShieldPressureActive, scenarioShieldOffenseActive,
+        scenarioShieldDefenseActive, scenarioLedgetechActive, scenarioShieldDropActive, scenarioSlideOffActive,
+        scenarioGrabActive, scenarioMultiHitActive, practiceActive, practicePsActive, practicePsProjActive,
+        practiceLedgeActive, practiceLcActive, practiceFloatActive, practiceWdActive, comboTrainerAvailable
+    };
+    static void (*const kScenCbs[])() = {
+        NULL, main::extraScenarioChanged, main::extraScenarioResetNow, practiceChanged
+    };
+    enum {
+        kScenRows = 45,
+        kScenFlagHide = ::tm::ui::kFlagHideWhenDisabled,
+        kScenFlagSH = ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled
+    };
+#define SC_OFF(f) static_cast<u16>(kScenarioScratchOffset + offsetof(ScenarioMenuState, f))
+#define PR_OFF(f) static_cast<u16>(kPracticeScratchOffset + offsetof(PracticeMenuState, f))
+    static const RowSpec kScenSpecs[kScenRows] = {
+        {kKindChoice, ::tm::ui::kFlagScratch, SC_OFF(preset), TM_CHOICE_LO, 0, 9, 0, 1, 1, 0},
+        {kKindToggle, kScenFlagSH, SC_OFF(autoReset), 0, 1, 1, 0xFF, 1, 2, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(side), TM_CHOICE_LO, 0, 2, 1, 1, 3, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(techSetup), TM_CHOICE_LO, 0, 1, 2, 1, 4, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(techPosition), TM_CHOICE_LO, 0, 4, 3, 1, 4, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(techEscape), TM_CHOICE_LO, 0, 6, 4, 1, 4, 0},
+        {kKindToggle, kScenFlagSH, SC_OFF(techShowReaction), 0, 0, 1, 0xFF, 1, 4, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(techInvisMode), TM_CHOICE_LO, 0, 3, 5, 1, 4, 0},
+        {kKindInt,    kScenFlagSH, SC_OFF(techInvisDelay), 0, 0, 15, 35, 1, 5, 0},
+        {kKindToggle, kScenFlagSH, SC_OFF(techSound), 0, 0, 1, 0xFF, 1, 4, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(techPreDrift), TM_CHOICE_LO, 0, 5, 6, 1, 4, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(techTdi), TM_CHOICE_LO, 0, 4, 7, 1, 4, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(edgeguardSetup), TM_CHOICE_LO, 0, 1, 8, 1, 6, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(edgeguardStrength), TM_CHOICE_LO, 1, 3, 9, 1, 7, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(edgeguardDist), TM_CHOICE_LO, 0, 3, 10, 1, 8, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(edgeguardDj), TM_CHOICE_LO, 0, 2, 11, 1, 8, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(edgeguardMixup), TM_CHOICE_LO, 0, 3, 12, 1, 6, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(shieldRole), TM_CHOICE_LO, 0, 1, 13, 1, 9, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(oosAction), TM_CHOICE_LO, 0, 7, 14, 1, 10, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(shieldDefAttack), TM_CHOICE_LO, 0, 5, 15, 1, 11, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(ledgetechStart), TM_CHOICE_LO, 0, 1, 16, 1, 12, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(ledgetechTiming), TM_CHOICE_LO, 0, 1, 17, 1, 12, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(ledgetechSpawn), TM_CHOICE_LO, 0, 4, 18, 1, 12, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(ledgetechDj), TM_CHOICE_LO, 0, 1, 11, 1, 12, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(ledgetechAttack), TM_CHOICE_LO, 3, 7, 19, 1, 12, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(shieldDropPlat), TM_CHOICE_LO, 0, 3, 20, 1, 13, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(shieldDropAttack), TM_CHOICE_LO, 0, 3, 21, 1, 13, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(shieldDropSpacing), TM_CHOICE_LO, 0, 3, 22, 1, 13, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(shieldDropFacing), TM_CHOICE_LO, 0, 2, 23, 1, 13, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(slideOffAttack), TM_CHOICE_LO, 0, 3, 24, 1, 14, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(grabAction), TM_CHOICE_LO, 0, 6, 25, 1, 15, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(grabPctMode), TM_CHOICE_LO, 0, 1, 26, 1, 15, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(multiHitMove), TM_CHOICE_LO, 0, 8, 27, 1, 16, 0},
+        {kKindFunc,   kScenFlagHide, 0, 0, 0, 0, 0xFF, 2, 2, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(mode), TM_CHOICE_LO, 0, 2, 28, 3, 17, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(psAttackMode), TM_CHOICE_LO, 0, 1, 29, 3, 18, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(psHeight), TM_CHOICE_LO, 0, 4, 30, 3, 19, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(psCadence), TM_CHOICE_LO, 1, 3, 31, 3, 18, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(ledgeResetSide), TM_CHOICE_LO, 0, 2, 32, 3, 20, 0},
+        {kKindToggle, kScenFlagSH, PR_OFF(ledgeAutoReset), 0, 1, 1, 0xFF, 3, 20, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(ledgeInvulnLimit), TM_CHOICE_LO, 0, 1, 33, 3, 20, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(lcancelTarget), TM_CHOICE_LO, 1, 3, 34, 3, 21, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(floatDjcTarget), TM_CHOICE_LO, 1, 3, 34, 3, 22, 0},
+        {kKindToggle, kScenFlagSH, PR_OFF(wdTargetZone), 0, 0, 1, 0xFF, 3, 23, 0},
+        {kKindMenu,   0, 0, 0, 0, P_COMBO_TRAINER, 0xFF, 0, 24, 0}
+    };
+#undef SC_OFF
+#undef PR_OFF
+
+    extern Page kScenarios = {"Scenarios", NULL, 0, {0, 0, 0}};
+
+    void initScenariosPage(Option* buf)
+    {
+        const void* dataTbl[36];
+        for (int i = 0; i < 35; i++)
+        {
+            dataTbl[i] = pageStr(kScenLblOffs[i]);
+        }
+        dataTbl[35] = pageStr(kPs_fmt_df);
+        fillPageRows(kScenarios, buf, kScenRows, kScenSpecs, pageStr(kPs_scen_names), dataTbl, kScenCbs, kScenGates);
+    }
+#else
     TM_LABELS_BEGIN(kPresets)
         TM_L("Off") TM_L("Combo Lab") TM_L("Techchase") TM_L("Edgeguard") TM_L("Shield Pressure / OoS")
         TM_L("Shield Drop") TM_L("Ledgetech") TM_L("Slide-Off") TM_L("Grab Defense / Throw DI") TM_L("P+ Multi-Hit SDI")
@@ -231,6 +327,7 @@ namespace pages {
 #undef TM_SCEN_OFF
 
     extern const Page kScenarios = TM_PAGE("Scenarios", kRows);
+#endif
 }
 }
 }
