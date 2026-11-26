@@ -544,7 +544,9 @@ TEST(menu, pages_open_and_close_and_the_depth_is_bounded)
         steps++;
     }
     CHECK_EQ(ui::kMaxDepth - 1, steps);
-    CHECK_EQ(steps, sounds(game::kSoundBack));
+    // Internal subpage returns use stock Brawl navigation tick (kSoundMove), not heavy exit SFX.
+    CHECK_EQ(steps, sounds(game::kSoundMove));
+    CHECK_EQ(0, sounds(game::kSoundBack));
     CHECK_EQ(0, s_state.cursor[1]);
     CHECK_EQ(kRowSub, cursor());
     CHECK(!press(0, 0, 0, 0, false, true));
@@ -1530,5 +1532,66 @@ TEST(lab_menu, ux9_osd_presets_reversal_slot1_and_random_percent_mirrors)
     CHECK_EQ(25, static_cast<int>(main::settings().recording.randomPercent[1]));
 
     main::setExtraHooks(NULL);
+    storage::detach();
+}
+
+TEST(lab_menu, rail_focus_suppresses_competing_category_highlight_and_uses_move_sfx)
+{
+    bootLab();
+    const ui::MenuDef& menu = ui::labMenu();
+    main::settings().controls.menuStyle = main::kMenuStyleRail;
+    ui::MenuState st;
+    memset(&st, 0, sizeof(st));
+    st.stack[0] = menu.categoryPages[0];
+
+    // Move focus from right pane back to left rail with B -> uses kSoundMove (0 kSoundBack).
+    host::log::clear();
+    ui::MenuInput pressB;
+    memset(&pressB, 0, sizeof(pressB));
+    pressB.b = true;
+    CHECK(ui::menuStep(menu, st, pressB));
+    CHECK(st.railFocus);
+    CHECK_EQ(1, sounds(game::kSoundMove));
+    CHECK_EQ(0, sounds(game::kSoundBack));
+
+    // Move rail cursor down onto a utility row (Return to CSS) while category == 0.
+    st.category = 0;
+    st.railFocus = true;
+    st.railCursor = menu.categoryCount;
+    gfx::setXScale(1.0f);
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+
+    // Count bevel rectangles drawn in the category 0 slot y-band:
+    // category 0 must draw NO teal accent bevel bar while railFocus == true.
+    float cat0Top = ui::style::kRailItemTop;
+    float cat0Bot = cat0Top + ui::style::kRailItemH;
+    int cat0BevelRects = 0;
+    for (int i = 0; i < host::canvas::rects(); i++)
+    {
+        const host::canvas::Rect& r = host::canvas::rect(i);
+        if (r.x < ui::style::kRailRight && r.y >= cat0Top - 1.0f && r.y + r.height <= cat0Bot + 1.0f
+            && r.width > 100.0f)
+        {
+            cat0BevelRects++;
+        }
+    }
+    CHECK_EQ(0, cat0BevelRects);
+
+    // When focus returns to the right pane (railFocus == false), category 0 draws its active accent bevel bar.
+    st.railFocus = false;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    int activeBevelRects = 0;
+    for (int i = 0; i < host::canvas::rects(); i++)
+    {
+        const host::canvas::Rect& r = host::canvas::rect(i);
+        if (r.x < ui::style::kRailRight && r.y >= cat0Top - 1.0f && r.y + r.height <= cat0Bot + 1.0f
+            && r.width > 100.0f)
+        {
+            activeBevelRects++;
+        }
+    }
+    CHECK(activeBevelRects >= 1);
     storage::detach();
 }

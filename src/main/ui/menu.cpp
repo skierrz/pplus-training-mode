@@ -617,7 +617,7 @@ namespace ui {
                 {
                     state.cursor[parentId] = static_cast<u8>(nearestSelectable(parent, state.cursor[parentId]));
                 }
-                sound = game::kSoundBack;
+                sound = game::kSoundMove;
             }
             else if (s_rail)
             {
@@ -626,7 +626,7 @@ namespace ui {
                 state.scroll[left] = 0;
                 state.railFocus = true;
                 state.railCursor = state.category;
-                sound = game::kSoundBack;
+                sound = game::kSoundMove;
             }
             else
             {
@@ -793,7 +793,11 @@ namespace ui {
         float iconH = cursorSize + 2.0f;
         if (!main::extraDrawUiIcon(kIconCursorRight, cx(x43 + 2.0f), midY - iconH * 0.5f, w(iconH), iconH, 0xFFFFFFFF))
         {
-            drawCursorTri(cx(x43 + 3.0f), midY, cursorSize);
+            float tx = cx(x43 + 3.0f);
+            float tw = w(2.0f);
+            gfx::fillRect(tx, midY - 4.0f, tw, 8.0f, kLabGoldInk);
+            gfx::fillRect(tx + tw, midY - 2.5f, tw, 5.0f, kLabGoldInk);
+            gfx::fillRect(tx + 2.0f * tw, midY - 1.0f, tw, 2.0f, kLabGoldInk);
         }
     }
 
@@ -866,7 +870,10 @@ namespace ui {
                 {
                     float fbH = (flags & kEmblemTab) ? 18.0f : 16.0f;
                     float bx = (flags & kEmblemCentre) ? x - fbW * 0.5f : x;
-                    drawGlossyPillBadge(bx, midY - fbH * 0.5f, fbW, fbH, kBtnTheme[theme][0], kBtnTheme[theme][1]);
+                    gfx::fillRect(bx, midY - fbH * 0.5f, fbW, fbH, kLabPillBorder);
+                    gfx::fillGradV(bx + xs, midY - fbH * 0.5f + 1.0f, fbW - 2.0f * xs, fbH - 2.0f,
+                                   kBtnTheme[theme][0], kBtnTheme[theme][1]);
+                    gfx::fillRect(bx + xs, midY - fbH * 0.5f + 1.0f, fbW - 2.0f * xs, 2.0f, kLabPillOnSheen);
                     usedIcon = false;
                     return fbW;
                 }
@@ -895,6 +902,17 @@ namespace ui {
         gfx::fillGradV(x + pad, y + 2.0f, pw - 2.0f * pad, kLabRowH - 4.0f, c[0], c[1]);
         gfx::fillRect(x + pad, y + 2.0f, pw - 2.0f * pad, 2.0f, c[2]);
     }
+
+#ifdef __MWERKS__
+    // extra links against gfx::fillEllipse from main; keep it exported even
+    // when menu badges render through extraDrawUiIcon.
+#pragma force_active on
+    void keepGfxFillEllipse()
+    {
+        gfx::fillEllipse(0.0f, 0.0f, 0.0f, 0.0f, 0u);
+    }
+#pragma force_active reset
+#endif
 
     static void drawLabFrame()
     {
@@ -1178,7 +1196,7 @@ namespace ui {
             {
                 drawGoldBar(itemX, itemW, y, kRailItemH, 8.5f);
             }
-            else if (state.category == i)
+            else if (!state.railFocus && state.category == i)
             {
                 bevelBox(itemX, y, itemW, kRailItemH, accentBevel);
             }
@@ -1210,7 +1228,8 @@ namespace ui {
         for (u8 i = 0; i < def.categoryCount; i++)
         {
             bool focused = state.railFocus && state.railCursor == i;
-            gfx::Rgba col = focused ? kLabGoldInk : (state.category == i ? pal.activeTabText : pal.mutedText);
+            gfx::Rgba col = focused ? kLabGoldInk
+                                    : (!state.railFocus && state.category == i ? pal.activeTabText : pal.mutedText);
             fitDisplay(kRailTextX, kRailItemTop + i * kRailItemPitch + capOff,
                        pageAt(def, def.categoryPages[i]).title, col, kRailCap, kRailTextMaxW, 0);
         }

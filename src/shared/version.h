@@ -7,7 +7,7 @@
 // What the screen shows, so a screenshot says which build it is: short
 // enough to clear the notice and the recording bar on 4:3. TM_VERSION
 // stays numeric for Syringe.
-#define TM_VERSION_MARK "P+TM v1.0.1-pre3"
+#define TM_VERSION_MARK "P+TM v1.0.1-pre4-dev"
 
 // C++03 compile-time assertion (MWCC 4.2 has no static_assert): an array of
 // negative size fails to compile.
