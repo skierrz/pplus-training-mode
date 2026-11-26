@@ -210,3 +210,112 @@ TEST(combo_break_rush, moving_platform_clamp_and_same_frame_milestone_sfx)
     CHECK_EQ(5, static_cast<int>(st.multiplier));
     CHECK_EQ(2, static_cast<int>(st.hitEvent));
 }
+
+TEST(combo_break_rush, break_the_targets_arc_header_and_streaming_lz77_cmpr_tex0)
+{
+    using namespace tm::extra;
+
+    // 1. Outer ARC Entry 1 parser validates header and locates stream offset 0xA0.
+    u8 arcHdr[256];
+    memset(arcHdr, 0, sizeof(arcHdr));
+    arcHdr[0] = 'A';
+    arcHdr[1] = 'R';
+    arcHdr[2] = 'C';
+    arcHdr[3] = 0;
+    arcHdr[7] = 3;      // 3 entries
+    arcHdr[0x47] = 24;  // entry 0 size = 24 -> padded 32 -> entry 1 header at 0x80, stream at 0xA0
+    arcHdr[0x85] = 0x01;
+    arcHdr[0x86] = 0x00; // entry 1 compSize = 0x010000
+    u32 streamOff = 0u, compSize = 0u;
+    CHECK(rushParseOuterArcEntry1(arcHdr, sizeof(arcHdr), streamOff, compSize));
+    CHECK_EQ(0xA0u, streamOff);
+    CHECK_EQ(0x10000u, compSize);
+
+    // Rejects corrupt magic / single-entry ARC.
+    arcHdr[0] = 'X';
+    CHECK(!rushParseOuterArcEntry1(arcHdr, sizeof(arcHdr), streamOff, compSize));
+    arcHdr[0] = 'A';
+    arcHdr[7] = 1;
+    CHECK(!rushParseOuterArcEntry1(arcHdr, sizeof(arcHdr), streamOff, compSize));
+
+    // 2. Streaming LZ77 + TEX0 extractor skips a decoy TEX0 (wrong format) and
+    //    extracts the 128x128 GX_TF_CMPR mip 1 (8,192 B) from a mipped 256x256
+    //    CMPR TEX0 across chunk boundaries and LZ77 back-references!
+    static u8 rawStream[48000];
+    memset(rawStream, 0x33, sizeof(rawStream));
+    // Decoy TEX0 at offset 32 with fmt = 4 (RGB565) - must be skipped.
+    rawStream[32] = 'T'; rawStream[33] = 'E'; rawStream[34] = 'X'; rawStream[35] = '0';
+    rawStream[32 + 35] = 4;
+    // Valid mipped 256x256 CMPR TEX0 at offset 256 (ofsData = 64, blkSz = 0xAA40 = 43584).
+    u32 tOff = 256u;
+    memset(rawStream + tOff, 0, 64u);
+    rawStream[tOff + 0] = 'T'; rawStream[tOff + 1] = 'E'; rawStream[tOff + 2] = 'X'; rawStream[tOff + 3] = '0';
+    rawStream[tOff + 6] = 0xAA; rawStream[tOff + 7] = 0x40;   // blkSz = 43584
+    rawStream[tOff + 19] = 64;                                 // ofsData = 64
+    rawStream[tOff + 28] = 1; rawStream[tOff + 29] = 0;        // width = 256
+    rawStream[tOff + 30] = 1; rawStream[tOff + 31] = 0;        // height = 256
+    rawStream[tOff + 35] = kRushTexFmtCmpr;                    // fmt = 14 (GX_TF_CMPR)
+    // Pattern for mip 0 (skipped) and mip 1 (8,192 B) exercising LZ77 back-ref.
+    u32 mip1Off = tOff + 64u + kRushTexMip0Bytes;
+    memset(rawStream + tOff + 64u, 0x55, kRushTexMip0Bytes);
+    for (u32 i = 0; i < kRushTexMip1Bytes; i++)
+    {
+        rawStream[mip1Off + i] = static_cast<u8>((i < 128u) ? (i ^ 0x5Au) : ((i & 7u) + 0xA0u));
+    }
+
+    // Encode rawStream[0..mip1Off+8192) as valid Wii LZ77 (0x10).
+    static u8 lzBuf[56000];
+    u32 totalRaw = mip1Off + kRushTexMip1Bytes;
+    lzBuf[0] = 0x10;
+    lzBuf[1] = static_cast<u8>(totalRaw & 0xFFu);
+    lzBuf[2] = static_cast<u8>((totalRaw >> 8) & 0xFFu);
+    lzBuf[3] = static_cast<u8>((totalRaw >> 16) & 0xFFu);
+    u32 lp = 4u;
+    u32 rp = 0u;
+    while (rp < totalRaw)
+    {
+        u32 flagPos = lp++;
+        u8 flags = 0u;
+        for (int bit = 0; bit < 8 && rp < totalRaw; bit++)
+        {
+            if (((rp >= tOff + 64u + 16u && rp + 18u <= mip1Off)
+                 || (rp >= mip1Off + 136u && rp + 18u <= totalRaw)))
+            {
+                flags |= static_cast<u8>(0x80u >> bit);
+                u32 count = 18u;
+                u32 disp = 8u;
+                lzBuf[lp++] = static_cast<u8>(((count - 3u) << 4) | ((disp - 1u) >> 8));
+                lzBuf[lp++] = static_cast<u8>((disp - 1u) & 0xFFu);
+                rp += count;
+            }
+            else
+            {
+                lzBuf[lp++] = rawStream[rp++];
+            }
+        }
+        lzBuf[flagPos] = flags;
+    }
+
+    static u8 ring[kRushLzRingSize];
+    static u8 outTex[kRushTexMip1Bytes];
+    memset(outTex, 0, sizeof(outTex));
+    RushTexStream ts;
+    rushTexStreamInit(ts, ring, outTex);
+    // Feed in odd 73-byte chunks to stress split 2-byte LZ77 tokens across calls.
+    for (u32 off = 0u; off < lp && !ts.done; off += 73u)
+    {
+        u32 n = (lp - off) < 73u ? (lp - off) : 73u;
+        rushTexStreamFeed(ts, lzBuf + off, n);
+    }
+    CHECK_EQ(1, static_cast<int>(ts.done));
+    CHECK_EQ(0, static_cast<int>(ts.failed));
+    CHECK_EQ(static_cast<u32>(kRushTexMip1Bytes), ts.texCopied);
+    CHECK(memcmp(outTex, rawStream + mip1Off, kRushTexMip1Bytes) == 0);
+
+    // Non-LZ77 stream fails cleanly.
+    u8 badLz[8] = {0x11, 0x00, 0x80, 0x00, 0, 0, 0, 0};
+    rushTexStreamInit(ts, ring, outTex);
+    rushTexStreamFeed(ts, badLz, sizeof(badLz));
+    CHECK_EQ(1, static_cast<int>(ts.failed));
+    CHECK_EQ(0, static_cast<int>(ts.done));
+}

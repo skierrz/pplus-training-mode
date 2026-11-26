@@ -77,7 +77,7 @@ namespace extra {
             u8 flags;
             u8 pendingDpad;
             u8 padFresh;
-            u8 pad;
+            u8 externalStandby;
             u32 prevHeld[kPorts];
             u32 suppressMask[kPorts];
             SubState sub;
@@ -313,7 +313,7 @@ namespace extra {
             PracticeNet& net = *s_net;
             game::FighterRef refs[game::kMaxFighters];
             int n = game::listFighters(refs, game::kMaxFighters);
-            if (exitStandby && (net.flags & kFlagStandby) != 0u)
+            if (exitStandby && !net.externalStandby && (net.flags & kFlagStandby) != 0u)
             {
                 StageGeometry geom;
                 liveGeometry(geom, false, false);
@@ -373,8 +373,34 @@ namespace extra {
 
     void drillPracticeDetach()
     {
+        if (s_net != NULL)
+        {
+            s_net->externalStandby = 0u;
+        }
         resetSubsystems(true);
         freeNetPtr(s_net);
+    }
+
+    void drillPracticeSetExternalStandby(bool want)
+    {
+        if (s_net == NULL)
+        {
+            return;
+        }
+        PracticeNet& net = *s_net;
+        net.externalStandby = want ? 1u : 0u;
+        game::FighterRef refs[game::kMaxFighters];
+        int n = game::listFighters(refs, game::kMaxFighters);
+        StageGeometry& geom = net.cachedGeom;
+        liveGeometry(geom, net.debug.activeDrill == kPracticeDrillLedgedash, false);
+        bool wantStandby = shouldSoloCpuStandby(net.debug.activeDrill, net.cfg, net.externalStandby != 0u);
+        updateStandby(net, wantStandby, refs, n, geom);
+        net.debug.cpuInStandby = (net.flags & kFlagStandby) != 0u ? 1u : 0u;
+    }
+
+    bool drillPracticeCpuInStandby()
+    {
+        return s_net != NULL && (s_net->flags & kFlagStandby) != 0u;
     }
 
     void drillPracticeReset()
@@ -498,9 +524,7 @@ namespace extra {
         StageGeometry& geom = net.cachedGeom;
         liveGeometry(geom, d == kPracticeDrillLedgedash, false);
 
-        bool wantStandby = (d == kPracticeDrillLCancel || d == kPracticeDrillHoverFloat)
-                               ? (tMode == kTargetOff)
-                               : (d != kPracticeDrillNone && d != kPracticeDrillPowershield);
+        bool wantStandby = shouldSoloCpuStandby(d, net.cfg, net.externalStandby != 0u);
         updateStandby(net, wantStandby, refs, n, geom);
 
         const game::FighterRef* hmn = NULL;
@@ -543,9 +567,13 @@ namespace extra {
         }
 
         const game::FighterState& hmnFs = net.cachedHmn;
-        if (static_cast<u32>(d - kPracticeDrillLCancel) <= 2u)
+        if (shouldRefillHumanShield(d))
         {
             cpu::setShieldHealth(hmn->fighter, static_cast<float>(cpu::kShieldFull));
+            if (hmn->partner != NULL && hmn->partner != hmn->fighter)
+            {
+                cpu::setShieldHealth(hmn->partner, static_cast<float>(cpu::kShieldFull));
+            }
         }
         clearTransient(net, refs, n,
                        static_cast<u8>(((d != kPracticeDrillLedgedash
@@ -733,16 +761,16 @@ namespace extra {
             return false;
         }
         PracticeNet& net = *s_net;
-        const u8 d = net.debug.activeDrill;
-        if (d == kPracticeDrillNone)
-        {
-            return false;
-        }
         if ((net.flags & kFlagStandby) != 0u)
         {
             out.buttons = 0u;
             out.x = out.y = 0.0f;
             return true;
+        }
+        const u8 d = net.debug.activeDrill;
+        if (d == kPracticeDrillNone)
+        {
+            return false;
         }
         if ((net.flags & kFlagFrameSnap) == 0u)
         {
@@ -822,8 +850,9 @@ namespace extra {
     }
 
     // Draws the Wavedash / Waveland target zone in the 3D main world camera
-    // pass (call only when s_camera == kMainCamera): translucent vertical light
-    // zone, floor pad, crisp left/right bracket posts, and hovering chevron.
+    // pass (call only when s_camera == kMainCamera): gold floor bracket with
+    // crisp upward end caps, subtle translucent emerald-teal vertical landing
+    // beam, and Brawl-outlined TARGET cue (480i CRT-safe, zero wireframe box).
     void drillPracticeDraw(const game::MatchState& match)
     {
         if (s_net == NULL || !match.running || match.paused || lab::menuOpen())
@@ -843,61 +872,77 @@ namespace extra {
         }
 
         static const gfx::Rgba kPal[3][4] = {
-            // {curtainTop, curtainBot, floorPad, bracketCol}
-            {0x22B8CC18u, 0x16809878u, 0xFFD300A8u, 0xFFD300F8u}, // Idle Brawl/P+ teal + gold
-            {0x4CE68824u, 0x26A860A0u, 0x4CE688D0u, 0xFFE866FFu}, // Hit flash
-            {0xFF665824u, 0xB8322890u, 0xFF6658C0u, 0xFF8878F8u}  // Short / Overshoot flash
+            // {beamTop, beamBot, floorFill, capStroke}
+            {0x22C8A808u, 0x18A68C68u, 0xFFD300E8u, 0xFFE248FFu}, // Idle emerald-teal beam + gold bracket
+            {0x4CE68814u, 0x2AC870A4u, 0x62F498F0u, 0xFFE866FFu}, // Hit flash
+            {0xFF665814u, 0xC83A308Cu, 0xFF7060E8u, 0xFF8C7CF8u}  // Short / Overshoot flash
         };
-        const gfx::Rgba* pal = kPal[z.flashFrames > 0u ? (z.lastOutcome == kWdZoneHit ? 1 : 2) : 0];
-        const gfx::Rgba bc = pal[3];
-        const float x0 = z.minX, x1 = z.maxX, y0 = z.y + 0.12f;
-        const float yPad = y0 + 0.90f;
-        const float yTop = y0 + 7.20f;
-        const float xm = 0.5f * (x0 + x1);
-        const float serif = (x1 - x0) * 0.22f < 2.2f ? (x1 - x0) * 0.22f : 2.2f;
+        const int stateIdx = z.flashFrames > 0u ? (z.lastOutcome == kWdZoneHit ? 1 : 2) : 0;
+        const gfx::Rgba* pal = kPal[stateIdx];
+        const float x0 = z.minX, x1 = z.maxX, y0 = z.y + 0.10f;
+        const float yBar = y0 + 0.85f;
+        const float yCap = y0 + 3.20f;
+        const float yBeam = y0 + 5.60f;
+        const float postW = 0.42f;
+        const gfx::Rgba darkEdge = 0x0A1016F0u;
 
         camMgr->m_cameras[0].setGX();
         gfx::forgetState();
         gfx::prepare();
 
-        // Translucent vertical target zone curtain + bright floor landing pad.
-        const float qy[2] = {yTop, yPad};
-        const gfx::Rgba qc[2] = {pal[0], pal[2]};
-        GXBegin(GX_QUADS, GX_VTXFMT1, 8);
-        for (int q = 0; q < 2; q++)
-        {
-            gfx::vertex(x0, qy[q], qc[q]);
-            gfx::vertex(x1, qy[q], qc[q]);
-            gfx::vertex(x1, y0, pal[1]);
-            gfx::vertex(x0, y0, pal[1]);
-        }
+        // 1. Subtle translucent emerald-teal vertical landing beam above floor bar.
+        GXBegin(GX_QUADS, GX_VTXFMT1, 4);
+        gfx::vertex(x0 + postW, yBeam, pal[0]);
+        gfx::vertex(x1 - postW, yBeam, pal[0]);
+        gfx::vertex(x1 - postW, yBar, pal[1]);
+        gfx::vertex(x0 + postW, yBar, pal[1]);
         GXEnd();
 
-        // Hovering downward chevron pointer centered above the target zone.
-        GXBegin(GX_TRIANGLES, GX_VTXFMT1, 3);
-        gfx::vertex(xm - 1.5f, yTop + 2.4f, bc);
-        gfx::vertex(xm + 1.5f, yTop + 2.4f, bc);
-        gfx::vertex(xm, yTop + 0.7f, bc);
+        // 2. Dark 480i casing behind the gold floor bar and upward end caps.
+        const float pad = 0.24f;
+        GXBegin(GX_QUADS, GX_VTXFMT1, 12);
+        // Floor bar casing
+        gfx::vertex(x0 - pad, yBar + pad, darkEdge);
+        gfx::vertex(x1 + pad, yBar + pad, darkEdge);
+        gfx::vertex(x1 + pad, y0 - pad, darkEdge);
+        gfx::vertex(x0 - pad, y0 - pad, darkEdge);
+        // Left upward end-cap casing
+        gfx::vertex(x0 - pad, yCap + pad, darkEdge);
+        gfx::vertex(x0 + postW + pad, yCap + pad, darkEdge);
+        gfx::vertex(x0 + postW + pad, y0 - pad, darkEdge);
+        gfx::vertex(x0 - pad, y0 - pad, darkEdge);
+        // Right upward end-cap casing
+        gfx::vertex(x1 - postW - pad, yCap + pad, darkEdge);
+        gfx::vertex(x1 + pad, yCap + pad, darkEdge);
+        gfx::vertex(x1 + pad, y0 - pad, darkEdge);
+        gfx::vertex(x1 - postW - pad, y0 - pad, darkEdge);
         GXEnd();
 
-        // Bold left/right vertical bracket goalposts + inward serifs + floor rail + center tick.
-        const float segs[9][4] = {
-            {x0, y0, x1, y0},
-            {x0, yPad, x1, yPad},
-            {x0, y0, x0, yTop},
-            {x1, y0, x1, yTop},
-            {x0, yTop, x0 + serif, yTop},
-            {x1, yTop, x1 - serif, yTop},
-            {xm, y0, xm, yPad + 1.2f},
-            {x0, y0 + 3.6f, x0 + serif * 0.6f, y0 + 3.6f},
-            {x1, y0 + 3.6f, x1 - serif * 0.6f, y0 + 3.6f}
-        };
-        gfx::lineBegin(GX_LINES, 18, 18);
-        for (int i = 0; i < 9; i++)
-        {
-            gfx::vertex(segs[i][0], segs[i][1], bc);
-            gfx::vertex(segs[i][2], segs[i][3], bc);
-        }
+        // 3. Solid gold floor bar + crisp upward end caps (>= 2px thick on 480i CRT).
+        GXBegin(GX_QUADS, GX_VTXFMT1, 12);
+        // Floor bar fill
+        gfx::vertex(x0, yBar, pal[3]);
+        gfx::vertex(x1, yBar, pal[3]);
+        gfx::vertex(x1, y0, pal[2]);
+        gfx::vertex(x0, y0, pal[2]);
+        // Left upward end cap
+        gfx::vertex(x0, yCap, pal[3]);
+        gfx::vertex(x0 + postW, yCap, pal[3]);
+        gfx::vertex(x0 + postW, y0, pal[2]);
+        gfx::vertex(x0, y0, pal[2]);
+        // Right upward end cap
+        gfx::vertex(x1 - postW, yCap, pal[3]);
+        gfx::vertex(x1, yCap, pal[3]);
+        gfx::vertex(x1, y0, pal[2]);
+        gfx::vertex(x1 - postW, y0, pal[2]);
+        GXEnd();
+
+        // Crisp floor rail & upward cap strokes (width 16 = 2.67 px).
+        gfx::lineBegin(GX_LINESTRIP, 4, 16);
+        gfx::vertex(x0 + 0.5f * postW, yCap, pal[3]);
+        gfx::vertex(x0 + 0.5f * postW, y0 + 0.5f * (yBar - y0), pal[3]);
+        gfx::vertex(x1 - 0.5f * postW, y0 + 0.5f * (yBar - y0), pal[3]);
+        gfx::vertex(x1 - 0.5f * postW, yCap, pal[3]);
         GXEnd();
 
         GXSetLineWidth(6, 0);

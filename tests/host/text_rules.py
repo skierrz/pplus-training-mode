@@ -163,10 +163,10 @@ NUMBERS = {
     ("action_log_core.h", "0x%02X"): ["FFFF"],
     ("action_log_core.h", "%s %uf"): [None, "999"],
     ("combo_break_rush.cpp", "%u:%02u"): ["1", "00"],
-    ("combo_break_rush.cpp", "SCORE %u"): ["65535"],
+    ("combo_break_rush.cpp", "%u"): ["65535"],
     ("combo_break_rush.cpp", "x%u"): ["8"],
-    ("combo_break_rush.cpp", "STK %u  BEST %u"): ["99", "65535"],
-    ("combo_break_rush.cpp", "STK %u  BEST --"): ["99"],
+    ("combo_break_rush.cpp", "Best %u"): ["65535"],
+    ("combo_break_rush.cpp", "Chain %u"): ["99"],
     ("drill_hud.cpp", "STREAK %u  BEST --"): ["999"],
     ("drill_hud.cpp", "%s PRACTICE"): ["FLOAT / HOVER"],
     ("drill_hud.cpp", "%u-REP SET COMPLETE"): ["20"],
@@ -1174,12 +1174,15 @@ def combo_break_rush_cpp(c, src):
     for lit in src.literals:
         if c.taken(lit):
             continue
+        if lit.text.startswith("/stage/"):
+            c.take(lit)
+            continue
         if lit.name == "snprintf" and lit.arg == 2:
             for t in c.expand(lit, 2):
                 c.item("fit", lit, t, scale_for_cap(8.0), 0, 148.0, 0.0)
-                c.buffer(lit, t, 28.0)
-        elif lit.text == "COMBO-BREAK RUSH":
-            c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 190.0, 0.0)
+                c.buffer(lit, t, 32.0)
+        elif lit.text == "Break the Targets!":
+            c.item("fit", lit, lit.text, scale_for_cap(8.0), 0, 190.0, 0.0)
         else:
             c.item("fit", lit, lit.text, scale_for_cap(8.0), 0, 80.0, 0.0)
         c.take(lit)

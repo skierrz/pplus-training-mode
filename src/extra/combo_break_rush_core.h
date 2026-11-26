@@ -5,9 +5,10 @@
 
 #include "extra/stage_geom_math.h"
 
-// Pure host-testable Combo-Break Rush challenge engine: stage-aware 3D target
-// capsule spawning, live attack hitbox intersection, combo multiplier x1..x8,
-// chain decay timer, Timed (30s/60s) and Free Practice modes (zero Brawl headers).
+// Pure host-testable Break the Targets! challenge engine: stage-aware 3D target
+// spawning, live attack hitbox intersection, combo multiplier x1..x8, chain
+// decay timer, Timed (30s/60s) and Free Practice modes, plus streaming LZ77
+// extractor for Brawl's native STGTARGET CMPR bullseye TEX0 (zero Brawl headers).
 namespace tm {
 namespace extra {
     enum ComboBreakMode {
@@ -29,9 +30,17 @@ namespace extra {
         kRushRespawnDelay = 10,
         kRushBestSlot = 17, // drills::kDrillComboBreakRush (drills::Session::best[17])
         kRushDebugMagic = 0x544D4252u, // "TMBR"
-        kRushDebugVersion = 1,
+        kRushDebugVersion = 2,
         kRushCmdIdle = 0xFF,
-        kRushCmdSnapTarget = 0xFE
+        kRushCmdSnapTarget = 0xFE,
+        kRushTexSrcWidth = 256,
+        kRushTexSrcHeight = 256,
+        kRushTexWidth = 128,
+        kRushTexHeight = 128,
+        kRushTexFmtCmpr = 14,
+        kRushTexMip0Bytes = 32768, // 256x256 GX_TF_CMPR mip 0 (skipped)
+        kRushTexMip1Bytes = 8192,  // 128x128 GX_TF_CMPR mip 1 (resident, 8 KiB)
+        kRushLzRingSize = 4096
     };
 
     inline u8 rushNextMode(u8 mode)
@@ -45,9 +54,9 @@ namespace extra {
         float x;
         float y;
         float radius;
-        u8 active;     // 0 = empty, 1 = live, 2 = breaking burst
-        u8 tier;       // 0 = cyan floor/arc, 1 = emerald platform, 2 = gold bonus
-        u8 animFrames; // spawn pop (0..12) when live, burst countdown (14..0) when breaking
+        u8 active;     // 0 = empty, 1 = live, 2 = breaking shatter
+        u8 tier;       // 0 = standard floor/arc, 1 = platform arc, 2 = gold bonus
+        u8 animFrames; // spawn pop (0..12) when live, shatter countdown (14..0) when breaking
         u8 cooldown;   // frames before respawning when empty
     };
 
@@ -68,10 +77,11 @@ namespace extra {
         RushTarget targets[kRushMaxTargets];
     };
 
-    // RAM debug block exposed for live Dolphin verification ("TMBR").
+    // RAM debug block exposed for live verification ("TMBR").
+    // Offsets 0x00..0x57 are layout-compatible with v1; v2 appends texLoaded/cpuHidden at 0x58.
     struct ComboBreakDebugBlock {
         u32 magic;          // 0x00 "TMBR"
-        u32 version;        // 0x04 = 1
+        u32 version;        // 0x04 = 2
         u8 mode;            // 0x08 active ComboBreakMode
         u8 cmdMode;         // 0x09 0xFF idle; 0..3 switch mode; 0xFE snap target 0 in front of P1
         u8 active;          // 0x0A 1 if mode != kRushOff
@@ -91,7 +101,210 @@ namespace extra {
         float targetX[kRushMaxTargets]; // 0x28
         float targetY[kRushMaxTargets]; // 0x38
         float targetR[kRushMaxTargets]; // 0x48
+        u8 texLoaded;       // 0x58 1 when Brawl STGTARGET CMPR texture is resident
+        u8 cpuHidden;       // 0x59 1 when CPU is parked via shared solo standby
+        u8 lastSfxOk;       // 0x5A 1 if native Brawl break SFX handle >= 0
+        u8 lastVfxOk;       // 0x5B 1 if native ef_common burst spawned
     };
+
+    // Streaming LZ77 + TEX0 extractor for Brawl STGTARGET*.PAC Outer[1].
+    // Uses only a 4 KiB sliding window and extracts the 128x128 CMPR mip 1
+    // (8,192 B) from Brawl's 256x256 mipped target TEX0 without decompressing
+    // the 4.3 MiB stage archive, fitting comfortably above kCostumeReserve even
+    // on Ice Climbers vs Olimar on Fountain of Dreams.
+    struct RushTexStream {
+        u8* ring;       // caller-supplied 4096 B sliding window
+        u8* outTex;     // caller-supplied 8192 B destination (128x128 CMPR mip 1)
+        u32 outPos;     // total decompressed bytes produced so far
+        u32 outLimit;   // uncompressed stream length from LZ77 header
+        u32 texCopied;  // bytes written into outTex (0..8192)
+        u32 skipData;   // bytes between TEX0 header end and mip 1 data
+        u8 hdrPos;      // bytes read of 4-byte LZ77 header
+        u8 lzHeader[4];
+        u8 flags;       // current LZ77 flag byte
+        u8 bitIdx;      // 0..8 remaining flag bits
+        u8 pendingHi;   // 1 if holding first byte of 2-byte back-ref
+        u8 hiByte;
+        u8 scanState;   // 0=seek TEX0, 1=read 64B TEX0 hdr, 2=skip to mip1, 3=copy mip1
+        u8 texHdrPos;
+        u8 texHdr[64];
+        u8 done;
+        u8 failed;
+    };
+
+    // Parses an outer Brawl ARC header (first 256 bytes) to locate Entry 1's
+    // file offset and compressed byte length (e.g. STGTARGETLv5.PAC Outer[1]).
+    inline bool rushParseOuterArcEntry1(const u8* hdr, u32 hdrLen, u32& outStreamOff, u32& outCompSize)
+    {
+        outStreamOff = 0u;
+        outCompSize = 0u;
+        if (hdr == NULL || hdrLen < 0xA0u) return false;
+        if (hdr[0] != 'A' || hdr[1] != 'R' || hdr[2] != 'C' || hdr[3] != 0) return false;
+        u16 count = static_cast<u16>((static_cast<u16>(hdr[6]) << 8) | hdr[7]);
+        if (count < 2u) return false;
+        // Entry 0 header at 0x40: +4..+7 = size0 (big-endian).
+        u32 size0 = (static_cast<u32>(hdr[0x44]) << 24) | (static_cast<u32>(hdr[0x45]) << 16)
+                    | (static_cast<u32>(hdr[0x46]) << 8) | hdr[0x47];
+        u32 e1 = 0x60u + ((size0 + 31u) & ~31u);
+        if (e1 + 0x20u > hdrLen) return false;
+        u32 compSize = (static_cast<u32>(hdr[e1 + 4]) << 24) | (static_cast<u32>(hdr[e1 + 5]) << 16)
+                       | (static_cast<u32>(hdr[e1 + 6]) << 8) | hdr[e1 + 7];
+        if (compSize < 16u || compSize > 8u * 1024u * 1024u) return false;
+        outStreamOff = e1 + 0x20u;
+        outCompSize = compSize;
+        return true;
+    }
+
+    inline void rushTexStreamInit(RushTexStream& s, u8* ring4096, u8* outTex32768)
+    {
+        memset(&s, 0, sizeof(s));
+        s.ring = ring4096;
+        s.outTex = outTex32768;
+    }
+
+    inline u32 rushBe32(const u8* p)
+    {
+        return (static_cast<u32>(p[0]) << 24) | (static_cast<u32>(p[1]) << 16)
+               | (static_cast<u32>(p[2]) << 8) | static_cast<u32>(p[3]);
+    }
+
+    inline u16 rushBe16(const u8* p)
+    {
+        return static_cast<u16>((static_cast<u16>(p[0]) << 8) | static_cast<u16>(p[1]));
+    }
+
+    inline void rushTexEmitByte(RushTexStream& s, u8 b)
+    {
+        s.ring[s.outPos & (kRushLzRingSize - 1u)] = b;
+        s.outPos++;
+        if (s.done) return;
+
+        if (s.scanState == 0u)
+        {
+            static const u8 kMagic[4] = {'T', 'E', 'X', '0'};
+            if (b == kMagic[s.texHdrPos])
+            {
+                s.texHdr[s.texHdrPos++] = b;
+                if (s.texHdrPos == 4u)
+                {
+                    s.scanState = 1u;
+                }
+            }
+            else
+            {
+                s.texHdrPos = (b == 'T') ? 1u : 0u;
+                if (s.texHdrPos == 1u) s.texHdr[0] = 'T';
+            }
+        }
+        else if (s.scanState == 1u)
+        {
+            s.texHdr[s.texHdrPos++] = b;
+            if (s.texHdrPos == 64u)
+            {
+                u32 blkSz = rushBe32(s.texHdr + 4);
+                u32 ofsData = rushBe32(s.texHdr + 16);
+                u16 w = rushBe16(s.texHdr + 28);
+                u16 h = rushBe16(s.texHdr + 30);
+                u32 fmt = rushBe32(s.texHdr + 32);
+                if (w == kRushTexSrcWidth && h == kRushTexSrcHeight && fmt == kRushTexFmtCmpr
+                    && ofsData >= 64u && ofsData <= 128u
+                    && blkSz >= ofsData + kRushTexMip0Bytes + kRushTexMip1Bytes)
+                {
+                    s.skipData = (ofsData - 64u) + kRushTexMip0Bytes;
+                    s.texCopied = 0u;
+                    s.scanState = 2u;
+                }
+                else
+                {
+                    s.scanState = 0u;
+                    s.texHdrPos = 0u;
+                }
+            }
+        }
+        else if (s.scanState == 2u)
+        {
+            if (--s.skipData == 0u) s.scanState = 3u;
+        }
+        else if (s.scanState == 3u)
+        {
+            s.outTex[s.texCopied++] = b;
+            if (s.texCopied >= kRushTexMip1Bytes)
+            {
+                s.done = 1u;
+            }
+        }
+    }
+
+    inline void rushTexStreamFeed(RushTexStream& s, const u8* src, u32 len)
+    {
+        if (s.ring == NULL || s.outTex == NULL || src == NULL || s.done || s.failed) return;
+        u32 i = 0u;
+        while (i < len && !s.done && !s.failed)
+        {
+            if (s.hdrPos < 4u)
+            {
+                s.lzHeader[s.hdrPos++] = src[i++];
+                if (s.hdrPos == 4u)
+                {
+                    if (s.lzHeader[0] != 0x10u)
+                    {
+                        s.failed = 1u;
+                        return;
+                    }
+                    s.outLimit = static_cast<u32>(s.lzHeader[1]) | (static_cast<u32>(s.lzHeader[2]) << 8)
+                                 | (static_cast<u32>(s.lzHeader[3]) << 16);
+                    if (s.outLimit < kRushTexMip0Bytes)
+                    {
+                        s.failed = 1u;
+                        return;
+                    }
+                }
+                continue;
+            }
+            if (s.outPos >= s.outLimit)
+            {
+                s.failed = 1u;
+                return;
+            }
+            if (s.pendingHi)
+            {
+                u8 b2 = src[i++];
+                s.pendingHi = 0u;
+                u32 count = static_cast<u32>((s.hiByte >> 4) & 0xFu) + 3u;
+                u32 disp = (static_cast<u32>(s.hiByte & 0xFu) << 8) | static_cast<u32>(b2);
+                disp += 1u;
+                if (disp > s.outPos)
+                {
+                    s.failed = 1u;
+                    return;
+                }
+                for (u32 k = 0u; k < count && s.outPos < s.outLimit && !s.done; k++)
+                {
+                    u8 v = s.ring[(s.outPos - disp) & (kRushLzRingSize - 1u)];
+                    rushTexEmitByte(s, v);
+                }
+                continue;
+            }
+            if (s.bitIdx == 0u)
+            {
+                s.flags = src[i++];
+                s.bitIdx = 8u;
+                continue;
+            }
+            bool comp = (s.flags & 0x80u) != 0u;
+            s.flags = static_cast<u8>(s.flags << 1);
+            s.bitIdx--;
+            if (comp)
+            {
+                s.hiByte = src[i++];
+                s.pendingHi = 1u;
+            }
+            else
+            {
+                rushTexEmitByte(s, src[i++]);
+            }
+        }
+    }
 
 #if defined(__MWERKS__) && !defined(TM_COMBO_BREAK_CORE_IMPL)
     void rushInit(ComboBreakState& st, u8 mode, u32 priorBest, u32 seed);
@@ -129,7 +342,7 @@ namespace extra {
                                                  : (st.mode == kRushTimed60 ? kRushTimed60Frames : 0);
     }
 
-    // Exact 2D segment-to-circle intersection for swept hitbox capsule vs target sphere.
+    // Exact 2D segment-to-circle intersection for swept hitbox capsule vs target disc.
     TM_RUSH_CORE_FN bool rushHitboxHitsTarget(const float pos1[3], const float pos2[3], float hitRadius,
                                               const RushTarget& t)
     {
@@ -158,7 +371,7 @@ namespace extra {
         return (dx * dx + dy * dy) <= (sumR * sumR);
     }
 
-    // Spawns one target capsule inside reachable live StageGeometry airspace/platform arcs.
+    // Spawns one target inside reachable live StageGeometry airspace/platform arcs.
     TM_RUSH_CORE_FN bool rushSpawnOne(ComboBreakState& st, int slot, const StageGeometry& g, float fighterX,
                                       float fighterY)
     {
