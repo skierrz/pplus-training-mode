@@ -450,6 +450,14 @@ namespace game {
             {
                 continue;
             }
+            // Entering GuardOn starts a new shield (Guard_Off -> Wait -> Guard_On
+            // in one frame, or powershield Guard_Off -> Guard_On per P+
+            // PowerShield.asm:120-121); disarm without emitting Act OoS.
+            if (e.status == kStatusGuardOn)
+            {
+                w.oosArmed = false;
+                continue;
+            }
             if (e.prev == kStatusGuardDamageId && w.oosStart == kNoFrame)
             {
                 w.oosStart = f;
@@ -681,7 +689,8 @@ namespace game {
         }
     }
 
-    // P+'s dash sensitivity (Constants.asm, 3122).
+    // P+ dash sensitivity (Constants.asm:5-6, IC-Basic[3122] = 0.73; checked
+    // in ftStatusUniqProcessTurn::execStatus 0x808714F4 and SlowTurn.asm).
     static const float kDashStick = 0.73f;
 
     static void dashback(Watch& w, const Tracked& t, int i, int how)
@@ -735,7 +744,10 @@ namespace game {
             }
             else if (w.dbTurn && prev == kStatusTurn)
             {
-                if (s == kStatusDash || s == kStatusTurnDash)
+                // P+ SlowTurn.asm (0x805401C8): AsyncTimer(0.5) zeroes RA_Float[5]
+                // on Turn's 2nd frame (f - w.dbSince == 1), so Turn -> Dash fires
+                // by f - w.dbSince <= 2 (verified in P+ 3.2.1).
+                if ((s == kStatusDash || s == kStatusTurnDash) && f - w.dbSince <= 2)
                 {
                     dashback(w, t, i, kDashbackSlowTurn);
                 }
@@ -848,6 +860,26 @@ namespace game {
         {
             return;
         }
+        // Slide-off from grounded Damage (0x43) to DamageAir (0x44) emits a
+        // damage status change without a new hit; ignore if damage, hitlag,
+        // and hitstun did not increase.
+        if (t.eventCount > 0 && w.damage <= w.prevDamage && t.cur.hitlag <= t.prev.hitlag
+            && t.cur.hitstun <= t.prev.hitstun)
+        {
+            bool slideOffOnly = true;
+            for (int k = 0; k < t.eventCount; k++)
+            {
+                if (t.events[k].status != kStatusDamage + 1 || t.events[k].prev != kStatusDamage)
+                {
+                    slideOffOnly = false;
+                    break;
+                }
+            }
+            if (slideOffOnly)
+            {
+                return;
+            }
+        }
         int attacker = t.lastReceived.other;
         if (w.comboBroken || attacker != w.comboAttacker)
         {
@@ -856,7 +888,13 @@ namespace game {
             w.comboAttacker = static_cast<s8>(attacker);
         }
         w.comboBroken = false;
-        w.comboHits = static_cast<u8>(w.comboHits + t.cur.hits > 255 ? 255 : w.comboHits + t.cur.hits);
+        // Brawl applies at most one hit per frame (soDamageModuleImpl::check
+        // 0x80767CE0); count +1 per hit frame so same-frame damage status
+        // chains (e.g. DownDamage -> DamageFly) never double-count.
+        if (w.comboHits < 255)
+        {
+            w.comboHits++;
+        }
         const Tracked* a = tracked(attacker);
         if (w.comboHits >= 2 && a != NULL)
         {

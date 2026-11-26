@@ -80,3 +80,24 @@ TEST(wii_display, slow_mo_latches_short_press_on_wii_port_4)
     CHECK_EQ(0u, pads[4].m_buttonsPressedThisFrame.bits);
     display::detach();
 }
+
+TEST(wii_display, camera_mode_from_state_maps_all_modes_for_savestate_resync)
+{
+    // Normal camera (kind 2, trainingZoom false) -> kCameraNormal.
+    CHECK_EQ(static_cast<int>(display::kCameraNormal),
+             static_cast<int>(display::cameraModeFromState(2u, false)));
+
+    // Zoom camera (kind 0xD or trainingZoom true) -> kCameraZoom.
+    CHECK_EQ(static_cast<int>(display::kCameraZoom),
+             static_cast<int>(display::cameraModeFromState(0xDu, true)));
+    CHECK_EQ(static_cast<int>(display::kCameraZoom),
+             static_cast<int>(display::cameraModeFromState(0xDu, false)));
+    CHECK_EQ(static_cast<int>(display::kCameraZoom),
+             static_cast<int>(display::cameraModeFromState(2u, true)));
+
+    // Fixed camera (kind 0xC) wins even if Training's own pause option was Zoom.
+    CHECK_EQ(static_cast<int>(display::kCameraFixed),
+             static_cast<int>(display::cameraModeFromState(0xCu, false)));
+    CHECK_EQ(static_cast<int>(display::kCameraFixed),
+             static_cast<int>(display::cameraModeFromState(0xCu, true)));
+}
