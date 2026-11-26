@@ -516,121 +516,14 @@ namespace extra {
     static MenuDescNet* s_net = NULL;
 #endif
 
-    struct HuffTab {
-        u16 count[16];
-        u16 firstCode[16];
-        u16 firstSym[16];
-        u8 syms[160];
-    };
-
-#ifdef __MWERKS__
-#pragma dont_inline on
-#endif
-    static void buildHuff(HuffTab& t, const u8* nib, int nSyms)
-    {
-        for (int b = 0; b < 16; b++)
-        {
-            t.count[b] = 0;
-        }
-        for (int s = 0; s < nSyms; s++)
-        {
-            int l = (s & 1) == 0 ? (nib[s >> 1] >> 4) : (nib[s >> 1] & 0xF);
-            if (l != 0)
-            {
-                t.count[l]++;
-            }
-        }
-        u16 code = 0;
-        u16 off = 0;
-        u16 next[16];
-        for (int b = 1; b < 16; b++)
-        {
-            t.firstCode[b] = code;
-            t.firstSym[b] = off;
-            next[b] = off;
-            code = static_cast<u16>((code + t.count[b]) << 1);
-            off = static_cast<u16>(off + t.count[b]);
-        }
-        for (int s = 0; s < nSyms; s++)
-        {
-            int l = (s & 1) == 0 ? (nib[s >> 1] >> 4) : (nib[s >> 1] & 0xF);
-            if (l != 0)
-            {
-                t.syms[next[l]++] = static_cast<u8>(s);
-            }
-        }
-    }
-
-    static int readBit(const u8* src, u32& bp)
-    {
-        int bit = (src[bp >> 3] >> (7 - (bp & 7))) & 1;
-        bp++;
-        return bit;
-    }
-
-    static int decodeSym(const HuffTab& t, const u8* src, u32& bp)
-    {
-        int code = 0;
-        for (int b = 1; b < 16; b++)
-        {
-            code = (code << 1) | readBit(src, bp);
-            int d = code - static_cast<int>(t.firstCode[b]);
-            if (d < static_cast<int>(t.count[b]))
-            {
-                return t.syms[t.firstSym[b] + d];
-            }
-        }
-        return 0;
-    }
-#ifdef __MWERKS__
-#pragma dont_inline reset
-#endif
-
     static bool populate(MenuDescNet* net)
     {
         if (net == NULL)
         {
             return false;
         }
-        HuffTab ll, dt;
-        buildHuff(ll, kDescComp, 160);
-        buildHuff(dt, kDescComp + 80, 30);
-        u32 bp = 95u * 8u;
-        u32 out = 0;
-        while (out < kRawBytes)
-        {
-            int sym = decodeSym(ll, kDescComp, bp);
-            if (sym < 128)
-            {
-                net->text[out++] = static_cast<char>(sym);
-            }
-            else
-            {
-                u32 ln = static_cast<u32>(sym - 125);
-                int sl = decodeSym(dt, kDescComp, bp);
-                u32 dist = static_cast<u32>(sl + 1);
-                if (sl >= 4)
-                {
-                    int eb = (sl - 2) >> 1;
-                    u32 ex = 0;
-                    for (int k = 0; k < eb; k++)
-                    {
-                        ex = (ex << 1) | static_cast<u32>(readBit(kDescComp, bp));
-                    }
-                    dist = ((2u + static_cast<u32>(sl & 1)) << eb) + 1u + ex;
-                }
-                if (dist == 0 || dist > out || out + ln > kRawBytes)
-                {
-                    return false;
-                }
-                for (u32 k = 0; k < ln; k++)
-                {
-                    net->text[out] = net->text[out - dist];
-                    out++;
-                }
-            }
-        }
-        return indexPackedStrings(net->text, out, net->offsets, kRowCount);
+        return decompressHuffLzss(kDescComp, net->text, kRawBytes)
+               && indexPackedStrings(net->text, kRawBytes, net->offsets, kRowCount);
     }
 
     void menuDescAttach()

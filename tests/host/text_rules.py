@@ -221,12 +221,23 @@ def _decode_lz77_ascii(comp):
 
 
 def status_names(sources):
-    src_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-                            "src", "main", "game", "status_names.cpp")
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    src_path = os.path.join(repo_root, "src", "main", "game", "status_names.cpp")
     text = open(src_path, "r", encoding="utf-8").read()
-    m = re.search(r"kNamesLz77\[[^\]]*\]\s*=\s*\{([^}]+)\}", text)
-    if m:
-        comp = bytes(int(tok, 0) for tok in re.findall(r"0x[0-9A-Fa-f]+|\d+", m.group(1)))
+    m_comp = re.search(r"kNamesComp\[[^\]]*\]\s*=\s*\{([^}]+)\}", text)
+    m_raw = re.search(r"kRawBytes\s*=\s*(\d+)", text)
+    m_lz = re.search(r"kNamesLz77\[[^\]]*\]\s*=\s*\{([^}]+)\}", text)
+    if m_comp and m_raw:
+        import importlib.util
+        gmd_path = os.path.join(repo_root, "scripts", "gen_menu_descriptions.py")
+        spec = importlib.util.spec_from_file_location("gen_menu_descriptions", gmd_path)
+        gmd = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gmd)
+        comp = bytes(int(tok, 0) for tok in re.findall(r"0x[0-9A-Fa-f]+|\d+", m_comp.group(1)))
+        raw = gmd.decode_huff_lzss(comp, int(m_raw.group(1))).decode("ascii")
+        names = [n for n in raw.split("\0") if n]
+    elif m_lz:
+        comp = bytes(int(tok, 0) for tok in re.findall(r"0x[0-9A-Fa-f]+|\d+", m_lz.group(1)))
         raw = _decode_lz77_ascii(comp).decode("ascii")
         names = [n for n in raw.split("\0") if n]
     else:
