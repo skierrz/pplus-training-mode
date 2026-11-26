@@ -46,11 +46,7 @@ namespace extra {
             CiAsset asset;
         };
 
-        const char* const kSheetNames[kUiSheetCount] = {
-            "InfPauseButton00",
-            "InfButton04ClBtn01",
-            "InfButton04NnBtn01"
-        };
+        const char kSheetNames[] = "InfPauseButton00\0InfButton04ClBtn01\0InfButton04NnBtn01";
 
         const UiQuadUv kFullQuadUv = {
             {0.0f, 1.0f, 1.0f, 0.0f},
@@ -110,9 +106,10 @@ namespace extra {
             {
                 return;
             }
+            const char* name = kSheetNames;
             for (int i = 0; i < kUiSheetCount; i++)
             {
-                if (brresFindCiAsset(view, kSheetNames[i], s_net->sheets[i]))
+                if (brresFindCiAsset(view, name, s_net->sheets[i]))
                 {
                     u16 expW = 0;
                     u16 expH = 0;
@@ -124,6 +121,7 @@ namespace extra {
                         s_net->sheets[i].valid = false;
                     }
                 }
+                while (*name++ != '\0') {}
             }
         }
 
@@ -187,6 +185,9 @@ namespace extra {
 
         // Exact GX state for CI8/CI4 textured quads inside a 2D pass (including
         // the 5 states omitted by gfDrawSetVtxPosColorTexPrimEnvironment).
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
         void setupTexturedQuadGx()
         {
             gfDrawSetVtxPosColorTexPrimEnvironment();
@@ -201,7 +202,8 @@ namespace extra {
             GXSetTevSwapModeTable(GX_TEV_SWAP0, GX_CH_RED, GX_CH_GREEN, GX_CH_BLUE, GX_CH_ALPHA);
         }
 
-        void bindCiAsset(const CiAsset& asset, GXTexFilter filter)
+        void drawBoundCiQuad(const CiAsset& asset, GXTexFilter filter, float x, float y, float w, float h, u32 rgba,
+                             const UiQuadUv& uv)
         {
             GXTlutObj tlutObj;
             GXInitTlutObj(&tlutObj, const_cast<u8*>(asset.plt.data),
@@ -213,10 +215,7 @@ namespace extra {
                            static_cast<GXTexFmt>(asset.tex.gxFmt), GX_CLAMP, GX_CLAMP, FALSE, GX_TLUT0);
             GXInitTexObjLOD(&texObj, filter, filter, 0.0f, 0.0f, 0.0f, FALSE, FALSE, GX_ANISO_1);
             GXLoadTexObj(&texObj, GX_TEXMAP0);
-        }
 
-        void emitTexturedQuad(float x, float y, float w, float h, u32 rgba, const UiQuadUv& uv)
-        {
             GXBegin(GX_QUADS, GX_VTXFMT1, 4);
             for (int i = 0; i < 4; i++)
             {
@@ -228,6 +227,9 @@ namespace extra {
                 WGPIPE.f = uv.v[i];
             }
         }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
         void drawStockCard(float x, float y, float tw, float th, gfx::Rgba accent, gfx::Rgba accentHi)
         {
@@ -277,8 +279,7 @@ namespace extra {
             return false;
         }
         setupTexturedQuadGx();
-        bindCiAsset(sheet, GX_LINEAR);
-        emitTexturedQuad(x, y, w, h, rgba, uv);
+        drawBoundCiQuad(sheet, GX_LINEAR, x, y, w, h, rgba, uv);
         gfx::forgetState();
         return true;
     }
@@ -299,9 +300,8 @@ namespace extra {
         {
             return;
         }
-        const FighterSwapEntry* p1 = fighterSwapAt(st->p1Fighter);
-        const FighterSwapEntry* cpu = fighterSwapAt(st->cpuFighter);
-        if (p1 == NULL || cpu == NULL)
+        const FighterSwapEntry* entries[2] = {fighterSwapAt(st->p1Fighter), fighterSwapAt(st->cpuFighter)};
+        if (entries[0] == NULL || entries[1] == NULL)
         {
             return;
         }
@@ -315,28 +315,32 @@ namespace extra {
         float tileH = 54.0f;
         float gap = 36.0f;
 
-        float p1X = ui::style::cx(paneCenter - gap * 0.5f - tileW);
-        float cpuX = ui::style::cx(paneCenter + gap * 0.5f);
+        float cardX[2] = {ui::style::cx(paneCenter - gap * 0.5f - tileW), ui::style::cx(paneCenter + gap * 0.5f)};
         float tw = ui::style::w(tileW);
 
         // 1. Batched geometric chrome: framed P1/CPU cards and center diamond divider.
-        drawStockCard(p1X, topY, tw, tileH, 0xD83838FF, 0xFF7A7AC0);
-        drawStockCard(cpuX, topY, tw, tileH, 0x4E86B8FF, 0x8AC0ECC0);
+        static const gfx::Rgba kAcc[2][2] = {{0xD83838FF, 0xFF7A7AC0}, {0x4E86B8FF, 0x8AC0ECC0}};
+        for (int s = 0; s < 2; s++)
+        {
+            drawStockCard(cardX[s], topY, tw, tileH, kAcc[s][0], kAcc[s][1]);
+        }
 
         float midX = ui::style::cx(paneCenter);
         float midY = topY + tileH * 0.5f;
         float diaRx = ui::style::w(6.0f);
-        float diaRy = 6.0f;
         float wingW = ui::style::w(7.0f);
         float wingGap = ui::style::w(3.0f);
         gfx::fillRect(midX - diaRx - wingGap - wingW, midY - 1.0f, wingW, 2.0f, 0x3A5868CC);
         gfx::fillRect(midX + diaRx + wingGap, midY - 1.0f, wingW, 2.0f, 0x3A5868CC);
-        gfx::fillTri(midX, midY - diaRy, midX + diaRx, midY, midX - diaRx, midY, 0x2A4656FF);
-        gfx::fillTri(midX, midY + diaRy, midX - diaRx, midY, midX + diaRx, midY, 0x162A36FF);
-        float inRx = ui::style::w(3.5f);
-        float inRy = 3.5f;
-        gfx::fillTri(midX, midY - inRy, midX + inRx, midY, midX - inRx, midY, 0xFFD300FF);
-        gfx::fillTri(midX, midY + inRy, midX - inRx, midY, midX + inRx, midY, 0xC89E00FF);
+        static const float kDiaR[2] = {6.0f, 3.5f};
+        static const gfx::Rgba kDiaCol[2][2] = {{0x2A4656FF, 0x162A36FF}, {0xFFD300FF, 0xC89E00FF}};
+        for (int d = 0; d < 2; d++)
+        {
+            float rx = ui::style::w(kDiaR[d]);
+            float ry = kDiaR[d];
+            gfx::fillTri(midX, midY - ry, midX + rx, midY, midX - rx, midY, kDiaCol[d][0]);
+            gfx::fillTri(midX, midY + ry, midX - rx, midY, midX + rx, midY, kDiaCol[d][1]);
+        }
 
         // 2. Live 32x32 stock icons from permanent MEM2 StockFaceTex.brres (GX_NEAR).
         BrresView stockView;
@@ -344,9 +348,12 @@ namespace extra {
         {
             return;
         }
-        const CiAsset* p1Asset = resolveStockIcon(0, stockView, p1->gmKind, st->p1Costume);
-        const CiAsset* cpuAsset = resolveStockIcon(1, stockView, cpu->gmKind, st->cpuCostume);
-        if (p1Asset == NULL && cpuAsset == NULL)
+        const u8 cosIdx[2] = {st->p1Costume, st->cpuCostume};
+        const CiAsset* assets[2] = {
+            resolveStockIcon(0, stockView, entries[0]->gmKind, cosIdx[0]),
+            resolveStockIcon(1, stockView, entries[1]->gmKind, cosIdx[1])
+        };
+        if (assets[0] == NULL && assets[1] == NULL)
         {
             return;
         }
@@ -355,15 +362,13 @@ namespace extra {
         float iconH = 32.0f;
         float iconY = topY + 4.0f + (tileH - 5.0f - iconH) * 0.5f;
         setupTexturedQuadGx();
-        if (p1Asset != NULL)
+        for (int s = 0; s < 2; s++)
         {
-            bindCiAsset(*p1Asset, GX_NEAR);
-            emitTexturedQuad(p1X + (tw - iconW) * 0.5f, iconY, iconW, iconH, 0xFFFFFFFF, kFullQuadUv);
-        }
-        if (cpuAsset != NULL)
-        {
-            bindCiAsset(*cpuAsset, GX_NEAR);
-            emitTexturedQuad(cpuX + (tw - iconW) * 0.5f, iconY, iconW, iconH, 0xFFFFFFFF, kFullQuadUv);
+            if (assets[s] != NULL)
+            {
+                drawBoundCiQuad(*assets[s], GX_NEAR, cardX[s] + (tw - iconW) * 0.5f, iconY, iconW, iconH, 0xFFFFFFFF,
+                                kFullQuadUv);
+            }
         }
         gfx::forgetState();
     }

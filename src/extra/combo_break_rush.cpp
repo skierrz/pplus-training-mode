@@ -48,9 +48,6 @@ namespace extra {
 
         static RushNet* s_net = NULL;
 
-#ifdef __MWERKS__
-#pragma dont_inline on
-#endif
         void saveBest(RushNet& net)
         {
             if (net.sess == NULL || net.st.bestScore == 0u) return;
@@ -169,9 +166,6 @@ namespace extra {
             gfx::fillGradV(x + xs, y + 1.0f, w - 2.0f * xs, h - 2.0f, top, bot);
             gfx::text(x + 4.0f * xs, ty, txt, 0xFFF8DCFFu, sc);
         }
-#ifdef __MWERKS__
-#pragma dont_inline reset
-#endif
     }
 
     void comboBreakRushAttach()
@@ -378,22 +372,14 @@ namespace extra {
         const float xs = ui::layout::xsOf(wide);
         const ui::layout::Box b = ui::layout::comboBreakHudBox(wide);
         const float ox = b.x0, oy = b.y0, bw = b.x1 - b.x0, bh = b.y1 - b.y0;
-        const float ix = ox + 4.0f * xs, iw = bw - 8.0f * xs;
 
         // Brawl/P+ double-framed translucent top HUD (zero left-accent stripe).
-        gfx::fillRect(ox, oy, bw, bh, 0x060D12F2u);
-        gfx::fillRect(ox + 2.0f * xs, oy + 2.0f, bw - 4.0f * xs, bh - 4.0f,
-                      (st.finished || st.multiplier >= 4) ? 0xFFD300FFu : 0x35B8C8FFu);
-        gfx::fillGradV(ix, oy + 4.0f, iw, bh - 8.0f, 0x0D1E26ECu, 0x071117ECu);
-        gfx::fillGradV(ix, oy + 4.0f, iw, 15.0f, 0x226874F0u, 0x123C46F0u);
-        gfx::fillRect(ix, oy + 19.0f, iw, 2.0f, 0x2A5866E0u);
+        drawHudBannerTitle(ox, oy, bw, bh, xs, (st.finished || st.multiplier >= 4) ? 0xFFD300FFu : 0x35B8C8FFu,
+                           "COMBO-BREAK RUSH");
 
         const float lx = ox + 10.0f * xs;
         const float rx = ox + bw - 10.0f * xs;
-        const float dispSc = 8.5f / 24.0f;
         const float txtSc = 8.0f / 15.0f;
-
-        gfx::displayText(lx, oy + 6.1f, "COMBO-BREAK RUSH", 0xFFFFFFFFu, 0xB8E0EEFFu, dispSc, dispSc, 1.2f, 0x050C12FFu);
 
         char buf[28];
         if (st.mode == kRushFree)

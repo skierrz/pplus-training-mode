@@ -11,6 +11,7 @@ class Fighter;
 namespace tm {
 namespace extra {
     void pplusRecoveryAttach();
+    void pplusRecoveryDetach();
     void pplusRecoveryReset(int slot);
 
     // Drives one frame of PPlusAI recovery into `out`. Returns true while the

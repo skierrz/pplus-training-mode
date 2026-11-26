@@ -58,17 +58,26 @@ namespace extra {
 
     static AdaptiveNet* s_net = NULL;
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     static u8 clampU8Float(float v)
     {
         int n = f2i(v);
         return static_cast<u8>(n <= 0 ? 0 : (n >= 255 ? 255 : n));
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     static float absF(float v)
     {
         return v < 0.0f ? -v : v;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     void adaptiveCpuReset()
     {
         if (s_net == NULL)
@@ -89,6 +98,9 @@ namespace extra {
         memset(&s_net->debug, 0, sizeof(s_net->debug));
         s_net->debug.magic = kAdaptiveDebugMagic;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     void adaptiveCpuAttach()
     {
@@ -320,10 +332,10 @@ namespace extra {
         drawHudCard(x, y, bw, bh, xs, accent, 0xFFFFFF40u);
         drawHudDivider(x, y + 16.0f, bw, xs);
 
-        float hdrScale = ui::style::scaleForCap(7.5f);
-        float hdrY = ui::style::textYForCap(y + 6.0f, hdrScale);
-        drawShadowText(x + 5.5f * xs, hdrY, activeMode ? "ADAPTIVE" : "HABIT TRACK",
-                       activeMode ? 0xFFE24AFFu : 0x7CE6E0FFu, hdrScale);
+        float lx = x + 5.5f * xs;
+        float rx = x + bw - 5.5f * xs;
+        drawShadowCapText(lx, y + 6.0f, activeMode ? "ADAPTIVE" : "HABIT TRACK",
+                          activeMode ? 0xFFE24AFFu : 0x7CE6E0FFu, 7.5f);
 
         char badge[16];
         if (v.rpsCount > 0)
@@ -334,21 +346,18 @@ namespace extra {
         {
             strcpy(badge, "WAITING");
         }
-        float bwText = gfx::textWidth(badge, hdrScale);
         gfx::Rgba badgeCol = v.confident ? 0xFFD300FFu : (v.rpsCount > 0 ? 0xB8D8E4FFu : 0x6E8694FFu);
-        drawShadowText(x + bw - 5.5f * xs - bwText, hdrY, badge, badgeCol, hdrScale);
+        drawShadowCapText(rx, y + 6.0f, badge, badgeCol, 7.5f, true);
 
         static const char* const kBarLabels[3] = {"ATK", "GRB", "DEF"};
         static const gfx::Rgba kBarCols[3] = {0xFF6B54FFu, 0xFFD300FFu, 0x38B8FFFFu};
         const u8 pcts[3] = {v.atkPct, v.grabPct, v.defPct};
-        float rowScale = ui::style::scaleForCap(7.5f);
         float barX = x + 31.0f * xs;
         float barW = 68.0f * xs;
         for (int r = 0; r < 3; r++)
         {
             float ry = y + 19.0f + i2fScale(r, 9.0f);
-            float ty = ui::style::textYForCap(ry, rowScale);
-            drawShadowText(x + 5.5f * xs, ty, kBarLabels[r], 0xC6D8E0FFu, rowScale);
+            drawShadowCapText(lx, ry, kBarLabels[r], 0xC6D8E0FFu, 7.5f);
             gfx::fillRect(barX, ry + 1.0f, barW, 6.0f, 0x0A151CE8u);
             if (pcts[r] > 0)
             {
@@ -357,8 +366,7 @@ namespace extra {
             }
             char pctBuf[8];
             snprintf(pctBuf, sizeof(pctBuf), "%u%%", static_cast<unsigned>(pcts[r]));
-            float pw = gfx::textWidth(pctBuf, rowScale);
-            drawShadowText(x + bw - 5.5f * xs - pw, ty, pctBuf, 0xE6F2F8FFu, rowScale);
+            drawShadowCapText(rx, ry, pctBuf, 0xE6F2F8FFu, 7.5f, true);
         }
 
         char foot[28];
@@ -384,8 +392,7 @@ namespace extra {
         {
             strcpy(foot, "Watching P1...");
         }
-        float footY = ui::style::textYForCap(y + 47.0f, rowScale);
-        drawShadowText(x + 5.5f * xs, footY, foot, footCol, rowScale);
+        drawShadowCapText(lx, y + 47.0f, foot, footCol, 7.5f);
         s_net->debug.hudDraws++;
     }
 }

@@ -46,7 +46,7 @@ namespace extra {
         kCliffLast = 0x7B
     };
 
-    static RecoveryState s_states[cpu::kMaxSlots];
+    static RecoveryState* s_states = NULL;
     static u32 s_rng = 0xA341316Cu;
 
 #pragma dont_inline on
@@ -161,16 +161,26 @@ namespace extra {
 
     void pplusRecoveryAttach()
     {
-        for (int i = 0; i < cpu::kMaxSlots; i++)
+        freeNetPtr(s_states);
+        s_states = allocNetArray<RecoveryState>(cpu::kMaxSlots);
+        if (s_states != NULL)
         {
-            recoveryStateReset(s_states[i]);
+            for (int i = 0; i < cpu::kMaxSlots; i++)
+            {
+                recoveryStateReset(s_states[i]);
+            }
         }
         s_rng = game::frameCounter() | 1u;
     }
 
+    void pplusRecoveryDetach()
+    {
+        freeNetPtr(s_states);
+    }
+
     void pplusRecoveryReset(int slot)
     {
-        if (slot >= 0 && slot < cpu::kMaxSlots)
+        if (s_states != NULL && slot >= 0 && slot < cpu::kMaxSlots)
         {
             recoveryStateReset(s_states[slot]);
         }
@@ -178,7 +188,7 @@ namespace extra {
 
     bool pplusRecoveryStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons)
     {
-        if (who.slot < 0 || who.slot >= cpu::kMaxSlots || f == NULL)
+        if (s_states == NULL || who.slot < 0 || who.slot >= cpu::kMaxSlots || f == NULL)
         {
             return false;
         }

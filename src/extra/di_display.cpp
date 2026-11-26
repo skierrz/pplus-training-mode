@@ -175,20 +175,31 @@ namespace extra {
         float diY;        // 0x1C
     };
 
+    struct DiEnv {
+        float threshold, sdi, asdi, decay;
+        float reflectSpeed, reflectMul, groundMul;
+        float left, right, top, bottom;
+    };
+
+    struct DiBody {
+        float x, y, lift;
+        float down, up, half, mid;
+        float brake; // knockback lost per frame on the ground
+        int frames;
+        bool ground, floor, trace;
+    };
+
     struct DiNet {
         Trail trails[game::kMaxFighters];
         CStickTrack cstick[game::kMaxFighters];
         DiCompassState compass;
         DiPickerDebugBlock pickerDebug;
+        DiEnv env;
+        DiBody body;
     };
 
     static DiNet* s_net = NULL;
 
-    static struct {
-        float threshold, sdi, asdi, decay;
-        float reflectSpeed, reflectMul, groundMul;
-        float left, right, top, bottom;
-    } s_env;
     // Where each is read (the common parameters 3284 Damage_Fly_Reflect_Speed,
     // 3285 its multiplier and 3293 Damage_Ground_Mul last) and the largest
     // value it is accepted with.
@@ -203,14 +214,6 @@ namespace extra {
         float accel;  // fall acceleration (negative)
         float maxFall;
     };
-
-    static struct {
-        float x, y, lift;
-        float down, up, half, mid;
-        float brake; // knockback lost per frame on the ground
-        int frames;
-        bool ground, floor, trace;
-    } s_body;
 
     // stRayCheck's first words as read on this setup (its fifth word, a
     // relative call, is skipped); checked once per attach.
@@ -306,19 +309,7 @@ namespace extra {
     };
 
     // The hardware pad port (0-3 GameCube, 4-7 Wii) for a human fighter from
-    // ipPadConfig (+0xB5 + playerNo), falling back to ref.port.
-    static int humanPort(const game::FighterRef& ref, const u8* cfg)
-    {
-        if (game::isRam(cfg) && ref.playerNo >= 0 && ref.playerNo < game::kMaxFighters)
-        {
-            int contNo = cfg[kPadConfigPorts + ref.playerNo] & 0xF;
-            if (contNo >= 0 && contNo < display::kPortPads)
-            {
-                return contNo;
-            }
-        }
-        return ref.port;
-    }
+    // ipPadConfig (+0xB5 + playerNo) lives in hud_draw.cpp (`extraHumanPort`).
 
     // The sticks the fighter's DI will come from; false if P+'s Random DI
     // decides instead. A human's stick now: the game pads' (read also while
@@ -328,8 +319,7 @@ namespace extra {
     {
         memset(&out, 0, sizeof(out));
         out.cstickMode = kCStickNone;
-        ftEntryManager* entries = extraEntryManager();
-        ftEntry* entry = game::isRam(entries) ? entries->getEntity(ref.entryId) : NULL;
+        ftEntry* entry = extraEntry(ref.entryId);
         if (!game::isRam(entry) || !game::isRam(entry->m_input))
         {
             return true;
@@ -356,7 +346,7 @@ namespace extra {
         else if (!ref.cpu && !cpu::controlled(slot))
         {
             const u8* cfg = reinterpret_cast<const u8*>(ipPadConfig::getInstance());
-            int contNo = humanPort(ref, cfg);
+            int contNo = extraHumanPort(ref);
             if (display::inputStickWithType(contNo, raw, &controllerType))
             {
                 out.hasHumanPad = true;
@@ -407,7 +397,7 @@ namespace extra {
     {
         clampLength(x, y, 1.0f);
         s.x += x * distance;
-        s.y += (s_body.ground && y < 0.0f) ? 0.0f : y * distance;
+        s.y += (s_net->body.ground && y < 0.0f) ? 0.0f : y * distance;
     }
 
     // Turns the knockback by trajectory DI from stick (sx, sy).
@@ -432,15 +422,17 @@ namespace extra {
 
     static gfx::Rgba colourAt(const Flight& s, gfx::Rgba colour)
     {
-        bool out = s.x < s_env.left || s.x > s_env.right || s.y > s_env.top || s.y < s_env.bottom;
+        const DiEnv& env = s_net->env;
+        bool out = s.x < env.left || s.x > env.right || s.y > env.top || s.y < env.bottom;
         return out ? kRed : colour;
     }
 
     // One frame of flight.
     static void step(Flight& s)
     {
+        float decay = s_net->env.decay;
         float len = root(s.vx * s.vx + s.vy * s.vy);
-        float k = len > s_env.decay ? (len - s_env.decay) / len : 0.0f;
+        float k = len > decay ? (len - decay) / len : 0.0f;
         s.vx *= k;
         s.vy *= k;
         s.g += s.accel;
@@ -494,16 +486,17 @@ namespace extra {
     // ray from its bottom or top point, and one from the side it moves to.
     static bool touches(const Flight& a, const Flight& b, Contact& c)
     {
+        const DiBody& body = s_net->body;
         float dx = b.x - a.x;
         float dy = b.y - a.y;
         float t = 2.0f;
         if (dy != 0.0f)
         {
-            ray(a.x, a.y + (dy < 0.0f ? s_body.down : s_body.up), dx, dy, t, c, false);
+            ray(a.x, a.y + (dy < 0.0f ? body.down : body.up), dx, dy, t, c, false);
         }
         if (dx != 0.0f)
         {
-            ray(a.x + (dx < 0.0f ? -s_body.half : s_body.half), a.y + s_body.mid, dx, dy, t, c, true);
+            ray(a.x + (dx < 0.0f ? -body.half : body.half), a.y + body.mid, dx, dy, t, c, true);
         }
         if (t > 1.0f)
         {
@@ -625,10 +618,12 @@ namespace extra {
                     float b = (done + part) / len;
                     float ex = d.x + dx * b;
                     float ey = d.y + dy * b;
-                    bool out = ex < s_env.left || ex > s_env.right || ey > s_env.top || ey < s_env.bottom;
+                    const DiEnv& env = s_net->env;
+                    float lift = s_net->body.lift;
+                    bool out = ex < env.left || ex > env.right || ey > env.top || ey < env.bottom;
                     gfx::Rgba c = out ? kRed : d.colour;
-                    gfx::vertex(d.x + dx * a, d.y + dy * a + s_body.lift, c);
-                    gfx::vertex(ex, ey + s_body.lift, c);
+                    gfx::vertex(d.x + dx * a, d.y + dy * a + lift, c);
+                    gfx::vertex(ex, ey + lift, c);
                 }
             }
             d.phase += part;
@@ -727,6 +722,8 @@ namespace extra {
     // stage again.
     static void follow(const Flight& at, const Contact& c, int left, Dash& d, char tag)
     {
+        const DiBody& body = s_net->body;
+        const DiEnv& env = s_net->env;
         Flight s = at;
         s.x = c.x;
         s.y = c.y;
@@ -735,7 +732,7 @@ namespace extra {
         tb.init();
         if (c.land)
         {
-            float b = s_body.brake;
+            float b = body.brake;
             float v = s.vx;
             if (b <= 0.0f || (v < 0.0f ? -v : v) <= 2.0f * b)
             {
@@ -755,7 +752,7 @@ namespace extra {
                 s.x += v;
                 n++;
                 dashTo(d, s.x, s.y);
-                if (d.draw && s_body.trace)
+                if (d.draw && body.trace)
                 {
                     tb.addPoint(tag, true, c.frame + n, s.x, s.y);
                 }
@@ -766,7 +763,7 @@ namespace extra {
         // Bounce (rules above): faster than Damage_Fly_Reflect_Speed into
         // the line.
         float dot = s.vx * c.nx + s.vy * c.ny;
-        if (-dot <= s_env.reflectSpeed)
+        if (-dot <= env.reflectSpeed)
         {
             return;
         }
@@ -793,8 +790,8 @@ namespace extra {
         float along = (1.0f - c.t) * (c.dx * c.ny - c.dy * c.nx);
         s.x += along * c.ny;
         s.y -= along * c.nx;
-        s.vx = (s.vx - 2.0f * dot * c.nx) * s_env.reflectMul;
-        s.vy = (s.vy - 2.0f * dot * c.ny) * s_env.reflectMul;
+        s.vx = (s.vx - 2.0f * dot * c.nx) * env.reflectMul;
+        s.vy = (s.vy - 2.0f * dot * c.ny) * env.reflectMul;
         s.g = 0.0f;
         Contact again;
         int end = firstContact(s, left, again);
@@ -802,7 +799,7 @@ namespace extra {
         for (int i = 0; i <= n; i++)
         {
             dashTo(d, s.x, s.y);
-            if (d.draw && s_body.trace)
+            if (d.draw && body.trace)
             {
                 tb.addPoint(tag, true, c.frame + i, s.x, s.y);
             }
@@ -831,10 +828,11 @@ namespace extra {
     // ground a knockback that does not lift the fighter only slides it.
     static void drawPath(const Flight& start, u8 width, gfx::Rgba colour, char tag)
     {
+        const DiBody& body = s_net->body;
         Flight s = start;
-        float lift = s_body.lift;
+        float lift = body.lift;
         Contact c;
-        if (s_body.floor && s.vy <= 0.0f)
+        if (body.floor && s.vy <= 0.0f)
         {
             c.frame = 0;
             c.x = s.x;
@@ -843,12 +841,12 @@ namespace extra {
             drawFollow(s, c, 0, s.x, s.y, width, colour, tag);
             return;
         }
-        int end = firstContact(s, s_body.frames, c);
-        int n = end != 0 ? end : s_body.frames;
+        int end = firstContact(s, body.frames, c);
+        int n = end != 0 ? end : body.frames;
         TraceBuf tb;
         tb.init();
         gfx::lineBegin(GX_LINESTRIP, n + 2, width);
-        gfx::vertex(s_body.x, s_body.y + lift, colour);
+        gfx::vertex(body.x, body.y + lift, colour);
         gfx::vertex(s.x, s.y + lift, colourAt(s, colour));
         for (int i = 1; i <= n; i++)
         {
@@ -859,7 +857,7 @@ namespace extra {
                 break;
             }
             gfx::vertex(s.x, s.y + lift, colourAt(s, colour));
-            if (s_body.trace)
+            if (body.trace)
             {
                 tb.addPoint(tag, false, i, s.x, s.y);
             }
@@ -869,9 +867,9 @@ namespace extra {
         {
             return;
         }
-        drawFollow(s, c, s_body.frames - end, c.x, c.y, width, colour, tag);
+        drawFollow(s, c, body.frames - end, c.x, c.y, width, colour, tag);
         drawContact(c, lift);
-        if (s_body.trace)
+        if (body.trace)
         {
             TM_LOG("di: %c %s %d %.3f %.3f normal %.3f %.3f speed %.3f %.3f\n", tag, c.land ? "lands" : "touches", end,
                    c.x, c.y, c.nx, c.ny, s.vx, s.vy);
@@ -896,7 +894,8 @@ namespace extra {
 
     static bool readEnv()
     {
-        float* v = &s_env.threshold;
+        DiEnv& env = s_net->env;
+        float* v = &env.threshold;
         for (int i = 0; i < 7; i++)
         {
             v[i] = *reinterpret_cast<const float*>(kEnvAt[i]);
@@ -915,7 +914,7 @@ namespace extra {
         {
             v[7 + i] = zones[i];
         }
-        return s_env.left < s_env.right && s_env.bottom < s_env.top;
+        return env.left < env.right && env.bottom < env.top;
     }
 
     static void fighter(const game::FighterRef& ref, Fighter* f, bool partner, Trail* t)
@@ -972,48 +971,50 @@ namespace extra {
         {
             return;
         }
-        s_body.frames = hitstun < kMaxFrames ? hitstun : kMaxFrames;
-        s_body.x = s.x;
-        s_body.y = s.y;
+        DiBody& body = s_net->body;
+        const DiEnv& env = s_net->env;
+        body.frames = hitstun < kMaxFrames ? hitstun : kMaxFrames;
+        body.x = s.x;
+        body.y = s.y;
         // Draw trajectories from the fighter's ECB centre.
         float lift = m->m_groundModule->getCenterPos(0).m_y - s.y;
-        s_body.lift = within(lift, 0.0f, 40.0f) ? lift : 0.0f;
+        body.lift = within(lift, 0.0f, 40.0f) ? lift : 0.0f;
         soGroundModule* ground = m->m_groundModule;
         Vec2f left = ground->getLeftPos(0);
-        s_body.down = ground->getDownPos(0).m_y - s.y;
-        s_body.up = ground->getUpPos(0).m_y - s.y;
-        s_body.half = ground->getRightPos(0).m_x - left.m_x;
-        s_body.half *= 0.5f;
-        s_body.mid = left.m_y - s.y;
+        body.down = ground->getDownPos(0).m_y - s.y;
+        body.up = ground->getUpPos(0).m_y - s.y;
+        body.half = ground->getRightPos(0).m_x - left.m_x;
+        body.half *= 0.5f;
+        body.mid = left.m_y - s.y;
         soModuleAccesser* accesser = reinterpret_cast<soModuleAccesser*>(game::wordAt(f, 0x60));
-        s_body.brake = extraConstFloat(accesser, kGroundBrake) * s_env.groundMul;
-        s_body.brake = within(s_body.brake, 0.0f, 1.0f) ? s_body.brake : 0.0f;
-        if (s_body.down < kLowEcb)
+        body.brake = extraConstFloat(accesser, kGroundBrake) * env.groundMul;
+        body.brake = within(body.brake, 0.0f, 1.0f) ? body.brake : 0.0f;
+        if (body.down < kLowEcb)
         {
             // The ECB's bottom is at the feet (standing, or held there just
             // after the launch); in tumble it rises (see the flight notes at the top).
-            s_body.down = kTumbleBottom * (s_body.up - s_body.down);
+            body.down = kTumbleBottom * (body.up - body.down);
         }
         if (t != NULL)
         {
-            drawTrail(*t, s_body.lift);
+            drawTrail(*t, body.lift);
         }
         // In hitlag a fighter hit on the ground can already be in the air
         // situation (its smash DI then moves it down in full); for staying
         // on the ground and sliding, its feet on a floor count.
         float feet = s.y;
-        s_body.ground = m->m_situationModule->getKind() != Situation_Air;
-        s_body.floor = s_body.ground || (hitlag > 0 && floorAt(s.x, feet) && s.y - feet < kOnFloor);
+        body.ground = m->m_situationModule->getKind() != Situation_Air;
+        body.floor = body.ground || (hitlag > 0 && floorAt(s.x, feet) && s.y - feet < kOnFloor);
         Stick st;
         memset(&st, 0, sizeof(st));
         st.cstickMode = kCStickNone;
         u8 diMode = main::settings().display.diVectorMode;
         bool own = hitlag > 0 && readStick(ref, partner, hitlag, st);
-        float stageCenterX = (s_env.left + s_env.right) * 0.5f;
+        float stageCenterX = (env.left + env.right) * 0.5f;
         float facing = s.vx >= 0.0f ? 1.0f : -1.0f;
         int player = ref.playerNo + (partner ? 4 : 0);
-        s_body.trace = g_diTrace == player + 1;
-        if (s_body.trace)
+        body.trace = g_diTrace == player + 1;
+        if (body.trace)
         {
             TM_LOG("di: P%d at %.3f %.3f hitlag %d hitstun %d speed %.4f %.4f stick %.3f %.3f\n", player + 1, s.x, s.y,
                    hitlag, hitstun, s.vx, s.vy, st.x, st.y);
@@ -1061,11 +1062,11 @@ namespace extra {
         pin.prevMainY = st.ly;
         pin.fallbackMainX = st.x;
         pin.fallbackMainY = st.y;
-        pin.threshold = s_env.threshold;
+        pin.threshold = env.threshold;
         HitlagPreviewResult preview = previewHitlagFrame(pin);
         for (int k = 0; k < preview.sdiCount; k++)
         {
-            shift(s, preview.sdiX[k], preview.sdiY[k], s_env.sdi * mul);
+            shift(s, preview.sdiX[k], preview.sdiY[k], env.sdi * mul);
         }
         // Downward ASDI on the ground keeps the fighter there, to slide,
         // unless the launch lifts it more than the ASDI moved it down
@@ -1073,8 +1074,8 @@ namespace extra {
         float sink = 0.0f;
         if (preview.hasAsdi)
         {
-            sink = s_body.floor && preview.asdiY < 0.0f ? -preview.asdiY * s_env.asdi * mul : 0.0f;
-            shift(s, preview.asdiX, preview.asdiY, s_env.asdi * mul);
+            sink = body.floor && preview.asdiY < 0.0f ? -preview.asdiY * env.asdi * mul : 0.0f;
+            shift(s, preview.asdiX, preview.asdiY, env.asdi * mul);
         }
         float launchVx = s.vx;
         float launchVy = s.vy;
@@ -1084,7 +1085,7 @@ namespace extra {
         {
             // Stays on its floor (smash DI down moves it no lower).
             s.vy = 0.0f;
-            s.y = s_body.y;
+            s.y = body.y;
         }
         drawPath(s, kWidthMain, kBlue, 'p');
     }
@@ -1229,10 +1230,8 @@ namespace extra {
             game::FighterRef human;
             if (game::findFighter(false, human))
             {
-                const u8* cfg = reinterpret_cast<const u8*>(ipPadConfig::getInstance());
-                int port = humanPort(human, cfg);
                 s8 raw[4];
-                if (display::inputStickWithType(port, raw, NULL))
+                if (display::inputStickWithType(extraHumanPort(human), raw, NULL))
                 {
                     game::mainStick(raw[0], raw[1], &liveX, &liveY);
                 }
@@ -1301,18 +1300,12 @@ namespace extra {
         float lStickX = liveX;
         float lStickY = liveY;
         clampLength(lStickX, lStickY, 1.0f);
-        float dotX = cx + lStickX * rx * 0.85f;
-        float dotY = cy - lStickY * ry * 0.85f;
-        gfx::fillEllipse(dotX, dotY, 3.2f * xs, 3.2f, 0x050C12E8u);
-        gfx::fillEllipse(dotX, dotY, 2.3f * xs, 2.3f, 0xFFFFFFFFu);
+        drawDialRayDot(cx, cy, rx, ry, lStickX, lStickY, 0.85f, 2.3f, xs, 0u, 0xFFFFFFFFu, 0, false);
 
         // Draw mode header text last to avoid a mid-card GX shape->text->shape switch.
         char label[16];
         diVectorShortLabel(mode, label);
-        float scale = ui::style::scaleForCap(7.5f);
-        float tx = x + ui::style::w(5.0f);
-        float ty = ui::style::textYForCap(y + 6.0f, scale);
-        drawShadowText(tx, ty, label, 0xE2EEF4FFu, scale);
+        drawShadowCapText(x + ui::style::w(5.0f), y + 6.0f, label, 0xE2EEF4FFu, 7.5f);
 
         s_pickerDebug.compassDrawn = 1;
         s_pickerDebug.totalDrawn++;
@@ -1393,41 +1386,27 @@ namespace extra {
         float vx = i2fScale(set.cpuTables.customDiX, 0.01f);
         float vy = i2fScale(set.cpuTables.customDiY, 0.01f);
         clampLength(vx, vy, 1.0f);
-        float tipX = cx + vx * rx * 0.90f;
-        float tipY = cy - vy * ry * 0.90f;
         bool hasVec = (vx * vx + vy * vy > 0.0004f);
-        if (hasVec)
-        {
-            gfx::lineBegin(GX_LINES, 2, 16);
-            gfx::vertex(cx, cy, picking ? 0xFFD300FFu : 0x22D3EEFFu);
-            gfx::vertex(tipX, tipY, picking ? 0xFFD300FFu : 0x22D3EEFFu);
-        }
-        gfx::fillEllipse(tipX, tipY, 3.6f * xs, 3.6f, 0x050C12E8u);
-        gfx::fillEllipse(tipX, tipY, 2.6f * xs, 2.6f, picking ? 0xFFD300FFu : 0x22D3EEFFu);
+        gfx::Rgba vecCol = picking ? 0xFFD300FFu : 0x22D3EEFFu;
+        drawDialRayDot(cx, cy, rx, ry, vx, vy, 0.90f, 2.6f, xs, vecCol, vecCol, 16, hasVec);
 
         float tx = cardX + ui::style::w(90.0f);
-        float headScale = ui::style::scaleForCap(compact ? 7.5f : 8.2f);
-        float bodyScale = ui::style::scaleForCap(7.5f);
         float rowStep = compact ? 15.0f : 19.0f;
         float row0 = topY + (compact ? 10.0f : 12.0f);
-        drawShadowText(tx, ui::style::textYForCap(row0, headScale), picking ? "AIMING DI" : "CUSTOM DI",
-                       0xFFD300FFu, headScale);
+        drawShadowCapText(tx, row0, picking ? "AIMING DI" : "CUSTOM DI", 0xFFD300FFu, compact ? 7.5f : 8.2f);
         char line[32];
         snprintf(line, sizeof(line), "X %+d%%  Y %+d%%",
                  static_cast<int>(set.cpuTables.customDiX), static_cast<int>(set.cpuTables.customDiY));
-        drawShadowText(tx, ui::style::textYForCap(row0 + rowStep, bodyScale), line, 0xE2EEF4FFu, bodyScale);
+        drawShadowCapText(tx, row0 + rowStep, line, 0xE2EEF4FFu, 7.5f);
+        const char* degLine = "Neutral  Screen X/Y";
         if (hasVec)
         {
             snprintf(line, sizeof(line), "%d deg  Screen X/Y", atan2Deg360(vx, vy));
+            degLine = line;
         }
-        else
-        {
-            snprintf(line, sizeof(line), "Neutral  Screen X/Y");
-        }
-        drawShadowText(tx, ui::style::textYForCap(row0 + rowStep * 2.0f, bodyScale), line, 0xB8D4E2FFu, bodyScale);
-        drawShadowText(tx, ui::style::textYForCap(row0 + rowStep * 3.0f, bodyScale),
-                       picking ? "A: Lock  B: Cancel" : "Press A to aim",
-                       picking ? 0xFFD300FFu : 0x9CB4C4FFu, bodyScale);
+        drawShadowCapText(tx, row0 + rowStep * 2.0f, degLine, 0xB8D4E2FFu, 7.5f);
+        drawShadowCapText(tx, row0 + rowStep * 3.0f, picking ? "A: Lock  B: Cancel" : "Press A to aim",
+                          picking ? 0xFFD300FFu : 0x9CB4C4FFu, 7.5f);
     }
 
     void diReset()

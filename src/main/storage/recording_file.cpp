@@ -65,16 +65,16 @@ namespace storage {
     static const volatile u16* const kAltStageButtons = reinterpret_cast<const volatile u16*>(0x8053EFBA);
 
     enum Phase { kIdle, kExportFolder, kExportWrite, kImportWait, kImportRead };
+    // Rendered frames an import has waited for its two buffers (the game
+    // can hold load-time data in both heaps as the match starts; not
+    // checked in the game's code).
+    enum { kImportWaitFrames = 900 };
     static int s_phase = kIdle;
     static Job s_job;
     static bool s_jobStale = false; // timed-out request still draining
     static u8* s_buffer = NULL;
     static u32 s_size = 0;
     static char s_name[kNameMax];
-    // Rendered frames an import has waited for its two buffers (the game
-    // can hold load-time data in both heaps as the match starts; not
-    // checked in the game's code).
-    enum { kImportWaitFrames = 900 };
     static int s_waited = 0;
 
     // ---- the temporary buffer ----
@@ -166,6 +166,11 @@ namespace storage {
         }
     }
 
+    static void failNotice(bool isExport, const char* msg)
+    {
+        notice(kNoticeError, isExport ? "Export failed: %s" : "Import failed: %s", msg);
+    }
+
     bool exportAvailable()
     {
         return record::positionsSaved();
@@ -188,7 +193,7 @@ namespace storage {
         int w = writable();
         if (w != kOk)
         {
-            notice(kNoticeError, "Export failed: %s", resultText(w));
+            failNotice(true, resultText(w));
             return;
         }
         u8* hmn = modePlayer(who.hmn);
@@ -196,7 +201,7 @@ namespace storage {
         GameGlobal* g = g_GameGlobal;
         if (hmn == NULL || cpu == NULL)
         {
-            notice(kNoticeError, "Export failed: no match setup");
+            failNotice(true, "no match setup");
             return;
         }
 
@@ -218,13 +223,13 @@ namespace storage {
         }
         if (size > kTempMax)
         {
-            notice(kNoticeError, "Export failed: the recording is too long");
+            failNotice(true, "the recording is too long");
             return;
         }
         s_buffer = allocTemp(padded(size));
         if (s_buffer == NULL)
         {
-            notice(kNoticeError, "Export failed: %s", resultText(kNoMemory));
+            failNotice(true, resultText(kNoMemory));
             return;
         }
         memset(s_buffer, 0, padded(size));
@@ -267,7 +272,7 @@ namespace storage {
         if (n != areasSize)
         {
             freeTemp();
-            notice(kNoticeError, "Export failed: the settings did not fit");
+            failNotice(true, "the settings did not fit");
             return;
         }
         at += n;
@@ -590,14 +595,14 @@ namespace storage {
         {
             s_phase = kIdle;
             TM_LOG("storage: import %s gave up after %d frames: no room\n", s_name, s_waited);
-            notice(kNoticeError, "Import failed: %s", resultText(kNoMemory));
+            failNotice(false, resultText(kNoMemory));
             return;
         }
         if (!s_job.read(s_name, s_buffer, s_size))
         {
             freeTemp();
             s_phase = kIdle;
-            notice(kNoticeError, "Import failed: %s", resultText(kBusy));
+            failNotice(false, resultText(kBusy));
             return;
         }
         s_phase = kImportRead;
@@ -621,7 +626,7 @@ namespace storage {
         if (why != NULL)
         {
             TM_LOG("storage: import %s failed: %s\n", s_name, why);
-            notice(kNoticeError, "Import failed: %s", why);
+            failNotice(false, why);
         }
     }
 
@@ -685,7 +690,7 @@ namespace storage {
             {
                 freeTemp();
                 s_phase = kIdle;
-                notice(kNoticeError, "Export failed: %s", resultText(kBusy));
+                failNotice(true, resultText(kBusy));
                 break;
             }
             s_phase = kExportWrite;
@@ -701,7 +706,7 @@ namespace storage {
             else
             {
                 TM_LOG("storage: export %s failed: status %d\n", s_name, status);
-                notice(kNoticeError, "Export failed: %s", resultText(result));
+                failNotice(true, resultText(result));
             }
             break;
         case kImportRead:

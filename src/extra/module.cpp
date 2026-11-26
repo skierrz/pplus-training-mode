@@ -26,6 +26,7 @@
 #include "extra/grab_visualizer.h"
 #include "extra/hitbox_colors.h"
 #include "extra/hitbox_heatmap.h"
+#include "extra/hud_draw.h"
 #include "extra/input_viewer.h"
 #include "extra/lab_tools.h"
 #include "extra/menu_descriptions.h"
@@ -201,51 +202,9 @@ namespace extra {
         actionLogReset();
     }
 
-    static int infoRowCount(const main::InfoSettings& info)
-    {
-        int n = 0;
-        for (int r = 0; r < main::kInfoRows; r++)
-        {
-            if (info.rows[r] != 0)
-            {
-                n = r + 1;
-            }
-        }
-        return n;
-    }
-
     static float osdTopStartYHook(bool isTopRight)
     {
-        using namespace ui::layout;
-        const main::Settings& s = main::settings();
-        bool wide = gfx::widescreen();
-        Box band = topBand();
-        float infoBot = 0.0f;
-        float rightBot = 0.0f;
-        if (!isTopRight)
-        {
-            infoBot = infoStackBottom(band, infoRowCount(s.info[0]), s.info[0].size,
-                                      infoRowCount(s.info[1]), s.info[1].size, wide);
-        }
-        else
-        {
-            bool training = game::trainingGameMode();
-            int vSlots = training ? inputViewerSlotCount(s.display.inputViewer) : 0;
-            bool hasComp = training && s.general.diDisplay != 0 && s.display.diVectorMode != main::kDiVectorLive;
-            bool hasPsa = s.display.psaInspector != main::kPsaOff;
-            bool hasAdaptive = training && s.cpu.options.control == cpu::kControlLab
-                               && s.cpu.options.adaptiveMode != cpu::kAdaptiveOff;
-            rightBot = rightColumnBottom(band, vSlots, hasComp, hasPsa, wide, hasAdaptive);
-            if (!s_vsReadOnly && scenarioPresetsWantsDraw(game::matchState()))
-            {
-                Box tc = techchaseHudBox(band, vSlots, hasComp, hasPsa, wide, hasAdaptive);
-                if (tc.y1 > rightBot)
-                {
-                    rightBot = tc.y1;
-                }
-            }
-        }
-        return osdTopStartY(isTopRight, band, infoBot, rightBot);
+        return hudOsdTopStartY(isTopRight, s_vsReadOnly);
     }
 
     static bool onCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons)
@@ -395,6 +354,7 @@ namespace extra {
         coreDrillEnginesDetach();
         hoverPsDetach();
         comboTrainerDetach();
+        pplusRecoveryDetach();
         stageGeomDetach();
         menuDescDetach();
         game::statusNamesDetach();

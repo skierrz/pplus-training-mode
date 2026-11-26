@@ -1307,21 +1307,14 @@ namespace ui {
         }
 
         float headerMid = (kLabInnerTop + kRailHeaderBottom) * 0.5f;
-        if (railUtilityFocused(def, state))
+        bool utilFoc = railUtilityFocused(def, state);
+        if (utilFoc || state.depth == 0)
         {
-            int u = state.railCursor - def.categoryCount;
-            fitDisplay(48.0f, headerMid - 6.25f, def.utilities[u].name, 0, 12.5f, 390.0f, 2);
+            const char* hdr = utilFoc ? def.utilities[state.railCursor - def.categoryCount].name
+                                      : pageTitle(def, state.stack[0]);
+            const char* tag = utilFoc ? "Quick Action" : "Training Lab";
+            fitDisplay(48.0f, headerMid - 6.25f, hdr, 0, 12.5f, 390.0f, 2);
             float subScale = displayScaleForCap(8.5f);
-            const char* tag = "Quick Action";
-            float tagW = gfx::displayTextWidth(tag, subScale);
-            gfx::displayText(cx(592.0f) - tagW, displayYForCap(headerMid - 4.25f, subScale), tag, pal.mutedText,
-                             subScale);
-        }
-        else if (state.depth == 0)
-        {
-            fitDisplay(48.0f, headerMid - 6.25f, pageTitle(def, state.stack[0]), 0, 12.5f, 390.0f, 2);
-            float subScale = displayScaleForCap(8.5f);
-            const char* tag = "Training Lab";
             float tagW = gfx::displayTextWidth(tag, subScale);
             gfx::displayText(cx(592.0f) - tagW, displayYForCap(headerMid - 4.25f, subScale), tag, pal.mutedText,
                              subScale);

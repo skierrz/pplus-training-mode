@@ -75,17 +75,7 @@ namespace extra {
     {
         if (s_net == NULL)
         {
-            u32 need = (static_cast<u32>(sizeof(ActionLogNet)) + 31u) & ~31u;
-            game::HeapUsage u;
-            if (game::heapUsage(Heaps::Network, u) && u.largest >= need)
-            {
-                void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
-                if (game::isRam(p))
-                {
-                    memset(p, 0, need);
-                    s_net = static_cast<ActionLogNet*>(p);
-                }
-            }
+            s_net = static_cast<ActionLogNet*>(game::allocNetworkZero(static_cast<u32>(sizeof(ActionLogNet))));
         }
         if (s_net == NULL)
         {
@@ -98,14 +88,7 @@ namespace extra {
 
     void actionLogDetach()
     {
-        if (s_net != NULL)
-        {
-            if (game::isRam(s_net))
-            {
-                free(s_net);
-            }
-            s_net = NULL;
-        }
+        game::freeNetworkSlot(reinterpret_cast<void**>(&s_net));
     }
 
     void actionLogReset()

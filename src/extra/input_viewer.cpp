@@ -51,28 +51,17 @@ namespace extra {
             u8 pad;                // 0x1F
         };
 
-        InputViewerDebugBlock s_debug;
+        InputViewerDebugBlock* s_debug = NULL;
 
         bool readFighterViewerPad(const game::FighterRef& ref, display::ViewerPad& out)
         {
             memset(&out, 0, sizeof(out));
-            ftEntryManager* entries = extraEntryManager();
-            ftEntry* entry = game::isRam(entries) ? entries->getEntity(ref.entryId) : NULL;
+            ftEntry* entry = extraEntry(ref.entryId);
             int slot = game::isRam(entry) ? entry->m_slotIndex : -1;
 
             if (!ref.cpu && !(slot >= 0 && cpu::controlled(slot)))
             {
-                const u8* cfg = reinterpret_cast<const u8*>(ipPadConfig::getInstance());
-                int port = ref.port;
-                if (game::isRam(cfg) && ref.playerNo >= 0 && ref.playerNo < game::kMaxFighters)
-                {
-                    int c = cfg[kPadConfigPorts + ref.playerNo] & 0xF;
-                    if (c >= 0 && c < display::kPortPads)
-                    {
-                        port = c;
-                    }
-                }
-                if (display::inputViewerPad(port, out))
+                if (display::inputViewerPad(extraHumanPort(ref), out))
                 {
                     return true;
                 }
@@ -123,18 +112,9 @@ namespace extra {
 
             float nx, ny;
             viewerStickNorm(rawX, rawY, nx, ny);
-            float dx = cx + nx * rx * 0.85f;
-            float dy = cy - ny * ry * 0.85f;
-            if (nx != 0.0f || ny != 0.0f)
-            {
-                gfx::lineBegin(GX_LINES, 2, 10);
-                gfx::Rgba ray = spec.isCStick ? 0xFFD300C0u : 0x36CFC2D8u;
-                gfx::vertex(cx, cy, ray);
-                gfx::vertex(dx, dy, ray);
-            }
-            float dr = spec.isCStick ? 2.6f : 3.2f;
-            gfx::fillEllipse(dx, dy, (dr + 0.8f) * xs, dr + 0.8f, 0x050C12E0u);
-            gfx::fillEllipse(dx, dy, dr * xs, dr, spec.isCStick ? 0xFFD300FFu : 0xF1F5F9FFu);
+            drawDialRayDot(cx, cy, rx, ry, nx, ny, 0.85f, spec.isCStick ? 2.6f : 3.2f, xs,
+                           spec.isCStick ? 0xFFD300C0u : 0x36CFC2D8u, spec.isCStick ? 0xFFD300FFu : 0xF1F5F9FFu, 10,
+                           nx != 0.0f || ny != 0.0f);
         }
 
         void drawCard(const ui::layout::Box& b, int playerNo, bool cpu, const ViewerLayout& layout,
@@ -150,10 +130,8 @@ namespace extra {
 
             char tag[8];
             viewerTagText(playerNo, cpu, tag);
-            float scale = ui::style::scaleForCap(7.5f);
-            float tx = x + bw * 0.5f - (cpu ? 10.0f : 6.0f) * xs;
-            float ty = ui::style::textYForCap(y + 5.0f, scale);
-            drawShadowText(tx, ty, tag, cpu ? 0x9AD0F8FFu : 0xFFB0B0FFu, scale);
+            drawShadowCapText(x + bw * 0.5f - (cpu ? 10.0f : 6.0f) * xs, y + 5.0f, tag,
+                              cpu ? 0x9AD0F8FFu : 0xFFB0B0FFu, 7.5f);
 
             for (int t = 0; t < 2; t++)
             {
@@ -227,20 +205,30 @@ namespace extra {
 
     void inputViewerAttach()
     {
-        memset(&s_debug, 0, sizeof(s_debug));
-        s_debug.magic = kDebugMagic;
-        s_debug.overrideType = 0xFFu;
-        TM_LOG("input_viewer: debug block at %08x\n", &s_debug);
+        freeNetPtr(s_debug);
+        s_debug = allocNetArray<InputViewerDebugBlock>(1);
+        if (s_debug == NULL)
+        {
+            return;
+        }
+        s_debug->magic = kDebugMagic;
+        s_debug->overrideType = 0xFFu;
+        TM_LOG("input_viewer: debug block at %08x\n", s_debug);
     }
 
     void inputViewerDetach()
     {
-        s_debug.cardsDrawn = 0;
+        freeNetPtr(s_debug);
     }
 
     void inputViewerDraw(const game::MatchState& match, bool menuOpen)
     {
-        s_debug.cardsDrawn = 0;
+        if (s_debug == NULL)
+        {
+            return;
+        }
+        InputViewerDebugBlock& dbg = *s_debug;
+        dbg.cardsDrawn = 0;
         u8 who = main::settings().display.inputViewer;
         if (!match.running || match.paused || menuOpen || who == display::kWhoNone)
         {
@@ -248,7 +236,6 @@ namespace extra {
         }
         game::FighterRef refs[game::kMaxFighters];
         int n = game::listFighters(refs, game::kMaxFighters);
-        ui::layout::Box band = ui::layout::topBand();
         bool wide = gfx::widescreen();
         int slot = 0;
         // Draw human fighters first, then CPU fighters, ordered by playerNo so P1 is always top card.
@@ -269,24 +256,24 @@ namespace extra {
                     }
                     display::ViewerPad pad;
                     readFighterViewerPad(refs[i], pad);
-                    u8 type = (s_debug.overrideType <= kViewerNunchuk) ? s_debug.overrideType : pad.controllerType;
-                    drawCard(ui::layout::inputViewerCardBox(slot, band, wide), refs[i].playerNo, wantCpu,
+                    u8 type = (dbg.overrideType <= kViewerNunchuk) ? dbg.overrideType : pad.controllerType;
+                    drawCard(hudViewerCardBox(slot, wide), refs[i].playerNo, wantCpu,
                              viewerLayoutForType(type), pad);
-                    s_debug.lastButtons[slot] = pad.buttons;
-                    s_debug.lastStickX[slot] = pad.sx;
-                    s_debug.lastStickY[slot] = pad.sy;
-                    s_debug.lastLTrig[slot] = pad.lTrig;
-                    s_debug.lastRTrig[slot] = pad.rTrig;
-                    s_debug.lastType[slot] = type;
+                    dbg.lastButtons[slot] = pad.buttons;
+                    dbg.lastStickX[slot] = pad.sx;
+                    dbg.lastStickY[slot] = pad.sy;
+                    dbg.lastLTrig[slot] = pad.lTrig;
+                    dbg.lastRTrig[slot] = pad.rTrig;
+                    dbg.lastType[slot] = type;
                     slot++;
                     break;
                 }
             }
         }
-        s_debug.cardsDrawn = static_cast<u32>(slot);
+        dbg.cardsDrawn = static_cast<u32>(slot);
         if (slot > 0)
         {
-            s_debug.totalFramesDrawn++;
+            dbg.totalFramesDrawn++;
         }
     }
 }

@@ -146,20 +146,32 @@ namespace lab {
         bool exiting;
     };
 
-    static MatchPadState s_st;
-    static ui::MenuState s_menu;
-    static bool s_menuFresh = true; // the menu starts on its first row at the next open
-    static bool s_prevRan = true;
-    static bool s_fightersLogged = false;
-    static bool s_vsReadOnly = false;
-    static u32 s_systemCalls = 0;
-    static u32 s_gameCalls = 0;
-    static u32 s_frozenGameCalls = 0;
-    static u32 s_advancedSteps = 0;
+    struct LabNet {
+        MatchPadState st;
+        ui::MenuState menu;
+        bool playerShieldHit[game::kMaxFighters][2];
+        bool menuFresh; // the menu starts on its first row at the next open
+        bool prevRan;
+        bool fightersLogged;
+        bool vsReadOnly;
+        u32 systemCalls;
+        u32 gameCalls;
+        u32 frozenGameCalls;
+        u32 advancedSteps;
+    };
+
+#ifdef __MWERKS__
+    static LabNet* s_net = NULL;
+#else
+    static LabNet s_netHost;
+    static LabNet* s_net = &s_netHost;
+    static ui::MenuState& s_menu = s_netHost.menu;
+#endif
 
 #pragma dont_inline on
     static void capture(Raw* raw, const gfPadStatus* pads, bool resetWaits)
     {
+        MatchPadState& st = s_net->st;
         for (int i = 0; i < kPorts; i++)
         {
             bool conn = game::padConnectedInMatch(i, pads[i]);
@@ -167,8 +179,8 @@ namespace lab {
             bool same = conn && raw[i].connected && type == raw[i].controllerType;
             if (resetWaits && !same)
             {
-                s_st.releaseMask[i] = 0;
-                s_st.stickWaitMask &= static_cast<u8>(~(1u << i));
+                st.releaseMask[i] = 0;
+                st.stickWaitMask &= static_cast<u8>(~(1u << i));
             }
             if (!conn)
             {
@@ -359,16 +371,21 @@ namespace lab {
 
     static bool comboLHeld(const game::MatchState& m)
     {
-        if (!m.running || !m.training || m.paused || s_st.open || !comboShortcutActive())
+        if (s_net == NULL)
+        {
+            return false;
+        }
+        const MatchPadState& st = s_net->st;
+        if (!m.running || !m.training || m.paused || st.open || !comboShortcutActive())
         {
             return false;
         }
         for (int i = 0; i < kPorts; i++)
         {
-            if (s_st.sys[i].connected)
+            if (st.sys[i].connected)
             {
-                u32 lBit = game::inMatchPad(s_st.sys[i].controllerType).prevCat;
-                if (lBit != 0 && (s_st.sys[i].held & lBit) != 0)
+                u32 lBit = game::inMatchPad(st.sys[i].controllerType).prevCat;
+                if (lBit != 0 && (st.sys[i].held & lBit) != 0)
                 {
                     return true;
                 }
@@ -385,8 +402,12 @@ namespace lab {
 
     bool comboLHeldOnPads(const gfPadStatus* pads)
     {
+        if (s_net == NULL)
+        {
+            return false;
+        }
         game::MatchState m = game::matchState();
-        if (!m.running || !m.training || m.paused || s_st.open || pads == NULL)
+        if (!m.running || !m.training || m.paused || s_net->st.open || pads == NULL)
         {
             return false;
         }
@@ -454,7 +475,12 @@ namespace lab {
 
     static void hidePort(gfPadStatus& pad, u32 port, const game::MatchState& m, bool fighterPad)
     {
-        if (s_st.open)
+        if (s_net == NULL)
+        {
+            return;
+        }
+        const MatchPadState& st = s_net->st;
+        if (st.open)
         {
             hide(pad, kAllButtons, true);
             return;
@@ -476,11 +502,11 @@ namespace lab {
         {
             mask |= dpad;
         }
-        if (s_st.startState == kStartWait)
+        if (st.startState == kStartWait)
         {
             mask |= game::inMatchPad(type).start;
         }
-        hide(pad, mask | s_st.releaseMask[port], (s_st.stickWaitMask & (1u << port)) != 0);
+        hide(pad, mask | st.releaseMask[port], (st.stickWaitMask & (1u << port)) != 0);
     }
 
     static void applyHiding(gfPadStatus* pads, const game::MatchState& m)
@@ -505,13 +531,14 @@ namespace lab {
 
     static void updateReleaseWaits(const gfPadStatus* pads)
     {
+        MatchPadState& st = s_net->st;
         for (int i = 0; i < kPorts; i++)
         {
-            s_st.releaseMask[i] &= s_st.sys[i].held;
+            st.releaseMask[i] &= st.sys[i].held;
             u8 bit = static_cast<u8>(1u << i);
-            if ((s_st.stickWaitMask & bit) && (!s_st.sys[i].connected || stickNeutral(pads[i])))
+            if ((st.stickWaitMask & bit) && (!st.sys[i].connected || stickNeutral(pads[i])))
             {
-                s_st.stickWaitMask &= static_cast<u8>(~bit);
+                st.stickWaitMask &= static_cast<u8>(~bit);
             }
         }
     }
@@ -539,37 +566,40 @@ namespace lab {
 
     static void openMenu(int port, bool start)
     {
-        s_st.open = true;
+        LabNet& net = *s_net;
+        MatchPadState& st = net.st;
+        st.open = true;
         g_resetLabel[0] = 0;
-        s_st.diPickActive = false;
+        st.diPickActive = false;
         strcpy(g_diPickLabel, "Tilt + A");
         record::clearDeleteConfirm();
-        s_st.openStart = start;
-        s_st.owner = port;
-        s_st.nextCatHold = 0;
-        s_st.nextCatUsedFast = false;
-        if (s_menuFresh)
+        st.openStart = start;
+        st.owner = port;
+        st.nextCatHold = 0;
+        st.nextCatUsedFast = false;
+        if (net.menuFresh)
         {
-            ui::menuReset(ui::labMenu(), s_menu);
-            s_menuFresh = false;
+            ui::menuReset(ui::labMenu(), net.menu);
+            net.menuFresh = false;
         }
-        s_menu.openStart = start;
-        s_menu.controllerType = s_st.sys[port].controllerType;
-        memset(s_st.repeat, 0, sizeof(s_st.repeat));
-        int shown = ui::currentPage(s_menu);
+        net.menu.openStart = start;
+        net.menu.controllerType = st.sys[port].controllerType;
+        memset(st.repeat, 0, sizeof(st.repeat));
+        int shown = ui::currentPage(net.menu);
         TM_LOG("lab: menu opened by port %d (%s) on page %d (%s) row %d, depth %d, main row %d, rail %d\n", port + 1,
-               start ? "Start" : "Z in pause", shown, ui::labMenu().pages[shown]->title, s_menu.cursor[shown],
-               s_menu.depth, s_menu.railFocus ? s_menu.railCursor : s_menu.category, s_menu.railFocus ? 1 : 0);
+               start ? "Start" : "Z in pause", shown, ui::labMenu().pages[shown]->title, net.menu.cursor[shown],
+               net.menu.depth, net.menu.railFocus ? net.menu.railCursor : net.menu.category, net.menu.railFocus ? 1 : 0);
         ui::menuSound(game::kSoundOpen);
     }
 
     static void latchReleaseWaits()
     {
+        MatchPadState& st = s_net->st;
         for (int i = 0; i < kPorts; i++)
         {
-            s_st.releaseMask[i] = s_st.sys[i].held;
+            st.releaseMask[i] = st.sys[i].held;
         }
-        s_st.stickWaitMask = 0xFF;
+        st.stickWaitMask = 0xFF;
     }
 
     static void closeByButton()
@@ -583,22 +613,23 @@ namespace lab {
 #pragma force_active on
     bool menuOpen()
     {
-        return s_st.open;
+        return s_net != NULL && s_net->st.open;
     }
 
     void closeMenu()
     {
-        if (!s_st.open)
+        if (s_net == NULL || !s_net->st.open)
         {
             return;
         }
-        s_st.open = false;
+        MatchPadState& st = s_net->st;
+        st.open = false;
         g_resetLabel[0] = 0;
-        if (s_st.diPickActive)
+        if (st.diPickActive)
         {
-            settings().cpuTables.customDiX = s_st.diPickSavedX;
-            settings().cpuTables.customDiY = s_st.diPickSavedY;
-            s_st.diPickActive = false;
+            settings().cpuTables.customDiX = st.diPickSavedX;
+            settings().cpuTables.customDiY = st.diPickSavedY;
+            st.diPickActive = false;
         }
         ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
         strcpy(g_diPickLabel, "Set Angle");
@@ -613,41 +644,43 @@ namespace lab {
 
     static void runMenu()
     {
-        if (s_st.openStart && firstPadPort(s_st.sys, 0) >= 0)
+        LabNet& net = *s_net;
+        MatchPadState& st = net.st;
+        if (st.openStart && firstPadPort(st.sys, 0) >= 0)
         {
             TM_LOG("lab: menu closed with Start\n");
             closeByButton();
             return;
         }
-        if (static_cast<u32>(s_st.owner) >= kPorts || !s_st.sys[s_st.owner].connected)
+        if (static_cast<u32>(st.owner) >= kPorts || !st.sys[st.owner].connected)
         {
             // Owner disconnected while open: let any connected port close in
             // Z-in-Pause mode (pauseLab/start/B) or take ownership on a fresh
             // press, without auto-closing on a transient 1-frame hot-swap.
             for (int i = 0; i < kPorts; i++)
             {
-                u32 pressed = s_st.sys[i].pressed;
+                u32 pressed = st.sys[i].pressed;
                 if (pressed == 0)
                 {
                     continue;
                 }
-                const game::InMatchPad& m = game::inMatchPad(s_st.sys[i].controllerType);
-                if (!s_st.openStart && (pressed & (m.pauseLab | m.start | kButtonB)) != 0)
+                const game::InMatchPad& m = game::inMatchPad(st.sys[i].controllerType);
+                if (!st.openStart && (pressed & (m.pauseLab | m.start | kButtonB)) != 0)
                 {
                     closeByButton();
                 }
                 else
                 {
-                    s_st.owner = static_cast<s8>(i);
-                    s_st.nextCatHold = 0;
-                    s_st.nextCatUsedFast = false;
+                    st.owner = static_cast<s8>(i);
+                    st.nextCatHold = 0;
+                    st.nextCatUsedFast = false;
                 }
                 return;
             }
             return;
         }
-        const Raw& in = s_st.sys[s_st.owner];
-        s_menu.controllerType = in.controllerType;
+        const Raw& in = st.sys[st.owner];
+        net.menu.controllerType = in.controllerType;
         const game::InMatchPad& map = game::inMatchPad(in.controllerType);
         // Z (Classic ZL/ZR, sideways -) jumps to Training's pause menu either
         // way: from over it, by closing; opened with Start, via openTrainingMenu.
@@ -658,12 +691,12 @@ namespace lab {
             return;
         }
         // Live 2D stick capture for CPU > DI & SDI > Pick DI Angle.
-        if (s_st.diPickActive)
+        if (st.diPickActive)
         {
-            if (ui::currentPage(s_menu) != ui::pages::P_CPU_DI
+            if (ui::currentPage(net.menu) != ui::pages::P_CPU_DI
                 || settings().cpu.options.tdi != cpu::kTdiCustom)
             {
-                s_st.diPickActive = false;
+                st.diPickActive = false;
                 ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
                 strcpy(g_diPickLabel, "Set Angle");
             }
@@ -685,16 +718,16 @@ namespace lab {
                 settings().cpuTables.customDiY = static_cast<s8>(iy);
                 if ((in.pressed & kButtonA) != 0)
                 {
-                    s_st.diPickActive = false;
+                    st.diPickActive = false;
                     ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
                     strcpy(g_diPickLabel, "Set Angle");
                     ui::menuSound(game::kSoundConfirm);
                 }
                 else if ((in.pressed & kButtonB) != 0)
                 {
-                    settings().cpuTables.customDiX = s_st.diPickSavedX;
-                    settings().cpuTables.customDiY = s_st.diPickSavedY;
-                    s_st.diPickActive = false;
+                    settings().cpuTables.customDiX = st.diPickSavedX;
+                    settings().cpuTables.customDiY = st.diPickSavedY;
+                    st.diPickActive = false;
                     ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
                     strcpy(g_diPickLabel, "Set Angle");
                     ui::menuSound(game::kSoundMove);
@@ -710,10 +743,10 @@ namespace lab {
         bool anyDir = up || down || left || right;
         bool fast = (in.held & map.fastRepeat) != 0
                     || (game::hasAnalogTriggers(in.controllerType) && in.rAnalog >= kTriggerHeld);
-        mi.up = repeat(s_st.repeat[0], up && !down, fast);
-        mi.down = repeat(s_st.repeat[1], down && !up, fast);
-        mi.left = repeat(s_st.repeat[2], left && !right, fast);
-        mi.right = repeat(s_st.repeat[3], right && !left, fast);
+        mi.up = repeat(st.repeat[0], up && !down, fast);
+        mi.down = repeat(st.repeat[1], down && !up, fast);
+        mi.left = repeat(st.repeat[2], left && !right, fast);
+        mi.right = repeat(st.repeat[3], right && !left, fast);
         mi.a = (in.pressed & kButtonA) != 0;
         mi.b = (in.pressed & kButtonB) != 0;
         mi.prevCat = (in.pressed & map.prevCat) != 0;
@@ -723,64 +756,64 @@ namespace lab {
             if ((map.nextCat & map.fastRepeat) == 0)
             {
                 mi.nextCat = (in.pressed & map.nextCat) != 0;
-                s_st.nextCatHold = 0;
-                s_st.nextCatUsedFast = false;
+                st.nextCatHold = 0;
+                st.nextCatUsedFast = false;
             }
             else
             {
                 bool nextHeld = (in.held & map.nextCat) != 0;
                 if (nextHeld)
                 {
-                    if (s_st.nextCatHold == 0)
+                    if (st.nextCatHold == 0)
                     {
                         if ((in.pressed & map.nextCat) != 0)
                         {
-                            s_st.nextCatHold = 1;
-                            s_st.nextCatUsedFast = anyDir || mi.prevCat;
+                            st.nextCatHold = 1;
+                            st.nextCatUsedFast = anyDir || mi.prevCat;
                         }
                     }
                     else
                     {
                         if (anyDir || mi.prevCat)
                         {
-                            s_st.nextCatUsedFast = true;
+                            st.nextCatUsedFast = true;
                         }
-                        if (s_st.nextCatHold < 255)
+                        if (st.nextCatHold < 255)
                         {
-                            s_st.nextCatHold++;
+                            st.nextCatHold++;
                         }
                     }
                 }
-                else if (s_st.nextCatHold > 0)
+                else if (st.nextCatHold > 0)
                 {
-                    if (!s_st.nextCatUsedFast && s_st.nextCatHold <= ui::style::kRepeatStart)
+                    if (!st.nextCatUsedFast && st.nextCatHold <= ui::style::kRepeatStart)
                     {
                         mi.nextCat = true;
                     }
-                    s_st.nextCatHold = 0;
-                    s_st.nextCatUsedFast = false;
+                    st.nextCatHold = 0;
+                    st.nextCatUsedFast = false;
                 }
             }
         }
         else
         {
-            s_st.nextCatHold = 0;
-            s_st.nextCatUsedFast = false;
+            st.nextCatHold = 0;
+            st.nextCatUsedFast = false;
         }
         // B on the left rail closes the menu in both Start and Pause modes;
         // on Top Tabs depth 0, B closes in Pause mode (Start closes in Start mode).
-        int prevPage = ui::currentPage(s_menu);
-        u8 prevCur = s_menu.cursor[prevPage];
-        bool prevRail = s_menu.railFocus;
-        u8 prevRailCur = s_menu.railCursor;
-        if (!ui::menuStep(ui::labMenu(), s_menu, mi) && (!s_st.openStart || prevRail))
+        int prevPage = ui::currentPage(net.menu);
+        u8 prevCur = net.menu.cursor[prevPage];
+        bool prevRail = net.menu.railFocus;
+        u8 prevRailCur = net.menu.railCursor;
+        if (!ui::menuStep(ui::labMenu(), net.menu, mi) && (!st.openStart || prevRail))
         {
             closeByButton();
             return;
         }
-        int nextPage = ui::currentPage(s_menu);
-        if (nextPage != prevPage || s_menu.cursor[nextPage] != prevCur || s_menu.railFocus != prevRail
-            || s_menu.railCursor != prevRailCur)
+        int nextPage = ui::currentPage(net.menu);
+        if (nextPage != prevPage || net.menu.cursor[nextPage] != prevCur || net.menu.railFocus != prevRail
+            || net.menu.railCursor != prevRailCur)
         {
             g_resetLabel[0] = 0;
             record::clearDeleteConfirm();
@@ -789,13 +822,15 @@ namespace lab {
 
     static void onSystemPads(gfPadStatus* pads)
     {
-        s_systemCalls++;
-        capture(s_st.sys, pads, true);
+        LabNet& net = *s_net;
+        MatchPadState& st = net.st;
+        net.systemCalls++;
+        capture(st.sys, pads, true);
         display::systemPads(pads);
         game::MatchState m = game::matchState();
         bool inPause = m.running && m.training && m.paused;
         bool inMatch = m.running && m.training && !m.paused;
-        if (s_st.exiting)
+        if (st.exiting)
         {
             // The match is ending: no menu opens (Training's pause byte stays
             // set when the end starts from its pause, as after Finish, so Z
@@ -803,11 +838,11 @@ namespace lab {
             hideAll(pads);
             return;
         }
-        if (s_st.open && !(s_st.openStart ? inMatch : inPause))
+        if (st.open && !(st.openStart ? inMatch : inPause))
         {
             closeMenu();
         }
-        if (s_st.open)
+        if (st.open)
         {
             runMenu();
         }
@@ -816,7 +851,7 @@ namespace lab {
             // Z on Finish is P+'s "reset the match" shortcut: left alone.
             if (game::trainingMenuCursor() != game::kTrainingMenuFinish)
             {
-                int p = firstPadPort(s_st.sys, 2);
+                int p = firstPadPort(st.sys, 2);
                 if (p >= 0)
                 {
                     openMenu(p, false);
@@ -825,24 +860,24 @@ namespace lab {
         }
         else if (inMatch)
         {
-            int p = firstPadPort(s_st.sys, 0);
+            int p = firstPadPort(st.sys, 0);
             if (p >= 0)
             {
                 if (startOpensMenu())
                 {
-                    if (s_st.startState == kStartIdle)
+                    if (st.startState == kStartIdle)
                     {
                         openMenu(p, true);
                     }
                 }
                 else
                 {
-                    s_st.pausePort = static_cast<s8>(p);
-                    if (frameAdvanceOn(m) && s_st.startState == kStartIdle)
+                    st.pausePort = static_cast<s8>(p);
+                    if (frameAdvanceOn(m) && st.startState == kStartIdle)
                     {
-                        s_st.startState = kStartWait;
-                        s_st.startPort = static_cast<u8>(p);
-                        s_st.startTimer = kStartWindow;
+                        st.startState = kStartWait;
+                        st.startPort = static_cast<u8>(p);
+                        st.startTimer = kStartWindow;
                         TM_LOG("lab: Start on port %d during frame advance\n", p + 1);
                     }
                 }
@@ -853,7 +888,7 @@ namespace lab {
         bool comboL = comboLHeld(m);
         if (comboL)
         {
-            u32 dp = dpadBits(s_st.sys, m, false);
+            u32 dp = dpadBits(st.sys, m, false);
             int delta = (dp & kDpadRight) ? 1 : ((dp & kDpadLeft) ? -1 : ((dp & kDpadUp) ? 10 : ((dp & kDpadDown) ? -10 : 0)));
             if (delta != 0)
             {
@@ -872,9 +907,9 @@ namespace lab {
             }
         }
         // D-Pad shortcuts when menu is closed in active training match.
-        if (!comboL && !s_st.open && !m.paused && m.running && m.training)
+        if (!comboL && !st.open && !m.paused && m.running && m.training)
         {
-            u32 dp = dpadBits(s_st.sys, m, false);
+            u32 dp = dpadBits(st.sys, m, false);
             if (dp != 0)
             {
                 u8 p = activeScenarioPreset();
@@ -920,18 +955,18 @@ namespace lab {
         }
         // Frame Decrement: in frame advance a press steps back one frame; held
         // past the hold delay, repeats once per pass after the last arrives.
-        int dec = scanFa(s_st.sys, true);
-        bool hold = frameAdvanceOn(m) && !m.paused && !s_st.open && s_st.startState == kStartIdle && s_st.catchUp == 0;
-        s_st.decrementHold = hold && (dec & 1) ? static_cast<u16>(s_st.decrementHold + 1) : 0;
-        if (hold && ((dec & 2) || s_st.decrementHold > settings().controls.advanceDelay))
+        int dec = scanFa(st.sys, true);
+        bool hold = frameAdvanceOn(m) && !m.paused && !st.open && st.startState == kStartIdle && st.catchUp == 0;
+        st.decrementHold = hold && (dec & 1) ? static_cast<u16>(st.decrementHold + 1) : 0;
+        if (hold && ((dec & 2) || st.decrementHold > settings().controls.advanceDelay))
         {
             record::rewindRequest((dec & 2) != 0);
         }
         applyHiding(pads, m);
-        if (s_st.startState == kStartInject && !s_st.startInjectedSystem && !m.paused)
+        if (st.startState == kStartInject && !st.startInjectedSystem && !m.paused)
         {
-            injectStart(pads[s_st.startPort]);
-            s_st.startInjectedSystem = true;
+            injectStart(pads[st.startPort]);
+            st.startInjectedSystem = true;
         }
         updateReleaseWaits(pads);
     }
@@ -955,18 +990,17 @@ namespace lab {
         }
     }
 
-    static bool s_playerShieldHit[game::kMaxFighters][2];
-
     static void maintainPlayerShields(bool stepping)
     {
         if (!stepping)
         {
             return;
         }
+        LabNet& net = *s_net;
         u8 mode = settings().general.playerInfiniteShields;
         if (mode == cpu::kShieldsOff)
         {
-            memset(s_playerShieldHit, 0, sizeof(s_playerShieldHit));
+            memset(net.playerShieldHit, 0, sizeof(net.playerShieldHit));
             return;
         }
         game::FighterRef refs[game::kMaxFighters];
@@ -1000,7 +1034,7 @@ namespace lab {
                 {
                     continue;
                 }
-                if (stepPlayerShield(mode, status, s_playerShieldHit[p][sub]))
+                if (stepPlayerShield(mode, status, net.playerShieldHit[p][sub]))
                 {
                     cpu::setShieldHealth(f, static_cast<float>(cpu::kShieldFull));
                 }
@@ -1010,7 +1044,7 @@ namespace lab {
 
     static void logFighters(const game::MatchState& m)
     {
-        if (s_fightersLogged || !m.running)
+        if (s_net->fightersLogged || !m.running)
         {
             return;
         }
@@ -1020,7 +1054,7 @@ namespace lab {
         {
             return;
         }
-        s_fightersLogged = true;
+        s_net->fightersLogged = true;
         for (int i = 0; i < n; i++)
         {
             const game::FighterRef& r = refs[i];
@@ -1045,6 +1079,11 @@ namespace lab {
 
     void onFighterInput(const iface::FighterInput* call)
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
+        const MatchPadState& st = s_net->st;
         game::MatchState m = game::matchState();
         u32 bound = boundDpad(m);
         bool fa = frameAdvanceOn(m);
@@ -1055,8 +1094,8 @@ namespace lab {
         }
         int port = who.cpu ? -1 : game::playerPort(who.playerNo);
         bool validPort = static_cast<u32>(port) < kPorts;
-        u32 type = (validPort && s_st.sys[port].connected)
-                       ? static_cast<u32>(s_st.sys[port].controllerType)
+        u32 type = (validPort && st.sys[port].connected)
+                       ? static_cast<u32>(st.sys[port].controllerType)
                        : static_cast<u32>(port >= 4 ? gfPadType::WIIMOTE : gfPadType::GCC);
         // L or R as Frame Advance (or Decrement) Button: P+ also copies the
         // analog triggers into the fighter's variables (cpu/view.cpp), so they
@@ -1084,7 +1123,7 @@ namespace lab {
         u32* buttons = reinterpret_cast<u32*>(reinterpret_cast<u32>(call->input) + 0xC);
         if (type == gfPadType::WIIMOTE)
         {
-            if (validPort && dpadAllowed(s_st.sys[port], m))
+            if (validPort && dpadAllowed(st.sys[port], m))
             {
                 *buttons &= ~kAppealAll;
             }
@@ -1096,47 +1135,49 @@ namespace lab {
 
     static void onGamePads(gfPadStatus* pads)
     {
-        s_gameCalls++;
+        LabNet& net = *s_net;
+        MatchPadState& st = net.st;
+        net.gameCalls++;
         if (game::frozen())
         {
-            s_frozenGameCalls++;
+            net.frozenGameCalls++;
         }
-        capture(s_st.game, pads, false);
+        capture(st.game, pads, false);
         display::capturePads(pads);
         game::MatchState m = game::matchState();
         bool inject = false;
-        if (s_st.startState != kStartIdle && (m.paused || --s_st.startTimer <= 0))
+        if (st.startState != kStartIdle && (m.paused || --st.startTimer <= 0))
         {
-            s_st.startState = kStartIdle;
+            st.startState = kStartIdle;
         }
-        else if (s_st.startState == kStartWait && game::otherStopBits() == 0)
+        else if (st.startState == kStartWait && game::otherStopBits() == 0)
         {
-            s_st.startState = kStartInject;
-            s_st.startInjectedSystem = false;
+            st.startState = kStartInject;
+            st.startInjectedSystem = false;
         }
-        else if (s_st.startState == kStartInject && s_st.startInjectedSystem)
+        else if (st.startState == kStartInject && st.startInjectedSystem)
         {
             inject = true;
-            s_st.startState = kStartAwait;
+            st.startState = kStartAwait;
         }
-        bool want = frameAdvanceOn(m) && !m.paused && !s_st.open && s_st.startState == kStartIdle && !s_st.exiting;
+        bool want = frameAdvanceOn(m) && !m.paused && !st.open && st.startState == kStartIdle && !st.exiting;
         // The Start-opened lab menu holds the whole game. P+'s
         // pad read runs steps while Start is held despite our stop bit
         // (freeze.cpp), so the gameplay and camera tasks are paused instead.
-        bool menuHold = s_st.open && s_st.openStart && m.running && !m.paused;
-        bool startHeld = firstPadPort(s_st.game, 1) >= 0;
+        bool menuHold = st.open && st.openStart && m.running && !m.paused;
+        bool startHeld = firstPadPort(st.game, 1) >= 0;
         // Frame advance stops every task, HUD and camera
         // included, which would freeze Training's closing menu and close-up
         // camera: for kCatchUp steps after its pause only the gameplay
         // categories are paused.
-        if (s_st.wasPaused && !m.paused && frameAdvanceOn(m))
+        if (st.wasPaused && !m.paused && frameAdvanceOn(m))
         {
-            s_st.catchUp = kCatchUp;
+            st.catchUp = kCatchUp;
         }
-        s_st.wasPaused = m.paused;
+        st.wasPaused = m.paused;
         if (!want)
         {
-            s_st.catchUp = 0;
+            st.catchUp = 0;
         }
         bool run = true;
         bool gameplayPaused = false;
@@ -1145,7 +1186,7 @@ namespace lab {
         int rewind = record::rewindStep();
         // No menu sounds while the lab loads and replays frames on its own.
         ui::g_menuQuiet = rewind != record::kRewindIdle;
-        if (s_st.exiting)
+        if (st.exiting)
         {
             // Training's operator must step to end the match (match.cpp), so
             // nothing is held: without Training's pause (Finish keeps it until
@@ -1153,23 +1194,23 @@ namespace lab {
             // steps (a wait of 15, then the scene's end). Pausing the gameplay
             // tasks stops the end (observed, Mario vs Fox on Final Destination:
             // the operator reached 392, the scene never exited).
-            s_st.hold = 0;
+            st.hold = 0;
         }
         else if (menuHold)
         {
-            s_st.hold = 0;
+            st.hold = 0;
             run = false;
             gameplayPaused = startHeld;
         }
         else if (rewind != record::kRewindIdle)
         {
-            s_st.hold = 0;
+            st.hold = 0;
             run = rewind == record::kRewindRun;
         }
-        else if (want && (s_st.catchUp > 0 || (startOpensMenu() && startHeld)))
+        else if (want && (st.catchUp > 0 || (startOpensMenu() && startHeld)))
         {
-            s_st.catchUp -= s_st.catchUp > 0 ? 1 : 0;
-            s_st.hold = 0;
+            st.catchUp -= st.catchUp > 0 ? 1 : 0;
+            st.hold = 0;
             run = false;
             gameplayPaused = true;
         }
@@ -1178,52 +1219,52 @@ namespace lab {
             // A press runs one step, holding past the hold delay runs the game:
             // adapted from ProjectPunch's frame_advance.cpp (MIT; see
             // THIRD_PARTY_NOTICES.md).
-            int adv = scanFa(s_st.game, false);
-            s_st.hold = (adv & 1) ? static_cast<u16>(s_st.hold + 1) : 0;
-            run = (adv & 2) != 0 || s_st.hold > settings().controls.advanceDelay;
+            int adv = scanFa(st.game, false);
+            st.hold = (adv & 1) ? static_cast<u16>(st.hold + 1) : 0;
+            run = (adv & 2) != 0 || st.hold > settings().controls.advanceDelay;
             if (run)
             {
-                s_advancedSteps++;
+                net.advancedSteps++;
             }
         }
         else
         {
-            s_st.hold = 0;
+            st.hold = 0;
         }
         // The step before's frame went to its render callback (module.cpp
         // onRender) unless no picture followed (game/tracker.h); the coming
         // step's overlays, display and pads are set after. Off while Exit
         // ends the match.
-        bool live = m.running && !m.paused && !s_st.exiting;
+        bool live = m.running && !m.paused && !st.exiting;
         {
             TM_PERF_SCOPE(kTrackerStep);
             game::trackerStep(live);
         }
         applyOverlays(live);
-        display::step(m, s_st.open);
+        display::step(m, st.open);
         if (main::extraInfoWanted())
         {
-            main::extraInfoStep(s_prevRan);
+            main::extraInfoStep(net.prevRan);
         }
         // A game held by ProjectPunch's pause or frame advance (the same
         // stop bit) runs no step: the tracker, match timer and frame counts
         // stop. The steps of a match ending after Exit are not handed over.
-        s_prevRan = run && m.running && !m.paused && !game::heldByOthers() && !s_st.exiting;
-        game::trackerStepRuns(s_prevRan);
+        net.prevRan = run && m.running && !m.paused && !game::heldByOthers() && !st.exiting;
+        game::trackerStepRuns(net.prevRan);
         game::setGameplayPaused(gameplayPaused);
         game::setCameraPaused(menuHold && startHeld);
         game::setFrozen(!run && !gameplayPaused);
         lockPercents(m);
-        maintainPlayerShields(s_prevRan);
+        maintainPlayerShields(net.prevRan);
         logFighters(m);
         applyHiding(pads, m);
-        if (s_st.exiting)
+        if (st.exiting)
         {
             hideAll(pads);
         }
         else if (inject)
         {
-            injectStart(pads[s_st.startPort]);
+            injectStart(pads[st.startPort]);
         }
     }
 
@@ -1238,22 +1279,28 @@ namespace lab {
 
     void onPads(u32 phase, gfPadStatus* pads)
     {
-        if (!s_vsReadOnly && !s_st.exiting && game::matchState().running && ui::settingsModalOpen())
+        if (s_net == NULL)
+        {
+            return;
+        }
+        LabNet& net = *s_net;
+        MatchPadState& st = net.st;
+        if (!net.vsReadOnly && !st.exiting && game::matchState().running && ui::settingsModalOpen())
         {
             bool confirmed = false;
             if (phase == iface::kPadsSystem)
             {
-                capture(s_st.sys, pads, true);
+                capture(st.sys, pads, true);
                 int active = -1;
                 for (int i = 0; i < kPorts; i++)
                 {
-                    if (!s_st.sys[i].connected)
+                    if (!st.sys[i].connected)
                     {
                         continue;
                     }
-                    bool busy = s_st.sys[i].held != 0 || s_st.sys[i].stickX <= -kStickDeadZone
-                                || s_st.sys[i].stickX >= kStickDeadZone || s_st.sys[i].stickY <= -kStickDeadZone
-                                || s_st.sys[i].stickY >= kStickDeadZone;
+                    bool busy = st.sys[i].held != 0 || st.sys[i].stickX <= -kStickDeadZone
+                                || st.sys[i].stickX >= kStickDeadZone || st.sys[i].stickY <= -kStickDeadZone
+                                || st.sys[i].stickY >= kStickDeadZone;
                     if (active < 0 || busy)
                     {
                         active = i;
@@ -1265,7 +1312,7 @@ namespace lab {
                 }
                 if (active >= 0)
                 {
-                    const Raw& r = s_st.sys[active];
+                    const Raw& r = st.sys[active];
                     ui::SettingsModalInput mi = {r.held, r.pressed, r.stickX, r.stickY, r.controllerType};
                     confirmed = ui::settingsModalStep(mi);
                 }
@@ -1283,7 +1330,7 @@ namespace lab {
             }
             return;
         }
-        if (!s_vsReadOnly && !s_st.exiting && !s_st.open && main::extraDrill(phase, pads) != 0u)
+        if (!net.vsReadOnly && !st.exiting && !st.open && main::extraDrill(phase, pads) != 0u)
         {
             return;
         }
@@ -1325,17 +1372,22 @@ namespace lab {
 
     void toggleDiStickPicker()
     {
-        if (!s_st.diPickActive)
+        if (s_net == NULL)
         {
-            s_st.diPickSavedX = settings().cpuTables.customDiX;
-            s_st.diPickSavedY = settings().cpuTables.customDiY;
-            s_st.diPickActive = true;
+            return;
+        }
+        MatchPadState& st = s_net->st;
+        if (!st.diPickActive)
+        {
+            st.diPickSavedX = settings().cpuTables.customDiX;
+            st.diPickSavedY = settings().cpuTables.customDiY;
+            st.diPickActive = true;
             ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 1;
             strcpy(g_diPickLabel, "Aiming...");
         }
         else
         {
-            s_st.diPickActive = false;
+            st.diPickActive = false;
             ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
             strcpy(g_diPickLabel, "Set Angle");
         }
@@ -1362,23 +1414,31 @@ namespace lab {
         game::codeMenuSync();
         main::extraStageOptionsChanged();
         main::extraScenarioCall(main::kScenarioSettingsReset);
-        memset(s_playerShieldHit, 0, sizeof(s_playerShieldHit));
+        if (s_net != NULL)
+        {
+            memset(s_net->playerShieldHit, 0, sizeof(s_net->playerShieldHit));
+        }
         TM_LOG("lab: settings reset to the defaults\n");
     }
 
     void openTrainingMenu()
     {
-        bool start = s_st.openStart;
-        int port = s_st.owner;
+        if (s_net == NULL)
+        {
+            return;
+        }
+        MatchPadState& st = s_net->st;
+        bool start = st.openStart;
+        int port = st.owner;
         closeMenu();
         if (start)
         {
             // Hand the game one Start press so Training's pause opens.
-            s_st.startState = kStartInject;
-            s_st.startPort = port;
-            s_st.startTimer = kStartWindow;
-            s_st.startInjectedSystem = false;
-            s_st.pausePort = port;
+            st.startState = kStartInject;
+            st.startPort = port;
+            st.startTimer = kStartWindow;
+            st.startInjectedSystem = false;
+            st.pausePort = port;
         }
     }
 
@@ -1389,11 +1449,15 @@ namespace lab {
     {
         closeMenu();
         game::EndResult how = game::endTrainingMatch();
-        s_st.exiting = how != game::kEndRefused;
-        if (s_st.exiting)
+        if (s_net != NULL)
         {
-            s_st.startState = kStartIdle;
-            s_st.catchUp = 0;
+            MatchPadState& st = s_net->st;
+            st.exiting = how != game::kEndRefused;
+            if (st.exiting)
+            {
+                st.startState = kStartIdle;
+                st.catchUp = 0;
+            }
         }
         TM_LOG("lab: exit: %s\n", how == game::kEndFromPause ? "Training's end of match started, its pause closed"
                                   : how == game::kEndByWait ? "Training's end of match started, no pause"
@@ -1655,7 +1719,7 @@ namespace lab {
             TM_PERF_SCOPE(kTechniques);
             game::techniquesFrame();
         }
-        if (!s_vsReadOnly)
+        if (s_net != NULL && !s_net->vsReadOnly)
         {
             {
                 TM_PERF_SCOPE(kCharacterRng);
@@ -1697,39 +1761,46 @@ namespace lab {
 
     static const char* pauseHint()
     {
-        int p = s_st.pausePort;
-        if (static_cast<u32>(p) >= kPorts || !s_st.sys[p].connected)
+        const MatchPadState& st = s_net->st;
+        int p = st.pausePort;
+        if (static_cast<u32>(p) >= kPorts || !st.sys[p].connected)
         {
             p = game::playerPort(0);
-            if (static_cast<u32>(p) >= kPorts || !s_st.sys[p].connected)
+            if (static_cast<u32>(p) >= kPorts || !st.sys[p].connected)
             {
-                for (p = 0; p < kPorts && !s_st.sys[p].connected; p++)
+                for (p = 0; p < kPorts && !st.sys[p].connected; p++)
                 {
                 }
             }
         }
-        return game::pauseHint(static_cast<u32>(p) < kPorts ? s_st.sys[p].controllerType : 0u);
+        return game::pauseHint(static_cast<u32>(p) < kPorts ? st.sys[p].controllerType : 0u);
     }
 
     // Info panels and OSD messages hide while the lab menu or pause is open.
     void onRender(u32 call, const game::MatchState& m)
     {
-        bool ro = s_vsReadOnly;
+        if (s_net == NULL)
+        {
+            return;
+        }
+        LabNet& net = *s_net;
+        MatchPadState& st = net.st;
+        bool ro = net.vsReadOnly;
         bool modal = !ro && ui::settingsModalOpen();
-        bool info = m.running && !s_st.open && !modal && !m.paused && main::extraInfoWanted();
-        bool messages = m.running && !m.paused && !s_st.open && !modal && osd::visible();
+        bool info = m.running && !st.open && !modal && !m.paused && main::extraInfoWanted();
+        bool messages = m.running && !m.paused && !st.open && !modal && osd::visible();
         // Z opens the lab menu from Training's pause in both modes; the hint
         // shows only where that is the way in.
-        bool hint = !ro && m.running && m.training && m.paused && !s_st.open && !modal && !startOpensMenu();
+        bool hint = !ro && m.running && m.training && m.paused && !st.open && !modal && !startOpensMenu();
         bool hud = ro || display::hudShown();
         setLayout(hud);
-        bool drillHud = !ro && m.running && !m.paused && !s_st.open && !modal && (main::extraDrill(2, NULL) & 1u) != 0u;
-        bool ledge = m.running && !m.paused && !s_st.open && !modal && !drillHud && ui::ledgedashHudVisible();
+        bool drillHud = !ro && m.running && !m.paused && !st.open && !modal && (main::extraDrill(2, NULL) & 1u) != 0u;
+        bool ledge = m.running && !m.paused && !st.open && !modal && !drillHud && ui::ledgedashHudVisible();
         // Training leaves Brawl's own timer off: it is turned on here instead
         // (ui/match_hud.cpp), hidden while the Ledgedash HUD, Skill Drill HUD,
         // or settings update modal is shown.
         bool timer = !ro && !modal && m.running && hud && !drillHud && !ui::ledgedashHudVisible()
-                     && (!m.paused || s_st.open);
+                     && (!m.paused || st.open);
         if (timer)
         {
             ui::showMatchTimer(game::trackerFrame());
@@ -1770,10 +1841,10 @@ namespace lab {
                 if (hint)
                 {
                     const char* text = pauseHint();
-                    if (text != s_st.lastHint)
+                    if (text != st.lastHint)
                     {
                         gfx::forgetWidths();
-                        s_st.lastHint = text;
+                        st.lastHint = text;
                     }
                     float hx = ui::layout::kHintRight - gfx::textWidth(text, 0.5f);
                     gfx::textBox(kSlotHint, hx, ui::layout::kHintY, text, kYellow, kBox, 0.5f, false);
@@ -1782,28 +1853,28 @@ namespace lab {
                 {
                     if (!modal)
                     {
-                        display::render2d(m, s_st.open);
-                        if (!m.paused && !s_st.open)
+                        display::render2d(m, st.open);
+                        if (!m.paused && !st.open)
                         {
-                            main::extraInputViewerDraw(m, s_st.open);
-                            main::extraDiCompassDraw(m, s_st.open);
+                            main::extraInputViewerDraw(m, st.open);
+                            main::extraDiCompassDraw(m, st.open);
                         }
                     }
-                    if (s_st.open)
+                    if (st.open)
                     {
                         TM_PERF_SCOPE(kMenuDraw);
-                        ui::menuDraw(ui::labMenu(), s_menu);
+                        ui::menuDraw(ui::labMenu(), net.menu);
                     }
                     if (modal)
                     {
                         ui::settingsModalDraw();
                     }
                 }
-                else if (!m.paused && !s_st.open)
+                else if (!m.paused && !st.open)
                 {
-                    main::extraPsaInspectorDraw(m, s_st.open);
+                    main::extraPsaInspectorDraw(m, st.open);
                 }
-                if (hud && !ro && !modal && !(s_st.open && storage::noticeActive()))
+                if (hud && !ro && !modal && !(st.open && storage::noticeActive()))
                 {
                     TM_PERF_SCOPE(kWatermark);
                     ui::drawWatermark();
@@ -1820,7 +1891,12 @@ namespace lab {
 
     bool savestateBusy()
     {
-        return s_st.open || s_st.exiting || s_st.startState != kStartIdle || s_st.catchUp > 0
+        if (s_net == NULL)
+        {
+            return false;
+        }
+        const MatchPadState& st = s_net->st;
+        return st.open || st.exiting || st.startState != kStartIdle || st.catchUp > 0
                || game::categoriesPaused() || main::extraFighterSwapBusy() || (main::extraDrill(0, NULL) & 2u) != 0u
                || ui::settingsModalOpen() || comboLHeld(game::matchState());
     }
@@ -1834,8 +1910,11 @@ namespace lab {
         game::advantageReset(onAdvantage);
         game::techniquesReset(onTechnique);
         main::extraInfoReset();
-        memset(s_playerShieldHit, 0, sizeof(s_playerShieldHit));
-        s_st.hold = 0;
+        if (s_net != NULL)
+        {
+            memset(s_net->playerShieldHit, 0, sizeof(s_net->playerShieldHit));
+            s_net->st.hold = 0;
+        }
     }
 #pragma force_active reset
 
@@ -1868,17 +1947,33 @@ namespace lab {
         main::extraStageOptionsSavestateLoaded();
         game::reapplyFrozen();
         display::savestateLoaded();
-        memset(s_playerShieldHit, 0, sizeof(s_playerShieldHit));
-        s_st.hold = 0;
+        if (s_net != NULL)
+        {
+            memset(s_net->playerShieldHit, 0, sizeof(s_net->playerShieldHit));
+            s_net->st.hold = 0;
+        }
     }
 
     void attach()
     {
-        memset(&s_st, 0, sizeof(s_st));
-        s_st.owner = -1;
-        s_st.pausePort = -1;
-        s_vsReadOnly = !game::trainingGameMode();
-        memset(s_playerShieldHit, 0, sizeof(s_playerShieldHit));
+#ifdef __MWERKS__
+        if (s_net == NULL)
+        {
+            s_net = static_cast<LabNet*>(game::allocNetworkZero(static_cast<u32>(sizeof(LabNet))));
+        }
+        if (s_net == NULL)
+        {
+            return;
+        }
+#else
+        memset(s_net, 0, sizeof(*s_net));
+#endif
+        LabNet& net = *s_net;
+        net.st.owner = -1;
+        net.st.pausePort = -1;
+        net.prevRan = true;
+        net.menuFresh = true;
+        net.vsReadOnly = !game::trainingGameMode();
         game::trackerAttach();
 #ifdef __MWERKS__
         game::advantageAttach();
@@ -1894,8 +1989,7 @@ namespace lab {
         osd::attach();
         osdSettingsChanged();
         ui::settingsModalAttach();
-        s_menuFresh = true;
-        if (!s_vsReadOnly)
+        if (!net.vsReadOnly)
         {
             display::attach();
             extra::reversalSlotsAttach();
@@ -1905,7 +1999,7 @@ namespace lab {
         }
         bool wide = game::widescreen();
         gfx::setWidescreen(wide);
-        if (!s_vsReadOnly)
+        if (!net.vsReadOnly)
         {
             TM_LOG("lab: screen %s; frame advance %s, overlay %s\n", wide ? "16:9" : "4:3",
                    settings().general.frameAdvance ? "on" : "off", settings().display.debugOverlay ? "on" : "off");
@@ -1914,7 +2008,12 @@ namespace lab {
 
     void detach()
     {
-        bool ro = s_vsReadOnly;
+        if (s_net == NULL)
+        {
+            return;
+        }
+        LabNet& net = *s_net;
+        bool ro = net.vsReadOnly;
         if (!ro)
         {
             display::detach();
@@ -1939,14 +2038,20 @@ namespace lab {
         game::trackerDetach();
         if (ro)
         {
-            s_vsReadOnly = false;
+            net.vsReadOnly = false;
+#ifdef __MWERKS__
+            game::freeNetworkSlot(reinterpret_cast<void**>(&s_net));
+#endif
             return;
         }
         game::setFrozen(false);
         game::setGameplayPaused(false);
         game::setCameraPaused(false);
-        TM_LOG("lab: pad callbacks: system %u, game %u (%u while stopped), frame-advance steps %u\n", s_systemCalls,
-               s_gameCalls, s_frozenGameCalls, s_advancedSteps);
+        TM_LOG("lab: pad callbacks: system %u, game %u (%u while stopped), frame-advance steps %u\n", net.systemCalls,
+               net.gameCalls, net.frozenGameCalls, net.advancedSteps);
+#ifdef __MWERKS__
+        game::freeNetworkSlot(reinterpret_cast<void**>(&s_net));
+#endif
     }
 }
 }

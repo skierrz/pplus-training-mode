@@ -4,6 +4,9 @@
 
 #include "main/game/match.h"
 #include "main/settings.h"
+#ifdef __MWERKS__
+#include "shared/game/stick.h"
+#endif
 
 // Pure Live DI Vector Picker solver and 2D unit-circle DI compass helpers.
 // Header-only and free of double-quoted string literals so both di_display.cpp
@@ -18,6 +21,9 @@ namespace extra {
 
     inline float diPickerSqrt(float v)
     {
+#ifdef __MWERKS__
+        return game::stickRoot(v);
+#else
         if (v <= 0.0f)
         {
             return 0.0f;
@@ -28,8 +34,12 @@ namespace extra {
             x = 0.5f * (x + v / x);
         }
         return x;
+#endif
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline void diNormalizeUnit(float& x, float& y)
     {
         float sq = x * x + y * y;
@@ -40,6 +50,9 @@ namespace extra {
             y *= inv;
         }
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // Resolves the DI preview vector (dx, dy) in [-1, 1] for `mode` (main::DiVectorMode)
     // given launch velocity (kx, ky), fighter X position, stage center X, facing (+1/-1),

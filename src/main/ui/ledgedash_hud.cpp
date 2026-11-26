@@ -99,45 +99,33 @@ namespace ui {
         if (g.ledgePanel)
         {
             char summary[64];
-            gfx::Rgba sumCol = 0xFFFFFFFFu;
+            char galintBuf[20];
+            char angleBuf[24];
+            const char* gText = galintBuf;
+            gfx::Rgba sumCol = 0xFF6658FFu;
+            angleBuf[0] = '\0';
             if (l.noXlu)
             {
                 sumCol = 0xFFB848FFu;
                 if (l.grabCount > 5)
                 {
-                    snprintf(summary, sizeof(summary), "GALINT: None (%d/5)  Hang: %df", l.grabCount, l.ledgeFrames);
+                    snprintf(galintBuf, sizeof(galintBuf), "None (%d/5)", l.grabCount);
                 }
                 else
                 {
-                    snprintf(summary, sizeof(summary), "GALINT: None  Hang: %df", l.ledgeFrames);
-                }
-            }
-            else if (l.galint > 0)
-            {
-                sumCol = 0x4CE688FFu;
-                if (l.hasAngle)
-                {
-                    snprintf(summary, sizeof(summary), "GALINT: +%df INVULN  Hang: %df  Angle: %.1f deg", l.galint,
-                             l.ledgeFrames, l.angle);
-                }
-                else
-                {
-                    snprintf(summary, sizeof(summary), "GALINT: +%df INVULN  Hang: %df", l.galint, l.ledgeFrames);
+                    gText = "None";
                 }
             }
             else
             {
-                sumCol = 0xFF6658FFu;
+                sumCol = l.galint > 0 ? 0x4CE688FFu : 0xFF6658FFu;
+                snprintf(galintBuf, sizeof(galintBuf), l.galint > 0 ? "+%df INVULN" : "%df (VULN)", l.galint);
                 if (l.hasAngle)
                 {
-                    snprintf(summary, sizeof(summary), "GALINT: %df (VULN)  Hang: %df  Angle: %.1f deg", l.galint,
-                             l.ledgeFrames, l.angle);
-                }
-                else
-                {
-                    snprintf(summary, sizeof(summary), "GALINT: %df (VULN)  Hang: %df", l.galint, l.ledgeFrames);
+                    snprintf(angleBuf, sizeof(angleBuf), "  Angle: %.1f deg", l.angle);
                 }
             }
+            snprintf(summary, sizeof(summary), "GALINT: %s  Hang: %df%s", gText, l.ledgeFrames, angleBuf);
             float scale = style::scaleForCap(layout::kKeyCap);
             float tw = gfx::textWidth(summary, scale);
             float padX = 6.0f * xs;

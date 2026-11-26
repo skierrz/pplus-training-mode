@@ -82,11 +82,17 @@ namespace extra {
         return static_cast<u16>((static_cast<u16>(p[0]) << 8) | static_cast<u16>(p[1]));
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline u32 beU32(const u8* p)
     {
         return (static_cast<u32>(p[0]) << 24) | (static_cast<u32>(p[1]) << 16) | (static_cast<u32>(p[2]) << 8)
                | static_cast<u32>(p[3]);
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline s32 beS32(const u8* p)
     {
@@ -117,6 +123,9 @@ namespace extra {
         return false;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     // Validates a big-endian NW4R BRRES header and locates its root ResDic.
     // Pass `maxBytes == 0` only after validating the file's RAM span externally.
     inline bool brresOpen(const u8* brres, u32 maxBytes, BrresView& out)
@@ -165,7 +174,13 @@ namespace extra {
         out.rootDictOff = rootOff + 0x08u;
         return true;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     // Linear scan over a ResDic at `dictOff` (entries 1..numData, skipping the
     // sentinel node 0). All string and data offsets are bounds-checked against
     // `view.fileSize`.
@@ -240,6 +255,9 @@ namespace extra {
         out.availBytes = view.fileSize - entryOff;
         return true;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline bool isCiTexFormat(u32 gxFmt)
     {

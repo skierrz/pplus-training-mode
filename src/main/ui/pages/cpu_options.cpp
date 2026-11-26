@@ -255,46 +255,27 @@ namespace pages {
         {
             clearPerHitCounters(c, t);
         }
-        if (mode == kCtrModeOff)
+        c.multiReversal = (mode == kCtrModeReversals) ? 1 : 0;
+        if (mode != kCtrModeAdaptive)
         {
-            c.counterGround = 0;
-            c.counterAir = 0;
-            c.counterShield = 0;
-            c.multiReversal = 0;
             c.adaptiveMode = cpu::kAdaptiveOff;
         }
-        else if (mode == kCtrModeSingle)
+        else if (c.adaptiveMode == cpu::kAdaptiveOff)
         {
-            c.multiReversal = 0;
-            c.adaptiveMode = cpu::kAdaptiveOff;
-            restoreDefaultSingleCounters(c);
+            c.adaptiveMode = cpu::kAdaptiveActive;
+        }
+        if (mode == kCtrModeOff)
+        {
+            c.counterGround = c.counterAir = c.counterShield = 0;
         }
         else if (mode == kCtrModePool)
         {
-            c.multiReversal = 0;
-            c.adaptiveMode = cpu::kAdaptiveOff;
             c.counterGround = kCounterGroundSize - 1;
             c.counterAir = kCounterAirSize - 1;
             c.counterShield = kCounterShieldSize - 1;
         }
-        else if (mode == kCtrModeReversals)
+        else if (mode == kCtrModeSingle || mode == kCtrModeReversals || mode == kCtrModeAdaptive)
         {
-            c.adaptiveMode = cpu::kAdaptiveOff;
-            c.multiReversal = 1;
-            restoreDefaultSingleCounters(c);
-        }
-        else if (mode == kCtrModePerHit)
-        {
-            c.multiReversal = 0;
-            c.adaptiveMode = cpu::kAdaptiveOff;
-        }
-        else if (mode == kCtrModeAdaptive)
-        {
-            c.multiReversal = 0;
-            if (c.adaptiveMode == cpu::kAdaptiveOff)
-            {
-                c.adaptiveMode = cpu::kAdaptiveActive;
-            }
             restoreDefaultSingleCounters(c);
         }
         s_lastDerivedCtrMode = deriveCounterMode();
@@ -642,31 +623,30 @@ namespace pages {
         for (int i = 0; i < 4; i++)
         {
             Option* g = buf + 3 + i * 3;
+            for (int j = 0; j < 3; j++)
+            {
+                g[j].flags = kFlagHideWhenDisabled;
+                g[j].enabled = kGates[i];
+            }
             g[0].kind = kKindChoice;
-            g[0].flags = kFlagHideWhenDisabled;
             g[0].offset = static_cast<u16>(TM_FIELD(cpu.options.revSlot2Action) + i);
             g[0].min = TM_CHOICE_LO;
             g[0].max = kActMax[i];
             g[0].name = pageStr(kPs_rev_act);
             g[0].data = kActLbls[i];
-            g[0].enabled = kGates[i];
 
             g[1].kind = kKindInt;
-            g[1].flags = kFlagHideWhenDisabled;
             g[1].offset = static_cast<u16>(TM_FIELD(cpu.options.revSlot2Delay) + i);
             g[1].max = 30;
             g[1].name = pageStr(kPs_rev_dly);
             g[1].data = pageStr(kPs_fmt_df);
-            g[1].enabled = kGates[i];
 
             g[2].kind = kKindInt;
-            g[2].flags = kFlagHideWhenDisabled;
             g[2].offset = static_cast<u16>(TM_FIELD(cpu.options.revSlot2Weight) + i);
             g[2].def = 50;
             g[2].max = 100;
             g[2].name = pageStr(kPs_rev_wgt);
             g[2].data = pageStr(kPs_fmt_pct);
-            g[2].enabled = kGates[i];
         }
         kReversalSlots.options = buf;
         kReversalSlots.count = 15;

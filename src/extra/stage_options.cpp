@@ -95,7 +95,7 @@ namespace extra {
             int movingCount;
         };
 
-        static LiveStage s_live;
+        static LiveStage* s_live = NULL;
 
         static bool prefixMatchCI(const char* str, const char* prefix)
         {
@@ -172,11 +172,16 @@ namespace extra {
 
         static void restoreGlobalHazardOff()
         {
-            if (shouldRestoreGlobalHazardOff(s_live.initialized, s_live.preset, s_live.initialHazardOff,
-                                             s_live.appliedHazardOff))
+            if (s_live == NULL)
             {
-                writeGameHazardOff(s_live.initialHazardOff);
-                s_live.appliedHazardOff = s_live.initialHazardOff;
+                return;
+            }
+            LiveStage& live = *s_live;
+            if (shouldRestoreGlobalHazardOff(live.initialized, live.preset, live.initialHazardOff,
+                                             live.appliedHazardOff))
+            {
+                writeGameHazardOff(live.initialHazardOff);
+                live.appliedHazardOff = live.initialHazardOff;
             }
         }
 
@@ -234,18 +239,19 @@ namespace extra {
 
         static void addMovingGround(Ground* g)
         {
-            if (!game::isRam(g) || s_live.movingCount >= kMaxMovingGrounds)
+            LiveStage& live = *s_live;
+            if (!game::isRam(g) || live.movingCount >= kMaxMovingGrounds)
             {
                 return;
             }
-            for (int i = 0; i < s_live.movingCount; i++)
+            for (int i = 0; i < live.movingCount; i++)
             {
-                if (s_live.moving[i] == g)
+                if (live.moving[i] == g)
                 {
                     return;
                 }
             }
-            s_live.moving[s_live.movingCount++] = g;
+            live.moving[live.movingCount++] = g;
         }
 
         // Walks g_grCollisionList and invokes `clearCarry` (when target != NULL)
@@ -341,10 +347,11 @@ namespace extra {
         static void applyPlatformTarget(Ground* g, Ground* aux, float target, u32 trackIdx, u32 minFrames, u8 platMode,
                                         bool force)
         {
+            const LiveStage& live = *s_live;
             bool hasAux = game::isRam(aux);
             if (target >= 0.0f)
             {
-                if (force || s_live.appliedPlatformMode != platMode
+                if (force || live.appliedPlatformMode != platMode
                     || fabsf(g->getMotionFrame(trackIdx) - target) > 0.05f)
                 {
                     jumpGround(g, target, minFrames);
@@ -363,7 +370,7 @@ namespace extra {
                 if (hasAux)
                 {
                     setPauseAnim(aux, pause);
-                    if (force || s_live.appliedPlatformMode != platMode)
+                    if (force || live.appliedPlatformMode != platMode)
                     {
                         aux->setMotionFrame(g->getMotionFrame(trackIdx), 0);
                     }
@@ -396,7 +403,8 @@ namespace extra {
 
         static void applyFodSpout(int side, u8 heightChoice, bool hazardOff, bool force)
         {
-            Ground* spout = s_live.spout[side];
+            LiveStage& live = *s_live;
+            Ground* spout = live.spout[side];
             if (!game::isRam(spout))
             {
                 return;
@@ -425,17 +433,17 @@ namespace extra {
                 *targetFrame = wantedFrame;
                 setPauseAnim(spout, false);
                 float cur = spout->getMotionFrame(0);
-                if (force || switchedAnim || s_live.appliedFod[side] != heightChoice || fabsf(cur - wantedFrame) > 0.05f)
+                if (force || switchedAnim || live.appliedFod[side] != heightChoice || fabsf(cur - wantedFrame) > 0.05f)
                 {
                     setFrame(spout, wantedFrame);
                     clearCarryVelocity(spout);
                 }
-                s_live.appliedFod[side] = heightChoice;
+                live.appliedFod[side] = heightChoice;
                 return;
             }
 
             // Default height: follow active hazard mode.
-            bool changedFromOverride = s_live.appliedFod[side] != main::kFodDefault;
+            bool changedFromOverride = live.appliedFod[side] != main::kFodDefault;
             bool wantChr0 = hazardOff;
             if (wantChr0)
             {
@@ -469,7 +477,7 @@ namespace extra {
                     setPauseAnim(spout, false);
                 }
             }
-            s_live.appliedFod[side] = main::kFodDefault;
+            live.appliedFod[side] = main::kFodDefault;
         }
 
         static void applyDreamLandPositions(bool hazardOff)
@@ -496,7 +504,7 @@ namespace extra {
 
         static void applyDreamLand(bool hazardOff, bool hazardChanged, bool force)
         {
-            Ground* whispy = s_live.whispy;
+            Ground* whispy = s_live->whispy;
             Stage* stage = extraStage();
             if (!game::isRam(whispy) || !game::isRam(stage))
             {
@@ -569,10 +577,22 @@ namespace extra {
             }
         }
 
+        static bool swapGroundAnim(Ground* g, u8 wantAnim)
+        {
+            VSetAnim4 setAnim = reinterpret_cast<VSetAnim4>(vtableSlot(g, 0x1E0));
+            if (setAnim == NULL)
+            {
+                return false;
+            }
+            setAnim(g, wantAnim, 1, 1, 0);
+            return true;
+        }
+
         static void applySmashville(bool hazardOff, u8 platMode, bool force)
         {
-            Ground* plat = s_live.ashiba[0];
-            Ground* shadow = s_live.ashiba[1];
+            const LiveStage& live = *s_live;
+            Ground* plat = live.ashiba[0];
+            Ground* shadow = live.ashiba[1];
             if (!game::isRam(plat))
             {
                 return;
@@ -588,14 +608,9 @@ namespace extra {
                 Ground* gs[2] = {plat, hasShad ? shadow : NULL};
                 for (int i = 0; i < 2; i++)
                 {
-                    if (gs[i] != NULL)
+                    if (gs[i] != NULL && swapGroundAnim(gs[i], wantAnim))
                     {
-                        VSetAnim4 setAnim = reinterpret_cast<VSetAnim4>(vtableSlot(gs[i], 0x1E0));
-                        if (setAnim != NULL)
-                        {
-                            setAnim(gs[i], wantAnim, 1, 1, 0);
-                            gs[i]->setMotionFrame(savedFrame, 0);
-                        }
+                        gs[i]->setMotionFrame(savedFrame, 0);
                     }
                 }
                 clearCarryVelocity(plat);
@@ -607,21 +622,16 @@ namespace extra {
 
         static void applyGreenHillOrDeadLine(int preset, bool hazardOff, u8 platMode, bool force)
         {
-            Ground* plat = s_live.ghzPlat;
+            Ground* plat = s_live->ghzPlat;
             if (!game::isRam(plat))
             {
                 return;
             }
             u8 wantAnim = hazardOff ? 1 : 0;
-            if (*(reinterpret_cast<u8*>(plat) + kGhzCurAnimOffset) != wantAnim)
+            if (*(reinterpret_cast<u8*>(plat) + kGhzCurAnimOffset) != wantAnim && swapGroundAnim(plat, wantAnim))
             {
-                VSetAnim4 setAnim = reinterpret_cast<VSetAnim4>(vtableSlot(plat, 0x1E0));
-                if (setAnim != NULL)
-                {
-                    setAnim(plat, wantAnim, 1, 1, 0);
-                    clearCarryVelocity(plat);
-                    force = true;
-                }
+                clearCarryVelocity(plat);
+                force = true;
             }
             applyPlatformTarget(plat, NULL, platformTargetFrame(preset, platMode, hazardOff), 0, 0, platMode, force);
         }
@@ -634,8 +644,9 @@ namespace extra {
         // with zero StageInstance allocations.
         static void applyYoshisIsland(bool hazardOff, u8 platMode, bool force)
         {
-            Ground* clouds = s_live.crayonClouds[0];
-            Ground* ind = s_live.crayonClouds[1];
+            const LiveStage& live = *s_live;
+            Ground* clouds = live.crayonClouds[0];
+            Ground* ind = live.crayonClouds[1];
             if (!game::isRam(clouds))
             {
                 return;
@@ -647,21 +658,18 @@ namespace extra {
             {
                 ind->setVisibility(hazardOff ? 0 : 1);
             }
-            if (hazardOff)
-            {
-                applyPlatformTarget(clouds, ind, 0.0f, trackIdx, 1000, s_live.appliedPlatformMode, force);
-                return;
-            }
-            applyPlatformTarget(clouds, ind, platformTargetFrame(kPresetYoshisIsland, platMode, false), trackIdx, 1000,
-                                platMode, force);
+            float target = hazardOff ? 0.0f : platformTargetFrame(kPresetYoshisIsland, platMode, false);
+            applyPlatformTarget(clouds, ind, target, trackIdx, 1000, hazardOff ? live.appliedPlatformMode : platMode,
+                                force);
         }
 
         static void applyGenericPlatforms(int preset, u8 platMode, bool hazardOff, bool force)
         {
+            const LiveStage& live = *s_live;
             float target = platformTargetFrame(preset, platMode, hazardOff);
-            for (int i = 0; i < s_live.movingCount; i++)
+            for (int i = 0; i < live.movingCount; i++)
             {
-                Ground* g = s_live.moving[i];
+                Ground* g = live.moving[i];
                 if (game::isRam(g))
                 {
                     applyPlatformTarget(g, NULL, target, 0, 0, platMode, force);
@@ -673,16 +681,17 @@ namespace extra {
 
         static void detectStage()
         {
-            memset(&s_live, 0, sizeof(s_live));
+            LiveStage& live = *s_live;
+            memset(&live, 0, sizeof(live));
             Stage* stage = extraStage();
             if (!game::isRam(stage))
             {
                 main::setStagePlatformRowPreset(kPresetNone);
                 return;
             }
-            s_live.stage = stage;
-            s_live.initialHazardOff = readGameHazardOff();
-            s_live.appliedHazardOff = s_live.initialHazardOff;
+            live.stage = stage;
+            live.initialHazardOff = readGameHazardOff();
+            live.appliedHazardOff = live.initialHazardOff;
 
             StageDetectInput in;
             memset(&in, 0, sizeof(in));
@@ -707,22 +716,22 @@ namespace extra {
                 u16 mdl = g->m_mdlIndex;
                 if (in.modFod)
                 {
-                    if (mdl == 80) { s_live.spout[0] = g; in.hasSpout80 = true; }
-                    if (mdl == 81) { s_live.spout[1] = g; in.hasSpout81 = true; }
+                    if (mdl == 80) { live.spout[0] = g; in.hasSpout80 = true; }
+                    if (mdl == 81) { live.spout[1] = g; in.hasSpout81 = true; }
                 }
                 if (in.modDreamLand && mdl == 2)
                 {
-                    s_live.whispy = g;
+                    live.whispy = g;
                     in.hasWhispy2 = true;
                 }
                 if (in.modSmashville)
                 {
-                    if (mdl == 80) { s_live.ashiba[0] = g; in.hasAshiba80 = true; }
-                    if (mdl == 81) { s_live.ashiba[1] = g; in.hasAshiba81 = true; }
+                    if (mdl == 80) { live.ashiba[0] = g; in.hasAshiba80 = true; }
+                    if (mdl == 81) { live.ashiba[1] = g; in.hasAshiba81 = true; }
                 }
                 if (in.modGreenHill && mdl == 80)
                 {
-                    s_live.ghzPlat = g;
+                    live.ghzPlat = g;
                     if (groundHasNode(g, "furiko3") || groundHasNode(g, "dai"))
                     {
                         in.hasGhzPendulum = true;
@@ -736,12 +745,12 @@ namespace extra {
                 {
                     if (mdl == 80 && groundHasNode(g, "AKumoAMKasure01") && groundHasNode(g, "AKumoAMKasure01r"))
                     {
-                        s_live.crayonClouds[0] = g;
+                        live.crayonClouds[0] = g;
                         in.hasCrayonClouds80 = true;
                     }
                     if (mdl == 81)
                     {
-                        s_live.crayonClouds[1] = g;
+                        live.crayonClouds[1] = g;
                     }
                 }
                 if (platLeftGround == NULL && groundChrFrameCount(g) == 3600 && groundHasNode(g, "PlatformLeft"))
@@ -771,36 +780,37 @@ namespace extra {
             else if (!in.modFod && !in.modDreamLand && !in.modSmashville && !in.modGreenHill && !in.modCrayon)
             {
                 scanCollisionJoints(NULL);
-                in.hasGenericMovingColl = s_live.movingCount > 0;
+                in.hasGenericMovingColl = live.movingCount > 0;
             }
 
-            s_live.preset = classifyStagePreset(in);
-            s_live.initialized = true;
-            main::setStagePlatformRowPreset(s_live.preset);
-            if (presetHasPlatforms(s_live.preset))
+            live.preset = classifyStagePreset(in);
+            live.initialized = true;
+            main::setStagePlatformRowPreset(live.preset);
+            if (presetHasPlatforms(live.preset))
             {
                 main::StageOptionsSettings& so = main::settings().stageOptions;
-                so.platformMode = static_cast<u8>(clampPlatformMode(s_live.preset, so.platformMode));
+                so.platformMode = static_cast<u8>(clampPlatformMode(live.preset, so.platformMode));
             }
-            TM_LOG("stage_options: detected preset %d (stage %08x kind %x initHazOff %d moving %d)\n", s_live.preset,
-                   stage, static_cast<int>(stage->m_stageKind), s_live.initialHazardOff ? 1 : 0,
-                   s_live.movingCount);
+            TM_LOG("stage_options: detected preset %d (stage %08x kind %x initHazOff %d moving %d)\n", live.preset,
+                   stage, static_cast<int>(stage->m_stageKind), live.initialHazardOff ? 1 : 0,
+                   live.movingCount);
         }
 
         static void ensureDetected()
         {
+            LiveStage& live = *s_live;
             Stage* stage = extraStage();
             if (!game::isRam(stage))
             {
-                if (s_live.initialized || s_live.stage != NULL)
+                if (live.initialized || live.stage != NULL)
                 {
                     restoreGlobalHazardOff();
-                    memset(&s_live, 0, sizeof(s_live));
+                    memset(&live, 0, sizeof(live));
                     main::setStagePlatformRowPreset(kPresetNone);
                 }
                 return;
             }
-            if (!s_live.initialized || s_live.stage != stage)
+            if (!live.initialized || live.stage != stage)
             {
                 restoreGlobalHazardOff();
                 detectStage();
@@ -809,32 +819,33 @@ namespace extra {
 
         static void applyAll(bool force)
         {
+            LiveStage& live = *s_live;
             ensureDetected();
-            if (!s_live.initialized || s_live.preset == kPresetNone)
+            if (!live.initialized || live.preset == kPresetNone)
             {
                 return;
             }
 
             main::StageOptionsSettings& so = main::settings().stageOptions;
-            bool forceNow = force || s_live.forceReapply;
-            s_live.forceReapply = false;
+            bool forceNow = force || live.forceReapply;
+            live.forceReapply = false;
 
-            u8 platMode = static_cast<u8>(clampPlatformMode(s_live.preset, so.platformMode));
-            if (presetHasPlatforms(s_live.preset) && so.platformMode != platMode)
+            u8 platMode = static_cast<u8>(clampPlatformMode(live.preset, so.platformMode));
+            if (presetHasPlatforms(live.preset) && so.platformMode != platMode)
             {
                 so.platformMode = platMode;
             }
 
-            bool wantHazardOff = s_live.initialHazardOff;
+            bool wantHazardOff = live.initialHazardOff;
             bool hazardChanged = false;
-            if (presetHasHazards(s_live.preset))
+            if (presetHasHazards(live.preset))
             {
-                wantHazardOff = resolveHazardOff(so.hazards, s_live.initialHazardOff);
-                hazardChanged = (wantHazardOff != s_live.appliedHazardOff);
+                wantHazardOff = resolveHazardOff(so.hazards, live.initialHazardOff);
+                hazardChanged = (wantHazardOff != live.appliedHazardOff);
                 writeGameHazardOff(wantHazardOff);
             }
 
-            switch (s_live.preset)
+            switch (live.preset)
             {
             case kPresetFod:
                 applyFodSpout(0, so.fodLeft, wantHazardOff, forceNow || hazardChanged);
@@ -848,7 +859,7 @@ namespace extra {
                 break;
             case kPresetGreenHill:
             case kPresetDeadLine:
-                applyGreenHillOrDeadLine(s_live.preset, wantHazardOff, platMode, forceNow || hazardChanged);
+                applyGreenHillOrDeadLine(live.preset, wantHazardOff, platMode, forceNow || hazardChanged);
                 break;
             case kPresetYoshisIsland:
                 applyYoshisIsland(wantHazardOff, platMode, forceNow || hazardChanged);
@@ -857,59 +868,61 @@ namespace extra {
             case kPresetDelfinoSecret:
             case kPresetYoshisStory:
             case kPresetGenericMoving:
-                applyGenericPlatforms(s_live.preset, platMode, wantHazardOff, forceNow);
+                applyGenericPlatforms(live.preset, platMode, wantHazardOff, forceNow);
                 break;
             default:
                 break;
             }
 
-            s_live.appliedHazardOff = wantHazardOff;
-            s_live.appliedPlatformMode = platMode;
+            live.appliedHazardOff = wantHazardOff;
+            live.appliedPlatformMode = platMode;
         }
     }
 
     void stageOptionsAttach()
     {
-        memset(&s_live, 0, sizeof(s_live));
+        freeNetPtr(s_live);
+        s_live = allocNetArray<LiveStage>(1);
         main::setStagePlatformRowPreset(kPresetNone);
     }
 
     void stageOptionsDetach()
     {
         restoreGlobalHazardOff();
-        memset(&s_live, 0, sizeof(s_live));
+        freeNetPtr(s_live);
         main::setStagePlatformRowPreset(kPresetNone);
     }
 
     bool stageOptions(int call)
     {
+        if (s_live == NULL)
+        {
+            return false;
+        }
+        LiveStage& live = *s_live;
+        if (call == main::kStageTick || call == main::kStageChanged || call == main::kStageSavestateLoaded)
+        {
+            if (call == main::kStageSavestateLoaded)
+            {
+                // Savestate load restores StageInstance memory: re-apply fixed
+                // presets and hazard state on this frame, while Freeze preserves
+                // the savestate's frozen frame.
+                live.forceReapply = true;
+            }
+            applyAll(call != main::kStageTick);
+            return live.preset != kPresetNone;
+        }
+        ensureDetected();
         switch (call)
         {
-        case main::kStageTick:
-            applyAll(false);
-            return s_live.preset != kPresetNone;
-        case main::kStageChanged:
-            applyAll(true);
-            return s_live.preset != kPresetNone;
-        case main::kStageSavestateLoaded:
-            // Savestate load restores StageInstance memory: re-apply fixed
-            // presets and hazard state on this frame, while Freeze preserves
-            // the savestate's frozen frame.
-            s_live.forceReapply = true;
-            applyAll(true);
-            return s_live.preset != kPresetNone;
         case main::kStagePage:
-            ensureDetected();
-            return presetAnyOption(s_live.preset);
+            return presetAnyOption(live.preset);
         case main::kStageHazardsRow:
-            ensureDetected();
-            return presetHasHazards(s_live.preset);
+            return presetHasHazards(live.preset);
         case main::kStagePlatformsRow:
-            ensureDetected();
-            return presetHasPlatforms(s_live.preset);
+            return presetHasPlatforms(live.preset);
         case main::kStageFodRow:
-            ensureDetected();
-            return presetHasFod(s_live.preset);
+            return presetHasFod(live.preset);
         default:
             return false;
         }

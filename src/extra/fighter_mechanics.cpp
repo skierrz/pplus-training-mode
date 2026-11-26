@@ -51,9 +51,6 @@ namespace extra {
             bool tried;
         };
 
-        WeightCache s_dedede = {NULL, NULL, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f}, false};
-        WeightCache s_olimar = {NULL, NULL, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f}, false};
-
 #ifdef __MWERKS__
         struct VisualSlot {
             const Fighter* fighter;
@@ -61,11 +58,25 @@ namespace extra {
             u8 kind; // CustomVisualKind
             u8 tier;
             s32 h0;
-            s32 h1;
+        };
+#endif
+
+        struct FighterMechNet {
+            WeightCache dedede;
+            WeightCache olimar;
+#ifdef __MWERKS__
+            VisualSlot vis[game::kMaxFighters];
+#endif
         };
 
-        VisualSlot s_vis[game::kMaxFighters];
+#ifdef __MWERKS__
+        FighterMechNet* s_net = NULL;
+#else
+        FighterMechNet s_netHost;
+        FighterMechNet* s_net = &s_netHost;
+#endif
 
+#ifdef __MWERKS__
         void resetVisualSlot(VisualSlot& v)
         {
             v.fighter = NULL;
@@ -73,14 +84,17 @@ namespace extra {
             v.kind = kVisNone;
             v.tier = 0;
             v.h0 = -1;
-            v.h1 = -1;
         }
 
         void clearVisualSlots()
         {
+            if (s_net == NULL)
+            {
+                return;
+            }
             for (int i = 0; i < game::kMaxFighters; i++)
             {
-                resetVisualSlot(s_vis[i]);
+                resetVisualSlot(s_net->vis[i]);
             }
         }
 
@@ -111,6 +125,15 @@ namespace extra {
             float scale1, scale2;
         };
 
+        void killCustomEffect(soEffectModule* eff, const CustomVisSpec& sp)
+        {
+            if (sp.killAfterImage != 0)
+            {
+                eff->removeAllAfterImage(0, 1);
+            }
+            effectKillKind(eff, sp.effectId, sp.killB1 != 0, sp.killB2 != 0);
+        }
+
         // Verified against P+ 3.2.1 Fit*.pac PSA scripts:
         //  - Lucas (FitLucas.pac ActExit[6] sub@0x28544): 0x1B0001 on bones 28 & 51, scale 0.5, external
         //  - Ivysaur (FitPokeFushigisou.pac Wait1 0x206cc): 0x84 on bone 33, y=1.5, scale 0.06 / 0.16, common
@@ -124,11 +147,11 @@ namespace extra {
         void syncFighterVisuals(const Fighter* fighter, const soModuleEnumeration* m, int ftKind, int status,
                                 int playerNo, const FighterPlan& plan, bool hadPreVisual)
         {
-            if (playerNo < 0 || playerNo >= game::kMaxFighters)
+            if (s_net == NULL || playerNo < 0 || playerNo >= game::kMaxFighters)
             {
                 return;
             }
-            VisualSlot& slot = s_vis[playerNo];
+            VisualSlot& slot = s_net->vis[playerNo];
             if (slot.fighter != fighter || slot.ftKind != static_cast<u8>(ftKind))
             {
                 resetVisualSlot(slot);
@@ -140,7 +163,6 @@ namespace extra {
                 slot.kind = kVisNone;
                 slot.tier = 0;
                 slot.h0 = -1;
-                slot.h1 = -1;
                 return;
             }
             soEffectModule* eff = m->m_effectModule;
@@ -174,35 +196,27 @@ namespace extra {
             {
                 if ((slot.kind == plan.customVisual && slot.tier != 0) || hadPreVisual || alive)
                 {
-                    if (sp.killAfterImage != 0)
-                    {
-                        eff->removeAllAfterImage(0, 1);
-                    }
-                    effectKillKind(eff, sp.effectId, sp.killB1 != 0, sp.killB2 != 0);
+                    killCustomEffect(eff, sp);
                 }
                 slot.kind = plan.customVisual;
                 slot.tier = 0;
                 slot.h0 = -1;
-                slot.h1 = -1;
                 return;
             }
             if (slot.kind == plan.customVisual && slot.tier == plan.customTier && alive)
             {
                 return;
             }
-            if (sp.killAfterImage != 0)
-            {
-                eff->removeAllAfterImage(0, 1);
-            }
-            effectKillKind(eff, sp.effectId, sp.killB1 != 0, sp.killB2 != 0);
+            killCustomEffect(eff, sp);
             Vec3f pos(0.0f, sp.yOff, 0.0f);
             Vec3f rot(0.0f, 0.0f, 0.0f);
             float scale = plan.customTier == 1 ? sp.scale1 : sp.scale2;
             EfID eid = static_cast<EfID>(sp.effectId);
             slot.h0 = static_cast<s32>(eff->reqFollow(eid, sp.bone0, &pos, &rot, scale, sp.isExternal != 0, 0, 0, 0));
-            slot.h1 = sp.bone1 != 0
-                          ? static_cast<s32>(eff->reqFollow(eid, sp.bone1, &pos, &rot, scale, sp.isExternal != 0, 0, 0, 0))
-                          : -1;
+            if (sp.bone1 != 0)
+            {
+                eff->reqFollow(eid, sp.bone1, &pos, &rot, scale, sp.isExternal != 0, 0, 0, 0);
+            }
             slot.kind = plan.customVisual;
             slot.tier = plan.customTier;
         }
@@ -256,17 +270,17 @@ namespace extra {
             }
         }
 
-        void findOlimarWeights()
+        void findOlimarWeights(WeightCache& c)
         {
-            s_olimar.tried = true;
+            c.tried = true;
             const void* data = extraFtCommonData(kFtOlimar);
             if (!game::isRam(data))
             {
-                s_olimar.data = NULL;
+                c.data = NULL;
                 TM_LOG("fighter mech: Olimar fighter data not found: Pikmin pluck left alone\n");
                 return;
             }
-            s_olimar.data = data;
+            c.data = data;
             u32 tableAddr = game::wordAt(data, kOlimarDataTable);
             u32 count = game::wordAt(data, kOlimarDataCount);
             if (!game::isRam(reinterpret_cast<const void*>(tableAddr)) || count != kOlimarTableEntries)
@@ -288,25 +302,30 @@ namespace extra {
                    ok ? "ok" : "not as expected: left alone");
             if (ok)
             {
-                s_olimar.weights = weights;
-                writeWeights(s_olimar.orig, weights, kOlimarWeightCount);
+                c.weights = weights;
+                writeWeights(c.orig, weights, kOlimarWeightCount);
             }
         }
 
         void applyOlimarWeights(u8 choice)
         {
-            syncCache(s_olimar, kFtOlimar);
-            if (!s_olimar.tried)
+            if (s_net == NULL)
             {
-                findOlimarWeights();
+                return;
             }
-            if (!cacheResident(s_olimar, kFtOlimar, kOlimarDataTable, kOlimarWeightsOffset))
+            WeightCache& c = s_net->olimar;
+            syncCache(c, kFtOlimar);
+            if (!c.tried)
+            {
+                findOlimarWeights(c);
+            }
+            if (!cacheResident(c, kFtOlimar, kOlimarDataTable, kOlimarWeightsOffset))
             {
                 return;
             }
             float want[kOlimarWeightCount];
-            olimarPikminWeights(choice, s_olimar.orig, want);
-            writeWeights(s_olimar.weights, want, kOlimarWeightCount);
+            olimarPikminWeights(choice, c.orig, want);
+            writeWeights(c.weights, want, kOlimarWeightCount);
         }
 
 #ifdef __MWERKS__
@@ -391,23 +410,22 @@ namespace extra {
                 {
                     aWork->setInt(target, kVarPikminMaturity);
                     aVis->setStatusDefault(0, static_cast<u8>(target), true);
-                    aVis->set(0, static_cast<u8>(target));
                 }
             }
         }
 #endif
 
-        void findDededeWeights(Fighter* fighter)
+        void findDededeWeights(WeightCache& c, Fighter* fighter)
         {
-            s_dedede.tried = true;
+            c.tried = true;
             const void* data = extraFtCommonData(kFtDedede);
             if (!game::isRam(data))
             {
-                s_dedede.data = NULL;
+                c.data = NULL;
                 TM_LOG("fighter mech: Dedede fighter data not found: Waddle Toss left alone\n");
                 return;
             }
-            s_dedede.data = data;
+            c.data = data;
             u32 tableAddr = game::wordAt(data, kDededeDataTable);
             if (!game::isRam(reinterpret_cast<const void*>(tableAddr)))
             {
@@ -431,26 +449,31 @@ namespace extra {
                    ok ? "ok" : "not as expected: left alone");
             if (ok)
             {
-                s_dedede.weights = weights;
-                writeWeights(s_dedede.orig, weights, kDededeWeightCount);
+                c.weights = weights;
+                writeWeights(c.orig, weights, kDededeWeightCount);
             }
         }
 
         void applyDededeWeights(Fighter* fighter, u8 choice)
         {
-            syncCache(s_dedede, kFtDedede);
-            if (!s_dedede.tried)
+            if (s_net == NULL)
             {
-                findDededeWeights(fighter);
+                return;
             }
-            if (!cacheResident(s_dedede, kFtDedede, kDededeDataTable, kDededeWeightsOffset))
+            WeightCache& c = s_net->dedede;
+            syncCache(c, kFtDedede);
+            if (!c.tried)
+            {
+                findDededeWeights(c, fighter);
+            }
+            if (!cacheResident(c, kFtDedede, kDededeDataTable, kDededeWeightsOffset))
             {
                 return;
             }
             float want[kDededeWeightCount];
             bool clearCd = false;
-            dededeWaddleWeights(choice, s_dedede.orig, want, clearCd);
-            writeWeights(s_dedede.weights, want, kDededeWeightCount);
+            dededeWaddleWeights(choice, c.orig, want, clearCd);
+            writeWeights(c.weights, want, kDededeWeightCount);
         }
 
         void executePlan(soWorkManageModule* work, const FighterPlan& plan)
@@ -489,8 +512,18 @@ namespace extra {
 
     void fighterMechanicsAttach()
     {
-        clearCache(s_dedede);
-        clearCache(s_olimar);
+#ifdef __MWERKS__
+        freeNetPtr(s_net);
+        s_net = allocNetArray<FighterMechNet>(1);
+#else
+        s_net = &s_netHost;
+#endif
+        if (s_net == NULL)
+        {
+            return;
+        }
+        clearCache(s_net->dedede);
+        clearCache(s_net->olimar);
 #ifdef __MWERKS__
         clearVisualSlots();
 #endif
@@ -498,8 +531,12 @@ namespace extra {
 
     void fighterMechanicsSync()
     {
-        syncCache(s_dedede, kFtDedede);
-        syncCache(s_olimar, kFtOlimar);
+        if (s_net == NULL)
+        {
+            return;
+        }
+        syncCache(s_net->dedede, kFtDedede);
+        syncCache(s_net->olimar, kFtOlimar);
     }
 
     void fighterMechanicsApplyFighter(Fighter* fighter, const soModuleEnumeration* m, int ftKind, int status,
@@ -543,30 +580,38 @@ namespace extra {
 
     void fighterMechanicsPrepareSwap()
     {
-        fighterMechanicsDetach();
+        if (s_net == NULL)
+        {
+            return;
+        }
+        WeightCache& ddd = s_net->dedede;
+        WeightCache& oli = s_net->olimar;
+        if (cacheResident(ddd, kFtDedede, kDededeDataTable, kDededeWeightsOffset))
+        {
+            const void* liveData = extraFtCommonData(kFtDedede);
+            TM_LOG("fighter mech: detach Dedede Waddle weights %08x (put back %.1f/%.1f/%.1f/%.1f, live data %08x)\n",
+                   ddd.weights, ddd.orig[0], ddd.orig[1], ddd.orig[2], ddd.orig[3], liveData);
+            writeWeights(ddd.weights, ddd.orig, kDededeWeightCount);
+        }
+        if (cacheResident(oli, kFtOlimar, kOlimarDataTable, kOlimarWeightsOffset))
+        {
+            const void* liveData = extraFtCommonData(kFtOlimar);
+            TM_LOG("fighter mech: detach Olimar Pikmin weights %08x (put back %.1f/%.1f/%.1f/%.1f/%.1f, live data %08x)\n",
+                   oli.weights, oli.orig[0], oli.orig[1], oli.orig[2], oli.orig[3], oli.orig[4], liveData);
+            writeWeights(oli.weights, oli.orig, kOlimarWeightCount);
+        }
+        clearCache(ddd);
+        clearCache(oli);
+#ifdef __MWERKS__
+        clearVisualSlots();
+#endif
     }
 
     void fighterMechanicsDetach()
     {
-        if (cacheResident(s_dedede, kFtDedede, kDededeDataTable, kDededeWeightsOffset))
-        {
-            const void* liveData = extraFtCommonData(kFtDedede);
-            TM_LOG("fighter mech: detach Dedede Waddle weights %08x (put back %.1f/%.1f/%.1f/%.1f, live data %08x)\n",
-                   s_dedede.weights, s_dedede.orig[0], s_dedede.orig[1], s_dedede.orig[2], s_dedede.orig[3], liveData);
-            writeWeights(s_dedede.weights, s_dedede.orig, kDededeWeightCount);
-        }
-        if (cacheResident(s_olimar, kFtOlimar, kOlimarDataTable, kOlimarWeightsOffset))
-        {
-            const void* liveData = extraFtCommonData(kFtOlimar);
-            TM_LOG("fighter mech: detach Olimar Pikmin weights %08x (put back %.1f/%.1f/%.1f/%.1f/%.1f, live data %08x)\n",
-                   s_olimar.weights, s_olimar.orig[0], s_olimar.orig[1], s_olimar.orig[2], s_olimar.orig[3],
-                   s_olimar.orig[4], liveData);
-            writeWeights(s_olimar.weights, s_olimar.orig, kOlimarWeightCount);
-        }
-        clearCache(s_dedede);
-        clearCache(s_olimar);
+        fighterMechanicsPrepareSwap();
 #ifdef __MWERKS__
-        clearVisualSlots();
+        freeNetPtr(s_net);
 #endif
     }
 }

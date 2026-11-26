@@ -63,35 +63,37 @@ namespace storage {
 #undef TM_SESSION
     enum { kSessionCount = sizeof(kSessionOnly) / sizeof(kSessionOnly[0]) };
 
+    // Single 32-byte aligned file buffer used for builds, writes, and holding
+    // the newest loaded file, with 64-byte tail for v1 session preservation
+    // (allocated in Heaps::Network on console).
+    enum { kV1SessionCap = 64 };
     static State* s_state = NULL;
     static Job s_job;
-    // Single 32-byte aligned file buffer used for builds, writes, and holding
-    // the newest loaded file (allocated in Heaps::Network on console).
-#ifdef __MWERKS__
     static u8* s_file = NULL;
-#else
-    static u8 s_fileStatic[kFileCap];
-    static u8* s_file = s_fileStatic;
+#ifndef __MWERKS__
+    static u8 s_fileStatic[kFileCap + kV1SessionCap];
 #endif
 
     static void ensureFileBuf()
     {
-#ifdef __MWERKS__
         if (s_file != NULL)
         {
             return;
         }
-        s_file = static_cast<u8*>(game::allocNetworkZero(static_cast<u32>(kFileCap)));
+#ifdef __MWERKS__
+        s_file = static_cast<u8*>(game::allocNetworkZero(static_cast<u32>(kFileCap + kV1SessionCap)));
         if (s_file == NULL)
         {
-            TM_LOG("storage: settings file buffer alloc failed (%u B in Network)\n", static_cast<unsigned>(kFileCap));
+            TM_LOG("storage: settings file buffer alloc failed (%u B in Network)\n",
+                   static_cast<unsigned>(kFileCap + kV1SessionCap));
         }
+#else
+        s_file = s_fileStatic;
 #endif
     }
-
     enum Phase { kIdle, kFolder, kWrite };
     static int s_phase = kIdle;
-    static bool s_again = false; // closed again while writing
+    static bool s_again = false;    // closed again while writing
     static bool s_jobStale = false; // timed-out request still draining
     static u32 s_pendingView = 0;
     static u32 s_pendingSequence = 0;
@@ -103,7 +105,6 @@ namespace storage {
     static int s_v1Affected = 0;
     static u32 s_v1UnchangedMask = 0;
     static u32 s_v1FileSize = 0;
-    static u8 s_v1SessionBuf[64];
     enum {
         kV1SessionBytes =
             sizeof(((Settings*)0)->general.playerPercent) + sizeof(((Settings*)0)->general.lockPlayerPercent)
@@ -115,7 +116,7 @@ namespace storage {
             + sizeof(((Settings*)0)->comboTrainer.enabled)
             + (offsetof(main::RecordingSettings, reserved) - offsetof(main::RecordingSettings, hmnMode))
     };
-    TM_STATIC_ASSERT(kV1SessionBytes <= sizeof(s_v1SessionBuf), tm_v1_session_buf_fits);
+    TM_STATIC_ASSERT(kV1SessionBytes <= kV1SessionCap, tm_v1_session_buf_fits);
 
 #ifdef __MWERKS__
 #pragma dont_inline on
@@ -127,7 +128,7 @@ namespace storage {
         for (int i = 0; i < kSessionCount; i++)
         {
             u32 n = kSessionOnly[i].size;
-            if (pos + n <= sizeof(s_v1SessionBuf))
+            if (pos + n <= kV1SessionCap)
             {
                 memcpy(toBuf ? (buf + pos) : (p + kSessionOnly[i].offset),
                        toBuf ? (p + kSessionOnly[i].offset) : (buf + pos), n);
@@ -347,7 +348,7 @@ namespace storage {
             // Keep the valid v1 save intact in s_file and compute which areas
             // changed generation or used size vs current v2 so the modal can
             // offer Reset All, Reset Affected, or Keep My Settings.
-            copySessionFields(before, s_v1SessionBuf, true);
+            copySessionFields(before, s_file + kFileCap, true);
             s_v1FileSize = h->size;
             s_v1UnchangedMask = 0;
             s_v1Affected = 0;
@@ -422,16 +423,21 @@ namespace storage {
         }
     }
 
+    static void clearV1()
+    {
+        s_v1Pending = false;
+        s_v1Affected = 0;
+        s_v1UnchangedMask = 0;
+        s_v1FileSize = 0;
+    }
+
     void settingsAttach(u8* block)
     {
         s_state = blockState(block);
         s_phase = kIdle;
         s_again = false;
         s_jobStale = s_job.busy();
-        s_v1Pending = false;
-        s_v1Affected = 0;
-        s_v1UnchangedMask = 0;
-        s_v1FileSize = 0;
+        clearV1();
         if (s_state == NULL)
         {
             return;
@@ -490,15 +496,12 @@ namespace storage {
                 main::resetSettings();
             }
         }
-        copySessionFields(s, s_v1SessionBuf, false);
+        copySessionFields(s, s_file + kFileCap, false);
         ui::clampSettings();
         main::sanitizeSettings(s);
         ui::retireDroppedValues();
 
-        s_v1Pending = false;
-        s_v1Affected = 0;
-        s_v1UnchangedMask = 0;
-        s_v1FileSize = 0;
+        clearV1();
 
         TM_LOG("storage: v1 -> v2 upgrade choice %d applied (from save %u)\n", choice, s_state->sequence);
         s_state->force = 1;
@@ -508,6 +511,14 @@ namespace storage {
                                                             ? "Updated changed settings to v2"
                                                             : "Kept compatible settings (v2)"));
         startSave();
+    }
+
+    static void commitSavedState()
+    {
+        s_state->slot = s_pendingSlot;
+        s_state->sequence = s_pendingSequence;
+        s_state->baseline = s_pendingView;
+        s_state->force = 0;
     }
 
     static void startSave()
@@ -621,10 +632,7 @@ namespace storage {
         s_phase = kIdle;
         if (result == kOk)
         {
-            s_state->slot = s_pendingSlot;
-            s_state->sequence = s_pendingSequence;
-            s_state->baseline = s_pendingView;
-            s_state->force = 0;
+            commitSavedState();
             TM_LOG("storage: settings saved to %s (save %u, %u bytes)\n", kNames[s_pendingSlot], s_pendingSequence,
                    s_pendingSize);
         }
@@ -647,10 +655,7 @@ namespace storage {
             // Match ended before the player resolved the v1 modal: prompt again next match.
             s_state->magic = 0;
         }
-        s_v1Pending = false;
-        s_v1Affected = 0;
-        s_v1UnchangedMask = 0;
-        s_v1FileSize = 0;
+        clearV1();
         bool dmaBusy = false;
         if (s_phase != kIdle)
         {
@@ -664,10 +669,7 @@ namespace storage {
             }
             if (r == kOk && s_state != NULL)
             {
-                s_state->slot = s_pendingSlot;
-                s_state->sequence = s_pendingSequence;
-                s_state->baseline = s_pendingView;
-                s_state->force = 0;
+                commitSavedState();
             }
             dmaBusy = (r == kBusy);
             if (dmaBusy)

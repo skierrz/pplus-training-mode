@@ -861,16 +861,16 @@ namespace extra {
         gfx::prepare();
 
         // Translucent vertical target zone curtain + bright floor landing pad.
+        const float qy[2] = {yTop, yPad};
+        const gfx::Rgba qc[2] = {pal[0], pal[2]};
         GXBegin(GX_QUADS, GX_VTXFMT1, 8);
-        gfx::vertex(x0, yTop, pal[0]);
-        gfx::vertex(x1, yTop, pal[0]);
-        gfx::vertex(x1, y0, pal[1]);
-        gfx::vertex(x0, y0, pal[1]);
-
-        gfx::vertex(x0, yPad, pal[2]);
-        gfx::vertex(x1, yPad, pal[2]);
-        gfx::vertex(x1, y0, pal[1]);
-        gfx::vertex(x0, y0, pal[1]);
+        for (int q = 0; q < 2; q++)
+        {
+            gfx::vertex(x0, qy[q], qc[q]);
+            gfx::vertex(x1, qy[q], qc[q]);
+            gfx::vertex(x1, y0, pal[1]);
+            gfx::vertex(x0, y0, pal[1]);
+        }
         GXEnd();
 
         // Hovering downward chevron pointer centered above the target zone.
@@ -881,23 +881,23 @@ namespace extra {
         GXEnd();
 
         // Bold left/right vertical bracket goalposts + inward serifs + floor rail + center tick.
-        gfx::lineBegin(GX_LINES, 16, 18);
-        gfx::vertex(x0, y0, bc);
-        gfx::vertex(x1, y0, bc);
-        gfx::vertex(x0, yPad, bc);
-        gfx::vertex(x1, yPad, bc);
-        gfx::vertex(x0, y0, bc);
-        gfx::vertex(x0, yTop, bc);
-        gfx::vertex(x1, y0, bc);
-        gfx::vertex(x1, yTop, bc);
-        gfx::vertex(x0, yTop, bc);
-        gfx::vertex(x0 + serif, yTop, bc);
-        gfx::vertex(x1, yTop, bc);
-        gfx::vertex(x1 - serif, yTop, bc);
-        gfx::vertex(xm, y0, bc);
-        gfx::vertex(xm, yPad + 1.2f, bc);
-        gfx::vertex(x0, y0 + 3.6f, bc);
-        gfx::vertex(x0 + serif * 0.6f, y0 + 3.6f, bc);
+        const float segs[9][4] = {
+            {x0, y0, x1, y0},
+            {x0, yPad, x1, yPad},
+            {x0, y0, x0, yTop},
+            {x1, y0, x1, yTop},
+            {x0, yTop, x0 + serif, yTop},
+            {x1, yTop, x1 - serif, yTop},
+            {xm, y0, xm, yPad + 1.2f},
+            {x0, y0 + 3.6f, x0 + serif * 0.6f, y0 + 3.6f},
+            {x1, y0 + 3.6f, x1 - serif * 0.6f, y0 + 3.6f}
+        };
+        gfx::lineBegin(GX_LINES, 18, 18);
+        for (int i = 0; i < 9; i++)
+        {
+            gfx::vertex(segs[i][0], segs[i][1], bc);
+            gfx::vertex(segs[i][2], segs[i][3], bc);
+        }
         GXEnd();
 
         GXSetLineWidth(6, 0);

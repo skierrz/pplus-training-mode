@@ -146,12 +146,7 @@ namespace extra {
 
     static int activeKind(const game::FighterRef& ref)
     {
-        ftEntryManager* entries = extraEntryManager();
-        if (!game::isRam(entries))
-        {
-            return -1;
-        }
-        ftEntry* entry = entries->getEntity(ref.entryId);
+        ftEntry* entry = extraEntry(ref.entryId);
         if (!game::isRam(entry) || entry->m_entryId != ref.entryId)
         {
             return -1;
@@ -228,6 +223,9 @@ namespace extra {
         }
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     static void setFlag(soWorkManageModule* work, u32 flag, bool on)
     {
         // What the script's "bit variable set" and "clear" commands call.
@@ -240,6 +238,9 @@ namespace extra {
             work->offFlag(flag);
         }
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // `was`: the row's value when it was last applied.
     static void applySmash(const soModuleEnumeration* m, int status, int choice, int was)
@@ -308,6 +309,9 @@ namespace extra {
         motion->setOtherAnimFrame(static_cast<float>(face), 0);
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     // Whether `args` is the turnip's draw as Project+'s file has it: the face
     // variable, then the eight weights as scalars. With `anyWeights`, the
     // weights may be any scalars (this module may have changed them).
@@ -326,6 +330,9 @@ namespace extra {
         }
         return true;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // The turnip's draw in the item resource heap (ItmCommonParam.pac),
     // searched from the heap's end, where that file lies (measured), once per
@@ -377,6 +384,9 @@ namespace extra {
         }
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     static void clearOddsCache()
     {
         s_oddsData = NULL;
@@ -408,6 +418,9 @@ namespace extra {
             clearOddsCache();
         }
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // Finds the one-in-N parameter in Peach's fighter data; the item part
     // stays off unless it is what the game reads as parameter 24001 and her
@@ -467,6 +480,9 @@ namespace extra {
         fighterMechanicsAttach();
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     static void restoreOdds(bool preSwap)
     {
         if (oddsResident())
@@ -478,6 +494,9 @@ namespace extra {
         }
         clearOddsCache();
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     void characterRngPrepareSwap()
     {

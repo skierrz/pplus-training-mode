@@ -104,6 +104,9 @@ namespace extra {
         BReverseResult last;
     };
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline float brevAbsf(float v)
     {
         return v < 0.0f ? -v : v;
@@ -113,6 +116,9 @@ namespace extra {
     {
         return s >= kBRevStatusSpecialFirst && s != kBRevStatusFinal;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline void breverseReset(BReverseState& st)
     {

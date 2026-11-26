@@ -132,7 +132,6 @@ namespace extra {
 
     TM_STATIC_ASSERT(sizeof(ui::pages::ScenarioMenuState) == 33, tm_scenario_menu_state_size);
 
-#pragma dont_inline on
     static void readMenuConfigInto(ScenarioConfig& out)
     {
         const ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
@@ -223,7 +222,6 @@ namespace extra {
         s_debug.resolvedLedgetechAtk = s_state.resolvedLedgetechAttack;
     }
 
-#pragma dont_inline reset
     static bool sawIntraFrameStatus(int playerNo, int targetStatus)
     {
         for (int i = 0; i < game::kMaxTracked; i++)
@@ -247,7 +245,6 @@ namespace extra {
         }
         return false;
     }
-#pragma dont_inline on
 
     static bool findPlayerRef(const game::FighterRef* refs, int n, int playerNo, game::FighterRef& out)
     {
@@ -292,7 +289,6 @@ namespace extra {
         s_wasPaused = false;
         s_resumeFromPause = false;
     }
-#pragma dont_inline reset
 
     void scenarioPresetsAttach()
     {
@@ -331,7 +327,6 @@ namespace extra {
         TM_LOG("scenarios: debug block %08x\n", &net->debug);
     }
 
-#pragma dont_inline on
     static Fighter* pairFighter(const game::FighterRef& ref, int idx)
     {
         return idx == 0 ? ref.fighter : ((ref.partner != NULL && ref.partner != ref.fighter) ? ref.partner : NULL);
@@ -410,9 +405,7 @@ namespace extra {
             m->m_colorBlendModule->setSubColor(on ? kPale : kZero, on ? 1 : 0);
         }
     }
-#pragma dont_inline reset
 
-#pragma dont_inline on
     enum RestoreRuntimeMode {
         kRestoreSaveOnly = 0,     // strip only transient savestate hazards (preserve live revival/drop)
         kRestoreNormal = 1,       // full reset of active runtime mods
@@ -473,7 +466,6 @@ namespace extra {
         net->slidePassDisabled = false;
         net->techFlashFrames = 0;
     }
-#pragma dont_inline reset
 
     static bool fighterHasActiveHitbox(Fighter* f)
     {
@@ -694,7 +686,6 @@ namespace extra {
         resetPlacedGlobals();
     }
 
-#pragma dont_inline on
     static void applyConfigAndPercents(ScenarioState& st, const ScenarioConfig* optCfg)
     {
         ScenarioConfig localCfg;
@@ -718,7 +709,6 @@ namespace extra {
                               || (prevPreset == kScenarioGrabEscape && st.activePreset != kScenarioGrabEscape),
                           s.cpu.percent != prevCpu || leftToOff);
     }
-#pragma dont_inline reset
 
     void scenarioPresetsPrepareSwap()
     {
@@ -804,25 +794,16 @@ namespace extra {
         const ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
         bool wide = gfx::widescreen();
         float xs = ui::layout::xsOf(wide);
-        ui::layout::Box card = ui::layout::drillHudBox(wide);
+        ui::layout::Box card = hudRightCardBox(kHudCardTechchase, wide);
         float ox = card.x0;
         float bw = card.x1 - card.x0;
-        float ix = ox + 4.0f * xs;
-        float iw = bw - 8.0f * xs;
 
         // Unified top-center Brawl/P+ banner matching drill_hud.cpp (sharp in 4:3 and 16:9).
-        gfx::fillRect(ox, 24.0f, bw, 40.0f, 0x060D12F2u);
-        gfx::fillRect(ox + 2.0f * xs, 26.0f, bw - 4.0f * xs, 36.0f, 0x35B8C8FFu);
-        gfx::fillGradV(ix, 28.0f, iw, 32.0f, 0x0D1E26ECu, 0x071117ECu);
-        gfx::fillGradV(ix, 28.0f, iw, 15.0f, 0x226874F0u, 0x123C46F0u);
-        gfx::fillRect(ix, 43.0f, iw, 2.0f, 0x2A5866E0u);
+        drawHudBannerTitle(ox, 24.0f, bw, 40.0f, xs, 0x35B8C8FFu, "TECHCHASE");
 
         float lx = ox + 10.0f * xs;
         float rx = ox + 306.0f * xs;
-        float dispSc = 8.5f / 24.0f;
         float txtSc = 8.0f / 15.0f;
-        gfx::displayText(lx, 31.0f - 2.5f * dispSc, "TECHCHASE", 0xFFFFFFFFu, 0xB8E0EEFFu, dispSc, dispSc, 1.2f,
-                         0x050C12FFu);
 
         char posBuf[16];
         const char* posStr = "GROUND";
@@ -834,8 +815,7 @@ namespace extra {
         float posTw = gfx::textWidth(posStr, txtSc);
         float pillW = posTw + 10.0f * xs;
         float pillX = rx - pillW;
-        gfx::fillRect(pillX, 29.0f, pillW, 13.0f, 0x07141AE8u);
-        gfx::fillGradV(pillX + 2.0f * xs, 31.0f, pillW - 4.0f * xs, 9.0f, 0x1B6B76FFu, 0x0E3D45FFu);
+        drawHudPill(pillX, 29.0f, pillW, xs, false);
         gfx::text(pillX + (pillW - posTw) * 0.5f, 31.5f - 5.0f * txtSc, posStr, 0xFFFFFFFFu, txtSc, txtSc);
 
         char buf[32];
