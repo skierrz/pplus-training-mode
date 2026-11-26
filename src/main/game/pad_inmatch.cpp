@@ -21,6 +21,8 @@ namespace game {
             kPadR,
             kPadL,
             kPadR,
+            kPadX,
+            kPadY,
             {kPadL, kPadZ, kPadX, kPadY, kPadR}
         },
         // WII_CLASSIC (1)
@@ -30,6 +32,8 @@ namespace game {
             kPadR,
             kPadL,
             kPadR,
+            kPadX,
+            kPadY,
             {kPadL, kPadZ | kPadClassicZL | kPadClassicZR, kPadX, kPadY, kPadR}
         },
         // WIIMOTE (2, sideways)
@@ -39,6 +43,8 @@ namespace game {
             kPadWiiB,
             0,
             kPadWiiA,
+            0,
+            0,
             {kPadWiiMinus, kPadWiiA, kPadWiiA, kPadWiiMinus, kPadWiiB | kPadL}
         },
         // NUNCHUK (3)
@@ -48,6 +54,8 @@ namespace game {
             kPadWii1,
             kPadNunchukC,
             kPadWii2,
+            kPadWiiMinus,
+            0,
             {kPadWii1, kPadZ, kPadX | kPadNunchukC, kPadWiiMinus, kPadWii2}
         }
     };

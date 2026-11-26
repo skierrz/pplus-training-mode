@@ -5,9 +5,13 @@
 #include <string.h>
 #include <gf/gf_pad_status.h>
 
+#include "main/cpu/options.h"
 #include "main/extra.h"
+#include "main/game/code_menu.h"
 #include "main/gfx/draw.h"
 #include "main/gfx/text.h"
+#include "main/lab.h"
+#include "main/record/record.h"
 #include "main/settings.h"
 #include "main/ui/menu_theme_core.h"
 #include "main/ui/pages/pages.h"
@@ -400,6 +404,7 @@ namespace ui {
         state.railFocus = false;
         state.openStart = true;
         state.controllerType = 0;
+        state.resetConfirmPage = 0;
         state.stack[0] = def.categoryCount > 0 ? def.categoryPages[0] : 0;
         for (int i = 0; i < kMaxPages; i++)
         {
@@ -450,7 +455,144 @@ namespace ui {
         state.stack[0] = pageId;
         state.railCursor = cat;
         state.railFocus = keepRailFocus;
+        state.resetConfirmPage = 0;
         enterPage(state, def, pageId);
+    }
+
+    static bool isLabMenu(const MenuDef& def)
+    {
+        return def.values != NULL && def.values() == reinterpret_cast<u8*>(&main::settings());
+    }
+
+    static bool resettableOption(const Option& o)
+    {
+        return stored(o) && (o.flags & kFlagScratch) == 0 && active(o);
+    }
+
+    static bool pageHasResettableOptions(const MenuDef& def, int pageId)
+    {
+        if (static_cast<u32>(pageId) >= def.pageCount)
+        {
+            return false;
+        }
+        bool savedRail = s_rail;
+        bool savedAllow = s_allowShowInactive;
+        s_rail = isRailStyle(def);
+        s_allowShowInactive = allowShowInactive(def, pageId);
+        const Page& p = pageAt(def, pageId);
+        bool found = false;
+        for (int i = 0; i < p.count; i++)
+        {
+            if (resettableOption(p.options[i]))
+            {
+                found = true;
+                break;
+            }
+        }
+        s_rail = savedRail;
+        s_allowShowInactive = savedAllow;
+        return found;
+    }
+
+    static void syncResetPage(int pageId)
+    {
+        switch (pageId)
+        {
+        case pages::P_GENERAL:
+            lab::frameAdvanceChanged();
+            lab::applyPercent(main::kSideHuman);
+            break;
+        case pages::P_CONTROLS:
+            game::codeMenuSync();
+            break;
+        case pages::P_CPU:
+            lab::applyPercent(main::kSideCpu);
+            cpu::controlledByChanged();
+            break;
+        case pages::P_OSD_MENU:
+            lab::osdSettingsChanged();
+            break;
+        case pages::P_STAGE_CAST:
+            main::extraStageOptionsChanged();
+            main::extraCharacterRng();
+            break;
+        case pages::P_ADVANCED_COUNTER:
+            cpu::advancedHitChanged();
+            break;
+        case pages::P_RECORDING:
+            record::clearDeleteConfirm();
+            if (record::positionsSaved())
+            {
+                record::hmnModeChanged();
+                record::cpuModeChanged();
+                record::mirroredChanged();
+            }
+            break;
+        case pages::P_SLOTS:
+            record::clearDeleteConfirm();
+            break;
+        default:
+            break;
+        }
+    }
+
+    static bool resetMenuOption(const MenuDef& def, int pageId, int row)
+    {
+        const Page& p = pageAt(def, pageId);
+        if (row < 0 || row >= p.count)
+        {
+            return false;
+        }
+        const Option& o = p.options[row];
+        if (!resettableOption(o))
+        {
+            return false;
+        }
+        bool ok = isLabMenu(def) ? main::resetSettingsOption(pageId, row) : defaultOption(def, o);
+        if (ok && o.onChange != NULL)
+        {
+            s_activeRow = row;
+            o.onChange();
+        }
+        return ok;
+    }
+
+    static bool resetMenuPage(const MenuDef& def, int pageId)
+    {
+        if (static_cast<u32>(pageId) >= def.pageCount)
+        {
+            return false;
+        }
+        if (isLabMenu(def))
+        {
+            if (!main::resetSettingsPage(pageId))
+            {
+                return false;
+            }
+            syncResetPage(pageId);
+            return true;
+        }
+        const Page& p = pageAt(def, pageId);
+        bool any = false;
+        for (int i = 0; i < p.count; i++)
+        {
+            const Option& o = p.options[i];
+            if (!stored(o) || (o.flags & kFlagScratch) != 0)
+            {
+                continue;
+            }
+            int before = optionValue(def, o);
+            if (defaultOption(def, o))
+            {
+                any = true;
+                if (o.onChange != NULL && optionValue(def, o) != before)
+                {
+                    s_activeRow = i;
+                    o.onChange();
+                }
+            }
+        }
+        return any;
     }
 
     static bool isDamageOption(int pageId, const Option& o)
@@ -517,6 +659,12 @@ namespace ui {
         // Left category rail navigation.
         if (s_rail && state.railFocus)
         {
+            if (state.resetConfirmPage != 0 && in.b)
+            {
+                state.resetConfirmPage = 0;
+                menuSound(game::kSoundMove);
+                return true;
+            }
             int totalRail = def.categoryCount + def.utilityCount;
             if (totalRail > 0)
             {
@@ -535,11 +683,16 @@ namespace ui {
                 }
                 if (state.railCursor != from)
                 {
+                    state.resetConfirmPage = 0;
                     sound = game::kSoundMove;
                     if (state.railCursor < def.categoryCount)
                     {
                         switchCategory(def, state, state.railCursor, true);
                     }
+                }
+                else if (in.up || in.down)
+                {
+                    state.resetConfirmPage = 0;
                 }
                 if (in.right && state.railCursor < def.categoryCount)
                 {
@@ -548,6 +701,7 @@ namespace ui {
                 }
                 else if (in.a)
                 {
+                    state.resetConfirmPage = 0;
                     if (state.railCursor < def.categoryCount)
                     {
                         switchCategory(def, state, state.railCursor, false);
@@ -561,6 +715,38 @@ namespace ui {
                             def.utilities[u].onSelect();
                             sound = game::kSoundConfirm;
                         }
+                    }
+                }
+                else if ((in.resetOpt || in.resetPage) && !in.up && !in.down && !in.right)
+                {
+                    if (state.railCursor < def.categoryCount)
+                    {
+                        u8 targetPg = def.categoryPages[state.railCursor];
+                        if (pageHasResettableOptions(def, targetPg))
+                        {
+                            if ((state.resetConfirmPage & 0x7Fu) == static_cast<u8>(targetPg + 1))
+                            {
+                                state.resetConfirmPage = 0;
+                                if (resetMenuPage(def, targetPg))
+                                {
+                                    sound = game::kSoundConfirm;
+                                }
+                            }
+                            else
+                            {
+                                u8 flag = (in.resetOpt && !in.resetPage) ? 0x80u : 0u;
+                                state.resetConfirmPage = static_cast<u8>((targetPg + 1) | flag);
+                                sound = game::kSoundMove;
+                            }
+                        }
+                        else
+                        {
+                            state.resetConfirmPage = 0;
+                        }
+                    }
+                    else
+                    {
+                        state.resetConfirmPage = 0;
                     }
                 }
             }
@@ -588,10 +774,22 @@ namespace ui {
             state.railFocus = false;
         }
 
+        if (state.resetConfirmPage != 0 && in.b)
+        {
+            state.resetConfirmPage = 0;
+            menuSound(game::kSoundMove);
+            return true;
+        }
+
         u8 pageId = state.stack[state.depth];
         s_allowShowInactive = allowShowInactive(def, pageId);
         const Page& p = pageAt(def, pageId);
         u8& cur = state.cursor[pageId];
+        bool otherInput = in.up != 0 || in.down != 0 || in.left != 0 || in.right != 0 || in.a;
+        if (otherInput)
+        {
+            state.resetConfirmPage = 0;
+        }
         if (p.count > 0)
         {
             if (cur >= p.count || !selectable(p.options[cur]))
@@ -647,6 +845,40 @@ namespace ui {
                         o.onChange();
                     }
                     sound = game::kSoundConfirm;
+                }
+            }
+            else if (!otherInput && !in.b)
+            {
+                if (in.resetOpt)
+                {
+                    state.resetConfirmPage = 0;
+                    if (resetMenuOption(def, pageId, cur))
+                    {
+                        sound = game::kSoundConfirm;
+                    }
+                }
+                else if (in.resetPage)
+                {
+                    if (pageHasResettableOptions(def, pageId))
+                    {
+                        if ((state.resetConfirmPage & 0x7Fu) == static_cast<u8>(pageId + 1))
+                        {
+                            state.resetConfirmPage = 0;
+                            if (resetMenuPage(def, pageId))
+                            {
+                                sound = game::kSoundConfirm;
+                            }
+                        }
+                        else
+                        {
+                            state.resetConfirmPage = static_cast<u8>(pageId + 1);
+                            sound = game::kSoundMove;
+                        }
+                    }
+                    else
+                    {
+                        state.resetConfirmPage = 0;
+                    }
                 }
             }
             s_rail = isRailStyle(def);
@@ -715,6 +947,7 @@ namespace ui {
         s_rail = isRailStyle(def);
         next.depth = 0;
         next.railFocus = false;
+        next.resetConfirmPage = 0;
         int start = 0;
         if (def.categoryCount > 0)
         {
@@ -843,7 +1076,7 @@ namespace ui {
         {kLabBtnZTop, kLabBtnZBot, kLabWhiteText}
     };
 
-    enum { kNoIcon = 0xFF, kEmblemCentre = 1, kEmblemTab = 2 };
+    enum { kNoIcon = 0xFF, kEmblemCentre = 1, kEmblemTab = 2, kEmblemDense = 4 };
 
     static void fillBox(float x43, float y, float w43, float h, gfx::Rgba color)
     {
@@ -869,26 +1102,7 @@ namespace ui {
     static void drawSlantRow(float x043, float x143, float y, float h, bool flushLeft, gfx::Rgba topCol,
                              gfx::Rgba botCol, gfx::Rgba edgeCol)
     {
-        float slant = h * kSlantTan;
-        float x0Top = cx(flushLeft ? x043 : (x043 + slant));
-        float x0Bot = cx(x043);
-        float x1Top = cx(x143);
-        float x1Bot = cx(x143 - slant);
-        if (edgeCol != 0)
-        {
-            drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + h, edgeCol, edgeCol);
-            float padX = w(2.0f);
-            float dySlant = w(2.0f * kSlantTan);
-            float ix0Top = flushLeft ? x0Top : (x0Top - dySlant + padX);
-            float ix0Bot = flushLeft ? x0Bot : (x0Bot + dySlant + padX);
-            float ix1Top = x1Top - dySlant - padX;
-            float ix1Bot = x1Bot + dySlant - padX;
-            drawSlantGradV(ix0Top, ix0Bot, ix1Top, ix1Bot, y + 2.0f, y + h - 2.0f, topCol, botCol);
-        }
-        else
-        {
-            drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + h, topCol, botCol);
-        }
+        drawSlantBar(x043, x143, y, h, flushLeft, topCol, botCol, edgeCol);
     }
 
     static void drawGoldBar(float x43, float w43, float y, float h, float cursorSize, bool flushLeft = false,
@@ -967,7 +1181,8 @@ namespace ui {
             usedIcon = false;
             return fbW;
         }
-        float maxH = (flags & kEmblemTab) ? 18.0f : 17.0f;
+        float maxH = (flags & kEmblemTab) ? 18.0f : ((flags & kEmblemDense) ? 14.0f : 17.0f);
+        float maxW = (flags & kEmblemDense) ? 20.0f : 26.0f;
         float xs = gfx::xScale();
         u8 ids[2] = {icon1, icon2};
         float total = 0.0f;
@@ -976,9 +1191,9 @@ namespace ui {
             float asp = uiIconAspect(ids[k]);
             float h = maxH;
             float ww = h * asp;
-            if (ww > 26.0f)
+            if (ww > maxW)
             {
-                ww = 26.0f;
+                ww = maxW;
                 h = ww / asp;
             }
             float iw = ww * xs;
@@ -1003,37 +1218,7 @@ namespace ui {
 
     static void drawPillBox(float left43, float right43, float y, bool isOn, bool on, bool selected)
     {
-        gfx::Rgba topCol, botCol;
-        if (isOn)
-        {
-            topCol = on ? kLabPillOnTop : kLabPillOnMutedTop;
-            botCol = on ? kLabPillOnBot : kLabPillOnMutedBot;
-        }
-        else if (selected && on)
-        {
-            topCol = kLabPillFocusTop;
-            botCol = kLabPillFocusBot;
-        }
-        else
-        {
-            topCol = on ? kLabPillOffTop : kLabPillOffMutedTop;
-            botCol = on ? kLabPillOffBot : kLabPillOffMutedBot;
-        }
-        float py = y + 2.0f;
-        float ph = kLabRowH - 4.0f;
-        float slant = ph * kSlantTan;
-        float xs = gfx::xScale();
-        float x0Top = 320.0f + (left43 + slant - 320.0f) * xs;
-        float x0Bot = 320.0f + (left43 - 320.0f) * xs;
-        float x1Top = 320.0f + (right43 - 320.0f) * xs;
-        float x1Bot = 320.0f + (right43 - slant - 320.0f) * xs;
-        float pad = 2.0f * xs;
-        if (selected || isOn)
-        {
-            drawSlantGradV(x0Top - pad, x0Bot - pad, x1Top + pad, x1Bot + pad, py - 2.0f, py + ph + 2.0f,
-                           kLabPillBorder, kLabPillBorder);
-        }
-        drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, py, py + ph, topCol, botCol);
+        drawValuePill(left43, right43, y, kLabRowH, isOn, on, selected);
     }
 
     static void drawLabFrame()
@@ -1072,8 +1257,8 @@ namespace ui {
     }
 
     struct CtrlSpec {
-        u8 a, b, start, z1, z2, cat1, cat2, tabL, tabR;
-        u8 roundBits; // bit 0:start, 1:z, 2:cat, 3:tabR, 4:zPurple
+        u8 a, b, start, z1, z2, cat1, cat2, tabL, tabR, resetOpt, resetPage;
+        u8 roundBits; // bit 0:start, 1:z, 2:cat, 3:tabR, 4:zPurple, 5:resetRound
         const char* txtA;
         const char* txtB;
         const char* txtStart;
@@ -1081,19 +1266,21 @@ namespace ui {
         const char* txtCat;
         const char* txtTabL;
         const char* txtTabR;
+        const char* txtResetOpt;
+        const char* txtResetPage;
     };
 
     static const CtrlSpec& ctrlSpec(u8 ct)
     {
         static const CtrlSpec kSpecs[4] = {
-            {kIconGcA, kIconGcB, kNoIcon, kIconGcZ, kNoIcon, kIconGcL, kIconGcR, kIconGcL, kIconGcR, 0x10,
-             "A", "B", "START", "Z", "L/R", "L", "R"},
-            {kIconWii2, kIconWii1, kIconWiiPlus, kIconWiiMinus, kNoIcon, kIconWiiA, kNoIcon, kNoIcon, kIconWiiA, 0x0F,
-             "2", "1", "+", "-", "A", NULL, "A"},
-            {kIconWiiA, kIconWiiB, kIconWiiPlus, kIconNunZ, kNoIcon, kIconNunC, kIconWii2, kIconNunC, kIconWii2, 0x09,
-             "A", "B", "+", "Z", "C/2", "C", "2"},
-            {kIconClA, kIconClB, kIconWiiPlus, kIconClZL, kIconClZR, kIconClL, kIconClR, kIconClL, kIconClR, 0x01,
-             "A", "B", "+", "ZL/ZR", "L/R", "L", "R"}
+            {kIconGcA, kIconGcB, kNoIcon, kIconGcZ, kNoIcon, kIconGcL, kIconGcR, kIconGcL, kIconGcR, kIconGcX, kIconGcY,
+             0x10, "A", "B", "START", "Z", "L/R", "L", "R", "X", "Y"},
+            {kIconWii2, kIconWii1, kIconWiiPlus, kIconWiiMinus, kNoIcon, kIconWiiA, kNoIcon, kNoIcon, kIconWiiA,
+             kNoIcon, kNoIcon, 0x0F, "2", "1", "+", "-", "A", NULL, "A", NULL, NULL},
+            {kIconWiiA, kIconWiiB, kIconWiiPlus, kIconNunZ, kNoIcon, kIconNunC, kIconWii2, kIconNunC, kIconWii2,
+             kIconWiiMinus, kNoIcon, 0x29, "A", "B", "+", "Z", "C/2", "C", "2", "-", NULL},
+            {kIconClA, kIconClB, kIconWiiPlus, kIconClZL, kIconClZR, kIconClL, kIconClR, kIconClL, kIconClR, kIconClX,
+             kIconClY, 0x21, "A", "B", "+", "ZL/ZR", "L/R", "L", "R", "X", "Y"}
         };
         if (ct == gfPadType::WIIMOTE)
         {
@@ -1235,6 +1422,28 @@ namespace ui {
         gradBox(kLabInnerLeft, kLabDescTop + 2.0f, iw, kLabFooterTop - (kLabDescTop + 2.0f), pal.descTop,
                 pal.descBot);
 
+        float scale = scaleForCap(kLabDescCap);
+        float y = textYForCap(kLabDescTop + 2.0f + (kLabFooterTop - kLabDescTop - 2.0f - kLabDescCap) * 0.5f, scale);
+        if (state.resetConfirmPage != 0)
+        {
+            u8 confirmPg = static_cast<u8>((state.resetConfirmPage & 0x7Fu) - 1);
+            if (confirmPg < def.pageCount)
+            {
+                const CtrlSpec& cs = ctrlSpec(state.controllerType);
+                bool byOpt = (state.resetConfirmPage & 0x80u) != 0;
+                const char* btn = (byOpt || cs.txtResetPage == NULL) ? cs.txtResetOpt : cs.txtResetPage;
+                if (btn == NULL)
+                {
+                    btn = "Y";
+                }
+                char confirmBuf[96];
+                snprintf(confirmBuf, sizeof(confirmBuf), "Press %s again to reset %s to defaults.", btn,
+                         pageTitle(def, confirmPg));
+                fitText(48.0f, y, confirmBuf, kLabFocusGold, scale, 544.0f, false);
+                return;
+            }
+        }
+
         const char* desc = NULL;
         if (diPickerActiveFor(pageId, state))
         {
@@ -1258,8 +1467,6 @@ namespace ui {
         {
             desc = "Use D-Pad or Stick to select and adjust lab options.";
         }
-        float scale = scaleForCap(kLabDescCap);
-        float y = textYForCap(kLabDescTop + 2.0f + (kLabFooterTop - kLabDescTop - 2.0f - kLabDescCap) * 0.5f, scale);
         fitText(48.0f, y, desc, pal.descText, scale, 544.0f, false);
     }
 
@@ -1277,11 +1484,23 @@ namespace ui {
         s_allowShowInactive = allowShowInactive(def, pageId);
         bool diPicking = diPickerActiveFor(pageId, state);
 
-        FooterItem items[5];
+        FooterItem items[7];
         int n = 0;
         if (diPicking)
         {
             pushFooter(items, n, cs.a, kNoIcon, 0, true, cs.txtA, "Lock Angle");
+            pushFooter(items, n, cs.b, kNoIcon, 1, true, cs.txtB, "Cancel");
+        }
+        else if (state.resetConfirmPage != 0)
+        {
+            bool byOpt = (state.resetConfirmPage & 0x80u) != 0;
+            u8 icon = (byOpt || cs.txtResetPage == NULL) ? cs.resetOpt : cs.resetPage;
+            const char* txt = (byOpt || cs.txtResetPage == NULL) ? cs.txtResetOpt : cs.txtResetPage;
+            if (txt == NULL)
+            {
+                txt = "Y";
+            }
+            pushFooter(items, n, icon, kNoIcon, 2, (cs.roundBits & 0x20) != 0, txt, "Confirm Reset");
             pushFooter(items, n, cs.b, kNoIcon, 1, true, cs.txtB, "Cancel");
         }
         else
@@ -1324,29 +1543,55 @@ namespace ui {
                 pushFooter(items, n, cs.cat1, cs.cat2, 2, (cs.roundBits & 4) != 0, cs.txtCat,
                            isTabsStyle(def) ? "Tab" : "Category");
             }
+            bool resetRound = (cs.roundBits & 0x20) != 0;
+            if (railMode && state.railFocus)
+            {
+                if (state.railCursor < def.categoryCount && cs.txtResetOpt != NULL
+                    && pageHasResettableOptions(def, def.categoryPages[state.railCursor]))
+                {
+                    pushFooter(items, n, cs.resetOpt, kNoIcon, 2, resetRound, cs.txtResetOpt, "Reset Page");
+                }
+            }
+            else
+            {
+                if (cs.txtResetOpt != NULL && p.count > 0 && cur < p.count && resettableOption(p.options[cur]))
+                {
+                    pushFooter(items, n, cs.resetOpt, kNoIcon, 2, resetRound, cs.txtResetOpt, "Reset");
+                }
+                if (cs.txtResetPage != NULL && pageHasResettableOptions(def, pageId))
+                {
+                    pushFooter(items, n, cs.resetPage, kNoIcon, 2, resetRound, cs.txtResetPage, "Reset Page");
+                }
+            }
         }
 
-        float scale = scaleForCap(kLabFooterCap);
+        bool dense = n >= 6;
+        bool ultra = n >= 7;
+        float cap = ultra ? 7.5f : (dense ? 8.0f : kLabFooterCap);
+        float scale = scaleForCap(cap);
         float footerMidY = kLabFooterTop + 2.0f + (kLabInnerBottom - kLabFooterTop - 4.0f) * 0.5f;
-        float textY = textYForCap(footerMidY - kLabFooterCap * 0.5f, scale);
+        float textY = textYForCap(footerMidY - cap * 0.5f, scale);
         float xs = gfx::xScale();
-        float curX = 320.0f + (48.0f - 320.0f) * xs;
-        float minBadgeW = 16.0f * xs;
+        float curX = 320.0f + ((dense ? 43.0f : 48.0f) - 320.0f) * xs;
+        float minBadgeW = (ultra ? 13.5f : (dense ? 14.5f : 16.0f)) * xs;
+        float iconGap = (ultra ? 2.5f : (dense ? 3.0f : 5.0f)) * xs;
+        float itemGap = (ultra ? 5.5f : (dense ? 7.0f : 13.0f)) * xs;
 
-        float badgeX[5], badgeW[5], labelX[5];
-        bool usedIcon[5];
+        float badgeX[7], badgeW[7], labelX[7];
+        bool usedIcon[7];
         for (int i = 0; i < n; i++)
         {
             const FooterItem& it = items[i];
             badgeX[i] = curX;
-            float fbW = it.round ? minBadgeW : (boldWidth(it.badge, scale) + 10.0f * xs);
+            float fbW = it.round ? minBadgeW : (boldWidth(it.badge, scale) + (ultra ? 6.0f : (dense ? 7.0f : 10.0f)) * xs);
             if (fbW < minBadgeW)
             {
                 fbW = minBadgeW;
             }
-            badgeW[i] = drawEmblem(it.icon1, it.icon2, curX, footerMidY, fbW, it.theme, 0, usedIcon[i]);
-            labelX[i] = curX + badgeW[i] + 5.0f * xs;
-            curX = labelX[i] + boldWidth(it.label, scale) + 13.0f * xs;
+            badgeW[i] = drawEmblem(it.icon1, it.icon2, curX, footerMidY, fbW, it.theme, dense ? kEmblemDense : 0,
+                                   usedIcon[i]);
+            labelX[i] = curX + badgeW[i] + iconGap;
+            curX = labelX[i] + boldWidth(it.label, scale) + itemGap;
         }
         for (int i = 0; i < n; i++)
         {

@@ -16,6 +16,8 @@ namespace game {
         u32 fastRepeat;  // Lab menu fast key repeat
         u32 prevCat;     // Lab menu previous category / tab
         u32 nextCat;     // Lab menu next category / tab
+        u32 resetOpt;    // Lab menu 1-tap reset highlighted option to default
+        u32 resetPage;   // Lab menu 2-tap reset current page to defaults
         u32 advance[5];  // main::AdvanceButton: L, Z, X, Y, R
     };
 

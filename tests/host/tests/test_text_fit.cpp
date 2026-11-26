@@ -757,6 +757,28 @@ TEST(text_fit, lab_menu_pages)
                                    r.right - ui::style::cx(ui::style::kLabInnerRight), kAspectNames[a]);
                         }
                     }
+
+                    // Worst-case dense footer: Lab > P1 Damage ("Reset 0%" + "Categories" + "Brawl Pause" + "Reset" + "Reset Page").
+                    ui::MenuState dmgState;
+                    memset(&dmgState, 0, sizeof(dmgState));
+                    dmgState.category = 0;
+                    dmgState.depth = 0;
+                    dmgState.stack[0] = ui::pages::P_GENERAL;
+                    dmgState.cursor[ui::pages::P_GENERAL] = 1; // P1 Damage
+                    dmgState.openStart = openStart != 0;
+                    dmgState.controllerType = ct;
+                    canvas::clear();
+                    ui::menuDraw(menu, dmgState);
+                    s_checked++;
+                    for (int k = 0; k < canvas::runs(); k++)
+                    {
+                        const canvas::Run& r = canvas::run(k);
+                        if (r.right > ui::style::cx(ui::style::kLabInnerRight) + 0.5f)
+                        {
+                            misfit("lab-title", "lab dense footer", r.text, "runs past right edge by %.1f on %s",
+                                   r.right - ui::style::cx(ui::style::kLabInnerRight), kAspectNames[a]);
+                        }
+                    }
                 }
             }
         }

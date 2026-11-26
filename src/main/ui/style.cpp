@@ -33,6 +33,68 @@ namespace style {
 #endif
     }
 
+    static const float kStyleSlantTan = 0.445f; // ~24 deg stock P+ slant
+
+    void drawSlantBar(float x043, float x143, float y, float height, bool flushLeft, gfx::Rgba topCol,
+                      gfx::Rgba botCol, gfx::Rgba edgeCol)
+    {
+        float slant = height * kStyleSlantTan;
+        float x0Top = cx(flushLeft ? x043 : (x043 + slant));
+        float x0Bot = cx(x043);
+        float x1Top = cx(x143);
+        float x1Bot = cx(x143 - slant);
+        if (edgeCol != 0)
+        {
+            drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + height, edgeCol, edgeCol);
+            float padX = w(2.0f);
+            float dySlant = w(2.0f * kStyleSlantTan);
+            float ix0Top = flushLeft ? x0Top : (x0Top - dySlant + padX);
+            float ix0Bot = flushLeft ? x0Bot : (x0Bot + dySlant + padX);
+            float ix1Top = x1Top - dySlant - padX;
+            float ix1Bot = x1Bot + dySlant - padX;
+            drawSlantGradV(ix0Top, ix0Bot, ix1Top, ix1Bot, y + 2.0f, y + height - 2.0f, topCol, botCol);
+        }
+        else
+        {
+            drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + height, topCol, botCol);
+        }
+    }
+
+    void drawValuePill(float left43, float right43, float y, float rowH, bool isOn, bool on, bool selected)
+    {
+        gfx::Rgba topCol, botCol;
+        if (isOn)
+        {
+            topCol = on ? kLabPillOnTop : kLabPillOnMutedTop;
+            botCol = on ? kLabPillOnBot : kLabPillOnMutedBot;
+        }
+        else if (selected && on)
+        {
+            topCol = kLabPillFocusTop;
+            botCol = kLabPillFocusBot;
+        }
+        else
+        {
+            topCol = on ? kLabPillOffTop : kLabPillOffMutedTop;
+            botCol = on ? kLabPillOffBot : kLabPillOffMutedBot;
+        }
+        float py = y + 2.0f;
+        float ph = rowH - 4.0f;
+        float slant = ph * kStyleSlantTan;
+        float xs = gfx::xScale();
+        float x0Top = 320.0f + (left43 + slant - 320.0f) * xs;
+        float x0Bot = 320.0f + (left43 - 320.0f) * xs;
+        float x1Top = 320.0f + (right43 - 320.0f) * xs;
+        float x1Bot = 320.0f + (right43 - slant - 320.0f) * xs;
+        float pad = 2.0f * xs;
+        if (selected || isOn)
+        {
+            drawSlantGradV(x0Top - pad, x0Bot - pad, x1Top + pad, x1Bot + pad, py - 2.0f, py + ph + 2.0f,
+                           kLabPillBorder, kLabPillBorder);
+        }
+        drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, py, py + ph, topCol, botCol);
+    }
+
     void drawDiagStripes(float rightTopX, float y0, float y1, float slantPx, float stripeW, float gap,
                          gfx::Rgba color)
     {

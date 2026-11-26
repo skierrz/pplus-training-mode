@@ -5,6 +5,8 @@
 // main::Settings, a range and a default. A row added with a wrong offset,
 // a default outside its range, or a field the card does not keep works on
 // screen and is wrong where nobody looks: these tests look at every row.
+#include <gf/gf_pad_status.h>
+
 #include "extra/menu_descriptions.h"
 #include "host/canvas.h"
 #include "host/card.h"
@@ -1976,6 +1978,233 @@ TEST(lab_menu, stream1_combo_lab_inline_rows_on_scenarios)
     CHECK_EQ(1, static_cast<int>(main::settings().comboTrainer.noclip));
 
     sm->preset = ui::pages::kPresetOff;
+    main::setExtraHooks(NULL);
+    storage::detach();
+}
+
+TEST(menu, reset_option_and_two_tap_page_reset)
+{
+    open();
+    // Mutate several stored rows on Top page.
+    right(2); // kRowInt: 0 -> 2
+    down();
+    right(3); // kRowHalf: 500 -> 503
+    down();
+    right(1); // kRowChoice: 0 -> 3
+    down(2);
+    press(0, 0, 0, 0, true, false); // kRowToggle: 0 -> 1
+    CHECK_EQ(2, value(kRowInt));
+    CHECK_EQ(503, value(kRowHalf));
+    CHECK_EQ(3, value(kRowChoice));
+    CHECK_EQ(1, value(kRowToggle));
+
+    // 1-tap resetOpt resets only the highlighted stored row, invokes onChange, and confirms.
+    int beforeChanges = s_changes;
+    host::log::clear();
+    ui::MenuInput inResetOpt = {0, 0, 0, 0, false, false, false, false, true, false};
+    CHECK(ui::menuStep(kSmall, s_state, inResetOpt));
+    CHECK_EQ(0, value(kRowToggle));
+    CHECK_EQ(2, value(kRowInt));
+    CHECK_EQ(503, value(kRowHalf));
+    CHECK_EQ(3, value(kRowChoice));
+    CHECK_EQ(beforeChanges + 1, s_changes);
+    CHECK_EQ(1, sounds(game::kSoundConfirm));
+
+    // Non-resettable rows (func, submenu) silently ignore resetOpt.
+    down();
+    CHECK_EQ(kRowFunc, cursor());
+    host::log::clear();
+    beforeChanges = s_changes;
+    int beforeFuncs = s_funcCalls;
+    CHECK(ui::menuStep(kSmall, s_state, inResetOpt));
+    CHECK_EQ(beforeChanges, s_changes);
+    CHECK_EQ(beforeFuncs, s_funcCalls);
+    CHECK_EQ(0, sounds(game::kSoundConfirm));
+    CHECK_EQ(0, sounds(game::kSoundMove));
+
+    // 2-tap resetPage: 1st tap arms without mutating and draws confirm prompt + footer.
+    host::log::clear();
+    ui::MenuInput inResetPage = {0, 0, 0, 0, false, false, false, false, false, true};
+    CHECK(ui::menuStep(kSmall, s_state, inResetPage));
+    CHECK(s_state.resetConfirmPage != 0);
+    CHECK_EQ(2, value(kRowInt));
+    CHECK_EQ(503, value(kRowHalf));
+    CHECK_EQ(1, sounds(game::kSoundMove));
+    CHECK_EQ(0, sounds(game::kSoundConfirm));
+
+    host::canvas::clear();
+    ui::menuDraw(kSmall, s_state);
+    bool sawPrompt = false, sawConfirm = false, sawCancel = false;
+    for (int i = 0; i < host::canvas::runs(); i++)
+    {
+        const char* t = host::canvas::run(i).text;
+        if (strcmp(t, "Press Y again to reset Top to defaults.") == 0) sawPrompt = true;
+        if (strcmp(t, "Confirm Reset") == 0) sawConfirm = true;
+        if (strcmp(t, "Cancel") == 0) sawCancel = true;
+    }
+    CHECK(sawPrompt);
+    CHECK(sawConfirm);
+    CHECK(sawCancel);
+
+    // Pressing B while armed cancels confirmation without closing the menu.
+    host::log::clear();
+    CHECK(press(0, 0, 0, 0, false, true));
+    CHECK_EQ(0, static_cast<int>(s_state.resetConfirmPage));
+    CHECK_EQ(2, value(kRowInt));
+    CHECK_EQ(1, sounds(game::kSoundMove));
+
+    // Re-arm then move cursor -> cancels without mutating.
+    CHECK(ui::menuStep(kSmall, s_state, inResetPage));
+    CHECK(s_state.resetConfirmPage != 0);
+    press(1, 0, 0, 0, false, false);
+    CHECK_EQ(0, static_cast<int>(s_state.resetConfirmPage));
+    CHECK_EQ(2, value(kRowInt));
+
+    // Re-arm and tap resetPage again -> resets every stored row on page and calls onChange for changed ones.
+    host::log::clear();
+    beforeChanges = s_changes;
+    CHECK(ui::menuStep(kSmall, s_state, inResetPage));
+    CHECK(s_state.resetConfirmPage != 0);
+    CHECK(ui::menuStep(kSmall, s_state, inResetPage));
+    CHECK_EQ(0, static_cast<int>(s_state.resetConfirmPage));
+    CHECK_EQ(0, value(kRowInt));
+    CHECK_EQ(500, value(kRowHalf));
+    CHECK_EQ(0, value(kRowChoice));
+    CHECK_EQ(0, value(kRowToggle));
+    CHECK_EQ(beforeChanges + 3, s_changes);
+    CHECK_EQ(1, sounds(game::kSoundConfirm));
+
+    // Subpage with only info/menu rows ignores resetPage.
+    down(30);
+    press(0, 0, 0, 0, true, false);
+    CHECK_EQ(1, ui::currentPage(s_state));
+    host::log::clear();
+    CHECK(ui::menuStep(kSmall, s_state, inResetPage));
+    CHECK_EQ(0, static_cast<int>(s_state.resetConfirmPage));
+    CHECK_EQ(0, sounds(game::kSoundMove));
+}
+
+TEST(lab_menu, reset_option_and_page_via_menu_input_and_rail_and_footer_badges)
+{
+    bootLab();
+    main::setExtraHooks(&kNoHooks);
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+
+    // Mutate P1 Damage and Game Speed on Lab (P_GENERAL).
+    main::settings().general.playerPercent = 123;
+    main::settings().general.gameSpeed = 2;
+    main::settings().cpu.percent = 88;
+    st.cursor[ui::pages::P_GENERAL] = 1; // P1 Damage
+
+    // 1-tap resetOpt resets P1 Damage to 0 without touching Game Speed or CPU %.
+    ui::MenuInput inResetOpt = {0, 0, 0, 0, false, false, false, false, true, false};
+    ui::MenuInput inResetPage = {0, 0, 0, 0, false, false, false, false, false, true};
+    host::log::clear();
+    CHECK(ui::menuStep(menu, st, inResetOpt));
+    CHECK_EQ(0, static_cast<int>(main::settings().general.playerPercent));
+    CHECK_EQ(2, static_cast<int>(main::settings().general.gameSpeed));
+    CHECK_EQ(88, static_cast<int>(main::settings().cpu.percent));
+    CHECK_EQ(1, sounds(game::kSoundConfirm));
+
+    // kFlagBit single-option reset on Floating Meters preserves sibling bits.
+    const u8 metersPath[] = {ui::pages::P_DISPLAY, ui::pages::P_COMBO_METERS};
+    REQUIRE(ui::menuJump(menu, st, metersPath, 2));
+    main::settings().comboTrainer.enabledMeters = main::kMeterHitlag | main::kMeterHitstun | main::kMeterDi;
+    st.cursor[ui::pages::P_COMBO_METERS] = 0; // Hitlag bit
+    CHECK(ui::menuStep(menu, st, inResetOpt));
+    CHECK_EQ(static_cast<int>(main::kMeterHitstun | main::kMeterDi),
+             static_cast<int>(main::settings().comboTrainer.enabledMeters));
+
+    // 2-tap resetPage on Floating Meters resets all meter bits.
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK(st.resetConfirmPage != 0);
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK_EQ(0, static_cast<int>(st.resetConfirmPage));
+    CHECK_EQ(0, static_cast<int>(main::settings().comboTrainer.enabledMeters));
+
+    // Switching categories clears pending confirmation.
+    const u8 genPath[] = {ui::pages::P_GENERAL};
+    REQUIRE(ui::menuJump(menu, st, genPath, 1));
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK(st.resetConfirmPage != 0);
+    ui::MenuInput inNextCat = {0, 0, 0, 0, false, false, false, true, false, false};
+    CHECK(ui::menuStep(menu, st, inNextCat));
+    CHECK_EQ(0, static_cast<int>(st.resetConfirmPage));
+
+    // Left-rail category 2-tap reset via resetOpt (e.g. Nunchuk '-' or GCC 'X') resets that category page.
+    main::settings().general.playerPercent = 77;
+    main::settings().general.gameSpeed = 2;
+    st.category = 0;
+    st.depth = 0;
+    st.stack[0] = ui::pages::P_GENERAL;
+    st.railFocus = true;
+    st.railCursor = 0;
+    st.controllerType = gfPadType::NUNCHUK;
+    CHECK(ui::menuStep(menu, st, inResetOpt));
+    CHECK(st.resetConfirmPage != 0);
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    bool sawNunchukPrompt = false;
+    for (int i = 0; i < host::canvas::runs(); i++)
+    {
+        if (strcmp(host::canvas::run(i).text, "Press - again to reset Lab to defaults.") == 0)
+        {
+            sawNunchukPrompt = true;
+        }
+    }
+    CHECK(sawNunchukPrompt);
+    CHECK(ui::menuStep(menu, st, inResetOpt));
+    CHECK_EQ(0, static_cast<int>(st.resetConfirmPage));
+    CHECK_EQ(0, static_cast<int>(main::settings().general.playerPercent));
+    CHECK_EQ(0, static_cast<int>(main::settings().general.gameSpeed));
+    CHECK_EQ(88, static_cast<int>(main::settings().cpu.percent));
+
+    // Scratch-only Scenarios (Preset: Off) ignores resetPage and shows no Reset Page badge.
+    ui::pages::scenarioMenuState()->preset = ui::pages::kPresetOff;
+    const u8 scenPath[] = {ui::pages::P_SCENARIOS};
+    REQUIRE(ui::menuJump(menu, st, scenPath, 1));
+    st.controllerType = gfPadType::GCC;
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK_EQ(0, static_cast<int>(st.resetConfirmPage));
+
+    // Controls page 2-tap reset restores Menu Style from Top Tabs back to Category Rail cleanly.
+    main::settings().controls.menuStyle = main::kMenuStyleTabs;
+    const u8 ctrlPath[] = {ui::pages::P_GENERAL, ui::pages::P_CONTROLS};
+    REQUIRE(ui::menuJump(menu, st, ctrlPath, 2));
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK_EQ(static_cast<int>(main::kMenuStyleRail), static_cast<int>(main::settings().controls.menuStyle));
+
+    // Footer badges: GCC shows Reset + Reset Page on P1 Damage; Sideways omits both; Nunchuk shows '-' Reset.
+    REQUIRE(ui::menuJump(menu, st, genPath, 1));
+    st.cursor[ui::pages::P_GENERAL] = 1;
+    static const struct {
+        u8 ct;
+        bool hasOpt;
+        bool hasPage;
+    } kCases[4] = {
+        {gfPadType::GCC, true, true},
+        {gfPadType::WII_CLASSIC, true, true},
+        {gfPadType::WIIMOTE, false, false},
+        {gfPadType::NUNCHUK, true, false}
+    };
+    for (int c = 0; c < 4; c++)
+    {
+        st.controllerType = kCases[c].ct;
+        host::canvas::clear();
+        ui::menuDraw(menu, st);
+        bool sawReset = false, sawResetPage = false;
+        for (int i = 0; i < host::canvas::runs(); i++)
+        {
+            if (strcmp(host::canvas::run(i).text, "Reset") == 0) sawReset = true;
+            if (strcmp(host::canvas::run(i).text, "Reset Page") == 0) sawResetPage = true;
+        }
+        CHECK_EQ(kCases[c].hasOpt, sawReset);
+        CHECK_EQ(kCases[c].hasPage, sawResetPage);
+    }
+
     main::setExtraHooks(NULL);
     storage::detach();
 }

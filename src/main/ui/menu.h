@@ -110,6 +110,8 @@ namespace ui {
         int right;
         bool a, b;
         bool prevCat, nextCat; // L / R category or tab switch
+        bool resetOpt;         // 1-tap reset highlighted option (or 2-tap rail category)
+        bool resetPage;        // 2-tap reset current page to defaults
     };
 
     // Pinned left-rail utility action (Category Rail bottom section).
@@ -144,6 +146,8 @@ namespace ui {
         bool railFocus;       // true while Category Rail holds focus
         bool openStart;       // true when opened with Start (else Z in Pause)
         u8 controllerType;    // gfPadType::PadType of the active owner
+        // 0 = idle; else (pageId + 1) | (0x80 if armed via resetOpt on rail).
+        u8 resetConfirmPage;
     };
 
     // Skip rows marked kFlagUnavailable during cursor navigation.
