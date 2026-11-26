@@ -40,6 +40,7 @@ TABLES = {
         "Auto-reset fighters when the drill completes.",
         "Right, Left, or Random spawn side.",
         "CPU escape action during the post-hitstun Combo Lab reset window.",
+        "Edit the Air Custom Counter Pool used when Combo Lab escapes.",
         "Wait this long after hitstun ends before warping (hits cancel timer).",
         "Set how the CPU angles survival, combo, or custom trajectory DI.",
         "Choose how the CPU techs knockdowns (or Random weights).",
@@ -61,6 +62,7 @@ TABLES = {
         "PPlusAI recovery profile (Mixed/Low/High/Direct).",
         "Switch between Shield Pressure Offense and Out-of-Shield Defense.",
         "CPU Out-of-Shield punish option (including Custom Pool).",
+        "Edit the Shield Custom Counter Pool used for CPU OoS counters.",
         "CPU attack to block and punish Out of Shield.",
         "Start P1 on Revival Platform or Instant Drop.",
         "Hold Active freezes hitbox at ledge, or Timed.",
@@ -424,10 +426,15 @@ TABLES = {
     ],
     "kCounterPoolDesc": [
         "Choose Ground, Air, or Shield Custom Counter Pool to edit.",
-        "Shows if this pool is active (set Counter Mode to Custom Pool).",
+        "Shows if this pool is active; press A to enable for this trigger.",
         "Restore the curated default moves for this counter pool.",
         "Clear all moves in this counter pool.",
-    ] + ["Toggle this move in the active Custom Counter Pool."] * 62,
+        "Include a no-counter wait chance in this Custom Counter Pool.",
+    ] + ["Toggle this move in the active Custom Counter Pool."] * 52 + [
+        "Include a no-counter wait chance in this Custom Counter Pool.",
+    ] + ["Toggle this move in the active Custom Counter Pool."] * 28 + [
+        "Include a no-counter wait chance in this Custom Counter Pool.",
+    ] + ["Toggle this move in the active Custom Counter Pool."] * 39,
     "kRailDesc": [
         "Frame advance, Player 1 damage, speed, camera, and controls.",
         "One-click P+ practice presets and Combo Trainer settings.",

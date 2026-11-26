@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "main/cpu/actions.h"
 #include "main/extra.h"
 #include "main/ui/pages/cpu_rows.h"
 #include "main/ui/pages/page_strings.h"
@@ -66,6 +67,20 @@ namespace pages {
     }
 
     static bool scenarioComboLabActive() { return presetIs(kPresetComboLab); }
+    static bool scenarioEditAirPoolActive()
+    {
+        bool on = scenarioComboLabActive()
+                  && main::settings().comboTrainer.postHitstunEscape == main::kComboEscapeCustomPool;
+        if (on)
+        {
+            primePoolCategory(cpu::kListAir);
+        }
+        else
+        {
+            clearPoolCategoryPrime(cpu::kListAir);
+        }
+        return on;
+    }
     static bool scenarioTechchaseActive() { return presetIs(kPresetTechchase); }
     static bool scenarioTechInvisDelayActive()
     {
@@ -84,6 +99,20 @@ namespace pages {
     static bool scenarioShieldOffenseActive()
     {
         return presetFieldEq(kPresetShieldPressure, offsetof(ScenarioMenuState, shieldRole), 0, true);
+    }
+    static bool scenarioEditShieldPoolActive()
+    {
+        bool on = scenarioShieldOffenseActive()
+                  && presetFieldEq(kPresetShieldPressure, offsetof(ScenarioMenuState, oosAction), 7, true);
+        if (on)
+        {
+            primePoolCategory(cpu::kListShield);
+        }
+        else
+        {
+            clearPoolCategoryPrime(cpu::kListShield);
+        }
+        return on;
     }
     static bool scenarioShieldDefenseActive()
     {
@@ -130,13 +159,13 @@ namespace pages {
         scenarioShieldDefenseActive, scenarioLedgetechActive, scenarioShieldDropActive, scenarioSlideOffActive,
         scenarioGrabActive, scenarioMultiHitActive, practiceActive, practicePsActive, practicePsProjActive,
         practiceLedgeActive, practiceLcActive, practiceFloatActive, practiceWdActive, comboTrainerRowVisible,
-        scenarioComboLabActive
+        scenarioComboLabActive, scenarioEditAirPoolActive, scenarioEditShieldPoolActive
     };
     static void (*const kScenCbs[])() = {
         NULL, main::extraScenarioChanged, main::extraScenarioResetNow, practiceChanged
     };
     enum {
-        kScenRows = 51,
+        kScenRows = 53,
         kScenFlagHide = ::tm::ui::kFlagHideWhenDisabled,
         kScenFlagSH = ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled
     };
@@ -149,6 +178,7 @@ namespace pages {
         // Combo Lab inline quick-knobs
         {kKindChoice, kScenFlagHide, TM_FIELD(comboTrainer.postHitstunEscape), TM_CHOICE_LO, main::kComboEscapeDodge,
          main::kComboEscapeCount - 1, 36, 0, 25, 0},
+        {kKindMenu,   kScenFlagHide, 0, 0, 0, P_COUNTER_POOL, 0xFF, 0, 26, 0},
         {kKindChoice, kScenFlagHide, TM_FIELD(comboTrainer.resetDelay), TM_CHOICE_LO, main::kComboDelay30,
          main::kComboDelayCount - 1, 37, 0, 25, 0},
         {kKindChoice, kScenFlagHide, TM_FIELD(cpu.options.tdi), TM_CHOICE_LO, 0, cpu::kTdiCount - 1, 38, 0, 25, 0},
@@ -171,6 +201,7 @@ namespace pages {
         {kKindChoice, kScenFlagSH, SC_OFF(edgeguardMixup), TM_CHOICE_LO, 0, 3, 12, 1, 6, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(shieldRole), TM_CHOICE_LO, 0, 1, 13, 1, 9, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(oosAction), TM_CHOICE_LO, 0, 7, 14, 1, 10, 0},
+        {kKindMenu,   kScenFlagHide, 0, 0, 0, P_COUNTER_POOL, 0xFF, 0, 27, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(shieldDefAttack), TM_CHOICE_LO, 0, 5, 15, 1, 11, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(ledgetechStart), TM_CHOICE_LO, 0, 1, 16, 1, 12, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(ledgetechTiming), TM_CHOICE_LO, 0, 1, 17, 1, 12, 0},
@@ -282,6 +313,8 @@ namespace pages {
         TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(comboTrainer.postHitstunEscape),
                         main::kComboEscapeCount, main::kComboEscapeDodge, "Post-Hitstun", kComboPostEscapes, NULL,
                         scenarioComboLabActive),
+        TM_ROW(::tm::ui::kKindMenu, ::tm::ui::kFlagHideWhenDisabled, 0, 0, P_COUNTER_POOL, 0, "Edit Air Pool", NULL,
+               NULL, scenarioEditAirPoolActive),
         TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(comboTrainer.resetDelay), main::kComboDelayCount,
                         main::kComboDelay30, "Reset Delay", kComboResetDelays, NULL, scenarioComboLabActive),
         TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.tdi), cpu::kTdiCount, 0,
@@ -317,6 +350,8 @@ namespace pages {
         // Shield Pressure / OoS rows
         TM_SCEN_CHOICE("Role", shieldRole, kShieldRoles, 2, 0, scenarioShieldPressureActive),
         TM_SCEN_CHOICE("CPU OoS", oosAction, kOosActions, 8, 0, scenarioShieldOffenseActive),
+        TM_ROW(::tm::ui::kKindMenu, ::tm::ui::kFlagHideWhenDisabled, 0, 0, P_COUNTER_POOL, 0, "Edit Shield Pool", NULL,
+               NULL, scenarioEditShieldPoolActive),
         TM_SCEN_CHOICE("CPU Attack", shieldDefAttack, kShieldDefAttacks, 6, 0, scenarioShieldDefenseActive),
         // Ledgetech rows
         TM_SCEN_CHOICE("Start", ledgetechStart, kLtStarts, 2, 0, scenarioLedgetechActive),

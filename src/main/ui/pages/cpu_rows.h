@@ -22,6 +22,10 @@ namespace pages {
 #endif
     // Enables/disables fighter-specific DJC/Float counter labels for the active CPU.
     bool counterLabels();
+    // Primes P_COUNTER_POOL to open on `cat` (Air / Shield) when entered from
+    // a Scenarios jump row; cleared on consumption or when visiting CPU Counters.
+    void primePoolCategory(u8 cat);
+    void clearPoolCategoryPrime(u8 matchCat);
 }
 }
 }
