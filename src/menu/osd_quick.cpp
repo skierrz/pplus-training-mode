@@ -694,6 +694,7 @@ namespace osdQuick {
         s_open = false;
         s_dirty = false;
         s_phase = kIdle;
+        s_jobStale = s_job.busy();
         s_cursor = 0;
         s_scroll = 0;
         memset(s_rep, 0, sizeof(s_rep));

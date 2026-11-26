@@ -75,6 +75,7 @@ namespace browser {
     static int s_next = 0; // header to read next
     static int s_busyRow = -1;
     static Job s_job;
+    static bool s_jobStale = false;
     static u8* s_head = NULL;
     static u8* s_temp = NULL;
 
@@ -576,6 +577,14 @@ namespace browser {
     {
         int result = storage::kOk;
         int status = 0;
+        if (s_jobStale)
+        {
+            if (s_job.poll(result, status))
+            {
+                s_jobStale = false;
+            }
+            return;
+        }
         if (s_phase == kIdle)
         {
             return;
@@ -844,8 +853,13 @@ namespace browser {
                 int status = 0;
                 int r = s_job.wait(kWaitMs, status);
                 storage::freeReadBuffer(s_head, r, status);
+                s_jobStale = r == storage::kBusy;
             }
-            storage::freeReadBuffer(s_head, storage::kOk, 0);
+            else
+            {
+                s_jobStale = false;
+                storage::freeReadBuffer(s_head, storage::kOk, 0);
+            }
             refresh();
         }
         TM_LOG("browser: opened for port %d\n", port + 1);
@@ -862,6 +876,7 @@ namespace browser {
         s_controllerType = gfPadType::GCC;
         s_count = 0;
         s_phase = kIdle;
+        s_jobStale = s_job.busy();
         s_head = NULL;
         s_temp = NULL;
         s_startNow = false;
@@ -873,14 +888,22 @@ namespace browser {
         {
             int status = 0;
             int r = s_job.wait(kWaitMs, status);
-            if (s_phase == kHeaders)
+            if (!s_jobStale)
             {
-                storage::freeReadBuffer(s_head, r, status);
+                if (s_phase == kHeaders)
+                {
+                    storage::freeReadBuffer(s_head, r, status);
+                }
+                else if (s_phase == kVerify)
+                {
+                    storage::freeReadBuffer(s_temp, r, status);
+                }
             }
-            else if (s_phase == kVerify)
-            {
-                storage::freeReadBuffer(s_temp, r, status);
-            }
+            s_jobStale = r == storage::kBusy;
+        }
+        else
+        {
+            s_jobStale = false;
         }
         storage::freeReadBuffer(s_head, storage::kOk, 0);
         freeTemp();

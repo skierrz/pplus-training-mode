@@ -573,7 +573,9 @@ namespace savestate {
                         step &= ~7u;
                         if (step == 0)
                         {
-                            step = n - done;
+                            yieldIrq(w.irqLevel, w.irqStart, w.maxIrqOffTicks);
+                            w.sinceYield = 0;
+                            continue;
                         }
                     }
                     copy(reinterpret_cast<u8*>(head + 2) + done,
