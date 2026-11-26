@@ -32,6 +32,7 @@
 #include "extra/scenario_presets_core.h"
 #include "extra/stage_geom.h"
 #include "main/cpu/options.h"
+#include "main/cpu/view.h"
 #include "main/extra.h"
 #include "main/game/body.h"
 #include "main/game/fighters.h"
@@ -64,6 +65,7 @@ namespace extra {
         kLaBitRebirthNoInv = 0x12000023,  // LA-Bit[35]: skip Rebirth lift & exit invuln
         kRaBasicRebirthWait = 0x20000002, // RA-Basic[2]: Rebirth wait timer
         kRaBasicRebirthEf = 0x20000003,   // RA-Basic[3]: EfID 0x62 revival platform handle
+        kRaFloatRebirthX0 = 0x21000004,   // RA-Float[4..7]: Rebirth Bezier start/end coords
         kRaBitRebirthDone = 0x22000010,   // RA-Bit[16]: Rebirth descent finished
         kKineticListOff = 0x14,           // soKineticModule -> energy list (cpu/view.cpp)
         kDamageEnergySlot = 0x4C,         // damage kinetic energy slot (cpu/view.cpp)
@@ -480,7 +482,8 @@ namespace extra {
 #pragma dont_inline reset
 
 #pragma dont_inline on
-    static void placeOnRevivalPlatform(const game::FighterRef& ref, float x, float y, float lr, float dmg, bool spendDj)
+    static void placeOnRevivalPlatform(const game::FighterRef& ref, float x, float y, bool setNoclip, float lr,
+                                       float dmg, bool spendDj)
     {
         clearRevivalFlags(ref.fighter, true);
         warpAirClean(ref, x, y, true, dmg, lr, true, spendDj);
@@ -504,15 +507,29 @@ namespace extra {
         wm->offFlag(kLaBitRebirthDesc);
         wm->onFlag(kLaBitRebirthNoInv);
         wm->setInt(0, kRaBasicRebirthWait);
+        wm->setFloat(x, kRaFloatRebirthX0);
+        wm->setFloat(y, kRaFloatRebirthX0 + 1);
+        wm->setFloat(x, kRaFloatRebirthX0 + 2);
+        wm->setFloat(y, kRaFloatRebirthX0 + 3);
+        Vec3f pos(x, y, 0.0f);
         if (game::isRam(m->m_postureModule))
         {
-            Vec3f pos(x, y, 0.0f);
-            m->m_postureModule->setPos(&pos);
+            // Rebirth::initStatus moved pos/prevPos to the stage respawn point;
+            // re-initialize both pos and prevPos here so next frame has zero delta jump.
+            m->m_postureModule->initPos(&pos);
             m->m_postureModule->setLr(lr);
+            m->m_postureModule->updateRotYLr();
+        }
+        cpu::placeAt(ref.fighter, x, y);
+        int efHandle = wm->getInt(kRaBasicRebirthEf);
+        if (efHandle != 0 && game::isRam(m->m_effectModule))
+        {
+            m->m_effectModule->setPos(efHandle, &pos);
         }
         if (game::isRam(m->m_groundModule))
         {
-            m->m_groundModule->setCorrect(soGroundShapeImpl::Correct_Air, 0);
+            m->m_groundModule->setCorrect(
+                setNoclip ? soGroundShapeImpl::Correct_None : soGroundShapeImpl::Correct_Air, 0);
         }
         clearWarpIntang(ref);
         if (s_net != NULL)
@@ -653,10 +670,12 @@ namespace extra {
         {
             restoreRuntimeMods(kRestoreUnconditional);
             main::Settings& s = main::settings();
+            bool wasActive = s_net->state.activePreset != kScenarioOff;
             u16 prevHmn = s.general.playerPercent;
             u16 prevCpu = s.cpu.percent;
             restoreScenarioSnapshot(s_net->state, s);
-            applyBothPercents(s.general.playerPercent != prevHmn, s.cpu.percent != prevCpu);
+            applyBothPercents(wasActive || s.general.playerPercent != prevHmn,
+                              wasActive || s.cpu.percent != prevCpu);
             s_net->state.activePreset = kScenarioOff;
             freeNetPtr(s_net);
         }
@@ -674,10 +693,14 @@ namespace extra {
             cfg = &localCfg;
         }
         main::Settings& s = main::settings();
+        u8 prevPreset = st.activePreset;
         u16 prevHmn = s.general.playerPercent;
         u16 prevCpu = s.cpu.percent;
         applyScenarioConfig(st, *cfg, s);
-        applyBothPercents(s.general.playerPercent != prevHmn, s.cpu.percent != prevCpu);
+        bool leftToOff = prevPreset != kScenarioOff && st.activePreset == kScenarioOff;
+        applyBothPercents(s.general.playerPercent != prevHmn || leftToOff
+                              || (prevPreset == kScenarioGrabEscape && st.activePreset != kScenarioGrabEscape),
+                          s.cpu.percent != prevCpu || leftToOff);
     }
 #pragma dont_inline reset
 
@@ -927,6 +950,10 @@ namespace extra {
         switch (call)
         {
         case main::kScenarioChanged:
+            if (ui::pages::scenarioMenuState()->preset != kScenarioOff && drillHudActiveId() != 0)
+            {
+                drillHudDisable();
+            }
             applyConfigAndPercents(s_state, NULL);
             break;
         case main::kScenarioResetNow:
@@ -1255,10 +1282,9 @@ namespace extra {
         setMotionFrozen(cm, wantHold);
 
         // Under-Platform Slide-Off: disable CPU platform pass-through landing
-        // during AttackAir (0x33) so CPU does not accidentally land on the platform.
+        // while airborne so CPU drops cleanly back to the floor after AttackAir.
         bool wantNoPass = s_state.activePreset == kScenarioSlideOff && s_state.hasPlatform
-                          && cfg.slideOffAttack != kSlideAtkOnPlatFtilt && in.cpuAir
-                          && (cpuFs.status == game::kStatusAttackAirFirst || cpuFs.status == game::kStatusJump);
+                          && cfg.slideOffAttack != kSlideAtkOnPlatFtilt && in.cpuAir;
         setSlideNoPass(cm, wantNoPass);
 
         // Apply 1-frame noclip restores and frames 2..3 spurious Landing lag cancellation.
@@ -1308,7 +1334,7 @@ namespace extra {
         {
             if (sp.hmnRevivalPlat)
             {
-                placeOnRevivalPlatform(hmnRef, sp.hmnX, sp.hmnY, sp.hmnLr, hmnDmg, act.hmnSpendDj);
+                placeOnRevivalPlatform(hmnRef, sp.hmnX, sp.hmnY, act.setNoclip[0], sp.hmnLr, hmnDmg, act.hmnSpendDj);
             }
             else if (sp.hmnFalling)
             {

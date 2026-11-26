@@ -16,6 +16,7 @@
 #include <so/so_value_accesser.h>
 #include <so/visibility/so_visibility_module_impl.h>
 #include <so/work/so_work_manage_module_impl.h>
+#include <stddef.h>
 #include <string.h>
 
 #include "extra/drill_core_engines.h"
@@ -333,6 +334,18 @@ namespace extra {
             net.padFresh = 1u;
             net.flags &= static_cast<u8>(~kFlagFrameSnap);
         }
+        TM_STATIC_ASSERT(sizeof(PracticeConfig) == 12, tm_practice_cfg_size);
+        TM_STATIC_ASSERT(sizeof(ui::pages::PracticeMenuState) == 11, tm_practice_menu_size);
+        TM_STATIC_ASSERT(offsetof(ui::pages::PracticeMenuState, wdTargetZone)
+                             - offsetof(ui::pages::PracticeMenuState, psAttackMode)
+                             == 8
+                             && offsetof(PracticeConfig, wdTargetZone) - offsetof(PracticeConfig, psAttackMode) == 8,
+                         tm_practice_menu_cfg_span);
+        TM_STATIC_ASSERT(offsetof(ui::pages::PracticeMenuState, lcancelTarget)
+                             - offsetof(ui::pages::PracticeMenuState, psAttackMode)
+                             == offsetof(PracticeConfig, lcancelTarget) - offsetof(PracticeConfig, psAttackMode),
+                         tm_practice_menu_cfg_mid);
+
         static void syncPracticeMenuFromCfg(const PracticeNet& net)
         {
             ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();

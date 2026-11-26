@@ -1059,16 +1059,19 @@ namespace extra {
             }
         }
 
+        u8 prevPreset = st.activePreset;
         u16 prevPct = s.general.playerPercent;
         u16 prevCpuPct = s.cpu.percent;
         ScenarioConfig cfg;
         sanitizeScenarioConfigInto(rawCfg, cfg);
         applyScenarioConfig(st, cfg, s);
-        if (s.general.playerPercent != prevPct)
+        bool leftToOff = prevPreset != kScenarioOff && st.activePreset == kScenarioOff;
+        if (s.general.playerPercent != prevPct || leftToOff
+            || (prevPreset == kScenarioGrabEscape && st.activePreset != kScenarioGrabEscape))
         {
             act.applyHmnPercent = true;
         }
-        if (s.cpu.percent != prevCpuPct)
+        if (s.cpu.percent != prevCpuPct || leftToOff)
         {
             act.applyCpuPercent = true;
         }

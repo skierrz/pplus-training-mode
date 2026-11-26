@@ -1685,4 +1685,21 @@ TEST(scenario_presets, edgeguard_ledgetech_shield_defense_shield_drop_and_underp
         CHECK(!defAct.warpCpu);
     }
     CHECK(!defSt.shieldDefSwung);
+
+    // 7. Leaving Grab Defense (which writes explicit rolled hmnDmg without changing Settings)
+    //    forces applyHmnPercent = true so live RAM damage restores cleanly to 0%.
+    ScenarioState grSt;
+    scenarioStateInit(grSt);
+    main::Settings grSettings;
+    memset(&grSettings, 0, sizeof(grSettings));
+    ScenarioConfig grCfg = makeCfg(kScenarioGrabEscape, 1);
+    grCfg.grabAction = kGrabActHold;
+    grCfg.grabPctMode = kGrabPctRandom;
+    ScenarioStepInput grIn = makeIdleInput(bf);
+    ScenarioStepAction grAct;
+    tm::extra::stepScenario(grSt, grCfg, grIn, grSettings, grAct);
+    CHECK(grAct.useExplicitHmnDmg);
+    ScenarioConfig offCfg = makeCfg(kScenarioOff, 1);
+    tm::extra::stepScenario(grSt, offCfg, grIn, grSettings, grAct);
+    CHECK(grAct.applyHmnPercent && grAct.applyCpuPercent);
 }

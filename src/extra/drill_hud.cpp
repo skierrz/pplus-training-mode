@@ -678,5 +678,25 @@ namespace extra {
             syncDebug();
         }
     }
+
+    void drillHudDisable()
+    {
+        if (s_rtPtr == NULL)
+        {
+            return;
+        }
+        Runtime& s_rt = *s_rtPtr;
+        if (s_rt.pausedByUs)
+        {
+            game::setGameplayPaused(false);
+            s_rt.pausedByUs = 0;
+        }
+        drillHudInit(s_rt.st, static_cast<u8>(drills::kDrillNone), 0u);
+        drillPracticeSetActiveDrill(kPracticeDrillNone);
+        ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
+        pm->activeDrill = static_cast<u8>(drills::kDrillNone);
+        pm->mode = static_cast<u8>(kDrillModeFree);
+        syncDebug();
+    }
 }
 }

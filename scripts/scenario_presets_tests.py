@@ -80,6 +80,28 @@ LT_ATK_DTILT, LT_ATK_FTILT, LT_ATK_FSMASH, LT_ATK_DSMASH, LT_ATK_DAIR, LT_ATK_NE
 SD_PLAT_LEFT, SD_PLAT_RIGHT, SD_PLAT_TOP, SD_PLAT_RANDOM = 0, 1, 2, 3
 SD_SPACE_RANDOM, SD_SPACE_CLOSE, SD_SPACE_UNDER, SD_SPACE_FAR = 0, 1, 2, 3
 SD_FACE_TOWARD, SD_FACE_AWAY, SD_FACE_RANDOM = 0, 1, 2
+GRAB_ACT_HOLD, GRAB_ACT_RAND_THROW, GRAB_ACT_FTHROW, GRAB_ACT_BTHROW, GRAB_ACT_UTHROW, GRAB_ACT_DTHROW, GRAB_ACT_STAND = (
+    0, 1, 2, 3, 4, 5, 6
+)
+GRAB_PCT_RANDOM, GRAB_PCT_CURRENT = 0, 1
+TECH_SETUP_TUMBLE, TECH_SETUP_FREE_HIT = 0, 1
+TECH_ESC_FLASH, TECH_ESC_SPOTDODGE, TECH_ESC_JAB, TECH_ESC_JUMP, TECH_ESC_SHIELD, TECH_ESC_ROLL, TECH_ESC_NONE = (
+    0, 1, 2, 3, 4, 5, 6
+)
+EG_SETUP_LAUNCH, EG_SETUP_SPAWN = 0, 1
+EG_STR_WEAK, EG_STR_NORMAL, EG_STR_STRONG, EG_STR_RANDOM = 0, 1, 2, 3
+EG_DIST_MID, EG_DIST_DEEP, EG_DIST_HIGH, EG_DIST_RANDOM = 0, 1, 2, 3
+EG_DJ_AVAIL, EG_DJ_SPENT, EG_DJ_RANDOM = 0, 1, 2
+LT_START_REVIVAL, LT_START_INSTANT = 0, 1
+LT_TIME_HOLD, LT_TIME_TIMED = 0, 1
+SHIELD_ROLE_OFFENSE, SHIELD_ROLE_DEFENSE = 0, 1
+SHIELD_DEF_AERIAL, SHIELD_DEF_TILT, SHIELD_DEF_SMASH, SHIELD_DEF_DASH, SHIELD_DEF_GETUP, SHIELD_DEF_RANDOM = (
+    0, 1, 2, 3, 4, 5
+)
+SD_ATK_SH_AERIAL, SD_ATK_TILT, SD_ATK_DSMASH, SD_ATK_OFF = 0, 1, 2, 3
+SLIDE_ATK_UNDER_UAIR, SLIDE_ATK_UNDER_FAIR, SLIDE_ATK_UNDER_NAIR, SLIDE_ATK_ON_PLAT_FTILT = 0, 1, 2, 3
+
+DEAD_OR_STANDBY = {CT.STATUS["Dead"], CT.STATUS["Standby"]}
 
 CORRECT_NONE, CORRECT_GROUND_CLIFF_STOP, CORRECT_AIR = 0, 2, 5
 STATUS_PASS = 0x72
@@ -156,12 +178,27 @@ class ScenarioBlock:
 
     def set_menu(self, preset, auto_reset=1, side=SIDE_RIGHT, move=MH_AUTO,
                  oos_action=OOS_GRAB, lt_spawn=LT_SPAWN_CLOSE_LOW, lt_dj=LT_DJ_AVAIL,
-                 lt_atk=LT_ATK_DTILT, sd_plat=SD_PLAT_LEFT, sd_space=SD_SPACE_RANDOM,
-                 sd_face=SD_FACE_TOWARD):
+                 lt_atk=LT_ATK_DSMASH, sd_plat=SD_PLAT_LEFT, sd_space=SD_SPACE_RANDOM,
+                 sd_face=SD_FACE_TOWARD, grab_action=GRAB_ACT_HOLD, grab_pct=GRAB_PCT_RANDOM,
+                 tech_setup=TECH_SETUP_TUMBLE, tech_pos=0, tech_escape=TECH_ESC_FLASH,
+                 tech_invis=0, tech_invis_delay=0, tech_sound=0, tech_pre_drift=0,
+                 tech_tdi=0, tech_show_react=0,
+                 eg_setup=EG_SETUP_LAUNCH, eg_str=EG_STR_NORMAL, eg_dist=EG_DIST_MID,
+                 eg_dj=EG_DJ_AVAIL, eg_mixup=0,
+                 lt_start=LT_START_REVIVAL, lt_timing=LT_TIME_HOLD,
+                 shield_role=SHIELD_ROLE_OFFENSE, shield_def_atk=SHIELD_DEF_AERIAL,
+                 sd_atk=SD_ATK_SH_AERIAL, slide_atk=SLIDE_ATK_UNDER_UAIR):
         payload = bytes([
             preset, auto_reset, side, move,
             oos_action, lt_spawn, lt_dj, lt_atk,
             sd_plat, sd_space, sd_face,
+            grab_action, grab_pct,
+            tech_setup, tech_pos, tech_escape,
+            tech_invis, tech_invis_delay, tech_sound, tech_pre_drift, tech_tdi, tech_show_react,
+            eg_setup, eg_str, eg_dist, eg_dj, eg_mixup,
+            lt_start, lt_timing,
+            shield_role, shield_def_atk,
+            sd_atk, slide_atk,
         ])
         self.emu.h.call("write_mem", addr=self.scratch_addr, hex=payload.hex())
 
@@ -316,18 +353,37 @@ def scenario_combo_lab(r, sb, cb):
 
 
 def scenario_techchase(r, sb):
-    """Verify Techchase preset knockdown/tech completion detection and auto-reset."""
+    """Verify Techchase Tumble Drop (default) + Free Hit knockdown/tech completion and auto-reset."""
     res = CT.Result("techchase")
     sb.set_menu(SCEN_OFF)
     r.emu.advance(3)
-    sb.set_menu(SCEN_TECHCHASE, auto_reset=1, side=SIDE_RIGHT)
+    # 1. Default Tumble Drop: CPU spawns airborne in DamageFall and techs automatically without a setup hit.
+    sb.set_menu(SCEN_TECHCHASE, auto_reset=1, side=SIDE_RIGHT, tech_setup=TECH_SETUP_TUMBLE)
+    r.emu.advance(2)
+    c_en = r.g.entry(CT.CPU)
+    cf0 = r.g.fighter(c_en)
+    d_td0 = sb.read()
+    td_reset = False
+    for _ in range(180):
+        r.emu.advance(1)
+        if sb.read()["resetCount"] > d_td0["resetCount"]:
+            td_reset = True
+            break
+    d_td1 = sb.read()
+    res.row("Techchase Tumble Drop spawns airborne & auto-resets", "air & resetCount+1",
+            f"air={cf0['air']} st={cf0['status']:#x} resets={d_td0['resetCount']}->{d_td1['resetCount']} comp={d_td1['completionCount']}",
+            cf0["air"] and td_reset and d_td1["completionCount"] >= 1)
+
+    # 2. Free Hit mode: hit CPU with fsmash at 85% to force knockdown/tech and auto-reset.
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(3)
+    sb.set_menu(SCEN_TECHCHASE, auto_reset=1, side=SIDE_RIGHT, tech_setup=TECH_SETUP_FREE_HIT)
     r.emu.advance(6)
     r.opt.cpu_percent(85, True)
     r.emu.advance(2)
     r.opt.cpu_percent(85, False)
     d0 = sb.read()
 
-    # Hit CPU with fsmash at 85% to force knockdown/tech.
     hit_ok = RC.move_p1_to_cpu_and_hit(r, CT.FSMASH)
     auto_reset_ok = False
     for _ in range(260):
@@ -337,7 +393,7 @@ def scenario_techchase(r, sb):
             auto_reset_ok = True
             break
     d1 = sb.read()
-    res.row("Techchase hit & auto-reset after tech/getup", "hit & resetCount+1",
+    res.row("Techchase Free Hit & auto-reset after tech/getup", "hit & resetCount+1",
             f"hit={hit_ok} resets={d0['resetCount']}->{d1['resetCount']} comp={d1['completionCount']}",
             hit_ok and auto_reset_ok)
     sb.set_menu(SCEN_OFF)
@@ -346,11 +402,12 @@ def scenario_techchase(r, sb):
 
 
 def scenario_edgeguard(r, sb, cb):
-    """Verify Edgeguard HMN ledge placement + CPU offstage PPlusAI recovery loop."""
+    """Verify Edgeguard Knockback Launch (default), Offstage Spawn, and PPlusAI recovery loop."""
     res = CT.Result("edgeguard")
     sb.set_menu(SCEN_OFF)
     r.emu.advance(3)
-    sb.set_menu(SCEN_EDGEGUARD, auto_reset=1, side=SIDE_RIGHT)
+    # 1. Default Knockback Launch: HMN near right ledge lip, CPU launched offstage in DamageFly.
+    sb.set_menu(SCEN_EDGEGUARD, auto_reset=1, side=SIDE_RIGHT, eg_setup=EG_SETUP_LAUNCH)
     r.emu.advance(4)
 
     h_en = r.g.entry(CT.P1)
@@ -360,23 +417,45 @@ def scenario_edgeguard(r, sb, cb):
     res.row("HMN placed near right ledge lip", "x in (60,85.5), !air",
             f"x={hf['x']:.1f} y={hf['y']:.1f} air={hf['air']}",
             60.0 < hf["x"] < 85.5 and not hf["air"])
-    res.row("CPU spawned offstage right", "x>88 & air",
-            f"x={cf['x']:.1f} y={cf['y']:.1f} air={cf['air']}",
-            cf["x"] > 88.0 and cf["air"])
-
+    # Advance through brief launch hitlag so CPU flies cleanly offstage past x > 88.
+    max_x = cf["x"]
+    saw_launch_fly = cf["air"] and (0x43 <= cf["status"] <= 0x49)
     saw_rec_loop = False
     saw_special = False
+    premature_lag_reset = False
+    prev_rec_resets = cb.slot(CT.CPU)["recoveryResets"]
     for _ in range(360):
         r.emu.advance(1)
         cf = r.g.fighter(c_en)
+        if cf["x"] > max_x:
+            max_x = cf["x"]
+        if 0x43 <= cf["status"] <= 0x49:
+            saw_launch_fly = True
         if cf["status"] >= 0x112 or cf["status"] == CT.STATUS["Jump_Aerial"]:
             saw_special = True
-        if cb.slot(CT.CPU)["recoveryResets"] >= 1:
+        cur_rec_resets = cb.slot(CT.CPU)["recoveryResets"]
+        if cur_rec_resets > prev_rec_resets:
+            # Verify we did not reset on the exact LandingFallSpecial (0x19) frame.
+            if cf["status"] == 0x19:
+                premature_lag_reset = True
             saw_rec_loop = True
             break
+    res.row("Knockback Launch sends CPU offstage", "fly & maxX>88",
+            f"fly={saw_launch_fly} maxX={max_x:.1f}",
+            saw_launch_fly and max_x > 88.0)
     res.row("Edgeguard CPU recovers & loops offstage", "special or recResets>=1",
-            f"special={saw_special} recLoop={saw_rec_loop} resets={cb.slot(CT.CPU)['recoveryResets']}",
-            saw_special or saw_rec_loop)
+            f"special={saw_special} recLoop={saw_rec_loop} lagReset={premature_lag_reset}",
+            (saw_special or saw_rec_loop) and not premature_lag_reset)
+
+    # 2. Offstage Spawn mode: CPU spawns directly offstage (x > 88) & airborne.
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(3)
+    sb.set_menu(SCEN_EDGEGUARD, auto_reset=1, side=SIDE_RIGHT, eg_setup=EG_SETUP_SPAWN, eg_dist=EG_DIST_MID)
+    r.emu.advance(4)
+    cf_sp = r.g.fighter(c_en)
+    res.row("Offstage Spawn places CPU offstage right", "x>88 & air",
+            f"x={cf_sp['x']:.1f} y={cf_sp['y']:.1f} air={cf_sp['air']}",
+            cf_sp["x"] > 88.0 and cf_sp["air"])
     sb.set_menu(SCEN_OFF)
     r.emu.advance(3)
     return res
@@ -468,11 +547,12 @@ def scenario_shield_drop_fd(r, sb):
 
 
 def scenario_ledgetech(r, sb):
-    """Verify Ledgetech airborne wall placement, 1-frame Correct_Air restore, and auto-reset."""
+    """Verify Ledgetech Revival Platform (default) + Instant Drop placement, 1-frame noclip, and auto-reset."""
     res = CT.Result("ledgetech")
     sb.set_menu(SCEN_OFF)
     r.emu.advance(3)
-    sb.set_menu(SCEN_LEDGETECH, auto_reset=1, side=SIDE_RIGHT)
+    sb.set_menu(SCEN_LEDGETECH, auto_reset=1, side=SIDE_RIGHT, lt_atk=LT_ATK_DTILT,
+                lt_start=LT_START_REVIVAL, lt_timing=LT_TIME_HOLD)
     r.emu.advance(1)
     d_warp = sb.read()
     r.emu.advance(1)
@@ -486,11 +566,12 @@ def scenario_ledgetech(r, sb):
             f"warp={d_warp['lastCorrectWritten']} next={d_next['lastCorrectWritten']}",
             d_warp["lastCorrectWritten"] == (CORRECT_NONE, CORRECT_NONE)
             and d_next["lastCorrectWritten"] == (CORRECT_AIR, CORRECT_GROUND_CLIFF_STOP))
-    res.row("HMN near right ledge wall & CPU on lip", "hmnX>85 cpuX in (60,85)",
-            f"hmn=({hf['x']:.1f},{hf['y']:.1f}) cpu=({cf['x']:.1f},{cf['y']:.1f})",
-            hf["x"] > 85.0 and 60.0 < cf["x"] < 85.5)
+    res.row("HMN Revival Platform near right ledge & CPU on lip", "hmnX in (88,104) st=0xbe",
+            f"hmn=({hf['x']:.1f},{hf['y']:.1f}) st={hf['status']:#x} cpu=({cf['x']:.1f},{cf['y']:.1f})",
+            88.0 < hf["x"] < 104.0 and abs(hf["y"] + 20.0) < 4.0 and hf["status"] == CT.STATUS["Rebirth"]
+            and 60.0 < cf["x"] < 85.5)
 
-    # Drift left / Up-B into ledge to trigger ledge grab / landing / KO auto-reset.
+    # Drift left off Revival Platform / Up-B into ledge to trigger hit / ledge grab / auto-reset.
     r.emu.hold(0, stick=(28, 228))
     r.emu.advance(8)
     r.emu.press(0, ["B"], stick=(60, 255), frames=3, after=0)
@@ -503,6 +584,17 @@ def scenario_ledgetech(r, sb):
             break
     res.row("Ledgetech auto-resets cleanly", "resetCount+1",
             f"resets={d_warp['resetCount']}->{sb.read()['resetCount']}", auto_reset)
+
+    # Instant Drop mode spawns airborne directly in Fall (not Rebirth).
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(3)
+    sb.set_menu(SCEN_LEDGETECH, auto_reset=1, side=SIDE_RIGHT, lt_atk=LT_ATK_DTILT,
+                lt_start=LT_START_INSTANT, lt_timing=LT_TIME_TIMED)
+    r.emu.advance(2)
+    hf_id = r.g.fighter(h_en)
+    res.row("Ledgetech Instant Drop spawns airborne near ledge", "hmnX in (88,104) !Rebirth",
+            f"hmn=({hf_id['x']:.1f},{hf_id['y']:.1f}) st={hf_id['status']:#x}",
+            88.0 < hf_id["x"] < 104.0 and hf_id["status"] != CT.STATUS["Rebirth"] and hf_id["air"])
     sb.set_menu(SCEN_OFF)
     r.emu.advance(3)
     return res
@@ -545,16 +637,66 @@ def scenario_slide_off_fd(r, sb):
 
 
 def scenario_grab_escape(r, sb):
-    """Verify Grab Escape capture frame counting, CPU mash escape detection, and auto-reset."""
+    """Verify Grab Defense Hold (CPU grabs P1 -> P1 mashes out), F-Throw, and Stand (P1 grabs CPU)."""
     res = CT.Result("grab-escape")
+    h_en = r.g.entry(CT.P1)
+    c_en = r.g.entry(CT.CPU)
+
+    # 1. Default Hold (Mash Out): CPU approaches & grabs P1; P1 mashes out cleanly.
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(3)
+    sb.set_menu(SCEN_GRAB_ESCAPE, auto_reset=1, side=SIDE_RIGHT,
+                grab_action=GRAB_ACT_HOLD, grab_pct=GRAB_PCT_CURRENT)
+    r.emu.advance(6)
+    d_h0 = sb.read()
+    cpu_grabbed_p1 = False
+    p1_escaped = False
+    for f in range(260):
+        if cpu_grabbed_p1:
+            # Mash A/B/stick to break out fast.
+            btn = ["A"] if (f % 2 == 0) else ["B"]
+            stk = (255, 128) if (f % 2 == 0) else (0, 128)
+            r.emu.hold(0, btn, stick=stk)
+        else:
+            r.emu.neutral(0)
+        r.emu.advance(1)
+        hf = r.g.fighter(h_en)
+        d = sb.read()
+        if hf["status"] in (STATUS_CAPTURE_PULLED, STATUS_CAPTURE_WAIT):
+            cpu_grabbed_p1 = True
+        if d["sawGrabEscape"]:
+            p1_escaped = True
+            break
+    r.emu.neutral(0)
+    res.row("Grab Defense Hold: CPU grabs P1 & P1 escapes", "grab & escape",
+            f"grab={cpu_grabbed_p1} escape={p1_escaped} frames={sb.read()['grabEscapeFrames']}",
+            cpu_grabbed_p1 and p1_escaped)
+
+    # 2. F-Throw mode: CPU grabs and throws P1 (enters CaptureThrown 0x42 / hitstun).
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(3)
+    sb.set_menu(SCEN_GRAB_ESCAPE, auto_reset=1, side=SIDE_RIGHT,
+                grab_action=GRAB_ACT_FTHROW, grab_pct=GRAB_PCT_CURRENT)
+    r.emu.advance(6)
+    saw_thrown = False
+    for _ in range(180):
+        r.emu.advance(1)
+        hf = r.g.fighter(h_en)
+        if hf["status"] == 0x42 or hf["hitstun"] > 0:
+            saw_thrown = True
+            break
+    res.row("Grab Defense F-Throw: CPU grabs & throws P1", "thrown=True",
+            f"thrown={saw_thrown}", saw_thrown)
+
+    # 3. Stand (P1 Grabs CPU): P1 grabs CPU with Z and CPU (GrabEscape=High) mashes out!
     sb.set_menu(SCEN_OFF)
     r.emu.advance(3)
     r.opt.cpu_percent(0, False)
-    sb.set_menu(SCEN_GRAB_ESCAPE, auto_reset=1, side=SIDE_RIGHT)
+    sb.set_menu(SCEN_GRAB_ESCAPE, auto_reset=1, side=SIDE_RIGHT,
+                grab_action=GRAB_ACT_STAND, grab_pct=GRAB_PCT_CURRENT)
     r.emu.advance(8)
     d0 = sb.read()
 
-    # P1 grabs CPU with Z and holds neutral so CPU (GrabEscape=High) mashes out!
     r.emu.press(0, ["Z"], frames=3, after=0)
     saw_grab_frames = 0
     saw_escape = False
@@ -569,7 +711,7 @@ def scenario_grab_escape(r, sb):
         if d["resetCount"] > d0["resetCount"]:
             saw_reset = True
             break
-    res.row("Grab Escape tracked frames & escape reset", "frames>0 & escape & reset",
+    res.row("Grab Defense Stand: P1 grabs & CPU escapes", "frames>0 & escape & reset",
             f"frames={saw_grab_frames} escape={saw_escape} reset={saw_reset}",
             saw_grab_frames > 0 and saw_escape and saw_reset)
     sb.set_menu(SCEN_OFF)
@@ -697,16 +839,51 @@ def scenario_battlefield_platforms(r, sb):
             f"sawDrop={saw_drop} reset={saw_reset} comp={sb.read()['completionCount']}",
             saw_drop and saw_reset)
 
-    # 2. Slide-Off on Battlefield right platform.
-    set_player_percent(r.emu, r.opt.base, 65, True)
-    sb.set_menu(SCEN_SLIDE_OFF, auto_reset=1, side=SIDE_RIGHT)
+    # 2a. Slide-Off on Battlefield right platform: default Under Up Air (CPU on floor below platform).
+    set_player_percent(r.emu, r.opt.base, 95, True)
+    sb.set_menu(SCEN_SLIDE_OFF, auto_reset=1, side=SIDE_RIGHT, slide_atk=SLIDE_ATK_UNDER_UAIR)
     r.emu.advance(5)
     d1 = sb.read()
     hf2 = r.g.fighter(h_en)
     cf2 = r.g.fighter(c_en)
-    res.row("Battlefield Slide-Off spawns on platform edge", "hasPlat=1 both Y~27",
+    res.row("Battlefield Slide-Off Under-Plat spawns HMN on plat & CPU below", "hasPlat=1 hmnY~27 cpuY~0",
             f"hasPlat={d1['hasPlatform']} hmn=({hf2['x']:.1f},{hf2['y']:.1f}) cpu=({cf2['x']:.1f},{cf2['y']:.1f})",
-            d1["hasPlatform"] == 1 and 24.0 < hf2["y"] < 31.0 and 24.0 < cf2["y"] < 31.0)
+            d1["hasPlatform"] == 1 and 24.0 < hf2["y"] < 31.0 and abs(cf2["y"]) < 2.0)
+
+    # Stand still until CPU's under-platform Up Air connects, then hold ASDI/DI left-down to slide off.
+    saw_under_hit = False
+    saw_under_slide = False
+    saw_under_reset = False
+    for _ in range(180):
+        hf_cur = r.g.fighter(h_en)
+        if hf_cur["hitlag"] > 0 or hf_cur["hitstun"] > 0:
+            saw_under_hit = True
+            r.emu.hold(0, stick=(20, 80))
+        else:
+            r.emu.neutral(0)
+        r.emu.advance(1)
+        d = sb.read()
+        if d["sawSlideOff"]:
+            saw_under_slide = True
+        if d["resetCount"] > d1["resetCount"]:
+            saw_under_reset = True
+            break
+    r.emu.neutral(0)
+    res.row("Battlefield Under-Plat Up Air hits & slides off", "hit & sawSlide & reset",
+            f"hit={saw_under_hit} sawSlide={saw_under_slide} reset={saw_under_reset}",
+            saw_under_hit and saw_under_slide and saw_under_reset)
+
+    # 2b. Slide-Off On-Plat Ftilt mode: both on platform, ftilt tumbles P1 off the edge.
+    sb.set_menu(SCEN_OFF)
+    r.emu.advance(3)
+    sb.set_menu(SCEN_SLIDE_OFF, auto_reset=1, side=SIDE_RIGHT, slide_atk=SLIDE_ATK_ON_PLAT_FTILT)
+    r.emu.advance(5)
+    d2 = sb.read()
+    hf3 = r.g.fighter(h_en)
+    cf3 = r.g.fighter(c_en)
+    res.row("Battlefield Slide-Off On-Plat spawns both on platform", "hasPlat=1 both Y~27",
+            f"hasPlat={d2['hasPlatform']} hmn=({hf3['x']:.1f},{hf3['y']:.1f}) cpu=({cf3['x']:.1f},{cf3['y']:.1f})",
+            d2["hasPlatform"] == 1 and 24.0 < hf3["y"] < 31.0 and 24.0 < cf3["y"] < 31.0)
 
     r.emu.hold(0, stick=(20, 80))
     saw_slide = False
@@ -716,12 +893,12 @@ def scenario_battlefield_platforms(r, sb):
         d = sb.read()
         if d["sawSlideOff"]:
             saw_slide = True
-        if d["resetCount"] > d1["resetCount"]:
+        if d["resetCount"] > d2["resetCount"]:
             saw_slide_reset = True
             break
     r.emu.neutral(0)
     set_player_percent(r.emu, r.opt.base, 0, False)
-    res.row("Battlefield Slide-Off detected & auto-reset", "sawSlideOff & reset",
+    res.row("Battlefield Slide-Off On-Plat detected & auto-reset", "sawSlideOff & reset",
             f"sawSlide={saw_slide} reset={saw_slide_reset}", saw_slide and saw_slide_reset)
     sb.set_menu(SCEN_OFF)
     r.emu.advance(3)
@@ -761,8 +938,9 @@ def scenario_slide_off_zero_and_offstage_switch(r, sb):
             f"pct={live_pct} dmg={hf0['damage']:.0f} tumb={saw_tumble} slide={saw_slide}",
             live_pct >= 75 and hf0["damage"] >= 75.0 and saw_tumble and saw_slide)
 
-    # 2. Switch Slide-Off -> Grab Escape -> Off: P1 percent & lock restore cleanly with 0 SD saves.
-    sb.set_menu(SCEN_GRAB_ESCAPE, auto_reset=1, side=SIDE_RIGHT)
+    # 2. Switch Slide-Off -> Grab Defense (Random 0-79%) -> Off: P1 percent & lock restore cleanly to 0% with 0 SD saves.
+    sb.set_menu(SCEN_GRAB_ESCAPE, auto_reset=1, side=SIDE_RIGHT,
+                grab_action=GRAB_ACT_HOLD, grab_pct=GRAB_PCT_RANDOM)
     r.emu.advance(4)
     mid_pct, mid_lock = read_player_percent(r.emu, r.opt.base)
     mid_dmg = r.g.fighter(h_en)["damage"]
@@ -772,13 +950,20 @@ def scenario_slide_off_zero_and_offstage_switch(r, sb):
     end_dmg = r.g.fighter(h_en)["damage"]
     log_tail = r.emu.log_text()[log_pos:]
     leaked_save = ("storage: settings saved" in log_tail or "Lab settings not saved" in log_tail)
-    res.row("Slide-Off switch restores P1 percent & 0 SD save", "0/0 & dmg=0 & no save",
+    res.row("Slide-Off -> Grab Defense -> Off restores P1 0% & 0 SD save", "mid<=79 end=(0,0,0)",
             f"mid=({mid_pct},{mid_lock},{mid_dmg:.0f}) end=({end_pct},{end_lock},{end_dmg:.0f}) save={leaked_save}",
-            mid_pct == 0 and mid_lock == 0 and mid_dmg < 1.0
+            mid_pct == 0 and mid_lock == 0 and 0.0 <= mid_dmg < 80.0
             and end_pct == 0 and end_lock == 0 and end_dmg < 1.0 and not leaked_save)
 
-    # 3. Idle 45f in Ledgetech then switch to Grab Escape (45f): zero GONE/Rebirth frames.
-    sb.set_menu(SCEN_LEDGETECH, auto_reset=1, side=SIDE_RIGHT)
+    # 3. Idle 45f in Ledgetech (Revival Platform: 0 Dead/Standby; Instant Drop: 0 GONE) then switch to Grab Defense: 0 GONE.
+    sb.set_menu(SCEN_LEDGETECH, auto_reset=1, side=SIDE_RIGHT, lt_start=LT_START_REVIVAL)
+    r.emu.advance(4)
+    rev_ko = False
+    for _ in range(45):
+        r.emu.advance(1)
+        if r.g.fighter(h_en)["status"] in DEAD_OR_STANDBY or r.g.fighter(c_en)["status"] in CT.GONE:
+            rev_ko = True
+    sb.set_menu(SCEN_LEDGETECH, auto_reset=1, side=SIDE_RIGHT, lt_start=LT_START_INSTANT)
     r.emu.advance(4)
     lt_died = False
     for _ in range(45):
@@ -794,8 +979,8 @@ def scenario_slide_off_zero_and_offstage_switch(r, sb):
         r.emu.advance(1)
         if r.g.fighter(h_en)["status"] in CT.GONE or r.g.fighter(c_en)["status"] in CT.GONE:
             ge_died = True
-    res.row("Ledgetech idle -> Grab Escape has zero KO/Rebirth", "ltDied=0 geDied=0",
-            f"ltDied={lt_died} geDied={ge_died}", not lt_died and not ge_died)
+    res.row("Ledgetech idle -> Grab Defense has zero KO/Rebirth", "revKo=0 ltDied=0 geDied=0",
+            f"revKo={rev_ko} ltDied={lt_died} geDied={ge_died}", not rev_ko and not lt_died and not ge_died)
     sb.set_menu(SCEN_OFF)
     r.emu.advance(3)
     return res
@@ -807,11 +992,12 @@ def scenario_pikachu_grab_and_multihit_aerials(r, sb):
     h_en = r.g.entry(CT.P1)
     c_en = r.g.entry(CT.CPU)
 
-    # 1. Grab Escape: Pikachu standing grab connects immediately after reset and Fox CPU escapes.
+    # 1. Grab Defense (Stand mode): Pikachu standing grab connects immediately after reset and Fox CPU escapes.
     sb.set_menu(SCEN_OFF)
     r.emu.advance(4)
     before_rst = sb.read()["resetCount"]
-    sb.set_menu(SCEN_GRAB_ESCAPE, auto_reset=0, side=SIDE_RIGHT)
+    sb.set_menu(SCEN_GRAB_ESCAPE, auto_reset=0, side=SIDE_RIGHT,
+                grab_action=GRAB_ACT_STAND, grab_pct=GRAB_PCT_CURRENT)
     for _ in range(20):
         r.emu.advance(1)
         if sb.read()["resetCount"] > before_rst:
@@ -863,43 +1049,47 @@ def scenario_fox_ledgetech_and_offstage_switch(r, sb):
     h_en = r.g.entry(CT.P1)
     c_en = r.g.entry(CT.CPU)
 
-    # 1. Ledgetech: Fox CPU ledge-lip dtilt connects on recovering Fox P1.
+    # 1a. Ledgetech (Revival Platform + Hold Active): Fox P1 drops/Up-Bs from (93.5,-20.0) into Fox CPU's held dtilt.
     sb.set_menu(SCEN_OFF)
     r.emu.advance(4)
     set_player_percent(r.emu, r.opt.base, 80, True)
     before_rst = sb.read()["resetCount"]
-    sb.set_menu(SCEN_LEDGETECH, auto_reset=0, side=SIDE_RIGHT)
+    sb.set_menu(SCEN_LEDGETECH, auto_reset=0, side=SIDE_RIGHT, lt_atk=LT_ATK_DTILT,
+                lt_start=LT_START_REVIVAL, lt_timing=LT_TIME_HOLD)
     for _ in range(20):
         r.emu.advance(1)
         if sb.read()["resetCount"] > before_rst:
             break
-    r.emu.advance(3)
+    r.emu.advance(6)
     saw_lt_hit = False
+    lt_trace = []
     for f in range(90):
         if f < 4:
-            r.emu.hold(0, ["X"], stick=LT.LEFT)
-        elif f < 10:
-            r.emu.hold(0, [], stick=LT.LEFT)
-        elif f < 14:
+            # Drop gently off Revival Platform then Fire Fox diagonally up-left into the ledge lip.
+            r.emu.hold(0, [], stick=(128, 30))
+        elif f < 8:
             r.emu.hold(0, ["B"], stick=(70, 228))
         else:
-            r.emu.hold(0, [], stick=LT.LEFT)
+            r.emu.hold(0, [], stick=(50, 228))
         r.emu.advance(1)
         hf = r.g.fighter(h_en)
+        cf = r.g.fighter(c_en)
+        if f in (0, 2, 5, 10, 20, 35, 50, 65):
+            lt_trace.append(f"f{f}:h=({hf['x']:.1f},{hf['y']:.1f},{hf['status']:#x})c=({cf['x']:.1f},{cf['status']:#x})")
         if hf["hitlag"] > 0 or hf["hitstun"] > 0:
             saw_lt_hit = True
             break
     r.emu.neutral(0)
     set_player_percent(r.emu, r.opt.base, 0, False)
-    res.row("Fox Ledgetech CPU dtilt hits recovering Fox", "sawHit=True",
-            f"sawHit={saw_lt_hit}", saw_lt_hit)
+    res.row("Fox Ledgetech Revival+Hold dtilt hits recovering Fox", "sawHit=True",
+            f"sawHit={saw_lt_hit}" + ("" if saw_lt_hit else " " + " ".join(lt_trace)), saw_lt_hit)
 
-    # 2. Idle 45f in Ledgetech on FD (fastfaller Fox reaches y=-139.1 without proactive reset),
-    # then switch Off -> Slide-Off (45f) -> Grab Escape (45f): zero GONE/Rebirth frames!
+    # 2. Idle 45f in Ledgetech Instant Drop (fastfaller Fox proactively resets before y=-139.1)
+    # and Revival Platform (0 Dead/Standby), then switch Off -> Slide-Off -> Grab Defense: 0 KO/Rebirth!
     sb.set_menu(SCEN_OFF)
     r.emu.advance(4)
     before_rst = sb.read()["resetCount"]
-    sb.set_menu(SCEN_LEDGETECH, auto_reset=1, side=SIDE_RIGHT)
+    sb.set_menu(SCEN_LEDGETECH, auto_reset=1, side=SIDE_RIGHT, lt_start=LT_START_INSTANT)
     for _ in range(20):
         r.emu.advance(1)
         if sb.read()["resetCount"] > before_rst:
@@ -1049,11 +1239,11 @@ def scenario_techchase_air_and_edgeguard_sides(r, sb):
     r.emu.advance(3)
 
     # 1. Edgeguard Left spawns left + auto-seeds CPU to 35%; Right spawns right; Off restores 0%.
-    sb.set_menu(SCEN_EDGEGUARD, auto_reset=1, side=SIDE_LEFT)
+    sb.set_menu(SCEN_EDGEGUARD, auto_reset=1, side=SIDE_LEFT, eg_setup=EG_SETUP_SPAWN, eg_dist=EG_DIST_MID)
     r.emu.advance(5)
     hf_l, cf_l = r.g.fighter(h_en), r.g.fighter(c_en)
     cpu_pct_live = r.emu.u16(r.opt.base + LT.SET_CPU_PERCENT)
-    sb.set_menu(SCEN_EDGEGUARD, auto_reset=1, side=SIDE_RIGHT)
+    sb.set_menu(SCEN_EDGEGUARD, auto_reset=1, side=SIDE_RIGHT, eg_setup=EG_SETUP_SPAWN, eg_dist=EG_DIST_MID)
     r.emu.advance(5)
     hf_r, cf_r = r.g.fighter(h_en), r.g.fighter(c_en)
     sb.set_menu(SCEN_OFF)
@@ -1065,7 +1255,7 @@ def scenario_techchase_air_and_edgeguard_sides(r, sb):
             and cpu_pct_live == 35 and cpu_pct_end == 0)
 
     # 2. Techchase airborne escape: launch Fox high at 115% with Up Smash so he recovers/escapes in air -> auto-reset!
-    sb.set_menu(SCEN_TECHCHASE, auto_reset=1, side=SIDE_RIGHT)
+    sb.set_menu(SCEN_TECHCHASE, auto_reset=1, side=SIDE_RIGHT, tech_setup=TECH_SETUP_FREE_HIT)
     r.emu.advance(6)
     r.opt.cpu_percent(115, True)
     r.emu.advance(2)

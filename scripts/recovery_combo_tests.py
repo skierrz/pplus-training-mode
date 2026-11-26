@@ -124,12 +124,14 @@ def write_cpu_recovery(emu, settings_base, mode):
 
 def write_combo_settings(emu, settings_base, *, enabled=0, noclip=0, fix_pos=0, rand_pos=0,
                          rand_ground=1, rand_dmg=0, recovery_trainer=0, timer_adj=0,
-                         fixed_dmg=0, enabled_meters=METER_ALL, fixed_dmg_mode=0):
-    payload = struct.pack(">BBBBBBBbHBB4s",
+                         fixed_dmg=0, enabled_meters=METER_ALL, fixed_dmg_mode=0,
+                         reset_p1=1, reset_delay=0, post_escape=0, rec_mixup=0):
+    payload = struct.pack(">BBBBBBBbHBBBBBB",
                           int(enabled), int(noclip), int(fix_pos), int(rand_pos),
                           int(rand_ground), int(rand_dmg), int(recovery_trainer),
                           int(timer_adj), int(fixed_dmg), int(enabled_meters),
-                          int(fixed_dmg_mode), b"\x00" * 4)
+                          int(fixed_dmg_mode), int(reset_p1), int(reset_delay),
+                          int(post_escape), int(rec_mixup))
     emu.h.call("write_mem", addr=settings_base + SET_COMBO, hex=payload.hex())
 
 
@@ -384,6 +386,7 @@ def scenario_combo_reset_noclip(r, cb):
             post_cpu = r.g.fighter(en)
             r.emu.advance(1)
             next_frame_slot = cb.slot(CT.CPU)
+            next_cpu = r.g.fighter(en)
             break
 
     res.row("auto-reset fired after hitstun drop", "resetCount+1",
@@ -403,8 +406,10 @@ def scenario_combo_reset_noclip(r, cb):
                 and next_frame_slot["restorePending"] == 0)
         dx = abs(post_cpu["x"] - anchor_x)
         dy = abs(post_cpu["y"] - anchor_y)
+        p1_now = r.g.fighter(r.g.entry(CT.P1))
         res.row("CPU warped to anchor with fixed 35%", "dx<2 dy<2 dmg=35",
-                f"dx={dx:.1f} dy={dy:.1f} dmg={post_cpu['damage']:.1f}",
+                f"dx={dx:.1f} dy={dy:.1f} dmg={post_cpu['damage']:.1f} cpu=({post_cpu['x']:.1f},{post_cpu['status']:#x}) "
+                f"nxt=({next_cpu['x']:.1f},{next_cpu['status']:#x}) anc={reset_frame_slot['anchorX']:.1f} p1X={p1_now['x']:.1f}",
                 dx < 2.0 and dy < 2.0 and abs(post_cpu["damage"] - 35.0) < 0.5)
     return res
 

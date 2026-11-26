@@ -42,6 +42,7 @@ namespace extra {
     u8 drillHudActiveId();
     bool drillHudModalOpen();
     void drillHudSetMode(u8 mode);
+    void drillHudDisable();
 
     // Unified hook for match module: pads != NULL handles pad phase (returns 1
     // if consumed); pads == NULL returns bit 0 = active, bit 1 = modal open.

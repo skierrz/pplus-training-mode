@@ -1,6 +1,7 @@
 #include "extra/stage_geom.h"
 
 #include <ft/fighter.h>
+#include <so/controller/so_controller_module_impl.h>
 #include <so/ground/so_ground_module_impl.h>
 #include <so/ground/so_ground_shape_impl.h>
 #include <so/kinetic/so_kinetic_module_impl.h>
@@ -492,6 +493,13 @@ namespace extra {
             m->m_kineticModule->clearSpeedAll();
         }
         cpu::clearKnockback(f);
+        if (game::isRam(m->m_controllerModule))
+        {
+            m->m_controllerModule->resetButton();
+            m->m_controllerModule->resetTrigger();
+            m->m_controllerModule->resetMainStick();
+            m->m_controllerModule->resetSubStick();
+        }
         if (falling)
         {
             cpu::placeAt(f, x, y);

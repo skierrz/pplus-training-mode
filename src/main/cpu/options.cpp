@@ -1522,8 +1522,13 @@ namespace cpu {
             int index = 0, delay = 0;
             bool comboJumpInvuln = false;
             const main::ComboTrainerSettings& combo = main::settings().comboTrainer;
-            if (!shieldKind && combo.enabled != 0 && combo.fixPosition != 0 && combo.recoveryTrainer == 0
-                && combo.postHitstunEscape != main::kComboEscapeCounter)
+            static const u8 kComboDelayF[main::kComboDelayCount] = {0, 15, 30, 45, 60};
+            const int comboDelayF = (combo.resetDelay < main::kComboDelayCount ? kComboDelayF[combo.resetDelay] : 30)
+                                    + static_cast<int>(combo.comboTimerAdjustment);
+            const bool comboEscapeActive = !shieldKind && combo.enabled != 0 && combo.fixPosition != 0
+                                           && combo.recoveryTrainer == 0 && comboDelayF > 0
+                                           && combo.postHitstunEscape != main::kComboEscapeCounter;
+            if (comboEscapeActive)
             {
                 delay = 0;
                 switch (combo.postHitstunEscape)
@@ -1558,9 +1563,7 @@ namespace cpu {
                 state = kAfter;
                 return;
             }
-            if (list == kListAir || (!shieldKind && combo.enabled != 0 && combo.fixPosition != 0
-                                     && combo.recoveryTrainer == 0
-                                     && combo.postHitstunEscape != main::kComboEscapeCounter))
+            if (list == kListAir || comboEscapeActive)
             {
                 revPicked = false;
             }
@@ -1596,9 +1599,7 @@ namespace cpu {
                 return;
             }
             bool adaptiveUsed = false;
-            if (revAction == 0 && opts().adaptiveMode == kAdaptiveActive && list != kListAir
-                && !(combo.enabled != 0 && combo.fixPosition != 0 && combo.recoveryTrainer == 0
-                     && combo.postHitstunEscape != main::kComboEscapeCounter)
+            if (revAction == 0 && opts().adaptiveMode == kAdaptiveActive && list != kListAir && !comboEscapeActive
                 && main::extraLoaded())
             {
                 int biasIdx = main::extraAdaptiveBias(who.playerNo, list, true, oppDist, false);
