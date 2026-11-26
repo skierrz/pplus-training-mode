@@ -34,6 +34,7 @@
 #include "main/ui/hud_layout.h"
 #include "main/ui/menu.h"
 #include "main/ui/pages/scenarios.h"
+#include "main/ui/style.h"
 #include "shared/game/mem.h"
 #include "shared/drill_session.h"
 #include "shared/game/menu_sound.h"
@@ -63,7 +64,13 @@ namespace extra {
 
         const u32 kGradeCols[5] = {0xA0BCC4FFu, 0xFFD300FFu, 0x4CE688FFu, 0xFF6658FFu, 0xFFB848FFu};
         const u32 kPipCols[5] = {0x20343EFFu, 0xFFD300FFu, 0x4CE688FFu, 0xFF6658FFu, 0xFFB848FFu};
-        const float kScales[5] = {8.0f / 15.0f, 10.0f / 15.0f, 8.5f / 24.0f, 13.0f / 24.0f, 20.0f / 24.0f};
+        const float kScales[5] = {
+            ui::style::kTypeMicro / ui::style::kCapHeight,
+            ui::style::kTypeBody / ui::style::kCapHeight,
+            ui::style::kTypeMeta / ui::style::kDisplayCapHeight,
+            ui::style::kTypeHeading / ui::style::kDisplayCapHeight,
+            ui::style::kTypeHero / ui::style::kDisplayCapHeight
+        };
         const u8 kPromptIcons[3][4] = {
             {ui::kIconGcA, ui::kIconClA, ui::kIconWii2, ui::kIconWiiA},
             {ui::kIconGcStart, ui::kIconWiiPlus, ui::kIconWiiPlus, ui::kIconWiiPlus},
@@ -111,14 +118,15 @@ namespace extra {
             s_rt.debug.alcNotice = s_rt.st.alcNotice;
         }
 
-        // Double-framed Brawl/P+ panel: dark outer frame, 2px accent border, dark gradient body.
-        void drawPanel(float ox, float oy, float w, float h, u32 accent, u32 top, u32 bot)
+        // Unified 3 px (F4) outer modal frame + dark gradient body matching style.h.
+        void drawPanel(float ox, float oy, float w, float h, u32 top, u32 bot)
         {
             float xs = s_rtPtr->xs;
             float bw = w * xs;
-            gfx::fillRect(ox, oy, bw, h, 0x060D12F2u);
-            gfx::fillRect(ox + 2.0f * xs, oy + 2.0f, bw - 4.0f * xs, h - 4.0f, accent);
-            gfx::fillGradV(ox + 4.0f * xs, oy + 4.0f, bw - 8.0f * xs, h - 8.0f, top, bot);
+            float b = ui::style::kLabBorder;
+            float bx = b * xs;
+            gfx::fillRect(ox, oy, bw, h, ui::style::kLabBorderColor);
+            gfx::fillGradV(ox + bx, oy + b, bw - 2.0f * bx, h - 2.0f * b, top, bot);
         }
 
         // Compact 5-argument text renderer supporting system and Brawl Display fonts.
@@ -143,11 +151,11 @@ namespace extra {
             if (disp)
             {
                 u32 bot = (fl & kDispGold) ? 0xE89B00FFu : ((fl & kDispRed) ? 0xD8483EFFu : 0xB8E0EEFFu);
-                gfx::displayText(dx, y - 2.5f * sc, s, col, bot, sx, sc, 1.2f, 0x050C12FFu);
+                gfx::displayText(dx, ui::style::displayYForCap(y, sc), s, col, bot, sx, sc, 1.2f, 0x050C12FFu);
             }
             else
             {
-                gfx::text(dx, y - 5.0f * sc, s, col, sx, sc);
+                gfx::text(dx, ui::style::textYForCap(y, sc), s, col, sx, sc);
             }
         }
 
@@ -597,12 +605,18 @@ namespace extra {
 
         void drawEndModal()
         {
+            using namespace ui::style;
             Runtime& s_rt = *s_rtPtr;
             DrillHudState& st = s_rt.st;
             float xs = s_rt.xs;
-            float ox = 320.0f - 192.0f * xs;
-            float ix = ox + 4.0f * xs;
-            float iw = 376.0f * xs;
+            float modalW = ui::layout::kDrillModalWidth; // 377.0f (F14)
+            float modalTop = ui::layout::kDrillModalTop; // 113.0f
+            float modalH = ui::layout::kDrillModalHeight; // 254.0f
+            float ox = 320.0f - (modalW * 0.5f) * xs;
+            float ix = ox + kLabBorder * xs;
+            float iw = (modalW - 2.0f * kLabBorder) * xs;
+            float inTop = modalTop + kLabBorder;
+            float inBot = modalTop + modalH - kLabBorder;
             bool timed = st.mode == kDrillModeTimed60;
             u8 target = drillModeTargetReps(st.mode);
             if (!timed && target == 0)
@@ -610,23 +624,30 @@ namespace extra {
                 target = kDrillSetReps10;
             }
 
-            gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, 0x050C10B0u);
-            drawPanel(ox, 104.0f, 384.0f, 272.0f, st.newBest ? 0xFFD300FFu : 0x35B8C8FFu, 0x10242EF4u, 0x09151CF4u);
+            gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, 0x070B12B8u);
+            drawPanel(ox, modalTop, modalW, modalH, kLabBaseTop, kLabBaseBot);
 
-            gfx::fillGradV(ix, 108.0f, iw, 44.0f, 0x3AD0E0FAu, 0x14505CFAu);
-            gfx::fillRect(ix, 150.0f, iw, 2.0f, 0x12404AFFu);
+            // Unified 36 px header band + 2 px (F3) accent divider so DisplayFont
+            // heading clears both the top accent bar and subtitle cleanly.
+            const float hdrH = kFibBandH + kFibHair;
+            u32 accent = st.newBest ? kLabFocusGold : kLabTealTop;
+            gfx::fillGradV(ix, inTop, iw, hdrH, kLabHeaderTop, kLabHeaderBot);
+            gfx::fillRect(ix, inTop, iw, kFibHair, accent);
+            gfx::fillRect(ix, inTop + hdrH, iw, kFibHair, kLabDivider);
 
             char buf[28];
             snprintf(buf, sizeof(buf), "%s PRACTICE", drillHudTitle(st.activeDrill));
-            label(320.0f, 115.0f, buf, 0xFFFFFFFFu, kAlignCenter | kSzDisp13);
+            label(320.0f, inTop + 6.0f, buf, 0xFFFFFFFFu, kAlignCenter | kSzDisp13);
             const char* subTitle = "60s RUN COMPLETE";
             if (!timed)
             {
                 snprintf(buf, sizeof(buf), "%u-REP SET COMPLETE", static_cast<unsigned>(target));
                 subTitle = buf;
             }
-            label(320.0f, 136.0f, subTitle, 0xFFF5B8FFu, kAlignCenter);
+            label(320.0f, inTop + 23.0f, subTitle, 0xFFF5B8FFu, kAlignCenter);
 
+            // Hero score (21 px = F8, ~phi jump from 13 px heading) + balanced vertical rhythm.
+            float bodyY = inTop + hdrH + kFibHair;
             unsigned denom = timed ? (st.totalAtt > 0u ? static_cast<unsigned>(st.totalAtt) : 1u)
                                    : static_cast<unsigned>(target);
             unsigned hits = timed ? static_cast<unsigned>(st.totalHit)
@@ -634,29 +655,32 @@ namespace extra {
             unsigned pct = (timed && st.totalAtt == 0u) ? 0u : (hits * 100u) / denom;
             snprintf(buf, sizeof(buf), "%u / %u  (%u%%)", hits, timed ? static_cast<unsigned>(st.totalAtt) : denom, pct);
             u8 scFl = kAlignCenter | kSzDisp20 | (pct >= 80u ? kDispGold : (pct < 50u ? kDispRed : 0));
-            label(320.0f, 166.0f, buf, pct >= 80u ? 0xFFE866FFu : (pct >= 50u ? 0xFFFFFFFFu : 0xFF9E92FFu), scFl);
+            label(320.0f, bodyY + 11.0f, buf, pct >= 80u ? 0xFFE866FFu : (pct >= 50u ? 0xFFFFFFFFu : 0xFF9E92FFu),
+                  scFl);
 
+            float badgeY = bodyY + 11.0f + kTypeHero + 11.0f;
             if (st.newBest)
             {
-                float pw = 92.0f * xs;
-                gfx::fillGradV(320.0f - pw * 0.5f, 196.0f, pw, 18.0f, 0xFFE866FFu, 0xE89B00FFu);
-                label(320.0f, 200.0f, "NEW BEST!", 0x1A1000FFu, kAlignCenter);
+                float pw = 104.0f * xs;
+                gfx::fillGradV(320.0f - pw * 0.5f, badgeY, pw, kFibRowH, kLabGoldTop, kLabGoldBot);
+                label(320.0f, badgeY + (kFibRowH - kTypeMicro) * 0.5f, "NEW BEST!", kLabGoldInk, kAlignCenter);
             }
             else
             {
                 float pw = 220.0f * xs;
-                drawPips(320.0f - pw * 0.5f, 202.0f, pw, 6.0f, timed ? kDrillFreePips : static_cast<int>(target));
+                drawPips(320.0f - pw * 0.5f, badgeY + 7.0f, pw, 6.0f, timed ? kDrillFreePips : static_cast<int>(target));
             }
 
-            float rowX = ox + 20.0f * xs;
-            float rowW = 344.0f * xs;
-            float lx = ox + 30.0f * xs;
-            float rx = ox + 354.0f * xs;
-            float ry = 226.0f;
-            for (int r = 0; r < 3; r++, ry += 28.0f)
+            float rowPad = kFibPad + kLabBorder;
+            float rowX = ox + rowPad * xs;
+            float rowW = (modalW - 2.0f * rowPad) * xs;
+            float lx = rowX + kFibPad * xs;
+            float rx = rowX + rowW - kFibPad * xs;
+            float ry = badgeY + kFibRowH + 11.0f;
+            for (int r = 0; r < 3; r++, ry += 24.0f + kFibTight)
             {
-                gfx::fillGradV(rowX, ry, rowW, 24.0f, 0x132834E8u, 0x0B1820E8u);
-                gfx::fillRect(rowX, ry + 22.0f, rowW, 2.0f, 0x060D12C0u);
+                gfx::fillGradV(rowX, ry, rowW, 24.0f, kLabRowSlateTop, kLabRowSlateBot);
+                gfx::fillRect(rowX, ry + 22.0f, rowW, kFibHair, kLabRowSlateEdge);
                 const char* lbl = r == 0 ? "Personal Best" : (r == 1 ? "Best Streak" : drillHighlightLabel(st.activeDrill));
                 const char* val = buf;
                 u32 vc = 0xF0F4F8FFu;
@@ -672,7 +696,7 @@ namespace extra {
                     }
                     if (st.newBest)
                     {
-                        vc = 0xFFD300FFu;
+                        vc = kLabFocusGold;
                     }
                 }
                 else if (r == 1)
@@ -682,27 +706,33 @@ namespace extra {
                 else
                 {
                     drillHudFormatHighlight(st, buf, sizeof(buf));
-                    vc = 0x3AD0E0FAu;
+                    vc = kLabTealTop;
                 }
-                label(lx, ry + 7.0f, lbl, kGradeCols[0], kSz10);
-                label(rx, ry + 7.0f, val, vc, kSz10 | kAlignRight);
+                label(lx, ry + (24.0f - kTypeBody) * 0.5f, lbl, kGradeCols[0], kSz10);
+                label(rx, ry + (24.0f - kTypeBody) * 0.5f, val, vc, kSz10 | kAlignRight);
             }
 
-            gfx::fillRect(ix, 322.0f, iw, 2.0f, 0x2A5866E0u);
-            gfx::fillGradV(ix, 324.0f, iw, 48.0f, 0x122630F2u, 0x08131AF2u);
+            // Unified 34 px (F9) footer band + 2 px (F3) divider.
+            float footTop = inBot - kFibBandH - kFibHair;
+            gfx::fillRect(ix, footTop, iw, kFibHair, kLabDivider);
+            gfx::fillGradV(ix, footTop + kFibHair, iw, kFibBandH, kLabFooterTopCol, kLabFooterBotCol);
+            gfx::fillRect(ix, inBot - kFibHair, iw, kFibHair, kLabBevelDark);
 
             u8 ct = s_rt.lastPadType < 4 ? s_rt.lastPadType : 0;
             float bw = 16.0f * xs;
-            float px = ox + 28.0f * xs;
-            float step = 100.0f * xs;
+            float px = ox + 26.0f * xs;
+            float step = 104.0f * xs;
+            float footMid = footTop + kFibHair + kFibBandH * 0.5f;
             for (int p = 0; p < 3; p++, px += step)
             {
-                if (!uiAssetsDrawIcon(kPromptIcons[p][ct], px, 340.0f, bw, 16.0f, 0xFFFFFFFFu))
+                if (!uiAssetsDrawIcon(kPromptIcons[p][ct], px, footMid - 8.0f, bw, 16.0f, 0xFFFFFFFFu))
                 {
-                    gfx::fillRect(px, 340.0f, bw, 16.0f, 0x35B8C8FFu);
-                    label(px + bw * 0.5f, 344.0f, drillNthStr(kPromptGlyphs, p), 0xF0F4F8FFu, kAlignCenter);
+                    gfx::fillRect(px, footMid - 8.0f, bw, 16.0f, kLabTealTop);
+                    label(px + bw * 0.5f, footMid - kTypeMicro * 0.5f, drillNthStr(kPromptGlyphs, p), 0xF0F4F8FFu,
+                          kAlignCenter);
                 }
-                label(px + bw + 5.0f * xs, 343.0f, drillNthStr(kPromptLabels, p), 0xF0F4F8FFu, kSz10);
+                label(px + bw + kFibTight * xs, footMid - kTypeBody * 0.5f, drillNthStr(kPromptLabels, p), 0xF0F4F8FFu,
+                      kSz10);
             }
         }
     }

@@ -299,13 +299,13 @@ TEST(psa_inspector, hud_layout_non_overlap_and_safe_area_4_3_and_16_9)
                 }
             }
 
-            // Explicit 4:3 Panel B Frame-Step Inspector contract: Top-Left x = 34..252 (6px clear of 4:3 timer x=258).
+            // Explicit 4:3 Panel B Frame-Step Inspector contract: Top-Left x = 32..250 (8px = F6 clear of 4:3 timer x=258).
             if (!wide && !ledge)
             {
                 Box standalone = psaInspectorBox(band, 1, false, false, 0.0f);
-                CHECK_NEAR(34.0f, standalone.x0, 0.01f);
-                CHECK_NEAR(252.0f, standalone.x1, 0.01f);
-                CHECK(standalone.x1 <= timer.x0 - 6.0f + 0.01f);
+                CHECK_NEAR(32.0f, standalone.x0, 0.01f);
+                CHECK_NEAR(250.0f, standalone.x1, 0.01f);
+                CHECK(standalone.x1 <= timer.x0 - 8.0f + 0.01f);
             }
         }
     }

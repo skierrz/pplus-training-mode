@@ -54,10 +54,10 @@ namespace layout {
     }
 
     // ---- Info Display / Frame-Step Inspector panels (ui/info_display.cpp) ----
-    // Clamped strictly to x0 = 34, y0 = 28 with max 4:3 width <= 218 px
-    // (x = 34..252, clearing Brawl's 4:3 match timer at x = 258 by 6 px).
-    static const float kInfoLeft = 34.0f;
-    static const float kInfoTop = 28.0f;
+    // Aligned to the SMPTE 5% safe edge (x0 = 32, y0 = 24) with max 4:3 width <= 218 px
+    // (x = 32..250, clearing Brawl's 4:3 match timer at x = 258 by 8 px = F6).
+    static const float kInfoLeft = kSafeMarginX;
+    static const float kInfoTop = kSafeMarginY;
     static const float kInfoGap = 0.0f; // flush Panel B stacking with 2px inset divider (matches info_display.cpp)
     static const float kInfoSizeScale[3] = {0.84f, 0.92f, 1.0f};
     static const float kInfoWidth43[3] = {206.0f, 214.0f, 218.0f};
@@ -96,11 +96,11 @@ namespace layout {
     // ---- Ledgedash / Unified Drill Timing Bar top band (ui/ledgedash_hud.cpp) ----
     // Calm white caption/legend row sits directly above the bar (y 26..38),
     // crisp cell bar at y 41..55, and upward pointer arrow at y 57..63.
-    // Max width 452 px on 4:3 (x 32..484) clears the Top-Right Option A GC
-    // controller (x 490..608) by 6 px even at 64 cells.
+    // Max width 450 px on 4:3 (x 32..482) clears the Top-Right Option A GC
+    // controller (x 490..608) by 8 px (F6) even at 64 cells.
     static const float kBarTop = 41.0f;
     static const float kBarBottom = 55.0f;
-    static const float kBarMaxW = 452.0f;
+    static const float kBarMaxW = 450.0f;
     static const float kKeyY = 24.0f;
     static const float kKeyLabelTop = 27.0f;
     static const float kLegendTop = 57.0f;
@@ -184,14 +184,25 @@ namespace layout {
     Box timerRoom(bool wide);
     Box counterRoom(bool wide);
 
+    // Brawl's stock right-side Training Help sidebar (Speed / Enemy / Damage /
+    // Consecutive Hits / Total Damage, IfTraining[0x30] != 0), live-measured in
+    // 640x480 2D space on both 16:9 and 4:3 Dolphin D3D captures.
+    inline Box trainingSidebarRoom(bool wide)
+    {
+        Box b16 = {445.0f, 35.0f, 582.0f, 316.0f};
+        Box b43 = {492.0f, 35.0f, 608.0f, 316.0f};
+        return wide ? b16 : b43;
+    }
+
     // ---- Stepping aside ----
-    static const float kStepGap = 6.0f;
+    static const float kStepGap = 8.0f; // F6 unified HUD vertical and horizontal gap
 
     // Highest bottom edge for lower-screen OSD stacks while the recording seek
-    // bar is shown: one step gap above the bar's top edge.
+    // bar is shown: keeps floor at 350.0 (6 px clear of recBar top 356.0, keeping
+    // 3-card Sides OSDs below Adaptive CPU y=205 and 6-card HUD OSDs below timer).
     inline float recBarOsdFloor()
     {
-        return kRecBarCentreY - kRecBarHeight * 0.5f - kStepGap;
+        return kRecBarCentreY - kRecBarHeight * 0.5f - 6.0f;
     }
 
     inline bool empty(const Box& b)
@@ -246,6 +257,10 @@ namespace layout {
         return box(320.0f - w * 0.5f, kDrillHudTop, w, kDrillHudHeight);
     }
 
+    // Unified right-column width shared by Option A GC Controller, Panel B Stat
+    // Plates, and Adaptive CPU (118 px on 4:3, 88.5 ~ F11 = 89 px on 16:9).
+    static const float kRightColWidth = 118.0f;
+
     // Dynamic top-band box for Ledgedash Practice Drill, spanning both the
     // dynamic-width timing bar (`frameBarBox`) and its calm white swatch legend
     // (`half = 196 * xs`, matching `ledgeHeaderBox`) so Info Display steps below
@@ -254,7 +269,7 @@ namespace layout {
     {
         float xs = xsOf(wide);
         Box bar = frameBarBox(cells, wide);
-        float maxRight = 608.0f - 118.0f * xs - 6.0f;
+        float maxRight = 608.0f - kRightColWidth * xs - kStepGap;
         float half = 196.0f * xs;
         float hx0 = 320.0f - half;
         float hx1 = 320.0f + half;
@@ -301,16 +316,16 @@ namespace layout {
         float w = wide ? kActionLogWidth16 : kActionLogWidth43;
         if (playerCount > 2)
         {
-            float y0 = timer ? (timerRoom(wide).y1 + kStepGap) : kSafeMarginY;
+            float y0 = timer ? (timerRoom(wide).y1 + 6.0f) : kSafeMarginY;
             return box(320.0f - w * 0.5f, y0, w, kActionLogTopHeight);
         }
         return box(kActionLogRight - w, kActionLogTop, w, kActionLogHeight);
     }
 
-    // Centered End-Screen Summary Modal (5% CRT safe on 4:3 and 16:9).
-    static const float kDrillModalWidth = 384.0f;
-    static const float kDrillModalTop = 104.0f;
-    static const float kDrillModalHeight = 272.0f;
+    // Centered End-Screen Summary Modal (5% CRT safe on 4:3 and 16:9; F14 width 377).
+    static const float kDrillModalWidth = 377.0f;
+    static const float kDrillModalTop = 113.0f;
+    static const float kDrillModalHeight = 254.0f;
 
     inline Box drillModalBox(bool wide)
     {
@@ -331,15 +346,17 @@ namespace layout {
 #endif
 
     // ---- Option A Bare Frameless GC Controller (extra/input_viewer.cpp) ----
-    // Always anchored in Top-Right Sky (x1 = 608, y = 26..82, 56 scanlines tall)
-    // so slot 0 never teleports across quadrants. Dual HMN+CPU: 16:9 side-by-side
-    // (w = 88.5, gap 6, x = 425..608, falling back to vertical stack only if a wide
-    // top-center band reaches x > 425); 4:3 stacked vertically (y = 26..82, 88..144).
+    // Unified top baseline y = 24 (SMPTE 5% safe), height F10 = 55 px, gap F6 = 8 px.
+    // Dual HMN+CPU: 16:9 side-by-side (w = 88.5, gap 8, x = 423..608, falling back to
+    // vertical stack if a wide top-center band reaches x > 423); 4:3 stacked vertically
+    // (y = 24..79, 87..142). When Brawl's stock Training Help sidebar is visible, slot 0
+    // docks cleanly below the sidebar (y = 324..379) and slot 1 docks left of the sidebar
+    // (y = 261..316, clearing both the sidebar and recording seek bar).
     static const float kViewerRight = 608.0f;
-    static const float kViewerTop = 26.0f;
-    static const float kViewerWidth = 118.0f;
-    static const float kViewerHeight = 56.0f;
-    static const float kViewerGap = 6.0f;
+    static const float kViewerTop = kSafeMarginY;
+    static const float kViewerWidth = kRightColWidth;
+    static const float kViewerHeight = 55.0f;
+    static const float kViewerGap = kStepGap;
 
     inline int inputViewerSlotCount(u8 who)
     {
@@ -350,11 +367,21 @@ namespace layout {
         return who == 3 ? 2 : 1;
     }
 
-    inline Box inputViewerCardBox(int slot, const Box& band, bool wide)
+    inline Box inputViewerCardBox(int slot, const Box& band, bool wide, bool trainingSidebar = false)
     {
         float w = kViewerWidth * xsOf(wide);
         float x1 = kViewerRight;
         float x0 = x1 - w;
+        if (trainingSidebar)
+        {
+            Box sb = trainingSidebarRoom(wide);
+            if (slot <= 0)
+            {
+                return box(x0, sb.y1 + kStepGap, w, kViewerHeight);
+            }
+            float sx1 = sb.x0 - kStepGap;
+            return box(sx1 - w, sb.y1 - kViewerHeight, w, kViewerHeight);
+        }
         if (slot <= 0)
         {
             return box(x0, kViewerTop, w, kViewerHeight);
@@ -374,17 +401,29 @@ namespace layout {
     }
 
     // ---- Panel B Right-Margin Drill Stat Plate (extra/hud_draw.cpp, ui/ledgedash_hud.cpp) ----
-    // Quiet smoked-dark borderless plate docked cleanly beneath Option A GC Controller
-    // (x1 = 608, fixed width 112 * xs so focal X never jitters).
-    static const float kDrillPlateWidth = 112.0f;
-    static const float kDrillPlateGap = 8.0f;
-    static const float kDrillPlateRowH = 32.0f;
+    // Quiet smoked-dark borderless plate flush on the unified 118 px right column
+    // (row pitch F9 = 34 px, gap F6 = 8 px). When Brawl's Training Help sidebar is shown
+    // and stacking below it would exceed y = 390, docks cleanly left of the sidebar at y = 73.
+    static const float kDrillPlateWidth = kRightColWidth;
+    static const float kDrillPlateGap = kStepGap;
+    static const float kDrillPlateRowH = 34.0f;
 
-    inline Box drillStatPlateBox(int rows, float aboveBottom, bool wide)
+    inline Box drillStatPlateBox(int rows, float aboveBottom, bool wide, bool trainingSidebar = false)
     {
         float w = kDrillPlateWidth * xsOf(wide);
-        float y0 = aboveBottom > 0.0f ? (aboveBottom + kDrillPlateGap) : kViewerTop;
         float h = rows > 0 ? (8.0f + static_cast<float>(rows) * kDrillPlateRowH) : 0.0f;
+        if (trainingSidebar)
+        {
+            Box sb = trainingSidebarRoom(wide);
+            float y0 = aboveBottom > sb.y1 ? (aboveBottom + kDrillPlateGap) : (sb.y1 + kStepGap);
+            if (y0 + h > 390.0f)
+            {
+                float x1 = sb.x0 - kStepGap;
+                return box(x1 - w, 65.0f + kStepGap, w, h);
+            }
+            return box(kViewerRight - w, y0, w, h);
+        }
+        float y0 = aboveBottom > 0.0f ? (aboveBottom + kDrillPlateGap) : kViewerTop;
         return box(kViewerRight - w, y0, w, h);
     }
 
@@ -421,13 +460,13 @@ namespace layout {
     }
 
     // ---- Panel B Quiet Smoked-Plate PSA Frame-Step Inspector (extra/psa_inspector.cpp) ----
-    // Docks on Top-Left (x0 = 34, width <= 218 px on 4:3 clearing Brawl's 4:3 timer
-    // at x = 258 by 6 px), stacking flush below Info Display with a faint 2px inset
+    // Docks on Top-Left (x0 = 32, width <= 218 px on 4:3 clearing Brawl's 4:3 timer
+    // at x = 258 by 8 px), stacking flush below Info Display with a faint 2px inset
     // divider when both fit above y = 348, or falling back cleanly to the right column
     // under any active Option A GC Controller when an extreme 8+8 row Info stack is up.
     static const float kPsaWidth = 218.0f;
     static const float kPsaHeight = 108.0f;
-    static const float kAdaptiveHudWidth = 112.0f;
+    static const float kAdaptiveHudWidth = kRightColWidth;
     static const float kAdaptiveHudHeight = 55.0f;
 
     inline Box psaInspectorBox(const Box& band, int viewerSlots, bool hasCompass, bool wide, float infoBottom = 0.0f)
@@ -444,11 +483,11 @@ namespace layout {
             return box(kInfoLeft, infoBottom, w, kPsaHeight);
         }
         // Extreme 8+8 row Info Display fallback: dock left of the right column
-        // (clearing both Info Display x <= 252 and right-column overlays).
+        // (clearing both Info Display x <= 250 and right-column overlays).
         float x1 = kViewerRight;
         if (viewerSlots > 0 || hasCompass)
         {
-            float rightW = (viewerSlots > 0 ? kViewerWidth : kAdaptiveHudWidth) * xs;
+            float rightW = kRightColWidth * xs;
             x1 = kViewerRight - rightW - kStepGap;
         }
         float x0 = x1 - w;
@@ -470,15 +509,48 @@ namespace layout {
     }
 
     // ---- Adaptive CPU Habit Readout Plate (extra/adaptive_cpu.cpp) ----
-    // Quiet Panel B smoked plate docked cleanly below Option A GC Controller.
+    // Quiet Panel B smoked plate flush on the unified 118 px right column (F10 = 55 px).
 
     inline Box adaptiveHudBox(const Box& band, int viewerSlots, bool hasCompass, bool hasPsa, bool wide,
-                              float infoBottom = 0.0f)
+                              float infoBottom = 0.0f, bool trainingSidebar = false)
     {
         float xs = xsOf(wide);
         float w = kAdaptiveHudWidth * xs;
         float x1 = kViewerRight;
         float x0 = x1 - w;
+        if (trainingSidebar)
+        {
+            Box sb = trainingSidebarRoom(wide);
+            float y0 = sb.y1 + kStepGap;
+            for (int s = 0; s < viewerSlots; s++)
+            {
+                Box vb = inputViewerCardBox(s, band, wide, true);
+                if (meetsX(box(x0, vb.y0, w, 1.0f), vb) && vb.y1 + kViewerGap > y0)
+                {
+                    y0 = vb.y1 + kViewerGap;
+                }
+            }
+            if (y0 + kAdaptiveHudHeight > 390.0f)
+            {
+                x1 = sb.x0 - kStepGap;
+                x0 = x1 - w;
+                y0 = 65.0f + kStepGap;
+                if (!empty(band) && meetsX(box(x0, y0, w, 1.0f), band) && band.y1 + kStepGap > y0)
+                {
+                    y0 = band.y1 + kStepGap;
+                }
+                if (hasPsa)
+                {
+                    Box psa = psaInspectorBox(band, viewerSlots, hasCompass, wide, infoBottom);
+                    Box cur = box(x0, y0, w, kAdaptiveHudHeight);
+                    if (meets(cur, psa))
+                    {
+                        y0 = psa.y1 + kViewerGap;
+                    }
+                }
+            }
+            return box(x0, y0, w, kAdaptiveHudHeight);
+        }
         float y0 = kViewerTop;
         if (viewerSlots > 0)
         {
@@ -518,7 +590,7 @@ namespace layout {
         }
         if (y0 + kAdaptiveHudHeight > 255.0f && (viewerSlots > 0 || hasCompass))
         {
-            float rightW = (viewerSlots > 0 ? kViewerWidth : kCompassWidth) * xs;
+            float rightW = (viewerSlots > 0 ? kRightColWidth : kCompassWidth) * xs;
             x1 = kViewerRight - rightW - kStepGap;
             x0 = x1 - w;
             y0 = kViewerTop;
@@ -569,19 +641,20 @@ namespace layout {
 
     // Bottom y of active right-hand Lab overlays (Option A GC Controller, Adaptive Plate, Drill Stat Plate).
     inline float rightColumnBottom(const Box& band, int viewerSlots, bool hasCompass, bool hasPsa, bool wide,
-                                   bool hasAdaptive = false, int drillPlateRows = 0)
+                                   bool hasAdaptive = false, int drillPlateRows = 0, bool trainingSidebar = false)
     {
         (void)hasPsa;
-        float bottom = 0.0f;
+        float bottom = trainingSidebar ? trainingSidebarRoom(wide).y1 : 0.0f;
+        float sbLeft = trainingSidebar ? trainingSidebarRoom(wide).x0 : 0.0f;
         for (int s = 0; s < viewerSlots; s++)
         {
-            Box vb = inputViewerCardBox(s, band, wide);
-            if (vb.y1 > bottom)
+            Box vb = inputViewerCardBox(s, band, wide, trainingSidebar);
+            if ((!trainingSidebar || vb.x1 > sbLeft) && vb.y1 > bottom)
             {
                 bottom = vb.y1;
             }
         }
-        if (hasCompass)
+        if (hasCompass && !trainingSidebar)
         {
             Box comp = diCompassBox(band, viewerSlots, wide);
             if (comp.y1 > bottom)
@@ -591,16 +664,16 @@ namespace layout {
         }
         if (hasAdaptive)
         {
-            Box adap = adaptiveHudBox(band, viewerSlots, hasCompass, false, wide);
-            if (adap.y1 > bottom)
+            Box adap = adaptiveHudBox(band, viewerSlots, hasCompass, false, wide, 0.0f, trainingSidebar);
+            if ((!trainingSidebar || adap.x1 > sbLeft) && adap.y1 > bottom)
             {
                 bottom = adap.y1;
             }
         }
         if (drillPlateRows > 0)
         {
-            Box plate = drillStatPlateBox(drillPlateRows, bottom, wide);
-            if (plate.y1 > bottom)
+            Box plate = drillStatPlateBox(drillPlateRows, bottom, wide, trainingSidebar);
+            if ((!trainingSidebar || plate.x1 > sbLeft) && plate.y1 > bottom)
             {
                 bottom = plate.y1;
             }

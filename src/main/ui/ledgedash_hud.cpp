@@ -8,8 +8,10 @@
 #include "main/gfx/text.h"
 #include "main/settings.h"
 #include "main/ui/hud_layout.h"
+#include "main/ui/match_hud.h"
 #include "main/ui/menu.h"
 #include "main/ui/style.h"
+#include "shared/game/scene.h"
 
 // Minimal neutral Ledgedash HUD: displays a per-frame bar for the last
 // ledgedash (kept for 300 frames), a standardized top summary strip (GALINT,
@@ -198,31 +200,33 @@ namespace ui {
             }
 
             int vSlots = layout::inputViewerSlotCount(settings().display.inputViewer);
-            float aboveBot = 0.0f;
+            bool sidebar = game::trainingGameMode() && settings().display.hud != 0 && ui::matchHudCounterShown();
+            float aboveBot = sidebar ? layout::trainingSidebarRoom(wide).y1 : 0.0f;
+            float sbLeft = sidebar ? layout::trainingSidebarRoom(wide).x0 : 0.0f;
             if (vSlots > 0)
             {
                 layout::Box band = layout::topBand();
                 for (int s = 0; s < vSlots; s++)
                 {
-                    layout::Box vb = layout::inputViewerCardBox(s, band, wide);
-                    if (vb.y1 > aboveBot)
+                    layout::Box vb = layout::inputViewerCardBox(s, band, wide, sidebar);
+                    if ((!sidebar || vb.x1 > sbLeft) && vb.y1 > aboveBot)
                     {
                         aboveBot = vb.y1;
                     }
                 }
             }
-            layout::Box plate = layout::drillStatPlateBox(3, aboveBot, wide);
+            layout::Box plate = layout::drillStatPlateBox(3, aboveBot, wide, sidebar);
             float pw = plate.x1 - plate.x0;
             float ph = plate.y1 - plate.y0;
             float pcx = (plate.x0 + plate.x1) * 0.5f;
-            float maxW = pw - 10.0f * xs;
+            float maxW = pw - 2.0f * style::kFibTight * xs;
             gfx::fillRect(plate.x0, plate.y0, pw, ph, 0x0E161EA6u);
 
             static const char* const kRowLabels[3] = {"GALINT", "On Ledge", "Angle"};
             const char* rowVals[3] = {galintBuf, ledgeBuf, angleBuf};
             const gfx::Rgba rowCols[3] = {galintCol, 0xF4F8FCFFu, 0xF4F8FCFFu};
-            float lblSc = style::scaleForCap(8.2f);
-            float valSc = style::scaleForCap(11.5f);
+            float lblSc = style::scaleForCap(style::kTypeMeta);
+            float valSc = style::scaleForCap(style::kTypeHeading);
             for (int r = 0; r < 3; r++)
             {
                 float ry = plate.y0 + 4.0f + r * layout::kDrillPlateRowH;
@@ -239,7 +243,7 @@ namespace ui {
                 float vw = gfx::textWidth(rowVals[r], valSc);
                 float sx = (vw > maxW && vw > 0.0f) ? (valSc * maxW / vw) : valSc;
                 float vx = pcx - (vw > maxW ? maxW : vw) * 0.5f;
-                float vy = style::textYForCap(ry + 15.0f, valSc);
+                float vy = style::textYForCap(ry + 16.0f, valSc);
                 gfx::text(vx + xs, vy + 1.0f, rowVals[r], 0x000000D0u, sx, valSc);
                 gfx::text(vx, vy, rowVals[r], rowCols[r], sx, valSc);
             }

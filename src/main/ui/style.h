@@ -152,26 +152,44 @@ namespace style {
     static const gfx::Rgba kLabBtnDarkText = 0x081217FF;
     static const gfx::Rgba kLabWhiteText = 0xFFFFFFFF;
 
-    // ---- Legacy menu panel geometry (used by CSS browser & drill list) ----
+    // ---- Shared Fibonacci spacing ladder (F3..F11; 480i anti-twitter floor >= 2 px) ----
+    static const float kFibHair = 2.0f;    // F3: horizontal divider rules, anti-twitter floor
+    static const float kFibBorder = 3.0f;  // F4: outer frame border, tight micro-gap
+    static const float kFibTight = 5.0f;   // F5: inter-row gap, dense footer gap, compact inset
+    static const float kFibGap = 8.0f;     // F6: pane/card gutter, scrollbar track width, HUD gap
+    static const float kFibPad = 13.0f;    // F7: modal/card inner padding, standard footer item gap
+    static const float kFibRowH = 21.0f;   // F8: value pill height, compact row, crumb bar, min thumb
+    static const float kFibBandH = 34.0f;  // F9: unified header/footer band height, stat-plate row pitch
+    static const float kFibUnit = 55.0f;   // F10: GC controller height, Adaptive CPU plate height
+    static const float kFibBlock = 89.0f;  // F11: macro block reference
+
+    // ---- Shared 5-tier typography scale (480i floors: Rodin >= 8.0, Display >= 8.5) ----
+    static const float kTypeMicro = 8.0f;    // Rodin: dense footer, version mark, compact HUD hints
+    static const float kTypeMeta = 9.0f;     // Rodin / Display: rail items, top tabs, desc, crumbs, labels
+    static const float kTypeBody = 10.5f;    // Rodin: Lab rows/pills, Boot Mode list & card body, modal rows
+    static const float kTypeHeading = 13.0f; // DisplayFont: Lab header, modal headers, card title, stat values
+    static const float kTypeHero = 21.0f;    // DisplayFont: Drill End-Screen hero score (~phi jump from 13.0)
+
+    // ---- Legacy menu panel geometry (used by CSS recordings browser) ----
     static const float kPanelLeft = 48.0f;
     static const float kPanelRight = 592.0f;
     static const float kPanelTop = 44.0f;
     static const float kPanelBottom = 428.0f;
     static const float kBorderX = 2.0f;
     static const float kBorderY = 2.0f;
-    static const float kTitleBandBottom = 88.0f;
-    static const float kRowsBandBottom = 354.0f;
+    static const float kTitleBandBottom = 83.0f;
+    static const float kRowsBandBottom = 355.0f;
 
     static const float kTitleX = 72.0f;
     static const float kTitleCapTop = 58.0f;
     static const float kTitleCap = 20.0f;
 
-    // Browser and CSS launcher use kVisibleRows (10); in-match Lab menu uses
-    // kLabVisibleRows (11), or kLabSubVisibleRows (10) in Top Tabs subpages.
+    // Browser and Boot Mode Select use kVisibleRows (10); in-match Lab menu uses
+    // kLabVisibleRows (10), or kLabSubVisibleRows (9) on subpages with the 21 px crumb bar.
     enum {
         kVisibleRows = 10,
-        kLabVisibleRows = 11,
-        kLabSubVisibleRows = 10,
+        kLabVisibleRows = 10,
+        kLabSubVisibleRows = 9,
         kScrollMargin = 1,
         kFooterLines = 4
     };
@@ -182,85 +200,91 @@ namespace style {
     static const float kLabRight = 604.0f;
     static const float kLabTop = 26.0f;
     static const float kLabBottom = 432.0f;
-    static const float kLabBorder = 3.0f;
+    static const float kLabBorder = kFibBorder;
     static const float kLabInnerLeft = 39.0f;
     static const float kLabInnerRight = 601.0f;
     static const float kLabInnerTop = 29.0f;
     static const float kLabInnerBottom = 429.0f;
 
-    static const float kLabDescTop = 373.0f;
-    static const float kLabFooterTop = 400.0f;
-    static const float kLabDescCap = 9.5f;
-    static const float kLabFooterCap = 9.0f;
-    static const float kLabRowCap = 10.5f;
-    static const float kLabRowPitch = 28.0f;
+    static const float kLabHeaderBottom = 63.0f; // kLabInnerTop + kFibBandH (34)
+    static const float kLabBodyTop = 65.0f;      // + kFibHair (2) divider
+    static const float kLabCrumbBottom = 86.0f;  // kLabBodyTop + kFibRowH (21)
+    static const float kLabSubBodyTop = 88.0f;   // + kFibHair (2) divider
+    static const float kLabDescTop = 366.0f;     // 2 px div + 25 px fill (8 + 9 + 8)
+    static const float kLabFooterTop = 393.0f;   // 2 px div + 34 px (F9) fill (395..429)
+    static const float kLabDescCap = kTypeMeta;
+    static const float kLabFooterCap = kTypeMeta;
+    static const float kLabRowCap = kTypeBody;
+    static const float kLabRowPitch = 28.0f;     // kLabRowH (23) + kFibTight (5)
     static const float kLabRowH = 23.0f;
-    static const float kLabPillH = 21.0f;
-    static const float kLabScrollLeft = 586.0f;
-    static const float kLabScrollW = 8.0f;
+    static const float kLabPillH = kFibRowH;     // 21.0f (F8)
+    static const float kLabScrollLeft = 585.0f;  // 8 px (F6) right inset to 601
+    static const float kLabScrollW = kFibGap;    // 8.0f (F6)
 
-    // Category Rail geometry.
-    static const float kRailHeaderBottom = 56.0f;
-    static const float kRailBodyTop = 58.0f;
-    static const float kRailRight = 196.0f;
-    static const float kRailPaneLeft = 197.0f;
-    static const float kRailRowTop = 63.0f;
-    static const float kRailScrollH = 303.0f;
-    static const float kRailHlLeft = 200.0f;
-    static const float kRailHlRight = 581.0f;
-    static const float kRailNameX = 216.0f;
-    static const float kRailNameMaxW = 190.0f;
+    // Category Rail geometry (unified 34 px header, 21 px subpage crumb, 5 px gaps).
+    static const float kRailHeaderBottom = kLabHeaderBottom;
+    static const float kRailBodyTop = kLabBodyTop;
+    static const float kRailRight = 195.0f;      // 39..195 (W = 156) + 2 px div (195..197)
+    static const float kRailPaneLeft = 197.0f;   // 197..601 (W = 404)
+    static const float kRailRowTop = 73.0f;      // kLabBodyTop (65) + kFibGap (8)
+    static const float kRailSubRowTop = 96.0f;   // kLabSubBodyTop (88) + kFibGap (8)
+    static const float kRailScrollH = 275.0f;    // 10 rows: 9 * 28 + 23
+    static const float kRailSubScrollH = 247.0f; // 9 rows: 8 * 28 + 23
+    static const float kRailHlLeft = 202.0f;     // kRailPaneLeft (197) + kFibTight (5)
+    static const float kRailHlRight = 580.0f;    // kLabScrollLeft (585) - kFibTight (5)
+    static const float kRailNameX = 223.0f;      // clears cursor triangle cleanly
+    static const float kRailNameMaxW = 178.0f;   // 410 - 223 - 9
     static const float kRailPillLeft = 410.0f;
-    static const float kRailPillRight = 577.0f;
-    static const float kRailValCenter = 493.5f;
+    static const float kRailPillRight = 575.0f;  // kRailHlRight (580) - kFibTight (5)
+    static const float kRailValCenter = 492.5f;
     static const float kRailValMaxW = 135.0f;
-    static const float kRailItemTop = 63.0f;
-    static const float kRailItemPitch = 28.0f;
-    static const float kRailItemH = 24.0f;
-    static const float kRailUtilDivY = 262.0f;
-    static const float kRailUtilTop = 270.0f;
-    static const float kRailTextX = 56.0f;
-    static const float kRailTextMaxW = 132.0f;
-    static const float kRailCap = 9.0f;
+    static const float kRailItemTop = 73.0f;     // aligns pixel-for-pixel with option row 0
+    static const float kRailItemPitch = 28.0f;   // kRailItemH (23) + kFibTight (5)
+    static const float kRailItemH = 23.0f;
+    static const float kRailUtilDivY = 269.0f;   // 73 + 6*28 + 23 = 264 -> +5 = 269
+    static const float kRailUtilTop = 276.0f;    // 269 + 2 div + 5 gap = 276
+    static const float kRailTextX = 52.0f;       // kLabInnerLeft (39) + kFibPad (13)
+    static const float kRailTextMaxW = 128.0f;
+    static const float kRailCap = kTypeMeta;
 
-    // Top L/R Tabs geometry.
-    static const float kTabsBarBottom = 58.0f;
-    static const float kTabsBodyTop = 60.0f;
-    static const float kTabsCrumbBottom = 80.0f;
-    static const float kTabsRowTop = 64.0f;
-    static const float kTabsSubRowTop = 85.0f;
-    static const float kTabsScrollH = 303.0f;
-    static const float kTabsSubScrollH = 275.0f;
-    static const float kTabsHlLeft = 45.0f;
-    static const float kTabsHlRight = 579.0f;
-    static const float kTabsNameX = 62.0f;
-    static const float kTabsNameMaxW = 286.0f;
+    // Top L/R Tabs geometry (unified 34 px header, 21 px subpage crumb, 5 px gaps).
+    static const float kTabsBarBottom = kLabHeaderBottom;
+    static const float kTabsBodyTop = kLabBodyTop;
+    static const float kTabsCrumbBottom = kLabCrumbBottom;
+    static const float kTabsRowTop = kRailRowTop;
+    static const float kTabsSubRowTop = kRailSubRowTop;
+    static const float kTabsScrollH = kRailScrollH;
+    static const float kTabsSubScrollH = kRailSubScrollH;
+    static const float kTabsHlLeft = 47.0f;      // kLabInnerLeft (39) + kFibGap (8)
+    static const float kTabsHlRight = 580.0f;    // kLabScrollLeft (585) - kFibTight (5)
+    static const float kTabsNameX = 68.0f;       // kTabsHlLeft (47) + kFibRowH (21)
+    static const float kTabsNameMaxW = 280.0f;
     static const float kTabsPillLeft = 356.0f;
-    static const float kTabsPillRight = 574.0f;
-    static const float kTabsValCenter = 465.0f;
+    static const float kTabsPillRight = 575.0f;  // kTabsHlRight (580) - kFibTight (5)
+    static const float kTabsValCenter = 465.5f;
     static const float kTabsValMaxW = 182.0f;
-    static const float kTabsCap = 8.5f;
-    static const float kRowTop = 98.0f;
-    static const float kRowPitch = 25.0f;
-    static const float kRowBoxH = 21.0f;
+    static const float kTabsCap = kTypeMeta;
+    static const float kRowTop = 91.0f;
+    static const float kRowPitch = 26.0f;        // kRowBoxH (21) + kFibTight (5)
+    static const float kRowBoxH = kFibRowH;      // 21.0f (F8)
     static const float kNameX = 72.0f;
-    static const float kRowCap = 11.5f;
+    static const float kRowCap = kTypeBody;      // 10.5f
     static const float kNameMaxW = 248.0f;
     static const float kValueCentre = 446.0f;
     static const float kValueMaxW = 192.0f;
     static const float kRowBoxLeft = 344.0f;
-    static const float kRowBoxRight = 548.0f;
+    static const float kRowBoxRight = 556.0f;
     static const float kHighlightLeft = 64.0f;
     static const float kHighlightRight = 554.0f;
-    static const float kScrollLeft = 566.0f;
-    static const float kScrollW = 10.0f;
-    static const float kScrollTop = 98.0f;
-    static const float kScrollH = 246.0f;
+    static const float kScrollLeft = 573.0f;     // 589 - 8 inset - 8 track = 573
+    static const float kScrollW = kFibGap;       // 8.0f (F6)
+    static const float kScrollTop = 91.0f;
+    static const float kScrollH = 255.0f;        // 10 rows: 9 * 26 + 21
 
-    static const float kFooterX = 72.0f;
-    static const float kFooterCapTop = 362.0f;
-    static const float kFooterPitch = 15.0f;
-    static const float kFooterMaxW = 476.0f;
+    static const float kFooterX = 64.0f;         // 51 + kFibPad (13)
+    static const float kFooterCapTop = 360.0f;
+    static const float kFooterPitch = kFibPad;   // 13.0f (F7)
+    static const float kFooterMaxW = 512.0f;
 
     // Key repeat timings in frames; kRepeatFast while R is held.
     enum { kRepeatStart = 18, kRepeatEvery = 4, kRepeatFast = 2 };

@@ -25,6 +25,7 @@
 #include "main/services.h"
 #include "main/settings.h"
 #include "main/ui/hud_layout.h"
+#include "main/ui/match_hud.h"
 #include "main/ui/menu.h"
 #include "shared/game/frame.h"
 #include "shared/game/heap.h"
@@ -212,6 +213,10 @@ namespace ui {
     void x_menuSound(int id)
     {
         menuSound(id);
+    }
+    void x_hidePlayerDamageHud(int playerNo)
+    {
+        hidePlayerDamageHud(playerNo);
     }
 
     namespace layout {

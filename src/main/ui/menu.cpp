@@ -85,7 +85,7 @@ namespace ui {
 
     static int visibleRowLimit(const MenuDef& def, const MenuState& state)
     {
-        return (isTabsStyle(def) && state.depth > 0) ? kLabSubVisibleRows : kLabVisibleRows;
+        return (def.categoryCount > 0 && state.depth > 0) ? kLabSubVisibleRows : kLabVisibleRows;
     }
 
     int currentPage(const MenuState& state)
@@ -1219,9 +1219,9 @@ namespace ui {
         gfx::fillRect(left, topY, width, height, pal.divider);
         float inner = height - 4.0f;
         float length = inner * visible / count;
-        if (length < 14.0f)
+        if (length < kFibRowH)
         {
-            length = 14.0f;
+            length = kFibRowH;
         }
         int maxScroll = count - visible;
         if (scroll > maxScroll)
@@ -1415,7 +1415,7 @@ namespace ui {
                 char confirmBuf[96];
                 snprintf(confirmBuf, sizeof(confirmBuf), "Press %s again to reset %s to defaults.", btn,
                          pageTitle(def, confirmPg));
-                fitText(48.0f, y, confirmBuf, kLabFocusGold, scale, 544.0f, false);
+                fitText(kLabInnerLeft + kFibPad, y, confirmBuf, kLabFocusGold, scale, 536.0f, false);
                 return;
             }
         }
@@ -1443,7 +1443,7 @@ namespace ui {
         {
             desc = "Use D-Pad or Stick to select and adjust lab options.";
         }
-        fitText(48.0f, y, desc, pal.descText, scale, 544.0f, false);
+        fitText(kLabInnerLeft + kFibPad, y, desc, pal.descText, scale, 536.0f, false);
     }
 
     static void drawFooterStrip(const MenuDef& def, const MenuState& state, u8 pageId, const Page& p, int cur,
@@ -1543,12 +1543,11 @@ namespace ui {
 
         static const struct {
             float cap, startX, minW, iconGap, itemGap, padW;
-        } kFoot[3] = {
-            {kLabFooterCap, 48.0f, 16.0f, 5.0f, 13.0f, 10.0f},
-            {8.0f,          43.0f, 14.5f, 3.0f,  7.0f,  7.0f},
-            {7.5f,          43.0f, 13.5f, 2.5f,  5.5f,  6.0f}
+        } kFoot[2] = {
+            {kTypeMeta,  kLabInnerLeft + kFibPad,   16.0f,   kFibTight,  kFibPad,   10.0f},
+            {kTypeMicro, kLabInnerLeft + kFibTight, kFibPad, kFibBorder, kFibTight, kFibTight}
         };
-        int tier = n >= 7 ? 2 : (n >= 6 ? 1 : 0);
+        int tier = n >= 6 ? 1 : 0;
         const float cap = kFoot[tier].cap;
         float scale = scaleForCap(cap);
         float footerMidY = kLabFooterTop + 2.0f + (kLabInnerBottom - kLabFooterTop - 4.0f) * 0.5f;
@@ -1591,32 +1590,39 @@ namespace ui {
     static void drawRailChrome(const MenuDef& def, const MenuState& state, const MenuPalette& pal)
     {
         float railW = kRailRight - kLabInnerLeft;
+        float paneW = kLabInnerRight - kRailPaneLeft;
         drawHeaderBand(kRailHeaderBottom, pal);
 
         float bodyH = kLabDescTop - kRailBodyTop;
         gradBox(kLabInnerLeft, kRailBodyTop, railW, bodyH, pal.railTop, pal.railBot);
-        fillBox(kRailRight, kRailBodyTop, 2.0f, bodyH, pal.divider);
-        gradBox(kRailPaneLeft + 1.0f, kRailBodyTop, kLabInnerRight - (kRailPaneLeft + 1.0f), bodyH, pal.baseTop,
-                pal.baseBot);
-        fillBox(47.0f, kRailUtilDivY, 141.0f, 2.0f, pal.divider);
+        fillBox(kRailRight, kRailBodyTop, kFibHair, bodyH, pal.divider);
+        float paneTop = kRailBodyTop;
+        if (state.depth > 0)
+        {
+            gradBox(kRailPaneLeft, kRailBodyTop, paneW, kLabCrumbBottom - kRailBodyTop, pal.descTop, pal.descBot);
+            fillBox(kRailPaneLeft, kLabCrumbBottom, paneW, kFibHair, pal.divider);
+            paneTop = kLabSubBodyTop;
+        }
+        gradBox(kRailPaneLeft, paneTop, paneW, kLabDescTop - paneTop, pal.baseTop, pal.baseBot);
+        fillBox(kLabInnerLeft + kFibGap, kRailUtilDivY, railW - 2.0f * kFibGap, kFibHair, pal.divider);
 
-        // Flush vertical left edge on top emerald-teal breadcrumb header ribbon + // stripes.
+        // Flush vertical left edge on top emerald-teal header ribbon + // stripes.
         bool utilFoc = railUtilityFocused(def, state);
         float hdrH = kRailHeaderBottom - kLabInnerTop;
         float hdrSlant = hdrH * kSlantTan;
-        float ribbonRight = state.depth > 0 ? 394.0f : 268.0f;
+        float ribbonRight = 292.0f;
         drawSlantBar(kLabInnerLeft, ribbonRight, kLabInnerTop, hdrH, true, pal.accentTop, pal.accentBot, 0);
         drawDiagStripes(cx(ribbonRight - 6.0f), kLabInnerTop, kRailHeaderBottom, w(hdrSlant), w(4.5f), w(3.5f),
                         kLabStripeCol);
 
         // Flush vertical left edge on active left-rail category/utility bar (slanted right edge).
-        float itemW = railW - 4.0f;
+        float itemW = railW - kFibTight;
         for (u8 i = 0; i < def.categoryCount; i++)
         {
             float y = kRailItemTop + i * kRailItemPitch;
             if (state.railFocus && state.railCursor == i)
             {
-                drawGoldBar(kLabInnerLeft, itemW, y, kRailItemH, 8.5f, true, kLabInnerLeft + itemW - 5.0f);
+                drawGoldBar(kLabInnerLeft, itemW, y, kRailItemH, 8.5f, true, kLabInnerLeft + itemW - kFibTight);
             }
             else if (!state.railFocus && state.category == i)
             {
@@ -1629,26 +1635,25 @@ namespace ui {
             if (state.railFocus && state.railCursor == def.categoryCount + u)
             {
                 drawGoldBar(kLabInnerLeft, itemW, kRailUtilTop + u * kRailItemPitch, kRailItemH, 8.5f, true,
-                            kLabInnerLeft + itemW - 5.0f);
+                            kLabInnerLeft + itemW - kFibTight);
             }
         }
 
         float headerMid = (kLabInnerTop + kRailHeaderBottom) * 0.5f;
-        float ribbonMaxW = ribbonRight - kLabInnerLeft - 38.0f;
-        if (utilFoc || state.depth == 0)
+        float ribbonMaxW = ribbonRight - (kLabInnerLeft + kFibPad) - 28.0f;
+        const char* hdr = utilFoc ? def.utilities[state.railCursor - def.categoryCount].name
+                                  : pageTitle(def, state.stack[0]);
+        fitDisplay(kLabInnerLeft + kFibPad, headerMid - kTypeHeading * 0.5f, hdr, pal.activeTabText, kTypeHeading,
+                   ribbonMaxW, 0);
+        if (state.depth > 0)
         {
-            const char* hdr = utilFoc ? def.utilities[state.railCursor - def.categoryCount].name
-                                      : pageTitle(def, state.stack[0]);
-            fitDisplay(48.0f, headerMid - 6.0f, hdr, pal.activeTabText, 12.0f, ribbonMaxW, 0);
+            drawBreadcrumb(def, state, kRailHlLeft + kFibGap, (kRailBodyTop + kLabCrumbBottom) * 0.5f, kTypeMeta,
+                           376.0f, pal);
         }
-        else
-        {
-            drawBreadcrumb(def, state, 48.0f, headerMid, 10.0f, ribbonMaxW, pal, true);
-        }
-        float verScale = scaleForCap(7.5f);
+        float verScale = scaleForCap(kTypeMicro);
         float verW = boldWidth(TM_VERSION_MARK, verScale);
-        boldText(cx(594.0f) - verW, textYForCap(headerMid - 3.75f, verScale), TM_VERSION_MARK, pal.mutedText,
-                 verScale, verScale);
+        boldText(cx(kLabInnerRight - kFibGap) - verW, textYForCap(headerMid - kTypeMicro * 0.5f, verScale),
+                 TM_VERSION_MARK, pal.mutedText, verScale, verScale);
 
         float capOff = (kRailItemH - kRailCap) * 0.5f;
         for (u8 i = 0; i < def.categoryCount; i++)
@@ -1657,7 +1662,7 @@ namespace ui {
             gfx::Rgba col = focused ? kLabGoldInk
                                     : (!state.railFocus && state.category == i ? pal.activeTabText : pal.mutedText);
             fitDisplay(kRailTextX, kRailItemTop + i * kRailItemPitch + capOff,
-                       pageTitle(def, def.categoryPages[i]), col, kRailCap, kRailTextMaxW - 8.0f, 0);
+                       pageTitle(def, def.categoryPages[i]), col, kRailCap, kRailTextMaxW - kFibGap, 0);
         }
         for (u8 u = 0; u < def.utilityCount; u++)
         {
@@ -1667,7 +1672,7 @@ namespace ui {
             gfx::Rgba col = focused ? (confirming ? 0x7A0C00FF : kLabGoldInk)
                                     : (confirming ? kLabFocusGold : pal.mutedText);
             fitDisplay(kRailTextX, kRailUtilTop + u * kRailItemPitch + capOff, label, col, kRailCap,
-                       kRailTextMaxW - 8.0f, 0);
+                       kRailTextMaxW - kFibGap, 0);
         }
     }
 
@@ -1681,51 +1686,51 @@ namespace ui {
         {
             gradBox(kLabInnerLeft, kTabsBodyTop, innerW, kTabsCrumbBottom - kTabsBodyTop, pal.descTop,
                     pal.descBot);
-            fillBox(kLabInnerLeft, kTabsCrumbBottom, innerW, 2.0f, pal.divider);
-            paneTop = kTabsCrumbBottom + 2.0f;
+            fillBox(kLabInnerLeft, kTabsCrumbBottom, innerW, kFibHair, pal.divider);
+            paneTop = kLabSubBodyTop;
         }
         gradBox(kLabInnerLeft, paneTop, innerW, kLabDescTop - paneTop, pal.baseTop, pal.baseBot);
 
-        // Proportional 7-tab widths spanning x 79..561 (sum 458 + 6*4 gaps = 482),
-        // sized for 100% natural Brawl Display Font width at kTabsCap (8.5f).
-        static const float kTabWidths[7] = {38.0f, 86.0f, 42.0f, 86.0f, 64.0f, 50.0f, 92.0f};
-        float tabY = 33.0f;
-        float tabH = 22.0f;
+        // Proportional 7-tab widths spanning x 76..564 (sum 458 + 6*5 gaps = 488),
+        // sized for 100% natural Brawl Display Font width at kTabsCap (9.0f).
+        static const float kTabWidths[7] = {38.0f, 86.0f, 40.0f, 86.0f, 66.0f, 50.0f, 92.0f};
+        float tabY = 36.0f;
+        float tabH = kFibRowH;
         float tabMidY = tabY + tabH * 0.5f;
         const CtrlSpec& cs = ctrlSpec(state.controllerType);
         bool leftUsedIcon = false;
         bool rightUsedIcon = false;
         if (cs.tabL != kNoIcon)
         {
-            drawEmblem(cs.tabL, kNoIcon, cx(59.0f), tabMidY, w(26.0f), 2, kEmblemCentre | kEmblemTab, leftUsedIcon);
+            drawEmblem(cs.tabL, kNoIcon, cx(57.5f), tabMidY, w(24.0f), 2, kEmblemCentre | kEmblemTab, leftUsedIcon);
         }
         bool rRound = (cs.roundBits & 8) != 0;
-        drawEmblem(cs.tabR, kNoIcon, cx(581.0f), tabMidY, w(rRound ? 18.0f : 26.0f), 2, kEmblemCentre | kEmblemTab,
+        drawEmblem(cs.tabR, kNoIcon, cx(582.5f), tabMidY, w(rRound ? 18.0f : 24.0f), 2, kEmblemCentre | kEmblemTab,
                    rightUsedIcon);
 
         BevelCols accentBevel = {pal.accentTop, pal.accentBot, pal.accentSheen, pal.accentEdge};
         BevelCols tabBevel = {pal.tabTop, pal.tabBot, pal.bevelLight, pal.bevelDark};
-        float tx = 79.0f;
+        float tx = 76.0f;
         for (u8 i = 0; i < def.categoryCount && i < 7; i++)
         {
             float tw = kTabWidths[i];
             bevelBox(tx, tabY, tw, tabH, i == state.category ? accentBevel : tabBevel);
-            tx += tw + 4.0f;
+            tx += tw + kFibTight;
         }
 
-        float capScale = scaleForCap(9.0f);
-        float capY = textYForCap(tabMidY - 4.5f, capScale);
+        float capScale = scaleForCap(kTypeMeta);
+        float capY = textYForCap(tabMidY - kTypeMeta * 0.5f, capScale);
         if (cs.txtTabL != NULL && !leftUsedIcon)
         {
-            fitText(59.0f, capY, cs.txtTabL, kLabBtnDarkText, capScale, 24.0f, true);
+            fitText(57.5f, capY, cs.txtTabL, kLabBtnDarkText, capScale, 24.0f, true);
         }
         if (!rightUsedIcon)
         {
-            fitText(581.0f, capY, cs.txtTabR, kLabBtnDarkText, capScale, 24.0f, true);
+            fitText(582.5f, capY, cs.txtTabR, kLabBtnDarkText, capScale, 24.0f, true);
         }
 
         float labelTop = tabMidY - kTabsCap * 0.5f;
-        tx = 79.0f;
+        tx = 76.0f;
         for (u8 i = 0; i < def.categoryCount && i < 7; i++)
         {
             float tw = kTabWidths[i];
@@ -1743,12 +1748,12 @@ namespace ui {
             }
             gfx::Rgba col = i == state.category ? pal.activeTabText : pal.tabInactiveText;
             fitDisplay(tx + tw * 0.5f, labelTop, label, col, kTabsCap, tw - 6.0f, 1);
-            tx += tw + 4.0f;
+            tx += tw + kFibTight;
         }
 
         if (state.depth > 0)
         {
-            drawBreadcrumb(def, state, kTabsNameX, (kTabsBodyTop + kTabsCrumbBottom) * 0.5f, 9.5f, 520.0f, pal);
+            drawBreadcrumb(def, state, kTabsNameX, (kTabsBodyTop + kTabsCrumbBottom) * 0.5f, kTypeMeta, 520.0f, pal);
         }
     }
 
@@ -1757,7 +1762,8 @@ namespace ui {
         drawHeaderBand(kRailHeaderBottom, pal);
         gradBox(kLabInnerLeft, kRailBodyTop, kLabInnerRight - kLabInnerLeft, kLabDescTop - kRailBodyTop, pal.baseTop,
                 pal.baseBot);
-        fitDisplay(48.0f, (kLabInnerTop + kRailHeaderBottom) * 0.5f - 6.25f, p.title, 0, 12.5f, 540.0f, 2);
+        fitDisplay(kLabInnerLeft + kFibPad, (kLabInnerTop + kRailHeaderBottom) * 0.5f - kTypeHeading * 0.5f, p.title,
+                   0, kTypeHeading, 536.0f, 2);
     }
 #pragma dont_inline reset
 
@@ -1802,7 +1808,7 @@ namespace ui {
             float pillLeft, pillRight, valCenter, valMaxW;
         };
         static const PaneGeom kGeom[2] = {
-            {kRailRowTop, kRailRowTop, kRailScrollH, kRailScrollH, kRailHlLeft, kRailHlRight, kRailNameX,
+            {kRailRowTop, kRailSubRowTop, kRailScrollH, kRailSubScrollH, kRailHlLeft, kRailHlRight, kRailNameX,
              kRailNameMaxW, kRailPillLeft, kRailPillRight, kRailValCenter, kRailValMaxW},
             {kTabsRowTop, kTabsSubRowTop, kTabsScrollH, kTabsSubScrollH, kTabsHlLeft, kTabsHlRight, kTabsNameX,
              kTabsNameMaxW, kTabsPillLeft, kTabsPillRight, kTabsValCenter, kTabsValMaxW}
@@ -1838,25 +1844,29 @@ namespace ui {
             bool confirming = act.label != NULL && act.label[0] != '\0';
             float cardX = kRailPaneLeft + 26.0f;
             float cardW = (kLabInnerRight - kRailPaneLeft) - 52.0f;
-            float cardY = 148.0f;
-            float cardH = 112.0f;
+            float cardY = 152.0f;
+            float cardH = 116.0f;
             float cardCenter = cardX + cardW * 0.5f;
             fillBox(cardX, cardY, cardW, cardH, pal.divider);
-            gradBox(cardX + 2.0f, cardY + 2.0f, cardW - 4.0f, 32.0f, pal.headerTop, pal.headerBot);
-            gradBox(cardX + 2.0f, cardY + 34.0f, cardW - 4.0f, cardH - 36.0f, pal.descTop, pal.descBot);
-            fillBox(cardX + 2.0f, cardY + 34.0f, cardW - 4.0f, 2.0f, pal.divider);
+            gradBox(cardX + kFibHair, cardY + kFibHair, cardW - 2.0f * kFibHair, kFibBandH, pal.headerTop,
+                    pal.headerBot);
+            gradBox(cardX + kFibHair, cardY + kFibHair + kFibBandH, cardW - 2.0f * kFibHair,
+                    cardH - kFibBandH - 2.0f * kFibHair, pal.descTop, pal.descBot);
+            fillBox(cardX + kFibHair, cardY + kFibHair + kFibBandH, cardW - 2.0f * kFibHair, kFibHair, pal.divider);
 
-            fitDisplay(cardCenter, cardY + 12.0f, act.name, 0, 11.0f, cardW - 24.0f, 3);
+            fitDisplay(cardCenter, cardY + kFibHair + (kFibBandH - kTypeHeading) * 0.5f, act.name, 0, kTypeHeading,
+                       cardW - 2.0f * kFibPad, 3);
             const char* uDesc = main::extraOptionDesc(def.pageCount, state.railCursor);
             if (uDesc != NULL && uDesc[0] != '\0')
             {
-                float dScale = scaleForCap(kLabDescCap);
-                fitText(cardCenter, textYForCap(cardY + 52.0f, dScale), uDesc, pal.descText, dScale, cardW - 24.0f, true);
+                float dScale = scaleForCap(kTypeMeta);
+                fitText(cardCenter, textYForCap(cardY + kFibBandH + 18.0f, dScale), uDesc, pal.descText, dScale,
+                        cardW - 2.0f * kFibPad, true);
             }
             const char* prompt = confirming ? "Press A again to confirm." : "Press A to run this action.";
-            float pScale = scaleForCap(kLabFooterCap);
-            fitText(cardCenter, textYForCap(cardY + 82.0f, pScale), prompt,
-                    confirming ? kLabFocusGold : pal.mutedText, pScale, cardW - 24.0f, true);
+            float pScale = scaleForCap(kTypeMeta);
+            fitText(cardCenter, textYForCap(cardY + kFibBandH + 46.0f, pScale), prompt,
+                    confirming ? kLabFocusGold : pal.mutedText, pScale, cardW - 2.0f * kFibPad, true);
         }
         else
         {
@@ -1909,7 +1919,7 @@ namespace ui {
                 bool on = active(o) && (!diPicking || selected);
                 bool grey = false;
                 gfx::Rgba nameCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted) : (on ? kText : kTextDisabled);
-                fitText(g.nameX + 4.0f, y, o.name, nameCol, scale, g.nameMaxW - 20.0f, false);
+                fitText(g.nameX, y, o.name, nameCol, scale, g.nameMaxW, false);
                 const char* value = valueText(def, o, buf, sizeof(buf), grey);
                 if (value != NULL && value[0] != '\0')
                 {

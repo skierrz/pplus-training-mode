@@ -28,6 +28,7 @@
 #include "extra/net_alloc.h"
 #include "extra/pplus_collision.h"
 #include "extra/stage_geom.h"
+#include "main/ui/style.h"
 #include "main/game/fighters.h"
 #include "main/gfx/draw.h"
 #include "main/gfx/text.h"
@@ -782,22 +783,22 @@ namespace extra {
         const bool wide = gfx::widescreen();
         const float xs = ui::layout::xsOf(wide);
         const ui::layout::Box b = ui::layout::comboBreakHudBox(wide);
-        // Integer scanline plate centered at 320.0 (5% CRT safe on 4:3 and 16:9).
-        const float bw = 344.0f * xs;
-        const float ox = 320.0f - bw * 0.5f;
-        const float oy = b.y0; // 24.0f (integer scanline)
-        const float bh = 44.0f;
+        // Synced pixel-for-pixel to layout::comboBreakHudBox(wide) (316*xs x 40 at y = 24..64).
+        const float ox = b.x0;
+        const float oy = b.y0;
+        const float bw = b.x1 - b.x0;
+        const float bh = b.y1 - b.y0;
 
         // Panel B quiet borderless smoked plate (zero wireframe border, zero neon accent bar).
         gfx::fillRect(ox, oy, bw, bh, 0x0E161EA6u);
 
-        const float padX = 10.0f * xs;
+        const float padX = ui::style::kFibGap * xs;
         const float lx = ox + padX;
         const float rx = ox + bw - padX;
-        const float txtSc = 10.0f / 15.0f; // 10.0 scanlines (480i CRT readable)
+        const float txtSc = ui::style::scaleForCap(ui::style::kTypeMeta);
 
-        // Top row (y = 28): calm white Rodin title + mode/timer readout.
-        const float topY = oy + 4.0f;
+        // Top row: calm white Rodin title + mode/timer readout.
+        const float topY = ui::style::textYForCap(oy + 4.0f, txtSc);
         drawShadowText(lx, topY, "Break the Targets!", 0xF2F6FAFFu, txtSc);
 
         char buf[32];
@@ -816,17 +817,17 @@ namespace extra {
         }
 
         // 2px integer-Y inset divider matching Panel B grounding (480i interlace-safe).
-        gfx::fillRect(lx, oy + 20.0f, bw - 2.0f * padX, 2.0f, 0xFFFFFF24u);
+        gfx::fillRect(lx, oy + 18.0f, bw - 2.0f * padX, ui::style::kFibHair, 0xFFFFFF24u);
 
-        // Second row (y = 48): calm white labels + semantic gold/green values.
-        const float rowY = oy + 24.0f;
+        // Second row: calm white labels + semantic gold/green values.
+        const float rowY = ui::style::textYForCap(oy + 23.0f, txtSc);
         float curX = lx;
         drawShadowText(curX, rowY, "Score ", 0xD8E2ECFFu, txtSc);
         curX += gfx::textWidth("Score ", txtSc);
 
         snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(st.score));
         drawShadowText(curX, rowY, buf, 0xFFD300FFu, txtSc);
-        curX += gfx::textWidth(buf, txtSc) + 8.0f * xs;
+        curX += gfx::textWidth(buf, txtSc) + ui::style::kFibGap * xs;
 
         snprintf(buf, sizeof(buf), "x%u", static_cast<unsigned>(st.multiplier));
         gfx::Rgba multCol = st.multiplier >= 7 ? 0xFF7868FFu
@@ -847,15 +848,15 @@ namespace extra {
 
         snprintf(buf, sizeof(buf), "Chain %u", static_cast<unsigned>(st.streak));
         float stkW = gfx::textWidth(buf, txtSc);
-        float stkX = rx - bestW - 10.0f * xs - stkW;
-        if (stkX > curX + 14.0f * xs)
+        float stkX = rx - bestW - ui::style::kFibGap * xs - stkW;
+        if (stkX > curX + ui::style::kFibPad * xs)
         {
             drawShadowText(stkX, rowY, buf, st.streak > 0 ? 0x4CE688FFu : 0xB8C6D2FFu, txtSc);
         }
 
-        // 2px integer-Y chain timer bar along the bottom inset of the smoked plate (y = 64).
+        // 2px integer-Y chain timer bar along the bottom inset of the smoked plate.
         const float barW = bw - 2.0f * padX;
-        const float barY = oy + 40.0f;
+        const float barY = oy + bh - 4.0f;
         gfx::fillRect(lx, barY, barW, 2.0f, 0x060C1280u);
         if (st.chainFrames > 0)
         {

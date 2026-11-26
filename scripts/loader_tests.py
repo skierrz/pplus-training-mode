@@ -673,15 +673,15 @@ def boot_multi_port_drill_list(backend):
         emu.neutral(0)
         emu.advance(6)
         log = E.read_log(emu.log_path)
-        if re.search(r"\] drills: list (handed to port 2|closed)", log):
+        if re.search(r"\] drills: (list (handed to port 2|closed)|exiting to Solo)", log):
             return "port 2 stole ownership or closed the list while port 1 was active"
-        # Port 1 is now idle: port 2's first press (B) claims ownership without closing,
+        # Port 1 is now idle: port 2's first press (B) claims ownership without exiting/closing,
         # then port 2 moves down to row 1.
         emu.press(1, ["B"], frames=3, after=6)
         emu.wait_for("ownership hand-over to port 2",
                      lambda: re.search(r"\] drills: list handed to port 2", E.read_log(emu.log_path)), 120, every=2)
-        if re.search(r"\] drills: list closed", E.read_log(emu.log_path)):
-            return "port 2's takeover press of B closed the list on the hand-over frame"
+        if re.search(r"\] drills: (list closed|exiting to Solo)", E.read_log(emu.log_path)):
+            return "port 2's takeover press of B closed/exited the list on the hand-over frame"
         emu.press(1, ["DDOWN"], frames=3, after=6)
         emu.wait_for("port 2 to move to row 1",
                      lambda: re.search(r"\] drills: row 1 ", E.read_log(emu.log_path)), 120, every=2)
@@ -692,16 +692,16 @@ def boot_multi_port_drill_list(backend):
         emu.press(2, ["DDOWN"], frames=3, after=6)
         emu.wait_for("port 3 to move to row 2",
                      lambda: re.search(r"\] drills: row 2 ", E.read_log(emu.log_path)), 120, every=2)
-        # Port 4 takes over from idle port 3 without closing on the takeover frame, then closes with B.
+        # Port 4 takes over from idle port 3 without exiting/closing on the takeover frame, then exits to Solo with B.
         emu.press(3, ["B"], frames=3, after=6)
         emu.wait_for("ownership hand-over to port 4",
                      lambda: re.search(r"\] drills: list handed to port 4", E.read_log(emu.log_path)), 120, every=2)
-        if re.search(r"\] drills: list closed", E.read_log(emu.log_path)):
-            return "port 4's takeover press of B closed the list on the hand-over frame"
+        if re.search(r"\] drills: (list closed|exiting to Solo)", E.read_log(emu.log_path)):
+            return "port 4's takeover press of B closed/exited the list on the hand-over frame"
         emu.press(3, ["B"], frames=3, after=6)
-        emu.wait_for("port 4 to close the drill list",
-                     lambda: re.search(r"\] drills: list closed \(B\)", E.read_log(emu.log_path)), 120, every=2)
-        print("  4-port boot: active owner protected; ports 2, 3 and 4 took over, navigated and closed the drill list")
+        emu.wait_for("port 4 to exit the drill list to Solo",
+                     lambda: re.search(r"\] drills: exiting to Solo \(B\)", E.read_log(emu.log_path)), 120, every=2)
+        print("  4-port boot: active owner protected; ports 2, 3 and 4 took over, navigated and exited to Solo (B)")
     return None
 
 

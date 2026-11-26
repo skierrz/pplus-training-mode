@@ -30,6 +30,7 @@
 #include "host/canvas.h"
 #include "host/fakes.h"
 #include "host/log.h"
+#include "host/mem.h"
 #include "host/test.h"
 #include "main/game/techniques.h"
 #include "main/gfx/draw.h"
@@ -38,6 +39,7 @@
 #include "main/settings.h"
 #include "main/storage/notice.h"
 #include "main/ui/hud_layout.h"
+#include "main/ui/match_hud.h"
 #include "main/ui/osd_place.h"
 #include "main/ui/style.h"
 #include "main/ui/watermark.h"
@@ -261,7 +263,8 @@ namespace {
         seedLedgedash(cells, true, noXlu);
         canvas::clear();
         ui::hudLayoutDrawLedgedashHud();
-        // Top-center calm white swatch-legend row sits in y < kBarTop, x < 492 (first 6 rects + legend text).
+        // Top-center calm white swatch-legend row sits in y < kBarTop, left of the 118 px right column.
+        float plateSplit = layout::kViewerRight - layout::kRightColWidth - 2.0f;
         Box out = layout::none();
         for (int i = 0; i < 6 && i < canvas::rects(); i++)
         {
@@ -272,7 +275,7 @@ namespace {
         for (int i = 0; i < canvas::runs(); i++)
         {
             const canvas::Run& run = canvas::run(i);
-            if (run.y < layout::kBarTop && run.x < 492.0f)
+            if (run.y < layout::kBarTop && run.x < plateSplit)
             {
                 Box tb = {run.x, run.y, run.right, run.y + 24.0f * run.scaleY};
                 out = layout::unite(out, tb);
@@ -286,12 +289,13 @@ namespace {
         seedLedgedash(cells, true, noXlu);
         canvas::clear();
         ui::hudLayoutDrawLedgedashHud();
-        // Right-margin Panel B quiet smoked stat plate sits at x >= 492.
+        // Right-margin Panel B quiet smoked stat plate sits at x >= plateSplit (488 on 4:3).
+        float plateSplit = layout::kViewerRight - layout::kRightColWidth - 2.0f;
         Box out = layout::none();
         for (int i = 0; i < canvas::rects(); i++)
         {
             const canvas::Rect& r = canvas::rect(i);
-            if (r.x >= 492.0f)
+            if (r.x >= plateSplit)
             {
                 Box rb = {r.x, r.y, r.x + r.width, r.y + r.height};
                 out = layout::unite(out, rb);
@@ -300,7 +304,7 @@ namespace {
         for (int i = 0; i < canvas::runs(); i++)
         {
             const canvas::Run& run = canvas::run(i);
-            if (run.x >= 492.0f)
+            if (run.x >= plateSplit)
             {
                 Box tb = {run.x, run.y, run.right, run.y + 24.0f * run.scaleY};
                 out = layout::unite(out, tb);
@@ -1097,17 +1101,17 @@ TEST(hud_layout, stream2_live_hud_ergonomics_f1_to_f8_43_and_169)
         // F2/F6: Panel B Frame-Step Inspector bounds & stepping below counterRoom / labBand.
         float maxInfoW = layout::infoWidth(2, wide);
         CHECK(maxInfoW <= 218.0f * xs + 0.01f);
-        CHECK_NEAR(34.0f, layout::infoLeft(wide), 0.01f);
-        CHECK(layout::infoLeft(wide) + maxInfoW <= timer.x0 - 6.0f + 0.01f);
-        CHECK_NEAR(28.0f, layout::infoTop(timer, maxInfoW, wide), 0.01f);
+        CHECK_NEAR(32.0f, layout::infoLeft(wide), 0.01f);
+        CHECK(layout::infoLeft(wide) + maxInfoW <= timer.x0 - 8.0f + 0.01f);
+        CHECK_NEAR(24.0f, layout::infoTop(timer, maxInfoW, wide), 0.01f);
         CHECK_NEAR(counter.y1 + layout::kStepGap, layout::infoTopWithCounter(timer, maxInfoW, wide, true), 0.01f);
-        CHECK_NEAR(83.0f, layout::infoTopWithCounter(timer, maxInfoW, wide, true), 0.01f);
+        CHECK_NEAR(85.0f, layout::infoTopWithCounter(timer, maxInfoW, wide, true), 0.01f);
 
         Box ledgeBand = layout::labBand(false, 64, wide);
         CHECK(layout::infoTop(ledgeBand, maxInfoW, wide) >= ledgeBand.y1 + layout::kStepGap - 0.01f);
 
         // Ledgedash Practice Drill dynamic top band (cellCount >= 28 & 54) forces Large Info Display
-        // to step below y = 70 on both 16:9 and 4:3 (zero overlap with bar or swatch legend).
+        // to step below y = 72 on both 16:9 and 4:3 (zero overlap with bar or swatch legend).
         Box drillLedge28 = layout::drillLedgedashBand(28, wide);
         Box drillLedge54 = layout::drillLedgedashBand(54, wide);
         CHECK(inside(drillLedge28, safe));
@@ -1127,8 +1131,8 @@ TEST(hud_layout, stream2_live_hud_ergonomics_f1_to_f8_43_and_169)
         CHECK_NEAR(stackedBot, psaFlush.y0, 0.01f);
         CHECK_NEAR(layout::kInfoLeft, psaFlush.x0, 0.01f);
 
-        // PSA stays flush on Top-Left for 6-row Info at y=28 AND 4-row Info stepped to y=83
-        // (infoBottom=145, y1=253 <= 348), and falls back cleanly only when infoBottom + kPsaHeight > 348.
+        // PSA stays flush on Top-Left for 6-row Info at y=24 AND 4-row Info stepped to y=85
+        // (infoBottom=147, y1=255 <= 348), and falls back cleanly only when infoBottom + kPsaHeight > 348.
         float sixRowBot = layout::kInfoTop + layout::infoHeight(6, 2);
         Box psaSix = layout::psaInspectorBox(timer, 1, false, wide, sixRowBot);
         CHECK_NEAR(layout::kInfoLeft, psaSix.x0, 0.01f);
@@ -1136,11 +1140,11 @@ TEST(hud_layout, stream2_live_hud_ergonomics_f1_to_f8_43_and_169)
         CHECK(psaSix.y1 <= 348.0f + 0.01f);
 
         float counterInfoBot = layout::infoTopWithCounter(timer, maxInfoW, wide, true) + layout::infoHeight(4, 1);
-        CHECK_NEAR(145.0f, counterInfoBot, 0.01f);
+        CHECK_NEAR(147.0f, counterInfoBot, 0.01f);
         Box psaStepped = layout::psaInspectorBox(timer, 1, false, wide, counterInfoBot);
         CHECK_NEAR(layout::kInfoLeft, psaStepped.x0, 0.01f);
         CHECK_NEAR(counterInfoBot, psaStepped.y0, 0.01f);
-        CHECK_NEAR(253.0f, psaStepped.y1, 0.01f);
+        CHECK_NEAR(255.0f, psaStepped.y1, 0.01f);
 
         float extreme8x8Bot = layout::infoStackBottom(timer, 8, 2, 8, 2, wide);
         CHECK(extreme8x8Bot + layout::kPsaHeight > 348.0f);
@@ -1154,8 +1158,8 @@ TEST(hud_layout, stream2_live_hud_ergonomics_f1_to_f8_43_and_169)
         CHECK_NEAR(v0Timer.x0, v0Ledge.x0, 0.01f);
         CHECK_NEAR(v0Timer.y0, v0Ledge.y0, 0.01f);
         CHECK_NEAR(608.0f, v0Timer.x1, 0.01f);
-        CHECK_NEAR(26.0f, v0Timer.y0, 0.01f);
-        CHECK_NEAR(82.0f, v0Timer.y1, 0.01f);
+        CHECK_NEAR(24.0f, v0Timer.y0, 0.01f);
+        CHECK_NEAR(79.0f, v0Timer.y1, 0.01f);
 
         Box v1Timer = layout::inputViewerCardBox(1, timer, wide);
         CHECK(inside(v1Timer, safe));
@@ -1163,27 +1167,28 @@ TEST(hud_layout, stream2_live_hud_ergonomics_f1_to_f8_43_and_169)
         CHECK(!layout::meets(v1Timer, timer));
         if (wide)
         {
-            CHECK_NEAR(425.0f, v1Timer.x0, 0.01f);
-            CHECK_NEAR(26.0f, v1Timer.y0, 0.01f);
+            CHECK_NEAR(423.0f, v1Timer.x0, 0.01f);
+            CHECK_NEAR(24.0f, v1Timer.y0, 0.01f);
             CHECK(v1Timer.x0 >= timer.x1 + 56.0f - 0.5f);
         }
         else
         {
             CHECK_NEAR(490.0f, v1Timer.x0, 0.01f);
-            CHECK_NEAR(88.0f, v1Timer.y0, 0.01f);
-            CHECK_NEAR(144.0f, v1Timer.y1, 0.01f);
+            CHECK_NEAR(87.0f, v1Timer.y0, 0.01f);
+            CHECK_NEAR(142.0f, v1Timer.y1, 0.01f);
             CHECK(v1Timer.x0 >= timer.x1 + 110.0f - 0.5f);
         }
 
-        // Ledgedash 64-cell bar clears Option A GC controller and Panel B stat plate stacks below it.
+        // Ledgedash 64-cell bar clears Option A GC controller and Panel B stat plate stacks flush below it.
         Box ledgeBar64 = layout::frameBarBox(64, wide);
         CHECK(inside(ledgeBar64, safe));
         CHECK(!layout::meets(ledgeBar64, v0Ledge));
-        CHECK(ledgeBar64.x1 <= v0Ledge.x0 - 6.0f + 0.01f);
+        CHECK(ledgeBar64.x1 <= v0Ledge.x0 - 8.0f + 0.01f);
         Box statPlate = layout::drillStatPlateBox(3, v0Ledge.y1, wide);
         CHECK(inside(statPlate, safe));
         CHECK_NEAR(608.0f, statPlate.x1, 0.01f);
-        CHECK_NEAR(90.0f, statPlate.y0, 0.01f);
+        CHECK_NEAR(v0Ledge.x0, statPlate.x0, 0.01f);
+        CHECK_NEAR(87.0f, statPlate.y0, 0.01f);
         CHECK(!layout::meets(statPlate, v0Ledge));
         CHECK(!layout::meets(statPlate, ledgeBar64));
 
@@ -1241,4 +1246,172 @@ TEST(hud_layout, scenario_stat_plate_clears_timer_controllers_and_top_right_osds
             CHECK(osdY >= plate.y1 + layout::kStepGap - 0.01f);
         }
     }
+}
+
+TEST(hud_layout, training_sidebar_shifts_right_column_cleanly_43_and_169)
+{
+    // Edge Case 5A: When Brawl's stock Training Help: ON sidebar is active
+    // (IfTraining[0x30] != 0), GC Input Viewer slots, Panel B Stat Plates,
+    // and Adaptive CPU shift cleanly around trainingSidebarRoom(wide) with
+    // zero overlap against the sidebar, timer, SF6 strip, recBar, and Brawl damage.
+    for (int a = 0; a < 2; a++)
+    {
+        bool wide = (a == 1);
+        Box safe = layout::safeArea(wide);
+        Box sb = layout::trainingSidebarRoom(wide);
+        Box timer = layout::timerRoom(wide);
+        Box sf6 = layout::actionLogBox(wide, 2, true);
+        Box recBar = wide ? layout::Box{215.0f, 356.0f, 425.0f, 376.0f} : layout::Box{180.0f, 356.0f, 460.0f, 376.0f};
+        CHECK(inside(sb, safe));
+
+        for (int vSlots = 0; vSlots <= 2; vSlots++)
+        {
+            float viewerBot = 0.0f;
+            Box viewers[2];
+            for (int s = 0; s < vSlots; s++)
+            {
+                viewers[s] = layout::inputViewerCardBox(s, timer, wide, true);
+                CHECK(inside(viewers[s], safe));
+                CHECK(!layout::meets(viewers[s], sb));
+                CHECK(!layout::meets(viewers[s], timer));
+                CHECK(!layout::meets(viewers[s], sf6));
+                CHECK(!layout::meets(viewers[s], recBar));
+                for (int p = 0; p < 4; p++)
+                {
+                    CHECK(!layout::meets(viewers[s], brawlDamage(p, wide)));
+                }
+                if (viewers[s].y1 > viewerBot)
+                {
+                    viewerBot = viewers[s].y1;
+                }
+            }
+            if (vSlots == 2)
+            {
+                CHECK(!layout::meets(viewers[0], viewers[1]));
+            }
+
+            // Panel B 3-row stat plate shifts cleanly left of sidebar.
+            Box plate = layout::drillStatPlateBox(3, viewerBot, wide, true);
+            CHECK(inside(plate, safe));
+            CHECK(!layout::meets(plate, sb));
+            CHECK(!layout::meets(plate, timer));
+            CHECK(!layout::meets(plate, sf6));
+            CHECK(!layout::meets(plate, recBar));
+            for (int s = 0; s < vSlots; s++)
+            {
+                CHECK(!layout::meets(plate, viewers[s]));
+            }
+            for (int p = 0; p < 4; p++)
+            {
+                CHECK(!layout::meets(plate, brawlDamage(p, wide)));
+            }
+
+            // Adaptive CPU plate clears sidebar, viewers, timer, SF6, recBar, and Brawl damage.
+            Box adap = layout::adaptiveHudBox(timer, vSlots, false, false, wide, 0.0f, true);
+            CHECK(inside(adap, safe));
+            CHECK(!layout::meets(adap, sb));
+            CHECK(!layout::meets(adap, timer));
+            CHECK(!layout::meets(adap, sf6));
+            CHECK(!layout::meets(adap, recBar));
+            for (int s = 0; s < vSlots; s++)
+            {
+                CHECK(!layout::meets(adap, viewers[s]));
+            }
+            for (int p = 0; p < 4; p++)
+            {
+                CHECK(!layout::meets(adap, brawlDamage(p, wide)));
+            }
+
+            float rightBot = layout::rightColumnBottom(timer, vSlots, false, false, wide, false, 3, true);
+            CHECK(rightBot >= sb.y1 - 0.01f);
+            if (vSlots >= 1)
+            {
+                CHECK(rightBot >= viewers[0].y1 - 0.01f);
+            }
+        }
+    }
+}
+
+TEST(hud_layout, hide_player_damage_hud_sets_and_restores_optid_disable_gather)
+{
+    // Edge Case 5B: ui::hidePlayerDamageHud(1) + ui::matchHudApply() sets
+    // OPTID_DISABLE_GATHER (0x10) on P2's 50 MuObject* ScnObj roots and 3
+    // IfPlayer ScnGroup* roots (+0xF0..+0xF8), leaves P1 untouched, and
+    // cleanly clears bit 0x10 on the next matchHudApply() without a request.
+    host::mem::clear();
+
+    const u32 kIfMngrPtr = 0x805A02D0u;
+    const u32 kIfMngr = 0x80300000u;
+    const u32 kIfPlayer0 = 0x80301000u;
+    const u32 kIfPlayer1 = 0x80302000u;
+    const u32 kMuBase0 = 0x80310000u;
+    const u32 kMuBase1 = 0x80320000u;
+    const u32 kScnBase0 = 0x80330000u;
+    const u32 kScnBase1 = 0x80340000u;
+    const u32 kGrpBase0 = 0x80350000u;
+    const u32 kGrpBase1 = 0x80351000u;
+
+    host::mem::setWord(kIfMngrPtr, kIfMngr);
+    host::mem::setWord(kIfMngr + 0x04u, 5u); // kind 5 = Training
+    host::mem::setWord(kIfMngr + 0x4Cu, kIfPlayer0);
+    host::mem::setWord(kIfMngr + 0x50u, kIfPlayer1);
+    host::mem::setByte(kIfMngr + 0x68u, 0u); // player 0 -> slot 0
+    host::mem::setByte(kIfMngr + 0x69u, 1u); // player 1 -> slot 1
+
+    // Seed P1 (playerNo 0) and P2 (playerNo 1) with 50 MuObject* parts and 3 ScnGroup* roots.
+    for (int pl = 0; pl < 2; pl++)
+    {
+        u32 ifp = (pl == 0) ? kIfPlayer0 : kIfPlayer1;
+        u32 muBase = (pl == 0) ? kMuBase0 : kMuBase1;
+        u32 scnBase = (pl == 0) ? kScnBase0 : kScnBase1;
+        u32 grpBase = (pl == 0) ? kGrpBase0 : kGrpBase1;
+        for (int i = 0; i < 50; i++)
+        {
+            u32 mu = muBase + static_cast<u32>(i) * 0x20u;
+            u32 scn = scnBase + static_cast<u32>(i) * 0x100u;
+            host::mem::setWord(ifp + 0x28u + static_cast<u32>(i) * 4u, mu);
+            host::mem::setWord(mu + 0x10u, scn);
+            host::mem::setWord(scn + 0xCCu, 0x01u); // arbitrary unrelated flag preserved
+        }
+        for (int g = 0; g < 3; g++)
+        {
+            u32 grp = grpBase + static_cast<u32>(g) * 0x100u;
+            host::mem::setWord(ifp + 0xF0u + static_cast<u32>(g) * 4u, grp);
+            host::mem::setWord(grp + 0xCCu, 0x02u); // arbitrary unrelated flag preserved
+        }
+    }
+
+    game::MatchState m;
+    memset(&m, 0, sizeof(m));
+    m.running = true;
+    m.training = true;
+
+    ui::hidePlayerDamageHud(1);
+    ui::matchHudApply(m);
+
+    // P2 has bit 0x10 set on all 50 parts + 3 groups; P1 is untouched.
+    for (int i = 0; i < 50; i++)
+    {
+        CHECK_EQ(0x01u, host::mem::word(kScnBase0 + static_cast<u32>(i) * 0x100u + 0xCCu));
+        CHECK_EQ(0x11u, host::mem::word(kScnBase1 + static_cast<u32>(i) * 0x100u + 0xCCu));
+    }
+    for (int g = 0; g < 3; g++)
+    {
+        CHECK_EQ(0x02u, host::mem::word(kGrpBase0 + static_cast<u32>(g) * 0x100u + 0xCCu));
+        CHECK_EQ(0x12u, host::mem::word(kGrpBase1 + static_cast<u32>(g) * 0x100u + 0xCCu));
+    }
+
+    // Next frame without hidePlayerDamageHud(1): P2 is cleanly restored.
+    ui::matchHudApply(m);
+    for (int i = 0; i < 50; i++)
+    {
+        CHECK_EQ(0x01u, host::mem::word(kScnBase0 + static_cast<u32>(i) * 0x100u + 0xCCu));
+        CHECK_EQ(0x01u, host::mem::word(kScnBase1 + static_cast<u32>(i) * 0x100u + 0xCCu));
+    }
+    for (int g = 0; g < 3; g++)
+    {
+        CHECK_EQ(0x02u, host::mem::word(kGrpBase0 + static_cast<u32>(g) * 0x100u + 0xCCu));
+        CHECK_EQ(0x02u, host::mem::word(kGrpBase1 + static_cast<u32>(g) * 0x100u + 0xCCu));
+    }
+    host::mem::clear();
 }

@@ -651,11 +651,11 @@ namespace browser {
     }
 
     static const float kBrowserBottom = 452.0f;
-    static const float kBrowserFootTop = 420.0f;
+    static const float kBrowserFootTop = 413.0f; // 449 - kFibBandH (34) - kFibHair (2)
 
     static void descLineAt(float capTop, const char* text, gfx::Rgba color)
     {
-        float scale = scaleForCap(10.5f);
+        float scale = scaleForCap(kTypeMeta);
         float width = boldWidth(text, scale);
         float sx = width > w(kFooterMaxW) ? scale * w(kFooterMaxW) / width : scale;
         boldText(cx(kFooterX), textYForCap(capTop, scale), text, color, sx, scale);
@@ -663,7 +663,7 @@ namespace browser {
 
     static void descLine(int line, const char* text, gfx::Rgba color)
     {
-        descLineAt(kFooterCapTop + line * 14.0f, text, color);
+        descLineAt(kFooterCapTop + line * kFooterPitch, text, color);
     }
 
     static void drawDescription()
@@ -673,17 +673,18 @@ namespace browser {
         if (s_confirm)
         {
             // High-contrast delete confirmation alert banner inside the description strip.
-            float bx = cx(kPanelLeft + 12.0f);
-            float bw = w(kPanelRight - kPanelLeft - 24.0f);
-            float by = kRowsBandBottom + 5.0f;
-            float bh = kBrowserFootTop - kRowsBandBottom - 10.0f;
-            gfx::fillRect(bx, by, bw, 2.0f, kLabBtnBTop);
-            gfx::fillRect(bx, by + bh - 2.0f, bw, 2.0f, kLabBtnBTop);
-            gfx::fillRect(bx, by + 2.0f, w(2.0f), bh - 4.0f, kLabBtnBTop);
-            gfx::fillRect(bx + bw - w(2.0f), by + 2.0f, w(2.0f), bh - 4.0f, kLabBtnBTop);
-            gfx::fillGradV(bx + w(2.0f), by + 2.0f, bw - w(4.0f), bh - 4.0f, 0x341016F0u, 0x20080DF0u);
-            float linePitch = 16.0f;
-            float line0Top = by + (bh - (linePitch + 10.5f)) * 0.5f;
+            float bx = cx(kPanelLeft + kLabBorder + kFibGap);
+            float bw = w(kPanelRight - kPanelLeft - 2.0f * (kLabBorder + kFibGap));
+            float by = kRowsBandBottom + kFibTight;
+            float bh = kBrowserFootTop - kRowsBandBottom - 2.0f * kFibTight;
+            gfx::fillRect(bx, by, bw, kFibHair, kLabBtnBTop);
+            gfx::fillRect(bx, by + bh - kFibHair, bw, kFibHair, kLabBtnBTop);
+            gfx::fillRect(bx, by + kFibHair, w(kFibHair), bh - 2.0f * kFibHair, kLabBtnBTop);
+            gfx::fillRect(bx + bw - w(kFibHair), by + kFibHair, w(kFibHair), bh - 2.0f * kFibHair, kLabBtnBTop);
+            gfx::fillGradV(bx + w(kFibHair), by + kFibHair, bw - w(2.0f * kFibHair), bh - 2.0f * kFibHair,
+                           0x341016F0u, 0x20080DF0u);
+            float linePitch = kFibPad + 2.0f;
+            float line0Top = by + (bh - (linePitch + kTypeMeta)) * 0.5f;
             snprintf(line, sizeof(line), "Delete %s?", s_entries[s_row].file);
             descLineAt(line0Top, line, kLabFocusGold);
             descLineAt(line0Top + linePitch, "This cannot be undone.", kText);
@@ -748,10 +749,10 @@ namespace browser {
     static float drawFootBadge(float x, float cy, const char* glyph, bool round, gfx::Rgba topCol, gfx::Rgba botCol,
                                gfx::Rgba fg, const char* label)
     {
-        float gScale = scaleForCap(8.5f);
-        float lScale = scaleForCap(9.0f);
+        float gScale = scaleForCap(kTypeMeta);
+        float lScale = scaleForCap(kTypeMeta);
         float gw = gfx::textWidth(glyph, gScale);
-        float bh = 16.0f;
+        float bh = 18.0f;
         float bw = round ? w(bh) : (gw + w(10.0f));
         if (bw < w(bh))
         {
@@ -765,10 +766,10 @@ namespace browser {
         {
             drawGlossyPillBadge(x, cy - bh * 0.5f, bw, bh, topCol, botCol);
         }
-        gfx::text(x + (bw - gw) * 0.5f, textYForCap(cy - 4.25f, gScale), glyph, fg, gScale);
-        float lx = x + bw + 6.0f;
-        float endX = gfx::text(lx, textYForCap(cy - 4.5f, lScale), label, kLabMutedText, lScale);
-        return endX + 16.0f;
+        gfx::text(x + (bw - gw) * 0.5f, textYForCap(cy - kTypeMeta * 0.5f, gScale), glyph, fg, gScale);
+        float lx = x + bw + w(kFibGap);
+        float endX = gfx::text(lx, textYForCap(cy - kTypeMeta * 0.5f, lScale), label, kLabMutedText, lScale);
+        return endX + w(kFibPad);
     }
 
     static void drawBrowserPanel()
@@ -792,15 +793,15 @@ namespace browser {
 
         float x0 = cx(inL43);
         float iw = w(inR43 - inL43);
-        float hdrBot = kTitleBandBottom - 2.0f;
-        float rowsBot = kRowsBandBottom - 2.0f;
+        float hdrBot = kTitleBandBottom - kFibHair;
+        float rowsBot = kRowsBandBottom - kFibHair;
         gfx::fillGradV(x0, inTop, iw, hdrBot - inTop, kLabHeaderTop, kLabHeaderBot);
-        gfx::fillRect(x0, hdrBot, iw, 2.0f, kLabDivider);
+        gfx::fillRect(x0, hdrBot, iw, kFibHair, kLabDivider);
         gfx::fillGradV(x0, kTitleBandBottom, iw, rowsBot - kTitleBandBottom, kLabBaseTop, kLabBaseBot);
-        gfx::fillRect(x0, rowsBot, iw, 2.0f, kLabDivider);
+        gfx::fillRect(x0, rowsBot, iw, kFibHair, kLabDivider);
         gfx::fillGradV(x0, kRowsBandBottom, iw, kBrowserFootTop - kRowsBandBottom, kLabDescTopCol, kLabDescBotCol);
-        gfx::fillRect(x0, kBrowserFootTop, iw, 2.0f, kLabDivider);
-        gfx::fillGradV(x0, kBrowserFootTop + 2.0f, iw, inBot - (kBrowserFootTop + 2.0f), kLabFooterTopCol,
+        gfx::fillRect(x0, kBrowserFootTop, iw, kFibHair, kLabDivider);
+        gfx::fillGradV(x0, kBrowserFootTop + kFibHair, iw, inBot - (kBrowserFootTop + kFibHair), kLabFooterTopCol,
                        kLabFooterBotCol);
 
         // Flush-left emerald-teal slanted header ribbon + // diagonal stripes.
@@ -823,12 +824,12 @@ namespace browser {
         const float inR43 = kPanelRight - b;
         const float inTop = kPanelTop + b;
         const float inBot = kBrowserBottom - b;
-        const float hdrBot = kTitleBandBottom - 2.0f;
+        const float hdrBot = kTitleBandBottom - kFibHair;
         const float hdrMid = (inTop + hdrBot) * 0.5f;
 
         int first = s_row / kPageRows * kPageRows;
-        const float hlLeft43 = 58.0f;
-        const float hlRight43 = 558.0f;
+        const float hlLeft43 = inL43 + kFibGap;
+        const float hlRight43 = kScrollLeft - kFibTight;
         const float slantTan = 0.445f;
         for (int r = 0; r < kPageRows && first + r < s_count; r++)
         {
@@ -847,22 +848,22 @@ namespace browser {
         }
         drawScrollBar(s_count, first > s_count - kVisibleRows ? (s_count > kVisibleRows ? s_count - kVisibleRows : 0)
                                                                : first);
-        float titleCap = 14.5f;
+        float titleCap = kTypeHeading;
         float titleScale = displayScaleForCap(titleCap);
-        gfx::displayText(cx(inL43 + 14.0f), displayYForCap(hdrMid - titleCap * 0.5f, titleScale), "Recordings",
+        gfx::displayText(cx(inL43 + kFibPad), displayYForCap(hdrMid - titleCap * 0.5f, titleScale), "Recordings",
                          kLabActiveTabText, kLabActiveTabText, titleScale, titleScale, 0.0f, 0);
 
         // Glossy shoulder pills + page readout in the header's right half.
         bool wiiPage = (s_controllerType == gfPadType::WIIMOTE || s_controllerType == gfPadType::NUNCHUK);
         const char* prevG = wiiPage ? "-" : "L";
         const char* nextG = wiiPage ? "+" : "R";
-        float pScale = scaleForCap(9.0f);
+        float pScale = scaleForCap(kTypeMeta);
         float pillH = 18.0f;
         float pillW = w(22.0f);
         float pillY = hdrMid - pillH * 0.5f;
-        float pTextY = textYForCap(hdrMid - 4.5f, pScale);
+        float pTextY = textYForCap(hdrMid - kTypeMeta * 0.5f, pScale);
         float lPillX = cx(412.0f);
-        float rPillX = cx(552.0f);
+        float rPillX = cx(inR43 - kFibPad - 22.0f);
         drawGlossyPillBadge(lPillX, pillY, pillW, pillH, kLabBtnLightTop, kLabBtnLightBot);
         drawGlossyPillBadge(rPillX, pillY, pillW, pillH, kLabBtnLightTop, kLabBtnLightBot);
         gfx::text(lPillX + (pillW - gfx::textWidth(prevG, pScale)) * 0.5f, pTextY, prevG, kLabBtnDarkText, pScale);
@@ -905,7 +906,7 @@ namespace browser {
             }
             gfx::textRight(kSlotRows + r, cx(kRowBoxRight) - 4.0f, y, right, rightColor, scale);
             // Keep the matchup name clear of the date/duration column.
-            float nameX = cx(kNameX + 6.0f);
+            float nameX = cx(hlLeft43 + kFibRowH);
             float room = cx(kRowBoxRight) - 4.0f - gfx::textWidth(right, scale) - 9.0f - nameX;
             float sx = nameWidth > room && nameWidth > 0.0f && room > 0.0f ? scale * room / nameWidth : scale;
             boldText(nameX, y, name, nameColor, sx, scale);
@@ -913,8 +914,8 @@ namespace browser {
         drawDescription();
 
         // Glossy Brawl footer control badges matching drill_list.cpp & osd_quick.cpp.
-        float fy = kBrowserFootTop + 2.0f + (inBot - (kBrowserFootTop + 2.0f)) * 0.5f;
-        float fx = cx(inL43 + 14.0f);
+        float fy = kBrowserFootTop + kFibHair + (inBot - (kBrowserFootTop + kFibHair)) * 0.5f;
+        float fx = cx(inL43 + kFibPad);
         const char* okG = s_controllerType == gfPadType::WIIMOTE ? "2" : "A";
         const char* backG = s_controllerType == gfPadType::WIIMOTE ? "1" : "B";
         if (s_confirm)
@@ -937,8 +938,8 @@ namespace browser {
         // Subtle 2px dark inner top/bottom bevel matching menu.cpp.
         float x0 = cx(inL43);
         float iw = w(inR43 - inL43);
-        gfx::fillRect(x0, inTop, iw, 2.0f, kLabDivider);
-        gfx::fillRect(x0, inBot - 2.0f, iw, 2.0f, kLabBevelDark);
+        gfx::fillRect(x0, inTop, iw, kFibHair, kLabDivider);
+        gfx::fillRect(x0, inBot - kFibHair, iw, kFibHair, kLabBevelDark);
     }
 
     // ---- open / close ----

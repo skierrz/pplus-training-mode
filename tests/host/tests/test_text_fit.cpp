@@ -1839,6 +1839,51 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
         const Box brawlP1 = wide ? Box{63.0f, 397.0f, 151.0f, 445.0f} : Box{41.7f, 397.0f, 158.7f, 445.0f};
         const Box brawlP2 = wide ? Box{209.0f, 397.0f, 297.0f, 445.0f} : Box{189.4f, 397.0f, 306.4f, 445.0f};
 
+        // Edge Case 5A: Brawl Training Help: ON right-side sidebar non-overlap sweep
+        // across vSlots=0..2 with 3-row Panel B stat plate and Adaptive CPU on 4:3 and 16:9.
+        {
+            Box sb = trainingSidebarRoom(wide);
+            Box timer = timerRoom(wide);
+            for (int vSlots = 0; vSlots <= 2; vSlots++)
+            {
+                HudPiece sbPieces[12];
+                int n = 0;
+                sbPieces[n++] = {"training-sidebar", sb};
+                sbPieces[n++] = {"timer", timer};
+                float vBot = 0.0f;
+                for (int s = 0; s < vSlots; s++)
+                {
+                    Box vb = inputViewerCardBox(s, timer, wide, true);
+                    if (vb.y1 > vBot) vBot = vb.y1;
+                    sbPieces[n++] = {s == 0 ? "viewer-0" : "viewer-1", vb};
+                }
+                sbPieces[n++] = {"drill-plate", drillStatPlateBox(3, vBot, wide, true)};
+                sbPieces[n++] = {"action-log", actLog};
+                sbPieces[n++] = {"rec-bar", recBar};
+                sbPieces[n++] = {"brawl-p1", brawlP1};
+                sbPieces[n++] = {"brawl-p2", brawlP2};
+                sbPieces[n++] = {"watermark", watermarkBox};
+                for (int p = 0; p < n; p++)
+                {
+                    const Box& r = sbPieces[p].rect;
+                    CHECK(r.x0 >= safe.x0 - kTol && r.y0 >= safe.y0 - kTol && r.x1 <= safe.x1 + kTol
+                          && r.y1 <= safe.y1 + kTol);
+                    for (int q = p + 1; q < n; q++)
+                    {
+                        const Box& rb = sbPieces[q].rect;
+                        float dx = (r.x1 < rb.x1 ? r.x1 : rb.x1) - (r.x0 > rb.x0 ? r.x0 : rb.x0);
+                        float dy = (r.y1 < rb.y1 ? r.y1 : rb.y1) - (r.y0 > rb.y0 ? r.y0 : rb.y0);
+                        if (dx > kTol && dy > kTol)
+                        {
+                            host::test::fail(__FILE__, __LINE__,
+                                             "%s (trainingSidebar=true v=%d): %s overlaps %s by %.1f x %.1f",
+                                             aspect, vSlots, sbPieces[p].name, sbPieces[q].name, dx, dy);
+                        }
+                    }
+                }
+            }
+        }
+
         for (int li = 0; li < 4; li++)
         {
             int ledge = kTopModes[li];

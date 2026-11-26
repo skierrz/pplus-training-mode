@@ -15,6 +15,14 @@ namespace ui {
         kIfMngr = 0x805A02D0,
         kMngrKind = 0x4,     // 5 in a Training match (0x800DB944: info_training)
         kMngrCentre = 0x44,
+        kMngrPlayers = 0x4C, // IfPlayer* [4] (0x809625D4-0x809625EC)
+        kMngrPlayerSlots = 0x68, // u8 slot[4] mapping playerNo -> IfPlayer index
+        kIfPlayerParts = 0x28,   // MuObject* [50] (0x800E1408-0x800E1440)
+        kIfPlayerPartCount = 50,
+        kIfPlayerGroups = 0xF0,  // ScnGroup* [3] roots (0x800E13D8-0x800E1404)
+        kIfPlayerGroupCount = 3,
+        kScnObjFlags = 0xCC,     // OPTID_DISABLE_GATHER bit 0x10 (0x801AAE64)
+        kScnObjDisableGather = 0x10,
         kKindTraining = 5,
         kFlags = 0x0,
         kState = 0x4,        // IfCenter state: 0=idle, 1=Ready, 2=Count, 3=GO! (0x800DE360)
@@ -41,6 +49,8 @@ namespace ui {
     // Asked for since the last render call.
     static bool s_wantTimer = false;
     static s32 s_frames = 0;
+    static u8 s_wantHideMask = 0;
+    static u8 s_hiddenMask = 0;
 
     // The centre as first seen in this match. Savestates restore its flags
     // but not this module's data, so who owns the timer is decided once, from
@@ -49,15 +59,74 @@ namespace ui {
     static u8 s_firstFlags = 0;
     static bool s_loggedReadySuppress = false;
 
-    static u8* trainingCentre()
+    static u8* trainingManager()
     {
         u8* manager = *reinterpret_cast<u8**>(kIfMngr);
         if (!game::isRam(manager) || game::wordAt(manager, kMngrKind) != kKindTraining)
         {
             return NULL;
         }
+        return manager;
+    }
+
+    static u8* trainingCentre()
+    {
+        u8* manager = trainingManager();
+        if (manager == NULL)
+        {
+            return NULL;
+        }
         u8* centre = reinterpret_cast<u8*>(game::wordAt(manager, kMngrCentre));
         return game::isRam(centre) ? centre : NULL;
+    }
+
+    static void setScnObjGatherHidden(u8* scnObj, bool hide)
+    {
+        if (!game::isRam(scnObj))
+        {
+            return;
+        }
+        u32* flags = reinterpret_cast<u32*>(scnObj + kScnObjFlags);
+        if (hide)
+        {
+            *flags |= kScnObjDisableGather;
+        }
+        else
+        {
+            *flags &= ~static_cast<u32>(kScnObjDisableGather);
+        }
+    }
+
+    static void applyPlayerDamageHudHidden(u8* manager, int playerNo, bool hide)
+    {
+        if (!game::isRam(manager) || playerNo < 0 || playerNo >= 4)
+        {
+            return;
+        }
+        u8 slot = game::byteAt(manager, kMngrPlayerSlots + static_cast<u32>(playerNo));
+        if (slot >= 4u)
+        {
+            return;
+        }
+        u8* ifPlayer = reinterpret_cast<u8*>(game::wordAt(manager, kMngrPlayers + static_cast<u32>(slot) * 4u));
+        if (!game::isRam(ifPlayer))
+        {
+            return;
+        }
+        for (int i = 0; i < kIfPlayerPartCount; i++)
+        {
+            u8* part = reinterpret_cast<u8*>(game::wordAt(ifPlayer, kIfPlayerParts + static_cast<u32>(i) * 4u));
+            if (game::isRam(part))
+            {
+                u8* scn = reinterpret_cast<u8*>(game::wordAt(part, kMuObjScnMdl));
+                setScnObjGatherHidden(scn, hide);
+            }
+        }
+        for (int g = 0; g < kIfPlayerGroupCount; g++)
+        {
+            u8* grp = reinterpret_cast<u8*>(game::wordAt(ifPlayer, kIfPlayerGroups + static_cast<u32>(g) * 4u));
+            setScnObjGatherHidden(grp, hide);
+        }
     }
 
     static bool removeModelPtr(u8* centre, u32 groupAt, void* mdl)
@@ -165,17 +234,34 @@ namespace ui {
         s_frames = frames;
     }
 
+#ifdef TM_MODULE_MAIN
+#pragma force_active on
+#endif
+    void hidePlayerDamageHud(int playerNo)
+    {
+        if (playerNo >= 0 && playerNo < 4)
+        {
+            s_wantHideMask = static_cast<u8>(s_wantHideMask | (1u << playerNo));
+        }
+    }
+#ifdef TM_MODULE_MAIN
+#pragma force_active reset
+#endif
+
     void matchHudApply(const game::MatchState& m)
     {
+        u8* manager = trainingManager();
         u8* anyCentre = trainingCentre();
         if (anyCentre != NULL && anyCentre != s_centre)
         {
             s_centre = anyCentre;
-            s_firstFlags = anyCentre[kFlags];
+            s_firstFlags = game::byteAt(anyCentre, kFlags);
             s_loggedReadySuppress = false;
+            s_hiddenMask = 0;
             TM_LOG("match hud: centre %08x, flags %02x%s\n", anyCentre, s_firstFlags,
                    (s_firstFlags & kTimerOn) ? ": the game's own timer is on, left alone" : "");
         }
+#ifdef __MWERKS__
         if (anyCentre != NULL && shouldSuppressReadyGo())
         {
             suppressReadyGo(anyCentre);
@@ -184,7 +270,30 @@ namespace ui {
         {
             applyTimer(anyCentre);
         }
+#else
+        (void)m;
+#endif
+        if (manager != NULL)
+        {
+            u8 activeMask = static_cast<u8>(s_wantHideMask | s_hiddenMask);
+            for (int p = 0; p < 4; p++)
+            {
+                u8 bit = static_cast<u8>(1u << p);
+                if ((activeMask & bit) != 0u)
+                {
+                    // Re-apply every frame while requested so Brawl animations/respawns
+                    // never flash P2's 0% back, and clear immediately once unrequested.
+                    applyPlayerDamageHudHidden(manager, p, (s_wantHideMask & bit) != 0u);
+                }
+            }
+            s_hiddenMask = s_wantHideMask;
+        }
+        else
+        {
+            s_hiddenMask = 0;
+        }
         s_wantTimer = false;
+        s_wantHideMask = 0;
     }
 }
 }

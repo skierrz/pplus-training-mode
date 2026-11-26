@@ -214,7 +214,7 @@ namespace extra {
             {
                 bool aOn = (pad.buttons & game::kPadA) != 0;
                 float acx = x + bw * 0.73f;
-                float acy = y + 39.2f;
+                float acy = y + 38.5f;
                 if (aOn)
                 {
                     gfx::fillEllipse(acx, acy, 9.5f * xs, 9.5f, 0x48FFA868u);
@@ -225,7 +225,7 @@ namespace extra {
             {
                 bool bOn = (pad.buttons & game::kPadB) != 0;
                 float bcx = x + bw * 0.59f;
-                float bcy = y + 46.8f;
+                float bcy = y + 46.0f;
                 if (bOn)
                 {
                     gfx::fillEllipse(bcx, bcy, 6.8f * xs, 6.8f, 0xFF5A5A68u);
@@ -236,7 +236,7 @@ namespace extra {
             {
                 bool xOn = (pad.buttons & game::kPadX) != 0;
                 float xw = 6.2f * xs;
-                drawPillSilhouette(x + bw * 0.89f - xw * 0.5f, y + 32.0f, xw, 13.5f, xs,
+                drawPillSilhouette(x + bw * 0.89f - xw * 0.5f, y + 31.5f, xw, 13.5f, xs,
                                    xOn ? 0xFFFFFFFFu : 0x8EA0B0B8u, xOn ? 0xFFFFFFFFu : 0xBCCAD6C8u);
             }
         }

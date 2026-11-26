@@ -631,24 +631,24 @@ def info_display(c, src):
         c.take(lit)
 
 
-guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "0fc8e450")
+guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "04bc9fcb")
 
 
 def ledgedash_hud(c, src):
     # drawLedgedashHud(): calm white swatch-legend row directly above bar plus
-    # Panel B right-margin smoked stat plate (112 px wide, 102 px inner text room).
+    # Panel B right-margin smoked stat plate (118 px wide, 108 px inner text room).
     for lit in src.literals:
         if c.taken(lit):
             continue
         if lit.name == "snprintf" and lit.arg == 2:
             cap = 16.0 if lit.text == "%df" else 20.0
             for t in c.expand(lit, 2):
-                c.item("squeeze", lit, t, scale_for_cap(11.5), 0, 102.0, 0.0)
+                c.item("squeeze", lit, t, scale_for_cap(13.0), 0, 108.0, 0.0)
                 c.buffer(lit, t, cap)
         elif lit.var == "kLegNames":
             c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 80.0, 0.0)
         elif lit.var == "kRowLabels":
-            c.item("fit", lit, lit.text, scale_for_cap(8.2), 0, 102.0, 0.0)
+            c.item("fit", lit, lit.text, scale_for_cap(9.0), 0, 108.0, 0.0)
         else:
             continue
         c.take(lit)
@@ -999,7 +999,7 @@ def adaptive_cpu_core_h(c, src):
 
 
 def adaptive_cpu_cpp(c, src):
-    # Quiet Panel B Habit Readout plate (kAdaptiveHudWidth = 112, inner width 102 px).
+    # Quiet Panel B Habit Readout plate (kAdaptiveHudWidth = 118, inner width 108 px).
     for lit in src.literals:
         if c.taken(lit):
             continue
@@ -1014,7 +1014,7 @@ def adaptive_cpu_cpp(c, src):
                 c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 40.0, 0.0)
                 c.buffer(lit, lit.text, 16.0)
             else:
-                c.item("squeeze", lit, lit.text, scale_for_cap(8.5), 0, 102.0, 0.0)
+                c.item("squeeze", lit, lit.text, scale_for_cap(8.5), 0, 108.0, 0.0)
                 c.buffer(lit, lit.text, 28.0)
         elif lit.name == "snprintf" and lit.arg == 2:
             if lit.text == "%u%%":
@@ -1023,7 +1023,7 @@ def adaptive_cpu_cpp(c, src):
                     c.buffer(lit, t, 8.0)
             else:
                 for t in c.expand(lit, 2):
-                    c.item("squeeze", lit, t, scale_for_cap(8.5), 0, 102.0, 0.0)
+                    c.item("squeeze", lit, t, scale_for_cap(8.5), 0, 108.0, 0.0)
                     c.buffer(lit, t, 28.0)
         else:
             continue
@@ -1031,7 +1031,7 @@ def adaptive_cpu_cpp(c, src):
 
 
 def scenario_presets_core_h(c, src):
-    # Panel B right-margin stat plates for the 7 non-Techchase Lab Scenarios (102 px inner).
+    # Panel B right-margin stat plates for the 7 non-Techchase Lab Scenarios (108 px inner).
     for lit in src.literals:
         if c.taken(lit):
             continue
@@ -1042,10 +1042,10 @@ def scenario_presets_core_h(c, src):
             continue
         if lit.name == "snprintf" and lit.arg == 2:
             for t in c.expand(lit, 2):
-                c.item("squeeze", lit, t, scale_for_cap(11.5), 0, 102.0, 0.0)
+                c.item("squeeze", lit, t, scale_for_cap(13.0), 0, 108.0, 0.0)
                 c.buffer(lit, t, 24.0)
         elif lit.name == "scenarioSetRow" or lit.var or not lit.calls:
-            c.item("squeeze", lit, lit.text, scale_for_cap(11.5), 0, 102.0, 0.0)
+            c.item("squeeze", lit, lit.text, scale_for_cap(13.0), 0, 108.0, 0.0)
             c.buffer(lit, lit.text, 24.0)
         else:
             continue
@@ -1053,7 +1053,7 @@ def scenario_presets_core_h(c, src):
 
 
 def scenario_presets_cpp(c, src):
-    # Unified Techchase timing bar legend + Panel B right-margin stat plate (102 px inner).
+    # Unified Techchase timing bar legend + Panel B right-margin stat plate (108 px inner).
     for lit in src.literals:
         if c.taken(lit):
             continue
@@ -1061,10 +1061,10 @@ def scenario_presets_cpp(c, src):
             continue
         if lit.name == "sprintf" and lit.arg == 1:
             for t in c.expand(lit, 1):
-                c.item("squeeze", lit, t, scale_for_cap(11.5), 0, 102.0, 0.0)
+                c.item("squeeze", lit, t, scale_for_cap(13.0), 0, 108.0, 0.0)
                 c.buffer(lit, t, 24.0)
         elif not lit.calls:
-            c.item("squeeze", lit, lit.text, scale_for_cap(11.5), 0, 102.0, 0.0)
+            c.item("squeeze", lit, lit.text, scale_for_cap(13.0), 0, 108.0, 0.0)
         else:
             continue
         c.take(lit)
@@ -1127,8 +1127,8 @@ def drill_hud_cpp(c, src):
         elif lit.func == "drawLiveHud":
             if lit.name == "snprintf" and lit.arg == 2:
                 is_cap = lit.text == "%s  -  %s"
-                cap = 8.5 if is_cap else 11.5
-                room = 320.0 if is_cap else 102.0
+                cap = 9.0 if is_cap else 13.0
+                room = 320.0 if is_cap else 108.0
                 buf = 40.0 if is_cap else 24.0
                 if lit.text == "%s":
                     buf = 28.0
@@ -1137,19 +1137,19 @@ def drill_hud_cpp(c, src):
                     c.buffer(lit, t, buf)
             else:
                 # Panel B stat plate labels/values and top timing bar legend labels.
-                c.item("squeeze", lit, lit.text, scale_for_cap(11.5), 0, 102.0, 0.0)
+                c.item("squeeze", lit, lit.text, scale_for_cap(13.0), 0, 108.0, 0.0)
         elif lit.func == "drawEndModal":
             if lit.name == "snprintf" and lit.arg == 2:
                 is_score = "%%" in lit.text
                 is_title = "PRACTICE" in lit.text or "SET COMPLETE" in lit.text
-                cap = 20.0 if is_score else (13.0 if is_title else 10.0)
-                room = 344.0 if (is_score or is_title) else 144.0
+                cap = 21.0 if is_score else (13.0 if is_title else 10.5)
+                room = 351.0 if (is_score or is_title) else 160.0
                 buf = 28.0 if (is_score or is_title) else 24.0
                 for t in c.expand(lit, 2):
                     c.item("fit", lit, t, scale_for_cap(cap), 0, room, 0.0)
                     c.buffer(lit, t, buf)
             else:
-                c.item("fit", lit, lit.text, scale_for_cap(10.0), 0, 185.0, 0.0)
+                c.item("fit", lit, lit.text, scale_for_cap(10.5), 0, 185.0, 0.0)
         else:
             continue
         c.take(lit)
@@ -1210,12 +1210,12 @@ def combo_break_rush_cpp(c, src):
             continue
         if lit.name == "snprintf" and lit.arg == 2:
             for t in c.expand(lit, 2):
-                c.item("fit", lit, t, scale_for_cap(10.0), 0, 175.0, 0.0)
+                c.item("fit", lit, t, scale_for_cap(9.0), 0, 150.0, 0.0)
                 c.buffer(lit, t, 32.0)
         elif lit.text == "Break the Targets!":
-            c.item("fit", lit, lit.text, scale_for_cap(10.0), 0, 210.0, 0.0)
+            c.item("fit", lit, lit.text, scale_for_cap(9.0), 0, 190.0, 0.0)
         else:
-            c.item("fit", lit, lit.text, scale_for_cap(10.0), 0, 90.0, 0.0)
+            c.item("fit", lit, lit.text, scale_for_cap(9.0), 0, 90.0, 0.0)
         c.take(lit)
 
 
