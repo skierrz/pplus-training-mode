@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <types.h>
 
+#include "main/cpu/actions.h"
 #include "main/cpu/cpu.h"
 #include "main/display/display.h"
 #include "main/extra.h"
@@ -287,6 +288,7 @@ namespace main {
 #endif
 #ifdef __MWERKS__
         ui::pages::pagesAttach();
+        cpu::actionsAttach();
 #endif
         bool reset = loadSettings(block);
         if (s_vsReadOnly)
@@ -345,6 +347,7 @@ namespace main {
         {
             lab::detach();
 #ifdef __MWERKS__
+            cpu::actionsDetach();
             ui::pages::pagesDetach();
 #endif
             TM_LOG("main: detaching\n");
@@ -362,6 +365,7 @@ namespace main {
         cpu::moduleDetach();
         lab::detach();
 #ifdef __MWERKS__
+        cpu::actionsDetach();
         ui::pages::pagesDetach();
 #endif
         game::codeMenuMatchDetach();

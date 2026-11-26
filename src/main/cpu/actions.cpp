@@ -1,6 +1,9 @@
 #include "main/cpu/actions.h"
 
 #include "main/cpu/fighter_input.h"
+#ifdef __MWERKS__
+#include "shared/game/heap.h"
+#endif
 
 // Button bits as the input object holds them (fighter_input.h). The smash
 // attacks and aerials are written the way a player's C-stick arrives:
@@ -36,18 +39,9 @@ namespace cpu {
     static const Step kSpotdodge[] = {TM_STEP(G, 0, -100, kRefAbs, 2), TM_END};
     static const Step kShield[] = {TM_STEP(G, 0, 0, kRefAbs, 20), TM_END};
     static const Step kGrab[] = {TM_STEP(A | G, 0, 0, kRefAbs, 1), TM_END};
-    static const Step kJab[] = {TM_STEP(A, 0, 0, kRefAbs, 1), TM_END};
     static const Step kFTilt[] = {TM_STEP(A, kTilt, 0, kRefToward, 1), TM_END};
     static const Step kUTilt[] = {TM_STEP(A, 0, kTilt, kRefAbs, 1), TM_END};
     static const Step kDTilt[] = {TM_STEP(A, 0, -kTilt, kRefAbs, 1), TM_END};
-    static const Step kFSmash[] = {TM_STEP(C, 100, 0, kRefToward, 1), TM_END};
-    static const Step kUSmash[] = {TM_STEP(C, 0, 100, kRefAbs, 1), TM_END};
-    static const Step kDSmash[] = {TM_STEP(C, 0, -100, kRefAbs, 1), TM_END};
-    static const Step kUpB[] = {TM_STEP(B, 0, 100, kRefAbs, 1), TM_STEP(0, 0, 100, kRefAbs, 5), TM_END};
-    static const Step kNeutralB[] = {TM_STEP(B, 0, 0, kRefAbs, 1), TM_END};
-    static const Step kDownB[] = {TM_STEP(B, 0, -100, kRefAbs, 1), TM_END};
-    static const Step kSideBToward[] = {TM_STEP(B, 100, 0, kRefToward, 1), TM_END};
-    static const Step kSideBAway[] = {TM_STEP(B, 100, 0, kRefAway, 1), TM_END};
     static const Step kRollAway[] = {TM_STEP(G, 100, 0, kRefAway, 2), TM_END};
     static const Step kRollToward[] = {TM_STEP(G, 100, 0, kRefToward, 2), TM_END};
     static const Step kRollRandom[] = {TM_STEP(G, 100, 0, kRefRandom, 2), TM_END};
@@ -67,12 +61,6 @@ namespace cpu {
     static const Step kWavedashAway[] = {TM_TAKEOFF, TM_STEP(G, kWavedashX, kWavedashY, kRefAway, 1), TM_END};
     static const Step kWavedashToward[] = {TM_TAKEOFF, TM_STEP(G, kWavedashX, kWavedashY, kRefToward, 1), TM_END};
     static const Step kWavedashDown[] = {TM_TAKEOFF, TM_STEP(G, 0, -100, kRefAbs, 1), TM_END};
-    // Short hop aerials, the aerial on the first airborne frame.
-    static const Step kSHNair[] = {TM_TAKEOFF, TM_STEP(A, 0, 0, kRefAbs, 1), TM_END};
-    static const Step kSHFair[] = {TM_TAKEOFF, TM_STEP(C, 100, 0, kRefForward, 1), TM_END};
-    static const Step kSHBair[] = {TM_TAKEOFF, TM_STEP(C, -100, 0, kRefForward, 1), TM_END};
-    static const Step kSHUair[] = {TM_TAKEOFF, TM_STEP(C, 0, 100, kRefAbs, 1), TM_END};
-    static const Step kSHDair[] = {TM_TAKEOFF, TM_STEP(C, 0, -100, kRefAbs, 1), TM_END};
 
     // ---- air (after aerial hitstun) ---------------------------------------
     // Guard with the stick sideways (in tumble a neutral guard was not seen
@@ -90,8 +78,6 @@ namespace cpu {
                                     TM_STEP(0, kAngledX, kAngledY, kRefAway, 5), TM_END};
     static const Step kUpBToward[] = {TM_STEP(B, 0, 100, kRefAbs, 1), TM_UNTIL(0, 0, 100, kRefAbs, kUntilSpecial, 2),
                                       TM_STEP(0, kAngledX, kAngledY, kRefToward, 5), TM_END};
-    static const Step kFair[] = {TM_STEP(C, 100, 0, kRefForward, 1), TM_END};
-    static const Step kBair[] = {TM_STEP(C, -100, 0, kRefForward, 1), TM_END};
     // Fastfalls: a down flick once the fall begins (waited for up to 4
     // seconds: light fighters rise long), in tumble, or after a sideways
     // push left tumble (a wiggle).
@@ -102,26 +88,6 @@ namespace cpu {
     static const Step kWiggleFastfall[] = {TM_STEP(0, 100, 0, kRefToward, 1), TM_STEP(0, 0, 0, kRefAbs, 1),
                                            TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 240), TM_FLICKS, TM_END};
     static const Step* const kTumbleFastfall = kWiggleFastfall + 2;
-    // Canonical Frame-Perfect SHFFL and FFL templates; options.cpp expands them
-    // with CpuOptions::shfflTiming via shffl_core.h, so 1 flick pair suffices.
-#define TM_SHFFL_SCRIPT(aerial) \
-    {TM_TAKEOFF, aerial, TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 60), TM_FLICK, TM_END}
-#define TM_FFL_SCRIPT(aerial) \
-    {aerial, TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 240), TM_FLICK, TM_END}
-    static const Step kShfflNair[] = TM_SHFFL_SCRIPT(TM_STEP(A, 0, 0, kRefAbs, 1));
-    static const Step kShfflFair[] = TM_SHFFL_SCRIPT(TM_STEP(C, 100, 0, kRefForward, 1));
-    static const Step kShfflBair[] = TM_SHFFL_SCRIPT(TM_STEP(C, -100, 0, kRefForward, 1));
-    static const Step kShfflUair[] = TM_SHFFL_SCRIPT(TM_STEP(C, 0, 100, kRefAbs, 1));
-    static const Step kShfflDair[] = TM_SHFFL_SCRIPT(TM_STEP(C, 0, -100, kRefAbs, 1));
-    static const Step kFflNair[] = TM_FFL_SCRIPT(TM_STEP(A, 0, 0, kRefAbs, 1));
-    static const Step kFflFair[] = TM_FFL_SCRIPT(TM_STEP(C, 100, 0, kRefForward, 1));
-    static const Step kFflBair[] = TM_FFL_SCRIPT(TM_STEP(C, -100, 0, kRefForward, 1));
-    static const Step kFflUair[] = TM_FFL_SCRIPT(TM_STEP(C, 0, 100, kRefAbs, 1));
-    static const Step kFflDair[] = TM_FFL_SCRIPT(TM_STEP(C, 0, -100, kRefAbs, 1));
-#undef TM_SHFFL_SCRIPT
-#undef TM_FFL_SCRIPT
-#undef TM_FLICK
-#undef TM_FLICKS
     static const Step kWait[] = {TM_STEP(0, 0, 0, kRefAbs, 1), TM_END};
     // One-frame sideways wiggle out of tumble (MoveDef/Misc.asm:648-675).
     static const Step kWiggle[] = {TM_STEP(0, 100, 0, kRefToward, 1), TM_END};
@@ -144,15 +110,55 @@ namespace cpu {
                                       TM_STEP(C, 0, -100, kRefAbs, 1), TM_END};
     static const Step kOosFSmash[] = {TM_STEP(0, 0, 0, kRefAbs, 1), TM_UNTIL(0, 0, 0, kRefAbs, kUntilCanAct, 30),
                                       TM_STEP(C, 100, 0, kRefToward, 1), TM_END};
+    // Grounded suffixes shared directly with their OoS counterparts.
+    static const Step* const kUpB = kOosUpB + 1;
+    static const Step* const kUSmash = kOosUSmash + 1;
+    static const Step* const kDSmash = kOosDSmash + 2;
+    static const Step* const kFSmash = kOosFSmash + 2;
+    static const Step* const kSideBAway = kOosSideBAway + 2;
+    static const Step* const kSideBToward = kOosSideBToward + 2;
+    static const Step* const kDownB = kOosDownB + 2;
+    static const Step* const kNeutralB = kOosNeutralB + 2;
 
+#ifdef __MWERKS__
+    // 5 aerials (Nair, Fair, Bair, Uair, Dair) expanded into SH, DJC, Float,
+    // Ganon Float, SHFFL, and FFL scripts in Heaps::Network at attach time.
+    static const Step kAerials[5] = {
+        TM_STEP(A, 0, 0, kRefAbs, 1),
+        TM_STEP(C, 100, 0, kRefForward, 1),
+        TM_STEP(C, -100, 0, kRefForward, 1),
+        TM_STEP(C, 0, 100, kRefAbs, 1),
+        TM_STEP(C, 0, -100, kRefAbs, 1)
+    };
+#else
+    static const Step kJab[] = {TM_STEP(A, 0, 0, kRefAbs, 1), TM_END};
+    static const Step kFair[] = {TM_STEP(C, 100, 0, kRefForward, 1), TM_END};
+    static const Step kBair[] = {TM_STEP(C, -100, 0, kRefForward, 1), TM_END};
+    // Short hop aerials, the aerial on the first airborne frame.
+    static const Step kSHNair[] = {TM_TAKEOFF, TM_STEP(A, 0, 0, kRefAbs, 1), TM_END};
+    static const Step kSHFair[] = {TM_TAKEOFF, TM_STEP(C, 100, 0, kRefForward, 1), TM_END};
+    static const Step kSHBair[] = {TM_TAKEOFF, TM_STEP(C, -100, 0, kRefForward, 1), TM_END};
+    static const Step kSHUair[] = {TM_TAKEOFF, TM_STEP(C, 0, 100, kRefAbs, 1), TM_END};
+    static const Step kSHDair[] = {TM_TAKEOFF, TM_STEP(C, 0, -100, kRefAbs, 1), TM_END};
+    // Canonical Frame-Perfect SHFFL and FFL templates; options.cpp expands them
+    // with CpuOptions::shfflTiming via shffl_core.h, so 1 flick pair suffices.
+#define TM_SHFFL_SCRIPT(aerial) \
+    {TM_TAKEOFF, aerial, TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 60), TM_FLICK, TM_END}
+#define TM_FFL_SCRIPT(aerial) \
+    {aerial, TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 240), TM_FLICK, TM_END}
+    static const Step kShfflNair[] = TM_SHFFL_SCRIPT(TM_STEP(A, 0, 0, kRefAbs, 1));
+    static const Step kShfflFair[] = TM_SHFFL_SCRIPT(TM_STEP(C, 100, 0, kRefForward, 1));
+    static const Step kShfflBair[] = TM_SHFFL_SCRIPT(TM_STEP(C, -100, 0, kRefForward, 1));
+    static const Step kShfflUair[] = TM_SHFFL_SCRIPT(TM_STEP(C, 0, 100, kRefAbs, 1));
+    static const Step kShfflDair[] = TM_SHFFL_SCRIPT(TM_STEP(C, 0, -100, kRefAbs, 1));
+    static const Step kFflNair[] = TM_FFL_SCRIPT(TM_STEP(A, 0, 0, kRefAbs, 1));
+    static const Step kFflFair[] = TM_FFL_SCRIPT(TM_STEP(C, 100, 0, kRefForward, 1));
+    static const Step kFflBair[] = TM_FFL_SCRIPT(TM_STEP(C, -100, 0, kRefForward, 1));
+    static const Step kFflUair[] = TM_FFL_SCRIPT(TM_STEP(C, 0, 100, kRefAbs, 1));
+    static const Step kFflDair[] = TM_FFL_SCRIPT(TM_STEP(C, 0, -100, kRefAbs, 1));
+#undef TM_SHFFL_SCRIPT
+#undef TM_FFL_SCRIPT
     // ---- P+ character techniques (ground and shield lists) ---------------
-    // Double jump cancelled aerials: the double jump on the first airborne
-    // frame, the aerial on the next with jump let go. Ness and Lucas cancel
-    // only then (their aerials set RA-Bit 33 while jump is not held:
-    // FitNess.pac 0x10C20, FitLucas.pac 0x2342C; P+ Physics.asm:137-139);
-    // Mewtwo's aerials cancel it either way. Peach and Yoshi cancel too, but
-    // their double jumps dip first: from the ground they land two frames into
-    // the aerial, before it hits (measured), so they are not offered.
 #define TM_DJC(aerial) {TM_TAKEOFF, TM_STEP(X, 0, 0, kRefAbs, 1), aerial, TM_END}
     static const Step kDjcNair[] = TM_DJC(TM_STEP(A, 0, 0, kRefAbs, 1));
     static const Step kDjcFair[] = TM_DJC(TM_STEP(C, 100, 0, kRefForward, 1));
@@ -160,11 +166,6 @@ namespace cpu {
     static const Step kDjcUair[] = TM_DJC(TM_STEP(C, 0, 100, kRefAbs, 1));
     static const Step kDjcDair[] = TM_DJC(TM_STEP(C, 0, -100, kRefAbs, 1));
 #undef TM_DJC
-    // Float aerials: jump held from the press, the stick down from the jump
-    // squat on, floats Peach and Mewtwo on the second airborne frame. The
-    // aerial, pressed with jump held on the first frame the float shows,
-    // plays inside the float's own status (FitPeach.pac action 0x11E,
-    // FitMewtwo.pac action 0x120).
 #define TM_FLOAT(aerial) \
     {TM_STEP(X, 0, 0, kRefAbs, 1), TM_UNTIL(X, 0, -100, kRefAbs, kUntilSpecial, 30), aerial, TM_END}
     static const Step kFloatNair[] = TM_FLOAT(TM_STEP(X | A, 0, 0, kRefAbs, 1));
@@ -173,12 +174,6 @@ namespace cpu {
     static const Step kFloatUair[] = TM_FLOAT(TM_STEP(X | C, 0, 100, kRefAbs, 1));
     static const Step kFloatDair[] = TM_FLOAT(TM_STEP(X | C, 0, -100, kRefAbs, 1));
 #undef TM_FLOAT
-    // Ganondorf's Dead Man's Float (FitGanon.pac action 0x112, subaction 0x1CE
-    // SpecialNFuwa): neutral B for one frame on the first airborne frame
-    // (grounded IC-Basic[0] <= 2 or a second Special press branches to 0x117
-    // Cape/Reflect, 0x1c880..0x1c8a0). Stick stays neutral for 5 frames until
-    // Allow Interrupt opens Air Attack at async frame 5 (0xc798..0xc7b8), then
-    // the aerial transitions out of 0x112 into Attack_Air (0x33).
 #define TM_GANON_FLOAT(aerial) \
     {TM_TAKEOFF, TM_STEP(B, 0, 0, kRefAbs, 1), TM_STEP(0, 0, 0, kRefAbs, 5), aerial, TM_END}
     static const Step kGanonFloatNair[] = TM_GANON_FLOAT(TM_STEP(A, 0, 0, kRefAbs, 1));
@@ -187,7 +182,9 @@ namespace cpu {
     static const Step kGanonFloatUair[] = TM_GANON_FLOAT(TM_STEP(C, 0, 100, kRefAbs, 1));
     static const Step kGanonFloatDair[] = TM_GANON_FLOAT(TM_STEP(C, 0, -100, kRefAbs, 1));
 #undef TM_GANON_FLOAT
-
+#endif
+#undef TM_FLICK
+#undef TM_FLICKS
 #undef TM_STEP
 #undef TM_UNTIL
 #undef TM_END
@@ -218,9 +215,129 @@ namespace cpu {
         A_TUMBLE_FF, A_WIGGLE_FF, A_WAIT_NOTECH,
         A_FFL_NAIR, A_FFL_FAIR, A_FFL_BAIR, A_FFL_UAIR, A_FFL_DAIR,
         A_OOS_UPB, A_OOS_SIDEB_A, A_OOS_SIDEB_T, A_OOS_DOWNB, A_OOS_NEUTRALB,
-        A_OOS_USMASH, A_OOS_DSMASH, A_OOS_FSMASH, A_WAIT
+        A_OOS_USMASH, A_OOS_DSMASH, A_OOS_FSMASH, A_WAIT, A_COUNT
     };
 
+#ifdef __MWERKS__
+    struct ActionsNet {
+        Action actions[A_COUNT];
+        Action ganonFloats[5];
+        Step sh[5][4];
+        Step djc[5][5];
+        Step flt[5][4];
+        Step gflt[5][6];
+        Step shffl[5][7];
+        Step ffl[5][5];
+    };
+    static ActionsNet* s_net = NULL;
+
+    struct StaticActionSpec {
+        u8 id;
+        u8 flags;
+        const Step* steps;
+    };
+
+    static const StaticActionSpec kStaticActs[] = {
+        {A_SPOTDODGE, 0, kSpotdodge}, {A_SHIELD, 0, kShield}, {A_GRAB, 0, kGrab}, {A_UPB, 0, kUpB},
+        {A_SIDEB_T, 0, kSideBToward}, {A_DOWNB, 0, kDownB}, {A_NEUTRALB, 0, kNeutralB},
+        {A_USMASH, 0, kUSmash}, {A_DSMASH, 0, kDSmash}, {A_FSMASH, 0, kFSmash},
+        {A_ROLL_A, 0, kRollAway}, {A_ROLL_T, 0, kRollToward}, {A_FTILT, 0, kFTilt},
+        {A_UTILT, 0, kUTilt}, {A_DTILT, 0, kDTilt}, {A_DASH_ATK, 0, kDashAttack},
+        {A_SH, 0, kShortHop}, {A_FH, 0, kFullHop}, {A_WD_A, 0, kWavedashAway},
+        {A_WD_T, 0, kWavedashToward}, {A_WD_D, 0, kWavedashDown}, {A_DASH_B, 0, kDashBack},
+        {A_DASH_THRU, kEndsWithSteps, kDashThrough}, {A_SIDEB_A, 0, kSideBAway},
+        {A_ROLL_RND, 0, kRollRandom}, {A_AIRDODGE, 0, kAirdodge}, {A_JUMP_A, kNeedsJump, kJumpAway},
+        {A_JUMP_T, kNeedsJump, kJumpToward}, {A_JUMP_N, kNeedsJump, kShortHop},
+        {A_UPB_A, 0, kUpBAway}, {A_UPB_T, 0, kUpBToward},
+        {A_TUMBLE_FF, kEndsWithSteps, kTumbleFastfall}, {A_WIGGLE_FF, kEndsWithSteps, kWiggleFastfall},
+        {A_WAIT_NOTECH, kNoTech | kEndsWithSteps, kWait},
+        {A_OOS_UPB, 0, kOosUpB}, {A_OOS_SIDEB_A, 0, kOosSideBAway}, {A_OOS_SIDEB_T, 0, kOosSideBToward},
+        {A_OOS_DOWNB, 0, kOosDownB}, {A_OOS_NEUTRALB, 0, kOosNeutralB},
+        {A_OOS_USMASH, 0, kOosUSmash}, {A_OOS_DSMASH, 0, kOosDSmash}, {A_OOS_FSMASH, 0, kOosFSmash},
+        {A_WAIT, 0, kWait}
+    };
+
+    static void setAct(Action& a, const Step* steps, u16 flags)
+    {
+        a.steps = steps;
+        a.flags = flags;
+    }
+
+    void actionsAttach()
+    {
+        if (s_net == NULL)
+        {
+            s_net = static_cast<ActionsNet*>(game::allocNetworkZero(static_cast<u32>(sizeof(ActionsNet))));
+        }
+        if (s_net == NULL)
+        {
+            return;
+        }
+        ActionsNet& n = *s_net;
+        for (u32 i = 0; i < sizeof(kStaticActs) / sizeof(kStaticActs[0]); i++)
+        {
+            setAct(n.actions[kStaticActs[i].id], kStaticActs[i].steps, kStaticActs[i].flags);
+        }
+        for (u16 i = 0; i < 6; i++)
+        {
+            n.actions[A_SLOT1 + i].playSlot = static_cast<u16>(i + 1);
+        }
+        n.actions[A_PLAY_RND].flags = kActionPlayRandomSlot;
+        n.actions[A_RND_ADV].flags = kActionRandomAdvanced;
+        n.actions[A_RND].flags = kActionRandom;
+        n.actions[A_CUSTOM_POOL].flags = kActionCustomPool;
+
+        static const Step kJump1 = {X, 0, 0, kRefAbs, 1, kUntilNone, 0};
+        static const Step kTakeoff1 = {0, 0, 0, kRefAbs, 30, kUntilTakeoff, 0};
+        static const Step kFloatWait = {X, 0, -100, kRefAbs, 30, kUntilSpecial, 0};
+        static const Step kGanonB = {B, 0, 0, kRefAbs, 1, kUntilNone, 0};
+        static const Step kWait5 = {0, 0, 0, kRefAbs, 5, kUntilNone, 0};
+        static const Step kFall60 = {0, 0, 0, kRefAbs, 60, kUntilFalling, 0};
+        static const Step kFall240 = {0, 0, 0, kRefAbs, 240, kUntilFalling, 0};
+        static const Step kFlick0 = {0, 0, -100, kRefAbs, 1, kUntilFastfall, 0};
+        static const Step kFlick1 = {0, 0, 0, kRefAbs, 1, kUntilFastfall, 0};
+
+        for (int i = 0; i < 5; i++)
+        {
+            const Step& ae = kAerials[i];
+            n.sh[i][0] = kJump1; n.sh[i][1] = kTakeoff1; n.sh[i][2] = ae;
+            n.djc[i][0] = kJump1; n.djc[i][1] = kTakeoff1; n.djc[i][2] = kJump1; n.djc[i][3] = ae;
+            n.flt[i][0] = kJump1; n.flt[i][1] = kFloatWait; n.flt[i][2] = ae;
+            n.flt[i][2].buttons = static_cast<u16>(n.flt[i][2].buttons | X);
+            n.gflt[i][0] = kJump1; n.gflt[i][1] = kTakeoff1; n.gflt[i][2] = kGanonB;
+            n.gflt[i][3] = kWait5; n.gflt[i][4] = ae;
+            n.shffl[i][0] = kJump1; n.shffl[i][1] = kTakeoff1; n.shffl[i][2] = ae;
+            n.shffl[i][3] = kFall60; n.shffl[i][4] = kFlick0; n.shffl[i][5] = kFlick1;
+            n.ffl[i][0] = ae; n.ffl[i][1] = kFall240; n.ffl[i][2] = kFlick0; n.ffl[i][3] = kFlick1;
+
+            setAct(n.actions[A_SH_NAIR + i], n.sh[i], 0);
+            setAct(n.actions[A_DJC_NAIR + i], n.djc[i], kForDjc);
+            setAct(n.actions[A_FLT_NAIR + i], n.flt[i], kForFloat);
+            setAct(n.actions[A_SHFFL_NAIR + i], n.shffl[i], kForShffl | kEndsWithSteps);
+            setAct(n.actions[A_FFL_NAIR + i], n.ffl[i], kForFfl | kEndsWithSteps);
+            setAct(n.ganonFloats[i], n.gflt[i], kForFloat);
+        }
+        // Single-aerial / jab scripts share the {ae, TM_END} suffix of n.sh[].
+        setAct(n.actions[A_JAB], n.sh[0] + 2, 0);
+        setAct(n.actions[A_FAIR], n.sh[1] + 2, 0);
+        setAct(n.actions[A_BAIR], n.sh[2] + 2, 0);
+    }
+
+    void actionsDetach()
+    {
+        game::freeNetworkSlot(reinterpret_cast<void**>(&s_net));
+    }
+
+    static const Action* actionsTable()
+    {
+        return s_net != NULL ? s_net->actions : NULL;
+    }
+
+    static const Action* ganonFloatsTable()
+    {
+        return s_net != NULL ? s_net->ganonFloats : NULL;
+    }
+#else
     static const Action kActions[] = {
         TM_NONE,
         TM_DO(kSpotdodge), TM_DO(kShield), TM_DO(kGrab), TM_DO(kUpB), TM_DO(kSideBToward), TM_DO(kDownB), TM_DO(kNeutralB),
@@ -240,6 +357,21 @@ namespace cpu {
         TM_DO(kOosUpB), TM_DO(kOosSideBAway), TM_DO(kOosSideBToward), TM_DO(kOosDownB), TM_DO(kOosNeutralB),
         TM_DO(kOosUSmash), TM_DO(kOosDSmash), TM_DO(kOosFSmash), TM_DO(kWait)
     };
+
+    static const Action kGanonFloats[] = {
+        {kGanonFloatNair, kForFloat, 0}, {kGanonFloatFair, kForFloat, 0}, {kGanonFloatBair, kForFloat, 0},
+        {kGanonFloatUair, kForFloat, 0}, {kGanonFloatDair, kForFloat, 0}};
+
+    static const Action* actionsTable()
+    {
+        return kActions;
+    }
+
+    static const Action* ganonFloatsTable()
+    {
+        return kGanonFloats;
+    }
+#endif
 
 #define A_SLOTS A_SLOT1, A_SLOT2, A_SLOT3, A_SLOT4, A_SLOT5, A_SLOT6, A_PLAY_RND
 #define A_SHS A_SH_NAIR, A_SH_FAIR, A_SH_BAIR, A_SH_UAIR, A_SH_DAIR
@@ -290,11 +422,12 @@ namespace cpu {
 
     int actionKind(int list, int index)
     {
-        if (list < 0 || list >= kListCount || index <= 0 || index >= kCounts[list])
+        const Action* table = actionsTable();
+        if (table == NULL || list < 0 || list >= kListCount || index <= 0 || index >= kCounts[list])
         {
             return kActionNone;
         }
-        const Action& a = kActions[kLists[list][index]];
+        const Action& a = table[kLists[list][index]];
         if (a.steps != NULL)
         {
             return kActionScript;
@@ -309,10 +442,6 @@ namespace cpu {
                    : kActionNone;
     }
 
-    static const Action kGanonFloats[] = {
-        {kGanonFloatNair, kForFloat, 0}, {kGanonFloatFair, kForFloat, 0}, {kGanonFloatBair, kForFloat, 0},
-        {kGanonFloatUair, kForFloat, 0}, {kGanonFloatDair, kForFloat, 0}};
-
     // ft_entry.h's ftKind values. Double jump cancels and floats checked
     // in game (Final Destination).
     enum { kNess = 0xA, kPeach = 0xC, kGanon = 0x14, kLucas = 0x1A, kMewtwo = 0x26 };
@@ -324,7 +453,7 @@ namespace cpu {
         {
             return NULL;
         }
-        const Action* a = &kActions[kLists[list][index]];
+        const Action* a = &actionsTable()[kLists[list][index]];
         if (kind == kKindAny)
         {
             return a;
@@ -332,7 +461,8 @@ namespace cpu {
         if (kind == kGanon && (a->flags & kForFloat) != 0)
         {
             int offset = static_cast<int>(kLists[list][index]) - A_FLT_NAIR;
-            return offset >= 0 && offset < 5 ? &kGanonFloats[offset] : NULL;
+            const Action* gf = ganonFloatsTable();
+            return gf != NULL && offset >= 0 && offset < 5 ? &gf[offset] : NULL;
         }
         return fitsKind(a, kind) ? a : NULL;
     }
