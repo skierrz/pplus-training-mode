@@ -64,7 +64,7 @@ TEST(action_log, ring_buffer_accumulates_durations_and_wraps_at_eight)
 
     // Push 6 more transitions to verify 8-entry ring wrap keeps the 8 newest.
     static const int kExtra[6] = {
-        kStatusWait, kStatusGuard, kStatusEscapeAir, kStatusDamageFlyRoll, 0x76, kStatusSpecialN
+        kStatusWait, kStatusGuard, kStatusEscapeAir, 0x49, 0x76, kStatusSpecialN
     };
     for (int i = 0; i < 6; i++)
     {
@@ -81,6 +81,76 @@ TEST(action_log, ring_buffer_accumulates_durations_and_wraps_at_eight)
     CHECK_EQ(static_cast<int>(kStateLedgeAir), static_cast<int>(actionLogAt(st, 6)->stateClass));
     CHECK(strcmp(actionLogAt(st, 7)->label, "SpecN") == 0);
     CHECK_EQ(static_cast<int>(kStateAttack), static_cast<int>(actionLogAt(st, 7)->stateClass));
+}
+
+TEST(action_log, verified_brawl_status_labels_and_classes)
+{
+    using namespace tm::extra;
+    char out[kActionLogLabelSize];
+
+    // Down Smash (0x2D..0x2F) vs Up Smash (0x30..0x32).
+    actionLogShortLabel(0x2F, NULL, NULL, out);
+    CHECK(strcmp(out, "DSmsh") == 0);
+    CHECK_EQ(static_cast<int>(kStateAttack), static_cast<int>(actionLogClassify(0x2F, false)));
+
+    actionLogShortLabel(0x32, NULL, NULL, out);
+    CHECK(strcmp(out, "USmsh") == 0);
+    CHECK_EQ(static_cast<int>(kStateAttack), static_cast<int>(actionLogClassify(0x32, false)));
+
+    // Platform drop (Pass 0x72), Ledge grab (Cliff_Catch_Move 0x73, Cliff_Catch 0x74).
+    actionLogShortLabel(0x72, NULL, NULL, out);
+    CHECK(strcmp(out, "Pass") == 0);
+    CHECK_EQ(static_cast<int>(kStateLedgeAir), static_cast<int>(actionLogClassify(0x72, false)));
+
+    actionLogShortLabel(0x73, NULL, NULL, out);
+    CHECK(strcmp(out, "Ledge") == 0);
+    CHECK_EQ(static_cast<int>(kStateLedgeAir), static_cast<int>(actionLogClassify(0x73, true)));
+
+    actionLogShortLabel(0x74, NULL, NULL, out);
+    CHECK(strcmp(out, "Ledge") == 0);
+    CHECK_EQ(static_cast<int>(kStateLedgeAir), static_cast<int>(actionLogClassify(0x74, true)));
+
+    // Wall jump/cling (0x67..0x6C) and Footstool jump (0x6D) are Ledge/Air; Tread_Damage (0x6E..0x70) is Hitstun.
+    CHECK_EQ(static_cast<int>(kStateLedgeAir), static_cast<int>(actionLogClassify(0x6D, true)));
+    CHECK_EQ(static_cast<int>(kStateHitstun), static_cast<int>(actionLogClassify(0x6E, true)));
+
+    // Grabs (0x34..0x3B), Throw (0x3C), Being Grabbed (Capture_Wait 0x3E).
+    actionLogShortLabel(0x34, NULL, NULL, out);
+    CHECK(strcmp(out, "Grab") == 0);
+    CHECK_EQ(static_cast<int>(kStateAttack), static_cast<int>(actionLogClassify(0x34, false)));
+
+    actionLogShortLabel(0x3C, NULL, NULL, out);
+    CHECK(strcmp(out, "Throw") == 0);
+    CHECK_EQ(static_cast<int>(kStateAttack), static_cast<int>(actionLogClassify(0x3C, false)));
+
+    actionLogShortLabel(0x3E, NULL, NULL, out);
+    CHECK(strcmp(out, "Grabd") == 0);
+    CHECK_EQ(static_cast<int>(kStateHitstun), static_cast<int>(actionLogClassify(0x3E, false)));
+
+    // Damage_Fall (0x49) and Down (0x4A..0x55).
+    actionLogShortLabel(0x49, NULL, NULL, out);
+    CHECK(strcmp(out, "Tumbl") == 0);
+    CHECK_EQ(static_cast<int>(kStateHitstun), static_cast<int>(actionLogClassify(0x49, true)));
+
+    actionLogShortLabel(0x4A, NULL, NULL, out);
+    CHECK(strcmp(out, "Down") == 0);
+    CHECK_EQ(static_cast<int>(kStateHitstun), static_cast<int>(actionLogClassify(0x4A, false)));
+
+    // Stop_Wall (0x65) is wall bonk, NOT Tech / Defense (Passive ends at 0x64).
+    actionLogShortLabel(0x64, NULL, NULL, out);
+    CHECK(strcmp(out, "Tech") == 0);
+    CHECK_EQ(static_cast<int>(kStateDefense), static_cast<int>(actionLogClassify(0x64, false)));
+
+    actionLogShortLabel(0x65, "StopWall", NULL, out);
+    CHECK(strcmp(out, "Tech") != 0);
+    CHECK(actionLogClassify(0x65, false) != kStateDefense);
+
+    // LandingFallSpecial (0x19) is distinct from LandingAttackAir (0x18).
+    actionLogShortLabel(0x18, NULL, NULL, out);
+    CHECK(strcmp(out, "LandA") == 0);
+    actionLogShortLabel(0x19, NULL, NULL, out);
+    CHECK(strcmp(out, "LandS") == 0);
+    CHECK_EQ(static_cast<int>(kStateLedgeAir), static_cast<int>(actionLogClassify(0x19, false)));
 }
 
 TEST(action_log, aerial_subactions_and_settings_layout_round_trip)

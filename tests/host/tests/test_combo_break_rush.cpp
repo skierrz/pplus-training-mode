@@ -170,3 +170,39 @@ TEST(combo_break_rush, combo_multiplier_chain_timer_and_modes)
     CHECK_EQ(0, static_cast<int>(st.finished));
     CHECK_EQ(static_cast<int>(kRushActiveSlots), static_cast<int>(rushCountLive(st)));
 }
+
+TEST(combo_break_rush, moving_platform_clamp_and_same_frame_milestone_sfx)
+{
+    using namespace tm::extra;
+    StageGeometry sv = makeFdGeom();
+    sv.floor.leftX = -70.0f;
+    sv.floor.rightX = 70.0f;
+    // Moving platform drifted off the right edge of safe floor bounds (pr < pl).
+    sv.platforms[0].leftX = 85.0f;
+    sv.platforms[0].rightX = 115.0f;
+    sv.platforms[0].y = 22.0f;
+    sv.platforms[0].valid = true;
+    sv.platformCount = 1;
+
+    ComboBreakState st;
+    rushInit(st, kRushFree, 0u, 0x55AA1234u);
+    for (int i = 0; i < 20; i++)
+    {
+        CHECK(rushSpawnOne(st, i % kRushActiveSlots, sv, 0.0f, 0.0f));
+        const RushTarget& t = st.targets[i % kRushActiveSlots];
+        CHECK(t.x >= sv.floor.leftX + 10.0f - 0.01f && t.x <= sv.floor.rightX - 10.0f + 0.01f);
+    }
+
+    // Breaking a x4 milestone target and a x5 normal target on the same frame keeps milestone chime (2).
+    st.multiplier = 3;
+    st.chainFrames = 100;
+    st.hitEvent = 0;
+    st.targets[0].active = 1;
+    st.targets[1].active = 1;
+    rushBreakTarget(st, 0); // x4 -> hitEvent = 2
+    CHECK_EQ(4, static_cast<int>(st.multiplier));
+    CHECK_EQ(2, static_cast<int>(st.hitEvent));
+    rushBreakTarget(st, 1); // x5 -> normal break (1) must not downgrade milestone chime (2)
+    CHECK_EQ(5, static_cast<int>(st.multiplier));
+    CHECK_EQ(2, static_cast<int>(st.hitEvent));
+}

@@ -188,7 +188,10 @@ namespace extra {
                 const StagePlatform& p = g.platforms[pi];
                 float pl = p.leftX + 3.0f; if (pl < safeL) pl = safeL;
                 float pr = p.rightX - 3.0f; if (pr > safeR) pr = safeR;
+                if (pr < pl) { pl = safeL; pr = safeR; }
                 cx = pl + r0 * (pr - pl);
+                if (cx < safeL) cx = safeL;
+                if (cx > safeR) cx = safeR;
                 cy = rushRandRange(st.rng, p.y + 7.5f, p.y + 16.5f);
                 tier = ((roll >> 8) % 5u == 0u) ? 2 : 1;
             }
@@ -257,7 +260,8 @@ namespace extra {
         t.active = 2;
         t.animFrames = kRushBurstFrames;
         t.cooldown = 0;
-        st.hitEvent = (st.multiplier == 4 || st.multiplier == kRushMaxMult) ? 2 : 1;
+        u8 ev = (st.multiplier == 4 || st.multiplier == kRushMaxMult) ? 2 : 1;
+        if (ev > st.hitEvent) st.hitEvent = ev;
     }
 
     TM_RUSH_CORE_FN void rushStepFrame(ComboBreakState& st, const StageGeometry& g, float fighterX, float fighterY)

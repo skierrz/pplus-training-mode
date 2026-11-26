@@ -124,28 +124,34 @@ namespace extra {
             return;
         }
         u8 mode = main::settings().general.actionLog;
-        if (mode != s_net->st.activeTarget)
+        bool changed = (mode != s_net->st.activeTarget);
+        if (changed)
         {
             actionLogResetState(s_net->st);
             s_net->st.activeTarget = mode;
         }
-        u8 slot = 0xFF;
-        if (mode != main::kActionLogOff)
+        if (mode == main::kActionLogOff)
         {
-            bool wantCpu = (mode == main::kActionLogCpu);
-            for (int i = 0; i < game::kMaxTracked; i++)
+            if (changed)
             {
-                const game::Tracked* t = game::tracked(i);
-                if (t != NULL && t->used && !t->partner && t->cpu == wantCpu)
-                {
-                    slot = static_cast<u8>(i);
-                    int status = static_cast<int>(t->cur.status);
-                    game::MotionInfo mi;
-                    bool gotM = (t->fighter != NULL && game::readMotion(t->fighter, mi));
-                    actionLogPushFrame(s_net->st, game::trackerFrame(), status, gotM ? mi.kind : -1,
-                                       t->cur.airborne != 0, NULL, gotM ? mi.name : NULL);
-                    break;
-                }
+                syncDebug(mode, 0xFF);
+            }
+            return;
+        }
+        u8 slot = 0xFF;
+        bool wantCpu = (mode == main::kActionLogCpu);
+        for (int i = 0; i < game::kMaxTracked; i++)
+        {
+            const game::Tracked* t = game::tracked(i);
+            if (t != NULL && t->used && !t->partner && t->cpu == wantCpu)
+            {
+                slot = static_cast<u8>(i);
+                int status = static_cast<int>(t->cur.status);
+                game::MotionInfo mi;
+                bool gotM = (t->fighter != NULL && game::readMotion(t->fighter, mi));
+                actionLogPushFrame(s_net->st, game::trackerFrame(), status, gotM ? mi.kind : -1,
+                                   t->cur.airborne != 0, NULL, gotM ? mi.name : NULL);
+                break;
             }
         }
         syncDebug(mode, slot);

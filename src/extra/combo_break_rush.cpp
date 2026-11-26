@@ -256,7 +256,6 @@ namespace extra {
         }
         if (net.st.mode == kRushOff)
         {
-            syncDebug(net);
             return;
         }
 

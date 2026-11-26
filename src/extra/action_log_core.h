@@ -108,21 +108,22 @@ namespace extra {
     inline u8 actionLogClassify(int status, bool airborne)
     {
         if ((status >= game::kStatusGuardOn && status <= game::kStatusEscapeAir)
-            || (status >= 0x60 && status <= 0x65))
+            || (status >= 0x60 && status <= 0x64))
         {
             return kStateDefense;
         }
-        if ((status >= game::kStatusDamage && status <= 0x5F) || (status >= 0x66 && status <= 0x74))
+        if ((status >= 0x3D && status <= 0x5F) || (status >= 0x6E && status <= 0x70))
         {
             return kStateHitstun;
         }
-        if ((status >= game::kStatusAttack && status <= 0x42) || status >= game::kStatusSpecialN)
+        if ((status >= game::kStatusAttack && status <= 0x3C) || status >= game::kStatusSpecialN)
         {
             return kStateAttack;
         }
         if ((status >= game::kStatusJumpSquat && status <= 0x10)
             || status == game::kStatusLandingFallSpecial
-            || (status >= 0x75 && status <= 0x7D)
+            || (status >= 0x67 && status <= 0x6D)
+            || (status >= 0x71 && status <= 0x7D)
             || airborne)
         {
             return kStateLedgeAir;
@@ -170,14 +171,16 @@ namespace extra {
                 {0x00, 0x00, "Wait"},  {0x01, 0x02, "Walk"},  {0x03, 0x03, "Dash"},
                 {0x04, 0x05, "Run"},   {0x06, 0x09, "Turn"},  {0x0A, 0x0A, "JmpSq"},
                 {0x0B, 0x0B, "Jump"},  {0x0C, 0x0D, "DJump"}, {0x0E, 0x10, "Fall"},
-                {0x11, 0x15, "Squat"}, {0x16, 0x17, "Land"},  {0x18, 0x19, "LandA"},
-                {0x1A, 0x1C, "Guard"}, {0x1D, 0x1D, "ShStn"}, {0x1E, 0x1E, "Dodge"},
-                {0x1F, 0x1F, "RollF"}, {0x20, 0x20, "RollB"}, {0x21, 0x21, "AirDg"},
-                {0x24, 0x25, "Jab"},   {0x26, 0x26, "DashA"}, {0x27, 0x27, "Ftilt"},
-                {0x28, 0x28, "Utilt"}, {0x29, 0x29, "Dtilt"}, {0x2A, 0x2C, "FSmsh"},
-                {0x2D, 0x2F, "USmsh"}, {0x30, 0x32, "DSmsh"}, {0x34, 0x36, "Grab"},
-                {0x37, 0x42, "Throw"}, {0x43, 0x45, "Hitst"}, {0x46, 0x46, "Tumbl"},
-                {0x47, 0x5F, "Hitst"}, {0x60, 0x65, "Tech"},  {0x75, 0x7B, "Ledge"}
+                {0x11, 0x15, "Squat"}, {0x16, 0x17, "Land"},  {0x18, 0x18, "LandA"},
+                {0x19, 0x19, "LandS"}, {0x1A, 0x1C, "Guard"}, {0x1D, 0x1D, "ShStn"},
+                {0x1E, 0x1E, "Dodge"}, {0x1F, 0x1F, "RollF"}, {0x20, 0x20, "RollB"},
+                {0x21, 0x21, "AirDg"}, {0x24, 0x25, "Jab"},   {0x26, 0x26, "DashA"},
+                {0x27, 0x27, "Ftilt"}, {0x28, 0x28, "Utilt"}, {0x29, 0x29, "Dtilt"},
+                {0x2A, 0x2C, "FSmsh"}, {0x2D, 0x2F, "DSmsh"}, {0x30, 0x32, "USmsh"},
+                {0x34, 0x3B, "Grab"},  {0x3C, 0x3C, "Throw"}, {0x3D, 0x42, "Grabd"},
+                {0x43, 0x48, "Hitst"}, {0x49, 0x49, "Tumbl"}, {0x4A, 0x55, "Down"},
+                {0x56, 0x5F, "Hitst"}, {0x60, 0x64, "Tech"},  {0x72, 0x72, "Pass"},
+                {0x73, 0x7B, "Ledge"}
             };
             for (u32 i = 0; i < sizeof(kMap) / sizeof(kMap[0]); i++)
             {
