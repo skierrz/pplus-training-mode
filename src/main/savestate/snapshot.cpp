@@ -47,6 +47,11 @@ namespace savestate {
         kRecordHeader = 8,  // per segment in the slot: address, length
         kMinRoom = kRecordHeader + 0x40,
         kMaxExcluded = 8,
+        // Chunked real-Wii restore/capture bounds (Broadway L1D is 32 KiB):
+        // 16 KiB copy+dcbst tiles stay L1-hot; 64 KiB IRQ yields keep
+        // MSR[EE]=0 spans well under the 3-5 ms AX audio DMA period.
+        kRestoreTileBytes = 16384,
+        kIrqYieldBytes = 65536,
         // gfPadSystem +0x30: pad-thread samples not yet consumed; the loop
         // runs that many game steps (1-3) after reading the system pads
         // (0x800172AC-0x800172CC, in fn_80016F8C).
@@ -216,6 +221,8 @@ namespace savestate {
         bool valid;
         u32 lo[kMaxChunks];
         u32 hi[kMaxChunks];
+        u32 tailChunk; // first record of the atomic kFixed tail
+        u32 tailPos;
         u32 checksum;
         u32 layout;   // heaps and modules where they were
         u32 archives; // the resource heaps' loaded files
@@ -226,8 +233,27 @@ namespace savestate {
     static u32 s_chunkCount = 0;
     static Slot s_slot[kSlotCount];
     static SlotInfo s_info[kSlotCount];
-    static Range s_own = {0, 0}; // a buffer of ours inside a heap of the set
+    static Range s_own[kMaxOwnExclusions]; // buffers of ours inside heaps of the set
     static bool s_dropped = false;
+
+    static inline void yieldIrq(BOOL& level, u32& irqStart, u32& maxIrqOff)
+    {
+#ifdef TM_PERF
+        u32 delta = OSGetTick() - irqStart;
+        if (delta > maxIrqOff)
+        {
+            maxIrqOff = delta;
+        }
+#else
+        (void)irqStart;
+        (void)maxIrqOff;
+#endif
+        OSRestoreInterrupts(level);
+        level = OSDisableInterrupts();
+#ifdef TM_PERF
+        irqStart = OSGetTick();
+#endif
+    }
 
     static u32 field(u32 address, u32 offset)
     {
@@ -459,9 +485,9 @@ namespace savestate {
     static bool overlapsExcluded(u32 lo, u32 hi)
     {
         u32 fixed = sizeof(kExcluded) / sizeof(kExcluded[0]);
-        for (u32 i = 0; i <= fixed; i++)
+        for (u32 i = 0; i < fixed + kMaxOwnExclusions; i++)
         {
-            const Range& e = i < fixed ? kExcluded[i] : s_own;
+            const Range& e = i < fixed ? kExcluded[i] : s_own[i - fixed];
             if (e.len != 0 && e.addr < hi && e.addr + e.len > lo)
             {
                 return true;
@@ -487,6 +513,11 @@ namespace savestate {
         u32 segments;
         u32 checksum;
         u32 fighterFreeBytes;
+        BOOL irqLevel;
+        bool yieldEnabled;
+        u32 sinceYield;
+        u32 irqStart;
+        u32 maxIrqOffTicks;
     };
 
     static void emit(Writer& w, u32 addr, u32 len)
@@ -517,7 +548,40 @@ namespace savestate {
             u32* head = reinterpret_cast<u32*>(c.addr + w.pos);
             head[0] = addr;
             head[1] = n;
-            copy(head + 2, reinterpret_cast<const void*>(addr), n);
+            if (!w.yieldEnabled)
+            {
+                copy(head + 2, reinterpret_cast<const void*>(addr), n);
+            }
+            else
+            {
+                u32 done = 0;
+                while (done < n)
+                {
+                    u32 step = n - done;
+                    u32 budget = w.sinceYield < kIrqYieldBytes ? (kIrqYieldBytes - w.sinceYield) : kIrqYieldBytes;
+                    if (step > budget)
+                    {
+                        step = budget;
+                    }
+                    if (done + step < n)
+                    {
+                        step &= ~7u;
+                        if (step == 0)
+                        {
+                            step = n - done;
+                        }
+                    }
+                    copy(reinterpret_cast<u8*>(head + 2) + done,
+                         reinterpret_cast<const u8*>(addr) + done, step);
+                    done += step;
+                    w.sinceYield += step;
+                    if (w.sinceYield >= kIrqYieldBytes)
+                    {
+                        yieldIrq(w.irqLevel, w.irqStart, w.maxIrqOffTicks);
+                        w.sinceYield = 0;
+                    }
+                }
+            }
             u32 padded = (n + 7u) & ~7u;
             if (padded > n)
             {
@@ -545,9 +609,9 @@ namespace savestate {
         {
             u32 next = hi;
             bool skipped = false;
-            for (u32 i = 0; i <= fixed; i++)
+            for (u32 i = 0; i < fixed + kMaxOwnExclusions; i++)
             {
-                const Range& e = i < fixed ? kExcluded[i] : s_own;
+                const Range& e = i < fixed ? kExcluded[i] : s_own[i - fixed];
                 u32 elo = e.addr;
                 u32 ehi = elo + e.len;
                 if (e.len == 0)
@@ -743,10 +807,13 @@ namespace savestate {
             }
         }
         walkModules(NULL, &layout);
-        // The recording's slots, inside one of the set's heaps, can be
-        // allocated a few seconds into a match: a state saved before that
-        // must not be loaded once the block is there.
-        layout = mix(mix(layout, s_own.addr), s_own.len);
+        // Our own buffers inside heaps of the set (e.g. recorded inputs) can
+        // be allocated after match start: a state saved before that must not
+        // be loaded once an exclusion changes.
+        for (u32 i = 0; i < kMaxOwnExclusions; i++)
+        {
+            layout = mix(mix(layout, s_own[i].addr), s_own[i].len);
+        }
         return true;
     }
 
@@ -780,7 +847,26 @@ namespace savestate {
         walkModules(&w, layout);
         if (layout != NULL)
         {
-            *layout = mix(mix(*layout, s_own.addr), s_own.len);
+            for (u32 i = 0; i < kMaxOwnExclusions; i++)
+            {
+                *layout = mix(mix(*layout, s_own[i].addr), s_own[i].len);
+            }
+        }
+        // Finish Tier 1 bulk heaps/modules, then enter the short atomic kFixed tail.
+        flush(w);
+        if (!w.measureOnly)
+        {
+            if (w.yieldEnabled && w.sinceYield > 0)
+            {
+                yieldIrq(w.irqLevel, w.irqStart, w.maxIrqOffTicks);
+                w.sinceYield = 0;
+            }
+            w.yieldEnabled = false;
+            if (w.slot != NULL)
+            {
+                w.slot->tailChunk = w.chunk;
+                w.slot->tailPos = w.pos;
+            }
         }
         for (u32 i = 0; i < kFixedCount; i++)
         {
@@ -978,15 +1064,28 @@ namespace savestate {
             slot.hi[c] = 0;
         }
         slot.lo[chunk] = pos;
-        Writer fresh = {&slot, limitChunk, limitPos, chunk, pos, 0, 0, false, false, false, 0, 0, 0, 0};
+        slot.tailChunk = kMaxChunks;
+        slot.tailPos = 0;
+        Writer fresh = {&slot, limitChunk, limitPos, chunk, pos, 0, 0, false, false, false, 0, 0, 0, 0, 0,
+                        !TM_PERF_LEGACY(), 0, 0, 0};
         w = fresh;
-        BOOL level = OSDisableInterrupts();
+        w.irqLevel = OSDisableInterrupts();
+#ifdef TM_PERF
+        w.irqStart = OSGetTick();
+#endif
         walked = walkAll(w, layout, archives);
         if (w.chunk < kMaxChunks)
         {
             slot.hi[w.chunk] = w.pos;
         }
-        OSRestoreInterrupts(level);
+#ifdef TM_PERF
+        u32 tailDelta = OSGetTick() - w.irqStart;
+        if (tailDelta > w.maxIrqOffTicks)
+        {
+            w.maxIrqOffTicks = tailDelta;
+        }
+#endif
+        OSRestoreInterrupts(w.irqLevel);
         return walked && !w.overflow;
     }
 
@@ -1004,10 +1103,18 @@ namespace savestate {
         return s_dropped;
     }
 
+    void setOwnExclusionAt(u32 index, u32 addr, u32 len)
+    {
+        if (index < kMaxOwnExclusions)
+        {
+            s_own[index].addr = addr;
+            s_own[index].len = len;
+        }
+    }
+
     void setOwnExclusion(u32 addr, u32 len)
     {
-        s_own.addr = addr;
-        s_own.len = len;
+        setOwnExclusionAt(0, addr, len);
     }
 
     // At its slot's home, else the start, else after the other slot's
@@ -1126,7 +1233,7 @@ namespace savestate {
         if (legacy || w.needV3Walk)
         {
             // Fallback or legacy measurement walk for setBytesV3.
-            Writer m = {NULL, 0, 0, 0, 0, 0, 0, false, true, false, 0, 0, 0, 0};
+            Writer m = {NULL, 0, 0, 0, 0, 0, 0, false, true, false, 0, 0, 0, 0, 0, false, 0, 0, 0};
             {
                 TM_PERF_SCOPE(kSaveMeasureV3);
                 for (u32 r = 0; r < kRuleCount; r++)
@@ -1150,6 +1257,10 @@ namespace savestate {
         info.segments = w.segments;
         info.setBytesV3 = setBytesV3;
         info.saveTicks = t1 - t0;
+#ifdef TM_PERF
+        info.saveMaxIrqOffTicks = w.maxIrqOffTicks;
+        perf::add(perf::kSaveMaxIrqOff, w.maxIrqOffTicks);
+#endif
         return kOk;
     }
 
@@ -1215,9 +1326,14 @@ namespace savestate {
         }
         BOOL level = OSDisableInterrupts();
         bool legacyFlush = TM_PERF_LEGACY();
+        u32 irqStart = 0;
+        u32 maxIrqOff = 0;
+        u32 sinceYield = 0;
+        bool inAtomicTail = legacyFlush;
 #ifdef TM_PERF
         u32 copyTicks = 0;
         u32 flushTicks = 0;
+        irqStart = OSGetTick();
 #endif
         u32 t0 = OSGetTick();
         for (u32 c = 0; c < s_chunkCount; c++)
@@ -1225,31 +1341,82 @@ namespace savestate {
             u32 pos = slot.lo[c];
             while (pos + kRecordHeader <= slot.hi[c])
             {
+                if (!inAtomicTail && (c > slot.tailChunk || (c == slot.tailChunk && pos >= slot.tailPos)))
+                {
+                    if (sinceYield > 0)
+                    {
+                        yieldIrq(level, irqStart, maxIrqOff);
+                        sinceYield = 0;
+                    }
+                    inAtomicTail = true;
+                }
                 const u32* head = reinterpret_cast<const u32*>(s_chunks[c].addr + pos);
                 u32 addr = head[0];
                 u32 n = head[1];
-#ifdef TM_PERF
-                u32 st0 = OSGetTick();
-#endif
-                copy(reinterpret_cast<void*>(addr), head + 2, n);
-#ifdef TM_PERF
-                u32 st1 = OSGetTick();
-#endif
-                // The GPU reads some of this memory (display lists, vertex
-                // arrays, matrices): write it back from the data cache.
+                const u8* src = reinterpret_cast<const u8*>(head + 2);
                 if (legacyFlush)
                 {
+#ifdef TM_PERF
+                    u32 st0 = OSGetTick();
+#endif
+                    copy(reinterpret_cast<void*>(addr), src, n);
+#ifdef TM_PERF
+                    u32 st1 = OSGetTick();
+#endif
                     DCFlushRange(reinterpret_cast<void*>(addr), n);
+#ifdef TM_PERF
+                    u32 st2 = OSGetTick();
+                    copyTicks += st1 - st0;
+                    flushTicks += st2 - st1;
+#endif
                 }
                 else
                 {
-                    storeCacheRangeNoSync(addr, n);
-                }
+                    // Tile bulk Tier 1 segments into 16 KiB L1-hot copy+dcbst
+                    // chunks and yield IRQs every 64 KiB; hold interrupts off
+                    // uninterrupted only across the short kFixed atomic tail.
+                    u32 done = 0;
+                    while (done < n)
+                    {
+                        u32 tile = n - done;
+                        if (!inAtomicTail && tile > kRestoreTileBytes)
+                        {
+                            tile = kRestoreTileBytes;
+                        }
+                        if (done + tile < n && (tile & 7u) != 0u)
+                        {
+                            tile &= ~7u;
+                            if (tile == 0)
+                            {
+                                tile = n - done;
+                            }
+                        }
+                        u32 tileAddr = addr + done;
 #ifdef TM_PERF
-                u32 st2 = OSGetTick();
-                copyTicks += st1 - st0;
-                flushTicks += st2 - st1;
+                        u32 st0 = OSGetTick();
 #endif
+                        copy(reinterpret_cast<void*>(tileAddr), src + done, tile);
+#ifdef TM_PERF
+                        u32 st1 = OSGetTick();
+#endif
+                        storeCacheRangeNoSync(tileAddr, tile);
+#ifdef TM_PERF
+                        u32 st2 = OSGetTick();
+                        copyTicks += st1 - st0;
+                        flushTicks += st2 - st1;
+#endif
+                        done += tile;
+                        if (!inAtomicTail)
+                        {
+                            sinceYield += tile;
+                            if (sinceYield >= kIrqYieldBytes)
+                            {
+                                yieldIrq(level, irqStart, maxIrqOff);
+                                sinceYield = 0;
+                            }
+                        }
+                    }
+                }
                 pos += kRecordHeader + ((n + 7u) & ~7u);
             }
         }
@@ -1266,10 +1433,19 @@ namespace savestate {
         }
         ICInvalidateRange(reinterpret_cast<void*>(kCodeWord & ~0x1Fu), 0x20);
         u32 t1 = OSGetTick();
+#ifdef TM_PERF
+        u32 tailDelta = t1 - irqStart;
+        if (tailDelta > maxIrqOff)
+        {
+            maxIrqOff = tailDelta;
+        }
+#endif
         OSRestoreInterrupts(level);
 #ifdef TM_PERF
+        info.loadMaxIrqOffTicks = maxIrqOff;
         perf::add(perf::kLoadCopy, copyTicks);
         perf::add(perf::kLoadFlush, flushTicks);
+        perf::add(perf::kLoadMaxIrqOff, maxIrqOff);
 #endif
         // Vertex and texture caches may hold what the GPU read before.
         GXInvalidateVtxCache();

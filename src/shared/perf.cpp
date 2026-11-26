@@ -37,8 +37,9 @@ namespace perf {
         "menu_draw", "watermark", "debug_overlay", "record_hud", "extra_render", "match_hud",
         "storage", "pads_damage", "pads_savestate", "pads_lab", "pads_record", "input_cpu",
         "input_savestate", "input_lab", "input_record", "fighter_pad_lab", "save_capture",
-        "save_fingerprint", "save_wait_gpu", "save_write", "save_check", "save_measure_v3",
+        "save_fingerprint", "save_wait_gpu", "save_write", "save_check", "save_measure_v3", "save_max_irq_off",
         "load_restore", "load_fingerprint", "load_check", "load_wait_gpu", "load_copy", "load_flush",
+        "load_max_irq_off",
         "n_rects", "n_texts", "n_chars", "n_widths", "n_logs"};
 #endif
 
