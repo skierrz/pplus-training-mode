@@ -3,6 +3,9 @@
 #include "shared/perf.h"
 
 #include <stddef.h>
+#ifdef __MWERKS__
+#include <OS/OSError.h>
+#endif
 #if defined(TM_MODULE_MAIN) && defined(__MWERKS__)
 #include <gf/gf_heap_manager.h>
 #include <gf/gf_memory_pool.h>
@@ -132,7 +135,16 @@ namespace perf {
         }
         s_blockPtr->magic = kMagic;
         s_blockPtr->count = count;
-        // One line the script parses: the address, then the names in order.
+        // One line the script parses: stream each section name directly via
+        // OSReport so long section lists never truncate at logf's 512-byte cap.
+#ifdef __MWERKS__
+        OSReport("[" TM_PLUGIN_NAME "] perf: %s block at %08x, %u sections: ", who, s_blockPtr, count);
+        for (u32 i = 0; i < count; i++)
+        {
+            OSReport("%s ", names[i]);
+        }
+        OSReport("\n");
+#else
         char line[1024];
         u32 n = 0;
         for (u32 i = 0; i < count && n + 24 < sizeof(line); i++)
@@ -145,6 +157,7 @@ namespace perf {
         }
         line[n] = '\0';
         TM_LOG("perf: %s block at %08x, %u sections: %s\n", who, s_blockPtr, count, line);
+#endif
     }
 }
 }
