@@ -37,6 +37,7 @@
 #include "main/ui/osd.h"
 #include "main/ui/pages/scenarios.h"
 #include "main/ui/pages/pages.h"
+#include "main/ui/settings_modal.h"
 #include "main/ui/style.h"
 #include "main/ui/watermark.h"
 #include "shared/game/mem.h"
@@ -1160,8 +1161,66 @@ namespace lab {
         }
     }
 
+    static void onSettingsUpgraded()
+    {
+        cpu::controlledByChanged();
+        osdSettingsChanged();
+        frameAdvanceChanged();
+        game::codeMenuSync();
+        main::extraStageOptionsChanged();
+    }
+
     void onPads(u32 phase, gfPadStatus* pads)
     {
+        if (!s_vsReadOnly && !s_st.exiting && ui::settingsModalOpen())
+        {
+            bool confirmed = false;
+            if (phase == iface::kPadsSystem)
+            {
+                capture(s_st.sys, pads, true);
+                int active = -1;
+                for (int i = 0; i < kPorts; i++)
+                {
+                    if (!s_st.sys[i].connected)
+                    {
+                        continue;
+                    }
+                    bool busy = s_st.sys[i].held != 0 || s_st.sys[i].stickX <= -kStickDeadZone
+                                || s_st.sys[i].stickX >= kStickDeadZone || s_st.sys[i].stickY <= -kStickDeadZone
+                                || s_st.sys[i].stickY >= kStickDeadZone;
+                    if (active < 0 || busy)
+                    {
+                        active = i;
+                        if (busy)
+                        {
+                            break;
+                        }
+                    }
+                }
+                if (active >= 0)
+                {
+                    const Raw& r = s_st.sys[active];
+                    ui::SettingsModalInput mi = {r.held, r.pressed, r.stickX, r.stickY, r.controllerType};
+                    confirmed = ui::settingsModalStep(mi);
+                }
+            }
+            else if (phase == iface::kPadsGame)
+            {
+                game::setFrozen(true);
+            }
+            hideAll(pads);
+            if (confirmed)
+            {
+                for (int i = 0; i < kPorts; i++)
+                {
+                    s_st.releaseMask[i] = s_st.sys[i].held;
+                }
+                s_st.stickWaitMask = 0xFF;
+                game::setFrozen(false);
+                onSettingsUpgraded();
+            }
+            return;
+        }
         if (!s_vsReadOnly && !s_st.exiting && !s_st.open && main::extraDrill(phase, pads) != 0u)
         {
             return;
@@ -1589,15 +1648,16 @@ namespace lab {
     void onRender(u32 call, const game::MatchState& m)
     {
         bool ro = s_vsReadOnly;
-        bool info = m.running && !s_st.open && !m.paused && main::extraInfoWanted();
-        bool messages = m.running && !m.paused && !s_st.open && osd::visible();
+        bool modal = !ro && ui::settingsModalOpen();
+        bool info = m.running && !s_st.open && !modal && !m.paused && main::extraInfoWanted();
+        bool messages = m.running && !m.paused && !s_st.open && !modal && osd::visible();
         // Z opens the lab menu from Training's pause in both modes; the hint
         // shows only where that is the way in.
-        bool hint = !ro && m.running && m.training && m.paused && !s_st.open && !startOpensMenu();
+        bool hint = !ro && m.running && m.training && m.paused && !s_st.open && !modal && !startOpensMenu();
         bool hud = ro || display::hudShown();
         setLayout(hud);
-        bool drillHud = !ro && m.running && !m.paused && !s_st.open && (main::extraDrill(2, NULL) & 1u) != 0u;
-        bool ledge = m.running && !m.paused && !s_st.open && !drillHud && ui::ledgedashHudVisible();
+        bool drillHud = !ro && m.running && !m.paused && !s_st.open && !modal && (main::extraDrill(2, NULL) & 1u) != 0u;
+        bool ledge = m.running && !m.paused && !s_st.open && !modal && !drillHud && ui::ledgedashHudVisible();
         // Training leaves Brawl's own timer off: it is turned on here instead
         // (ui/match_hud.cpp), hidden while the Ledgedash HUD or Skill Drill HUD is shown.
         bool timer = !ro && m.running && hud && !drillHud && !ui::ledgedashHudVisible() && (!m.paused || s_st.open);
@@ -1661,6 +1721,10 @@ namespace lab {
                         TM_PERF_SCOPE(kMenuDraw);
                         ui::menuDraw(ui::labMenu(), s_menu);
                     }
+                    if (modal)
+                    {
+                        ui::settingsModalDraw();
+                    }
                 }
                 else if (!m.paused && !s_st.open)
                 {
@@ -1685,7 +1749,7 @@ namespace lab {
     {
         return s_st.open || s_st.exiting || s_st.startState != kStartIdle || s_st.catchUp > 0
                || game::categoriesPaused() || main::extraFighterSwapBusy() || (main::extraDrill(0, NULL) & 2u) != 0u
-               || comboLHeld(game::matchState());
+               || ui::settingsModalOpen() || comboLHeld(game::matchState());
     }
 
     // Only the extra module (fighter_swap) calls this: keep exported.
@@ -1743,8 +1807,10 @@ namespace lab {
         game::techniquesAttach();
         game::techniquesReset(onTechnique);
         game::setFrameListener(onTrackerFrame);
+        gfx::textAttach();
         osd::attach();
         osdSettingsChanged();
+        ui::settingsModalAttach();
         s_menuFresh = true;
         if (!s_vsReadOnly)
         {
@@ -1764,6 +1830,7 @@ namespace lab {
         if (s_vsReadOnly)
         {
             osd::detach();
+            gfx::textDetach();
             game::techniquesDetach();
             game::trackerDetach();
             s_vsReadOnly = false;
@@ -1771,6 +1838,7 @@ namespace lab {
         }
         display::detach();
         osd::detach();
+        gfx::textDetach();
         game::overlaysClear();
         game::techniquesDetach();
         game::trackerDetach();

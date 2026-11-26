@@ -34,7 +34,10 @@
 #include "main/ui/lab_menu.h"
 #include "main/ui/osd_place.h"
 #include "main/ui/pages/cpu_rows.h"
+#include "main/ui/settings_modal.h"
 #include "menu/browser.h"
+#include "menu/osd_quick.h"
+#include "shared/game/pad_map.h"
 
 using namespace tm;
 using main::Settings;
@@ -461,14 +464,17 @@ TEST(settings_file, layout_1_auto_upgrades_to_v2_defaults_and_newer_layout_is_re
     head->layout = 1;
     reseal(kFileA);
 
+    // Booting with a layout 1 save keeps defaults active and arms the v1 -> v2 upgrade modal.
     boot();
-    CHECK_LOG("storage: settings layout 1 older than 2: updated to new defaults");
-    CHECK_LOG("storage: notice: Updated lab settings to new defaults");
+    CHECK(storage::settingsUpgradePending());
+    CHECK_LOG("storage: settings layout 1 older than 2");
     CHECK_SETTINGS(defaults, main::settings());
 
-    // Closing the menu with zero edits writes the clean layout 2 file to slot B.
+    // Choosing Option 0 (Reset All Settings) resets all to v2 defaults and saves clean layout 2 immediately.
     int writesBefore = host::card::writes();
-    closeMenu();
+    storage::settingsUpgradeApply(storage::kUpgradeResetAll);
+    frames();
+    CHECK(!storage::settingsUpgradePending());
     CHECK(host::card::writes() > writesBefore);
     REQUIRE(host::card::has(kFileB));
     CHECK_EQ(2, static_cast<int>(header(kFileB)->sequence));
@@ -477,8 +483,9 @@ TEST(settings_file, layout_1_auto_upgrades_to_v2_defaults_and_newer_layout_is_re
     CHECK_EQ(2, static_cast<int>(headB->layout));
     storage::detach();
 
-    // Next boot loads layout 2 cleanly with zero notice.
+    // Next boot loads layout 2 cleanly with zero notice and no upgrade modal.
     boot();
+    CHECK(!storage::settingsUpgradePending());
     CHECK_LOG("storage: settings loaded from settings-b.bin (save 2, layout 2)");
     CHECK(!storage::noticeActive());
     CHECK_SETTINGS(defaults, main::settings());
@@ -490,12 +497,166 @@ TEST(settings_file, layout_1_auto_upgrades_to_v2_defaults_and_newer_layout_is_re
     reseal(kFileB);
 
     boot();
+    CHECK(!storage::settingsUpgradePending());
     CHECK_LOG("storage: notice: Lab settings are from a newer version: not used");
     CHECK_SETTINGS(defaults, main::settings());
     writesBefore = host::card::writes();
     main::settings().general.ledgeHud = 0;
     closeMenu();
     CHECK_EQ(writesBefore, host::card::writes());
+    storage::detach();
+}
+
+// Comprehensive v1 -> v2 Settings Update Modal test covering all 3 choices
+// (Reset All, Reset Affected, Keep My Settings), obsolete area trimming,
+// clamping/sanitization, wait-for-neutral input navigation, and 1-area osd_quick load.
+TEST(settings_file, v1_to_v2_upgrade_modal_three_choices_and_input_flow)
+{
+    Settings defaults, chosen;
+    saveChosen(defaults, chosen);
+    storage::detach();
+
+    // Build a realistic v1 file (kMaxAreas == 16) from settings-a.bin with:
+    //  - kAreaGeneral truncated (used changed -> affected)
+    //  - kAreaComboTrainer generation set to legacy gen 1 (gen changed -> affected)
+    //  - kAreaFighterMechanics replaced by an obsolete area id 60 (missing in v1 -> affected, id 60 trimmed)
+    //  - kAreaDisplay untouched (same gen + used -> unaffected, with out-of-range hitboxes=99 to verify clamp)
+    //  - kAreaControls & kAreaOsd untouched (same gen + used -> unaffected)
+    u8 v1Raw[storage::kSettingsFileCap];
+    memset(v1Raw, 0, sizeof(v1Raw));
+    const u8* orig = host::card::data(kFileA);
+    const storage::SettingsHead* origHead =
+        reinterpret_cast<const storage::SettingsHead*>(orig + sizeof(storage::FileHeader));
+    u32 tableOff = sizeof(storage::FileHeader) + sizeof(storage::SettingsHead);
+    const storage::AreaEntry* origEntries = reinterpret_cast<const storage::AreaEntry*>(orig + tableOff);
+
+    u16 newCount = origHead->areaCount; // 16 == kMaxAreas
+    u32 at = tableOff + newCount * sizeof(storage::AreaEntry);
+    storage::AreaEntry* dstEntries = reinterpret_cast<storage::AreaEntry*>(v1Raw + tableOff);
+    for (u16 i = 0; i < origHead->areaCount; i++)
+    {
+        dstEntries[i] = origEntries[i];
+        dstEntries[i].offset = at;
+        if (dstEntries[i].id == storage::kAreaFighterMechanics)
+        {
+            // Obsolete v1 area id 60 (must be trimmed on all 3 upgrade choices).
+            dstEntries[i].id = 60;
+            dstEntries[i].generation = 1;
+            dstEntries[i].used = 4;
+            v1Raw[at] = 0xDE;
+            v1Raw[at + 1] = 0xAD;
+            at += 4;
+            continue;
+        }
+        if (dstEntries[i].id == storage::kAreaGeneral)
+        {
+            dstEntries[i].used = offsetof(main::GeneralSettings, diDisplay); // grown/changed
+        }
+        else if (dstEntries[i].id == storage::kAreaComboTrainer)
+        {
+            dstEntries[i].generation = 1; // legacy gen 1
+        }
+        u32 room = (static_cast<u32>(dstEntries[i].used) + 3u) & ~3u;
+        memcpy(v1Raw + at, orig + origEntries[i].offset, dstEntries[i].used);
+        // Inject an out-of-range byte in Display (hitboxes = 99) to verify sanitization.
+        if (dstEntries[i].id == storage::kAreaDisplay)
+        {
+            v1Raw[at + offsetof(main::DisplaySettings, hitboxes)] = 99;
+        }
+        at += room;
+    }
+
+    storage::FileHeader* v1h = reinterpret_cast<storage::FileHeader*>(v1Raw);
+    storage::SettingsHead* v1head = reinterpret_cast<storage::SettingsHead*>(v1Raw + sizeof(storage::FileHeader));
+    v1head->areaCount = newCount;
+    v1head->layout = 1;
+    v1h->magic = storage::kSettingsMagic;
+    v1h->format = storage::kSettingsFormat;
+    v1h->headerSize = sizeof(storage::FileHeader);
+    v1h->size = at;
+    v1h->sequence = 1;
+    v1h->checksum = storage::checksum(v1Raw + storage::kChecksumFrom, at - storage::kChecksumFrom);
+
+    // ---- Choice 1: Reset Affected Settings ----
+    host::card::reset();
+    host::card::put(kFileA, v1Raw, at);
+    boot();
+    CHECK(storage::settingsUpgradePending());
+    CHECK_EQ(3, storage::settingsUpgradeAffectedCount()); // kAreaGeneral + kAreaComboTrainer + missing kAreaFighterMechanics
+
+    // Exercise modal input: held A on first frame is ignored (wait-for-neutral), then Down + A picks Choice 1.
+    ui::settingsModalAttach();
+    CHECK(ui::settingsModalOpen());
+    CHECK_EQ(0, ui::settingsModalCursor());
+    ui::SettingsModalInput heldA = {game::kPadA, game::kPadA, 0, 0, static_cast<u32>(gfPadType::GCC)};
+    CHECK(!ui::settingsModalStep(heldA));
+    CHECK(ui::settingsModalOpen());
+    ui::SettingsModalInput neutral = {0, 0, 0, 0, static_cast<u32>(gfPadType::GCC)};
+    CHECK(!ui::settingsModalStep(neutral));
+    ui::SettingsModalInput down = {game::kPadDDown, game::kPadDDown, 0, 0, static_cast<u32>(gfPadType::GCC)};
+    CHECK(!ui::settingsModalStep(down));
+    CHECK_EQ(1, ui::settingsModalCursor());
+    CHECK(!ui::settingsModalStep(neutral));
+    CHECK(ui::settingsModalStep(heldA));
+    CHECK(!ui::settingsModalOpen());
+    frames();
+
+    // Affected areas (General, ComboTrainer) reset to v2 defaults; untouched areas (Controls, OSD) preserved!
+    CHECK_EQ(static_cast<int>(defaults.general.ledgeMaxFrames),
+             static_cast<int>(main::settings().general.ledgeMaxFrames));
+    CHECK_EQ(static_cast<int>(defaults.comboTrainer.noclip), static_cast<int>(main::settings().comboTrainer.noclip));
+    CHECK_EQ(static_cast<int>(chosen.controls.advanceButton),
+             static_cast<int>(main::settings().controls.advanceButton));
+    CHECK_EQ(static_cast<int>(chosen.osd.wavedash), static_cast<int>(main::settings().osd.wavedash));
+    // Display had out-of-range hitboxes=99 -> clamped to max valid value (3)!
+    CHECK_EQ(3, static_cast<int>(main::settings().display.hitboxes));
+    // Clean v2 file written to slot B with obsolete area 60 trimmed (16 areas, not 17).
+    REQUIRE(host::card::has(kFileB));
+    storage::SettingsHead* savedHead =
+        reinterpret_cast<storage::SettingsHead*>(host::card::data(kFileB) + sizeof(storage::FileHeader));
+    CHECK_EQ(2, static_cast<int>(savedHead->layout));
+    CHECK_EQ(16, static_cast<int>(savedHead->areaCount));
+    CHECK(areaEntry(kFileB, 60) == NULL);
+    storage::detach();
+
+    // ---- Choice 2: Keep My Settings ----
+    host::card::reset();
+    host::card::put(kFileA, v1Raw, at);
+    boot();
+    CHECK(storage::settingsUpgradePending());
+    storage::settingsUpgradeApply(storage::kUpgradeKeepMine);
+    frames();
+    // Compatible prefix of kAreaGeneral (ledgeMaxFrames) preserved; new fields past old used at defaults;
+    // gen-mismatched kAreaComboTrainer safely reset; out-of-range Display clamped; obsolete area 60 trimmed.
+    CHECK_EQ(static_cast<int>(chosen.general.ledgeMaxFrames),
+             static_cast<int>(main::settings().general.ledgeMaxFrames));
+    CHECK_EQ(static_cast<int>(defaults.general.diDisplay), static_cast<int>(main::settings().general.diDisplay));
+    CHECK_EQ(static_cast<int>(defaults.comboTrainer.noclip), static_cast<int>(main::settings().comboTrainer.noclip));
+    CHECK_EQ(static_cast<int>(chosen.controls.advanceButton),
+             static_cast<int>(main::settings().controls.advanceButton));
+    CHECK_EQ(3, static_cast<int>(main::settings().display.hitboxes));
+    REQUIRE(host::card::has(kFileB));
+    savedHead = reinterpret_cast<storage::SettingsHead*>(host::card::data(kFileB) + sizeof(storage::FileHeader));
+    CHECK_EQ(2, static_cast<int>(savedHead->layout));
+    CHECK_EQ(16, static_cast<int>(savedHead->areaCount));
+    CHECK(areaEntry(kFileB, 60) == NULL);
+    storage::detach();
+
+    // ---- Brand-new 1-area file created by Boot Menu Y: OSDs loads silently with zero modal/notice ----
+    host::card::reset();
+    main::OsdSettings quickOsd;
+    menu::osdQuick::defaultOsdSettings(quickOsd);
+    quickOsd.dashback = 1;
+    quickOsd.maxMessages = 6;
+    u8 oneArea[storage::kSettingsFileCap];
+    u32 oneSize = 0;
+    REQUIRE(menu::osdQuick::patchOsdAreaInFile(NULL, 0, quickOsd, oneArea, sizeof(oneArea), 1, oneSize));
+    host::card::put(kFileA, oneArea, oneSize);
+    boot();
+    CHECK(!storage::settingsUpgradePending());
+    CHECK(!storage::noticeActive());
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.dashback));
+    CHECK_EQ(6, static_cast<int>(main::settings().osd.maxMessages));
     storage::detach();
 }
 

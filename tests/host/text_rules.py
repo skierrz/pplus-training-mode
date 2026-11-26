@@ -129,16 +129,18 @@ NUMBERS = {
     ("psa_inspector_core.h", "a%.1f"): ["99.9"],
     ("psa_inspector_core.h", "%02X:%02X"): ["FF", "FF"],
     ("drill_hud_core.h", "%+df"): ["+31"],
-    ("drill_hud_core.h", "%d / 10"): ["10"],
+    ("drill_hud_core.h", "%d / %u"): ["20", "20"],
     ("drill_hud_core.h", "Frame %d/7"): ["7"],
-    ("drill_hud_core.h", "%d clean"): ["10"],
+    ("drill_hud_core.h", "Frame %d"): ["10"],
+    ("drill_hud_core.h", "%d clean"): ["20"],
     ("drill_hud_core.h", "%d"): ["99"],
-    ("drill_hud_core.h", "%u / %u / %u"): ["10", "10", "10"],
     ("drill_hud_core.h", "GALINT +%df"): ["31"],
     ("drill_hud_core.h", "GRAB %d/5 (NO INVULN)"): ["9"],
     ("drill_hud_core.h", "GALINT %df"): ["-24"],
     ("drill_hud_core.h", "WAVELAND f%d"): ["99"],
     ("drill_hud_core.h", "WAVEDASH f%d"): ["99"],
+    ("drill_hud_core.h", "PERFECT f1 %.1f"): ["90.0"],
+    ("drill_hud_core.h", "WAVEDASH f%d %.1f"): ["10", "90.0"],
     ("drill_hud_core.h", "LATE +%df"): ["10"],
     ("drill_hud_core.h", "L-CANCEL f%d/7"): ["7"],
     ("drill_hud_core.h", "EARLY -%df"): ["30"],
@@ -150,13 +152,17 @@ NUMBERS = {
     ("drill_hud_core.h", "EARLY PS %df"): ["-10"],
     ("drill_hud_core.h", "LATE PS +%df"): ["10"],
     ("drill_hud_core.h", "PS-DROP f%d"): ["5"],
-    ("drill_hud.cpp", "REP %u/10  HIT %u"): ["10", "10"],
-    ("drill_hud.cpp", "STK %u  BEST %u"): ["10", "10"],
-    ("drill_hud.cpp", "STK %u  BEST --"): ["10"],
-    ("drill_hud.cpp", "%s DRILL"): ["FLOAT / HOVER"],
-    ("drill_hud.cpp", "%u / 10  (%u%%)"): ["10", "100"],
-    ("drill_hud.cpp", "%u / 10"): ["10"],
-    ("drill_hud.cpp", "%u"): ["10"],
+    ("drill_hud_core.h", "RAR BAIR f%d"): ["10"],
+    ("drill_hud_core.h", "GATLING DACUS f%d"): ["7"],
+    ("drill_hud_core.h", "DACUS f%d"): ["3"],
+    ("drill_hud.cpp", "%u/%u (%u%%)"): ["999", "999", "100"],
+    ("drill_hud.cpp", "REP %u/%u  HIT %u"): ["20", "20", "20"],
+    ("drill_hud.cpp", "STK %u  BEST %u"): ["999", "999"],
+    ("drill_hud.cpp", "STK %u  BEST --"): ["999"],
+    ("drill_hud.cpp", "%s PRACTICE"): ["FLOAT / HOVER"],
+    ("drill_hud.cpp", "%u-REP SET COMPLETE"): ["20"],
+    ("drill_hud.cpp", "%u / %u  (%u%%)"): ["20", "20", "100"],
+    ("drill_hud.cpp", "%u"): ["999"],
     ("savestate.cpp", "%u:%02u ago"): ["99", "59"],
     ("recording_file.cpp", "%s-%d%s"): [None, "99", None],
     ("info_display.cpp", "%s: %.0f/%.0f"): [None, "999", "999"],
@@ -700,6 +706,14 @@ def lab_cpp(c, src):
         c.take(lit)
 
 
+def settings_modal_cpp(c, src):
+    # v1 -> v2 Settings Update Modal (src/main/ui/settings_modal.cpp), drawn directly by test_text_fit.cpp.
+    for lit in src.literals:
+        if c.taken(lit):
+            continue
+        c.take(lit)
+
+
 def watermark(c, src):
     # drawWatermark() is compiled and drawn by the test.
     for lit in src.literals:
@@ -934,12 +948,14 @@ def adaptive_cpu_cpp(c, src):
 
 
 def drill_hud_core_h(c, src):
-    # Live Skill Drill HUD (kDrillHudWidth = 296) and End-Screen Modal (kDrillModalWidth = 384).
+    # Live Tech Practice HUD (kDrillHudWidth = 316) and End-Screen Modal (kDrillModalWidth = 384).
     for lit in src.literals:
         if c.taken(lit):
             continue
         if lit.func == "drillHudTitle":
-            c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 126.0, 0.0)
+            c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 146.0, 0.0)
+        elif lit.func == "drillModeLabel":
+            c.item("fit", lit, lit.text, scale_for_cap(7.2), 0, 56.0, 0.0)
         elif lit.func == "drillHighlightLabel":
             c.item("fit", lit, lit.text, scale_for_cap(10.0), 0, 185.0, 0.0)
         elif lit.func == "drillHudFormatHighlight":
@@ -951,12 +967,13 @@ def drill_hud_core_h(c, src):
                 for t in c.expand(lit, 0):
                     c.item("fit", lit, t, scale_for_cap(10.0), 0, 144.0, 0.0)
                     c.buffer(lit, t, 24.0)
-        elif lit.func in ("drillHudInit", "drillHudClearSet", "drillHudStep", "drillHudPoll"):
+        elif lit.func in ("drillHudInit", "drillHudInitMode", "drillHudSetMode", "drillHudCycleMode",
+                          "drillHudClearSet", "drillHudStep", "drillHudPoll"):
             if lit.name == "snprintf" and lit.arg == 2:
                 pass
             else:
                 for t in c.expand(lit, 0):
-                    c.item("squeeze", lit, t, scale_for_cap(8.0), 0, 152.0, 0.0)
+                    c.item("squeeze", lit, t, scale_for_cap(8.0), 0, 168.0, 0.0)
                     c.buffer(lit, t, 28.0)
         else:
             continue
@@ -972,14 +989,14 @@ def drill_hud_cpp(c, src):
         elif lit.func == "drawLiveHud" and lit.name == "snprintf" and lit.arg == 2:
             is_meta = lit.text.startswith("STK")
             cap = 7.5 if is_meta else 8.0
-            room = 112.0 if is_meta else 136.0
+            room = 112.0 if is_meta else 148.0
             for t in c.expand(lit, 2):
                 c.item("fit", lit, t, scale_for_cap(cap), 0, room, 0.0)
                 c.buffer(lit, t, 24.0)
         elif lit.func == "drawEndModal":
             if lit.name == "snprintf" and lit.arg == 2:
                 is_score = "%%" in lit.text
-                is_title = "DRILL" in lit.text
+                is_title = "PRACTICE" in lit.text or "SET COMPLETE" in lit.text
                 cap = 20.0 if is_score else (13.0 if is_title else 10.0)
                 room = 344.0 if (is_score or is_title) else 144.0
                 buf = 28.0 if (is_score or is_title) else 24.0
@@ -989,6 +1006,14 @@ def drill_hud_cpp(c, src):
             else:
                 c.item("fit", lit, lit.text, scale_for_cap(10.0), 0, 185.0, 0.0)
         else:
+            continue
+        c.take(lit)
+
+
+def osd_quick(c, src):
+    # Boot menu Y: OSDs quick screen (src/menu/osd_quick.cpp), drawn directly by test_text_fit.cpp.
+    for lit in src.literals:
+        if c.taken(lit):
             continue
         c.take(lit)
 
@@ -1069,6 +1094,7 @@ HANDLERS = [
     ("main/savestate/savestate.cpp", savestate),
     ("main/game/pad_inmatch.cpp", pad_inmatch_cpp),
     ("main/lab.cpp", lab_cpp),
+    ("main/ui/settings_modal.cpp", settings_modal_cpp),
     ("main/ui/watermark.cpp", watermark),
     ("main/ui/match_hud.cpp", match_hud),
     ("main/cpu/options.cpp", cpu_options),
@@ -1080,6 +1106,7 @@ HANDLERS = [
     ("menu/bests_file.cpp", settings_file),  # its file names, never drawn
     ("menu/browser.cpp", browser),
     ("menu/drill_list.cpp", drill_list),
+    ("menu/osd_quick.cpp", osd_quick),
     ("menu/names.cpp", walked),   # words of the browser's lines
     ("shared/game/pad_map.h", pad_map_h),
 ]

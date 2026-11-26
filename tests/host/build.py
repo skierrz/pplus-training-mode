@@ -69,10 +69,12 @@ MOD_SOURCES = [
     "main/ui/lab_menu.cpp",
     "main/ui/menu.cpp",
     "main/ui/pages/*.cpp",  # every page of the lab menu
+    "main/ui/settings_modal.cpp",
     "main/ui/watermark.cpp",
     "menu/game/training.cpp",
     "menu/names.cpp",
     "menu/bests_file.cpp",
+    "menu/osd_quick.cpp",
     "menu/session.cpp",
     "stub/hook.cpp",
     "stub/inline_stub.cpp",

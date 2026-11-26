@@ -107,6 +107,31 @@ namespace storage {
     static u8 s_pendingSlot = 0;
     static u32 s_pendingSize = 0;
 
+    // Pending v1 -> v2 upgrade modal state (held in s_file until confirmed).
+    static bool s_v1Pending = false;
+    static int s_v1Affected = 0;
+    static u32 s_v1UnchangedMask = 0;
+    static u32 s_v1FileSize = 0;
+    static u8 s_v1SessionBuf[64];
+
+    static void copySessionFields(Settings& s, u8* buf, bool toBuf)
+    {
+        u8* p = reinterpret_cast<u8*>(&s);
+        u32 pos = 0;
+        for (int i = 0; i < kSessionCount; i++)
+        {
+            u32 n = kSessionOnly[i].size;
+            if (pos + n <= sizeof(s_v1SessionBuf))
+            {
+                memcpy(toBuf ? (buf + pos) : (p + kSessionOnly[i].offset),
+                       toBuf ? (p + kSessionOnly[i].offset) : (buf + pos), n);
+                pos += n;
+            }
+        }
+    }
+
+    static void startSave();
+
     // The settings as saved, with active scenario overrides projected back to
     // the pre-preset snapshot and session-only fields zeroed.
     static void savedView(Settings& out)
@@ -292,10 +317,46 @@ namespace storage {
         }
         if (head->layout < main::kSettingsVersion)
         {
-            s_state->force = 1;
-            TM_LOG("storage: settings layout %u older than %u: updated to new defaults\n", head->layout,
-                   main::kSettingsVersion);
-            notice(kNoticeOk, "Updated lab settings to new defaults");
+            // Keep the valid v1 save intact in s_file and compute which areas
+            // changed generation or used size vs current v2 so the modal can
+            // offer Reset All, Reset Affected, or Keep My Settings.
+            copySessionFields(before, s_v1SessionBuf, true);
+            s_v1FileSize = h->size;
+            s_v1UnchangedMask = 0;
+            s_v1Affected = 0;
+
+            u8 refBuf[kFileCap];
+            u32 tableOff = sizeof(FileHeader) + sizeof(SettingsHead);
+            u16 refCount = 0;
+            if (writeAreas(refBuf, kFileCap, 0, reinterpret_cast<const u8*>(&s), kAllAreas, refCount) > 0)
+            {
+                const AreaEntry* refTable = reinterpret_cast<const AreaEntry*>(refBuf);
+                const AreaEntry* oldTable = reinterpret_cast<const AreaEntry*>(s_file + tableOff);
+                for (u16 r = 0; r < refCount; r++)
+                {
+                    bool same = false;
+                    for (u16 o = 0; o < head->areaCount; o++)
+                    {
+                        if (oldTable[o].id == refTable[r].id)
+                        {
+                            same = (oldTable[o].generation == refTable[r].generation
+                                    && oldTable[o].used == refTable[r].used);
+                            break;
+                        }
+                    }
+                    if (same)
+                    {
+                        s_v1UnchangedMask |= areaBit(refTable[r].id);
+                    }
+                    else
+                    {
+                        s_v1Affected++;
+                    }
+                }
+            }
+            s_v1Pending = true;
+            TM_LOG("storage: settings layout %u older than %u (%d areas affected): upgrade modal pending\n",
+                   head->layout, main::kSettingsVersion, s_v1Affected);
             return;
         }
         AreaStats stats;
@@ -318,7 +379,15 @@ namespace storage {
         TM_LOG("storage: settings loaded from %s (save %u, layout %u): %u areas, %u with new fields, %u at defaults, "
                "%u unknown\n",
                kNames[best], h->sequence, head->layout, stats.copied, stats.grown, stats.reset, stats.skipped);
-        if (stats.grown + stats.reset > 0)
+        bool quickOsdOnly = head->areaCount == 1 && stats.copied == 1 && stats.grown == 0
+                            && reinterpret_cast<const AreaEntry*>(s_file + sizeof(FileHeader) + sizeof(SettingsHead))
+                                       ->id
+                                   == kAreaOsd;
+        if (quickOsdOnly)
+        {
+            s_state->force = 1;
+        }
+        else if (stats.grown + stats.reset > 0)
         {
             notice(kNoticeWarn, "Lab settings from an older version: new ones at defaults");
         }
@@ -329,6 +398,10 @@ namespace storage {
         s_state = blockState(block);
         s_phase = kIdle;
         s_again = false;
+        s_v1Pending = false;
+        s_v1Affected = 0;
+        s_v1UnchangedMask = 0;
+        s_v1FileSize = 0;
         if (s_state == NULL)
         {
             return;
@@ -347,7 +420,64 @@ namespace storage {
         s_state->slot = 1;
         TM_LOG("storage: card %s, %s\n", cardInserted() ? "inserted" : "not inserted", cardLocked() ? "locked" : "writable");
         load();
+        if (!s_v1Pending)
+        {
+            s_state->baseline = currentView();
+        }
+    }
+
+    bool settingsUpgradePending()
+    {
+        return s_v1Pending;
+    }
+
+    int settingsUpgradeAffectedCount()
+    {
+        return s_v1Affected;
+    }
+
+    void settingsUpgradeApply(int choice)
+    {
+        if (!s_v1Pending || s_state == NULL || s_file == NULL)
+        {
+            s_v1Pending = false;
+            return;
+        }
+        if (choice < kUpgradeResetAll || choice >= kUpgradeChoiceCount)
+        {
+            choice = kUpgradeResetAll;
+        }
+        Settings& s = main::settings();
+        main::resetSettings();
+        const SettingsHead* head = reinterpret_cast<const SettingsHead*>(s_file + sizeof(FileHeader));
+        if (choice == kUpgradeResetAffected || choice == kUpgradeKeepMine)
+        {
+            u32 mask = choice == kUpgradeResetAffected ? s_v1UnchangedMask : kAllAreas;
+            AreaStats stats;
+            if (!readAreas(s_file, s_v1FileSize, sizeof(FileHeader) + sizeof(SettingsHead), head->areaCount,
+                           reinterpret_cast<u8*>(&s), mask, stats))
+            {
+                main::resetSettings();
+            }
+        }
+        copySessionFields(s, s_v1SessionBuf, false);
+        ui::clampSettings();
+        main::sanitizeSettings(s);
+        ui::retireDroppedValues();
+
+        s_v1Pending = false;
+        s_v1Affected = 0;
+        s_v1UnchangedMask = 0;
+        s_v1FileSize = 0;
+
+        TM_LOG("storage: v1 -> v2 upgrade choice %d applied (from save %u)\n", choice, s_state->sequence);
+        s_state->force = 1;
         s_state->baseline = currentView();
+        notice(kNoticeOk, choice == kUpgradeResetAll ? "Settings reset to v2 defaults"
+                                                     : (choice == kUpgradeResetAffected
+                                                            ? "Updated changed settings to v2"
+                                                            : "Kept compatible settings (v2)"));
+        startSave();
     }
 
     static void startSave()
@@ -452,6 +582,15 @@ namespace storage {
 
     void settingsDetach()
     {
+        if (s_v1Pending && s_state != NULL)
+        {
+            // Match ended before the player resolved the v1 modal: prompt again next match.
+            s_state->magic = 0;
+        }
+        s_v1Pending = false;
+        s_v1Affected = 0;
+        s_v1UnchangedMask = 0;
+        s_v1FileSize = 0;
         bool dmaBusy = false;
         if (s_phase != kIdle)
         {

@@ -34,15 +34,22 @@ the memory for both.
 
 When you enter Training's character select, the **Training Menu** opens over the
 select screen (hold X or Y on a GameCube controller while booting if you want
-Versus instead). Use **L / R** to switch sections (**All Modes**, **Offense**,
-**Defense**), launch **Training Lab** or any of the 10 preconfigured **Scenario
-Presets**, press **X** to open the **Recordings** browser for exported `.tmr`
-files, or press **B** to close the menu. Press **L+R** (Classic: L+R, Sideways
-Wii Remote: `- + B`, Nunchuk: C+Z) to bring it back.
+Versus instead). Use **L / R** (`- / +` on Wii Remote / Nunchuk) to switch
+sections (**All Modes**, **Offense**, **Defense**, **Tech Practice**), launch
+**Training Lab**, any of the 9 preconfigured **Scenario Presets**, or any of the
+8 **Tech Practice** drills, press **X** to open the **Recordings** browser for
+exported `.tmr` files, press **Y** (`Z` on Nunchuk, `- + A` on Sideways) to
+open **Quick OSDs** before entering a match, or press **B** (`1` on Sideways) to
+return cleanly to Brawl's Solo menu.
+
+On Training's character select, a mode pill shows your armed mode and quick
+reopen shortcut. Press **B** (when P1 has no placed coin to recall and no
+dropdown is open) or **L+R** (Classic: L+R, Sideways Wii Remote: `- + B`,
+Nunchuk: C+Z) to step back into the Training Menu.
 
 GameCube controllers and Wii controllers (Sideways Wii Remote, Wii Remote +
-Nunchuk, and Classic Controller) work across both the Training Menu /
-Recordings browser and in-match lab controls (opening and navigating the lab
+Nunchuk, and Classic Controller) work across the Training Menu, Quick OSDs,
+Recordings browser, and in-match lab controls (opening and navigating the lab
 menu, frame advance, savestates, and D-pad shortcuts).
 
 Once in a Training match, press **Start** (`+` on Wii controllers) to open the
@@ -59,20 +66,31 @@ Codes**) and regular Versus matches are untouched.
 
 ## Features
 
-- **Native P+/Brawl UI (CSS Training Menu & In-Match Lab Menu):**
-  - 3-section CSS launcher (**All Modes**, **Offense**, **Defense**) with
-    **Training Lab**, 10 practice presets, and the **Recordings** browser.
+- **Native P+/Brawl UI (CSS Training Menu, Quick OSDs & In-Match Lab Menu):**
+  - 4-section CSS launcher (**All Modes**, **Offense**, **Defense**, **Tech
+    Practice**) with **Training Lab**, 9 practice scenarios, 8 single-page tech
+    drills, the **Recordings** browser (`X`), and **Quick OSDs** (`Y`), plus
+    stage/CPU recommendation badges and a CRT-safe CSS mode pill.
   - Switchable **Category Rail** and **Top Tabs** in-match layouts across 7
     categories (**Lab**, **Scenarios**, **CPU**, **Recording**, **Display**,
-    **OSDs**, **Stage & Cast**) with single-line option descriptions, live
-    controller button glyphs, and 4:3 + 16:9 CRT-safe layout.
+    **OSDs**, **Stage & Cast**) with customizable menu accents, single-line
+    option descriptions, native controller button emblems, and 4:3 + 16:9
+    CRT-safe layout.
+- **Tech Practice (8 Single-Page Modes):**
+  - **L-Cancel**, **Wavedash / Waveland**, **Ledgedash**, **Powershield**,
+    **RAR**, **DACUS**, **B-Reverse / Wavebounce**, and **Float / Hover & DJC**.
+  - Defaults to infinite **Free Practice** with live hit rate, streak, best
+    streak (persisted to SD), and mode-specific frame/angle/GALINT readouts.
+    Press **L + D-pad Up** in-match to switch between **Free Practice**,
+    **10-Rep Set**, and **20-Rep Set** (with a set summary modal on 10/20-rep
+    completion).
 - **Scenarios & Combo Trainer:**
-  - 10 unified Project+ practice setups running directly on the lab engine:
-    **Combo Lab**, **Techchase**, **Edgeguard & Recovery**, **Shield
-    Pressure**, **OoS / Reversal**, **Shield Drop**, **Ledgetech**,
-    **Slide-Off**, **Grab Escape**, and **Multi-Hit SDI** (with automatic
-    resets and side flip; temporary preset overrides never overwrite your saved
-    SD settings).
+  - 9 unified Project+ practice setups running directly on the lab engine:
+    **Combo Lab**, **Techchase**, **Edgeguard**, **Shield Pressure / OoS**
+    (switch offense/defense role in the Scenarios menu), **Shield Drop**,
+    **Ledgetech**, **Slide-Off**, **Grab Defense / Throw DI**, and **P+
+    Multi-Hit SDI** (with automatic resets, side flip, and temporary preset
+    overrides that never overwrite your saved SD settings).
   - **Combo Trainer**: hitstun-drop auto-reset with `noclip` warps, fixed or
     random reset position and damage, reset timer offset, offstage recovery
     looping, and 7 named 3D floating state meters (Hitlag, Hitstun, Shieldstun,
@@ -81,7 +99,7 @@ Codes**) and regular Versus matches are untouched.
   - Hold D-pad Right to save, press D-pad Left to load.
   - Works mid-attack, in hitlag, during grabs, on ledges, and with projectiles
     or partners out (two players at most; Ice Climbers count as one).
-  - Supports adding random extra percent on load.
+  - Supports adding random extra percent on load for P1 and CPU.
 - **Recording & Playback:**
   - Record and play back inputs for both P1 and CPU across six slots each,
     backed by a savestate for deterministic replay.
@@ -96,15 +114,17 @@ Codes**) and regular Versus matches are untouched.
     the Training Menu.
 - **CPU Control, Recovery & Adaptive AI:**
   - Behaviors: Stand, Shield, Crouch, Jump, Powershield, and Brawl Training AI
-    fallback.
+    fallback, plus configurable **SHFFL / FFL** aerial pressure options.
   - **44-Fighter PPlusAI Recovery**: pure C++ offstage recovery across all 8
     Project+ recovery families (arc, glide, float, tether, charge, PK Thunder
     orbit, and more).
   - Counter actions on hit, on shield, in the air, and **On-Ledge** (`Cliff_Wait`)
     with configurable frame delay, full P+ action lists, random pools,
-    playback-slot counters, and 10-hit **Per-Hit Counters** tables.
-  - Trajectory DI (`Random`, `In`, `Out`, `Survival`, `None`), Smash DI,
-    **Dual-Stick SDI**, and ASDI modeled on Project+'s rules.
+    weighted multi-slot **Reversal Slots**, playback-slot counters, and 10-hit
+    **Per-Hit Counters** tables.
+  - Trajectory DI (10 modes including **Custom** live 2D stick picker and
+    **Just Out**), Smash DI, **Dual-Stick SDI**, and ASDI modeled on Project+'s
+    rules.
   - Tech and get-up options (including banana trips / `Slip_Wait`) with
     independent weights, tech trap simulation, tech lockout timing, invisible
     techs, tech sound cue, **Clatter Escape** (mash out of buries, sleep, and
@@ -115,13 +135,17 @@ Codes**) and regular Versus matches are untouched.
   - Frame advance on L/Z/X/Y/R (hold past configurable delay to run at speed),
     player and CPU percent set/lock, player infinite shields, game speed
     (`1`, `5/6`, `2/3`, `1/2`, `1/4`), camera modes (`Normal`, `Zoom`, `Fixed`),
-    and move staling toggle.
+    move staling toggle, and **Offline VS Displays** for read-only displays in
+    local Versus matches.
   - Configurable D-pad bindings, Frame Rewind button, Lab Menu open button,
     Menu Style toggle, and P+ Code Menu shortcut toggle.
 - **Display, Overlays & Visualization:**
-  - Project+'s native hitboxes/hurtboxes (persisting during frame advance),
-    stage collision and ECBs, and toggles for Match HUD, Fighter Models, Stage
-    Model, Effects, and Debug Overlay.
+  - Project+'s native hitboxes/hurtboxes (persisting during frame advance) with
+    configurable **Hitbox Color Modes**, stage collision and ECBs, and toggles
+    for Match HUD, Fighter Models, Stage Model, Effects, **PSA Debugger**
+    (read-only 11-thread & FSM Inspector), and Debug Overlay.
+  - **Input Viewer**: live multi-controller input display supporting GameCube,
+    Classic Controller, Wii Remote + Nunchuk, and Sideways Wii Remote layouts.
   - **Hitbox Heatmap & Reach Bounds**: persistent multi-frame attack coverage
     with frame-age color bands, opacity control, and world-space reach bounds.
   - **Grab / Tether / Item-Pickup Visualizer**: live 3D grabboxes, search/tether
@@ -136,14 +160,18 @@ Codes**) and regular Versus matches are untouched.
     Walljump**, and **Wall Cling**.
   - **Ledgedash HUD**: per-frame phase bar, GALINT/ledge/angle summary adapted
     from ProjectPunch, and P+ 5-ledge-grab intangibility limit tracking.
-- **On-Screen Displays (19 universal Smash/P+ OSDs):**
-  - Wavedash, L-Cancel, Act OoS, Dashback, Powershield, SDI Inputs, Tech
-    Lockout, Item Throw / Glide Toss, Boost Grab / DACUS, Act OoLag, Act
-    OoAirborne, Jump Cancel, Fastfall, Frame Advantage (shield and hit, with
-    PSA script lookahead on shield), Combo Counter, Grab Escape, Ledgedash
-    Info (with 5-grab limit warning), and Act OoHitstun.
-  - Configurable screen position (`HUD`, `Sides`, `Top Left`, `Top Right`),
-    advantage tolerance, and max visible messages.
+- **On-Screen Displays, Presets & Timing Helpers:**
+  - 20 universal Smash/P+ OSDs (Wavedash, L-Cancel, Act OoS, Dashback,
+    Powershield, SDI Inputs, Tech Lockout, Item Throw / Glide Toss, Boost Grab
+    / DACUS, Act OoLag, Act OoAirborne, Jump Cancel, Fastfall, Shield and Hit
+    Frame Advantage with PSA script lookahead, Combo Counter, Grab Escape,
+    Ledgedash Info with 5-grab limit warning, Act OoHitstun, and P+ Tech
+    Tracker).
+  - One-click **OSD Presets** (`Essentials`, `Movement`, `Defense`, `All Off`,
+    `Custom`), **Overhead Timing Bar** (L-Cancel, Wavedash, Act-Out), **Tech
+    Sparkle** visual cues (Perfect Wavedash / Shorthop), configurable screen
+    position (`HUD`, `Sides`, `Top Left`, `Top Right`), advantage tolerance,
+    and max visible messages.
 - **Stage & Cast:**
   - **Mid-Session Fighter Swap**: swap P1 and CPU fighters and costumes (with
     live stock-icon previews) without leaving the match.
@@ -155,9 +183,13 @@ Codes**) and regular Versus matches are untouched.
     Ivysaur Solarbeam, R.O.B. Air Boosts/Gyro/Beam, Lucas Offense Up, Squirtle
     Water Gun, Sheik Needles, King Dedede Waddle Toss, Snake Tranq/Cypher,
     Ganondorf Float, and Ice Climbers Nana Throw.
-- **SD Card Persistence:**
-  - Lab settings save automatically to `/Project+/tm/` when closing the lab
-    menu and reload on the next boot. See [docs/files.md](docs/files.md).
+- **SD Card Persistence & Safe Upgrades:**
+  - Lab settings, Quick OSD edits, and Tech Practice best streaks save
+    automatically to `/Project+/tm/` and reload on the next boot. When loading
+    an older `v1` settings file, a Settings Update dialog lets you choose
+    **Reset All Settings (Recommended)**, **Reset Affected Settings**, or
+    **Keep My Settings** before writing a clean `v2` file. See
+    [docs/files.md](docs/files.md).
 
 See [docs/limitations.md](docs/limitations.md) for current limitations and what
 has been tested.

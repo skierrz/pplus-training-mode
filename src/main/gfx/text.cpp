@@ -6,6 +6,11 @@
 #include <GX/GXGeometry.h>
 #include <GX/GXHardware.h>
 #include <GX/GXTexture.h>
+#include <gf/gf_heap_manager.h>
+#include <gf/gf_memory_pool.h>
+#include <memory.h>
+#include "shared/game/heap.h"
+#include "shared/game/mem.h"
 #endif
 
 #include "main/gfx/format_core.h"
@@ -99,29 +104,35 @@ namespace gfx {
         const void* texture;
         GXTexObj obj;
     };
-    static Glyph s_glyphs[kGlyphCodes];
-    static u8 s_haveGlyph[kGlyphCodes / 8];
-    static TexSheet s_sheets[kMaxSheets];
-    static u32 s_sheetCount = 0;
-    static u32 s_glyphResource = 0;
-    static u32 s_glyphMinF = 0;
-    static u32 s_glyphMagF = 0;
+    // Allocated in Heaps::Network on match attach (fail-closed to CharWriter::Print
+    // if unavailable) to keep ~1.9 KiB out of the match module's static .bss.
+    struct GlyphCache {
+        Glyph glyphs[kGlyphCodes];
+        TexSheet sheets[kMaxSheets];
+        u8 haveGlyph[kGlyphCodes / 8];
+        u32 sheetCount;
+        u32 glyphResource;
+        u32 glyphMinF;
+        u32 glyphMagF;
+    };
+    static GlyphCache* s_glyphCache = NULL;
 
     static void syncGlyphCache(const ms::CharWriter& w)
     {
+        GlyphCache* c = s_glyphCache;
         u32 resource = *reinterpret_cast<const u32*>(reinterpret_cast<u32>(kSystemFont) + 0x10);
         u32 minF = static_cast<u32>(w.m_56);
         u32 magF = static_cast<u32>(w.m_60);
-        if (resource != s_glyphResource || minF != s_glyphMinF || magF != s_glyphMagF)
+        if (resource != c->glyphResource || minF != c->glyphMinF || magF != c->glyphMagF)
         {
-            for (u32 i = 0; i < sizeof(s_haveGlyph); i++)
+            for (u32 i = 0; i < sizeof(c->haveGlyph); i++)
             {
-                s_haveGlyph[i] = 0;
+                c->haveGlyph[i] = 0;
             }
-            s_sheetCount = 0;
-            s_glyphResource = resource;
-            s_glyphMinF = minF;
-            s_glyphMagF = magF;
+            c->sheetCount = 0;
+            c->glyphResource = resource;
+            c->glyphMinF = minF;
+            c->glyphMagF = magF;
         }
     }
 
@@ -130,34 +141,36 @@ namespace gfx {
     // Exact RSBE01 rev 2 GX addresses called by PrintGlyph (0x8007020C..0x80070240).
     static int findOrInitSheet(const void* texture, u32 texFormat, u16 texWidth, u16 texHeight)
     {
-        for (u32 i = 0; i < s_sheetCount; i++)
+        GlyphCache* c = s_glyphCache;
+        for (u32 i = 0; i < c->sheetCount; i++)
         {
-            if (s_sheets[i].texture == texture)
+            if (c->sheets[i].texture == texture)
             {
                 return static_cast<int>(i);
             }
         }
-        if (s_sheetCount >= kMaxSheets)
+        if (c->sheetCount >= kMaxSheets)
         {
             return -1;
         }
         typedef void (*InitTexObjFn)(GXTexObj*, void*, u16, u16, GXTexFmt, GXTexWrapMode, GXTexWrapMode, GXBool);
         typedef void (*InitTexObjLodFn)(GXTexObj*, GXTexFilter, GXTexFilter, f32, f32, f32, GXBool, GXBool,
                                         GXAnisotropy);
-        TexSheet& s = s_sheets[s_sheetCount];
+        TexSheet& s = c->sheets[c->sheetCount];
         s.texture = texture;
         reinterpret_cast<InitTexObjFn>(0x801F28F0)(&s.obj, const_cast<void*>(texture), texWidth, texHeight,
                                                    static_cast<GXTexFmt>(texFormat), GX_CLAMP, GX_CLAMP, false);
-        reinterpret_cast<InitTexObjLodFn>(0x801F2B44)(&s.obj, static_cast<GXTexFilter>(s_glyphMinF),
-                                                      static_cast<GXTexFilter>(s_glyphMagF), 0.0f, 0.0f, 0.0f, false,
+        reinterpret_cast<InitTexObjLodFn>(0x801F2B44)(&s.obj, static_cast<GXTexFilter>(c->glyphMinF),
+                                                      static_cast<GXTexFilter>(c->glyphMagF), 0.0f, 0.0f, 0.0f, false,
                                                       false, GX_ANISO_1);
-        return static_cast<int>(s_sheetCount++);
+        return static_cast<int>(c->sheetCount++);
     }
 
     static void ensureGlyph(u8 code)
     {
+        GlyphCache* c = s_glyphCache;
         u8 idx = static_cast<u8>(code - kGlyphFirst);
-        if ((s_haveGlyph[idx >> 3] & (1 << (idx & 7))) != 0)
+        if ((c->haveGlyph[idx >> 3] & (1 << (idx & 7))) != 0)
         {
             return;
         }
@@ -165,7 +178,7 @@ namespace gfx {
         typedef void (*GetGlyph)(void* font, void* glyph, u16 code);
         GetGlyph get = *reinterpret_cast<GetGlyph*>(*reinterpret_cast<u32*>(kSystemFont) + 0x50);
         get(kSystemFont, raw, code);
-        Glyph& g = s_glyphs[idx];
+        Glyph& g = c->glyphs[idx];
         const void* texture = *reinterpret_cast<const void* const*>(raw + 0);
         g.left = static_cast<s8>(raw[4]);
         u8 gw = raw[5];
@@ -184,15 +197,16 @@ namespace gfx {
         g.v1 = glyphTexCoord(cy + gh, th);
         g.sheetIdx = gw != 0 ? static_cast<s8>(findOrInitSheet(texture, texFormat, tw, th)) : -1;
         g.pad = 0;
-        s_haveGlyph[idx >> 3] |= static_cast<u8>(1 << (idx & 7));
+        c->haveGlyph[idx >> 3] |= static_cast<u8>(1 << (idx & 7));
     }
 
     static void bindSheet(int sheetIdx)
     {
+        GlyphCache* c = s_glyphCache;
         volatile u32* loaded = reinterpret_cast<volatile u32*>(0x80497EC8);
-        const TexSheet& s = s_sheets[sheetIdx];
+        const TexSheet& s = c->sheets[sheetIdx];
         u32 texAddr = reinterpret_cast<u32>(s.texture);
-        if (loaded[0] == 0 && loaded[1] == texAddr && loaded[2] == s_glyphMinF && loaded[3] == s_glyphMagF)
+        if (loaded[0] == 0 && loaded[1] == texAddr && loaded[2] == c->glyphMinF && loaded[3] == c->glyphMagF)
         {
             return;
         }
@@ -200,8 +214,8 @@ namespace gfx {
         reinterpret_cast<LoadTexObjFn>(0x801F2FB0)(&s.obj, GX_TEXMAP0);
         loaded[0] = 0;
         loaded[1] = texAddr;
-        loaded[2] = s_glyphMinF;
-        loaded[3] = s_glyphMagF;
+        loaded[2] = c->glyphMinF;
+        loaded[3] = c->glyphMagF;
     }
 
     static inline void emitGlyphQuad(const Glyph& g, float curX, float y, Rgba color, float sx, float sy, float mx,
@@ -271,7 +285,7 @@ namespace gfx {
                 }
                 u8 idx = static_cast<u8>(c - kGlyphFirst);
                 ensureGlyph(c);
-                const Glyph& g = s_glyphs[idx];
+                const Glyph& g = s_glyphCache->glyphs[idx];
                 if (g.width != 0)
                 {
                     int sh = g.sheetIdx;
@@ -312,9 +326,10 @@ namespace gfx {
             if (loaded[0] == 0)
             {
                 u32 activeTex = loaded[1];
-                for (u32 sh = 0; sh < s_sheetCount; sh++)
+                for (u32 sh = 0; sh < s_glyphCache->sheetCount; sh++)
                 {
-                    if ((sheetMask & (1u << sh)) != 0 && reinterpret_cast<u32>(s_sheets[sh].texture) == activeTex)
+                    if ((sheetMask & (1u << sh)) != 0
+                        && reinterpret_cast<u32>(s_glyphCache->sheets[sh].texture) == activeTex)
                     {
                         firstSheet = static_cast<int>(sh);
                         break;
@@ -337,7 +352,7 @@ namespace gfx {
                 GXBegin(GX_QUADS, GX_VTXFMT0, static_cast<u16>(sheetCounts[sh] * 4));
                 for (int i = 0; i < count; i++)
                 {
-                    const Glyph& g = s_glyphs[codes[i]];
+                    const Glyph& g = s_glyphCache->glyphs[codes[i]];
                     if (g.sheetIdx == sh)
                     {
                         emitGlyphQuad(g, xs[i], y, color, sx, sy, mx, mw);
@@ -390,7 +405,7 @@ namespace gfx {
         const char* first = text;
 #endif
 #if defined(TM_MODULE_MAIN) && defined(__MWERKS__)
-        if (!w.m_isFixedWidth && w._76[0] == 0 && w.m_edgeWidth == 0.0f && !TM_PERF_LEGACY())
+        if (s_glyphCache != NULL && !w.m_isFixedWidth && w._76[0] == 0 && w.m_edgeWidth == 0.0f && !TM_PERF_LEGACY())
         {
             float endX = drawBatched(w, x, y, text, color, scaleX * xScale(), scaleY);
             while (*text != '\0')
@@ -544,7 +559,7 @@ namespace gfx {
     float textWidth(const char* str, float scale)
     {
 #ifdef __MWERKS__
-        if (!TM_PERF_LEGACY())
+        if (s_glyphCache != NULL && !TM_PERF_LEGACY())
         {
             if (!fontLoaded())
             {
@@ -568,7 +583,7 @@ namespace gfx {
                         break;
                     }
                     ensureGlyph(c);
-                    width += mw * (sx * (static_cast<float>(s_glyphs[c - kGlyphFirst].advance) * mx));
+                    width += mw * (sx * (static_cast<float>(s_glyphCache->glyphs[c - kGlyphFirst].advance) * mx));
                 }
                 if (allAscii)
                 {
@@ -669,6 +684,38 @@ namespace gfx {
         {
             s_widths[i] = 0.0f;
         }
+    }
+
+    void textAttach()
+    {
+#if defined(TM_MODULE_MAIN) && defined(__MWERKS__)
+        if (s_glyphCache != NULL)
+        {
+            return;
+        }
+        u32 need = (static_cast<u32>(sizeof(GlyphCache)) + 31u) & ~31u;
+        game::HeapUsage u;
+        if (game::heapUsage(Heaps::Network, u) && u.largest >= need)
+        {
+            void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
+            if (game::isRam(p))
+            {
+                memset(p, 0, sizeof(GlyphCache));
+                s_glyphCache = static_cast<GlyphCache*>(p);
+            }
+        }
+#endif
+    }
+
+    void textDetach()
+    {
+#if defined(TM_MODULE_MAIN) && defined(__MWERKS__)
+        if (s_glyphCache != NULL)
+        {
+            free(s_glyphCache);
+            s_glyphCache = NULL;
+        }
+#endif
     }
 }
 }

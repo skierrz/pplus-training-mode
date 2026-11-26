@@ -53,6 +53,7 @@
 #include "extra/menu_descriptions.h"
 #include "extra/stage_options_logic.h"
 #include "host/canvas.h"
+#include "host/card.h"
 #include "host/fakes.h"
 #include "host/log.h"
 #include "host/test.h"
@@ -62,15 +63,19 @@
 #include "main/record/hud.h"
 #include "main/record/slots.h"
 #include "main/settings.h"
+#include "main/storage/format.h"
 #include "main/storage/notice.h"
+#include "main/storage/settings_file.h"
 #include "main/storage/storage.h"
 #include "main/ui/lab_menu.h"
 #include "main/ui/menu.h"
 #include "main/ui/osd.h"
 #include "main/ui/pages/pages.h"
+#include "main/ui/settings_modal.h"
 #include "main/ui/style.h"
 #include "main/ui/watermark.h"
 #include "menu/names.h"
+#include "menu/osd_quick.h"
 #include "menu/session.h"
 #include "shared/interface.h"
 
@@ -1047,12 +1052,13 @@ TEST(text_fit, drill_list)
             const char* confirmGlyph;
             const char* closeGlyph;
             const char* importGlyph;
+            const char* osdGlyph;
             const char* sectionGlyph;
         } kFooterCases[] = {
-            {0, gfPadType::GCC, "A", "B", "X", "L/R"},
-            {4, gfPadType::WII_CLASSIC, "A", "B", "X", "L/R"},
-            {4, gfPadType::WIIMOTE, "2", "1", "A", "-/+"},
-            {4, gfPadType::NUNCHUK, "A", "B", "C", "-/+"},
+            {0, gfPadType::GCC, "A", "B", "X", "Y", "L/R"},
+            {4, gfPadType::WII_CLASSIC, "A", "B", "X", "Y", "L/R"},
+            {4, gfPadType::WIIMOTE, "2", "1", "A", "-+A", "-/+"},
+            {4, gfPadType::NUNCHUK, "A", "B", "C", "Z", "-/+"},
         };
         for (u32 c = 0; c < sizeof(kFooterCases) / sizeof(kFooterCases[0]); c++)
         {
@@ -1068,10 +1074,12 @@ TEST(text_fit, drill_list)
             REQUIRE(runOf(kFooterCases[c].confirmGlyph) != NULL);
             REQUIRE(runOf(kFooterCases[c].closeGlyph) != NULL);
             REQUIRE(runOf(kFooterCases[c].importGlyph) != NULL);
+            REQUIRE(runOf(kFooterCases[c].osdGlyph) != NULL);
             REQUIRE(runOf(kFooterCases[c].sectionGlyph) != NULL);
             REQUIRE(runOf("Select") != NULL);
-            REQUIRE(runOf("Close") != NULL);
-            REQUIRE(runOf("Import") != NULL);
+            REQUIRE(runOf("Back") != NULL);
+            REQUIRE(runOf("Recordings") != NULL);
+            REQUIRE(runOf("OSDs") != NULL);
             REQUIRE(runOf("Section") != NULL);
             for (int k = 0; k < canvas::runs(); k++)
             {
@@ -1093,7 +1101,7 @@ TEST(text_fit, drill_list)
         }
 
         // Check every controller-type reopen hint still maps via reopenHint(),
-        // and drawPending() draws nothing on the CSS.
+        // and drawPending() draws a CRT-safe Brawl CSS mode pill on 4:3 and 16:9.
         const char* hints[8] = {};
         bool hintSeen[8] = {};
         int hintCount = 0;
@@ -1149,14 +1157,60 @@ TEST(text_fit, drill_list)
                 }
             }
             CHECK(match >= 0);
+            menu::session().drill = drills::kDrillBReverse; // widest active mode label
             gfx::forgetWidths();
             canvas::clear();
             list::drawPending();
-            CHECK(canvas::runs() == 0 && canvas::rects() == 0);
+            CHECK(canvas::runs() >= 2 && canvas::rects() >= 2);
+            for (int k = 0; k < canvas::runs(); k++)
+            {
+                const canvas::Run& run = canvas::run(k);
+                float ct = runCapTop(run);
+                float cb = runCapBottom(run);
+                if (run.x < safeLeft - 0.05f || run.right > safeRight + 0.05f || ct < safeTop - 0.05f
+                    || cb > safeBottom + 0.05f)
+                {
+                    misfit("list-pending", "menu/drill_list.cpp", run.text,
+                           "CSS pill leaves CRT safe area (%.1f..%.1f, %.1f..%.1f) on %s",
+                           run.x, run.right, ct, cb, kAspectNames[a]);
+                }
+            }
+            menu::session().drill = drills::kDrillNone;
         }
         for (int h = 0; h < hintCount; h++)
         {
             CHECK(hintSeen[h]);
+        }
+
+        // Also check Y: OSDs quick screen fits cleanly inside 5% CRT safe area across all 4 controller types.
+        static const u32 kOsdCtrlTypes[4] = {gfPadType::GCC, gfPadType::WII_CLASSIC, gfPadType::WIIMOTE,
+                                             gfPadType::NUNCHUK};
+        for (int ct = 0; ct < 4; ct++)
+        {
+            menu::osdQuick::open(0, kOsdCtrlTypes[ct]);
+            canvas::clear();
+            menu::osdQuick::draw();
+            CHECK(canvas::runs() >= 12);
+            for (int k = 0; k < canvas::runs(); k++)
+            {
+                const canvas::Run& run = canvas::run(k);
+                float kept = run.scaleX / (run.scaleY * xs);
+                if (kept < kMinSqueeze - 0.0005f)
+                {
+                    misfit("list-desc", "menu/osd_quick.cpp", run.text, "squeezed to %.0f%% on %s",
+                           kept * 100.0f, kAspectNames[a]);
+                }
+                float ctY = runCapTop(run);
+                float cbY = runCapBottom(run);
+                if (run.x < safeLeft - 0.05f || run.right > safeRight + 0.05f || ctY < safeTop - 0.05f
+                    || cbY > safeBottom + 0.05f)
+                {
+                    misfit("list-desc", "menu/osd_quick.cpp", run.text,
+                           "leaves CRT safe area (%.1f..%.1f, %.1f..%.1f) on %s",
+                           run.x, run.right, ctY, cbY, kAspectNames[a]);
+                }
+            }
+            menu::osdQuick::detach();
         }
         for (int i = 0; i < list::kPorts; i++)
         {
@@ -1236,16 +1290,83 @@ TEST(text_fit, recording_bar_and_watermark)
             }
         }
     }
-    // The watermark keeps the width of its first frame: 4:3 here.
-    gfx::setXScale(1.0f);
-    canvas::clear();
-    ui::drawWatermark();
-    s_checked++;
-    REQUIRE(canvas::runs() > 0);
-    const canvas::Run& mark = canvas::run(canvas::runs() - 1);
-    if (mark.x < kEdge)
+    // Watermark recomputes width per frame so switching 16:9 -> 4:3 never clips.
+    const float wAspects[2] = {0.75f, 1.0f};
+    for (int wa = 0; wa < 2; wa++)
     {
-        misfit("watermark", "main/ui/watermark.cpp", mark.text, "%.1f units wider than the screen", kEdge - mark.x);
+        gfx::setXScale(wAspects[wa]);
+        canvas::clear();
+        ui::drawWatermark();
+        s_checked++;
+        REQUIRE(canvas::runs() > 0);
+        const canvas::Run& mark = canvas::run(canvas::runs() - 1);
+        ui::layout::Box safe = ui::layout::safeArea(wa == 0);
+        if (mark.x < safe.x0 - 0.5f || mark.right > safe.x1 + 0.5f)
+        {
+            misfit("watermark", "main/ui/watermark.cpp", mark.text, "leaves CRT safe area (%.1f..%.1f vs %.1f..%.1f)",
+                   mark.x, mark.right, safe.x0, safe.x1);
+        }
+    }
+    // Check v1 -> v2 Settings Update Modal on 4:3 and 16:9 across all 4 controller types & 3 choices.
+    {
+        host::card::reset();
+        bootLab();
+        storage::settingsReset();
+        storage::settingsMenuClosed();
+        for (int f = 0; f < 4; f++)
+        {
+            storage::onRender(host::fakes::match());
+        }
+        storage::detach();
+        storage::SettingsHead* v1h = reinterpret_cast<storage::SettingsHead*>(host::card::data("settings-a.bin")
+                                                                              + sizeof(storage::FileHeader));
+        v1h->layout = 1;
+        storage::FileHeader* fh = reinterpret_cast<storage::FileHeader*>(host::card::data("settings-a.bin"));
+        fh->checksum = storage::checksum(host::card::data("settings-a.bin") + storage::kChecksumFrom,
+                                         fh->size - storage::kChecksumFrom);
+        bootLab();
+        REQUIRE(storage::settingsUpgradePending());
+        ui::settingsModalAttach();
+
+        static const u32 kModalCtrls[4] = {gfPadType::GCC, gfPadType::WII_CLASSIC, gfPadType::WIIMOTE,
+                                           gfPadType::NUNCHUK};
+        ui::SettingsModalInput neutral = {0, 0, 0, 0, static_cast<u32>(gfPadType::GCC)};
+        ui::settingsModalStep(neutral);
+        for (int a = 0; a < 2; a++)
+        {
+            gfx::setXScale(kAspects[a]);
+            float xs = kAspects[a];
+            ui::layout::Box safe = ui::layout::safeArea(a == 1);
+            for (int ct = 0; ct < 4; ct++)
+            {
+                ui::SettingsModalInput setType = {0, 0, 0, 0, kModalCtrls[ct]};
+                ui::settingsModalStep(setType);
+                canvas::clear();
+                ui::settingsModalDraw();
+                CHECK(canvas::runs() >= 10);
+                for (int k = 0; k < canvas::runs(); k++)
+                {
+                    const canvas::Run& run = canvas::run(k);
+                    float kept = run.scaleX / (run.scaleY * xs);
+                    if (kept < kMinSqueeze - 0.0005f)
+                    {
+                        misfit("watermark", "main/ui/settings_modal.cpp", run.text, "squeezed to %.0f%% on %s",
+                               kept * 100.0f, kAspectNames[a]);
+                    }
+                    float ctY = runCapTop(run);
+                    float cbY = runCapBottom(run);
+                    if (run.x < safe.x0 - 0.5f || run.right > safe.x1 + 0.5f || ctY < safe.y0 - 0.5f
+                        || cbY > safe.y1 + 0.5f)
+                    {
+                        misfit("watermark", "main/ui/settings_modal.cpp", run.text,
+                               "leaves CRT safe area (%.1f..%.1f, %.1f..%.1f) on %s",
+                               run.x, run.right, ctY, cbY, kAspectNames[a]);
+                    }
+                }
+            }
+        }
+        storage::detach();
+        host::card::reset();
     }
     end(" bar-number bar-message watermark ");
 }

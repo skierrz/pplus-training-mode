@@ -41,6 +41,9 @@ namespace gfx {
     void textBox(int slot, float x, float y, const char* text, Rgba color, Rgba box, float scale, bool centre);
     // Forget every remembered width (e.g. when a different page is shown).
     void forgetWidths();
+    // Optional glyph cache lifecycle (Heaps::Network, fail-closed to CharWriter::Print).
+    void textAttach();
+    void textDetach();
 
 #ifdef TM_PERF
     void perfTextCalibrate(u32* ticks);
