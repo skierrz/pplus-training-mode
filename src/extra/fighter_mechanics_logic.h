@@ -146,42 +146,27 @@ namespace extra {
         {
             count = 0;
         }
-        void addInt(u32 id, s32 v)
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
+        void addOp(u8 kind, u32 id, s32 iv, float fv, u8 flg)
         {
             if (count < kMaxOps)
             {
                 WorkOp& o = ops[count++];
-                o.kind = kOpInt;
-                o.flagValue = 0;
+                o.kind = kind;
+                o.flagValue = flg;
                 o.id = id;
-                o.intValue = v;
-                o.floatValue = 0.0f;
+                o.intValue = iv;
+                o.floatValue = fv;
             }
         }
-        void addFloat(u32 id, float v)
-        {
-            if (count < kMaxOps)
-            {
-                WorkOp& o = ops[count++];
-                o.kind = kOpFloat;
-                o.flagValue = 0;
-                o.id = id;
-                o.intValue = 0;
-                o.floatValue = v;
-            }
-        }
-        void addFlag(u32 id, bool on)
-        {
-            if (count < kMaxOps)
-            {
-                WorkOp& o = ops[count++];
-                o.kind = kOpFlag;
-                o.flagValue = on ? 1 : 0;
-                o.id = id;
-                o.intValue = 0;
-                o.floatValue = 0.0f;
-            }
-        }
+        void addInt(u32 id, s32 v) { addOp(kOpInt, id, v, 0.0f, 0); }
+        void addFloat(u32 id, float v) { addOp(kOpFloat, id, 0, v, 0); }
+        void addFlag(u32 id, bool on) { addOp(kOpFlag, id, 0, 0.0f, on ? 1 : 0); }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
     };
 
     inline int clampChoice(u8 raw, int count)
@@ -192,29 +177,16 @@ namespace extra {
     // True if `ftKind` has any row on the Character RNG / Fighter Mechanics page.
     inline bool fighterHasMechanicsRow(int ftKind)
     {
-        switch (ftKind)
+        static const u32 kLo = (1u << kFtDonkeyKong) | (1u << kFtSamus) | (1u << kFtLuigi) | (1u << kFtPeach)
+                               | (1u << kFtSheik) | (1u << kFtGameWatch) | (1u << kFtGanondorf) | (1u << kFtWario)
+                               | (1u << kFtOlimar) | (1u << kFtLucas) | (1u << kFtSquirtle) | (1u << kFtIvysaur);
+        static const u32 kHi = (1u << (kFtDedede - 32)) | (1u << (kFtLucario - 32)) | (1u << (kFtRob - 32))
+                               | (1u << (kFtMewtwo - 32)) | (1u << (kFtSnake - 32));
+        if (ftKind < 0 || ftKind >= 64)
         {
-        case kFtPeach:
-        case kFtLuigi:
-        case kFtGameWatch:
-        case kFtSamus:
-        case kFtMewtwo:
-        case kFtLucario:
-        case kFtWario:
-        case kFtDonkeyKong:
-        case kFtIvysaur:
-        case kFtRob:
-        case kFtLucas:
-        case kFtSquirtle:
-        case kFtSheik:
-        case kFtDedede:
-        case kFtSnake:
-        case kFtGanondorf:
-        case kFtOlimar:
-            return true;
-        default:
             return false;
         }
+        return ftKind < 32 ? ((kLo >> ftKind) & 1u) != 0 : ((kHi >> (ftKind - 32)) & 1u) != 0;
     }
 
     // Computes Olimar's Pikmin pluck weights ({Red, Yellow, Blue, White, Purple})

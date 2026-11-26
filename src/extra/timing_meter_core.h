@@ -3,6 +3,8 @@
 #include <string.h>
 #include <types.h>
 
+#include "extra/net_alloc.h"
+
 // Pure host-testable Overhead Timing Helper Meter core (L-Cancel, Wavedash,
 // Act-Out). Zero Brawl headers so logic compiles identically on PC (`make
 // check-host`) and PowerPC (MWCC 4.2).
@@ -166,13 +168,16 @@ namespace extra {
         memset(&st, 0, sizeof(st));
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline void tmStartHold(TimingSlotState& st, u8 kind, u8 outcome, s16 delta, float ratio, u32 color, u8 frames,
                             u8 flash)
     {
         st.holdKind = kind;
         st.holdOutcome = outcome;
         st.holdDelta = delta;
-        st.holdRatio = tmClamp01(ratio);
+        st.holdRatio = clampf(ratio, 0.0f, 1.0f);
         st.holdColor = color;
         st.holdFrames = frames;
         st.holdMax = frames;
@@ -181,19 +186,16 @@ namespace extra {
         st.lastOutcome = outcome;
         st.lastDelta = delta;
         st.eventCount++;
-        if (kind == kTmKindLCancel && outcome == kTmOutcomeHit)
+        if (outcome == kTmOutcomeHit)
         {
-            st.lCancelHits++;
-        }
-        else if (kind == kTmKindWavedash && outcome == kTmOutcomeHit)
-        {
-            st.wavedashHits++;
-        }
-        else if (kind == kTmKindActOut && outcome == kTmOutcomeHit)
-        {
-            st.actOutFlashes++;
+            if (kind == kTmKindLCancel) st.lCancelHits++;
+            else if (kind == kTmKindWavedash) st.wavedashHits++;
+            else if (kind == kTmKindActOut) st.actOutFlashes++;
         }
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline u32 tmFadeAlpha(u32 rgba, u8 holdLeft, u8 holdMax)
     {
@@ -270,7 +272,7 @@ namespace extra {
                             pf = kTmLcWindowFrames;
                         }
                         tmStartHold(st, kTmKindLCancel, kTmOutcomeHit, static_cast<s16>(pf),
-                                    static_cast<float>(pf) / static_cast<float>(kTmLcWindowFrames), kTmColGreen,
+                                    i2f(pf) / static_cast<float>(kTmLcWindowFrames), kTmColGreen,
                                     kTmHoldFrames, 0);
                     }
                     else if (st.lcPressed != 0)
@@ -470,7 +472,7 @@ namespace extra {
             {
                 v.zoneStart = 0.0f;
                 v.zoneEnd = 1.0f;
-                v.ratio = tmClamp01(static_cast<float>(st.lcWindowLeft) / static_cast<float>(kTmLcWindowFrames));
+                v.ratio = clampf(i2f(st.lcWindowLeft) / static_cast<float>(kTmLcWindowFrames), 0.0f, 1.0f);
                 v.fillColor = kTmColGreen;
             }
             else if (st.lcEarlyExpired != 0)
@@ -499,15 +501,15 @@ namespace extra {
             v.zoneEnd = 0.82f;
             if (st.wdPhase == 1)
             {
-                float denom = st.wdSquatLen > 0 ? static_cast<float>(st.wdSquatLen) : 4.0f;
-                v.ratio = tmClamp01((static_cast<float>(st.wdSquatFrames) / denom) * 0.62f);
+                float denom = st.wdSquatLen > 0 ? i2f(st.wdSquatLen) : 4.0f;
+                v.ratio = clampf((i2f(st.wdSquatFrames) / denom) * 0.62f, 0.0f, 1.0f);
                 v.fillColor = kTmColCyan;
             }
             else
             {
                 int airElapsed = static_cast<int>(in.frame - st.wdAirStartFrame + 1);
-                float t = tmClamp01(static_cast<float>(airElapsed) / 6.0f);
-                v.ratio = tmClamp01(0.62f + t * 0.38f);
+                float t = clampf(i2f(airElapsed) / 6.0f, 0.0f, 1.0f);
+                v.ratio = clampf(0.62f + t * 0.38f, 0.0f, 1.0f);
                 v.fillColor = airElapsed <= 2 ? kTmColGreen : (airElapsed <= 4 ? kTmColGold : kTmColRed);
             }
             return;
@@ -530,7 +532,7 @@ namespace extra {
             v.phase = kTmPhaseActive;
             v.kind = kTmKindActOut;
             v.hasZone = 0;
-            v.ratio = tmClamp01(static_cast<float>(st.actLast) / static_cast<float>(st.actPeak));
+            v.ratio = clampf(i2f(st.actLast) / i2f(st.actPeak), 0.0f, 1.0f);
             v.fillColor = st.actLast <= 3 ? kTmColGold : kTmColCyan;
         }
     }

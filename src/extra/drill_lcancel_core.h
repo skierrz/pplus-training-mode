@@ -143,6 +143,9 @@ namespace extra {
         LcStats stats;
     };
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline u8 lcDetectTriggerKind(const LcFrameInput& in)
     {
         if (in.digitalGuardEdge != 0 && in.digitalAttackEdge != 0)
@@ -162,14 +165,8 @@ namespace extra {
 
     inline void lcCoreResetTransient(LcCoreState& st)
     {
-        st.inAerial = 0;
-        st.pressedInAerial = 0;
-        st.pressInputKind = kLcInputNone;
-        st.aerialContext = kLcContextWhiff;
+        memset(&st, 0, reinterpret_cast<char*>(&st.seq) - reinterpret_cast<char*>(&st));
         st.aerialMotionKind = -1;
-        st.hitlagFrames = 0;
-        st.nonHitlagSincePress = 0;
-        st.lateWatchActive = 0;
         st.lateWatchStart = kLcCoreNoFrame;
     }
 
@@ -199,31 +196,23 @@ namespace extra {
 
     inline void lcRecordContextTotals(LcStats& stats, u8 ctx, bool manualSuccess)
     {
-        if (ctx == kLcContextHit)
+        u16* pair = (ctx == kLcContextHit) ? &stats.hitHits : (ctx == kLcContextShield ? &stats.shieldHits : &stats.whiffHits);
+        pair[1]++;
+        if (manualSuccess)
         {
-            stats.hitTotal++;
-            if (manualSuccess)
-            {
-                stats.hitHits++;
-            }
-        }
-        else if (ctx == kLcContextShield)
-        {
-            stats.shieldTotal++;
-            if (manualSuccess)
-            {
-                stats.shieldHits++;
-            }
-        }
-        else
-        {
-            stats.whiffTotal++;
-            if (manualSuccess)
-            {
-                stats.whiffHits++;
-            }
+            pair[0]++;
         }
     }
+
+    inline void lcSetResultInputKind(LcResult& r, u8 kind)
+    {
+        r.inputKind = kind;
+        r.lightPress = (kind == kLcInputLightPress) ? 1 : 0;
+        r.zPress = (kind == kLcInputZPress) ? 1 : 0;
+    }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // Steps one finished game frame for one tracked fighter. Returns true when
     // an L-cancel result is emitted or upgraded (kLcMissNoPress -> kLcMissLate).
@@ -247,9 +236,7 @@ namespace extra {
                 // double-counting stats.total or per-context totals.
                 st.last.outcome = kLcMissLate;
                 st.last.lateFrames = static_cast<s16>(dt);
-                st.last.inputKind = trigKind;
-                st.last.lightPress = (trigKind == kLcInputLightPress) ? 1 : 0;
-                st.last.zPress = (trigKind == kLcInputZPress) ? 1 : 0;
+                lcSetResultInputKind(st.last, trigKind);
                 st.stats.lateMisses++;
                 st.lateWatchActive = 0;
                 st.seq++;
@@ -332,9 +319,7 @@ namespace extra {
                     u8 kind = st.pressInputKind != kLcInputNone ? st.pressInputKind : kLcInputDigital;
                     r.outcome = kLcSuccessManual;
                     r.pressFrame = static_cast<s16>(pf);
-                    r.inputKind = kind;
-                    r.lightPress = (kind == kLcInputLightPress) ? 1 : 0;
-                    r.zPress = (kind == kLcInputZPress) ? 1 : 0;
+                    lcSetResultInputKind(r, kind);
 
                     st.stats.total++;
                     st.stats.successes++;
@@ -360,9 +345,7 @@ namespace extra {
                         {
                             r.earlyFrames = static_cast<s16>(early);
                         }
-                        r.inputKind = st.pressInputKind;
-                        r.lightPress = (st.pressInputKind == kLcInputLightPress) ? 1 : 0;
-                        r.zPress = (st.pressInputKind == kLcInputZPress) ? 1 : 0;
+                        lcSetResultInputKind(r, st.pressInputKind);
                     }
                     st.stats.total++;
                     st.stats.autoSuccesses++;
@@ -385,18 +368,14 @@ namespace extra {
                     {
                         r.outcome = kLcMissEarly;
                         r.earlyFrames = static_cast<s16>(early);
-                        r.inputKind = st.pressInputKind;
-                        r.lightPress = (st.pressInputKind == kLcInputLightPress) ? 1 : 0;
-                        r.zPress = (st.pressInputKind == kLcInputZPress) ? 1 : 0;
+                        lcSetResultInputKind(r, st.pressInputKind);
                         st.stats.earlyMisses++;
                     }
                     else if (trigKind != kLcInputNone)
                     {
                         r.outcome = kLcMissLate;
                         r.lateFrames = 1;
-                        r.inputKind = trigKind;
-                        r.lightPress = (trigKind == kLcInputLightPress) ? 1 : 0;
-                        r.zPress = (trigKind == kLcInputZPress) ? 1 : 0;
+                        lcSetResultInputKind(r, trigKind);
                         st.stats.lateMisses++;
                     }
                     else

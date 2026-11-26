@@ -161,25 +161,18 @@ namespace extra {
         return s >= kPsStDamageFirst && s <= kPsStDamageLast;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     // Clears in-flight tracking without erasing cumulative session stats
     // (called on savestate load or fighter change).
     inline void psResetTransient(PsSlot& st)
     {
-        st.guardArmed = false;
-        st.guardRePs = false;
-        st.lightToHard = false;
-        st.guardFrames = 0;
+        memset(&st, 0, reinterpret_cast<char*>(&st.stats) - reinterpret_cast<char*>(&st));
         st.windowEnd = kPsBaseWindow;
         st.f1RaBasic1 = -1;
-        st.lateMissArmed = false;
         st.lateMissHitFrame = kPsNoFrame;
-        st.prevGuardButton = 0;
-        st.psDropPhase = kPsDropIdle;
-        st.psDropWindowOpen = false;
-        st.psDropPendingRePs = false;
         st.psDropDamageEndFrame = kPsNoFrame;
-        st.psDropGuardOffFrames = 0;
-        st.prevRaBasic3 = 0;
     }
 
     inline void psResetAll(PsSlot& st)
@@ -263,6 +256,9 @@ namespace extra {
         st.last.psDropActFrame = 0;
         st.last.eventFrame = frame;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline void stepPowershield(const PsInput& in, PsSlot& st)
     {

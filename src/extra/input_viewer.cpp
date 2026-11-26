@@ -98,9 +98,9 @@ namespace extra {
             {
                 return;
             }
-            float cx = b.x0 + static_cast<float>(spec.nxPct) * 0.01f * (b.x1 - b.x0);
-            float cy = b.y0 + static_cast<float>(spec.nyPct) * 0.01f * (b.y1 - b.y0);
-            float ry = static_cast<float>(spec.r2) * 0.5f;
+            float cx = b.x0 + i2fScale(spec.nxPct, 0.01f) * (b.x1 - b.x0);
+            float cy = b.y0 + i2fScale(spec.nyPct, 0.01f) * (b.y1 - b.y0);
+            float ry = i2fScale(spec.r2, 0.5f);
             float rx = ry * xs;
 
             gfx::fillEllipse(cx, cy, rx, ry, 0x060E14CCu);
@@ -162,10 +162,10 @@ namespace extra {
                 {
                     continue;
                 }
-                float rx = x + static_cast<float>(tr.nxPct) * 0.01f * bw;
-                float ry = y + static_cast<float>(tr.nyPct) * 0.01f * bh;
-                float rw = static_cast<float>(tr.nwPct) * 0.01f * bw;
-                float rh = static_cast<float>(tr.h);
+                float rx = x + i2fScale(tr.nxPct, 0.01f) * bw;
+                float ry = y + i2fScale(tr.nyPct, 0.01f) * bh;
+                float rw = i2fScale(tr.nwPct, 0.01f) * bw;
+                float rh = i2f(tr.h);
                 bool dig = (pad.buttons & tr.digitalMask) != 0;
                 float fill = viewerTriggerFill(tr.isRight ? pad.rTrig : pad.lTrig, dig);
                 gfx::fillRect(rx, ry, rw, rh, 0x060E14D8u);
@@ -192,9 +192,9 @@ namespace extra {
                     {
                         continue;
                     }
-                    float cx = x + static_cast<float>(btn.nxPct) * 0.01f * bw;
-                    float cy = y + static_cast<float>(btn.nyPct) * 0.01f * bh;
-                    float ih = static_cast<float>(btn.h2) * 0.5f;
+                    float cx = x + i2fScale(btn.nxPct, 0.01f) * bw;
+                    float cy = y + i2fScale(btn.nyPct, 0.01f) * bh;
+                    float ih = i2fScale(btn.h2, 0.5f);
                     float iw = ih * ui::uiIconAspect(btn.iconId) * xs;
                     if (pass == 0)
                     {
@@ -211,8 +211,8 @@ namespace extra {
                         viewerDpadDir(pad.buttons, dx, dy);
                         if (dx != 0 || dy != 0)
                         {
-                            gfx::fillEllipse(cx + static_cast<float>(dx) * iw * 0.30f,
-                                             cy - static_cast<float>(dy) * ih * 0.30f, 2.2f * xs, 2.2f, 0xFFD300FFu);
+                            gfx::fillEllipse(cx + i2f(dx) * iw * 0.30f, cy - i2f(dy) * ih * 0.30f, 2.2f * xs, 2.2f,
+                                             0xFFD300FFu);
                         }
                     }
                 }

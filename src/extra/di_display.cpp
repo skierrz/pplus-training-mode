@@ -223,14 +223,33 @@ namespace extra {
                                     0, 0x7C781B78, 0x7C992378, 0x7CBA2B78};
     static bool s_rays = false;
 
-    static float fat(const void* base, u32 offset)
-    {
-        return *reinterpret_cast<const float*>(reinterpret_cast<u32>(base) + offset);
-    }
-
     static bool within(float v, float lo, float hi)
     {
         return v >= lo && v <= hi;
+    }
+
+    static DiVectorResult resolveDi(u8 mode, float kx, float ky, float posX, float stageCenterX, float facing,
+                                    float liveX, float liveY)
+    {
+        return resolveDiVector(mode, kx, ky, posX, stageCenterX, facing, liveX, liveY);
+    }
+
+    static void setCompass(bool inHitlag, u8 mode, float lx, float ly, float dx, float dy, float sx, float sy)
+    {
+        if (s_net == NULL || (s_net->compass.active && (!inHitlag || s_net->compass.inHitlag)))
+        {
+            return;
+        }
+        DiCompassState& c = s_net->compass;
+        c.active = true;
+        c.inHitlag = inHitlag;
+        c.mode = mode;
+        c.launchX = lx;
+        c.launchY = ly;
+        c.diX = dx;
+        c.diY = dy;
+        c.liveX = sx;
+        c.liveY = sy;
     }
 
     // sqrt(v) for v >= 0: the hardware estimate refined by Newton steps.
@@ -284,7 +303,7 @@ namespace extra {
         {
             return 1.0f;
         }
-        float v = fat(damage, (fn[0] & 0xFFFF) + kLogSdiMul);
+        float v = floatAt(damage, (fn[0] & 0xFFFF) + kLogSdiMul);
         return within(v, 0.0f, 10.0f) ? v : 1.0f;
     }
 
@@ -320,11 +339,8 @@ namespace extra {
     // writes (the CPU Options' planned DI while they handle a hit).
     static bool readStick(const game::FighterRef& ref, bool partner, int hitlag, Stick& out)
     {
-        out.x = out.y = out.cx = out.cy = out.lx = out.ly = 0.0f;
-        out.rawMainX = out.rawMainY = out.rawCx = out.rawCy = 0;
+        memset(&out, 0, sizeof(out));
         out.cstickMode = kCStickNone;
-        out.hasHumanPad = false;
-        out.cstickWasActive = false;
         ftEntryManager* entries = extraEntryManager();
         ftEntry* entry = game::isRam(entries) ? entries->getEntity(ref.entryId) : NULL;
         if (!game::isRam(entry) || !game::isRam(entry->m_input))
@@ -340,8 +356,8 @@ namespace extra {
         const void* input = reinterpret_cast<const void*>(game::wordAt(entry->m_input, partner ? 0x10 : 0xC));
         if (game::isRam(input))
         {
-            out.lx = out.x = fat(input, 0x10);
-            out.ly = out.y = fat(input, 0x14);
+            out.lx = out.x = floatAt(input, 0x10);
+            out.ly = out.y = floatAt(input, 0x14);
         }
         s8 raw[4];
         u8 controllerType = kPadGcc;
@@ -634,98 +650,43 @@ namespace extra {
         d.y = y;
     }
 
-    // Batches trace point lines ("di: %c %d %.3f %.3f\n" or with "+") using
-    // integer fixed-point formatting so tracing a 70-150 frame arc does not
-    // spend a full console frame in per-line OSReport / float formatting.
+    // Batches trace point lines ("di: %c %d %.3f %.3f\n" or with "+") so tracing
+    // a 70-150 frame arc does not issue a separate OSReport per point.
     struct TraceBuf {
         char data[240];
         int len;
-        void init()
+        void init() { len = 0; }
+        void flush();
+        void addPoint(char tag, bool plus, int frame, float x, float y);
+    };
+
+    void TraceBuf::flush()
+    {
+        if (len > 0)
         {
+            data[len] = '\0';
+            TM_LOG("%s", data);
             len = 0;
         }
-        void flush()
+    }
+
+    void TraceBuf::addPoint(char tag, bool plus, int frame, float x, float y)
+    {
+        if (len > static_cast<int>(sizeof(data)) - 42)
         {
-            if (len > 0)
+            flush();
+        }
+        int n = snprintf(data + len, sizeof(data) - static_cast<size_t>(len), "di: %c%s %d %.3f %.3f\n", tag,
+                         plus ? "+" : "", frame, x, y);
+        if (n > 0)
+        {
+            len += n;
+            if (len >= static_cast<int>(sizeof(data)))
             {
-                data[len] = '\0';
-                TM_LOG("%s", data);
-                len = 0;
+                len = static_cast<int>(sizeof(data)) - 1;
             }
         }
-        void putChar(char c)
-        {
-            if (len < static_cast<int>(sizeof(data)) - 1)
-            {
-                data[len++] = c;
-            }
-        }
-        void putUint(u32 v)
-        {
-            char tmp[12];
-            int n = 0;
-            do
-            {
-                tmp[n++] = static_cast<char>('0' + (v % 10));
-                v /= 10;
-            } while (v != 0);
-            while (n > 0)
-            {
-                putChar(tmp[--n]);
-            }
-        }
-        void putFixed3(float v)
-        {
-            if (!(v >= -100000.0f && v <= 100000.0f))
-            {
-                v = 0.0f;
-            }
-            s32 m = static_cast<s32>(v >= 0.0f ? (v * 1000.0f + 0.5f) : (v * 1000.0f - 0.5f));
-            if (m < 0)
-            {
-                putChar('-');
-                m = -m;
-            }
-            u32 a = static_cast<u32>(m);
-            putUint(a / 1000);
-            putChar('.');
-            u32 frac = a % 1000;
-            putChar(static_cast<char>('0' + (frac / 100)));
-            putChar(static_cast<char>('0' + ((frac / 10) % 10)));
-            putChar(static_cast<char>('0' + (frac % 10)));
-        }
-        void addPoint(char tag, bool plus, int frame, float x, float y)
-        {
-            if (len > static_cast<int>(sizeof(data)) - 42)
-            {
-                flush();
-            }
-            putChar('d');
-            putChar('i');
-            putChar(':');
-            putChar(' ');
-            putChar(tag);
-            if (plus)
-            {
-                putChar('+');
-            }
-            putChar(' ');
-            if (frame < 0)
-            {
-                putChar('-');
-                putUint(static_cast<u32>(-frame));
-            }
-            else
-            {
-                putUint(static_cast<u32>(frame));
-            }
-            putChar(' ');
-            putFixed3(x);
-            putChar(' ');
-            putFixed3(y);
-            putChar('\n');
-        }
-    };
+    }
 
     // What follows a contact without a tech (rules above): the slide after
     // a landing (or from a grounded start) or the flight after a bounce,
@@ -938,8 +899,8 @@ namespace extra {
         int hitlag = static_cast<soStopModuleImpl*>(m->m_stopModule)->getHitStopRealFrame();
         int hitstun = game::fighterHitstun(m);
         Flight s;
-        s.x = fat(m->m_postureModule, 0xC);
-        s.y = fat(m->m_postureModule, 0x10);
+        s.x = floatAt(m->m_postureModule, 0xC);
+        s.y = floatAt(m->m_postureModule, 0x10);
         if (t != NULL)
         {
             if (t->entryId != ref.entryId || (hitlag <= 0 && hitstun <= 0))
@@ -970,11 +931,11 @@ namespace extra {
         {
             return;
         }
-        s.vx = fat(damage, kSpeed);
-        s.vy = fat(damage, kSpeed + 4);
-        s.g = fat(gravity, kSpeed + 4);
-        s.accel = fat(gravity, kAccel);
-        s.maxFall = fat(gravity, kMaxFall);
+        s.vx = floatAt(damage, kSpeed);
+        s.vy = floatAt(damage, kSpeed + 4);
+        s.g = floatAt(gravity, kSpeed + 4);
+        s.accel = floatAt(gravity, kAccel);
+        s.maxFall = floatAt(gravity, kMaxFall);
         if (!within(s.accel, -2.0f, 0.0f) || !within(s.maxFall, 0.0f, 20.0f))
         {
             return;
@@ -1011,7 +972,9 @@ namespace extra {
         float feet = s.y;
         s_body.ground = m->m_situationModule->getKind() != Situation_Air;
         s_body.floor = s_body.ground || (hitlag > 0 && floorAt(s.x, feet) && s.y - feet < kOnFloor);
-        Stick st = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, kCStickNone, false, false};
+        Stick st;
+        memset(&st, 0, sizeof(st));
+        st.cstickMode = kCStickNone;
         u8 diMode = main::settings().display.diVectorMode;
         bool own = hitlag > 0 && readStick(ref, partner, hitlag, st);
         float stageCenterX = (s_env.left + s_env.right) * 0.5f;
@@ -1028,18 +991,10 @@ namespace extra {
             // Launched: the speeds already carry the DI.
             if (s_net != NULL && !s_net->compass.active)
             {
-                Stick liveSt = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, kCStickNone, false, false};
+                Stick liveSt;
                 readStick(ref, partner, 0, liveSt);
-                DiVectorResult dv = resolveDiVector(diMode, s.vx, s.vy, s.x, stageCenterX, facing, liveSt.x, liveSt.y);
-                s_net->compass.active = true;
-                s_net->compass.inHitlag = false;
-                s_net->compass.mode = diMode;
-                s_net->compass.launchX = s.vx;
-                s_net->compass.launchY = s.vy;
-                s_net->compass.diX = dv.dx;
-                s_net->compass.diY = dv.dy;
-                s_net->compass.liveX = liveSt.x;
-                s_net->compass.liveY = liveSt.y;
+                DiVectorResult dv = resolveDi(diMode, s.vx, s.vy, s.x, stageCenterX, facing, liveSt.x, liveSt.y);
+                setCompass(false, diMode, s.vx, s.vy, dv.dx, dv.dy, liveSt.x, liveSt.y);
             }
             drawPath(s, kWidthMain, kBlue, 'l');
             return;
@@ -1054,20 +1009,9 @@ namespace extra {
         {
             float launchVx = s.vx;
             float launchVy = s.vy;
-            DiVectorResult dv = resolveDiVector(diMode, launchVx, launchVy, s.x, stageCenterX, facing, st.x, st.y);
+            DiVectorResult dv = resolveDi(diMode, launchVx, launchVy, s.x, stageCenterX, facing, st.x, st.y);
             applyDi(s, dv.dx, dv.dy);
-            if (s_net != NULL && (!s_net->compass.active || !s_net->compass.inHitlag))
-            {
-                s_net->compass.active = true;
-                s_net->compass.inHitlag = true;
-                s_net->compass.mode = diMode;
-                s_net->compass.launchX = launchVx;
-                s_net->compass.launchY = launchVy;
-                s_net->compass.diX = dv.dx;
-                s_net->compass.diY = dv.dy;
-                s_net->compass.liveX = st.x;
-                s_net->compass.liveY = st.y;
-            }
+            setCompass(true, diMode, launchVx, launchVy, dv.dx, dv.dy, st.x, st.y);
             drawPath(s, kWidthMain, kBlue, 'p');
             return;
         }
@@ -1103,18 +1047,7 @@ namespace extra {
         float launchVx = s.vx;
         float launchVy = s.vy;
         applyDi(s, preview.tdiX, preview.tdiY);
-        if (s_net != NULL && (!s_net->compass.active || !s_net->compass.inHitlag))
-        {
-            s_net->compass.active = true;
-            s_net->compass.inHitlag = true;
-            s_net->compass.mode = diMode;
-            s_net->compass.launchX = launchVx;
-            s_net->compass.launchY = launchVy;
-            s_net->compass.diX = preview.tdiX;
-            s_net->compass.diY = preview.tdiY;
-            s_net->compass.liveX = st.x;
-            s_net->compass.liveY = st.y;
-        }
+        setCompass(true, diMode, launchVx, launchVy, preview.tdiX, preview.tdiY, st.x, st.y);
         if (s.vy + s.accel < sink)
         {
             // Stays on its floor (smash DI down moves it no lower).
@@ -1272,7 +1205,7 @@ namespace extra {
                     game::mainStick(raw[0], raw[1], &liveX, &liveY);
                 }
             }
-            DiVectorResult dv = resolveDiVector(mode, launchX, launchY, 0.0f, 0.0f, 1.0f, liveX, liveY);
+            DiVectorResult dv = resolveDi(mode, launchX, launchY, 0.0f, 0.0f, 1.0f, liveX, liveY);
             diX = dv.dx;
             diY = dv.dy;
         }

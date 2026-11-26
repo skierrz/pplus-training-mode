@@ -190,18 +190,9 @@ namespace extra {
         }
     }
 
-    // Degrees from horizontal (matches techniques.cpp::stickAngle).
-    inline float wdStickAngleDeg(float sx, float sy)
-    {
-        float ax = sx < 0.0f ? -sx : sx;
-        float ay = sy < 0.0f ? -sy : sy;
-        if (ax < 0.0001f && ay < 0.0001f)
-        {
-            return 0.0f;
-        }
-        return static_cast<float>(atan2(ay, ax) * 57.29577951308232);
-    }
-
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     // Signed stick pitch relative to horizontal (-90 straight down, +90 up).
     inline float wdSignedAngleDeg(float sx, float sy)
     {
@@ -212,6 +203,13 @@ namespace extra {
             return 0.0f;
         }
         return static_cast<float>(atan2(sy, ax) * 57.29577951308232);
+    }
+
+    // Degrees from horizontal (matches techniques.cpp::stickAngle).
+    inline float wdStickAngleDeg(float sx, float sy)
+    {
+        float d = wdSignedAngleDeg(sx, sy);
+        return d < 0.0f ? -d : d;
     }
 
     // Exact P+ 3.2.1 AirDodge.asm:105-138 initial speed:
@@ -249,24 +247,11 @@ namespace extra {
 
     inline void wdCoreResetTransient(WdCoreState& st)
     {
-        st.phase = kWdPhaseIdle;
-        st.pendingKind = kWdKindNone;
-        st.pendingOutcome = kWdOutcomeNone;
-        st.fromJumpSquat = 0;
-        st.shortHop = 0;
-        st.onPlatform = 0;
+        memset(&st, 0, reinterpret_cast<char*>(&st.seq) - reinterpret_cast<char*>(&st));
         st.jumpSquatFrame = kWdCoreNoFrame;
         st.airFrame = kWdCoreNoFrame;
         st.airdodgeFrame = kWdCoreNoFrame;
         st.landFrame = kWdCoreNoFrame;
-        st.jumpHoldFrames = 0;
-        st.jumpsquatToDodge = 0;
-        st.airdodgeAirFrames = 0;
-        st.jumpTakeoffY = 0.0f;
-        st.xAtLand = 0.0f;
-        st.angleDeg = 0.0f;
-        st.signedAngleDeg = 0.0f;
-        st.expectedSpeed = 0.0f;
     }
 
     inline void wdCoreResetAll(WdCoreState& st)
@@ -294,52 +279,29 @@ namespace extra {
         r.signedSlideDx = slideDx;
         r.slideDistance = slideDx < 0.0f ? -slideDx : slideDx;
 
-        if (kind == kWdKindWavedash)
+        if (kind == kWdKindWavedash || kind == kWdKindWaveland)
         {
-            st.stats.wdAttempts++;
+            u16* s = (kind == kWdKindWavedash) ? &st.stats.wdAttempts : &st.stats.wlAttempts;
+            bool perfect = (kind == kWdKindWavedash) ? (r.jumpsquatToDodge == 1) : (r.airdodgeAirFrames == 1);
+            s[0]++;
             if (outcome == kWdOutcomeSuccess)
             {
-                st.stats.wdSuccesses++;
-                if (r.jumpsquatToDodge == 1)
-                {
-                    st.stats.wdPerfect++;
-                }
-                st.stats.wdStreak++;
-                if (st.stats.wdStreak > st.stats.wdBestStreak)
-                {
-                    st.stats.wdBestStreak = st.stats.wdStreak;
-                }
+                s[1]++;
+                if (perfect) s[2]++;
+                if (++s[3] > s[4]) s[4] = s[3];
             }
             else
             {
-                st.stats.wdStreak = 0;
-            }
-        }
-        else if (kind == kWdKindWaveland)
-        {
-            st.stats.wlAttempts++;
-            if (outcome == kWdOutcomeSuccess)
-            {
-                st.stats.wlSuccesses++;
-                if (r.airdodgeAirFrames == 1)
-                {
-                    st.stats.wlPerfect++;
-                }
-                st.stats.wlStreak++;
-                if (st.stats.wlStreak > st.stats.wlBestStreak)
-                {
-                    st.stats.wlBestStreak = st.stats.wlStreak;
-                }
-            }
-            else
-            {
-                st.stats.wlStreak = 0;
+                s[3] = 0;
             }
         }
 
         st.seq++;
         wdCoreResetTransient(st);
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // Steps one finished game frame for one tracked fighter. Returns true if a
     // wavedash/waveland attempt finalized on this frame (result in st.last).

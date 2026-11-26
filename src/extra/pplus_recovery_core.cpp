@@ -448,14 +448,14 @@ namespace extra {
             st.option = st.usedFloat = st.holdFrames = st.mashPhase = st.highMixup = 0;
             if (mix == kMixupHigh)
             {
-                st.highMixup = static_cast<u8>(28.0f + 27.0f * recRand01(rng));
+                st.highMixup = static_cast<u8>(f2i(28.0f + 27.0f * recRand01(rng)));
             }
             else if (mix == kMixupMixed)
             {
                 float r = recRand01(rng);
                 if ((in.ledgeOccupied && r < 0.80f) || (!in.ledgeOccupied && r < 0.25f))
                 {
-                    st.highMixup = static_cast<u8>(15.0f + 40.0f * recRand01(rng));
+                    st.highMixup = static_cast<u8>(f2i(15.0f + 40.0f * recRand01(rng)));
                 }
             }
         }
@@ -466,11 +466,11 @@ namespace extra {
         float absNCX = recAbs(toLedgeX);
         float belowLedgeY = toLedgeY; // > 0 below ledge, < 0 above ledge
         float highBelowY = belowLedgeY + (!in.ceilingAbove ? i2f(st.highMixup) : 0.0f);
-        const int ix = static_cast<int>(absNCX * 16.0f);
-        const int iy = static_cast<int>(belowLedgeY * 16.0f);
-        const int iyH = static_cast<int>(highBelowY * 16.0f);
-        const int iAnim = static_cast<int>(in.animFrame * 16.0f);
-        const int iWall = static_cast<int>(in.wallDist * 16.0f);
+        const int ix = f2i(absNCX * 16.0f);
+        const int iy = f2i(belowLedgeY * 16.0f);
+        const int iyH = f2i(highBelowY * 16.0f);
+        const int iAnim = f2i(in.animFrame * 16.0f);
+        const int iWall = f2i(in.wallDist * 16.0f);
         float stageCenterX = 0.5f * (in.stageLeftX + in.stageRightX);
         float stageCenterDir = in.x > stageCenterX ? -1.0f : 1.0f;
         float towardLedge = toLedgeX == 0.0f ? stageCenterDir : recSign(toLedgeX);

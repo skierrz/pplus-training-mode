@@ -174,49 +174,20 @@ namespace extra {
 
     static bool matchesQuery(int call, int kind, bool livePartner)
     {
-        switch (call)
+        if (call == main::kRngAny)
         {
-        case main::kRngAny:
             return fighterHasMechanicsRow(kind) || (kind == kFtPopo && livePartner);
-        case main::kRngPeach:
-            return kind == kFtPeach;
-        case main::kRngGameWatch:
-            return kind == kFtGameWatch;
-        case main::kRngLuigi:
-            return kind == kFtLuigi;
-        case main::kRngSamus:
-            return kind == kFtSamus;
-        case main::kRngMewtwo:
-            return kind == kFtMewtwo;
-        case main::kRngLucario:
-            return kind == kFtLucario;
-        case main::kRngWario:
-            return kind == kFtWario;
-        case main::kRngDonkeyKong:
-            return kind == kFtDonkeyKong;
-        case main::kRngIvysaur:
-            return kind == kFtIvysaur;
-        case main::kRngRob:
-            return kind == kFtRob;
-        case main::kRngLucas:
-            return kind == kFtLucas;
-        case main::kRngSquirtle:
-            return kind == kFtSquirtle;
-        case main::kRngSheik:
-            return kind == kFtSheik;
-        case main::kRngDedede:
-            return kind == kFtDedede;
-        case main::kRngSnake:
-            return kind == kFtSnake;
-        case main::kRngGanondorf:
-            return kind == kFtGanondorf;
-        case main::kRngIceClimbers:
-            return kind == kFtPopo && livePartner;
-        case main::kRngOlimar:
-            return kind == kFtOlimar;
-        default:
-            return false;
         }
+        if (call == main::kRngIceClimbers)
+        {
+            return kind == kFtPopo && livePartner;
+        }
+        static const u8 kKinds[] = {
+            kFtPeach, kFtGameWatch, kFtLuigi, kFtSamus, kFtMewtwo, kFtLucario, kFtWario, kFtDonkeyKong,
+            kFtIvysaur, kFtRob, kFtLucas, kFtSquirtle, kFtSheik, kFtDedede, kFtSnake, kFtGanondorf, 0xFF, kFtOlimar
+        };
+        int idx = call - main::kRngPeach;
+        return idx >= 0 && idx < static_cast<int>(sizeof(kKinds)) && kind == static_cast<int>(kKinds[idx]);
     }
 
     // The next Judge is the chosen one. The one before is set to another

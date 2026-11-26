@@ -322,6 +322,24 @@ namespace extra {
             d.fhEffectiveAsdiY = e.fh.last.effectiveAsdiY;
             d.fhLandingFrame = e.fh.last.landingFrame;
         }
+
+        void copySimpleEvents(const game::Tracked& t, void* dst, int evN)
+        {
+            s16* out = static_cast<s16*>(dst);
+            for (int k = 0; k < evN; k++)
+            {
+                out[2 * k] = t.events[k].status;
+                out[2 * k + 1] = t.events[k].prev;
+            }
+        }
+
+        const SlotEngine* activeEngine(int trackedSlot)
+        {
+            return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked
+                    && s_net->engines[trackedSlot].active)
+                       ? &s_net->engines[trackedSlot]
+                       : NULL;
+        }
     }
 
     void pplusTechAttach()
@@ -468,11 +486,7 @@ namespace extra {
             rarIn.lr = sn.lr;
             rarIn.vx = sn.vx;
             rarIn.eventCount = evN;
-            for (int k = 0; k < evN; k++)
-            {
-                rarIn.events[k].status = t.events[k].status;
-                rarIn.events[k].prev = t.events[k].prev;
-            }
+            copySimpleEvents(t, rarIn.events, evN);
             rarStep(e.rar, rarIn);
 
             // 2. DACUS & Gatling
@@ -493,11 +507,7 @@ namespace extra {
             dacusIn.buttons = sn.buttons;
             dacusIn.triggerButtons = sn.triggerButtons;
             dacusIn.eventCount = evN;
-            for (int k = 0; k < evN; k++)
-            {
-                dacusIn.events[k].status = t.events[k].status;
-                dacusIn.events[k].prev = t.events[k].prev;
-            }
+            copySimpleEvents(t, dacusIn.events, evN);
             dacusStep(e.dacus, dacusIn);
 
             // 3. B-Reverse & Wavebounce
@@ -513,11 +523,7 @@ namespace extra {
             brevIn.vx = sn.vx;
             brevIn.stickX = sn.stickX;
             brevIn.eventCount = evN;
-            for (int k = 0; k < evN; k++)
-            {
-                brevIn.events[k].status = t.events[k].status;
-                brevIn.events[k].prev = t.events[k].prev;
-            }
+            copySimpleEvents(t, brevIn.events, evN);
             breverseStep(e.brev, brevIn);
 
             // 4. Footstool & Lock + AGT
@@ -604,11 +610,7 @@ namespace extra {
             fhIn.motionRate = sn.motionRate;
             fhIn.landingFrame = sn.landingFrame;
             fhIn.eventCount = evN;
-            for (int k = 0; k < evN; k++)
-            {
-                fhIn.events[k].status = t.events[k].status;
-                fhIn.events[k].prev = t.events[k].prev;
-            }
+            copySimpleEvents(t, fhIn.events, evN);
             for (int j = 0; j < game::kMaxTracked && fhIn.attackerCount < kFhMaxAttackers; j++)
             {
                 if (j == i || !snaps[j].valid || snaps[j].t->entryId == t.entryId)
@@ -635,37 +637,32 @@ namespace extra {
 
     const RarState* pplusTechRar(int trackedSlot)
     {
-        return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_net->engines[trackedSlot].active)
-                   ? &s_net->engines[trackedSlot].rar
-                   : NULL;
+        const SlotEngine* e = activeEngine(trackedSlot);
+        return e != NULL ? &e->rar : NULL;
     }
 
     const DacusState* pplusTechDacus(int trackedSlot)
     {
-        return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_net->engines[trackedSlot].active)
-                   ? &s_net->engines[trackedSlot].dacus
-                   : NULL;
+        const SlotEngine* e = activeEngine(trackedSlot);
+        return e != NULL ? &e->dacus : NULL;
     }
 
     const BReverseState* pplusTechBReverse(int trackedSlot)
     {
-        return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_net->engines[trackedSlot].active)
-                   ? &s_net->engines[trackedSlot].brev
-                   : NULL;
+        const SlotEngine* e = activeEngine(trackedSlot);
+        return e != NULL ? &e->brev : NULL;
     }
 
     const FootstoolAgtState* pplusTechFootstoolAgt(int trackedSlot)
     {
-        return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_net->engines[trackedSlot].active)
-                   ? &s_net->engines[trackedSlot].fa
-                   : NULL;
+        const SlotEngine* e = activeEngine(trackedSlot);
+        return e != NULL ? &e->fa : NULL;
     }
 
     const FloorhugState* pplusTechFloorhug(int trackedSlot)
     {
-        return (s_net != NULL && trackedSlot >= 0 && trackedSlot < game::kMaxTracked && s_net->engines[trackedSlot].active)
-                   ? &s_net->engines[trackedSlot].fh
-                   : NULL;
+        const SlotEngine* e = activeEngine(trackedSlot);
+        return e != NULL ? &e->fh : NULL;
     }
 
     const PPlusTechDebugBlock* pplusTechDebugBlock()

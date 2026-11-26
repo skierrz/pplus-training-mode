@@ -38,68 +38,75 @@ namespace extra {
             kOlimarWeightCount = 5
         };
 
-        // Cached FitDedede.pac Waddle Toss weight pointer, tied to live
-        // g_ftCommonDataAccesser data so fighter swaps drop stale pointers and
-        // detach restores original bytes only while still resident.
-        const void* s_dededeData = NULL;
-        float* s_dededeWeights = NULL;
-        float s_dededeOrig[kDededeWeightCount] = {0.0f, 0.0f, 0.0f, 0.0f};
-        bool s_dededeTried = false;
+        struct WeightCache {
+            const void* data;
+            float* weights;
+            float orig[5];
+            bool tried;
+        };
 
-        // Cached FitPikmin.pac pullOutParam row-0 weight pointer (same lifecycle).
-        const void* s_olimarData = NULL;
-        float* s_olimarWeights = NULL;
-        float s_olimarOrig[kOlimarWeightCount] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-        bool s_olimarTried = false;
+        WeightCache s_dedede = {NULL, NULL, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f}, false};
+        WeightCache s_olimar = {NULL, NULL, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f}, false};
 
-        void clearOlimarCache()
+        void clearCache(WeightCache& c)
         {
-            s_olimarData = NULL;
-            s_olimarWeights = NULL;
-            for (int i = 0; i < kOlimarWeightCount; i++)
+            c.data = NULL;
+            c.weights = NULL;
+            for (int i = 0; i < 5; i++)
             {
-                s_olimarOrig[i] = 0.0f;
+                c.orig[i] = 0.0f;
             }
-            s_olimarTried = false;
+            c.tried = false;
         }
 
-        bool olimarResident()
+        bool cacheResident(const WeightCache& c, int kind, u32 tableOff, u32 weightsOff)
         {
-            if (s_olimarWeights == NULL || s_olimarData == NULL)
+            if (c.weights == NULL || c.data == NULL)
             {
                 return false;
             }
-            const void* data = extraFtCommonData(kFtOlimar);
-            if (data != s_olimarData || !game::isRam(data))
+            const void* data = extraFtCommonData(kind);
+            if (data != c.data || !game::isRam(data))
             {
                 return false;
             }
-            u32 tableAddr = game::wordAt(data, kOlimarDataTable);
-            float* weights = reinterpret_cast<float*>(tableAddr + kOlimarWeightsOffset);
-            return game::isRam(reinterpret_cast<const void*>(tableAddr)) && weights == s_olimarWeights
-                   && game::isRam(s_olimarWeights);
+            u32 tableAddr = game::wordAt(data, tableOff);
+            float* weights = reinterpret_cast<float*>(tableAddr + weightsOff);
+            return game::isRam(reinterpret_cast<const void*>(tableAddr)) && weights == c.weights
+                   && game::isRam(c.weights);
         }
 
-        void syncOlimarCache()
+        void syncCache(WeightCache& c, int kind)
         {
-            const void* data = extraFtCommonData(kFtOlimar);
-            if (data == NULL || data != s_olimarData)
+            const void* data = extraFtCommonData(kind);
+            if (data == NULL || data != c.data)
             {
-                clearOlimarCache();
+                clearCache(c);
+            }
+        }
+
+        void writeWeights(float* dst, const float* want, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                if (dst[i] != want[i])
+                {
+                    dst[i] = want[i];
+                }
             }
         }
 
         void findOlimarWeights()
         {
-            s_olimarTried = true;
+            s_olimar.tried = true;
             const void* data = extraFtCommonData(kFtOlimar);
             if (!game::isRam(data))
             {
-                s_olimarData = NULL;
+                s_olimar.data = NULL;
                 TM_LOG("fighter mech: Olimar fighter data not found: Pikmin pluck left alone\n");
                 return;
             }
-            s_olimarData = data;
+            s_olimar.data = data;
             u32 tableAddr = game::wordAt(data, kOlimarDataTable);
             u32 count = game::wordAt(data, kOlimarDataCount);
             if (!game::isRam(reinterpret_cast<const void*>(tableAddr)) || count != kOlimarTableEntries)
@@ -108,7 +115,7 @@ namespace extra {
                 return;
             }
             s32 gid = static_cast<s32>(game::wordAt(reinterpret_cast<const void*>(tableAddr), 0));
-            float speed = *reinterpret_cast<const float*>(tableAddr + 4);
+            float speed = floatAt(reinterpret_cast<const void*>(tableAddr), 4);
             float* weights = reinterpret_cast<float*>(tableAddr + kOlimarWeightsOffset);
             if (!game::isRam(weights))
             {
@@ -121,84 +128,38 @@ namespace extra {
                    ok ? "ok" : "not as expected: left alone");
             if (ok)
             {
-                s_olimarWeights = weights;
-                for (int i = 0; i < kOlimarWeightCount; i++)
-                {
-                    s_olimarOrig[i] = weights[i];
-                }
+                s_olimar.weights = weights;
+                writeWeights(s_olimar.orig, weights, kOlimarWeightCount);
             }
         }
 
         void applyOlimarWeights(u8 choice)
         {
-            syncOlimarCache();
-            if (!s_olimarTried)
+            syncCache(s_olimar, kFtOlimar);
+            if (!s_olimar.tried)
             {
                 findOlimarWeights();
             }
-            if (!olimarResident())
+            if (!cacheResident(s_olimar, kFtOlimar, kOlimarDataTable, kOlimarWeightsOffset))
             {
                 return;
             }
             float want[kOlimarWeightCount];
-            olimarPikminWeights(choice, s_olimarOrig, want);
-            for (int i = 0; i < kOlimarWeightCount; i++)
-            {
-                if (s_olimarWeights[i] != want[i])
-                {
-                    s_olimarWeights[i] = want[i];
-                }
-            }
-        }
-
-        void clearDededeCache()
-        {
-            s_dededeData = NULL;
-            s_dededeWeights = NULL;
-            for (int i = 0; i < kDededeWeightCount; i++)
-            {
-                s_dededeOrig[i] = 0.0f;
-            }
-            s_dededeTried = false;
-        }
-
-        bool dededeResident()
-        {
-            if (s_dededeWeights == NULL || s_dededeData == NULL)
-            {
-                return false;
-            }
-            const void* data = extraFtCommonData(kFtDedede);
-            if (data != s_dededeData || !game::isRam(data))
-            {
-                return false;
-            }
-            u32 tableAddr = game::wordAt(data, kDededeDataTable);
-            float* weights = reinterpret_cast<float*>(tableAddr + kDededeWeightsOffset);
-            return game::isRam(reinterpret_cast<const void*>(tableAddr)) && weights == s_dededeWeights
-                   && game::isRam(s_dededeWeights);
-        }
-
-        void syncDededeCache()
-        {
-            const void* data = extraFtCommonData(kFtDedede);
-            if (data == NULL || data != s_dededeData)
-            {
-                clearDededeCache();
-            }
+            olimarPikminWeights(choice, s_olimar.orig, want);
+            writeWeights(s_olimar.weights, want, kOlimarWeightCount);
         }
 
         void findDededeWeights(Fighter* fighter)
         {
-            s_dededeTried = true;
+            s_dedede.tried = true;
             const void* data = extraFtCommonData(kFtDedede);
             if (!game::isRam(data))
             {
-                s_dededeData = NULL;
+                s_dedede.data = NULL;
                 TM_LOG("fighter mech: Dedede fighter data not found: Waddle Toss left alone\n");
                 return;
             }
-            s_dededeData = data;
+            s_dedede.data = data;
             u32 tableAddr = game::wordAt(data, kDededeDataTable);
             if (!game::isRam(reinterpret_cast<const void*>(tableAddr)))
             {
@@ -222,35 +183,26 @@ namespace extra {
                    ok ? "ok" : "not as expected: left alone");
             if (ok)
             {
-                s_dededeWeights = weights;
-                for (int i = 0; i < kDededeWeightCount; i++)
-                {
-                    s_dededeOrig[i] = weights[i];
-                }
+                s_dedede.weights = weights;
+                writeWeights(s_dedede.orig, weights, kDededeWeightCount);
             }
         }
 
         void applyDededeWeights(Fighter* fighter, u8 choice)
         {
-            syncDededeCache();
-            if (!s_dededeTried)
+            syncCache(s_dedede, kFtDedede);
+            if (!s_dedede.tried)
             {
                 findDededeWeights(fighter);
             }
-            if (!dededeResident())
+            if (!cacheResident(s_dedede, kFtDedede, kDededeDataTable, kDededeWeightsOffset))
             {
                 return;
             }
             float want[kDededeWeightCount];
             bool clearCd = false;
-            dededeWaddleWeights(choice, s_dededeOrig, want, clearCd);
-            for (int i = 0; i < kDededeWeightCount; i++)
-            {
-                if (s_dededeWeights[i] != want[i])
-                {
-                    s_dededeWeights[i] = want[i];
-                }
-            }
+            dededeWaddleWeights(choice, s_dedede.orig, want, clearCd);
+            writeWeights(s_dedede.weights, want, kDededeWeightCount);
         }
 
         void executePlan(soWorkManageModule* work, const FighterPlan& plan)
@@ -289,14 +241,14 @@ namespace extra {
 
     void fighterMechanicsAttach()
     {
-        clearDededeCache();
-        clearOlimarCache();
+        clearCache(s_dedede);
+        clearCache(s_olimar);
     }
 
     void fighterMechanicsSync()
     {
-        syncDededeCache();
-        syncOlimarCache();
+        syncCache(s_dedede, kFtDedede);
+        syncCache(s_olimar, kFtOlimar);
     }
 
     void fighterMechanicsApplyFighter(Fighter* fighter, const soModuleEnumeration* m, int ftKind, int status)
@@ -329,29 +281,23 @@ namespace extra {
 
     void fighterMechanicsDetach()
     {
-        if (dededeResident())
+        if (cacheResident(s_dedede, kFtDedede, kDededeDataTable, kDededeWeightsOffset))
         {
             const void* liveData = extraFtCommonData(kFtDedede);
             TM_LOG("fighter mech: detach Dedede Waddle weights %08x (put back %.1f/%.1f/%.1f/%.1f, live data %08x)\n",
-                   s_dededeWeights, s_dededeOrig[0], s_dededeOrig[1], s_dededeOrig[2], s_dededeOrig[3], liveData);
-            for (int i = 0; i < kDededeWeightCount; i++)
-            {
-                s_dededeWeights[i] = s_dededeOrig[i];
-            }
+                   s_dedede.weights, s_dedede.orig[0], s_dedede.orig[1], s_dedede.orig[2], s_dedede.orig[3], liveData);
+            writeWeights(s_dedede.weights, s_dedede.orig, kDededeWeightCount);
         }
-        if (olimarResident())
+        if (cacheResident(s_olimar, kFtOlimar, kOlimarDataTable, kOlimarWeightsOffset))
         {
             const void* liveData = extraFtCommonData(kFtOlimar);
             TM_LOG("fighter mech: detach Olimar Pikmin weights %08x (put back %.1f/%.1f/%.1f/%.1f/%.1f, live data %08x)\n",
-                   s_olimarWeights, s_olimarOrig[0], s_olimarOrig[1], s_olimarOrig[2], s_olimarOrig[3], s_olimarOrig[4],
-                   liveData);
-            for (int i = 0; i < kOlimarWeightCount; i++)
-            {
-                s_olimarWeights[i] = s_olimarOrig[i];
-            }
+                   s_olimar.weights, s_olimar.orig[0], s_olimar.orig[1], s_olimar.orig[2], s_olimar.orig[3],
+                   s_olimar.orig[4], liveData);
+            writeWeights(s_olimar.weights, s_olimar.orig, kOlimarWeightCount);
         }
-        clearDededeCache();
-        clearOlimarCache();
+        clearCache(s_dedede);
+        clearCache(s_olimar);
     }
 }
 }

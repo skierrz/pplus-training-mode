@@ -92,6 +92,10 @@ namespace extra {
     {
         return v < lo ? lo : (v > hi ? hi : v);
     }
+    inline float floatAt(const void* base, u32 offset)
+    {
+        return *reinterpret_cast<const float*>(static_cast<const u8*>(base) + offset);
+    }
 #endif
 
     template <typename T>

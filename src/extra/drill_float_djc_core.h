@@ -281,33 +281,22 @@ namespace extra {
         return kDjcLate;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     // Clears in-flight tracking without erasing cumulative session stats
     // (called on savestate load or fighter change).
     inline void floatDjcResetTransient(FloatDjcSlot& st)
     {
-        st.inFloat = false;
-        st.isHover = false;
-        st.floatAerialActive = false;
-        st.floatAerialVia33 = false;
-        st.droppedFloatAerial = false;
+        memset(&st.inFloat, 0, reinterpret_cast<char*>(&st.stats) - reinterpret_cast<char*>(&st.inFloat));
         st.floatStartFrame = kFdNoFrame;
         st.floatAerialStartFrame = kFdNoFrame;
         st.droppedFloatFrame = kFdNoFrame;
         st.floatAerialMotion = -1;
-        st.floatDuration = 0;
-        st.floatEntryY = 0.0f;
-        st.minFloatY = 0.0f;
-        st.fcActArmed = false;
         st.fcActLandFrame = kFdNoFrame;
         st.fcActFirstFrame = kFdNoFrame;
-        st.inJumpAerial = false;
-        st.djcLandingArmed = false;
-        st.djcVySamplePending = false;
-        st.jumpAerialSawBit33 = false;
         st.jumpAerialStartFrame = kFdNoFrame;
         st.djcStartFrame = kFdNoFrame;
-        st.prevVy = 0.0f;
-        st.havePrevVy = false;
     }
 
     inline void floatDjcResetAll(FloatDjcSlot& st)
@@ -357,18 +346,9 @@ namespace extra {
         st.last.fcEntryY = st.floatEntryY;
         st.last.fcMinY = st.minFloatY;
 
-        if (outcome == kFcSuccess)
-        {
-            st.fcActArmed = true;
-            st.fcActLandFrame = frame;
-            st.fcActFirstFrame = kFdNoFrame;
-        }
-        else
-        {
-            st.fcActArmed = false;
-            st.fcActLandFrame = kFdNoFrame;
-            st.fcActFirstFrame = kFdNoFrame;
-        }
+        st.fcActArmed = (outcome == kFcSuccess);
+        st.fcActLandFrame = st.fcActArmed ? frame : kFdNoFrame;
+        st.fcActFirstFrame = kFdNoFrame;
     }
 
     inline void clearFloatFlight(FloatDjcSlot& st)
@@ -379,6 +359,9 @@ namespace extra {
         st.droppedFloatAerial = false;
         st.droppedFloatFrame = kFdNoFrame;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline void stepFloatDjc(const FloatDjcInput& in, FloatDjcSlot& st)
     {

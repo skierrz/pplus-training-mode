@@ -248,6 +248,13 @@ namespace extra {
             d.lcStreak = c.stats.streak;
             d.lcBestStreak = c.stats.bestStreak;
         }
+
+        static const CoreDrillSlot* activeSlot(int tracked)
+        {
+            return (s_net != NULL && tracked >= 0 && tracked < game::kMaxTracked && s_net->slots[tracked].active)
+                       ? &s_net->slots[tracked]
+                       : NULL;
+        }
     }
 
     void coreDrillEnginesAttach()
@@ -495,29 +502,20 @@ namespace extra {
 
     const LedgeCoreState* coreDrillLedgeState(int tracked)
     {
-        if (s_net == NULL || tracked < 0 || tracked >= game::kMaxTracked || !s_net->slots[tracked].active)
-        {
-            return NULL;
-        }
-        return &s_net->slots[tracked].ledge;
+        const CoreDrillSlot* s = activeSlot(tracked);
+        return s != NULL ? &s->ledge : NULL;
     }
 
     const WdCoreState* coreDrillWavedashState(int tracked)
     {
-        if (s_net == NULL || tracked < 0 || tracked >= game::kMaxTracked || !s_net->slots[tracked].active)
-        {
-            return NULL;
-        }
-        return &s_net->slots[tracked].wd;
+        const CoreDrillSlot* s = activeSlot(tracked);
+        return s != NULL ? &s->wd : NULL;
     }
 
     const LcCoreState* coreDrillLCancelState(int tracked)
     {
-        if (s_net == NULL || tracked < 0 || tracked >= game::kMaxTracked || !s_net->slots[tracked].active)
-        {
-            return NULL;
-        }
-        return &s_net->slots[tracked].lc;
+        const CoreDrillSlot* s = activeSlot(tracked);
+        return s != NULL ? &s->lc : NULL;
     }
 
     bool coreDrillAutoLCancelActive()
