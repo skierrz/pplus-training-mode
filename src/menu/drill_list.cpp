@@ -1561,7 +1561,7 @@ namespace list {
         float pillW = modeW + sepW + hintW + 2.0f * padX;
         float pillH = 22.0f;
         float topY = 58.0f;
-        float rightX = rx(604.0f);
+        float rightX = 604.0f;
         float leftX = rightX - pillW;
         float bx = w(2.0f);
 

@@ -104,11 +104,11 @@ namespace extra {
             float rx = ry * xs;
 
             gfx::fillEllipse(cx, cy, rx, ry, 0x060E14CCu);
-            gfx::lineBegin(GX_LINES, 4, 6);
-            gfx::vertex(cx - rx * 0.75f, cy, 0x3A586870u);
-            gfx::vertex(cx + rx * 0.75f, cy, 0x3A586870u);
-            gfx::vertex(cx, cy - ry * 0.75f, 0x3A586870u);
-            gfx::vertex(cx, cy + ry * 0.75f, 0x3A586870u);
+            gfx::lineBegin(GX_LINES, 4, 12);
+            gfx::vertex(cx - rx * 0.75f, cy, 0x3A586858u);
+            gfx::vertex(cx + rx * 0.75f, cy, 0x3A586858u);
+            gfx::vertex(cx, cy - ry * 0.75f, 0x3A586858u);
+            gfx::vertex(cx, cy + ry * 0.75f, 0x3A586858u);
 
             int step = spec.octagonal ? 2 : 1;
             int verts = spec.octagonal ? 9 : 17;
@@ -150,7 +150,7 @@ namespace extra {
 
             char tag[8];
             viewerTagText(playerNo, cpu, tag);
-            float scale = ui::style::scaleForCap(6.5f);
+            float scale = ui::style::scaleForCap(7.5f);
             float tx = x + bw * 0.5f - (cpu ? 10.0f : 6.0f) * xs;
             float ty = ui::style::textYForCap(y + 5.0f, scale);
             drawShadowText(tx, ty, tag, cpu ? 0x9AD0F8FFu : 0xFFB0B0FFu, scale);
@@ -166,15 +166,20 @@ namespace extra {
                 float ry = y + i2fScale(tr.nyPct, 0.01f) * bh;
                 float rw = i2fScale(tr.nwPct, 0.01f) * bw;
                 float rh = i2f(tr.h);
+                if (rh < 6.0f)
+                {
+                    rh = 6.0f;
+                }
                 bool dig = (pad.buttons & tr.digitalMask) != 0;
                 float fill = viewerTriggerFill(tr.isRight ? pad.rTrig : pad.lTrig, dig);
-                gfx::fillRect(rx, ry, rw, rh, 0x060E14D8u);
-                gfx::frameRect(rx, ry, rw, rh, 0x3A5868B8u);
+                float bx = 2.0f * xs;
+                gfx::fillRect(rx, ry, rw, rh, 0x3A5868B8u);
+                gfx::fillRect(rx + bx, ry + 2.0f, rw - 2.0f * bx, rh - 4.0f, 0x060E14D8u);
                 if (fill > 0.01f)
                 {
-                    float iw = (rw - 2.0f * xs) * fill;
-                    float ix = tr.isRight ? (rx + rw - xs - iw) : (rx + xs);
-                    gfx::fillRect(ix, ry + 1.0f, iw, rh - 2.0f, dig ? kViewerColorTrigClick : kViewerColorTrigFill);
+                    float iw = (rw - 2.0f * bx) * fill;
+                    float ix = tr.isRight ? (rx + rw - bx - iw) : (rx + bx);
+                    gfx::fillRect(ix, ry + 2.0f, iw, rh - 4.0f, dig ? kViewerColorTrigClick : kViewerColorTrigFill);
                 }
             }
 

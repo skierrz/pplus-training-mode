@@ -1308,7 +1308,7 @@ namespace extra {
         // Draw mode header text last to avoid a mid-card GX shape->text->shape switch.
         char label[16];
         diVectorShortLabel(mode, label);
-        float scale = ui::style::scaleForCap(6.5f);
+        float scale = ui::style::scaleForCap(7.5f);
         float tx = x + ui::style::w(5.0f);
         float ty = ui::style::textYForCap(y + 6.0f, scale);
         drawShadowText(tx, ty, label, 0xE2EEF4FFu, scale);

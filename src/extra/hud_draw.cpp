@@ -40,12 +40,12 @@ namespace extra {
     void drawUnitDial(float cx, float cy, float rx, float ry, gfx::Rgba fillCol, gfx::Rgba rimCol)
     {
         gfx::fillEllipse(cx, cy, rx, ry, fillCol);
-        gfx::lineBegin(GX_LINES, 4, 6);
-        gfx::vertex(cx - rx, cy, 0x3A586888u);
-        gfx::vertex(cx + rx, cy, 0x3A586888u);
-        gfx::vertex(cx, cy - ry, 0x3A586888u);
-        gfx::vertex(cx, cy + ry, 0x3A586888u);
-        gfx::lineBegin(GX_LINESTRIP, 17, 10);
+        gfx::lineBegin(GX_LINES, 4, 12);
+        gfx::vertex(cx - rx, cy, 0x3A586860u);
+        gfx::vertex(cx + rx, cy, 0x3A586860u);
+        gfx::vertex(cx, cy - ry, 0x3A586860u);
+        gfx::vertex(cx, cy + ry, 0x3A586860u);
+        gfx::lineBegin(GX_LINESTRIP, 17, 12);
         for (int i = 0; i < 17; i++)
         {
             float ux, uy;

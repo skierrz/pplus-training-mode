@@ -641,7 +641,7 @@ def debug_overlay(c, src):
             continue
         c.take(lit)
     for lit, text, size in texts:
-        c.item("box", lit, text, 0.5, 20.0, 0.0)
+        c.item("box", lit, text, 0.5, 36.0, 0.0)
         c.buffer(lit, text, float(size))
 
 

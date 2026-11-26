@@ -1769,7 +1769,8 @@ namespace lab {
                         gfx::forgetWidths();
                         s_st.lastHint = text;
                     }
-                    gfx::textBox(kSlotHint, ui::layout::kHintX, ui::layout::kHintY, text, kYellow, kBox, 0.5f, false);
+                    float hx = ui::layout::kHintRight - gfx::textWidth(text, 0.5f);
+                    gfx::textBox(kSlotHint, hx, ui::layout::kHintY, text, kYellow, kBox, 0.5f, false);
                 }
                 if (!ro)
                 {

@@ -12,8 +12,8 @@
 
 namespace tm {
 namespace ui {
-    static const float kLeft = 20.0f;
-    static const float kTop = 20.0f;
+    static const float kLeft = 36.0f;
+    static const float kTop = 28.0f;
     static const float kPadding = 4.0f;
     static const float kScale = 0.5f;
     static const gfx::Rgba kBackground = 0x000000A0;

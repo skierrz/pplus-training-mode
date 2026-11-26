@@ -328,9 +328,11 @@ namespace {
             // storage notices (!match.paused || lab::menuOpen(), storage.cpp)
             // are hidden over Brawl's Training pause menu.
             canvas::clear();
+            const char* pHint = "ZL/ZR: Lab Menu";
+            float hx = layout::kHintRight - gfx::textWidth(pHint, 0.5f);
             for (int k = 0; k < 2; k++)
             {
-                gfx::textBox(0, layout::kHintX, layout::kHintY, "Z: Lab Menu", 0xFFFFFFFF, 0x000000C0, 0.5f, false);
+                gfx::textBox(0, hx, layout::kHintY, pHint, 0xFFFFFFFF, 0x000000C0, 0.5f, false);
             }
             s.add("pause-hint", drawnBox());
             canvas::clear();
@@ -785,7 +787,7 @@ TEST(hud_layout, every_piece_stays_in_crt_safe_area)
         float scale = ui::style::scaleForCap(ui::style::kRowCap);
         float y = ui::style::textYForCap(layout::kCssPendingCapTop, scale);
         const char* hint = "- + B = Training Menu";
-        float hintX = ui::style::rx(layout::kCssPendingRight) - ui::style::boldWidth(hint, scale);
+        float hintX = layout::kCssPendingRight - ui::style::boldWidth(hint, scale);
         canvas::clear();
         ui::style::boldText(hintX, y, hint, ui::style::kText, scale, scale);
         Box hintBox = drawnBox();
@@ -891,7 +893,7 @@ TEST(hud_layout, notices_and_rec_messages_stay_above_395_and_clear)
         float scale = ui::style::scaleForCap(ui::style::kRowCap);
         float py = ui::style::textYForCap(layout::kCssPendingCapTop, scale);
         const char* hint = "- + B = Training Menu";
-        float hintX = ui::style::rx(layout::kCssPendingRight) - ui::style::boldWidth(hint, scale);
+        float hintX = layout::kCssPendingRight - ui::style::boldWidth(hint, scale);
         canvas::clear();
         ui::style::boldText(hintX, py, hint, ui::style::kText, scale, scale);
         Box hintBox = drawnBox();

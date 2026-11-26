@@ -40,8 +40,8 @@ namespace tm {
 namespace ui {
     using main::settings;
 
-    static const float kCap[main::kInfoSizeCount] = {6.2f, 7.6f, 8.8f};
-    static const float kPitch[main::kInfoSizeCount] = {9.4f, 11.2f, 13.0f};
+    static const float kCap[main::kInfoSizeCount] = {7.5f, 8.4f, 9.2f};
+    static const float kPitch[main::kInfoSizeCount] = {10.2f, 11.2f, 13.0f};
     // Port accent border colours (P1 red, P2 blue, P3 gold, P4 green).
     static const gfx::Rgba kOutline[4] = {0xEF4444FF, 0x3B82F6FF, 0xEAB308FF, 0x22C55EFF};
 

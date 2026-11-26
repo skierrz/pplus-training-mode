@@ -68,7 +68,7 @@ namespace osd {
         {
             if (playerCount <= 2 && player < 2)
             {
-                float marginX = xs >= 1.0f ? ui::layout::kSafeMarginX : 12.0f;
+                float marginX = ui::layout::kSafeMarginX;
                 s.x = (player == 0) ? (marginX + halfW) : (640.0f - marginX - halfW);
             }
             else
@@ -79,7 +79,7 @@ namespace osd {
         }
         else if (position == kPositionTopLeft || position == kPositionTopRight)
         {
-            float marginX = xs >= 1.0f ? ui::layout::kSafeMarginX : 12.0f;
+            float marginX = ui::layout::kSafeMarginX;
             float rowPitch = kBoxHeight + kTopRowGap;
             float startY = topY > ui::layout::kSafeMarginY ? topY : ui::layout::kSafeMarginY;
             s.y = startY + halfH + player * rowPitch;
@@ -101,8 +101,7 @@ namespace osd {
             s.x = right[player] - halfW;
             s.y = kDigitsTop - kHudGap - halfH;
         }
-        // Keep the newest box inside the 5% CRT safe area horizontally on 4:3.
-        if (xs >= 1.0f)
+        // Keep the newest box inside the 5% CRT safe area horizontally on both 4:3 and 16:9.
         {
             float minX = ui::layout::kSafeMarginX + halfW;
             float maxX = 640.0f - ui::layout::kSafeMarginX - halfW;
