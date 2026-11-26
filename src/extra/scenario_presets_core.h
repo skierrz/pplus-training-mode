@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdio>
 #include <string.h>
 #include <types.h>
 
@@ -601,5 +602,234 @@ namespace extra {
 
     // Steps optional CPU pressure input scripting for active scenarios.
     void stepScenarioCpu(const ScenarioCpuInput& in, ScenarioCpuState& st, ScenarioCpuOutput& out);
+
+    // Pure host-testable Panel B right-margin stat plate formatter for the 7
+    // non-Techchase active Lab Scenarios (Edgeguard through Multi-Hit SDI).
+    enum {
+        kScenarioPlateValBuf = 24
+    };
+
+    static const u32 kScenarioPlateWhite = 0xF4F8FCFFu;
+    static const u32 kScenarioPlateMuted = 0xC6D4E0FFu;
+    static const u32 kScenarioPlateGreen = 0x4CE688FFu;
+    static const u32 kScenarioPlateAmber = 0xFFB848FFu;
+    static const u32 kScenarioPlateGold = 0xFFD300FFu;
+
+    struct ScenarioHudRow {
+        const char* label;
+        char value[kScenarioPlateValBuf];
+        u32 valueColor;
+    };
+
+    struct ScenarioHudPlate {
+        ScenarioHudRow rows[3];
+        int count;
+    };
+
+    inline bool scenarioHasTopBand(u8 preset)
+    {
+        return preset == kScenarioTechchase;
+    }
+
+    inline bool scenarioHasStatPlate(u8 preset)
+    {
+        return preset >= kScenarioTechchase && preset < kScenarioCount;
+    }
+
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
+    inline float scenarioSdiDist(float dx, float dy)
+    {
+        float sq = dx * dx + dy * dy;
+        if (sq <= 0.0001f)
+        {
+            return 0.0f;
+        }
+        float r = (dx < 0.0f ? -dx : dx) + (dy < 0.0f ? -dy : dy);
+        for (int i = 0; i < 4; i++)
+        {
+            r = 0.5f * (r + sq / r);
+        }
+        return r;
+    }
+
+    inline void scenarioSetRow(ScenarioHudRow& row, const char* label, const char* val, u32 col)
+    {
+        row.label = label;
+        strncpy(row.value, val, sizeof(row.value) - 1);
+        row.value[sizeof(row.value) - 1] = '\0';
+        row.valueColor = col;
+    }
+
+    inline bool formatScenarioStatPlate(const ScenarioState& st, const ScenarioConfig& rawCfg, ScenarioHudPlate& out)
+    {
+        memset(&out, 0, sizeof(out));
+        u8 p = st.activePreset;
+        if (p < kScenarioEdgeguard || p >= kScenarioCount)
+        {
+            return false;
+        }
+        ScenarioConfig cfg;
+        sanitizeScenarioConfigInto(rawCfg, cfg);
+        out.count = 3;
+
+        // Default Row 2 for 6 of the 7 scenarios: Cleared (completions / resets).
+        out.rows[2].label = "Cleared";
+        snprintf(out.rows[2].value, sizeof(out.rows[2].value), "%u / %u", static_cast<unsigned>(st.completionCount),
+                 static_cast<unsigned>(st.resetCount));
+        out.rows[2].valueColor = st.completionCount > 0u ? kScenarioPlateGreen : kScenarioPlateWhite;
+
+        switch (p)
+        {
+        case kScenarioEdgeguard:
+        {
+            static const char* const kEgDists[kEgDistCount] = {"Mid", "Deep", "High", "Rand"};
+            static const char* const kEgDjs[kEgDjCount] = {"DJ", "NoDJ", "Rnd"};
+            if (cfg.edgeguardSetup == kEgSetupLaunch)
+            {
+                scenarioSetRow(out.rows[0], "Mode", "Launch", kScenarioPlateWhite);
+            }
+            else
+            {
+                out.rows[0].label = "Mode";
+                snprintf(out.rows[0].value, sizeof(out.rows[0].value), "%s / %s", kEgDists[cfg.edgeguardDist],
+                         kEgDjs[cfg.edgeguardDj]);
+                out.rows[0].valueColor = kScenarioPlateWhite;
+            }
+            u8 effSide = st.resetCount > 0u ? st.resolvedSide : cfg.side;
+            scenarioSetRow(out.rows[1], "Side",
+                           effSide == kScenarioSideLeft ? "Left" : (effSide == kScenarioSideRandom ? "Random" : "Right"),
+                           kScenarioPlateWhite);
+            break;
+        }
+
+        case kScenarioShieldPressure:
+        {
+            static const char* const kOosNames[kOosCount] = {
+                "Grab", "Up B", "Spotdodge", "Roll Away", "SH Nair", "Wavedash", "Random", "Custom"
+            };
+            static const char* const kDefNames[kShieldDefCount] = {
+                "Aerial", "Tilt", "Smash", "Dash Atk", "Getup Atk", "Random"
+            };
+            bool isDef = cfg.shieldRole == kShieldRoleDefense;
+            scenarioSetRow(out.rows[0], "Role", isDef ? "Defense" : "Offense", kScenarioPlateWhite);
+            if (isDef)
+            {
+                u8 atk = (cfg.shieldDefAttack == kShieldDefRandom && st.resetCount > 0u) ? st.resolvedShieldDefAtk
+                                                                                         : cfg.shieldDefAttack;
+                scenarioSetRow(out.rows[1], "CPU", kDefNames[atk < kShieldDefCount ? atk : 0], kScenarioPlateWhite);
+            }
+            else
+            {
+                scenarioSetRow(out.rows[1], "CPU", kOosNames[cfg.oosAction], kScenarioPlateWhite);
+            }
+            out.rows[2].label = "Hits";
+            snprintf(out.rows[2].value, sizeof(out.rows[2].value), "%u", static_cast<unsigned>(st.shieldHitCount));
+            out.rows[2].valueColor = st.shieldHitCount > 0u ? kScenarioPlateGreen : kScenarioPlateWhite;
+            break;
+        }
+
+        case kScenarioShieldDrop:
+        case kScenarioSlideOff:
+        {
+            bool isDrop = p == kScenarioShieldDrop;
+            bool cleared = isDrop ? st.sawShieldDrop : st.sawSlideOff;
+            scenarioSetRow(out.rows[0], "Status", cleared ? (isDrop ? "Dropped" : "Slide-Off") : "Ready",
+                           cleared ? kScenarioPlateGreen : kScenarioPlateMuted);
+            if (st.hasPlatform)
+            {
+                out.rows[1].label = "Plat";
+                snprintf(out.rows[1].value, sizeof(out.rows[1].value), "Plat %u",
+                         static_cast<unsigned>(st.resolvedPlatformSlot) + 1u);
+                out.rows[1].valueColor = kScenarioPlateWhite;
+            }
+            else
+            {
+                scenarioSetRow(out.rows[1], "Plat", "No Plat", kScenarioPlateAmber);
+            }
+            break;
+        }
+
+        case kScenarioLedgetech:
+        {
+            static const char* const kLtNames[kLtAtkCount] = {
+                "D-Tilt", "F-Tilt", "F-Smash", "D-Smash", "D-Air", "Neutral B", "Side B", "Random"
+            };
+            scenarioSetRow(out.rows[0], "Status", st.sawWallTech ? "Wall Tech" : "Ready",
+                           st.sawWallTech ? kScenarioPlateGreen : kScenarioPlateMuted);
+            u8 atk = (cfg.ledgetechAttack == kLtAtkRandom && st.resetCount > 0u) ? st.resolvedLedgetechAttack
+                                                                                 : cfg.ledgetechAttack;
+            scenarioSetRow(out.rows[1], "Attack", kLtNames[atk < kLtAtkCount ? atk : kLtAtkDsmash],
+                           kScenarioPlateWhite);
+            break;
+        }
+
+        case kScenarioGrabEscape:
+        {
+            static const char* const kGrabNames[kGrabActCount] = {
+                "Hold", "Rand Throw", "F-Throw", "B-Throw", "U-Throw", "D-Throw", "Stand"
+            };
+            if (st.sawGrabEscape || (st.grabActive && st.grabEscapeFrames > 0u))
+            {
+                out.rows[0].label = "Status";
+                snprintf(out.rows[0].value, sizeof(out.rows[0].value), st.sawGrabEscape ? "%uf Out" : "%uf Held",
+                         static_cast<unsigned>(st.grabEscapeFrames));
+                out.rows[0].valueColor = st.sawGrabEscape ? kScenarioPlateGreen : kScenarioPlateGold;
+            }
+            else
+            {
+                scenarioSetRow(out.rows[0], "Status", "Ready", kScenarioPlateMuted);
+            }
+            scenarioSetRow(out.rows[1], "Action", kGrabNames[cfg.grabAction], kScenarioPlateWhite);
+            break;
+        }
+
+        case kScenarioMultiHitSdi:
+        {
+            if (st.sdiEscaped)
+            {
+                scenarioSetRow(out.rows[0], "Status", "Escaped", kScenarioPlateGreen);
+            }
+            else if (st.sdiHitCount == 1u)
+            {
+                scenarioSetRow(out.rows[0], "Status", "1 Hit", kScenarioPlateGold);
+            }
+            else if (st.sdiHitCount > 1u)
+            {
+                out.rows[0].label = "Status";
+                snprintf(out.rows[0].value, sizeof(out.rows[0].value), "%u Hits",
+                         static_cast<unsigned>(st.sdiHitCount));
+                out.rows[0].valueColor = kScenarioPlateGold;
+            }
+            else
+            {
+                scenarioSetRow(out.rows[0], "Status", "Ready", kScenarioPlateMuted);
+            }
+            if (st.sdiHitCount > 0u || st.sdiHitlagFrames > 0u)
+            {
+                float dist = scenarioSdiDist(st.sdiDispX, st.sdiDispY);
+                float clamped = dist > 99.9f ? 99.9f : dist;
+                unsigned t10 = static_cast<unsigned>(clamped * 10.0f + 0.5f);
+                out.rows[1].label = "SDI";
+                snprintf(out.rows[1].value, sizeof(out.rows[1].value), "%u.%u u", t10 / 10u, t10 % 10u);
+                out.rows[1].valueColor = dist >= 0.5f ? kScenarioPlateWhite : kScenarioPlateMuted;
+            }
+            else
+            {
+                scenarioSetRow(out.rows[1], "SDI", "--", kScenarioPlateMuted);
+            }
+            break;
+        }
+
+        default:
+            out.count = 0;
+            return false;
+        }
+        return true;
+    }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 }
 }

@@ -1712,3 +1712,250 @@ TEST(scenario_presets, edgeguard_ledgetech_shield_defense_shield_drop_and_underp
     tm::extra::stepScenario(grSt, offCfg, grIn, grSettings, grAct);
     CHECK(grAct.applyHmnPercent && grAct.applyCpuPercent);
 }
+
+namespace {
+    void checkPlateAsciiAndBounds(const ScenarioHudPlate& plate)
+    {
+        CHECK_EQ(3, plate.count);
+        for (int i = 0; i < plate.count; i++)
+        {
+            REQUIRE(plate.rows[i].label != NULL);
+            CHECK(plate.rows[i].label[0] != '\0');
+            CHECK(plate.rows[i].value[0] != '\0');
+            CHECK(strlen(plate.rows[i].value) < static_cast<size_t>(kScenarioPlateValBuf));
+            for (const char* p = plate.rows[i].label; *p != '\0'; p++)
+            {
+                unsigned char ch = static_cast<unsigned char>(*p);
+                CHECK(ch >= 0x20u && ch < 0x7Fu);
+            }
+            for (const char* p = plate.rows[i].value; *p != '\0'; p++)
+            {
+                unsigned char ch = static_cast<unsigned char>(*p);
+                CHECK(ch >= 0x20u && ch < 0x7Fu);
+            }
+        }
+    }
+}
+
+TEST(scenario_presets, panel_b_stat_plates_cover_all_seven_remaining_scenarios)
+{
+    // Top-band claim belongs exclusively to Techchase; Combo Lab & Off stay quiet;
+    // Techchase + all 7 remaining scenarios expose a 3-row Panel B stat plate.
+    CHECK(!scenarioHasTopBand(kScenarioOff));
+    CHECK(!scenarioHasTopBand(kScenarioComboLab));
+    CHECK(scenarioHasTopBand(kScenarioTechchase));
+    CHECK(!scenarioHasStatPlate(kScenarioOff));
+    CHECK(!scenarioHasStatPlate(kScenarioComboLab));
+    CHECK(scenarioHasStatPlate(kScenarioTechchase));
+    for (u8 p = kScenarioEdgeguard; p < kScenarioCount; p++)
+    {
+        CHECK(!scenarioHasTopBand(p));
+        CHECK(scenarioHasStatPlate(p));
+    }
+
+    ScenarioState st;
+    ScenarioHudPlate plate;
+    scenarioStateInit(st);
+
+    // Off, Combo Lab, Techchase, and out-of-range return false from formatScenarioStatPlate.
+    static const u8 kExcluded[4] = {kScenarioOff, kScenarioComboLab, kScenarioTechchase, kScenarioCount};
+    for (int i = 0; i < 4; i++)
+    {
+        st.activePreset = kExcluded[i];
+        CHECK(!formatScenarioStatPlate(st, makeCfg(kExcluded[i]), plate));
+        CHECK_EQ(0, plate.count);
+    }
+
+    // 1. Edgeguard: Launch vs Offstage Spawn (Dist / DJ), Side, Cleared.
+    scenarioStateInit(st);
+    st.activePreset = kScenarioEdgeguard;
+    st.resetCount = 1;
+    st.resolvedSide = kScenarioSideRight;
+    ScenarioConfig egCfg = makeCfg(kScenarioEdgeguard);
+    egCfg.edgeguardSetup = kEgSetupLaunch;
+    CHECK(formatScenarioStatPlate(st, egCfg, plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].label, "Mode") == 0 && strcmp(plate.rows[0].value, "Launch") == 0);
+    CHECK(strcmp(plate.rows[1].label, "Side") == 0 && strcmp(plate.rows[1].value, "Right") == 0);
+    CHECK(strcmp(plate.rows[2].label, "Cleared") == 0 && strcmp(plate.rows[2].value, "0 / 1") == 0);
+    CHECK_EQ(kScenarioPlateWhite, plate.rows[2].valueColor);
+
+    egCfg.edgeguardSetup = kEgSetupSpawn;
+    egCfg.edgeguardDist = kEgDistDeep;
+    egCfg.edgeguardDj = kEgDjSpent;
+    st.resolvedSide = kScenarioSideLeft;
+    st.completionCount = 2;
+    st.resetCount = 3;
+    CHECK(formatScenarioStatPlate(st, egCfg, plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].value, "Deep / NoDJ") == 0);
+    CHECK(strcmp(plate.rows[1].value, "Left") == 0);
+    CHECK(strcmp(plate.rows[2].value, "2 / 3") == 0);
+    CHECK_EQ(kScenarioPlateGreen, plate.rows[2].valueColor);
+
+    // 2. Shield Pressure / OoS: Offense OoS labels, Defense attacks (including Random), Hits.
+    scenarioStateInit(st);
+    st.activePreset = kScenarioShieldPressure;
+    ScenarioConfig spCfg = makeCfg(kScenarioShieldPressure);
+    spCfg.shieldRole = kShieldRoleOffense;
+    spCfg.oosAction = kOosWavedash;
+    CHECK(formatScenarioStatPlate(st, spCfg, plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].label, "Role") == 0 && strcmp(plate.rows[0].value, "Offense") == 0);
+    CHECK(strcmp(plate.rows[1].label, "CPU") == 0 && strcmp(plate.rows[1].value, "Wavedash") == 0);
+    CHECK(strcmp(plate.rows[2].label, "Hits") == 0 && strcmp(plate.rows[2].value, "0") == 0);
+    CHECK_EQ(kScenarioPlateWhite, plate.rows[2].valueColor);
+
+    spCfg.oosAction = kOosCustomPool;
+    st.shieldHitCount = 7;
+    CHECK(formatScenarioStatPlate(st, spCfg, plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[1].value, "Custom") == 0);
+    CHECK(strcmp(plate.rows[2].value, "7") == 0);
+    CHECK_EQ(kScenarioPlateGreen, plate.rows[2].valueColor);
+
+    spCfg.shieldRole = kShieldRoleDefense;
+    spCfg.shieldDefAttack = kShieldDefRandom;
+    st.resetCount = 1;
+    st.resolvedShieldDefAtk = kShieldDefGetup;
+    CHECK(formatScenarioStatPlate(st, spCfg, plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].value, "Defense") == 0);
+    CHECK(strcmp(plate.rows[1].value, "Getup Atk") == 0);
+
+    // 3. Shield Drop: Ready vs Dropped, Plat %u vs No Plat amber warning, Cleared.
+    scenarioStateInit(st);
+    st.activePreset = kScenarioShieldDrop;
+    st.resetCount = 1;
+    st.hasPlatform = false;
+    CHECK(formatScenarioStatPlate(st, makeCfg(kScenarioShieldDrop), plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].label, "Status") == 0 && strcmp(plate.rows[0].value, "Ready") == 0);
+    CHECK_EQ(kScenarioPlateMuted, plate.rows[0].valueColor);
+    CHECK(strcmp(plate.rows[1].label, "Plat") == 0 && strcmp(plate.rows[1].value, "No Plat") == 0);
+    CHECK_EQ(kScenarioPlateAmber, plate.rows[1].valueColor);
+    CHECK(strcmp(plate.rows[2].value, "0 / 1") == 0);
+
+    st.hasPlatform = true;
+    st.resolvedPlatformSlot = 2; // Top -> Plat 3
+    st.sawShieldDrop = true;
+    st.completionCount = 1;
+    CHECK(formatScenarioStatPlate(st, makeCfg(kScenarioShieldDrop), plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].value, "Dropped") == 0);
+    CHECK_EQ(kScenarioPlateGreen, plate.rows[0].valueColor);
+    CHECK(strcmp(plate.rows[1].value, "Plat 3") == 0);
+    CHECK_EQ(kScenarioPlateWhite, plate.rows[1].valueColor);
+    CHECK(strcmp(plate.rows[2].value, "1 / 1") == 0);
+    CHECK_EQ(kScenarioPlateGreen, plate.rows[2].valueColor);
+
+    // 4. Ledgetech: Ready vs Wall Tech green, resolved Attack label, Cleared.
+    scenarioStateInit(st);
+    st.activePreset = kScenarioLedgetech;
+    ScenarioConfig ltCfg = makeCfg(kScenarioLedgetech);
+    ltCfg.ledgetechAttack = kLtAtkRandom;
+    CHECK(formatScenarioStatPlate(st, ltCfg, plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].value, "Ready") == 0);
+    CHECK(strcmp(plate.rows[1].label, "Attack") == 0 && strcmp(plate.rows[1].value, "Random") == 0);
+
+    st.resetCount = 4;
+    st.completionCount = 3;
+    st.resolvedLedgetechAttack = kLtAtkDsmash;
+    st.sawWallTech = true;
+    CHECK(formatScenarioStatPlate(st, ltCfg, plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].value, "Wall Tech") == 0);
+    CHECK_EQ(kScenarioPlateGreen, plate.rows[0].valueColor);
+    CHECK(strcmp(plate.rows[1].value, "D-Smash") == 0);
+    CHECK(strcmp(plate.rows[2].value, "3 / 4") == 0);
+
+    // 5. Slide-Off: Ready vs Slide-Off green, Plat %u vs No Plat amber, Cleared.
+    scenarioStateInit(st);
+    st.activePreset = kScenarioSlideOff;
+    st.resetCount = 1;
+    st.hasPlatform = false;
+    CHECK(formatScenarioStatPlate(st, makeCfg(kScenarioSlideOff), plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].value, "Ready") == 0);
+    CHECK(strcmp(plate.rows[1].value, "No Plat") == 0);
+    CHECK_EQ(kScenarioPlateAmber, plate.rows[1].valueColor);
+
+    st.hasPlatform = true;
+    st.resolvedPlatformSlot = 0;
+    st.sawSlideOff = true;
+    st.completionCount = 1;
+    CHECK(formatScenarioStatPlate(st, makeCfg(kScenarioSlideOff), plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].value, "Slide-Off") == 0);
+    CHECK_EQ(kScenarioPlateGreen, plate.rows[0].valueColor);
+    CHECK(strcmp(plate.rows[1].value, "Plat 1") == 0);
+
+    // 6. Grab Escape: Ready -> Held -> %uf Out green, Action label, Cleared.
+    scenarioStateInit(st);
+    st.activePreset = kScenarioGrabEscape;
+    st.resetCount = 2;
+    ScenarioConfig grCfg = makeCfg(kScenarioGrabEscape);
+    grCfg.grabAction = kGrabActHold;
+    CHECK(formatScenarioStatPlate(st, grCfg, plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].value, "Ready") == 0);
+    CHECK(strcmp(plate.rows[1].label, "Action") == 0 && strcmp(plate.rows[1].value, "Hold") == 0);
+
+    st.grabActive = true;
+    st.grabEscapeFrames = 14;
+    CHECK(formatScenarioStatPlate(st, grCfg, plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].value, "14f Held") == 0);
+    CHECK_EQ(kScenarioPlateGold, plate.rows[0].valueColor);
+
+    st.grabActive = false;
+    st.sawGrabEscape = true;
+    st.grabEscapeFrames = 22;
+    st.completionCount = 1;
+    grCfg.grabAction = kGrabActRandThrow;
+    CHECK(formatScenarioStatPlate(st, grCfg, plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].value, "22f Out") == 0);
+    CHECK_EQ(kScenarioPlateGreen, plate.rows[0].valueColor);
+    CHECK(strcmp(plate.rows[1].value, "Rand Throw") == 0);
+    CHECK(strcmp(plate.rows[2].value, "1 / 2") == 0);
+
+    // 7. Multi-Hit SDI: Ready/-- -> %u Hits / displacement -> Escaped green + clamp.
+    scenarioStateInit(st);
+    st.activePreset = kScenarioMultiHitSdi;
+    st.resetCount = 1;
+    CHECK(formatScenarioStatPlate(st, makeCfg(kScenarioMultiHitSdi), plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].value, "Ready") == 0);
+    CHECK(strcmp(plate.rows[1].label, "SDI") == 0 && strcmp(plate.rows[1].value, "--") == 0);
+
+    st.sdiHitCount = 1;
+    st.sdiHitlagFrames = 3;
+    CHECK(formatScenarioStatPlate(st, makeCfg(kScenarioMultiHitSdi), plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].value, "1 Hit") == 0);
+    CHECK_EQ(kScenarioPlateGold, plate.rows[0].valueColor);
+
+    st.sdiHitCount = 3;
+    st.sdiHitlagFrames = 9;
+    st.sdiDispX = 7.0f;
+    st.sdiDispY = 3.5f;
+    CHECK(formatScenarioStatPlate(st, makeCfg(kScenarioMultiHitSdi), plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].value, "3 Hits") == 0);
+    CHECK_EQ(kScenarioPlateGold, plate.rows[0].valueColor);
+    CHECK(strcmp(plate.rows[1].value, "7.8 u") == 0);
+    CHECK_EQ(kScenarioPlateWhite, plate.rows[1].valueColor);
+
+    st.sdiEscaped = true;
+    st.completionCount = 1;
+    st.sdiDispX = 150.0f;
+    st.sdiDispY = 0.0f;
+    CHECK(formatScenarioStatPlate(st, makeCfg(kScenarioMultiHitSdi), plate));
+    checkPlateAsciiAndBounds(plate);
+    CHECK(strcmp(plate.rows[0].value, "Escaped") == 0);
+    CHECK_EQ(kScenarioPlateGreen, plate.rows[0].valueColor);
+    CHECK(strcmp(plate.rows[1].value, "99.9 u") == 0);
+    CHECK(strcmp(plate.rows[2].value, "1 / 1") == 0);
+}

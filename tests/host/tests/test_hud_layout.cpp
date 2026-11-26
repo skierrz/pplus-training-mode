@@ -1201,3 +1201,44 @@ TEST(hud_layout, stream2_live_hud_ergonomics_f1_to_f8_43_and_169)
         CHECK(layout::kRecBarCentreY + layout::kRecBarHeight * 0.5f <= cpuTag.y0 - 6.0f + 0.01f);
     }
 }
+
+TEST(hud_layout, scenario_stat_plate_clears_timer_controllers_and_top_right_osds)
+{
+    // The 7 non-Techchase Lab Scenarios draw ONLY the quiet Panel B right-margin
+    // 3-row stat plate (no top-center bar, Brawl's timer stays visible). Verify
+    // 5% CRT safe containment and non-overlap against timer, Option A GC pads,
+    // SF6 dual frame strip, damage row, and Top Right OSDs on 4:3 and 16:9.
+    for (int a = 0; a < 2; a++)
+    {
+        bool wide = (a == 1);
+        Box safe = layout::safeArea(wide);
+        Box timer = layout::timerRoom(wide);
+        Box sf6 = layout::actionLogBox(wide, 2, true);
+        for (int vSlots = 0; vSlots <= 2; vSlots++)
+        {
+            float viewerBot = 0.0f;
+            for (int s = 0; s < vSlots; s++)
+            {
+                Box vb = layout::inputViewerCardBox(s, timer, wide);
+                if (vb.y1 > viewerBot) viewerBot = vb.y1;
+            }
+            Box plate = layout::drillStatPlateBox(3, viewerBot, wide);
+            CHECK(inside(plate, safe));
+            CHECK_NEAR(608.0f, plate.x1, 0.01f);
+            CHECK(!layout::meets(plate, timer));
+            CHECK(!layout::meets(plate, sf6));
+            for (int s = 0; s < vSlots; s++)
+            {
+                CHECK(!layout::meets(plate, layout::inputViewerCardBox(s, timer, wide)));
+            }
+            for (int p = 0; p < 4; p++)
+            {
+                CHECK(!layout::meets(plate, brawlDamage(p, wide)));
+            }
+            float rightBot = layout::rightColumnBottom(timer, vSlots, false, false, wide, false, 3);
+            CHECK(rightBot >= plate.y1 - 0.01f);
+            float osdY = layout::osdTopStartY(true, timer, 0.0f, rightBot);
+            CHECK(osdY >= plate.y1 + layout::kStepGap - 0.01f);
+        }
+    }
+}
