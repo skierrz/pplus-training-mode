@@ -117,10 +117,9 @@ NUMBERS = {
     ("lab.cpp", "Grab Escape\nFrames %d / %d\n%.1f / frame"): ["999", "99", "17.0"],
     ("lab.cpp", "CPU Damage: %d%%"): ["999"],
     ("ledgedash_hud.cpp", "None (%d/5)"): ["99"],
-    ("ledgedash_hud.cpp", "+%df INVULN"): ["31"],
-    ("ledgedash_hud.cpp", "%df (VULN)"): ["-24"],
-    ("ledgedash_hud.cpp", "  Angle: %.1f deg"): ["90.0"],
-    ("ledgedash_hud.cpp", "GALINT: %s  Hang: %df%s"): [None, "99", None],
+    ("ledgedash_hud.cpp", "+%df"): ["31"],
+    ("ledgedash_hud.cpp", "%df"): ["99"],
+    ("ledgedash_hud.cpp", "%.1f deg"): ["90.0"],
     ("wall_info_core.h", "Can Walljump: CD %df"): ["99"],
     ("psa_inspector_core.h", "PSA P%d"): ["4"],
     ("psa_inspector_core.h", "FSM x%.2f"): ["99.99"],
@@ -157,11 +156,25 @@ NUMBERS = {
     ("drill_hud_core.h", "RAR BAIR f%d"): ["10"],
     ("drill_hud_core.h", "GATLING DACUS f%d"): ["7"],
     ("drill_hud_core.h", "DACUS f%d"): ["3"],
-    ("drill_hud.cpp", "%u/%u (%u%%)"): ["999", "999", "100"],
-    ("drill_hud.cpp", "REP %u/%u  HIT %u"): ["20", "20", "20"],
-    ("drill_hud.cpp", "STREAK %u  BEST %u"): ["999", "999"],
+    ("drill_hud.cpp", "%u (Best %u)"): ["99", "999"],
+    ("drill_hud.cpp", "%02us / %u"): ["60", "99"],
+    ("drill_hud.cpp", "%u/%u (%u)"): ["20", "20", "20"],
+    ("drill_hud.cpp", "%u%% (%u/%u)"): ["100", "99", "99"],
+    ("drill_hud.cpp", "%df Late"): ["11"],
+    ("drill_hud.cpp", "%.1f deg"): ["90.0"],
+    ("drill_hud.cpp", "%df / 7f"): ["7"],
+    ("drill_hud.cpp", "Early -%df"): ["30"],
+    ("drill_hud.cpp", "Late +%df"): ["10"],
+    ("drill_hud.cpp", "+%df"): ["31"],
+    ("drill_hud.cpp", "%df"): ["99"],
+    ("drill_hud.cpp", "PS f%d"): ["2"],
+    ("drill_hud.cpp", "%s  -  %s"): ["CANCEL ENDURANCE", "10-REP"],
+    ("drill_hud.cpp", "%s"): ["PERFECT f1"],
+    ("drill_hud.cpp", "%.12s"): ["SWEETSPOT +3"],
     ("action_log_core.h", "0x%02X"): ["FFFF"],
     ("action_log_core.h", "%s %uf"): [None, "999"],
+    ("action_log.cpp", "+%df"): ["59"],
+    ("action_log.cpp", "%df"): ["-59"],
     ("combo_break_rush.cpp", "%u:%02u"): ["1", "00"],
     ("combo_break_rush.cpp", "SCORE %u"): ["65535"],
     ("combo_break_rush.cpp", "x%u"): ["8"],
@@ -176,23 +189,22 @@ NUMBERS = {
     ("recording_file.cpp", "%s-%d%s"): [None, "99", None],
     ("info_display.cpp", "%s: %.0f/%.0f"): [None, "999", "999"],
     ("info_display.cpp", "Coll: G:%d C:%d L:%d R:%d"): ["999", "999", "999", "999"],
-    ("info_display.cpp", "Subaction: %.20s %d/%d"): [None, "999", "999"],
-    ("info_display.cpp", "Last Hit: P%d%s, %d f ago"): ["4", None, "99999"],
+    ("info_display.cpp", "Sub: %.14s %d/%d"): [None, "999", "999"],
+    ("info_display.cpp", "Hit: P%d%s %df ago"): ["4", None, "99999"],
     ("info_display.cpp", "Actionable: true, %d f"): ["99999"],
     ("info_display.cpp", "Actionable: false, %d f"): ["99999"],
     ("info_display.cpp", "Frame: %d"): ["99999"],
     ("info_display.cpp", "Frame: %d/%d"): ["99999", "99999"],
     ("info_display.cpp", "State: 0x%X"): ["FFF"],
-    ("info_display.cpp", "Subaction: 0x%X %d/%d"): ["FFF", "999", "999"],
+    ("info_display.cpp", "Sub: 0x%X %d/%d"): ["FFF", "999", "999"],
     ("status_names.cpp", "0x%X"): ["FFF"],
-    ("adaptive_cpu.cpp", "READ %u%%"): ["100"],
     ("adaptive_cpu.cpp", "%u%%"): ["100"],
-    ("scenario_presets.cpp", "PLAT %u"): ["4"],
-    ("scenario_presets.cpp", "COVER  REACT %df"): ["99"],
-    ("scenario_presets.cpp", "%df EARLY"): ["99"],
-    ("scenario_presets.cpp", "%df LATE"): ["99"],
-    ("scenario_presets.cpp", "STREAK %u  BEST %u"): ["999", "999"],
-    ("scenario_presets.cpp", "STREAK %u  BEST --"): ["999"],
+    ("scenario_presets.cpp", "Plat %u"): ["4"],
+    ("scenario_presets.cpp", "%df React"): ["99"],
+    ("scenario_presets.cpp", "%df Early"): ["99"],
+    ("scenario_presets.cpp", "%df Late"): ["99"],
+    ("scenario_presets.cpp", "%u (Best %u)"): ["99", "999"],
+    ("scenario_presets.cpp", "%u"): ["999"],
     ("scenario_presets.cpp", "Techchase: Platform %u"): ["4"],
     ("scenario_presets.cpp", "Spacing: %+d"): ["+12"],
     # Players 1 to 4, frames of the match, state numbers up to 0xFFF.
@@ -539,16 +551,16 @@ def menu_descriptions(c, src):
         c.take(lit)
 
 
-guard("main/ui/info_display.cpp", "drawSide", "997b7537")
+guard("main/ui/info_display.cpp", "drawSide", "369aa81f")
 
 
 def info_display(c, src):
-    # drawSide(): a row is squeezed to the panel's width less its two
-    # insets, (236 - 2 x 8.0) x k at capitals kCap, for the sizes k = 0.72,
-    # 0.86, 1.0 with kCap = 6.2, 7.6, 8.8; bold. Medium leaves the least room
-    # per cap height, so it is the one checked. A row's buffer has 64 bytes.
+    # drawSide(): a row is squeezed to the Panel B smoked plate's width less its two
+    # insets, (214 - 2 x 6.0) = 202 px at capitals kCap = 10.5 (Medium), normal weight
+    # with 1px drop shadow. Small/Medium/Large widths are 206/214/218 px on 4:3
+    # (<= 218 px clears 4:3 timer). A row's buffer has 64 bytes.
     def row(lit, text):
-        c.item("squeeze", lit, text, scale_for_cap(7.6), 1, (236.0 - 2 * 8.0) * 0.86, 0.0)
+        c.item("squeeze", lit, text, scale_for_cap(10.5), 0, 214.0 - 2 * 6.0, 0.0)
         c.buffer(lit, text, 64.0)
 
     formats = [l for l in src.literals if l.func == "gameText" and re.search(r"format =$", l.stmt)]
@@ -557,7 +569,7 @@ def info_display(c, src):
     # its own short names, else the name the menu shows for the value. Each
     # format goes with the labels of the cases above it; a case with no
     # short name stands for the widest of the menu's names.
-    short = dict(re.findall(r'case (kInfo\w+):\s*return "([^"]*)";', src.text))
+    short = dict(re.findall(r'\{(kInfo\w+),\s*"([^"]*)"\}', src.text))
     menu_names = [l.text.lstrip("\x01") for l in c.sources["main/ui/pages/info_display.cpp"].arrays.get("kValues", [])
                   if l.text]
     longest_menu_name = max(menu_names, key=width)
@@ -611,29 +623,24 @@ def info_display(c, src):
         c.take(lit)
 
 
-guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "a22c1011")
+guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "0fc8e450")
 
 
 def ledgedash_hud(c, src):
-    # drawLedgedashHud(): summary strip centred over the bar (520 wide, 64-byte buffer)
-    # plus 1-line color legend directly under the bar.
+    # drawLedgedashHud(): calm white swatch-legend row directly above bar plus
+    # Panel B right-margin smoked stat plate (112 px wide, 102 px inner text room).
     for lit in src.literals:
         if c.taken(lit):
             continue
         if lit.name == "snprintf" and lit.arg == 2:
-            if lit.text == "GALINT: %s  Hang: %df%s":
-                for t in c.expand(lit, 2):
-                    c.item("fit", lit, t, scale_for_cap(8.0), 0, 520.0, 0.0)
-                    c.buffer(lit, t, 64.0)
-            else:
-                # Sub-buffer fragments folded into gText / angleBuf above; verify sub-buffer capacity too.
-                cap = 24.0 if lit.text.startswith("  Angle:") else 20.0
-                for t in c.expand(lit, 2):
-                    c.buffer(lit, t, cap)
-        elif lit.func == "drawLedgedashHud" and lit.text == "None":
-            pass  # folded into gText above
+            cap = 16.0 if lit.text == "%df" else 20.0
+            for t in c.expand(lit, 2):
+                c.item("squeeze", lit, t, scale_for_cap(11.5), 0, 102.0, 0.0)
+                c.buffer(lit, t, cap)
         elif lit.var == "kLegNames":
-            c.item("fit", lit, lit.text, scale_for_cap(7.5), 0, 80.0, 0.0)
+            c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 80.0, 0.0)
+        elif lit.var == "kRowLabels":
+            c.item("fit", lit, lit.text, scale_for_cap(8.2), 0, 102.0, 0.0)
         else:
             continue
         c.take(lit)
@@ -984,35 +991,31 @@ def adaptive_cpu_core_h(c, src):
 
 
 def adaptive_cpu_cpp(c, src):
-    # Compact Habit Readout HUD card (kAdaptiveHudWidth = 138, inner width 127 px).
+    # Quiet Panel B Habit Readout plate (kAdaptiveHudWidth = 112, inner width 102 px).
     for lit in src.literals:
         if c.taken(lit):
             continue
         if lit.func != "adaptiveCpuDraw":
             continue
         if lit.var == "kBarLabels":
-            c.item("fit", lit, lit.text, scale_for_cap(6.0), 0, 23.0, 0.0)
+            c.item("fit", lit, lit.text, scale_for_cap(8.2), 0, 26.0, 0.0)
         elif lit.name in ("drawHudText", "drawShadowText", "drawShadowCapText"):
-            c.item("fit", lit, lit.text, scale_for_cap(6.4), 0, 72.0, 0.0)
+            c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 64.0, 0.0)
         elif lit.name == "strcpy":
-            if lit.text == "WAITING":
-                c.item("fit", lit, lit.text, scale_for_cap(6.4), 0, 56.0, 0.0)
+            if lit.text == "--":
+                c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 40.0, 0.0)
                 c.buffer(lit, lit.text, 16.0)
             else:
-                c.item("fit", lit, lit.text, scale_for_cap(6.0), 0, 127.0, 0.0)
+                c.item("squeeze", lit, lit.text, scale_for_cap(8.5), 0, 102.0, 0.0)
                 c.buffer(lit, lit.text, 28.0)
         elif lit.name == "snprintf" and lit.arg == 2:
-            if lit.text == "READ %u%%":
+            if lit.text == "%u%%":
                 for t in c.expand(lit, 2):
-                    c.item("fit", lit, t, scale_for_cap(6.4), 0, 56.0, 0.0)
-                    c.buffer(lit, t, 16.0)
-            elif lit.text == "%u%%":
-                for t in c.expand(lit, 2):
-                    c.item("fit", lit, t, scale_for_cap(6.0), 0, 29.0, 0.0)
+                    c.item("fit", lit, t, scale_for_cap(8.2), 0, 34.0, 0.0)
                     c.buffer(lit, t, 8.0)
             else:
                 for t in c.expand(lit, 2):
-                    c.item("fit", lit, t, scale_for_cap(6.0), 0, 127.0, 0.0)
+                    c.item("squeeze", lit, t, scale_for_cap(8.5), 0, 102.0, 0.0)
                     c.buffer(lit, t, 28.0)
         else:
             continue
@@ -1020,32 +1023,18 @@ def adaptive_cpu_cpp(c, src):
 
 
 def scenario_presets_cpp(c, src):
-    # Unified top-center Techchase HUD banner (316*xs x 40 matching drill_hud.cpp).
+    # Unified Techchase timing bar legend + Panel B right-margin stat plate (102 px inner).
     for lit in src.literals:
         if c.taken(lit):
             continue
         if lit.func != "scenarioPresetsDraw":
             continue
-        if lit.name in ("gfx::displayText", "drawHudBannerTitle"):
-            c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 146.0, 0.0)
+        if lit.name == "sprintf" and lit.arg == 1:
+            for t in c.expand(lit, 1):
+                c.item("squeeze", lit, t, scale_for_cap(11.5), 0, 102.0, 0.0)
+                c.buffer(lit, t, 24.0)
         elif not lit.calls:
-            if lit.text == "GROUND":
-                c.item("fit", lit, lit.text, scale_for_cap(8.0), 0, 80.0, 0.0)
-            else:
-                c.item("fit", lit, lit.text, scale_for_cap(8.0), 0, 168.0, 0.0)
-        elif lit.name == "sprintf" and lit.arg == 1:
-            if lit.text == "PLAT %u":
-                for t in c.expand(lit, 1):
-                    c.item("fit", lit, t, scale_for_cap(8.0), 0, 80.0, 0.0)
-                    c.buffer(lit, t, 16.0)
-            elif lit.text.startswith("STREAK"):
-                for t in c.expand(lit, 1):
-                    c.item("fit", lit, t, scale_for_cap(8.0), 0, 148.0, 0.0)
-                    c.buffer(lit, t, 32.0)
-            else:
-                for t in c.expand(lit, 1):
-                    c.item("fit", lit, t, scale_for_cap(8.0), 0, 168.0, 0.0)
-                    c.buffer(lit, t, 32.0)
+            c.item("squeeze", lit, lit.text, scale_for_cap(11.5), 0, 102.0, 0.0)
         else:
             continue
         c.take(lit)
@@ -1107,16 +1096,18 @@ def drill_hud_cpp(c, src):
                 c.item("fit", lit, part, scale_for_cap(9.5), 0, 110.0, 0.0)
         elif lit.func == "drawLiveHud":
             if lit.name == "snprintf" and lit.arg == 2:
-                is_meta = lit.text.startswith("STREAK")
-                cap = 8.0
-                room = 132.0 if is_meta else 148.0
+                is_cap = lit.text == "%s  -  %s"
+                cap = 8.5 if is_cap else 11.5
+                room = 320.0 if is_cap else 102.0
+                buf = 40.0 if is_cap else 24.0
+                if lit.text == "%s":
+                    buf = 28.0
                 for t in c.expand(lit, 2):
-                    c.item("fit", lit, t, scale_for_cap(cap), 0, room, 0.0)
-                    c.buffer(lit, t, 28.0)
-            elif lit.text in ("READY", "WAVEDASH INTO TARGET", "TARGET"):
-                c.item("squeeze", lit, lit.text, scale_for_cap(8.0), 0, 168.0, 0.0)
+                    c.item("squeeze", lit, t, scale_for_cap(cap), 0, room, 0.0)
+                    c.buffer(lit, t, buf)
             else:
-                continue
+                # Panel B stat plate labels/values and top timing bar legend labels.
+                c.item("squeeze", lit, lit.text, scale_for_cap(11.5), 0, 102.0, 0.0)
         elif lit.func == "drawEndModal":
             if lit.name == "snprintf" and lit.arg == 2:
                 is_score = "%%" in lit.text
@@ -1132,6 +1123,16 @@ def drill_hud_cpp(c, src):
         else:
             continue
         c.take(lit)
+
+
+def hud_draw_cpp(c, src):
+    # Portrait-docked CPU status tag (104 px wide, 98 px inner text room at 10.5 cap, squeezed cleanly).
+    for lit in src.literals:
+        if c.taken(lit):
+            continue
+        if lit.func == "cpuStatusLabel":
+            c.item("squeeze", lit, lit.text, scale_for_cap(10.5), 0, 98.0, 0.0)
+            c.take(lit)
 
 
 def osd_quick(c, src):
@@ -1260,6 +1261,7 @@ HANDLERS = [
     ("extra/scenario_presets.cpp", scenario_presets_cpp),
     ("extra/drill_hud_core.h", drill_hud_core_h),
     ("extra/drill_hud.cpp", drill_hud_cpp),
+    ("extra/hud_draw.cpp", hud_draw_cpp),
     ("extra/action_log_core.h", action_log_core_h),
     ("extra/action_log.cpp", action_log_cpp),
     ("extra/combo_break_rush.cpp", combo_break_rush_cpp),

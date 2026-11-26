@@ -172,79 +172,403 @@ namespace extra {
             }
         }
 
+        int primaryTrackedSlot()
+        {
+            int slot = -1;
+            for (int i = 0; i < game::kMaxTracked; i++)
+            {
+                const game::Tracked* t = game::tracked(i);
+                if (t && !t->partner && (!t->cpu || slot < 0))
+                {
+                    slot = i;
+                    if (!t->cpu)
+                    {
+                        break;
+                    }
+                }
+            }
+            return slot;
+        }
+
         void drawLiveHud()
         {
             Runtime& s_rt = *s_rtPtr;
             DrillHudState& st = s_rt.st;
+            bool wide = gfx::widescreen();
             float xs = s_rt.xs;
-            float ox = 320.0f - 158.0f * xs;
-            const char* title = drillHudTitle(st.activeDrill);
-            drawHudBannerTitle(ox, 24.0f, 316.0f * xs, 40.0f, xs, st.alcNotice ? kGradeCols[4] : 0x35B8C8FFu, title);
-
-            float lx = ox + 10.0f * xs;
-            float rx = ox + 306.0f * xs;
-
-            // Format and measure top-right counter BEFORE drawing the mode pill so
-            // the pill never collides with the counter text.
+            u8 d = st.activeDrill;
+            int slot = primaryTrackedSlot();
+            u8 g = st.lastGrade < 5 ? st.lastGrade : 0;
             u8 target = drillModeTargetReps(st.mode);
-            char buf[28];
-            if (st.mode == kDrillModeTimed60)
+
+            // Format calm right-margin Panel B Stat Plate rows (3 rows, centered).
+            char val0[28];
+            char val1[24];
+            char val2[24];
+            const char* lbl0 = "Result";
+            const char* lbl1 = "Streak";
+            const char* lbl2 = "Rate";
+            gfx::Rgba col0 = kGradeCols[g];
+
+            const char* fb = st.lastFeedback;
+            bool wdTargetCue = (d == drills::kDrillWavedash && drillPracticeConfig().wdTargetZone != 0u);
+            if (wdTargetCue && strcmp(fb, "READY") == 0)
             {
-                unsigned secs = static_cast<unsigned>((st.timerFrames + 59u) / 60u);
-                snprintf(buf, sizeof(buf), "%02us  HIT %u", secs, static_cast<unsigned>(st.totalHit));
+                fb = "INTO TARGET";
             }
-            else if (target == 0)
+            if (st.alcNotice)
             {
-                unsigned pct = st.totalAtt > 0u ? (static_cast<unsigned>(st.totalHit) * 100u) / st.totalAtt : 0u;
-                snprintf(buf, sizeof(buf), "%u/%u (%u%%)", static_cast<unsigned>(st.totalHit),
-                         static_cast<unsigned>(st.totalAtt), pct);
+                snprintf(val0, sizeof(val0), d == drills::kDrillLCancel ? "Auto LC On" : "Check Cast");
+            }
+            else if (strlen(fb) <= 13)
+            {
+                snprintf(val0, sizeof(val0), "%s", fb);
             }
             else
             {
-                snprintf(buf, sizeof(buf), "REP %u/%u  HIT %u", static_cast<unsigned>(st.repsDone),
-                         static_cast<unsigned>(target), static_cast<unsigned>(st.repsHit));
+                snprintf(val0, sizeof(val0), "%.12s", fb);
             }
-            float rightTextW = gfx::textWidth(buf, kScales[0]);
-
-            // Compact Brawl-styled mode pill beside title (FREE / 10-REP / 20-REP / 60s).
-            const char* modeTxt = drillModeLabel(st.mode);
-            float titleW = gfx::displayTextWidth(title, kScales[2]);
-            float pillX = lx + titleW + 6.0f * xs;
-            float pillW = gfx::textWidth(modeTxt, kScales[0]) + 8.0f * xs;
-            if (pillX + pillW < rx - rightTextW - 6.0f * xs)
-            {
-                bool scored = (target > 0 || st.mode == kDrillModeTimed60);
-                drawHudPill(pillX, 29.0f, pillW, xs, scored);
-                label(pillX + pillW * 0.5f, 31.5f, modeTxt, 0xFFFFFFFFu, kAlignCenter);
-            }
-
-            label(rx, 31.5f, buf, 0xFFD300FFu, kAlignRight);
-
-            u8 g = st.lastGrade < 5 ? st.lastGrade : 0;
-            const char* fb = st.lastFeedback;
-            bool wdTargetCue = st.activeDrill == drills::kDrillWavedash && drillPracticeConfig().wdTargetZone != 0u;
-            if (wdTargetCue && strcmp(fb, "READY") == 0)
-            {
-                fb = "WAVEDASH INTO TARGET";
-            }
-            bool showPips = (target > 0 || st.mode == kDrillModeTimed60);
-            float rowY = showPips ? 46.0f : 48.0f;
-            label(lx, rowY, fb, kGradeCols[g], kClamp168);
-
             if (st.sessionBest)
             {
-                snprintf(buf, sizeof(buf), "STREAK %u  BEST %u", static_cast<unsigned>(st.streakFull),
+                snprintf(val1, sizeof(val1), "%u (Best %u)", static_cast<unsigned>(st.streakFull),
                          static_cast<unsigned>(st.sessionBest));
             }
             else
             {
-                snprintf(buf, sizeof(buf), "STREAK %u  BEST --", static_cast<unsigned>(st.streakFull));
+                snprintf(val1, sizeof(val1), "%u", static_cast<unsigned>(st.streakFull));
             }
-            label(rx, rowY, buf, kGradeCols[0], kAlignRight);
-            if (showPips)
+            if (st.mode == kDrillModeTimed60)
             {
-                drawPips(lx, 56.0f, 296.0f * xs, 3.0f, target > 0 ? static_cast<int>(target) : kDrillFreePips);
+                lbl2 = "Time / Hit";
+                unsigned secs = static_cast<unsigned>((st.timerFrames + 59u) / 60u);
+                snprintf(val2, sizeof(val2), "%02us / %u", secs, static_cast<unsigned>(st.totalHit));
             }
+            else if (target > 0)
+            {
+                lbl2 = "Set";
+                snprintf(val2, sizeof(val2), "%u/%u (%u)", static_cast<unsigned>(st.repsDone),
+                         static_cast<unsigned>(target), static_cast<unsigned>(st.repsHit));
+            }
+            else
+            {
+                unsigned pct = st.totalAtt > 0u ? (static_cast<unsigned>(st.totalHit) * 100u) / st.totalAtt : 0u;
+                snprintf(val2, sizeof(val2), "%u%% (%u/%u)", pct, static_cast<unsigned>(st.totalHit),
+                         static_cast<unsigned>(st.totalAtt));
+            }
+
+            // Zone 1: Top-Center Pure Timing / State Bar (calm white legend + crisp cells + white ^ pointer).
+            gfx::Rgba cells[64];
+            int cellCount = 15;
+            int ptrCell = -1;
+            TimingLegendItem legend[6];
+            int legendCount = 0;
+            char caption[40];
+            caption[0] = '\0';
+
+            if (d == drills::kDrillWavedash)
+            {
+                // 15-cell Wavedash bar: 3 Early (red) | 1 Perfect f1 (mint green) | 11 Late (lime -> gold -> orange).
+                static const gfx::Rgba kWdCells[15] = {
+                    0xDC4444E8u, 0xDC4444E8u, 0xDC4444E8u,
+                    0x3CE890FFu,
+                    0x7CE068E8u, 0xA8DC50E8u, 0xD4D440E8u, 0xF0C038E8u,
+                    0xF0A234E8u, 0xEC8634E8u, 0xE66E36E8u, 0xE05A38E8u,
+                    0xDC4C3CE8u, 0xD84440E8u, 0xD43E44E8u
+                };
+                memcpy(cells, kWdCells, sizeof(kWdCells));
+                cellCount = 15;
+                legend[0].swatch = 0xDC4444FFu; legend[0].label = "Early";
+                legend[1].swatch = 0x3CE890FFu; legend[1].label = "Frame 1";
+                legend[2].swatch = 0xF0B838FFu; legend[2].label = "Late";
+                legendCount = 3;
+                lbl0 = "Timing";
+                lbl1 = "Angle";
+                const WdCoreState* wd = slot >= 0 ? coreDrillWavedashState(slot) : NULL;
+                if (wd != NULL && wd->seq > 0u)
+                {
+                    const WdResult& r = wd->last;
+                    if (r.outcome == kWdOutcomeSuccess)
+                    {
+                        int f = (r.kind == kWdKindWaveland) ? r.airdodgeAirFrames : r.jumpsquatToDodge;
+                        if (f < 1) f = 1;
+                        ptrCell = 3 + (f - 1);
+                        if (ptrCell >= cellCount) ptrCell = cellCount - 1;
+                        if (f == 1)
+                        {
+                            snprintf(val0, sizeof(val0), "Perfect f1");
+                            col0 = 0x4CE688FFu;
+                        }
+                        else
+                        {
+                            snprintf(val0, sizeof(val0), "%df Late", f - 1);
+                            col0 = f <= 3 ? 0xFFE24AFFu : 0xFFB848FFu;
+                        }
+                    }
+                    else if (r.outcome == kWdMissNoAirdodge)
+                    {
+                        ptrCell = 1;
+                        snprintf(val0, sizeof(val0), "Early");
+                        col0 = 0xFF6658FFu;
+                    }
+                    else
+                    {
+                        ptrCell = cellCount - 1;
+                        snprintf(val0, sizeof(val0), "Miss");
+                        col0 = 0xFF6658FFu;
+                    }
+                    if (r.angleDeg > 0.0f)
+                    {
+                        snprintf(val1, sizeof(val1), "%.1f deg", static_cast<double>(r.angleDeg));
+                    }
+                    else
+                    {
+                        snprintf(val1, sizeof(val1), "--");
+                    }
+                }
+                else
+                {
+                    snprintf(val0, sizeof(val0), "Ready");
+                    snprintf(val1, sizeof(val1), "--");
+                }
+            }
+            else if (d == drills::kDrillLCancel)
+            {
+                // 15-cell L-Cancel bar: 3 Early (red) | 7f P+ window (green) + cyan hitlag ext | Late (red).
+                const LcCoreState* lc = slot >= 0 ? coreDrillLCancelState(slot) : NULL;
+                int hitlagExt = (lc != NULL && lc->seq > 0u && lc->last.hitlagFrames > 0) ? lc->last.hitlagFrames : 0;
+                if (hitlagExt > 6) hitlagExt = 6;
+                cellCount = 15 + hitlagExt;
+                for (int i = 0; i < cellCount; i++)
+                {
+                    if (i < 3) cells[i] = 0xDC4444E8u;
+                    else if (i < 10) cells[i] = 0x3CE890FFu;
+                    else if (i < 10 + hitlagExt) cells[i] = 0x36DCE8FFu;
+                    else cells[i] = 0xDC4444E8u;
+                }
+                legend[0].swatch = 0xDC4444FFu; legend[0].label = "Early";
+                legend[1].swatch = 0x3CE890FFu; legend[1].label = "7f Window";
+                if (hitlagExt > 0)
+                {
+                    legend[2].swatch = 0x36DCE8FFu; legend[2].label = "Hitlag";
+                    legend[3].swatch = 0xDC4444FFu; legend[3].label = "Late";
+                    legendCount = 4;
+                }
+                else
+                {
+                    legend[2].swatch = 0xDC4444FFu; legend[2].label = "Late";
+                    legendCount = 3;
+                }
+                lbl0 = "Timing";
+                lbl1 = "Hitlag";
+                if (lc != NULL && lc->seq > 0u)
+                {
+                    const LcResult& r = lc->last;
+                    if (r.outcome == kLcSuccessManual)
+                    {
+                        int pf = r.pressFrame < 1 ? 1 : (r.pressFrame > 7 ? 7 : r.pressFrame);
+                        ptrCell = 3 + (pf - 1);
+                        snprintf(val0, sizeof(val0), "%df / 7f", pf);
+                        col0 = 0x4CE688FFu;
+                    }
+                    else if (r.outcome == kLcMissEarly)
+                    {
+                        int ef = r.earlyFrames < 1 ? 1 : r.earlyFrames;
+                        ptrCell = 3 - ef;
+                        if (ptrCell < 0) ptrCell = 0;
+                        snprintf(val0, sizeof(val0), "Early -%df", ef);
+                        col0 = 0xFF6658FFu;
+                    }
+                    else if (r.outcome == kLcMissLate)
+                    {
+                        int lf = r.lateFrames < 1 ? 1 : r.lateFrames;
+                        ptrCell = 10 + hitlagExt + (lf - 1);
+                        if (ptrCell >= cellCount) ptrCell = cellCount - 1;
+                        snprintf(val0, sizeof(val0), "Late +%df", lf);
+                        col0 = 0xFF6658FFu;
+                    }
+                    else if (r.outcome == kLcSuccessAuto)
+                    {
+                        ptrCell = 6;
+                        snprintf(val0, sizeof(val0), "Auto ON");
+                        col0 = 0xFFB848FFu;
+                    }
+                    else if (r.outcome == kLcAutoCanceled)
+                    {
+                        snprintf(val0, sizeof(val0), "Autocancel");
+                        col0 = 0xFFE24AFFu;
+                    }
+                    else
+                    {
+                        ptrCell = cellCount - 1;
+                        snprintf(val0, sizeof(val0), "Missed");
+                        col0 = 0xFF6658FFu;
+                    }
+                    if (r.hitlagFrames > 0)
+                    {
+                        snprintf(val1, sizeof(val1), "+%df", static_cast<int>(r.hitlagFrames));
+                    }
+                    else
+                    {
+                        snprintf(val1, sizeof(val1), "0f");
+                    }
+                }
+                else
+                {
+                    snprintf(val0, sizeof(val0), "Ready");
+                    snprintf(val1, sizeof(val1), "0f");
+                }
+            }
+            else if (d == drills::kDrillPowershield)
+            {
+                // 12-cell Powershield bar: 3 Early (red) | 2f P+ PS (cyan-emerald) | 4 Normal (gold) | 3 Hit (red).
+                static const gfx::Rgba kPsCells[12] = {
+                    0xDC4444E8u, 0xDC4444E8u, 0xDC4444E8u,
+                    0x2EE8C8FFu, 0x2EE8C8FFu,
+                    0xF0BE38E8u, 0xF0BE38E8u, 0xF0BE38E8u, 0xF0BE38E8u,
+                    0xDC4444E8u, 0xDC4444E8u, 0xDC4444E8u
+                };
+                memcpy(cells, kPsCells, sizeof(kPsCells));
+                cellCount = 12;
+                legend[0].swatch = 0xDC4444FFu; legend[0].label = "Early";
+                legend[1].swatch = 0x2EE8C8FFu; legend[1].label = "2f PS";
+                legend[2].swatch = 0xF0BE38FFu; legend[2].label = "Shield";
+                legend[3].swatch = 0xDC4444FFu; legend[3].label = "Hit";
+                legendCount = 4;
+                lbl0 = "Timing";
+                lbl1 = "Type";
+                const PsSlot* ps = slot >= 0 ? hoverPsPowershieldSlot(slot) : NULL;
+                if (ps != NULL && ps->stats.attempts > 0u)
+                {
+                    const PsResult& r = ps->last;
+                    if (r.outcome == kPsPhysical || r.outcome == kPsReflect)
+                    {
+                        int wf = r.windowFrame < 1 ? 1 : (r.windowFrame > 2 ? 2 : r.windowFrame);
+                        ptrCell = 3 + (wf - 1);
+                        snprintf(val0, sizeof(val0), "PS f%d", wf);
+                        col0 = 0x4CE688FFu;
+                        snprintf(val1, sizeof(val1), r.psDropUsed ? "PS-Drop" : (r.outcome == kPsReflect ? "Reflect" : "Physical"));
+                    }
+                    else if (r.outcome == kPsMissEarly)
+                    {
+                        int off = r.offsetFrames < 0 ? -r.offsetFrames : r.offsetFrames;
+                        ptrCell = 3 - (off < 1 ? 1 : off);
+                        if (ptrCell < 0) ptrCell = 0;
+                        snprintf(val0, sizeof(val0), "Early -%df", off);
+                        col0 = 0xFF6658FFu;
+                        snprintf(val1, sizeof(val1), "Shield");
+                    }
+                    else
+                    {
+                        int off = r.offsetFrames < 1 ? 1 : r.offsetFrames;
+                        ptrCell = 5 + (off - 1);
+                        if (ptrCell >= cellCount) ptrCell = cellCount - 1;
+                        snprintf(val0, sizeof(val0), "Late +%df", off);
+                        col0 = 0xFFB848FFu;
+                        snprintf(val1, sizeof(val1), "Shield");
+                    }
+                }
+                else
+                {
+                    snprintf(val0, sizeof(val0), "Ready");
+                    snprintf(val1, sizeof(val1), "--");
+                }
+            }
+            else if (d == drills::kDrillLedgedash)
+            {
+                static const gfx::Rgba kLedgeCols[8] = {
+                    0x8894A0E0u, 0xE0C040E0u, 0x50C878E0u, 0x4890E0E0u,
+                    0xE8EEF4E0u, 0xE05050E0u, 0xA070D0E0u, 0x40D8CCE0u
+                };
+                legend[0].swatch = 0x8894A0FFu; legend[0].label = "Ledge";
+                legend[1].swatch = 0xE0C040FFu; legend[1].label = "Drop";
+                legend[2].swatch = 0x50C878FFu; legend[2].label = "Jump";
+                legend[3].swatch = 0x4890E0FFu; legend[3].label = "Dodge";
+                legend[4].swatch = 0xE8EEF4FFu; legend[4].label = "Land";
+                legend[5].swatch = 0x40D8CCFFu; legend[5].label = "GALINT";
+                legendCount = 6;
+                lbl0 = "GALINT";
+                lbl1 = "On Ledge";
+                lbl2 = "Angle";
+                const LedgeCoreState* lg = slot >= 0 ? coreDrillLedgeState(slot) : NULL;
+                if (lg != NULL && lg->seq > 0u && lg->last.cellCount > 0u)
+                {
+                    const LedgeResult& r = lg->last;
+                    int gal = r.galint > 0 ? r.galint : 0;
+                    int frames = r.cellCount;
+                    int maxC = 54;
+                    int first = 0;
+                    if (frames + gal > maxC)
+                    {
+                        int over = frames + gal - maxC;
+                        first = over < frames ? over : frames;
+                        frames -= first;
+                        if (frames + gal > maxC) gal = maxC - frames;
+                    }
+                    cellCount = frames + gal;
+                    if (cellCount < 1) cellCount = 1;
+                    for (int i = 0; i < cellCount; i++)
+                    {
+                        u8 ty = i < frames ? r.cells[first + i] : static_cast<u8>(7);
+                        cells[i] = kLedgeCols[ty < 8 ? ty : 6];
+                    }
+                    ptrCell = frames < cellCount ? frames : (cellCount - 1);
+                    if (r.noXlu)
+                    {
+                        snprintf(val0, sizeof(val0), "None");
+                        col0 = 0xFFB848FFu;
+                    }
+                    else
+                    {
+                        snprintf(val0, sizeof(val0), r.galint > 0 ? "+%df" : "%df", static_cast<int>(r.galint));
+                        col0 = r.galint > 0 ? 0x4CE688FFu : 0xFF6658FFu;
+                    }
+                    snprintf(val1, sizeof(val1), "%df", static_cast<int>(r.cliffWaitFrames));
+                    if (r.airdodgeAngle > 0.0f)
+                    {
+                        snprintf(val2, sizeof(val2), "%.1f deg", static_cast<double>(r.airdodgeAngle));
+                    }
+                    else
+                    {
+                        snprintf(val2, sizeof(val2), "--");
+                    }
+                }
+                else
+                {
+                    cellCount = 16;
+                    for (int i = 0; i < cellCount; i++) cells[i] = 0x1E2C38C0u;
+                    snprintf(val0, sizeof(val0), "Ready");
+                    snprintf(val1, sizeof(val1), "--");
+                    snprintf(val2, sizeof(val2), "--");
+                }
+            }
+            else
+            {
+                // Unified calm white-label rep/progress timing bar for all other drills & challenges.
+                int pips = target > 0 ? static_cast<int>(target) : kDrillFreePips;
+                if (pips > kDrillMaxSetReps) pips = kDrillMaxSetReps;
+                cellCount = pips;
+                for (int i = 0; i < cellCount; i++)
+                {
+                    u8 p = st.repPips[i];
+                    cells[i] = p == 0 ? 0x1E2C38C8u : kPipCols[p < 5 ? p : 0];
+                }
+                int activePip = target > 0 ? (static_cast<int>(st.repsDone) - 1) : (static_cast<int>(st.freePipCount) - 1);
+                if (activePip >= 0 && activePip < cellCount)
+                {
+                    ptrCell = activePip;
+                }
+                snprintf(caption, sizeof(caption), "%s  -  %s", drillHudTitle(d), drillModeLabel(st.mode));
+            }
+
+            drawTimingBar(cells, cellCount, ptrCell, legendCount > 0 ? legend : NULL, legendCount,
+                          legendCount == 0 ? caption : NULL, wide);
+
+            // Zone 2: Panel B Right-Margin Quiet Smoked Stat Plate stacked cleanly under Option A GC controller.
+            StatPlateRow rows[3];
+            rows[0].label = lbl0; rows[0].value = val0; rows[0].valueColor = col0;
+            rows[1].label = lbl1; rows[1].value = val1; rows[1].valueColor = 0xF4F8FCFFu;
+            rows[2].label = lbl2; rows[2].value = val2; rows[2].valueColor = 0xF4F8FCFFu;
+            drawStatPlate(rows, 3, hudViewerColumnBottom(wide), wide);
 
             // Floating 2D TARGET label above the Wavedash floor target zone.
             if (wdTargetCue)
@@ -264,9 +588,7 @@ namespace extra {
                         float tw = gfx::textWidth(tag, kScales[0]);
                         float pad = 5.0f * xs;
                         float bw = tw + 2.0f * pad;
-                        float bx = sx - bw * 0.5f;
-                        gfx::fillRect(bx, sy - 7.0f, bw, 14.0f, 0x060D12E4u);
-                        gfx::fillRect(bx + 2.0f * xs, sy - 5.0f, bw - 4.0f * xs, 10.0f, 0x102832E8u);
+                        drawSmokedPlate(sx - bw * 0.5f, sy - 7.0f, bw, 14.0f);
                         label(sx, sy - 4.0f, tag, 0xFFD300FFu, kAlignCenter);
                     }
                 }

@@ -15,7 +15,35 @@ namespace extra {
         kActionLogLabelSize = 10,
         kActionLogMaxFrames = 999,
         kActionLogDebugMagic = 0x544D414Cu, // "TMAL"
-        kActionLogDebugVersion = 1
+        kActionLogDebugVersion = 2,
+        kSf6MaxCells = 32,
+        kSf6Cells16 = 32,
+        kSf6Cells43 = 24
+    };
+
+    // SF6-style per-frame combat phase for the dual frame strip.
+    enum Sf6CellKind {
+        kSf6Empty = 0,    // idle / actionable
+        kSf6Startup = 1,  // attack startup / jumpsquat (teal)
+        kSf6Active = 2,   // active hitbox / grab (vivid crimson)
+        kSf6Recovery = 3, // non-actionable recovery / landing / dodge endlag (cool slate)
+        kSf6Stun = 4,     // hitstun / shieldstun / hitlag / grabbed (Solo-Gold)
+        kSf6Gap = 5,      // actionable frame during an active exchange gap (yellow bar)
+        kSf6CellKindCount
+    };
+
+    struct Sf6StripState {
+        u8 cells[2][kSf6MaxCells]; // ring buffer [0=P1, 1=CPU], oldest..newest via head
+        u8 head;                   // next write index in 0..kSf6MaxCells-1
+        u8 filled;                 // 0..kSf6MaxCells
+        u8 sawActive[2];
+        s16 prevStatus[2];
+        s16 advantage;             // signed frame advantage (+ = P1 ahead, - = CPU ahead)
+        u8 hasAdvantage;
+        u8 activeExchange;
+        s32 exchangeFrame;
+        s32 actFrame[2];
+        s32 lastFrame;
     };
 
     enum ActionStateClass {
@@ -47,9 +75,11 @@ namespace extra {
     };
 
     // RAM debug block exposed for live Dolphin verification ("TMAL").
+    // Preserves offsets 0x00..0xA7 verbatim for existing telemetry readers and
+    // appends SF6 Dual Frame Strip state at +0xA8.
     struct ActionLogDebugBlock {
         u32 magic;            // 0x00 "TMAL"
-        u32 version;          // 0x04 = 1
+        u32 version;          // 0x04 = 2
         u8 targetMode;        // 0x08 0=Off, 1=P1, 2=CPU
         u8 trackedSlot;       // 0x09 0xFF if none
         u8 count;             // 0x0A active ring count (0..8)
@@ -57,8 +87,182 @@ namespace extra {
         u32 totalTransitions; // 0x0C
         u32 drawCalls;        // 0x10
         s32 lastFrame;        // 0x14
-        ActionLogEntry entries[kActionLogCap]; // 0x18 chronological oldest..newest
+        ActionLogEntry entries[kActionLogCap]; // 0x18 chronological oldest..newest (8 * 18 = 144 bytes)
+        s16 sf6Advantage;     // 0xA8 live / last frame advantage
+        u8 sf6HasAdvantage;   // 0xAA
+        u8 sf6VisibleCells;   // 0xAB 32 on 16:9, 24 on 4:3
+        u8 sf6RelocatedTop;   // 0xAC 1 when 3P/4P relocated to top-center
+        u8 sf6Filled;         // 0xAD 0..32
+        u8 sf6Pad[2];         // 0xAE
+        u8 sf6Cells[2][kSf6MaxCells]; // 0xB0 chronological oldest..newest
     };
+
+    inline void sf6ResetState(Sf6StripState& s)
+    {
+        memset(&s, 0, sizeof(s));
+        s.prevStatus[0] = -1;
+        s.prevStatus[1] = -1;
+        s.actFrame[0] = -1;
+        s.actFrame[1] = -1;
+        s.exchangeFrame = -1;
+        s.lastFrame = -1;
+    }
+
+    inline u8 actionLogClassify(int status, bool airborne);
+
+    inline u8 sf6ClassifyCell(int status, bool actionable, bool activeHitbox, bool inStun, bool sawActive)
+    {
+        if (inStun)
+        {
+            return kSf6Stun;
+        }
+        if (activeHitbox)
+        {
+            return kSf6Active;
+        }
+        if (!actionable)
+        {
+            u8 cls = actionLogClassify(status, false);
+            if (cls == kStateHitstun)
+            {
+                return kSf6Stun;
+            }
+            if ((cls == kStateAttack && !sawActive) || status == game::kStatusJumpSquat
+                || status == game::kStatusGuardOn)
+            {
+                return kSf6Startup;
+            }
+            return kSf6Recovery;
+        }
+        return kSf6Empty;
+    }
+
+    inline u32 sf6CellColor(u8 kind)
+    {
+        static const u32 kCols[kSf6CellKindCount] = {
+            0x16222CC4u, // Empty
+            0x22BCCEFFu, // Startup (teal)
+            0xEC3C4EFFu, // Active (vivid crimson)
+            0x6C88A8FFu, // Recovery (cool slate)
+            0xF5B82EFFu, // Stun (Solo-Gold)
+            0x16222CC4u  // Gap (dark trough + yellow 3.5px center marker drawn on top)
+        };
+        return kCols[kind < kSf6CellKindCount ? kind : 0];
+    }
+
+    inline u8 sf6CellAt(const Sf6StripState& s, int row, int chronoIdx)
+    {
+        if (row < 0 || row > 1 || chronoIdx < 0 || chronoIdx >= static_cast<int>(s.filled))
+        {
+            return kSf6Empty;
+        }
+        int start = s.filled < kSf6MaxCells ? 0 : static_cast<int>(s.head);
+        int idx = (start + chronoIdx) & (kSf6MaxCells - 1);
+        return s.cells[row][idx];
+    }
+
+    inline void sf6PushDualFrame(Sf6StripState& s, s32 frame, int st0, bool act0, bool hit0, bool stun0,
+                                 int st1, bool act1, bool hit1, bool stun1)
+    {
+        if (frame == s.lastFrame)
+        {
+            return;
+        }
+        s.lastFrame = frame;
+
+        if (st0 != s.prevStatus[0])
+        {
+            s.sawActive[0] = 0;
+            s.prevStatus[0] = static_cast<s16>(st0);
+        }
+        if (st1 != s.prevStatus[1])
+        {
+            s.sawActive[1] = 0;
+            s.prevStatus[1] = static_cast<s16>(st1);
+        }
+
+        u8 c0 = sf6ClassifyCell(st0, act0, hit0, stun0, s.sawActive[0] != 0);
+        u8 c1 = sf6ClassifyCell(st1, act1, hit1, stun1, s.sawActive[1] != 0);
+        if (c0 == kSf6Active)
+        {
+            s.sawActive[0] = 1;
+        }
+        if (c1 == kSf6Active)
+        {
+            s.sawActive[1] = 1;
+        }
+
+        // Track exchange frame advantage (positive = P1 acts before CPU, negative = CPU acts first).
+        if (stun0 || stun1)
+        {
+            if (!s.activeExchange || (stun0 && s.actFrame[0] >= 0) || (stun1 && s.actFrame[1] >= 0))
+            {
+                s.activeExchange = 1;
+                s.exchangeFrame = frame;
+                s.actFrame[0] = act0 ? frame : -1;
+                s.actFrame[1] = act1 ? frame : -1;
+            }
+        }
+        if (s.activeExchange)
+        {
+            if (s.actFrame[0] < 0 && act0)
+            {
+                s.actFrame[0] = frame;
+            }
+            if (s.actFrame[1] < 0 && act1)
+            {
+                s.actFrame[1] = frame;
+            }
+            if (s.actFrame[0] >= 0 && s.actFrame[1] >= 0)
+            {
+                s32 diff = s.actFrame[1] - s.actFrame[0];
+                if (diff > -60 && diff < 60)
+                {
+                    s.advantage = static_cast<s16>(diff);
+                    s.hasAdvantage = 1;
+                }
+                s.activeExchange = 0;
+            }
+            else if (s.actFrame[0] >= 0 && !act1)
+            {
+                s32 diff = frame - s.actFrame[0] + 1;
+                if (diff < 60)
+                {
+                    s.advantage = static_cast<s16>(diff);
+                    s.hasAdvantage = 1;
+                }
+                if (c0 == kSf6Empty)
+                {
+                    c0 = kSf6Gap;
+                }
+            }
+            else if (s.actFrame[1] >= 0 && !act0)
+            {
+                s32 diff = -(frame - s.actFrame[1] + 1);
+                if (diff > -60)
+                {
+                    s.advantage = static_cast<s16>(diff);
+                    s.hasAdvantage = 1;
+                }
+                if (c1 == kSf6Empty)
+                {
+                    c1 = kSf6Gap;
+                }
+            }
+            else if (frame - s.exchangeFrame > 180)
+            {
+                s.activeExchange = 0;
+            }
+        }
+
+        s.cells[0][s.head] = c0;
+        s.cells[1][s.head] = c1;
+        s.head = static_cast<u8>((s.head + 1) & (kSf6MaxCells - 1));
+        if (s.filled < kSf6MaxCells)
+        {
+            s.filled++;
+        }
+    }
 
     struct ActionPillPalette {
         u32 border;

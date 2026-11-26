@@ -3,6 +3,7 @@
 #include <types.h>
 
 #include "main/game/fighters.h"
+#include "main/game/match.h"
 #include "main/gfx/draw.h"
 #include "main/ui/hud_layout.h"
 
@@ -58,6 +59,54 @@ namespace extra {
         kHudCardAdaptive = 2,
         kHudCardTechchase = 3
     };
+
+    // Quiet Panel B borderless smoked-dark plate (0x0E161EA6u) with zero border
+    // and zero colored header tab, plus faint 2px inset horizontal divider.
+    static const gfx::Rgba kSmokedPlateBg = 0x0E161EA6u;
+    static const gfx::Rgba kSmokedDivider = 0xDCE8F028u;
+
+    void drawSmokedPlate(float x, float y, float w, float h, gfx::Rgba bg = kSmokedPlateBg);
+    void drawPlateDivider(float x, float y, float w, float xs);
+
+    // Draws centered shadowed text sized to `cap` pixels around horizontal `cx`.
+    void drawShadowCapCenter(float cx, float capY, const char* text, gfx::Rgba color, float cap, float maxW = 0.0f);
+
+    // One key item for the calm white legend row above a timing/state bar.
+    struct TimingLegendItem {
+        gfx::Rgba swatch; // 0 = caption text only (no color swatch)
+        const char* label;
+    };
+
+    // Unified Zone 1 Top-Center Timing / State Bar:
+    //  - calm white Rodin caption/legend row directly above bar (>= 6px item gap)
+    //  - crisp color cells inside a quiet smoked trough (dynamic width clamping)
+    //  - clean white upward pointer arrow (^) at `pointerCell` (-1 = none)
+    // Returns the total occupied bounding box for top-band registration.
+    ui::layout::Box drawTimingBar(const gfx::Rgba* cells, int count, int pointerCell, const TimingLegendItem* legend,
+                                  int legendCount, const char* caption, bool wide);
+
+    // One metric row for a Panel B right-margin quiet smoked stat plate.
+    struct StatPlateRow {
+        const char* label;
+        const char* value;
+        gfx::Rgba valueColor;
+    };
+
+    // Unified Zone 2 Panel B Right-Margin Stat Plate:
+    //  - single quiet borderless smoked plate flush to x1 = 608 under Option A GC Controller
+    //  - faint 2px inset horizontal dividers between rows
+    //  - dead-center muted-white labels above bold centered semantic values (>= 10.5 scanlines)
+    void drawStatPlate(const StatPlateRow* rows, int count, float aboveBottom, bool wide);
+
+    // Compact portrait-docked `CPU: <State>` tag (10.5 scanlines, y = 382..395)
+    // drawn above the CPU portrait in Training Lab (hidden in Versus).
+    void drawCpuStatusTag(const game::MatchState& match, bool menuOpen);
+
+    // Bottom y of active top-left Info Display panels (for PSA stacking).
+    float hudInfoStackBottom(bool wide);
+
+    // Bottom y of active Option A GC Controller slots (for right-margin Panel B plates).
+    float hudViewerColumnBottom(bool wide);
 
     // Out-of-line wrapper around ui::layout right-column card boxes so
     // rightColumnBottom() is compiled once in hud_draw.o instead of inlined

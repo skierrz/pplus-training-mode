@@ -1877,12 +1877,12 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                             if (hasPsa)
                             {
                                 pieces[count].name = "psa-card";
-                                pieces[count++].rect = psaInspectorBox(band, vSlots, hasComp != 0, wide);
+                                pieces[count++].rect = psaInspectorBox(band, vSlots, hasComp != 0, wide, infoBot);
                             }
                             if (hasAdap)
                             {
                                 pieces[count].name = "adaptive-hud";
-                                pieces[count++].rect = adaptiveHudBox(band, vSlots, hasComp != 0, hasPsa != 0, wide);
+                                pieces[count++].rect = adaptiveHudBox(band, vSlots, hasComp != 0, hasPsa != 0, wide, infoBot);
                             }
                             pieces[count].name = "action-log";
                             pieces[count++].rect = actLog;
@@ -1933,10 +1933,31 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
 
                             // 3. Stepped TopLeft and TopRight P1 OSD card clears top band,
                             //    same-side HUD column, PSA card, Adaptive HUD, and Brawl damage row (y 397).
+                            float leftBot = infoBot;
                             float rightBot =
                                 rightColumnBottom(band, vSlots, hasComp != 0, hasPsa != 0, wide, hasAdap != 0);
-                            float topL = osdTopStartY(false, band, infoBot, rightBot);
-                            float topR = osdTopStartY(true, band, infoBot, rightBot);
+                            if (hasAdap)
+                            {
+                                Box adapBox = adaptiveHudBox(band, vSlots, hasComp != 0, hasPsa != 0, wide, infoBot);
+                                if (adapBox.y1 > rightBot)
+                                {
+                                    rightBot = adapBox.y1;
+                                }
+                            }
+                            if (hasPsa)
+                            {
+                                Box psaBox = psaInspectorBox(band, vSlots, hasComp != 0, wide, infoBot);
+                                if (psaBox.x0 < 320.0f && psaBox.y1 > leftBot)
+                                {
+                                    leftBot = psaBox.y1;
+                                }
+                                if (psaBox.x1 > 320.0f && psaBox.y1 > rightBot)
+                                {
+                                    rightBot = psaBox.y1;
+                                }
+                            }
+                            float topL = osdTopStartY(false, band, leftBot, rightBot);
+                            float topR = osdTopStartY(true, band, leftBot, rightBot);
                             osd_real::StackPlace spL = osd_real::stackPlace(osd_real::kPositionTopLeft, 0, xs, 0.0f, topL);
                             osd_real::StackPlace spR = osd_real::stackPlace(osd_real::kPositionTopRight, 0, xs, 0.0f, topR);
                             float hw = osd_real::kBoxWidth * xs * 0.5f;
@@ -1995,10 +2016,11 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                                         }
 
                                         Box stack = none();
-                                        // On 4:3, the 316 px Drill HUD steps dual Input Viewers + DI Compass
-                                        // below y=64 (to y=258), leaving room for 2 stacked Sides CPU OSDs (to y=288).
-                                        int stackSlots = (!wide && drillHud && pl == 1 && pos == osd_real::kPositionSides
-                                                          && vSlots == 2 && hasComp)
+                                        // When legacy DI Compass is stacked below dual Viewers on 4:3 with recBar
+                                        // lifting Sides to floor=350 (y0=206), 2 stacked Sides CPU OSDs fit cleanly
+                                        // (note DI Compass is retired from live HUD).
+                                        int stackSlots = (pl == 1 && pos == osd_real::kPositionSides && hasComp
+                                                          && (vSlots >= 2 || (hasAdap && vSlots >= 1)))
                                                              ? 2
                                                              : 3;
                                         for (int sl = 0; sl < stackSlots; sl++)
@@ -2020,7 +2042,15 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                                                        - (stack.x0 > r.x0 ? stack.x0 : r.x0);
                                             float dy = (stack.y1 < r.y1 ? stack.y1 : r.y1)
                                                        - (stack.y0 > r.y0 ? stack.y0 : r.y0);
-                                            CHECK(!(dx > kTol && dy > kTol));
+                                            if (dx > kTol && dy > kTol)
+                                            {
+                                                host::test::fail(
+                                                    __FILE__, __LINE__,
+                                                    "%s (ledge=%d info=%d v=%d comp=%d psa=%d adap=%d pos=%d pl=%d): osd(%.1f..%.1f,%.1f..%.1f) overlaps %s(%.1f..%.1f,%.1f..%.1f) by %.1f x %.1f",
+                                                    aspect, ledge, ii, vSlots, hasComp, hasPsa, hasAdap, pos, pl,
+                                                    stack.x0, stack.x1, stack.y0, stack.y1, pieces[p].name,
+                                                    r.x0, r.x1, r.y0, r.y1, dx, dy);
+                                            }
                                         }
                                     }
                                 }

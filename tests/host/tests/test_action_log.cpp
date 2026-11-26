@@ -176,3 +176,50 @@ TEST(action_log, aerial_subactions_and_settings_layout_round_trip)
     tm::main::sanitizeSettings(s);
     CHECK_EQ(static_cast<int>(tm::main::kActionLogCpu), static_cast<int>(s.general.actionLog));
 }
+
+TEST(action_log, sf6_dual_strip_phase_classification_advantage_and_ring_wrap)
+{
+    using namespace tm::extra;
+    using namespace tm::game;
+    Sf6StripState sf;
+    sf6ResetState(sf);
+
+    // P1 throws an aerial (2f startup, 2f active hitbox, 3f recovery);
+    // CPU blocks on frame 102 and takes 7f shieldstun -> P1 is +2f advantage!
+    s32 f = 100;
+    // f=100..101: P1 startup, CPU actionable.
+    sf6PushDualFrame(sf, f++, kStatusAttackAirFirst, false, false, false, kStatusGuard, true, false, false);
+    sf6PushDualFrame(sf, f++, kStatusAttackAirFirst, false, false, false, kStatusGuard, true, false, false);
+    // f=102..103: P1 active hitbox, CPU enters shieldstun.
+    sf6PushDualFrame(sf, f++, kStatusAttackAirFirst, false, true, false, kStatusGuardDamage, false, false, true);
+    sf6PushDualFrame(sf, f++, kStatusAttackAirFirst, false, true, false, kStatusGuardDamage, false, false, true);
+    // f=104..106: P1 recovery, CPU still in shieldstun.
+    sf6PushDualFrame(sf, f++, kStatusAttackAirFirst, false, false, false, kStatusGuardDamage, false, false, true);
+    sf6PushDualFrame(sf, f++, kStatusAttackAirFirst, false, false, false, kStatusGuardDamage, false, false, true);
+    sf6PushDualFrame(sf, f++, kStatusAttackAirFirst, false, false, false, kStatusGuardDamage, false, false, true);
+    // f=107..108: P1 actionable (gap!), CPU still in shieldstun (2f advantage).
+    sf6PushDualFrame(sf, f++, kStatusWait, true, false, false, kStatusGuardDamage, false, false, true);
+    sf6PushDualFrame(sf, f++, kStatusWait, true, false, false, kStatusGuardDamage, false, false, true);
+    // f=109: Both actionable -> exchange settles at +2f.
+    sf6PushDualFrame(sf, f++, kStatusWait, true, false, false, kStatusWait, true, false, false);
+
+    CHECK_EQ(10, static_cast<int>(sf.filled));
+    CHECK_EQ(static_cast<int>(kSf6Startup), static_cast<int>(sf6CellAt(sf, 0, 0)));
+    CHECK_EQ(static_cast<int>(kSf6Startup), static_cast<int>(sf6CellAt(sf, 0, 1)));
+    CHECK_EQ(static_cast<int>(kSf6Active), static_cast<int>(sf6CellAt(sf, 0, 2)));
+    CHECK_EQ(static_cast<int>(kSf6Active), static_cast<int>(sf6CellAt(sf, 0, 3)));
+    CHECK_EQ(static_cast<int>(kSf6Recovery), static_cast<int>(sf6CellAt(sf, 0, 4)));
+    CHECK_EQ(static_cast<int>(kSf6Gap), static_cast<int>(sf6CellAt(sf, 0, 7)));
+    CHECK_EQ(static_cast<int>(kSf6Stun), static_cast<int>(sf6CellAt(sf, 1, 2)));
+    CHECK_EQ(static_cast<int>(kSf6Stun), static_cast<int>(sf6CellAt(sf, 1, 8)));
+    CHECK_EQ(1, static_cast<int>(sf.hasAdvantage));
+    CHECK_EQ(2, static_cast<int>(sf.advantage));
+
+    // Push 30 more frames to verify 32-cell ring wrap keeps newest 32 cells.
+    for (int i = 0; i < 30; i++)
+    {
+        sf6PushDualFrame(sf, f++, kStatusWait, true, false, false, kStatusWait, true, false, false);
+    }
+    CHECK_EQ(kSf6MaxCells, static_cast<int>(sf.filled));
+    CHECK_EQ(static_cast<int>(kSf6Empty), static_cast<int>(sf6CellAt(sf, 0, kSf6MaxCells - 1)));
+}

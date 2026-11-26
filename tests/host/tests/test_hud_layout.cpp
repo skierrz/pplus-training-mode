@@ -261,43 +261,50 @@ namespace {
         seedLedgedash(cells, true, noXlu);
         canvas::clear();
         ui::hudLayoutDrawLedgedashHud();
-        // Summary strip rect (first rect after bar + cells) and first text run.
+        // Top-center calm white swatch-legend row sits in y < kBarTop, x < 492 (first 6 rects + legend text).
         Box out = layout::none();
-        int barRects = 1 + cells;
-        if (canvas::rects() > barRects)
-        {
-            const canvas::Rect& r = canvas::rect(barRects);
-            Box rb = {r.x, r.y, r.x + r.width, r.y + r.height};
-            out = layout::unite(out, rb);
-        }
-        if (canvas::runs() > 0)
-        {
-            const canvas::Run& run = canvas::run(0);
-            Box tb = {run.x, run.y, run.right, run.y + 24.0f * run.scaleY};
-            out = layout::unite(out, tb);
-        }
-        return out;
-    }
-
-    Box drawnLedgedashLegend(int cells, bool noXlu = false)
-    {
-        seedLedgedash(cells, true, noXlu);
-        canvas::clear();
-        ui::hudLayoutDrawLedgedashHud();
-        // Color legend pill, swatches, and labels drawn after the summary strip.
-        Box out = layout::none();
-        int firstLegendRect = 1 + cells + 1;
-        for (int i = firstLegendRect; i < canvas::rects(); i++)
+        for (int i = 0; i < 6 && i < canvas::rects(); i++)
         {
             const canvas::Rect& r = canvas::rect(i);
             Box rb = {r.x, r.y, r.x + r.width, r.y + r.height};
             out = layout::unite(out, rb);
         }
-        for (int i = 1; i < canvas::runs(); i++)
+        for (int i = 0; i < canvas::runs(); i++)
         {
             const canvas::Run& run = canvas::run(i);
-            Box tb = {run.x, run.y, run.right, run.y + 24.0f * run.scaleY};
-            out = layout::unite(out, tb);
+            if (run.y < layout::kBarTop && run.x < 492.0f)
+            {
+                Box tb = {run.x, run.y, run.right, run.y + 24.0f * run.scaleY};
+                out = layout::unite(out, tb);
+            }
+        }
+        return out;
+    }
+
+    Box drawnLedgedashPlate(int cells, bool noXlu = false)
+    {
+        seedLedgedash(cells, true, noXlu);
+        canvas::clear();
+        ui::hudLayoutDrawLedgedashHud();
+        // Right-margin Panel B quiet smoked stat plate sits at x >= 492.
+        Box out = layout::none();
+        for (int i = 0; i < canvas::rects(); i++)
+        {
+            const canvas::Rect& r = canvas::rect(i);
+            if (r.x >= 492.0f)
+            {
+                Box rb = {r.x, r.y, r.x + r.width, r.y + r.height};
+                out = layout::unite(out, rb);
+            }
+        }
+        for (int i = 0; i < canvas::runs(); i++)
+        {
+            const canvas::Run& run = canvas::run(i);
+            if (run.x >= 492.0f)
+            {
+                Box tb = {run.x, run.y, run.right, run.y + 24.0f * run.scaleY};
+                out = layout::unite(out, tb);
+            }
         }
         return out;
     }
@@ -329,7 +336,7 @@ namespace {
             {
                 s.add("ledge-bar", drawnLedgedashBar(e.ledgeCells), kBand);
                 s.add("ledge-key", drawnLedgedashHeader(e.ledgeCells), kBand);
-                s.add("ledge-legend", drawnLedgedashLegend(e.ledgeCells), kBand);
+                s.add("ledge-plate", drawnLedgedashPlate(e.ledgeCells), kPlain);
             }
             if (id != kLabLedgeHud && id != kLabPaused)
             {
@@ -444,19 +451,24 @@ namespace {
         {"*", "16:9", "typical", "info-hmn", "osd-topleft-p2", "top spots"},
         {"*", "16:9", "most", "info-hmn", "osd-topleft-p2", "top spots"},
         {"lab-4p", "*", "most", "info-hmn", "osd-topleft-p3", "top spots"},
+        {"lab-4p", "*", "typical", "info-hmn", "osd-topleft-p3", "top spots"},
         {"*", "4:3", "*", "info-hmn", "osd-topright-p1", "top spots"},
         {"*", "16:9", "most", "info-hmn", "osd-topright-p1", "top spots"},
         {"*", "4:3", "*", "info-hmn", "osd-topright-p2", "top spots"},
         {"*", "16:9", "most", "info-hmn", "osd-topright-p2", "top spots"},
         {"lab-4p", "*", "most", "info-hmn", "osd-topright-p3", "top spots"},
+        {"lab-4p", "4:3", "typical", "info-hmn", "osd-topright-p3", "top spots"},
+        {"lab-4p", "4:3", "most", "info-cpu", "osd-topleft-p3", "top spots"},
+        {"lab-4p", "4:3", "most", "info-cpu", "osd-topright-p3", "top spots"},
         {"lab-ledgedash-hud", "*", "*", "ledge-bar", "osd-topleft-p1", "top spots"},
         {"lab-ledgedash-hud", "*", "*", "ledge-bar", "osd-topright-p1", "top spots"},
         {"lab-ledgedash-hud", "*", "*", "ledge-key", "osd-topleft-p1", "top spots"},
         {"lab-ledgedash-hud", "*", "*", "ledge-key", "osd-topright-p1", "top spots"},
-        {"lab-ledgedash-hud", "*", "*", "ledge-legend", "osd-topleft-p1", "top spots"},
-        {"lab-ledgedash-hud", "*", "*", "ledge-legend", "osd-topright-p1", "top spots"},
-        {"lab-ledgedash-hud", "*", "*", "ledge-legend", "osd-topleft-p2", "top spots"},
-        {"lab-ledgedash-hud", "*", "*", "ledge-legend", "osd-topright-p2", "top spots"},
+        {"lab-ledgedash-hud", "*", "*", "ledge-plate", "osd-topright-p1", "top spots"},
+        {"lab-ledgedash-hud", "*", "*", "ledge-plate", "osd-topright-p2", "top spots"},
+        {"lab-ledgedash-hud", "*", "most", "ledge-plate", "osd-sides-p2", "six messages"},
+        {"lab-ledgedash-hud", "*", "most", "ledge-plate", "osd-topleft-p1", "top spots"},
+        {"lab-ledgedash-hud", "*", "most", "ledge-plate", "osd-topleft-p2", "top spots"},
         {"*", "*", "most", "info-cpu", "osd-hud-p1", "six messages"},
         {"*", "*", "most", "info-cpu", "osd-hud-p2", "six messages"},
         {"*", "*", "most", "info-cpu", "osd-sides-p1", "six messages"},
@@ -559,25 +571,25 @@ TEST(hud_layout, the_ledgedash_hud_is_where_the_layout_says)
             layout::setLabBand(layout::labBand(true, cells, wide));
             Box barDrawn = drawnLedgedashBar(cells);
             Box barBox = layout::frameBarBox(cells, wide);
-            CHECK_NEAR(barBox.x0, barDrawn.x0, 0.01);
-            CHECK_NEAR(barBox.x1, barDrawn.x1, 0.01);
-            CHECK_NEAR(barBox.y0, barDrawn.y0, 0.01);
-            CHECK_NEAR(barBox.y1, barDrawn.y1, 0.01);
+            Box barWithPointer = layout::unite(barBox, layout::ledgeLegendBox(wide));
+            CHECK_NEAR(barBox.x0, barDrawn.x0, 0.05);
+            CHECK_NEAR(barBox.x1, barDrawn.x1, 0.05);
+            CHECK_NEAR(barBox.y0, barDrawn.y0, 0.05);
+            CHECK(barDrawn.y1 <= barWithPointer.y1 + 0.05f);
+            CHECK(inside(barDrawn, layout::topBand()));
 
             for (int noXlu = 0; noXlu <= 1; noXlu++)
             {
                 Box hdrDrawn = drawnLedgedashHeader(cells, noXlu != 0);
-                Box hdrRoom = layout::unite(layout::ledgeHeaderBox(wide), layout::ledgeLegendBox(wide));
+                Box hdrRoom = layout::ledgeHeaderBox(wide);
                 CHECK(inside(hdrDrawn, hdrRoom));
                 CHECK(inside(hdrDrawn, layout::topBand()));
                 CHECK(inside(hdrDrawn, safe));
 
-                seedLedgedash(cells, true, noXlu != 0);
-                canvas::clear();
-                ui::hudLayoutDrawLedgedashHud();
-                Box full = drawnBox();
-                CHECK(inside(full, layout::topBand()));
-                CHECK(inside(full, safe));
+                Box plateDrawn = drawnLedgedashPlate(cells, noXlu != 0);
+                CHECK(inside(plateDrawn, safe));
+                CHECK(plateDrawn.x1 <= 608.0f + 0.5f);
+                CHECK(!layout::meets(plateDrawn, barBox));
             }
         }
     }
@@ -1023,4 +1035,127 @@ TEST(hud_layout, techchase_hud_clears_all_right_column_combos)
         }
     }
     CHECK_EQ(combos, 48);
+}
+
+TEST(hud_layout, stream2_live_hud_ergonomics_f1_to_f8_43_and_169)
+{
+    // Verifies all Stream 2 ergonomic non-overlap invariants across 16:9 and 4:3:
+    //  F1: SF6 Dual Frame Strip (32 cells @ 6px in 16:9, 24 cells @ 8px in 4:3) clears
+    //      P2 % (<= 307 on 4:3), watermark (y 446), recBar (y <= 376), and auto-relocates
+    //      to top-center in 3P/4P so P3/P4 portraits (y 396..450) are never touched.
+    //  F2/F6: Frame-Step Inspector (Info + PSA) clamped to x0=34, y0=28, 4:3 width <= 218
+    //         (6px clear of 4:3 timer x=258), stepping cleanly to y=83 below counterRoom
+    //         and y=69..70 below labBand.
+    //  F3/F4: Option A Bare GC Controller anchored at x1=608, y=26..82 (never teleports);
+    //         16:9 dual side-by-side (x=423..608, 56px clear of timer); 4:3 dual stacked
+    //         (y=26..82, 90..146, 110px clear of timer); Ledgedash 64-cell bar clears it;
+    //         Panel B right-margin stat plate stacks cleanly below it.
+    //  F5: Portrait-docked CPU: <State> tag (y=382..395) clears kPositionHud P2 OSD
+    //      (floor 376, glide-in <= 380.9) and shifted recBar (y=356..376, floor 350).
+    for (int a = 0; a < 2; a++)
+    {
+        bool wide = (a == 1);
+        float xs = layout::xsOf(wide);
+        Box safe = layout::safeArea(wide);
+        Box timer = layout::timerRoom(wide);
+        Box counter = layout::counterRoom(wide);
+
+        // F1: SF6 Dual Frame Strip 2P + 3P/4P auto-relocation.
+        Box sf6_2p = layout::actionLogBox(wide, 2, true);
+        CHECK(inside(sf6_2p, safe));
+        CHECK_NEAR(398.0f, sf6_2p.y0, 0.01f);
+        CHECK_NEAR(438.0f, sf6_2p.y1, 0.01f);
+        CHECK_NEAR(608.0f, sf6_2p.x1, 0.01f);
+        if (wide)
+        {
+            CHECK_NEAR(334.0f, sf6_2p.x0, 0.01f);
+            CHECK(sf6_2p.x0 >= osd::kHudRight[1] + 40.0f);
+        }
+        else
+        {
+            CHECK_NEAR(322.0f, sf6_2p.x0, 0.01f);
+            CHECK(sf6_2p.x0 >= 307.0f + 15.0f);
+        }
+        CHECK(sf6_2p.y1 <= layout::kWatermarkCapTop - 6.0f);
+        CHECK(sf6_2p.y0 >= layout::kRecBarCentreY + layout::kRecBarHeight * 0.5f + 20.0f);
+
+        Box sf6_4p_noTimer = layout::actionLogBox(wide, 4, false);
+        Box sf6_4p_timer = layout::actionLogBox(wide, 4, true);
+        CHECK(inside(sf6_4p_noTimer, safe));
+        CHECK(inside(sf6_4p_timer, safe));
+        CHECK_NEAR(24.0f, sf6_4p_noTimer.y0, 0.01f);
+        CHECK_NEAR(62.0f, sf6_4p_noTimer.y1, 0.01f);
+        CHECK_NEAR(71.0f, sf6_4p_timer.y0, 0.01f);
+        CHECK_NEAR(109.0f, sf6_4p_timer.y1, 0.01f);
+        CHECK(!layout::meets(sf6_4p_timer, timer));
+        for (int p = 2; p < 4; p++)
+        {
+            CHECK(!layout::meets(sf6_4p_noTimer, brawlDamage(p, wide)));
+            CHECK(!layout::meets(sf6_4p_timer, brawlDamage(p, wide)));
+        }
+
+        // F2/F6: Panel B Frame-Step Inspector bounds & stepping below counterRoom / labBand.
+        float maxInfoW = layout::infoWidth(2, wide);
+        CHECK(maxInfoW <= 218.0f * xs + 0.01f);
+        CHECK_NEAR(34.0f, layout::infoLeft(wide), 0.01f);
+        CHECK(layout::infoLeft(wide) + maxInfoW <= timer.x0 - 6.0f + 0.01f);
+        CHECK_NEAR(28.0f, layout::infoTop(timer, maxInfoW, wide), 0.01f);
+        CHECK_NEAR(counter.y1 + layout::kStepGap, layout::infoTopWithCounter(timer, maxInfoW, wide, true), 0.01f);
+        CHECK_NEAR(83.0f, layout::infoTopWithCounter(timer, maxInfoW, wide, true), 0.01f);
+
+        Box ledgeBand = layout::labBand(false, 64, wide);
+        CHECK(layout::infoTop(ledgeBand, maxInfoW, wide) >= ledgeBand.y1 + layout::kStepGap - 0.01f);
+
+        // F3/F4: Option A Bare GC Controller never teleports; dual layout clears timer & Ledgedash bar.
+        Box v0Timer = layout::inputViewerCardBox(0, timer, wide);
+        Box v0Ledge = layout::inputViewerCardBox(0, ledgeBand, wide);
+        CHECK_NEAR(v0Timer.x0, v0Ledge.x0, 0.01f);
+        CHECK_NEAR(v0Timer.y0, v0Ledge.y0, 0.01f);
+        CHECK_NEAR(608.0f, v0Timer.x1, 0.01f);
+        CHECK_NEAR(26.0f, v0Timer.y0, 0.01f);
+        CHECK_NEAR(82.0f, v0Timer.y1, 0.01f);
+
+        Box v1Timer = layout::inputViewerCardBox(1, timer, wide);
+        CHECK(inside(v1Timer, safe));
+        CHECK(!layout::meets(v0Timer, v1Timer));
+        CHECK(!layout::meets(v1Timer, timer));
+        if (wide)
+        {
+            CHECK_NEAR(425.0f, v1Timer.x0, 0.01f);
+            CHECK_NEAR(26.0f, v1Timer.y0, 0.01f);
+            CHECK(v1Timer.x0 >= timer.x1 + 56.0f - 0.5f);
+        }
+        else
+        {
+            CHECK_NEAR(490.0f, v1Timer.x0, 0.01f);
+            CHECK_NEAR(88.0f, v1Timer.y0, 0.01f);
+            CHECK_NEAR(144.0f, v1Timer.y1, 0.01f);
+            CHECK(v1Timer.x0 >= timer.x1 + 110.0f - 0.5f);
+        }
+
+        // Ledgedash 64-cell bar clears Option A GC controller and Panel B stat plate stacks below it.
+        Box ledgeBar64 = layout::frameBarBox(64, wide);
+        CHECK(inside(ledgeBar64, safe));
+        CHECK(!layout::meets(ledgeBar64, v0Ledge));
+        CHECK(ledgeBar64.x1 <= v0Ledge.x0 - 6.0f + 0.01f);
+        Box statPlate = layout::drillStatPlateBox(3, v0Ledge.y1, wide);
+        CHECK(inside(statPlate, safe));
+        CHECK_NEAR(608.0f, statPlate.x1, 0.01f);
+        CHECK_NEAR(90.0f, statPlate.y0, 0.01f);
+        CHECK(!layout::meets(statPlate, v0Ledge));
+        CHECK(!layout::meets(statPlate, ledgeBar64));
+
+        // F5: Portrait-docked CPU: <State> tag clears kPositionHud P2 OSD and shifted recBar.
+        Box cpuTag = layout::cpuStatusTagBox(1, wide);
+        CHECK(inside(cpuTag, safe));
+        CHECK_NEAR(382.0f, cpuTag.y0, 0.01f);
+        CHECK_NEAR(395.0f, cpuTag.y1, 0.01f);
+        osd::StackPlace p2Hud = osd::stackPlace(osd::kPositionHud, 1, xs);
+        float p2GlideBottom = p2Hud.y + osd::kEnterFrom * p2Hud.dy + osd::kBoxHeight * 0.5f;
+        CHECK(p2Hud.y + osd::kBoxHeight * 0.5f <= 376.0f + 0.01f);
+        CHECK(p2GlideBottom < cpuTag.y0);
+        CHECK_NEAR(366.0f, layout::kRecBarCentreY, 0.01f);
+        CHECK_NEAR(350.0f, layout::recBarOsdFloor(), 0.01f);
+        CHECK(layout::kRecBarCentreY + layout::kRecBarHeight * 0.5f <= cpuTag.y0 - 6.0f + 0.01f);
+    }
 }

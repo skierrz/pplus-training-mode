@@ -327,50 +327,49 @@ namespace extra {
         float bw = b.x1 - b.x0;
         float bh = b.y1 - b.y0;
         bool activeMode = mode == cpu::kAdaptiveActive;
-        u32 accent = activeMode ? 0xFFD300FFu : 0x35B8C8FFu;
 
-        drawHudCard(x, y, bw, bh, xs, accent, 0xFFFFFF40u);
-        drawHudDivider(x, y + 16.0f, bw, xs);
+        drawSmokedPlate(x, y, bw, bh);
+        drawPlateDivider(x, y + 14.0f, bw, xs);
 
-        float lx = x + 5.5f * xs;
-        float rx = x + bw - 5.5f * xs;
-        drawShadowCapText(lx, y + 6.0f, activeMode ? "ADAPTIVE" : "HABIT TRACK",
-                          activeMode ? 0xFFE24AFFu : 0x7CE6E0FFu, 7.5f);
+        float lx = x + 6.0f * xs;
+        float rx = x + bw - 6.0f * xs;
+        drawShadowCapText(lx, y + 3.5f, activeMode ? "ADAPT" : "HABIT",
+                          activeMode ? 0xFFE24AFFu : 0xF1F5F9FFu, 8.2f);
 
         char badge[16];
         if (v.rpsCount > 0)
         {
-            snprintf(badge, sizeof(badge), "READ %u%%", static_cast<unsigned>(v.confidencePct));
+            snprintf(badge, sizeof(badge), "%u%%", static_cast<unsigned>(v.confidencePct));
         }
         else
         {
-            strcpy(badge, "WAITING");
+            strcpy(badge, "--");
         }
-        gfx::Rgba badgeCol = v.confident ? 0xFFD300FFu : (v.rpsCount > 0 ? 0xB8D8E4FFu : 0x6E8694FFu);
-        drawShadowCapText(rx, y + 6.0f, badge, badgeCol, 7.5f, true);
+        gfx::Rgba badgeCol = v.confident ? 0xFFD300FFu : (v.rpsCount > 0 ? 0xC6D8E4FFu : 0x8094A4FFu);
+        drawShadowCapText(rx, y + 3.5f, badge, badgeCol, 8.2f, true);
 
         static const char* const kBarLabels[3] = {"ATK", "GRB", "DEF"};
         static const gfx::Rgba kBarCols[3] = {0xFF6B54FFu, 0xFFD300FFu, 0x38B8FFFFu};
         const u8 pcts[3] = {v.atkPct, v.grabPct, v.defPct};
         float barX = x + 31.0f * xs;
-        float barW = 68.0f * xs;
+        float barW = 46.0f * xs;
         for (int r = 0; r < 3; r++)
         {
-            float ry = y + 19.0f + i2fScale(r, 9.0f);
-            drawShadowCapText(lx, ry, kBarLabels[r], 0xC6D8E0FFu, 7.5f);
-            gfx::fillRect(barX, ry + 1.0f, barW, 6.0f, 0x0A151CE8u);
+            float ry = y + 17.0f + i2fScale(r, 8.5f);
+            drawShadowCapText(lx, ry, kBarLabels[r], 0xC6D4E0FFu, 7.8f);
+            gfx::fillRect(barX, ry + 1.0f, barW, 5.5f, 0x0A141CC8u);
             if (pcts[r] > 0)
             {
                 float fw = barW * i2fScale(pcts[r], 0.01f);
-                gfx::fillRect(barX, ry + 1.0f, fw, 6.0f, kBarCols[r]);
+                gfx::fillRect(barX, ry + 1.0f, fw, 5.5f, kBarCols[r]);
             }
             char pctBuf[8];
             snprintf(pctBuf, sizeof(pctBuf), "%u%%", static_cast<unsigned>(pcts[r]));
-            drawShadowCapText(rx, ry, pctBuf, 0xE6F2F8FFu, 7.5f, true);
+            drawShadowCapText(rx, ry, pctBuf, 0xF1F5F9FFu, 7.8f, true);
         }
 
         char foot[28];
-        gfx::Rgba footCol = 0x8BA6B4FFu;
+        gfx::Rgba footCol = 0xC6D4E0FFu;
         if (activeMode)
         {
             if (v.confident && v.biasAction != kBiasNone)
@@ -380,19 +379,19 @@ namespace extra {
             }
             else
             {
-                strcpy(foot, "Learning P1...");
+                strcpy(foot, "Learning...");
             }
         }
         else if (v.rpsCount > 0)
         {
             snprintf(foot, sizeof(foot), "Read: %s", adaptiveRpsLabel(v.dominantRps));
-            footCol = v.confident ? 0x7CE6E0FFu : 0xB8CDD6FFu;
+            footCol = v.confident ? 0x7CE6E0FFu : 0xD8E6F0FFu;
         }
         else
         {
-            strcpy(foot, "Watching P1...");
+            strcpy(foot, "Watching...");
         }
-        drawShadowCapText(lx, y + 47.0f, foot, footCol, 7.5f);
+        drawShadowCapCenter(x + bw * 0.5f, y + 44.0f, foot, footCol, 8.2f, bw - 10.0f * xs);
         s_net->debug.hudDraws++;
     }
 }

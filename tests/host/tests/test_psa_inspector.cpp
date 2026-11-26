@@ -262,9 +262,11 @@ TEST(psa_inspector, hud_layout_non_overlap_and_safe_area_4_3_and_16_9)
             {
                 for (int comp = 0; comp <= 1; comp++)
                 {
-                    Box psa = psaInspectorBox(band, slots, comp != 0, wide);
+                    float infoBot = infoCpu.y1;
+                    Box psa = psaInspectorBox(band, slots, comp != 0, wide, infoBot);
                     CHECK(insideBox(psa, safe));
                     CHECK(psa.x1 <= 608.0f + 0.01f && psa.y0 >= 24.0f - 0.01f);
+                    CHECK(psa.x1 - psa.x0 <= 218.0f * xsOf(wide) + 0.01f);
 
                     // Clears Large Info Display, Timer, Ledgedash band, Recording HUD, Watermark.
                     CHECK(!overlapsBox(psa, infoHmn));
@@ -288,26 +290,22 @@ TEST(psa_inspector, hud_layout_non_overlap_and_safe_area_4_3_and_16_9)
                         CHECK(!overlapsBox(psa, diCompassBox(band, slots, wide)));
                     }
 
-                    // Clears typical 2P lower-screen OSD stacks (HUD, Sides); standalone
-                    // PSA (x >= 426 on 4:3, >= 471 on 16:9) also clears Top-Left OSD rows.
+                    // Clears typical 2P lower-screen OSD stacks (HUD, Sides).
                     for (int p = 0; p < 2; p++)
                     {
                         CHECK(!overlapsBox(psa, osdStackBox(osd::kPositionHud, p, 3, wide)));
                         CHECK(!overlapsBox(psa, osdStackBox(osd::kPositionSides, p, 3, wide)));
-                        if (slots == 0 && !comp)
-                        {
-                            CHECK(!overlapsBox(psa, osdStackBox(osd::kPositionTopLeft, p, 3, wide)));
-                        }
                     }
                 }
             }
 
-            // Explicit 4:3 geometry contract check when Input Viewer is active: x = 282..464.
+            // Explicit 4:3 Panel B Frame-Step Inspector contract: Top-Left x = 34..252 (6px clear of 4:3 timer x=258).
             if (!wide && !ledge)
             {
-                Box withViewer = psaInspectorBox(band, 1, false, false);
-                CHECK_NEAR(282.0f, withViewer.x0, 0.01f);
-                CHECK_NEAR(464.0f, withViewer.x1, 0.01f);
+                Box standalone = psaInspectorBox(band, 1, false, false, 0.0f);
+                CHECK_NEAR(34.0f, standalone.x0, 0.01f);
+                CHECK_NEAR(252.0f, standalone.x1, 0.01f);
+                CHECK(standalone.x1 <= timer.x0 - 6.0f + 0.01f);
             }
         }
     }

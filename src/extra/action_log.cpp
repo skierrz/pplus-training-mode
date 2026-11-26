@@ -4,15 +4,19 @@
 #include <gf/gf_heap_manager.h>
 #include <gf/gf_memory_pool.h>
 #include <memory.h>
+#include <so/collision/so_collision_attack_module_impl.h>
+#include <so/so_module_accesser.h>
 #include <string.h>
 
 #include "extra/action_log_core.h"
+#include "main/display/display.h"
 #include "main/game/motion.h"
 #include "main/game/tracker.h"
 #include "main/gfx/draw.h"
 #include "main/gfx/text.h"
 #include "main/settings.h"
 #include "main/ui/hud_layout.h"
+#include "main/ui/style.h"
 #include "shared/game/heap.h"
 #include "shared/game/mem.h"
 #include "shared/log.h"
@@ -22,10 +26,59 @@ namespace extra {
     namespace {
         struct ActionLogNet {
             ActionLogState st;
+            Sf6StripState sf6;
             ActionLogDebugBlock debug;
         };
 
         static ActionLogNet* s_net = NULL;
+
+        bool trackedHasActiveHitbox(const game::Tracked* t)
+        {
+            if (t == NULL)
+            {
+                return false;
+            }
+            if (t->cur.attackActive != 0)
+            {
+                return true;
+            }
+            if (t->fighter == NULL)
+            {
+                return false;
+            }
+            const soModuleEnumeration* m = game::fighterModules(t->fighter);
+            if (m == NULL || !game::isRam(m->m_collisionAttackModule))
+            {
+                return false;
+            }
+            u32 parts = m->m_collisionAttackModule->getPartSize();
+            if (parts > 16)
+            {
+                parts = 16;
+            }
+            for (u32 i = 0; i < parts; i++)
+            {
+                if (m->m_collisionAttackModule->isAttack(i, false))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        int activePlayerCount()
+        {
+            int maxP = 2;
+            for (int i = 0; i < game::kMaxTracked; i++)
+            {
+                const game::Tracked* t = game::tracked(i);
+                if (t != NULL && t->used && !t->partner && t->playerNo + 1 > maxP)
+                {
+                    maxP = t->playerNo + 1;
+                }
+            }
+            return maxP;
+        }
 
 #ifdef __MWERKS__
 #pragma dont_inline on
@@ -34,6 +87,7 @@ namespace extra {
         {
             ActionLogDebugBlock& d = s_net->debug;
             const ActionLogState& st = s_net->st;
+            const Sf6StripState& sf = s_net->sf6;
             d.magic = kActionLogDebugMagic;
             d.version = kActionLogDebugVersion;
             d.targetMode = mode;
@@ -54,14 +108,16 @@ namespace extra {
                     d.entries[i].label[0] = '\0';
                 }
             }
-        }
-
-        void drawPill(float x, float y, float w, float h, float xs, u32 border, u32 top, u32 bot, const char* txt,
-                      u32 tc, float txOff)
-        {
-            gfx::fillRect(x, y, w, h, border);
-            gfx::fillGradV(x + xs, y + 1.0f, w - 2.0f * xs, h - 2.0f, top, bot);
-            gfx::text(x + txOff, y + (h > 12.0f ? 0.5f : -1.5f), txt, tc, 0.5f);
+            d.sf6Advantage = sf.advantage;
+            d.sf6HasAdvantage = sf.hasAdvantage;
+            d.sf6Filled = sf.filled;
+            for (int r = 0; r < 2; r++)
+            {
+                for (int k = 0; k < kSf6MaxCells; k++)
+                {
+                    d.sf6Cells[r][k] = k < static_cast<int>(sf.filled) ? sf6CellAt(sf, r, k) : 0u;
+                }
+            }
         }
 #ifdef __MWERKS__
 #pragma dont_inline reset
@@ -82,6 +138,7 @@ namespace extra {
             return;
         }
         actionLogResetState(s_net->st);
+        sf6ResetState(s_net->sf6);
         syncDebug(main::settings().general.actionLog, 0xFF);
         TM_LOG("action_log: debug block at %08x\n", reinterpret_cast<u32>(&s_net->debug));
     }
@@ -96,6 +153,7 @@ namespace extra {
         if (s_net != NULL)
         {
             actionLogResetState(s_net->st);
+            sf6ResetState(s_net->sf6);
             syncDebug(main::settings().general.actionLog, 0xFF);
         }
     }
@@ -111,6 +169,7 @@ namespace extra {
         if (changed)
         {
             actionLogResetState(s_net->st);
+            sf6ResetState(s_net->sf6);
             s_net->st.activeTarget = mode;
         }
         if (mode == main::kActionLogOff)
@@ -121,12 +180,26 @@ namespace extra {
             }
             return;
         }
+        const game::Tracked* p1 = NULL;
+        const game::Tracked* p2 = NULL;
         u8 slot = 0xFF;
         bool wantCpu = (mode == main::kActionLogCpu);
         for (int i = 0; i < game::kMaxTracked; i++)
         {
             const game::Tracked* t = game::tracked(i);
-            if (t != NULL && t->used && !t->partner && t->cpu == wantCpu)
+            if (t == NULL || !t->used || t->partner)
+            {
+                continue;
+            }
+            if (p1 == NULL && !t->cpu)
+            {
+                p1 = t;
+            }
+            else if (p2 == NULL && (t->cpu || t != p1))
+            {
+                p2 = t;
+            }
+            if (slot == 0xFF && t->cpu == wantCpu)
             {
                 slot = static_cast<u8>(i);
                 int status = static_cast<int>(t->cur.status);
@@ -134,9 +207,24 @@ namespace extra {
                 bool gotM = (t->fighter != NULL && game::readMotion(t->fighter, mi));
                 actionLogPushFrame(s_net->st, game::trackerFrame(), status, gotM ? mi.kind : -1,
                                    t->cur.airborne != 0, NULL, gotM ? mi.name : NULL);
-                break;
             }
         }
+        if (p1 == NULL && p2 != NULL)
+        {
+            p1 = p2;
+            p2 = NULL;
+        }
+        const game::Tracked* topRow = wantCpu && p2 != NULL ? p2 : p1;
+        const game::Tracked* botRow = wantCpu && p2 != NULL ? p1 : p2;
+        int st0 = topRow != NULL ? static_cast<int>(topRow->cur.status) : 0;
+        bool act0 = topRow == NULL || topRow->cur.actionable != 0;
+        bool hit0 = trackedHasActiveHitbox(topRow);
+        bool stun0 = topRow != NULL && (topRow->cur.hitstun > 0 || topRow->cur.shieldStun > 0 || topRow->cur.hitlag > 0);
+        int st1 = botRow != NULL ? static_cast<int>(botRow->cur.status) : 0;
+        bool act1 = botRow == NULL || botRow->cur.actionable != 0;
+        bool hit1 = trackedHasActiveHitbox(botRow);
+        bool stun1 = botRow != NULL && (botRow->cur.hitstun > 0 || botRow->cur.shieldStun > 0 || botRow->cur.hitlag > 0);
+        sf6PushDualFrame(s_net->sf6, game::trackerFrame(), st0, act0, hit0, stun0, st1, act1, hit1, stun1);
         syncDebug(mode, slot);
     }
 
@@ -151,79 +239,101 @@ namespace extra {
 
         const bool wide = gfx::widescreen();
         const float xs = ui::layout::xsOf(wide);
-        const ui::layout::Box b = ui::layout::actionLogBox(wide);
+        const int players = activePlayerCount();
+        const bool timerOn = match.training && display::hudShown();
+        const ui::layout::Box b = ui::layout::actionLogBox(wide, players, timerOn);
         const float ox = b.x0, oy = b.y0, bw = b.x1 - b.x0, bh = b.y1 - b.y0;
-        const float ix = ox + 4.0f * xs, iw = bw - 8.0f * xs;
+        const int visibleCells = wide ? kSf6Cells16 : kSf6Cells43;
+        const float cellPitch = wide ? 6.0f : 8.0f;
+        const float cellFillW = wide ? 5.0f : 6.5f;
 
-        // Double-framed translucent Brawl/P+ panel (2.0px borders, zero left stripe).
-        gfx::fillRect(ox, oy, bw, bh, 0x050C12ECu);
-        gfx::fillRect(ox + 2.0f * xs, oy + 2.0f, bw - 4.0f * xs, bh - 4.0f, 0x359CB0E8u);
-        gfx::fillGradV(ix, oy + 4.0f, iw, bh - 8.0f, 0x0D1E28E6u, 0x061016ECu);
-        gfx::fillGradV(ix, oy + 4.0f, iw, 13.0f, 0x205A68EEu, 0x10323CEEu);
-        gfx::fillRect(ix, oy + 17.0f, iw, 2.0f, 0x2A5A68E4u);
+        // Quiet borderless Panel B smoked backing (zero outer wireframe, zero 6px legend).
+        gfx::fillRect(ox, oy, bw, bh, 0x0E161EA6u);
 
-        gfx::text(ix + 5.0f * xs, oy + 3.5f, "ACTION LOG", 0xE8F8FFFFu, 0.5f);
-        const char* who = (mode == main::kActionLogCpu) ? "CPU" : "P1";
-        drawPill(ix + 10.0f * xs + gfx::textWidth("ACTION LOG", 0.5f), oy + 5.0f,
-                 gfx::textWidth(who, 0.5f) + 6.0f * xs, 11.0f, xs, 0x050C12E0u,
-                 mode == main::kActionLogCpu ? 0x9C6814FFu : 0x1C7282FFu,
-                 mode == main::kActionLogCpu ? 0x663E0AFFu : 0x0E444EFFu, who, 0xFFFFFFFFu, 3.0f * xs);
+        const float tagX = ox + 5.0f * xs;
+        const float cellsX = ox + (wide ? 22.0f : 26.0f);
+        const float rowH = 9.2f;
+        const float rowY[2] = {oy + 7.0f, oy + bh - 7.0f - rowH};
+        const bool swapCpu = (mode == main::kActionLogCpu);
+        const char* const rowTags[2] = {swapCpu ? "P2" : "P1", swapCpu ? "P1" : "P2"};
+        const gfx::Rgba tagCols[2] = {swapCpu ? 0x86D4E8FFu : 0xF4F8FCFFu, swapCpu ? 0xF4F8FCFFu : 0x86D4E8FFu};
 
-        const ActionLogState& st = s_net->st;
-        char buf[20];
-        if (st.count > 0)
+        // Faint 2px horizontal inset divider between the two fighter tracks.
         {
-            actionLogFormatPill(*actionLogAt(st, static_cast<int>(st.count) - 1), buf, sizeof(buf));
+            float divW = bw - (wide ? 54.0f : 62.0f);
+            float inset = 6.0f * xs;
+            if (divW > 2.0f * inset)
+            {
+                gfx::fillRect(ox + inset, oy + bh * 0.5f - 1.0f, divW - 2.0f * inset, 2.0f, 0xDCE8F028u);
+            }
+        }
+
+        const Sf6StripState& sf = s_net->sf6;
+        int filled = static_cast<int>(sf.filled);
+        int startIdx = filled > visibleCells ? (filled - visibleCells) : 0;
+        const float tagSc = ui::style::scaleForCap(8.2f);
+
+        for (int r = 0; r < 2; r++)
+        {
+            float ty = ui::style::textYForCap(rowY[r] + 0.5f, tagSc);
+            gfx::text(tagX + xs, ty + 1.0f, rowTags[r], 0x000000C8u, tagSc);
+            gfx::text(tagX, ty, rowTags[r], tagCols[r], tagSc);
+            for (int c = 0; c < visibleCells; c++)
+            {
+                int src = startIdx + c;
+                u8 kind = (src < filled) ? sf6CellAt(sf, r, src) : static_cast<u8>(kSf6Empty);
+                float cx = cellsX + static_cast<float>(c) * cellPitch;
+                gfx::fillRect(cx, rowY[r], cellFillW, rowH, sf6CellColor(kind));
+                if (kind == kSf6Gap)
+                {
+                    // Crisp 3.5-scanline bright yellow gap marker centered in the cell.
+                    gfx::fillRect(cx, rowY[r] + (rowH - 3.5f) * 0.5f, cellFillW, 3.5f, 0xFFD300FFu);
+                }
+            }
+        }
+
+        // Bold Brawl Display Font (0x80497DA4, 20 scanlines) frame advantage readout on right.
+        char advBuf[12];
+        gfx::Rgba topCol = 0xD8E6F0FFu;
+        gfx::Rgba botCol = 0x90A8B8FFu;
+        if (sf.hasAdvantage)
+        {
+            int adv = static_cast<int>(sf.advantage);
+            if (adv > 0)
+            {
+                snprintf(advBuf, sizeof(advBuf), "+%df", adv);
+                topCol = 0x6BFFB0FFu;
+                botCol = 0x26B868FFu;
+            }
+            else if (adv < 0)
+            {
+                snprintf(advBuf, sizeof(advBuf), "%df", adv);
+                topCol = 0xFF847CFFu;
+                botCol = 0xD83232FFu;
+            }
+            else
+            {
+                strcpy(advBuf, "0f");
+                topCol = 0xFFE866FFu;
+                botCol = 0xD89B00FFu;
+            }
         }
         else
         {
-            strcpy(buf, "IDLE");
+            strcpy(advBuf, "--");
         }
-        gfx::text(ix + iw - 5.0f * xs - gfx::textWidth(buf, 0.5f), oy + 3.5f, buf, 0xFFD300FFu, 0.5f);
+        float advSc = 20.0f / 24.0f;
+        float advAreaX = cellsX + static_cast<float>(visibleCells) * cellPitch + 4.0f;
+        float advAreaW = (ox + bw - 5.0f) - advAreaX;
+        float advW = gfx::displayTextWidth(advBuf, advSc);
+        float advSx = (advW > advAreaW && advW > 0.0f) ? (advSc * advAreaW / advW) : advSc;
+        float drawW = advW > advAreaW ? advAreaW : advW;
+        float advX = advAreaX + (advAreaW - drawW) * 0.5f;
+        float advY = oy + (bh - 20.0f) * 0.5f - 2.0f * advSc;
+        gfx::displayText(advX, advY, advBuf, topCol, botCol, advSx, advSc, 1.4f, 0x050C12FFu);
 
-        int n = static_cast<int>(st.count);
-        if (n > 0)
-        {
-            const float padX = 5.0f * xs;
-            const float chevW = gfx::textWidth(">", 0.5f) + 3.0f * xs;
-            float widths[kActionLogCap];
-            for (int i = 0; i < n; i++)
-            {
-                actionLogFormatPill(*actionLogAt(st, i), buf, sizeof(buf));
-                widths[i] = gfx::textWidth(buf, 0.5f) + 2.0f * padX;
-            }
-            int first = n - 1;
-            float usedW = widths[first];
-            const float availW = iw - 8.0f * xs;
-            while (first > 0 && usedW + widths[first - 1] + chevW <= availW)
-            {
-                usedW += widths[--first] + chevW;
-            }
-            float px = ix + 4.0f * xs;
-            for (int i = first; i < n; i++)
-            {
-                if (i > first)
-                {
-                    gfx::text(px + 1.5f * xs, oy + 21.5f, ">", 0x90BCC8D8u, 0.5f);
-                    px += chevW;
-                }
-                const ActionLogEntry* e = actionLogAt(st, i);
-                const ActionPillPalette& pal = actionPillPalette(e->stateClass);
-                float pw = widths[i];
-                float maxW = ix + iw - 4.0f * xs - px;
-                if (pw > maxW)
-                {
-                    pw = maxW;
-                }
-                if (pw < 8.0f * xs)
-                {
-                    break;
-                }
-                actionLogFormatPill(*e, buf, sizeof(buf));
-                drawPill(px, oy + 21.0f, pw, 14.0f, xs, pal.border, pal.fillTop, pal.fillBot, buf, pal.text, padX);
-                px += pw;
-            }
-        }
+        s_net->debug.sf6VisibleCells = static_cast<u8>(visibleCells);
+        s_net->debug.sf6RelocatedTop = players > 2 ? 1u : 0u;
         s_net->debug.drawCalls++;
     }
 #ifdef __MWERKS__
