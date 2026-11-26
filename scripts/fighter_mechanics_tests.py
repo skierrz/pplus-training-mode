@@ -72,6 +72,7 @@ S_SNAKE_CYPHER = S_FM + 20
 S_GANON_FLOAT = S_FM + 21
 S_NANA_THROW = S_FM + 22
 S_OLIMAR_PIKMIN = S_FM + 23
+S_OLIMAR_MATURITY = S_FM + 24
 
 RIGHT, LEFT, UP, DOWN, NEUTRAL = CT.RIGHT, CT.LEFT, CT.UP, CT.DOWN, CT.NEUTRAL
 
@@ -100,6 +101,79 @@ def clear_fm(emu, settings_addr):
     emu.h.call("write_mem", addr=settings_addr + S_FM, hex="00" * 32)
     emu.h.call("write_mem", addr=settings_addr + S_GNW_HAMMER, hex="00")
     CT.wait_game_frames(emu, 2)
+
+
+def common_effect_id(emu, fv):
+    """Read active common effect ID from soEffectModuleImpl + 0x74 (-1 if none)."""
+    eff = CT.u32(fv._mods(), 0x88)
+    if not emu.is_ram(eff):
+        return -1
+    return CT.s32(emu.read(eff + 0x74, 4), 0)
+
+
+def pikmin_states(emu, fv):
+    """Return [(la8_maturity, la9_timer, vis_group0), ...] for all active Pikmin articles."""
+    mgr = CT.u32(fv._mods(), 0x84)
+    if not emu.is_ram(mgr):
+        return []
+    arr = emu.ptr(mgr + 0x2C)
+    if not arr:
+        return []
+    vt = emu.ptr(arr)
+    if not vt:
+        return []
+    sz_fn = emu.ptr(vt + 0x14)
+    cap_fn = emu.ptr(vt + 0x3C)
+    if not sz_fn or not cap_fn:
+        return []
+    w0, w1, w2 = struct.unpack(">3I", emu.read(sz_fn, 12))
+    word = emu.u32(arr + 0x08)
+    if (w1 >> 26) != 21 or (w2 >> 26) != 31:
+        return []
+    sh, mb, me, sr = (w1 >> 11) & 31, (w1 >> 6) & 31, (w1 >> 1) & 31, (w2 >> 11) & 31
+    rot = ((word << sh) | (word >> ((32 - sh) & 31))) & 0xFFFFFFFF
+    mask = ((1 << (32 - mb)) - 1) ^ ((1 << (31 - me)) - 1)
+    count = (rot & mask) >> sr
+    width = 32 - sr
+    top = (word >> (32 - width)) & ((1 << width) - 1)
+    cap = emu.u32(cap_fn) & 0xFFFF
+    if count <= 0 or cap <= 0 or count > 16:
+        return []
+    out = []
+    for i in range(count):
+        slot_idx = (top + i) % cap
+        art = emu.ptr(arr + 0x0C + 4 * slot_idx)
+        if not art:
+            continue
+        avt = emu.ptr(art)
+        if not avt:
+            continue
+        top_off = CT.s32(emu.read(avt + 4, 4), 0)
+        if top_off > 0 or top_off < -0x200:
+            continue
+        obj = (art + top_off) & 0xFFFFFFFF
+        acc = emu.ptr(obj + 0x60)
+        if not acc:
+            continue
+        enum_ptr = emu.ptr(acc + 0xD8)
+        if not enum_ptr:
+            continue
+        mods = emu.read(enum_ptr, 0xCC)
+        wm = CT.u32(mods, 0x64)
+        vis = CT.u32(mods, 0x58)
+        if not emu.is_ram(wm) or not emu.is_ram(vis):
+            continue
+        la = emu.ptr(wm + 0x20)
+        la_ints = emu.ptr(la + 0x0C) if la else 0
+        if not la_ints:
+            continue
+        la8 = CT.s32(emu.read(la_ints + 8 * 4, 4), 0)
+        la9 = CT.s32(emu.read(la_ints + 9 * 4, 4), 0)
+        # soVisibilityModuleImpl: +0x20 m_data, +0x24 m_setData (byte 0 = group 0 current).
+        set_data = emu.ptr(vis + 0x24)
+        vis0 = struct.unpack(">b", emu.read(set_data, 1))[0] if set_data else -1
+        out.append((la8, la9, vis0))
+    return out
 
 
 def state_path(name):
@@ -199,11 +273,15 @@ def sc_gnw(emu, notes):
     CT.place_cpu(emu, p1, cpu, close_dist=10.0)
 
     readings = []
+    commons = []
     for val in (1, 2, 3, 4):
         set_u8(emu, settings, S_GNW_BUCKET, val)
         readings.append((round(p1.la_float(19), 1), round(p1.la_float(20), 1), p1.la_bit(61)))
+        commons.append(common_effect_id(emu, p1))
     if readings != [(0.0, 0.0, 0), (1.0, 12.0, 0), (2.0, 24.0, 0), (3.0, 36.0, 1)]:
         fails.append(f"bucket readings: {readings}")
+    if commons != [-1, -1, -1, 26]:
+        fails.append(f"bucket common glow: {commons}")
 
     # Spill full bucket on CPU via Down-B and verify real damage + auto-refill.
     dmg = CT.fire_and_measure_damage(emu, p1, cpu, buttons=("B",), stick=DOWN, hold_f=4, wait_f=70)
@@ -258,16 +336,16 @@ def sc_samus(emu, notes):
     set_u8(emu, settings, S_SAMUS_BEAM, 0)
     CT.place_cpu(emu, p1, cpu, close_dist=16.0)
     set_u8(emu, settings, S_SAMUS_CHARGE, 1)
-    lvl_e = p1.la_int(65)
+    lvl_e, cm_e = p1.la_int(65), common_effect_id(emu, p1)
     dmg_e = fire_two_tap(emu, p1, cpu, hold_statuses=(0x118,))
     set_u8(emu, settings, S_SAMUS_CHARGE, 2)
-    lvl_h = p1.la_int(65)
+    lvl_h, cm_h = p1.la_int(65), common_effect_id(emu, p1)
     dmg_h = fire_two_tap(emu, p1, cpu, hold_statuses=(0x118,))
     set_u8(emu, settings, S_SAMUS_CHARGE, 3)
-    lvl_f = p1.la_int(65)
+    lvl_f, cm_f = p1.la_int(65), common_effect_id(emu, p1)
     dmg_f = CT.fire_and_measure_damage(emu, p1, cpu, buttons=("B",), hold_f=4, wait_f=70)
-    if (lvl_e, lvl_h, lvl_f) != (0, 4, 7) or not (dmg_e < dmg_h < dmg_f):
-        fails.append(f"charge: lvls={(lvl_e, lvl_h, lvl_f)} dmgs={(dmg_e, dmg_h, dmg_f)}")
+    if (lvl_e, lvl_h, lvl_f) != (0, 4, 7) or (cm_e, cm_h, cm_f) != (-1, -1, 26) or not (dmg_e < dmg_h < dmg_f):
+        fails.append(f"charge: lvls={(lvl_e, lvl_h, lvl_f)} common={(cm_e, cm_h, cm_f)} dmgs={(dmg_e, dmg_h, dmg_f)}")
 
     # 3. Air Bombs: Unlimited keeps LA-Basic[67] == 0 across 3 midair Down-B drops.
     set_u8(emu, settings, S_SAMUS_AIR_BOMBS, 1)
@@ -316,16 +394,16 @@ def sc_mewtwo(emu, notes):
 
     # 1. Shadow Ball: Empty (-1), Half (3), Full (6).
     set_u8(emu, settings, S_MEWTWO_BALL, 1)
-    lvl_e = (p1.la_int(64), p1.la_int(65), p1.la_int(66))
+    lvl_e, cm_e = (p1.la_int(64), p1.la_int(65), p1.la_int(66)), common_effect_id(emu, p1)
     dmg_e = fire_two_tap(emu, p1, cpu)
     set_u8(emu, settings, S_MEWTWO_BALL, 2)
-    lvl_h = (p1.la_int(64), p1.la_int(65), p1.la_int(66))
+    lvl_h, cm_h = (p1.la_int(64), p1.la_int(65), p1.la_int(66)), common_effect_id(emu, p1)
     dmg_h = fire_two_tap(emu, p1, cpu)
     set_u8(emu, settings, S_MEWTWO_BALL, 3)
-    lvl_f = (p1.la_int(64), p1.la_int(65), p1.la_int(66))
+    lvl_f, cm_f = (p1.la_int(64), p1.la_int(65), p1.la_int(66)), common_effect_id(emu, p1)
     dmg_f = CT.fire_and_measure_damage(emu, p1, cpu, buttons=("B",), hold_f=4, wait_f=70)
-    if (lvl_e[1], lvl_h[1], lvl_f[1]) != (-1, 3, 6) or not (dmg_e < dmg_h < dmg_f):
-        fails.append(f"shadow ball: lvls={(lvl_e, lvl_h, lvl_f)} dmgs={(dmg_e, dmg_h, dmg_f)}")
+    if (lvl_e[1], lvl_h[1], lvl_f[1]) != (-1, 3, 6) or (cm_e, cm_h, cm_f) != (-1, -1, 26) or not (dmg_e < dmg_h < dmg_f):
+        fails.append(f"shadow ball: lvls={(lvl_e, lvl_h, lvl_f)} common={(cm_e, cm_h, cm_f)} dmgs={(dmg_e, dmg_h, dmg_f)}")
 
     # 2. Hover: full-hop for height, enter 0x120 (X + Down), return stick to
     # neutral and hold past 80 frames (normal cap is 60f), release Jump out of
@@ -398,13 +476,13 @@ def sc_lucario(emu, notes):
 
     # 2. Aura Sphere: Empty (-1) vs Full (4).
     set_u8(emu, settings, S_LUCARIO_SPHERE, 1)
-    lvl_e = (p1.la_int(64), p1.la_int(65), p1.la_int(66))
+    lvl_e, cm_e = (p1.la_int(64), p1.la_int(65), p1.la_int(66)), common_effect_id(emu, p1)
     dmg_e = fire_two_tap(emu, p1, cpu, direct_start_shoot=True)
     set_u8(emu, settings, S_LUCARIO_SPHERE, 2)
-    lvl_f = (p1.la_int(64), p1.la_int(65), p1.la_int(66))
+    lvl_f, cm_f = (p1.la_int(64), p1.la_int(65), p1.la_int(66)), common_effect_id(emu, p1)
     dmg_f = fire_two_tap(emu, p1, cpu, direct_start_shoot=True)
-    if lvl_e != (0, -1, -1) or lvl_f != (16, 4, 4) or not (dmg_f > dmg_e + 5.0):
-        fails.append(f"sphere: lvls={(lvl_e, lvl_f)} dmgs={(dmg_e, dmg_f)}")
+    if lvl_e != (0, -1, -1) or lvl_f != (16, 4, 4) or (cm_e, cm_f) != (-1, 26) or not (dmg_f > dmg_e + 5.0):
+        fails.append(f"sphere: lvls={(lvl_e, lvl_f)} common={(cm_e, cm_f)} dmgs={(dmg_e, dmg_f)}")
 
     # 3. Savestate preservation: Default restores saved Aura=120 + Full Sphere; locked overrides re-apply.
     set_u8(emu, settings, S_LUCARIO_AURA, 3)    # 120.0
@@ -432,10 +510,12 @@ def sc_wario(emu, notes):
     CT.place_cpu(emu, p1, cpu, close_dist=10.0)
 
     readings = []
+    commons = []
     dmgs = []
     for val in (1, 2, 3):
         set_u8(emu, settings, S_WARIO_WAFT, val)
         readings.append((p1.la_int(65), p1.la_int(66), p1.la_bit(63)))
+        commons.append(common_effect_id(emu, p1))
         CT.place_cpu(emu, p1, cpu, close_dist=10.0)
         dmgs.append(CT.fire_and_measure_damage(emu, p1, cpu, buttons=("B",), stick=DOWN, hold_f=3, wait_f=70))
     # ft_wario ticks LA-Basic[65] by +1 on the frame after apply before Python reads.
@@ -446,6 +526,8 @@ def sc_wario(emu, notes):
     )
     if not ok_vars:
         fails.append(f"waft vars: {readings}")
+    if commons != [-1, -1, 39]:
+        fails.append(f"waft common glow: {commons}")
     if not (dmgs[0] < dmgs[1] < dmgs[2]):
         fails.append(f"waft dmgs: {dmgs}")
 
@@ -472,15 +554,17 @@ def sc_dk(emu, notes):
     CT.place_cpu(emu, p1, cpu, close_dist=12.0)
 
     set_u8(emu, settings, S_DK_PUNCH, 1)
-    lvl_e = p1.la_int(64)
+    lvl_e, cm_e = p1.la_int(64), common_effect_id(emu, p1)
     # Tap B to start windup, then tap B to throw uncharged punch.
     dmg_e = fire_two_tap(emu, p1, cpu, hold_statuses=(0x112, 0x117))
     CT.place_cpu(emu, p1, cpu, close_dist=12.0)
     set_u8(emu, settings, S_DK_PUNCH, 2)
-    lvl_f = p1.la_int(64)
+    lvl_f, cm_f = p1.la_int(64), common_effect_id(emu, p1)
     dmg_f = CT.fire_and_measure_damage(emu, p1, cpu, buttons=("B",), hold_f=3, wait_f=60)
-    if (lvl_e, lvl_f) != (0, 10) or not (dmg_f > dmg_e + 5.0):
-        fails.append(f"dk punch: lvls={(lvl_e, lvl_f)} dmgs={(dmg_e, dmg_f)}")
+    set_u8(emu, settings, S_DK_PUNCH, 1)
+    cm_clear = common_effect_id(emu, p1)
+    if (lvl_e, lvl_f) != (0, 10) or (cm_e, cm_f, cm_clear) != (-1, 26, -1) or not (dmg_f > dmg_e + 5.0):
+        fails.append(f"dk punch: lvls={(lvl_e, lvl_f)} common={(cm_e, cm_f, cm_clear)} dmgs={(dmg_e, dmg_f)}")
     notes.append(f"donkey_kong: lvls={(lvl_e, lvl_f)} dmgs={(dmg_e, dmg_f)}")
     return fails
 
@@ -511,18 +595,18 @@ def sc_rob(emu, notes):
     gyro_sav = state_path("rob-gyro")
     emu.h.call("save_state", path=gyro_sav)
     set_u8(emu, settings, S_ROB_GYRO, 1)
-    g_e = round(p1.la_float(20), 1)
+    g_e, cm_e = round(p1.la_float(20), 1), common_effect_id(emu, p1)
     # Empty Gyro enters SpecialLwHold (0x11b); a second B tap fires it uncharged.
     dmg_e = fire_two_tap(emu, p1, cpu, hold_statuses=(0x11B,), first_stick=DOWN)
 
     emu.h.call("load_state", path=gyro_sav)
     CT.wait_game_frames(emu, 2)
     set_u8(emu, settings, S_ROB_GYRO, 2)
-    g_f = round(p1.la_float(20), 1)
+    g_f, cm_f = round(p1.la_float(20), 1), common_effect_id(emu, p1)
     # Full Gyro (>= 90.0) transitions directly from 0x115 to SpecialLwShoot (0x11d) on one Down-B tap.
     dmg_f = CT.fire_and_measure_damage(emu, p1, cpu, buttons=("B",), stick=DOWN, hold_f=3, wait_f=70)
-    if not (0.0 <= g_e <= 2.0 and 89.0 <= g_f <= 91.0) or not (dmg_f > dmg_e + 0.5):
-        fails.append(f"rob gyro: vars={(g_e, g_f)} dmgs={(dmg_e, dmg_f)}")
+    if not (0.0 <= g_e <= 2.0 and 89.0 <= g_f <= 91.0) or (cm_e, cm_f) != (-1, 26) or not (dmg_f > dmg_e + 0.5):
+        fails.append(f"rob gyro: vars={(g_e, g_f)} common={(cm_e, cm_f)} dmgs={(dmg_e, dmg_f)}")
 
     # 2. Robo Beam: Uncharged (0.0) / Normal (300.0) / Super (900.0).
     # Reload clean state before each shot so CPU never gets knocked off FD ledge.
@@ -648,17 +732,17 @@ def sc_squirtle(emu, notes):
     CT.place_cpu(emu, p1, cpu, close_dist=16.0)
 
     set_u8(emu, settings, S_SQUIRTLE_GUN, 1)
-    v_e = p1.la_int(64)
+    v_e, cm_e = p1.la_int(64), common_effect_id(emu, p1)
     set_u8(emu, settings, S_SQUIRTLE_GUN, 2)
-    v_f = p1.la_int(64)
+    v_f, cm_f = p1.la_int(64), common_effect_id(emu, p1)
     x0 = cpu.posture()["x"]
     emu.hold(0, buttons=["B"])
     CT.wait_game_frames(emu, 4)
     emu.neutral(0)
     CT.wait_idle(emu, p1, 120)
     dx = round(abs(cpu.posture()["x"] - x0), 2)
-    if (v_e, v_f) != (0, 60) or dx < 10.0:
-        fails.append(f"squirtle: vars={(v_e, v_f)} push_dx={dx}")
+    if (v_e, v_f) != (0, 60) or (cm_e, cm_f) != (-1, 26) or dx < 10.0:
+        fails.append(f"squirtle: vars={(v_e, v_f)} common={(cm_e, cm_f)} push_dx={dx}")
     notes.append(f"squirtle: vars={(v_e, v_f)} push_dx={dx}")
     return fails
 
@@ -669,12 +753,12 @@ def sc_sheik(emu, notes):
     CT.place_cpu(emu, p1, cpu, close_dist=16.0)
 
     set_u8(emu, settings, S_SHEIK_NEEDLES, 1)
-    s0 = (p1.la_int(64), p1.la_bit(61))
+    s0, cm0 = (p1.la_int(64), p1.la_bit(61)), common_effect_id(emu, p1)
     set_u8(emu, settings, S_SHEIK_NEEDLES, 2)
-    s6 = (p1.la_int(64), p1.la_bit(61))
+    s6, cm6 = (p1.la_int(64), p1.la_bit(61)), common_effect_id(emu, p1)
     dmg = CT.fire_and_measure_damage(emu, p1, cpu, buttons=("B",), hold_f=3, wait_f=60)
-    if s0 != (0, 0) or s6 != (6, 1) or dmg < 10.0:
-        fails.append(f"sheik: s0={s0} s6={s6} dmg={dmg}")
+    if s0 != (0, 0) or s6 != (6, 1) or (cm0, cm6) != (-1, 26) or dmg < 10.0:
+        fails.append(f"sheik: s0={s0} s6={s6} common={(cm0, cm6)} dmg={dmg}")
     notes.append(f"sheik: s0={s0} s6={s6} 6-needle_dmg={dmg}")
     return fails
 
@@ -814,7 +898,7 @@ def sc_ganondorf(emu, notes):
 
 def sc_olimar(emu, notes):
     pos = len(emu.log_text())
-    settings, p1, _ = prepare(emu, "olimar")
+    settings, p1, cpu = prepare(emu, "olimar")
     fails = []
 
     # Validate FitPikmin.pac pullOutParam row-0 discovery.
@@ -870,6 +954,58 @@ def sc_olimar(emu, notes):
         CT.wait_idle(emu, p1, 80)
         consec.append((p1.la_int(64), p1.la_int(65)))
 
+    # Olimar Maturity Lock (Default / Leaf / Bud / Flower): verify existing Pikmin
+    # lock both LA-Basic[8] & visual group 0, hold growth timer LA-Basic[9] at 0..1
+    # (ft_pikmin ticks +1 after plugin apply on Leaf/Bud frames) across time,
+    # newly plucked Pikmin immediately lock, gameplay damage scales Leaf < Bud < Flower,
+    # and Default resumes normal aging.
+    CT.dpad_load(emu)
+    set_u8(emu, settings, S_OLIMAR_PIKMIN, 0)
+    mat_reads = {}
+    for m_val, m_stage in ((1, 0), (2, 1), (3, 2)):
+        set_u8(emu, settings, S_OLIMAR_MATURITY, m_val)
+        CT.wait_game_frames(emu, 10)
+        st = pikmin_states(emu, p1)
+        mat_reads[m_stage] = st
+        if len(st) < 3 or any(la8 != m_stage or not (0 <= la9 <= 1) or vis0 != m_stage for la8, la9, vis0 in st):
+            fails.append(f"olimar maturity stage {m_stage}: {st}")
+    # Verify staying locked across 30 frames + newly plucked 4th Pikmin inherits Flower (2).
+    CT.wait_game_frames(emu, 30)
+    st_hold = pikmin_states(emu, p1)
+    emu.hold(0, buttons=["B"])
+    CT.wait_game_frames(emu, 4)
+    emu.neutral(0)
+    CT.wait_idle(emu, p1, 80)
+    st_pluck = pikmin_states(emu, p1)
+    if len(st_hold) < 3 or any(la8 != 2 or not (0 <= la9 <= 1) or vis0 != 2 for la8, la9, vis0 in st_hold):
+        fails.append(f"olimar maturity hold@30f: {st_hold}")
+    if len(st_pluck) < 4 or any(la8 != 2 or not (0 <= la9 <= 1) or vis0 != 2 for la8, la9, vis0 in st_pluck):
+        fails.append(f"olimar maturity newly plucked: {st_pluck}")
+    # Gameplay scaling: F-Smash damage increases strictly from Leaf -> Bud -> Flower.
+    CT.dpad_load(emu)
+    CT.place_cpu(emu, p1, cpu, close_dist=11.0)
+    CT.dpad_save(emu)
+    mat_dmgs = []
+    for m_val in (1, 2, 3):
+        CT.dpad_load(emu)
+        set_u8(emu, settings, S_OLIMAR_PIKMIN, 1)  # Red
+        set_u8(emu, settings, S_OLIMAR_MATURITY, m_val)
+        CT.wait_game_frames(emu, 6)
+        toward = RIGHT if cpu.posture()["x"] >= p1.posture()["x"] else LEFT
+        mat_dmgs.append(CT.fire_and_measure_damage(emu, p1, cpu, buttons=(), c=toward, hold_f=3, wait_f=60))
+    if not (mat_dmgs[0] < mat_dmgs[1] < mat_dmgs[2]):
+        fails.append(f"olimar maturity fsmash scaling: leaf/bud/flower={mat_dmgs}")
+    # Default resumes normal aging (LA-Basic[9] increments past 10 on Leaf Pikmin).
+    CT.dpad_load(emu)
+    set_u8(emu, settings, S_OLIMAR_MATURITY, 1)  # reset to Leaf with timer 0
+    set_u8(emu, settings, S_OLIMAR_MATURITY, 0)  # back to Default
+    CT.wait_game_frames(emu, 30)
+    st_age = pikmin_states(emu, p1)
+    if len(st_age) < 3 or not all(t >= 10 for _, t, _ in st_age):
+        fails.append(f"olimar maturity default aging did not resume: {st_age}")
+
+    # Re-apply Purple before exit so detach restoration is verified.
+    set_u8(emu, settings, S_OLIMAR_PIKMIN, 5)
     # Leave patched on Purple and exit Training: detach must restore 1.0/1.0/1.0/1.0/1.0.
     nav.finish_training(emu)
     detached = OLIMAR_DETACH_RE.findall(emu.log_text()[pos:])
@@ -883,7 +1019,9 @@ def sc_olimar(emu, notes):
     if not detached:
         fails.append("detach did not log restoring Olimar Pikmin weights")
     notes.append(
-        f"olimar: addr={w_addr:#x} def={w_def} plucked={plucked} consec={consec} detach_restored={bool(detached)}"
+        f"olimar: addr={w_addr:#x} def={w_def} plucked={plucked} consec={consec} "
+        f"maturity_pluck4={st_pluck} fsmash_lbf={mat_dmgs} age_timers={[t for _, t, _ in st_age]} "
+        f"detach_restored={bool(detached)}"
     )
     return fails
 

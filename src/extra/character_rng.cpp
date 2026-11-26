@@ -55,12 +55,14 @@
 //    face's damage (Brawl: 30). Only the chosen face's weight is left
 //    (measured: that face from the pull's first frame). The item files stay
 //    loaded from boot (put back at detach: measured after leaving Training).
-//  - Judge (status 0x113, ft_gamewatch 0x11AE0 in the running module): the
-//    number shown is the one in instance int 67 (0-8 for 1-9) when the
-//    status starts; the start then draws the next one, by the weights in his
-//    fighter data (all 1) and never int 67 or int 68 (the one before), into
-//    67, the old 67 moving to 68. Measured: int 67 = k gives Judge k+1 (seen
-//    on screen for 1, 5 and 9).
+//  - Judge (status 0x113, ft_gamewatch.rel 0x11AE0 in the running module): the
+//    number played is LA-Basic[67] (0-8 for 1-9) when the status starts; the
+//    start draws the next one avoiding int 67 and int 68 into 67 and copies the
+//    active number into int 68, which ft_gamewatch.rel 0x0B9D0 -> 0x1AB3C reads
+//    on frame 15 to set wnGameWatchPanel's visible sign digit. Outside 0x113,
+//    int 68 is set to choice % 9 so 0x11AE0 never sees 67 == 68; during 0x113,
+//    int 68 is left untouched so the visible sign matches the hitbox, while
+//    int 67 stays choice - 1 for P+'s 1-dot/2-dot parity indicator.
 //  - Misfire (FitLuigi.pac, action 0x118's entry): a misfire unless instance
 //    int 91 is below 7 or flag 113 (the misfire stored, set while charging)
 //    is on. A side special that does not misfire adds 1 to int 91 while it is
@@ -73,6 +75,7 @@ namespace extra {
         kStatusSmashStart = 0x2A,
         kStatusSmashHold = 0x2B,
         kStatusSmash = 0x2C,
+        kStatusJudge = 0x113,
         kStatusPull = 0x115,
         // The script's weapon flags, as its commands name them.
         kFlagGolfClub = 0x20000068,
@@ -191,8 +194,11 @@ namespace extra {
     }
 
     // The next Judge is the chosen one. The one before is set to another
-    // number: with both the same, the start draws twice and shows the draw.
-    static void applyJudge(const soModuleEnumeration* m, int choice)
+    // number outside status 0x113: with both the same, 0x11AE0 draws twice and
+    // shows the draw. During 0x113, ft_gamewatch.rel 0x0B9D0 reads kJudgeBefore
+    // (copied from kJudgeNext on entry) for wnGameWatchPanel's visible digit,
+    // so leave kJudgeBefore untouched until the Judge ends.
+    static void applyJudge(const soModuleEnumeration* m, int status, int choice)
     {
         if (choice == main::kHammerDefault)
         {
@@ -200,7 +206,10 @@ namespace extra {
         }
         soWorkManageModule* work = m->m_workManageModule;
         work->setInt(choice - 1, kJudgeNext);
-        work->setInt(choice % 9, kJudgeBefore);
+        if (status != kStatusJudge)
+        {
+            work->setInt(choice % 9, kJudgeBefore);
+        }
     }
 
     // A misfire stored while charging still gives a normal side special
@@ -537,7 +546,7 @@ namespace extra {
             int status = game::fighterStatus(m);
             if (kind == kFtGameWatch)
             {
-                applyJudge(m, judge);
+                applyJudge(m, status, judge);
             }
             else if (kind == kFtLuigi && misfire != main::kMisfireDefault)
             {
@@ -550,7 +559,7 @@ namespace extra {
                 applyDraw(turnip);
                 applyFace(m, status, turnip);
             }
-            fighterMechanicsApplyFighter(refs[i].fighter, m, kind, status);
+            fighterMechanicsApplyFighter(refs[i].fighter, m, kind, status, refs[i].playerNo);
         }
         if (call == main::kRngApply)
         {

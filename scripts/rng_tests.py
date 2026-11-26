@@ -171,23 +171,34 @@ def judges(t, count):
     mods = [r.f.modules(f) for f in who]
     status = [u32(m, MOD_STATUS) + STATUS_KIND for m in mods]
 
-    def ra0(m):
-        g = e.ptr(u32(m, MOD_WORK) + WORK_STATUS)
-        return s32(e.read(e.u32(g + 0xC), 4), 0)
+    def ra0_and_la68(m):
+        wm = u32(m, MOD_WORK)
+        gs = e.ptr(wm + WORK_STATUS)
+        gi = e.ptr(wm + WORK_INSTANCE)
+        ra0_val = s32(e.read(e.u32(gs + 0xC), 4), 0)
+        la68_val = s32(e.read(e.u32(gi + 0xC) + 68 * 4, 4), 0)
+        return ra0_val, la68_val
     frames = {}
     for n in range(count):
         frames.update(press(1 + n * JUDGE_FRAMES, B_SPECIAL, 1.0, 0.0))
     rows = t.both(frames_to_steps(frames, count * JUDGE_FRAMES),
-                  read=lambda i: [(e.u32(a), ra0(m)) for a, m in zip(status, mods)])
+                  read=lambda i: [(e.u32(a), *ra0_and_la68(m)) for a, m in zip(status, mods)])
     out = []
     for k in range(2):
         got = []
         for n in range(count):
-            seen = {v for st, v in (row[k] for row in rows[n * JUDGE_FRAMES:(n + 1) * JUDGE_FRAMES])
-                    if st == ST_JUDGE}
+            judge_frames = [row[k] for row in rows[n * JUDGE_FRAMES:(n + 1) * JUDGE_FRAMES]
+                            if row[k][0] == ST_JUDGE]
+            seen = {v for _, v, _ in judge_frames}
             if len(seen) != 1 or not 0 <= next(iter(seen)) - JUDGE_MOTION < 9:
                 raise RngError(f"G&W {k} Judge {n + 1}: status int 0 read {sorted(seen)} during the Judge")
-            got.append(next(iter(seen)) - JUDGE_MOTION + 1)
+            num = next(iter(seen)) - JUDGE_MOTION
+            vis = {b for _, _, b in judge_frames}
+            if vis != {num}:
+                raise RngError(
+                    f"G&W {k} Judge {n + 1}: LA-Basic[68] (sign digit) read {sorted(vis)} != {num} during status 0x113"
+                )
+            got.append(num + 1)
         out.append(got)
     return out
 

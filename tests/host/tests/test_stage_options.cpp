@@ -235,7 +235,7 @@ TEST(stage_options, restore_global_hazard_off_guard)
 TEST(stage_options, platform_row_swaps_choices_and_restores_defaults)
 {
     const ui::Page& page = *ui::labMenu().pages[ui::pages::P_STAGE_CAST];
-    CHECK_EQ(34, page.count);
+    CHECK_EQ(35, page.count);
     CHECK(strcmp(page.options[3].name, "Platforms") == 0);
 
     main::setStagePlatformRowPreset(extra::kPresetYoshisIsland);

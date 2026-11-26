@@ -515,6 +515,13 @@ namespace main {
         kPikminPurple,
         kOlimarPikminCount
     };
+    enum OlimarMaturity {
+        kPikminMaturityDefault = 0,
+        kPikminLeaf,
+        kPikminBud,
+        kPikminFlower,
+        kOlimarMaturityCount
+    };
 
     struct FighterMechanicsSettings {
         u8 peachFloat;       // MechToggle (Default / Always)
@@ -541,7 +548,8 @@ namespace main {
         u8 ganonFloat;       // MechToggle (Default / Unlimited)
         u8 nanaThrow;        // NanaThrow (Default / F-Throw / B-Throw / U-Throw / D-Throw)
         u8 olimarPikmin;     // OlimarPikmin (Default / Red / Yellow / Blue / White / Purple)
-        u8 reserved[8];
+        u8 olimarMaturity;   // OlimarMaturity (Default / Leaf / Bud / Flower)
+        u8 reserved[7];
     };
 
     struct Settings {
@@ -623,6 +631,7 @@ namespace main {
     TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics) == 432, tm_settings_fighter_mechanics_at_432);
     TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.nanaThrow) == 454, tm_settings_nana_throw_at_454);
     TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.olimarPikmin) == 455, tm_settings_olimar_pikmin_at_455);
+    TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.olimarMaturity) == 456, tm_settings_olimar_maturity_at_456);
     TM_STATIC_ASSERT(sizeof(Settings) == 464, tm_settings_size_unchanged);
 
     // Lab Menu Button's default: Start in the match opens the menu (0 keeps it

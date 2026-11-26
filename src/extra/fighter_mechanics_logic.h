@@ -104,6 +104,9 @@ namespace extra {
         kVarLucasOffenseFlag = 0x2200006B,    // RA-Bit[107]
         kVarLucasOffenseConsume = 0x2200006C, // RA-Bit[108]
         kVarLucasOffenseProg = 0x1100003D,    // LA-Float[61], 0.0..120.0
+        kStatusAttackS4Start = 0x2A,
+        kStatusAttackS4Hold = 0x2B,
+        kStatusAttackS4 = 0x2C,
 
         // Squirtle (FitPokeZenigame.pac): Water Gun charge (0..60).
         kVarSquirtleWaterGun = 0x10000040, // LA-Basic[64]
@@ -121,7 +124,13 @@ namespace extra {
         kVarSnakeCypherUsed = 0x1200003D, // LA-Bit[61]
 
         // Ganondorf (FitGanon.pac): Dead Man's Float frame counter.
-        kVarGanonFloatCount = 0x10000062 // LA-Basic[98]
+        kVarGanonFloatCount = 0x10000062, // LA-Basic[98]
+
+        // Olimar Pikmin article (ft_pikmin.rel:0x1b61c..0x1b828):
+        // LA-Basic[8] = maturity stage (0 Leaf, 1 Bud, 2 Flower); LA-Basic[9] = growth timer.
+        kVarPikminMaturity = 0x10000008,
+        kVarPikminGrowTimer = 0x10000009,
+        kPikminArticleId = 0
     };
 
     enum WorkOpKind {
@@ -138,14 +147,34 @@ namespace extra {
         float floatValue;
     };
 
+    enum CustomVisualKind {
+        kVisNone = 0,
+        kVisLucasOffense = 1, // FitLucas.pac ActExit[6] sub@0x28544: 0x1B0001 on bones 28 & 51
+        kVisIvysaurBulb = 2,  // FitPokeFushigisou.pac Wait1 0x206cc: 0x84 on bone 33 (0.06 / 0.16)
+        kVisLucarioAura = 3   // FitLucario.pac 0x29b40: 0x220001 on bones 31 & 53 (0.8 / 1.0)
+    };
+
+    enum {
+        kCommonChargeGlow = 26, // Standard full-charge glow (G&W/Samus/Mewtwo/Lucario/DK/ROB/Squirtle/Sheik)
+        kCommonWarioWaft = 39   // Wario Waft full glow (ft_wario.rel:0xf0b8, sora_melee:0x80a629a8)
+    };
+
     struct FighterPlan {
         enum { kMaxOps = 8 };
         WorkOp ops[kMaxOps];
         int count;
+        u8 commonEffectId; // 0 = leave native common effect alone; else 26 or 39
+        u8 commonEffectOn; // 1 = ensure active, 0 = ensure removed (when commonEffectId != 0)
+        u8 customVisual;   // CustomVisualKind (0 = leave custom follow effects alone)
+        u8 customTier;     // 0 = off/empty, 1 = half/lvl1/charged, 2 = full/lvl2
 
         void clear()
         {
             count = 0;
+            commonEffectId = 0;
+            commonEffectOn = 0;
+            customVisual = kVisNone;
+            customTier = 0;
         }
 #ifdef __MWERKS__
 #pragma dont_inline on
@@ -211,6 +240,14 @@ namespace extra {
         {
             out[i] = (i == target) ? 1.0f : 0.0f;
         }
+    }
+
+    // Returns Olimar's target Pikmin maturity stage (0 Leaf, 1 Bud, 2 Flower)
+    // or -1 when Default / out-of-range (leaving normal time-based aging untouched).
+    inline int olimarMaturityTarget(u8 rawChoice)
+    {
+        int choice = clampChoice(rawChoice, main::kOlimarMaturityCount);
+        return choice == main::kPikminMaturityDefault ? -1 : (choice - 1);
     }
 
     // Computes King Dedede's Waddle Toss table weights ({Dee, Doo, Gordo, Capsule})
@@ -358,6 +395,71 @@ namespace extra {
                 plan.addFlag(kVarLucasOffenseFlag, true);
                 plan.addFloat(kVarLucasOffenseProg, 120.0f);
             }
+            if (off == main::kOffenseOff)
+            {
+                plan.customVisual = kVisLucasOffense;
+                plan.customTier = 0;
+            }
+            else if (off == main::kOffenseCharged
+                     && (status < kStatusAttackS4Start || status > kStatusAttackS4))
+            {
+                // FitLucas.pac 0x2df4c kills 0x1B0001 mid-smash; skip respawning until smash ends.
+                plan.customVisual = kVisLucasOffense;
+                plan.customTier = 1;
+            }
+        }
+        else if (ftKind == kFtIvysaur)
+        {
+            int ivy = clampChoice(s.ivysaurSolarbeam, main::kCharge3Count);
+            if (ivy != main::kCharge3Default)
+            {
+                plan.customVisual = kVisIvysaurBulb;
+                plan.customTier = static_cast<u8>(ivy - 1);
+            }
+        }
+        else if (ftKind == kFtLucario)
+        {
+            int aura = clampChoice(s.lucarioAura, main::kLucarioAuraCount);
+            if (aura != main::kAuraDefault)
+            {
+                plan.customVisual = kVisLucarioAura;
+                plan.customTier = static_cast<u8>(aura - 1);
+            }
+        }
+
+        // Systemic common full-charge glow sync for all 9 fighters whose P+ 3.2.1
+        // charge status scripts call soEffectModule::reqCommon(0, 26 or 39) on full.
+        struct CommonVisRule {
+            u8 ft, fieldOff, count, fullVal, commonId;
+        };
+#define CV(f, fld, cnt, full, cid) \
+    {f, static_cast<u8>(offsetof(main::FighterMechanicsSettings, fld)), cnt, full, cid}
+        static const CommonVisRule kCommonVis[] = {
+            CV(kFtGameWatch, gnwBucket, main::kGnwBucketCount, main::kBucketFull, kCommonChargeGlow),
+            CV(kFtSamus, samusCharge, main::kCharge3Count, main::kCharge3Full, kCommonChargeGlow),
+            CV(kFtMewtwo, mewtwoShadowBall, main::kCharge3Count, main::kCharge3Full, kCommonChargeGlow),
+            CV(kFtLucario, lucarioSphere, main::kCharge2Count, main::kCharge2Full, kCommonChargeGlow),
+            CV(kFtWario, warioWaft, main::kCharge3Count, main::kCharge3Full, kCommonWarioWaft),
+            CV(kFtDonkeyKong, dkPunch, main::kCharge2Count, main::kCharge2Full, kCommonChargeGlow),
+            CV(kFtRob, robGyro, main::kCharge2Count, main::kCharge2Full, kCommonChargeGlow),
+            CV(kFtSquirtle, squirtleWaterGun, main::kCharge2Count, main::kCharge2Full, kCommonChargeGlow),
+            CV(kFtSheik, sheikNeedles, main::kSheikNeedlesCount, main::kNeedles6, kCommonChargeGlow)
+        };
+#undef CV
+        for (int i = 0; i < static_cast<int>(sizeof(kCommonVis) / sizeof(kCommonVis[0])); i++)
+        {
+            const CommonVisRule& cv = kCommonVis[i];
+            if (static_cast<int>(cv.ft) != ftKind)
+            {
+                continue;
+            }
+            int choice = clampChoice(raw[cv.fieldOff], cv.count);
+            if (choice != 0)
+            {
+                plan.commonEffectId = cv.commonId;
+                plan.commonEffectOn = choice == static_cast<int>(cv.fullVal) ? 1 : 0;
+            }
+            break;
         }
     }
 }
