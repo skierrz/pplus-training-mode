@@ -1928,6 +1928,41 @@ TEST(recording_file, malformed_headers_palettes_and_placements_are_refused)
     record::storageFree();
 }
 
+// Misaligned head->placements (not 4-byte aligned, which faults lfs on PowerPC
+// 750CL) or placements overlapping the area table must be rejected cleanly.
+TEST(recording_file, misaligned_or_overlapping_placements_rejected)
+{
+    Settings atExport;
+    REQUIRE(exported(atExport));
+    u32 size = header(kRecording)->size;
+    u32 onCard = host::card::size(kRecording);
+    u8 good[0x4000];
+    REQUIRE(onCard <= sizeof(good));
+    memcpy(good, host::card::data(kRecording), onCard);
+    storage::detach();
+
+    const u32 table = storage::kRecordingHeadBytes;
+    const u32 badOffsets[2] = {table + 1u, table};
+    for (int i = 0; i < 2; i++)
+    {
+        host::card::put(kRecording, good, onCard);
+        u8* file = host::card::data(kRecording);
+        storage::RecordingHead* head =
+            reinterpret_cast<storage::RecordingHead*>(file + sizeof(storage::FileHeader) + sizeof(storage::RecordingInfo));
+        REQUIRE(head->areaCount > 0);
+        head->placements = badOffsets[i];
+        reseal(kRecording);
+        fill(*record::slotAt(1, 5), 0, 5);
+        runImport(kRecording, size);
+        CHECK_LOG("storage: notice: Import failed: the file is damaged");
+        CHECK_EQ(0, host::fakes::recording().imports);
+        CHECK(!record::slotEmpty(*record::slotAt(1, 5)));
+        CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
+        storage::detach();
+    }
+    record::storageFree();
+}
+
 // Shield is only meaningful when haveShield is set (earlier exports left it
 // uninitialised when no shield was read), and a save on a shield-break frame
 // can hold a negative shield. Both must load.

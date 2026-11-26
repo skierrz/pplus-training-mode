@@ -457,11 +457,13 @@ namespace storage {
         }
         const RecordingInfo* info = reinterpret_cast<const RecordingInfo*>(f + sizeof(FileHeader));
         const RecordingHead* head = reinterpret_cast<const RecordingHead*>(f + sizeof(FileHeader) + sizeof(RecordingInfo));
-        if (head->placements < table || head->placements > size || size - head->placements < 2 * sizeof(Placement))
+        if (!validAreas(f, size, table, head->areaCount))
         {
             return "the file is damaged";
         }
-        if (!validAreas(f, size, table, head->areaCount))
+        u32 minPlacements = table + static_cast<u32>(head->areaCount) * sizeof(AreaEntry);
+        if ((head->placements & 3u) != 0u || head->placements < minPlacements || head->placements > size
+            || size - head->placements < 2 * sizeof(Placement))
         {
             return "the file is damaged";
         }
