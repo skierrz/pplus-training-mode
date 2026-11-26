@@ -15,8 +15,9 @@ namespace standin = tm::game;
 
 TEST(memory, the_stand_in_helpers_agree_with_the_mods_own)
 {
-    static const u32 kEdges[] = {0x00000000u, 0x00001000u, 0x7FFFFFFFu, 0x80000000u, 0x80000004u, 0x817FFFFFu, 0x81800000u,
-                                 0x8FFFFFFFu, 0x90000000u, 0x93FFFFFFu, 0x94000000u, 0xC0000000u, 0xFFFFFFFFu};
+    static const u32 kEdges[] = {0x00000000u, 0x00001000u, 0x7FFFFFFFu, 0x80000000u, 0x80000004u,
+                                 0x817FFFFFu, 0x81800000u, 0x8FFFFFFFu, 0x90000000u, 0x935F2000u,
+                                 0x935FFFFFu, 0x93600000u, 0x93FFFFFFu, 0x94000000u, 0xC0000000u, 0xFFFFFFFFu};
     for (u32 i = 0; i < sizeof(kEdges) / sizeof(kEdges[0]); i++)
     {
         const void* p = reinterpret_cast<const void*>(kEdges[i]);
@@ -26,6 +27,11 @@ TEST(memory, the_stand_in_helpers_agree_with_the_mods_own)
                              real::isRam(p), standin::isRam(p));
         }
     }
+    // Stay below IOS/Starlet-protected top MEM2 (0x93600000+) while keeping P+ 0x935F2000.
+    CHECK(real::isRam(reinterpret_cast<const void*>(0x935F2000u)));
+    CHECK(real::isRam(reinterpret_cast<const void*>(0x935FFFFFu)));
+    CHECK(!real::isRam(reinterpret_cast<const void*>(0x93600000u)));
+    CHECK(!real::isRam(reinterpret_cast<const void*>(0x93FFFFFFu)));
     // A word of the image reads the same through both.
     host::mem::setWord(0x80001234u, 0xCAFEF00Du);
     const void* base = reinterpret_cast<const void*>(0x80001000u);

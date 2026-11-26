@@ -21,7 +21,8 @@ namespace game {
     inline bool isRam(const void* p)
     {
         u32 a = reinterpret_cast<u32>(p);
-        return host::mem::inImage(a) || host::mem::inArena(a);
+        return (a >= host::mem::kMem1 && a < host::mem::kMem1 + host::mem::kMem1Size)
+               || (a >= host::mem::kMem2 && a < 0x93600000u) || host::mem::inArena(a);
     }
 
     inline bool sameString(const char* a, const char* b)

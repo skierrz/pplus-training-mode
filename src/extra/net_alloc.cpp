@@ -87,9 +87,11 @@ namespace extra {
         }
         game::HeapUsage u;
         u.largest = 0;
-        if (!game::heapUsage(Heaps::Network, u) || u.largest < need)
+        if (!game::heapUsage(Heaps::Network, u) || u.largest < kCostumeReserve
+            || u.largest - kCostumeReserve < need)
         {
-            TM_LOG("extra: net_alloc refused %u B (largest %x)\n", need, u.largest);
+            TM_LOG("extra: net_alloc refused %u B (largest %x, reserve %x)\n", need, u.largest,
+                   static_cast<unsigned>(kCostumeReserve));
             return NULL;
         }
         void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);

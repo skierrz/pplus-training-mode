@@ -525,3 +525,41 @@ TEST(loader, failure_paths_free_both_buffers_without_leaks)
     free(other);
     CHECK_EQ(0, host::fakes::heapBlocks(Heaps::OverlayFighter4));
 }
+
+TEST(loader, packed_inspect_rejects_unaligned_size_and_table_offset)
+{
+    PackedImage img;
+    const u32 kinds[1] = {iface::kKindMatch};
+    const u32 ids[1] = {kModuleId};
+    packPlugin(img, 1, kinds, ids);
+
+    packed::Image out[packed::kMaxModules];
+    u32 count = 0;
+    REQUIRE(packed::inspect(img.bytes, img.size, out, count) == NULL);
+    CHECK_EQ(1u, count);
+
+    // 1. Non-32-byte-aligned fileSize rejected.
+    u8 shifted[sizeof(img.bytes) + 32];
+    memset(shifted, 0, sizeof(shifted));
+    memcpy(shifted + 4, img.bytes, img.size);
+    CHECK_STR("no trailer", packed::inspect(shifted, img.size + 4, out, count));
+    CHECK_EQ(0u, count);
+
+    // 2. Non-4-byte-aligned tableOffset rejected.
+    PackedImage bad = img;
+    packed::Trailer* tr = reinterpret_cast<packed::Trailer*>(bad.bytes + bad.size - packed::kTrailerSize);
+    tr->tableOffset += 1u;
+    CHECK_STR("bad module table", packed::inspect(bad.bytes, bad.size, out, count));
+    CHECK_EQ(0u, count);
+
+    // 3. Wraparound tableOffset > end rejected (tableOffset + count * 0x20 wraps to end).
+    u8 wrapBuf[0x60];
+    memset(wrapBuf, 0, sizeof(wrapBuf));
+    tr = reinterpret_cast<packed::Trailer*>(wrapBuf + sizeof(wrapBuf) - packed::kTrailerSize);
+    tr->magic = packed::kTrailerMagic;
+    tr->format = packed::kFormatVersion;
+    tr->count = 4; // 4 * 0x20 = 0x80 > end (0x40)
+    tr->tableOffset = 0x40u - 0x80u; // 0xFFFFFFC0: wraps around to 0x40 == end
+    CHECK_STR("bad module table", packed::inspect(wrapBuf, sizeof(wrapBuf), out, count));
+    CHECK_EQ(0u, count);
+}

@@ -352,7 +352,9 @@ namespace storage {
             s_v1UnchangedMask = 0;
             s_v1Affected = 0;
 
-            u8 refBuf[kFileCap];
+            TM_STATIC_ASSERT((kFileCap & 3u) == 0u, tm_settings_file_cap_word_aligned);
+            u32 refWords[kFileCap / 4];
+            u8* refBuf = reinterpret_cast<u8*>(refWords);
             u32 tableOff = sizeof(FileHeader) + sizeof(SettingsHead);
             u16 refCount = 0;
             if (writeAreas(refBuf, kFileCap, 0, reinterpret_cast<const u8*>(&s), kAllAreas, refCount) > 0)
