@@ -2084,10 +2084,14 @@ def cmd_test_lab(rest):
                     raise LabError("A on Lab > Frame Advance did not turn frame advance off")
                 n_close = len(re.findall(r"lab: menu closed", emu.synced_log_text()))
                 lab.tap(["B"])  # focus Draft C left rail
-                lab.tap(["B"])  # B on rail: nothing in Start mode
                 if len(re.findall(r"lab: menu closed", emu.synced_log_text())) != n_close:
-                    raise LabError("B closed the lab menu opened with Start")
-                note("Start mode: B on rail did not close the menu")
+                    raise LabError("first B in options pane closed the lab menu instead of focusing left rail")
+                lab.tap(["B"])  # B on rail closes the lab menu cleanly
+                if len(re.findall(r"lab: menu closed", emu.synced_log_text())) != n_close + 1:
+                    raise LabError("B on left rail did not close the lab menu")
+                note("Start mode: B focuses left rail, second B on rail closes the menu")
+                lab.open_menu()
+                lab.tap(["B"])  # focus Draft C left rail for next step
 
                 step = "Start mode: OSD Menu scroll and toggle"
                 lab.main_to(MAIN_OSD)

@@ -259,9 +259,9 @@ class Runner:
         tail = log[log.rfind("] menu: attached"):]
         pages = re.findall(r"\] drills: page ([^\r\n]+)", tail)
         page_patterns = {
-            "Tech Practice": r"(?:L-Cancel|Wavedash|Ledgedash|Powershield|RAR|DACUS|B-Reverse|Float)",
-            "Challenges": r"(?:Cancel Sprint|Movement Flow|Situational Reaction|Universal Techchase|Universal Recovery|Floorhug|Combo-Break Rush)",
-            "Character Trainers": r"(?:Snake Infinite Recovery)",
+            "Tech Practice": r"(?:L-Cancel|Wavedash|Ledgedash|Powershield|RAR|DACUS|B-Reverse)",
+            "Challenges": r"(?:Cancel Sprint|Movement Flow|Situational Reaction|Universal Techchase|Universal Recovery|CC / ASDI-Down|Combo-Break Rush)",
+            "Character Trainers": r"(?:Float|Snake Infinite Recovery)",
         }
         pat = page_patterns.get(page_name, "")
         already = (pages and pages[-1].strip() == page_name) or (
@@ -327,9 +327,9 @@ def sc_boot_menu(t):
     t.ensure_skill_drills_open()
     e.advance(10)
 
-    # Walk all 8 Tech Practice rows (0..7) and back to 0 (L-Cancel).
-    DT.go_to_row(e, 7)
-    t.check(DT.last_row(e) == 7, "boot-tech-practice-8-rows", f"reached row {DT.last_row(e)} on Tech Practice")
+    # Walk all 7 Tech Practice rows (0..6) and back to 0 (L-Cancel).
+    DT.go_to_row(e, 6)
+    t.check(DT.last_row(e) == 6, "boot-tech-practice-7-rows", f"reached row {DT.last_row(e)} on Tech Practice")
     DT.go_to_row(e, 0)
     e.advance(10)
     t.snap("boot-skill-drills-16x9")
@@ -698,7 +698,7 @@ def sc_challenges_hud(t):
     def run_snake_recovery(aspect):
         tag = "16x9" if aspect == "16:9" else "4x3"
         p1, _cpu, tmdh = t.arm_skill_drill_and_enter(
-            0, 15, "snake", "fox", aspect=aspect, page_name="Character Trainers"
+            1, 15, "snake", "fox", aspect=aspect, page_name="Character Trainers"
         )
         p1_ptr = p1["fighter"]
         S4C.walk_p1_to(e, p1_ptr, 80.0, face_dir=1.0)
