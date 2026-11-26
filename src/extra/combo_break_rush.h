@@ -4,8 +4,9 @@
 
 #include "main/game/match.h"
 
-// Combo-Break Rush: original Project+ 3D stage-aware target capsule challenge.
-// All runtime state lives in Heaps::Network (~0 B .bss, 0 B leak on detach).
+// Break the Targets!: stage-aware 3D Brawl target challenge.
+// Runtime state and streamed Brawl target texture live in Heaps::Network
+// (~0 B .bss, 0 B leak on deactivate or detach).
 namespace tm {
 namespace extra {
     void comboBreakRushAttach();

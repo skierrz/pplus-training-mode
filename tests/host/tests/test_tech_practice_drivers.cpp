@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "extra/drill_practice_core.h"
+#include "extra/drill_practice_driver.h"
 #include "host/test.h"
 
 using namespace tm::extra;
@@ -561,4 +562,42 @@ TEST(tech_practice, solo_cpu_standby_rules_and_transitions)
     CHECK_EQ(static_cast<u8>(kStandbyExit), stepStandbyState(false, isStandby));
     CHECK(!isStandby);
     CHECK_EQ(static_cast<u8>(kStandbyNoop), stepStandbyState(false, isStandby));
+}
+
+TEST(tech_practice, shared_solo_standby_for_break_the_targets_and_human_shield_refill_gating)
+{
+    PracticeConfig cfg;
+    practiceConfigDefaults(cfg);
+
+    // External solo mode (Break the Targets!) enters shared Solo Standby even when activeDrill == None.
+    CHECK(!shouldSoloCpuStandby(kPracticeDrillNone, cfg, false));
+    CHECK(shouldSoloCpuStandby(kPracticeDrillNone, cfg, true));
+
+    // Solo Wavedash and Ledgedash always request Solo Standby regardless of external flag.
+    CHECK(shouldSoloCpuStandby(kPracticeDrillWavedash, cfg, false));
+    CHECK(shouldSoloCpuStandby(kPracticeDrillLedgedash, cfg, false));
+
+    // Leaving Break the Targets! (externalStandby -> false) with activeDrill == None exits standby cleanly.
+    bool isStandby = false;
+    CHECK_EQ(static_cast<u8>(kStandbyEnter),
+             stepStandbyState(shouldSoloCpuStandby(kPracticeDrillNone, cfg, true), isStandby));
+    CHECK(isStandby);
+    CHECK_EQ(static_cast<u8>(kStandbyHold),
+             stepStandbyState(shouldSoloCpuStandby(kPracticeDrillNone, cfg, true), isStandby));
+    CHECK_EQ(static_cast<u8>(kStandbyExit),
+             stepStandbyState(shouldSoloCpuStandby(kPracticeDrillNone, cfg, false), isStandby));
+    CHECK(!isStandby);
+
+    // P1 shield refill is ON in Wavedash, L-Cancel, Hover/Float, and Powershield drills...
+    CHECK(shouldRefillHumanShield(kPracticeDrillWavedash));
+    CHECK(shouldRefillHumanShield(kPracticeDrillLCancel));
+    CHECK(shouldRefillHumanShield(kPracticeDrillHoverFloat));
+    CHECK(shouldRefillHumanShield(kPracticeDrillPowershield));
+
+    // ...and strictly OFF outside those drills (normal Lab / Scenarios / Ledgedash / RAR / DACUS / B-Reverse).
+    CHECK(!shouldRefillHumanShield(kPracticeDrillNone));
+    CHECK(!shouldRefillHumanShield(kPracticeDrillLedgedash));
+    CHECK(!shouldRefillHumanShield(kPracticeDrillRar));
+    CHECK(!shouldRefillHumanShield(kPracticeDrillDacus));
+    CHECK(!shouldRefillHumanShield(kPracticeDrillBReverse));
 }

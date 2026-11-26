@@ -11,7 +11,7 @@ struct gfPadStatus;
 // Clean-room Project+ 3.2.1 Tech Practice runtime driver for Powershield
 // projectile/physical reps, Ledgedash active cliff-hang box snap & camera
 // framing, L-Cancel & Float/Hover/DJC targets, Wavedash GX Target Zone, and
-// Solo Tech Practice CPU Standby.
+// shared Solo CPU Standby (used by solo drills and Break the Targets!).
 namespace tm {
 namespace cpu {
     struct Owner;
@@ -46,6 +46,20 @@ namespace extra {
         float wdZoneY;         // 0x30
     };
 
+    // Pure host-testable gating helpers shared with Break the Targets! and drills.
+    inline bool shouldSoloCpuStandby(u8 activeDrill, const PracticeConfig& cfg, bool externalStandby)
+    {
+        return externalStandby || shouldCpuStandby(activeDrill, cfg);
+    }
+
+    // Refills P1 shield during drills where repeated L/R presses (wavedash,
+    // L-cancel, float/hover, powershield) should never cause shield break.
+    inline bool shouldRefillHumanShield(u8 activeDrill)
+    {
+        return activeDrill == kPracticeDrillWavedash || activeDrill == kPracticeDrillLCancel
+               || activeDrill == kPracticeDrillHoverFloat || activeDrill == kPracticeDrillPowershield;
+    }
+
     void drillPracticeAttach();
     void drillPracticeDetach();
     void drillPracticeReset();
@@ -57,6 +71,10 @@ namespace extra {
     void drillPracticeSetActiveDrill(u8 drillId);
     void drillPracticeApplyMenu();
     PracticeConfig& drillPracticeConfig();
+
+    // Shared Solo CPU Standby coordination for external solo modes (e.g. Break the Targets!).
+    void drillPracticeSetExternalStandby(bool want);
+    bool drillPracticeCpuInStandby();
 
     const WdZoneState* drillPracticeWdZone();
     const DrillPracticeDebugBlock* drillPracticeDebugBlock();
