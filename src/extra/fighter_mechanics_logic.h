@@ -124,7 +124,13 @@ namespace extra {
         kVarSnakeCypherUsed = 0x1200003D, // LA-Bit[61]
 
         // Ganondorf (FitGanon.pac): Dead Man's Float frame counter.
-        kVarGanonFloatCount = 0x10000062 // LA-Basic[98]
+        kVarGanonFloatCount = 0x10000062, // LA-Basic[98]
+
+        // Olimar Pikmin article (ft_pikmin.rel:0x1b61c..0x1b828):
+        // LA-Basic[8] = maturity stage (0 Leaf, 1 Bud, 2 Flower); LA-Basic[9] = growth timer.
+        kVarPikminMaturity = 0x10000008,
+        kVarPikminGrowTimer = 0x10000009,
+        kPikminArticleId = 0
     };
 
     enum WorkOpKind {
@@ -234,6 +240,14 @@ namespace extra {
         {
             out[i] = (i == target) ? 1.0f : 0.0f;
         }
+    }
+
+    // Returns Olimar's target Pikmin maturity stage (0 Leaf, 1 Bud, 2 Flower)
+    // or -1 when Default / out-of-range (leaving normal time-based aging untouched).
+    inline int olimarMaturityTarget(u8 rawChoice)
+    {
+        int choice = clampChoice(rawChoice, main::kOlimarMaturityCount);
+        return choice == main::kPikminMaturityDefault ? -1 : (choice - 1);
     }
 
     // Computes King Dedede's Waddle Toss table weights ({Dee, Doo, Gordo, Capsule})

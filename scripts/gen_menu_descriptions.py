@@ -208,6 +208,7 @@ TABLES = {
         "Grant Ganondorf unlimited aerial float duration.",
         "Force Ice Climbers Nana grab throws in a chosen direction.",
         "Force Olimar pluck to pull Red, Yellow, Blue, White, or Purple.",
+        "Lock Olimar Pikmin maturity to Leaf, Bud, or Flower.",
     ],
     "kControlsDesc": [
         "Choose the button that steps one frame during Frame Advance.",

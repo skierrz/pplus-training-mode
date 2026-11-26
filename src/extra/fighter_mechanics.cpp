@@ -8,6 +8,8 @@
 #include <ft/ft_common_data_accesser.h>
 #ifdef __MWERKS__
 #include <so/effect/so_effect_module_impl.h>
+#include <so/stageobject.h>
+#include <so/visibility/so_visibility_module_impl.h>
 #endif
 #include <so/so_module_accesser.h>
 #include <so/so_value_accesser.h>
@@ -307,6 +309,94 @@ namespace extra {
             writeWeights(s_olimar.weights, want, kOlimarWeightCount);
         }
 
+#ifdef __MWERKS__
+        // Locks every active wnPikminPikmin article's maturity stage (LA-Basic[8]:
+        // 0 Leaf, 1 Bud, 2 Flower), zeroes its growth timer (LA-Basic[9]), and syncs
+        // model visibility group 0 (ft_pikmin.rel 0x1b61c..0x1b828; article array
+        // iteration matches sora_melee 0x8079eb0c..0x8079eb7c).
+        typedef s32 (*ArtArrSizeFn)(const void*);
+        typedef void** (*ArtArrAtFn)(void*, s32);
+        typedef int (*ArtGetIdFn)(void*);
+
+        void applyOlimarMaturity(const soModuleEnumeration* m, u8 rawChoice)
+        {
+            int target = olimarMaturityTarget(rawChoice);
+            if (target < 0 || !game::isRam(m->m_generateArticleManageModule))
+            {
+                return;
+            }
+            void* arr = reinterpret_cast<void*>(game::wordAt(m->m_generateArticleManageModule, 0x2C));
+            if (!game::isRam(arr))
+            {
+                return;
+            }
+            u32* arrVt = *reinterpret_cast<u32**>(arr);
+            if (!game::isRam(arrVt))
+            {
+                return;
+            }
+            ArtArrSizeFn sizeFn = reinterpret_cast<ArtArrSizeFn>(arrVt[0x14 / 4]);
+            ArtArrAtFn atFn = reinterpret_cast<ArtArrAtFn>(arrVt[0x0C / 4]);
+            if (!game::isRam(reinterpret_cast<const void*>(sizeFn))
+                || !game::isRam(reinterpret_cast<const void*>(atFn)))
+            {
+                return;
+            }
+            s32 count = sizeFn(arr);
+            if (count <= 0 || count > 16)
+            {
+                return;
+            }
+            for (s32 i = 0; i < count; i++)
+            {
+                void** slot = atFn(arr, i);
+                if (!game::isRam(slot) || !game::isRam(*slot))
+                {
+                    continue;
+                }
+                void* art = *slot;
+                u32* artVt = *reinterpret_cast<u32**>(art);
+                if (!game::isRam(artVt))
+                {
+                    continue;
+                }
+                ArtGetIdFn idFn = reinterpret_cast<ArtGetIdFn>(artVt[0x20 / 4]);
+                if (!game::isRam(reinterpret_cast<const void*>(idFn)) || idFn(art) != kPikminArticleId)
+                {
+                    continue;
+                }
+                // MWERKS secondary-base top-offset at vtable+4 (-0x88 inside Weapon).
+                s32 topOff = static_cast<s32>(artVt[1]);
+                if (topOff > 0 || topOff < -0x200)
+                {
+                    continue;
+                }
+                StageObject* obj = reinterpret_cast<StageObject*>(reinterpret_cast<u8*>(art) + topOff);
+                if (!game::isRam(obj) || !game::isRam(obj->m_moduleAccesser))
+                {
+                    continue;
+                }
+                const soModuleEnumeration* am = obj->m_moduleAccesser->m_enumerationStart;
+                if (!game::isRam(am) || !game::isRam(am->m_workManageModule) || !game::isRam(am->m_visibilityModule))
+                {
+                    continue;
+                }
+                soWorkManageModule* aWork = am->m_workManageModule;
+                soVisibilityModule* aVis = am->m_visibilityModule;
+                if (aWork->getInt(kVarPikminGrowTimer) != 0)
+                {
+                    aWork->setInt(0, kVarPikminGrowTimer);
+                }
+                if (aWork->getInt(kVarPikminMaturity) != target || aVis->get(0) != target)
+                {
+                    aWork->setInt(target, kVarPikminMaturity);
+                    aVis->setStatusDefault(0, static_cast<u8>(target), true);
+                    aVis->set(0, static_cast<u8>(target));
+                }
+            }
+        }
+#endif
+
         void findDededeWeights(Fighter* fighter)
         {
             s_dedede.tried = true;
@@ -445,6 +535,9 @@ namespace extra {
         else if (ftKind == kFtOlimar)
         {
             applyOlimarWeights(s.olimarPikmin);
+#ifdef __MWERKS__
+            applyOlimarMaturity(m, s.olimarMaturity);
+#endif
         }
     }
 

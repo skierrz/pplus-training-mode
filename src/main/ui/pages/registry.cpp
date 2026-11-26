@@ -53,7 +53,7 @@ namespace pages {
         kCpuAllRowCount = 14 + 8 + 11 + 7 + 15 + 65, // main, di, counters, defense, reversals, pool
         kOverlayRowCount = 34,                       // 17 P1 + 17 CPU
         kInfoRowCount = 20,                          // 10 P1 + 10 CPU
-        kStageCastRowCount = 34,
+        kStageCastRowCount = 35,
         kScenariosRowCount = 45,
         kOsdMenuRowCount = 26,
         kComboTrainerRowCount = 23,                  // 16 + 7 meters

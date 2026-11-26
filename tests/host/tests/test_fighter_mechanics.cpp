@@ -565,8 +565,16 @@ TEST(fighter_mechanics, settings_offsets_and_storage_roundtrip)
     CHECK_EQ(416u, offsetof(main::Settings, comboTrainer));
     CHECK_EQ(432u, offsetof(main::Settings, fighterMechanics));
     CHECK_EQ(455u, offsetof(main::Settings, fighterMechanics.olimarPikmin));
+    CHECK_EQ(456u, offsetof(main::Settings, fighterMechanics.olimarMaturity));
     CHECK_EQ(32u, sizeof(main::FighterMechanicsSettings));
     CHECK_EQ(464u, sizeof(main::Settings));
+
+    CHECK_EQ(-1, extra::olimarMaturityTarget(main::kPikminMaturityDefault));
+    CHECK_EQ(0, extra::olimarMaturityTarget(main::kPikminLeaf));
+    CHECK_EQ(1, extra::olimarMaturityTarget(main::kPikminBud));
+    CHECK_EQ(2, extra::olimarMaturityTarget(main::kPikminFlower));
+    CHECK_EQ(-1, extra::olimarMaturityTarget(main::kOlimarMaturityCount));
+    CHECK_EQ(-1, extra::olimarMaturityTarget(0xFF));
 
     storage::detach();
     host::card::reset();
@@ -585,6 +593,7 @@ TEST(fighter_mechanics, settings_offsets_and_storage_roundtrip)
     fm.dededeWaddle = main::kWaddleGordo;
     fm.ganonFloat = main::kMechAlways;
     fm.olimarPikmin = main::kPikminPurple;
+    fm.olimarMaturity = main::kPikminFlower;
 
     storage::settingsMenuClosed();
     for (int i = 0; i < 4; i++)
@@ -607,5 +616,6 @@ TEST(fighter_mechanics, settings_offsets_and_storage_roundtrip)
     CHECK_EQ(main::kWaddleGordo, loaded.dededeWaddle);
     CHECK_EQ(main::kMechAlways, loaded.ganonFloat);
     CHECK_EQ(main::kPikminPurple, loaded.olimarPikmin);
+    CHECK_EQ(main::kPikminFlower, loaded.olimarMaturity);
     storage::detach();
 }

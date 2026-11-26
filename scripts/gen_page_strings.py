@@ -232,7 +232,7 @@ def collect_entries() -> list[tuple[str, bytes]]:
     )
     entries.append(("scen_names", _extract_host_option_names(scen, "kRows")))
 
-    # 2. stage_cast.cpp: 25 label tables + 34 row names (skip first 2 head rows for kCastNames)
+    # 2. stage_cast.cpp: 26 label tables + 35 row names (skip first 2 head rows for kCastNames)
     sc = PAGES_DIR / "stage_cast.cpp"
     entries += _parse_labels_from_cpp(
         sc,
@@ -242,7 +242,7 @@ def collect_entries() -> list[tuple[str, bytes]]:
             "kPlatDelfino", "kPlatHorizontal", "kPlatDeadLine", "kPlatRandall",
             "kTurnip", "kPeachSmash", "kMisfire", "kHammer", "kUnlimited", "kCharge2", "kCharge3",
             "kGnwBucket", "kSamusBeam", "kLucarioAura", "kRobBeam", "kLucasOffense",
-            "kSheikNeedles", "kDededeWaddle", "kNanaThrow", "kOlimarPikmin",
+            "kSheikNeedles", "kDededeWaddle", "kNanaThrow", "kOlimarPikmin", "kOlimarMaturity",
         ],
     )
     all_cast_names = _extract_host_option_names(sc, "kRows").split(b"\x00")[:-1]
