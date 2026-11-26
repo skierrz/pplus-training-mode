@@ -32,6 +32,10 @@ namespace savestate {
         u32 saveTicks;  // OSGetTick() durations of the last save and load
         u32 loadTicks;
         u32 checkTicks; // of the last load's checksum pass
+#ifdef TM_PERF
+        u32 saveMaxIrqOffTicks; // peak single OSDisableInterrupts..OSRestoreInterrupts span
+        u32 loadMaxIrqOffTicks;
+#endif
     };
 
     // Two slots share the buffers: the quick state (D-pad, Save State) and
@@ -53,9 +57,11 @@ namespace savestate {
 
     const SlotInfo& slotInfo(int which);
 
-    // A buffer of ours inside a heap of the set (the recorded inputs): never
-    // copied, so a load leaves it as it is.
+    // Buffers of ours inside heaps of the set (e.g. recorded inputs): never
+    // copied, so a load leaves them as they are. Slot 0 is setOwnExclusion().
+    enum { kMaxOwnExclusions = 4 };
     void setOwnExclusion(u32 addr, u32 len);
+    void setOwnExclusionAt(u32 index, u32 addr, u32 len);
     const char* resultText(Result r);
 
     // Last thing after a stall of ours at the top of the main loop (a save,

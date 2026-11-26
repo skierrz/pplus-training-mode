@@ -94,7 +94,7 @@ namespace packed {
     const char* inspect(const u8* file, u32 fileSize, Image* images, u32& count)
     {
         count = 0;
-        if (fileSize < kTrailerSize)
+        if (fileSize < kTrailerSize || (fileSize & 31u) != 0u)
         {
             return "no trailer";
         }
@@ -108,8 +108,8 @@ namespace packed {
         {
             return "unknown format";
         }
-        if (trailer->count == 0 || trailer->count > kMaxModules
-            || trailer->tableOffset + trailer->count * kEntrySize != end)
+        if (trailer->count == 0 || trailer->count > kMaxModules || (trailer->tableOffset & 3u) != 0u
+            || trailer->tableOffset > end || end - trailer->tableOffset != trailer->count * kEntrySize)
         {
             return "bad module table";
         }

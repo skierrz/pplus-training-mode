@@ -371,6 +371,12 @@ TEST(settings_file, a_damaged_file_is_refused)
         }
         storage::detach();
     }
+    // Status == 1 read error where readSDFile already freed `buf`: no double-free.
+    host::card::setReadStatus(1, 1, true);
+    boot();
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
+    storage::detach();
 }
 
 // A file of a newer format is left alone: not used, and while it is the
@@ -387,9 +393,10 @@ TEST(settings_file, a_newer_format_is_not_used_and_not_overwritten)
     reseal(kFileA);
     memcpy(older, host::card::data(kFileA), size);
 
-    // Lone newer-format file in slot A.
+    // Lone newer-format file in slot A (valid checksum).
     header(kFileA)->format = storage::kSettingsFormat + 1;
     header(kFileA)->sequence = 9;
+    reseal(kFileA);
     u8 newer[1024];
     memcpy(newer, host::card::data(kFileA), size);
 
@@ -413,12 +420,14 @@ TEST(settings_file, a_newer_format_is_not_used_and_not_overwritten)
     CHECK(!host::card::has(kFileB));
     storage::detach();
 
-    // Dual-slot downgrade: valid format-1 slot A (seq 10) + newer-format slot B (seq 11).
+    // Dual-slot downgrade: valid format-1 slot A (seq 10) + valid newer-format slot B (seq 11).
     host::card::put(kFileA, older, size);
     memcpy(newer, older, size);
     reinterpret_cast<storage::FileHeader*>(newer)->format = storage::kSettingsFormat + 1;
     reinterpret_cast<storage::FileHeader*>(newer)->sequence = 11;
     host::card::put(kFileB, newer, size);
+    reseal(kFileB);
+    memcpy(newer, host::card::data(kFileB), size);
 
     boot();
     CHECK_LOG("storage: notice: Lab settings are from a newer version: not used");
@@ -429,6 +438,41 @@ TEST(settings_file, a_newer_format_is_not_used_and_not_overwritten)
     CHECK_EQ(writes, host::card::writes());
     CHECK(memcmp(older, host::card::data(kFileA), size) == 0);
     CHECK(memcmp(newer, host::card::data(kFileB), size) == 0);
+    storage::detach();
+}
+
+// A single corrupted bit flipping format > current (with bad checksum) must be
+// classified as kCorrupt, fall back to the healthy A/B slot, and keep saving enabled.
+TEST(settings_file, corrupt_newer_format_falls_back_to_healthy_slot_and_keeps_saving)
+{
+    Settings defaults, chosen;
+    saveChosen(defaults, chosen);
+    storage::detach();
+    u32 size = host::card::size(kFileA);
+    u8 older[1024];
+    header(kFileA)->sequence = 10;
+    reseal(kFileA);
+    memcpy(older, host::card::data(kFileA), size);
+
+    // Slot B has format > current and higher sequence, but corrupted checksum (not resealed).
+    u8 badNewer[1024];
+    memcpy(badNewer, older, size);
+    reinterpret_cast<storage::FileHeader*>(badNewer)->format = storage::kSettingsFormat + 2;
+    reinterpret_cast<storage::FileHeader*>(badNewer)->sequence = 0xFFFFFFFEu;
+    host::card::put(kFileB, badNewer, size);
+
+    boot();
+    CHECK_LOG("storage: settings files: a done (10), b the file is damaged (0)");
+    CHECK(!host::log::contains("newer version"));
+    CHECK_SETTINGS(afterReboot(chosen, defaults), main::settings());
+
+    // Saving must still work and replace the damaged slot B with sequence 11.
+    int writes = host::card::writes();
+    main::settings().general.cameraMode = 0;
+    closeMenu();
+    CHECK_EQ(writes + 1, host::card::writes());
+    CHECK_EQ(11u, header(kFileB)->sequence);
+    CHECK_EQ(storage::kSettingsFormat, header(kFileB)->format);
     storage::detach();
 }
 
@@ -1921,6 +1965,41 @@ TEST(recording_file, malformed_headers_palettes_and_placements_are_refused)
             host::test::fail(__FILE__, __LINE__, "%s: expected damaged notice and no import; logged:\n%s", kCases[kind],
                              host::log::text());
         }
+        CHECK(!record::slotEmpty(*record::slotAt(1, 5)));
+        CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
+        storage::detach();
+    }
+    record::storageFree();
+}
+
+// Misaligned head->placements (not 4-byte aligned, which faults lfs on PowerPC
+// 750CL) or placements overlapping the area table must be rejected cleanly.
+TEST(recording_file, misaligned_or_overlapping_placements_rejected)
+{
+    Settings atExport;
+    REQUIRE(exported(atExport));
+    u32 size = header(kRecording)->size;
+    u32 onCard = host::card::size(kRecording);
+    u8 good[0x4000];
+    REQUIRE(onCard <= sizeof(good));
+    memcpy(good, host::card::data(kRecording), onCard);
+    storage::detach();
+
+    const u32 table = storage::kRecordingHeadBytes;
+    const u32 badOffsets[2] = {table + 1u, table};
+    for (int i = 0; i < 2; i++)
+    {
+        host::card::put(kRecording, good, onCard);
+        u8* file = host::card::data(kRecording);
+        storage::RecordingHead* head =
+            reinterpret_cast<storage::RecordingHead*>(file + sizeof(storage::FileHeader) + sizeof(storage::RecordingInfo));
+        REQUIRE(head->areaCount > 0);
+        head->placements = badOffsets[i];
+        reseal(kRecording);
+        fill(*record::slotAt(1, 5), 0, 5);
+        runImport(kRecording, size);
+        CHECK_LOG("storage: notice: Import failed: the file is damaged");
+        CHECK_EQ(0, host::fakes::recording().imports);
         CHECK(!record::slotEmpty(*record::slotAt(1, 5)));
         CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
         storage::detach();

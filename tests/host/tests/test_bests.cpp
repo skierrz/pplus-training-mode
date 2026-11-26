@@ -201,7 +201,7 @@ TEST(bests_file, a_damaged_or_newer_file_is_not_used)
     CHECK_EQ(2, u.best[kSlotD]);
     menu::bests::detach();
 
-    // Dual-slot downgrade: valid format-1 slot A (seq 10) + newer-format slot B (seq 11).
+    // Dual-slot downgrade: valid format-1 slot A (seq 10) + valid newer-format slot B (seq 11).
     header(kFileA)->format = 1;
     header(kFileA)->sequence = 10;
     reseal(kFileA);
@@ -212,6 +212,8 @@ TEST(bests_file, a_damaged_or_newer_file_is_not_used)
     reinterpret_cast<storage::FileHeader*>(newerB)->format = 2;
     reinterpret_cast<storage::FileHeader*>(newerB)->sequence = 11;
     host::card::put(kFileB, newerB, sizeA);
+    reseal(kFileB);
+    memcpy(newerB, host::card::data(kFileB), sizeA);
 
     Session& v = boot();
     CHECK_EQ(0, v.best[kSlotD]);
@@ -222,6 +224,20 @@ TEST(bests_file, a_damaged_or_newer_file_is_not_used)
     CHECK(memcmp(olderA, host::card::data(kFileA), sizeA) == 0);
     CHECK(memcmp(newerB, host::card::data(kFileB), sizeA) == 0);
     CHECK_EQ(7, v.best[kSlotD]);
+    menu::bests::detach();
+
+    // Corrupt newer-format slot B (bad checksum): ignored as kCorrupt, slot A loads, saving stays on.
+    header(kFileB)->sequence = 99; // invalidates checksum
+    Session& w = boot();
+    CHECK_LOG("bests: files: a done (10), b the file is damaged (0)");
+    CHECK_EQ(4, w.best[kSlotD]);
+    CHECK_EQ(0, w.cardNewer);
+    writes = host::card::writes();
+    w.best[kSlotD] = 8;
+    backFromMatch();
+    CHECK_EQ(writes + 1, host::card::writes());
+    CHECK_EQ(11u, header(kFileB)->sequence);
+    CHECK_EQ(8, fileBests(kFileB)[kSlotD]);
     menu::bests::detach();
 }
 
@@ -295,6 +311,23 @@ TEST(bests_file, a_short_read_uses_heap_and_does_not_double_free)
     CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
     CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
     menu::bests::detach();
+
+    // Errored read returning status == 1 after readSDFile freed `buf`: no double-free.
+    host::card::setReadStatus(1, 1, true);
+    Session& v = boot();
+    CHECK_EQ(9, v.best[kSlotA]);
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
+    menu::bests::detach();
+
+    // Write uses Heaps::Network buffer and frees it cleanly once complete; on kBusy
+    // timeout at detach, leaves the heap block allocated so async DMA stays safe.
+    v.best[kSlotA] = 12;
+    host::card::setDelay(10);
+    menu::attachSession(host::fakes::block());
+    CHECK_EQ(1, host::fakes::heapBlocks(Heaps::Network));
+    menu::bests::detach();
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
 }
 
 TEST(bests_file, corrupt_sequence_is_ignored_and_wrap_around_is_harmless)

@@ -31,11 +31,12 @@ namespace browser {
         kMaxEntries = 70, // seven pages of 10
         kPageRows = kVisibleRows,
         kWaitMs = 5000,
-        // A whole file is checked in one block of the Network heap, which the
-        // character select leaves empty (measured; setup not recorded). It is
-        // the costume buffer's heap while the stage select loads fighters.
+        // A whole file is checked in one block of the Network heap, leaving
+        // kTempReserve (512 KiB) free so costume decompression and any
+        // transient SD buffers coexist cleanly.
         kTempHeap = Heaps::Network,
         kTempMax = 0x30000,
+        kTempReserve = 0x80000,
         // Text slots after the training menu's.
         kSlotPage = 20,
         kSlotHelp,
@@ -74,6 +75,7 @@ namespace browser {
     static int s_next = 0; // header to read next
     static int s_busyRow = -1;
     static Job s_job;
+    static bool s_jobStale = false;
     static u8* s_head = NULL;
     static u8* s_temp = NULL;
 
@@ -154,6 +156,10 @@ namespace browser {
         {
             s_row = s_count > 0 ? s_count - 1 : 0;
         }
+        if (n < 0)
+        {
+            say("Could not load: %s", storage::resultText(storage::cardInserted() ? storage::kMissing : storage::kNoCard));
+        }
         TM_LOG("browser: %d recording(s) listed (folder %s)%s\n", s_count, n < 0 ? "unreadable" : "read",
                s_more ? ", more not shown" : "");
     }
@@ -229,7 +235,8 @@ namespace browser {
     static u8* allocTemp(u32 bytes)
     {
         game::HeapUsage u;
-        if (bytes > kTempMax || !game::heapUsage(kTempHeap, u) || u.allocated != 0 || u.largest < bytes)
+        u.largest = 0;
+        if (bytes > kTempMax || !game::heapUsage(kTempHeap, u) || u.largest < bytes + kTempReserve)
         {
             return NULL;
         }
@@ -246,10 +253,15 @@ namespace browser {
             return;
         }
         s_temp = allocTemp(storage::padded(e.fileSize));
-        if (s_temp == NULL || !s_job.read(e.file, s_temp, e.fileSize))
+        if (s_temp == NULL)
+        {
+            say("Could not load: %s", storage::resultText(storage::kNoMemory));
+            return;
+        }
+        if (!s_job.read(e.file, s_temp, e.fileSize))
         {
             freeTemp();
-            say("Could not load: %s", storage::resultText(storage::kNoMemory));
+            say("Could not load: %s", storage::resultText(storage::kBusy));
             return;
         }
         s_busyRow = row;
@@ -565,6 +577,14 @@ namespace browser {
     {
         int result = storage::kOk;
         int status = 0;
+        if (s_jobStale)
+        {
+            if (s_job.poll(result, status))
+            {
+                s_jobStale = false;
+            }
+            return;
+        }
         if (s_phase == kIdle)
         {
             return;
@@ -833,8 +853,13 @@ namespace browser {
                 int status = 0;
                 int r = s_job.wait(kWaitMs, status);
                 storage::freeReadBuffer(s_head, r, status);
+                s_jobStale = r == storage::kBusy;
             }
-            storage::freeReadBuffer(s_head, storage::kOk, 0);
+            else
+            {
+                s_jobStale = false;
+                storage::freeReadBuffer(s_head, storage::kOk, 0);
+            }
             refresh();
         }
         TM_LOG("browser: opened for port %d\n", port + 1);
@@ -851,6 +876,7 @@ namespace browser {
         s_controllerType = gfPadType::GCC;
         s_count = 0;
         s_phase = kIdle;
+        s_jobStale = s_job.busy();
         s_head = NULL;
         s_temp = NULL;
         s_startNow = false;
@@ -862,14 +888,22 @@ namespace browser {
         {
             int status = 0;
             int r = s_job.wait(kWaitMs, status);
-            if (s_phase == kHeaders)
+            if (!s_jobStale)
             {
-                storage::freeReadBuffer(s_head, r, status);
+                if (s_phase == kHeaders)
+                {
+                    storage::freeReadBuffer(s_head, r, status);
+                }
+                else if (s_phase == kVerify)
+                {
+                    storage::freeReadBuffer(s_temp, r, status);
+                }
             }
-            else if (s_phase == kVerify)
-            {
-                storage::freeReadBuffer(s_temp, r, status);
-            }
+            s_jobStale = r == storage::kBusy;
+        }
+        else
+        {
+            s_jobStale = false;
         }
         storage::freeReadBuffer(s_head, storage::kOk, 0);
         freeTemp();

@@ -374,7 +374,9 @@ namespace osdQuick {
 
     static storage::Job s_job;
     static u8 s_cardBuf[storage::kSettingsFileCap] __attribute__((aligned(32)));
-    static u8 s_writeBuf[storage::kSettingsFileCap] __attribute__((aligned(32)));
+    // Heap-allocated in Heaps::Network so module unload after a kBusy timeout
+    // never frees active SDIO DMA memory.
+    static u8* s_writeBuf = NULL;
     static u32 s_cardSize = 0;
     static u32 s_cardSeq = 0;
     static u8 s_cardSlot = 1;
@@ -383,6 +385,7 @@ namespace osdQuick {
     static bool s_olderLayoutOnCard = false;
 
     static int s_phase = kIdle;
+    static bool s_jobStale = false;
     static u8 s_pendingSlot = 0;
     static u32 s_pendingSeq = 0;
     static u32 s_pendingSize = 0;
@@ -416,6 +419,10 @@ namespace osdQuick {
         int status = 0;
         seq = 0;
         fileSize = 0;
+        if (s_jobStale || s_job.busy())
+        {
+            return storage::kMissing;
+        }
         u8* buf = storage::allocReadBuffer(storage::kSettingsFileCap);
         if (buf == NULL)
         {
@@ -429,22 +436,23 @@ namespace osdQuick {
         int r = s_job.wait(kWaitMs, status);
         if (r != storage::kOk)
         {
+            if (r == storage::kBusy)
+            {
+                s_jobStale = true;
+            }
             storage::freeReadBuffer(buf, r, status);
             return r == storage::kBusy ? storage::kMissing : r;
         }
         const FileHeader* h = reinterpret_cast<const FileHeader*>(buf);
         r = storage::checkHeader(buf, sizeof(FileHeader), storage::kSettingsMagic, storage::kSettingsFormat, false);
-        if (r != storage::kOk)
+        if (r != storage::kOk && r != storage::kNewer)
         {
-            if (r == storage::kNewer)
-            {
-                seq = h->sequence;
-            }
             storage::freeReadBuffer(buf, storage::kOk, 0);
             return r;
         }
+        u32 minSz = r == storage::kNewer ? sizeof(FileHeader) : (sizeof(FileHeader) + sizeof(SettingsHead));
         u32 sz = h->size;
-        if (sz > storage::kSettingsFileCap || sz < sizeof(FileHeader) + sizeof(SettingsHead))
+        if (sz > storage::kSettingsFileCap || sz < minSz)
         {
             storage::freeReadBuffer(buf, storage::kOk, 0);
             return storage::kCorrupt;
@@ -457,11 +465,19 @@ namespace osdQuick {
         r = s_job.wait(kWaitMs, status);
         if (r != storage::kOk)
         {
+            if (r == storage::kBusy)
+            {
+                s_jobStale = true;
+            }
             storage::freeReadBuffer(buf, r, status);
-            return r == storage::kMissing ? storage::kCorrupt : r;
+            return (r == storage::kMissing || r == storage::kBusy) ? storage::kCorrupt : r;
         }
         r = storage::checkHeader(buf, sz, storage::kSettingsMagic, storage::kSettingsFormat, true);
-        if (r == storage::kOk)
+        if (r == storage::kNewer)
+        {
+            seq = reinterpret_cast<const FileHeader*>(buf)->sequence;
+        }
+        else if (r == storage::kOk)
         {
             const SettingsHead* head = reinterpret_cast<const SettingsHead*>(buf + sizeof(FileHeader));
             if (!validAreaTable(buf, sz, sizeof(FileHeader) + sizeof(SettingsHead), head->areaCount))
@@ -470,7 +486,7 @@ namespace osdQuick {
             }
             else
             {
-                seq = h->sequence;
+                seq = reinterpret_cast<const FileHeader*>(buf)->sequence;
                 fileSize = sz;
                 memcpy(dst, buf, sz);
             }
@@ -483,17 +499,22 @@ namespace osdQuick {
     {
         if (s_phase == kIdle)
         {
+            storage::freeWriteBuffer(s_writeBuf, storage::kOk);
             return;
         }
         int status = 0;
         int r = s_job.wait(kWaitMs, status);
-        if (s_phase == kFolder && r != storage::kBusy)
+        if (s_phase == kFolder && r != storage::kBusy && s_writeBuf != NULL)
         {
             s_phase = kWrite;
             r = s_job.write(kNames[s_pendingSlot], s_writeBuf, s_pendingSize) ? s_job.wait(kWaitMs, status)
                                                                               : storage::kBusy;
         }
-        if (r == storage::kOk)
+        if (r == storage::kBusy)
+        {
+            s_jobStale = true;
+        }
+        if (r == storage::kOk && s_writeBuf != NULL)
         {
             s_cardSlot = s_pendingSlot;
             s_cardSeq = s_pendingSeq;
@@ -510,6 +531,7 @@ namespace osdQuick {
             }
             TM_LOG("osdquick: saved to %s (save %u, %u bytes)\n", kNames[s_cardSlot], s_cardSeq, s_cardSize);
         }
+        storage::freeWriteBuffer(s_writeBuf, r);
         s_phase = kIdle;
     }
 
@@ -613,7 +635,7 @@ namespace osdQuick {
         }
 
         // 2. Patch kAreaOsd in-place on SD (never clobbering v1 pending upgrade or newer save).
-        if (s_newerOnCard || s_olderLayoutOnCard)
+        if (s_newerOnCard || s_olderLayoutOnCard || s_phase != kIdle || s_jobStale || s_job.busy())
         {
             return;
         }
@@ -625,9 +647,18 @@ namespace osdQuick {
         }
         u32 nextSeq = storage::nextSequence(s_cardSeq);
         u32 outSz = 0;
-        if (!patchOsdAndCpuInFile(s_hasCard ? s_cardBuf : NULL, s_hasCard ? s_cardSize : 0, s_osd,
-                                  static_cast<s8>(s_techTrackerOsd), s_writeBuf, sizeof(s_writeBuf), nextSeq, outSz))
+        storage::freeWriteBuffer(s_writeBuf, storage::kOk);
+        s_writeBuf = storage::allocWriteBuffer(storage::kSettingsFileCap);
+        if (s_writeBuf == NULL)
         {
+            TM_LOG("osdquick: not saved: %s\n", storage::resultText(storage::kNoMemory));
+            return;
+        }
+        if (!patchOsdAndCpuInFile(s_hasCard ? s_cardBuf : NULL, s_hasCard ? s_cardSize : 0, s_osd,
+                                  static_cast<s8>(s_techTrackerOsd), s_writeBuf, storage::kSettingsFileCap, nextSeq,
+                                  outSz))
+        {
+            storage::freeWriteBuffer(s_writeBuf, storage::kOk);
             TM_LOG("osdquick: patch failed\n");
             return;
         }
@@ -637,6 +668,7 @@ namespace osdQuick {
         s_phase = kFolder;
         if (!s_job.makeFolder())
         {
+            storage::freeWriteBuffer(s_writeBuf, storage::kWriteFailed);
             s_phase = kIdle;
         }
     }
@@ -755,6 +787,7 @@ namespace osdQuick {
         s_open = false;
         s_dirty = false;
         s_phase = kIdle;
+        s_jobStale = s_job.busy();
         s_cursor = 0;
         s_scroll = 0;
         memset(s_rep, 0, sizeof(s_rep));
@@ -854,6 +887,14 @@ namespace osdQuick {
     {
         int result = storage::kOk;
         int status = 0;
+        if (s_jobStale)
+        {
+            if (s_job.poll(result, status))
+            {
+                s_jobStale = false;
+            }
+            return;
+        }
         if (s_phase == kIdle || !s_job.poll(result, status))
         {
             return;
@@ -861,14 +902,15 @@ namespace osdQuick {
         if (s_phase == kFolder)
         {
             s_phase = kWrite;
-            if (!s_job.write(kNames[s_pendingSlot], s_writeBuf, s_pendingSize))
+            if (s_writeBuf == NULL || !s_job.write(kNames[s_pendingSlot], s_writeBuf, s_pendingSize))
             {
+                storage::freeWriteBuffer(s_writeBuf, storage::kWriteFailed);
                 s_phase = kIdle;
             }
             return;
         }
         s_phase = kIdle;
-        if (result == storage::kOk)
+        if (result == storage::kOk && s_writeBuf != NULL)
         {
             s_cardSlot = s_pendingSlot;
             s_cardSeq = s_pendingSeq;
@@ -889,6 +931,7 @@ namespace osdQuick {
         {
             TM_LOG("osdquick: save failed (status %d)\n", status);
         }
+        storage::freeWriteBuffer(s_writeBuf, result);
     }
 
     void draw()

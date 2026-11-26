@@ -92,6 +92,7 @@ namespace storage {
     enum Phase { kIdle, kFolder, kWrite };
     static int s_phase = kIdle;
     static bool s_again = false; // closed again while writing
+    static bool s_jobStale = false; // timed-out request still draining
     static u32 s_pendingView = 0;
     static u32 s_pendingSequence = 0;
     static u8 s_pendingSlot = 0;
@@ -198,6 +199,10 @@ namespace storage {
         {
             return kNoMemory;
         }
+        if (s_jobStale || s_job.busy())
+        {
+            return kMissing;
+        }
         u8* buf = allocReadBuffer(kFileCap);
         if (buf == NULL)
         {
@@ -215,20 +220,23 @@ namespace storage {
         {
             freeR = r;
             freeStatus = status;
-            if (r == kBusy) r = kMissing;
+            if (r == kBusy)
+            {
+                s_jobStale = true;
+                r = kMissing;
+            }
             goto out;
         }
         {
             const FileHeader* h = reinterpret_cast<const FileHeader*>(buf);
             r = checkHeader(buf, sizeof(FileHeader), kSettingsMagic, kSettingsFormat, false);
-            if (r != kOk)
+            if (r != kOk && r != kNewer)
             {
-                if (r == kNewer) sequence = h->sequence;
                 goto out;
             }
+            u32 minSize = r == kNewer ? sizeof(FileHeader) : (sizeof(FileHeader) + sizeof(SettingsHead));
             u32 size = h->size;
-            if (size > kFileCap || size < sizeof(FileHeader) + sizeof(SettingsHead)
-                || !s_job.read(kNames[slot], buf, size))
+            if (size > kFileCap || size < minSize || !s_job.read(kNames[slot], buf, size))
             {
                 r = kCorrupt;
                 goto out;
@@ -238,11 +246,22 @@ namespace storage {
             {
                 freeR = r;
                 freeStatus = status;
-                if (r == kMissing) r = kCorrupt;
+                if (r == kBusy)
+                {
+                    s_jobStale = true;
+                }
+                if (r == kMissing || r == kBusy)
+                {
+                    r = kCorrupt;
+                }
                 goto out;
             }
             r = checkHeader(buf, size, kSettingsMagic, kSettingsFormat, true);
-            if (r == kOk)
+            if (r == kNewer)
+            {
+                sequence = reinterpret_cast<const FileHeader*>(buf)->sequence;
+            }
+            else if (r == kOk)
             {
                 const SettingsHead* head = reinterpret_cast<const SettingsHead*>(buf + sizeof(FileHeader));
                 if (!validAreas(buf, size, sizeof(FileHeader) + sizeof(SettingsHead), head->areaCount))
@@ -333,7 +352,9 @@ namespace storage {
             s_v1UnchangedMask = 0;
             s_v1Affected = 0;
 
-            u8 refBuf[kFileCap];
+            TM_STATIC_ASSERT((kFileCap & 3u) == 0u, tm_settings_file_cap_word_aligned);
+            u32 refWords[kFileCap / 4];
+            u8* refBuf = reinterpret_cast<u8*>(refWords);
             u32 tableOff = sizeof(FileHeader) + sizeof(SettingsHead);
             u16 refCount = 0;
             if (writeAreas(refBuf, kFileCap, 0, reinterpret_cast<const u8*>(&s), kAllAreas, refCount) > 0)
@@ -406,6 +427,7 @@ namespace storage {
         s_state = blockState(block);
         s_phase = kIdle;
         s_again = false;
+        s_jobStale = s_job.busy();
         s_v1Pending = false;
         s_v1Affected = 0;
         s_v1UnchangedMask = 0;
@@ -525,9 +547,20 @@ namespace storage {
         s_pendingSequence = h->sequence;
         s_pendingSlot = static_cast<u8>(s_state->slot ^ 1);
         s_pendingSize = size;
+        if (s_jobStale || s_job.busy())
+        {
+            s_again = true;
+            notice(kNoticeWarn, "Lab settings not saved: %s", resultText(kBusy));
+            return;
+        }
         // The folder first (it exists after the first save; creating it again is harmless).
+        if (!s_job.makeFolder())
+        {
+            s_phase = kIdle;
+            notice(kNoticeWarn, "Lab settings not saved: %s", resultText(kBusy));
+            return;
+        }
         s_phase = kFolder;
-        s_job.makeFolder();
     }
 
     void settingsMenuClosed()
@@ -556,14 +589,33 @@ namespace storage {
     {
         int result = kOk;
         int status = 0;
+        if (s_jobStale)
+        {
+            if (!s_job.poll(result, status))
+            {
+                return;
+            }
+            s_jobStale = false;
+            if (s_again)
+            {
+                s_again = false;
+                startSave();
+            }
+            return;
+        }
         if (s_phase == kIdle || !s_job.poll(result, status))
         {
             return;
         }
         if (s_phase == kFolder)
         {
+            if (!s_job.write(kNames[s_pendingSlot], s_file, s_pendingSize))
+            {
+                s_phase = kIdle;
+                notice(kNoticeWarn, "Lab settings not saved: %s", resultText(kBusy));
+                return;
+            }
             s_phase = kWrite;
-            s_job.write(kNames[s_pendingSlot], s_file, s_pendingSize);
             return;
         }
         s_phase = kIdle;
@@ -608,8 +660,7 @@ namespace storage {
             if (s_phase == kFolder && r != kBusy && s_file != NULL)
             {
                 s_phase = kWrite;
-                s_job.write(kNames[s_pendingSlot], s_file, s_pendingSize);
-                r = s_job.wait(kWaitMs, status);
+                r = s_job.write(kNames[s_pendingSlot], s_file, s_pendingSize) ? s_job.wait(kWaitMs, status) : kBusy;
             }
             if (r == kOk && s_state != NULL)
             {
@@ -619,6 +670,10 @@ namespace storage {
                 s_state->force = 0;
             }
             dmaBusy = (r == kBusy);
+            if (dmaBusy)
+            {
+                s_jobStale = true;
+            }
             TM_LOG("storage: settings write finished at detach: %s (status %d)\n", resultText(r), status);
             s_phase = kIdle;
         }

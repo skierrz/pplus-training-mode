@@ -105,13 +105,13 @@ PATCH_ADDR, PATCH_ORIG, PATCH_SKIP = 0x80962D0C, 0x8B1BFFFF, 0x48000170
 # inside Resetti's [528, 546)/790 interval in COMMON3.PAC's ItmGenParam.
 # gmGlobalModeMelee +0x3C: m_itSwitch.m_assist; bit 18 (1 << 18) is m_mrResetti.
 # g_HeapInfos (0x80494958), 16 bytes/entry: 31 FighterTechqniq,
-# 35 AssistFigureResource; pool +0x14 allocated block count (u16), +0x1C used.
+# 35 AssistFigureResource, 38 PokemonResource; pool +0x14 allocated block count (u16), +0x1C used.
 IT_MANAGER = 0x80B8B7F4
 IT_PHASE, IT_NEXT_ASSIST, IT_SWITCH = 0x4C, 0x10BC, 0x119C
 MT_RAND_SEED = 0x805A00BC
 RESETTI_KIND, RESETTI_SEED = 0xA1, 0x1E6C6E03
 MODE_ASSIST_SWITCH, ASSIST_MR_RESETTI = 0x3C, 1 << 18
-HEAP_INFOS, HEAP_FTQ, HEAP_ASSIST = 0x80494958, 31, 35
+HEAP_INFOS, HEAP_FTQ, HEAP_ASSIST, HEAP_POKEMON = 0x80494958, 31, 35, 38
 # Recording page rows (src/main/ui/pages/recording.cpp): Save/Restore
 # Positions, HMN Mode, ...
 ROW_HMN_MODE = 1
@@ -3575,7 +3575,8 @@ def _assist_state(emu):
     next_assist = struct.unpack(">i", emu.read(mgr + IT_NEXT_ASSIST, 4))[0] if mgr else None
     mgr_word5 = emu.u32(mgr + IT_SWITCH + 20) if mgr else None
     ftq_blocks, ftq_used = _heap_counts(emu, HEAP_FTQ)
-    assist_blocks, _ = _heap_counts(emu, HEAP_ASSIST)
+    assist_blocks, assist_used = _heap_counts(emu, HEAP_ASSIST)
+    pokemon_blocks, pokemon_used = _heap_counts(emu, HEAP_POKEMON)
     return {
         "mode_assist": mode_assist,
         "mode_resetti": None if mode_assist is None else bool(mode_assist & ASSIST_MR_RESETTI),
@@ -3584,15 +3585,19 @@ def _assist_state(emu):
         "ftq_blocks": ftq_blocks,
         "ftq_used": ftq_used,
         "assist_blocks": assist_blocks,
+        "assist_used": assist_used,
+        "pokemon_blocks": pokemon_blocks,
+        "pokemon_used": pokemon_used,
     }
 
 
 def _seed_resetti(emu):
-    """Pin g_mtRand to RESETTI_SEED while itManager is in phase 5 or 6 and has
-    not chosen its assist trophy yet."""
+    """Pin g_mtRand to RESETTI_SEED while itManager enters phase 5/6 so a
+    regression that re-enables preloads would draw Mr. Resetti."""
     emu.wait_for("scMelee", lambda: nav.scene(emu)[0] == "scMelee", 60 * 30, every=1)
     emu.h.call("pause")
     try:
+        phase6_frames = 0
         for _ in range(500):
             mgr = emu.ptr(IT_MANAGER)
             if mgr:
@@ -3602,14 +3607,19 @@ def _seed_resetti(emu):
                     emu.h.call("write_mem", addr=MT_RAND_SEED, hex=f"{RESETTI_SEED:08x}")
                 if nxt != -1:
                     return
+                if phase == 6:
+                    phase6_frames += 1
+                    if phase6_frames >= 60:
+                        return
             emu.h.call("frame_advance", n=1)
     finally:
         emu.h.call("resume")
 
 
 def s_resetti(r):
-    """Seeded Mr. Resetti draw (0x1E6C6E03) keeps Resetti off and recording
-    working; an ordinary unseeded match still preloads an assist trophy."""
+    """Training skips unused Assist Trophy and Pokemon preloads (itManager+0x149F=0),
+    keeping AssistFigureResource and PokemonResource at 0 B and recording working
+    under both seeded Resetti RNG (0x1E6C6E03) and an ordinary unseeded match."""
     res = Result("Mr. Resetti guard")
     emu, rec = r.emu, r.rec
     emu.h.call("resume")
@@ -3631,11 +3641,11 @@ def s_resetti(r):
     res.row("Resetti switch bits clear (modeMelee & itManager)", "False / False",
             f"modeMelee {st_a['mode_resetti']} ({mode_hex}), itManager {st_a['mgr_resetti']}",
             st_a["mode_resetti"] is False and st_a["mgr_resetti"] is False)
-    res.row("another assist trophy preloaded under seed 0x1E6C6E03", "kind >= 0, != 0xa1, blocks > 0",
-            f"kind {st_a['next_assist'] if st_a['next_assist'] is None else hex(st_a['next_assist'])}, "
-            f"AssistFigureResource blocks {st_a['assist_blocks']}",
-            st_a["next_assist"] is not None and st_a["next_assist"] >= 0
-            and st_a["next_assist"] != RESETTI_KIND and (st_a["assist_blocks"] or 0) > 0)
+    res.row("AssistFigureResource & PokemonResource skipped (0 B)", "next -1, assist 0 B, pokemon 0 B",
+            f"next {st_a['next_assist']}, assist {st_a['assist_blocks']} blk/{st_a['assist_used']} B, "
+            f"pokemon {st_a['pokemon_blocks']} blk/{st_a['pokemon_used']} B",
+            st_a["next_assist"] == -1 and st_a["assist_blocks"] == 0 and st_a["assist_used"] == 0
+            and st_a["pokemon_blocks"] == 0 and st_a["pokemon_used"] == 0)
     storage_ok = (bool(tb["flags"] & FLAG_STORAGE) and tb["storage"] != 0 and tb["bytes"] == SLOT_BYTES
                   and st_a["ftq_blocks"] == 1 and refusal is None)
     obs_storage = (f"flags {tb['flags']:#x}, storage {tb['storage']:#x}, bytes {tb['bytes']:#x}, "
@@ -3672,7 +3682,7 @@ def s_resetti(r):
             freed.group(0) if (storage_ok and freed) else "skipped: no storage during match",
             storage_ok and freed is not None and freed.group(2) == "yes")
 
-    # 2. Ordinary unseeded match: assist preloading still works for other trophies.
+    # 2. Ordinary unseeded match: preloads stay skipped (0 B) and recording storage works.
     pos_u = len(emu.log_text())
     nav.start_training_match(emu, r.hmn, r.cpu, r.stage, seed_rng=False)
     emu.advance(60)
@@ -3680,11 +3690,11 @@ def s_resetti(r):
     log_u = log_since(emu, pos_u)
     r.refresh()
     tb_u = rec.status()
-    res.row("ordinary unseeded match still preloads an assist", "kind >= 0, != 0xa1, storage ok",
-            f"kind {st_u['next_assist'] if st_u['next_assist'] is None else hex(st_u['next_assist'])}, "
-            f"AssistFigureResource blocks {st_u['assist_blocks']}, storage {bool(tb_u['flags'] & FLAG_STORAGE)}",
-            st_u["next_assist"] is not None and st_u["next_assist"] >= 0
-            and st_u["next_assist"] != RESETTI_KIND and (st_u["assist_blocks"] or 0) > 0
+    res.row("ordinary unseeded match keeps preload heaps empty", "next -1, assist/pokemon 0 B, storage ok",
+            f"next {st_u['next_assist']}, assist {st_u['assist_blocks']} blk/{st_u['assist_used']} B, "
+            f"pokemon {st_u['pokemon_blocks']} blk/{st_u['pokemon_used']} B, storage {bool(tb_u['flags'] & FLAG_STORAGE)}",
+            st_u["next_assist"] == -1 and st_u["assist_blocks"] == 0 and st_u["assist_used"] == 0
+            and st_u["pokemon_blocks"] == 0 and st_u["pokemon_used"] == 0
             and bool(tb_u["flags"] & FLAG_STORAGE) and "record: no storage" not in log_u)
     nav.finish_training(emu)
     emu.advance(60)

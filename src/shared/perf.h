@@ -73,12 +73,14 @@ namespace perf {
         kSaveWrite,
         kSaveCheck,
         kSaveMeasureV3,
+        kSaveMaxIrqOff,   // peak single OSDisableInterrupts..OSRestoreInterrupts span on capture
         kLoadRestore,     // a savestate load: snapshot::restore whole
         kLoadFingerprint,
         kLoadCheck,
         kLoadWaitGpu,
         kLoadCopy,
         kLoadFlush,
+        kLoadMaxIrqOff,   // peak single OSDisableInterrupts..OSRestoreInterrupts span on restore
         // Counts, not ticks.
         kCountRects,      // gfx::prepare calls (one per shape or text run)
         kCountTexts,      // gfx::text calls

@@ -158,7 +158,8 @@ namespace gfx {
         {
             return;
         }
-        u8 raw[24];
+        u32 rawWords[6];
+        u8* raw = reinterpret_cast<u8*>(rawWords);
         typedef void (*GetGlyph)(void* font, void* glyph, u16 code);
         GetGlyph get = *reinterpret_cast<GetGlyph*>(*reinterpret_cast<u32*>(kSystemFont) + 0x50);
         get(kSystemFont, raw, code);

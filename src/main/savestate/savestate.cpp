@@ -401,10 +401,18 @@ namespace savestate {
         cpu::optionsSaved(slot);
         traceTop('S');
         const SlotInfo& info = slotInfo(slot);
+#ifdef TM_PERF
+        TM_LOG("savestate: %ssaved frame %u: %u bytes in %u segments (without fighter free space %u), slot %u, "
+               "copy %.2f ms, maxIrqOff %.3f ms (%u ticks)%s\n",
+               slot == kSlotQuick ? "" : "recording state ", info.frame, info.bytes, info.segments, info.setBytesV3,
+               info.capacity, ms(info.saveTicks), ms(info.saveMaxIrqOffTicks), info.saveMaxIrqOffTicks,
+               droppedOther() ? "; quick state dropped for room" : "");
+#else
         TM_LOG("savestate: %ssaved frame %u: %u bytes in %u segments (without fighter free space %u), slot %u, "
                "copy %.2f ms%s\n",
                slot == kSlotQuick ? "" : "recording state ", info.frame, info.bytes, info.segments, info.setBytesV3,
                info.capacity, ms(info.saveTicks), droppedOther() ? "; quick state dropped for room" : "");
+#endif
         savedFeedback();
         if (slot != kSlotQuick && droppedOther())
         {
@@ -474,9 +482,15 @@ namespace savestate {
         addRandomPercent();
         traceTop('L');
         const SlotInfo& info = slotInfo(slot);
+#ifdef TM_PERF
+        TM_LOG("savestate: %sloaded frame %u (load %u): copy %.2f ms, checksum %.2f ms, maxIrqOff %.3f ms (%u ticks)\n",
+               slot == kSlotQuick ? "" : "recording state ", info.frame, s_loads, ms(info.loadTicks),
+               ms(info.checkTicks), ms(info.loadMaxIrqOffTicks), info.loadMaxIrqOffTicks);
+#else
         TM_LOG("savestate: %sloaded frame %u (load %u): copy %.2f ms, checksum %.2f ms\n",
                slot == kSlotQuick ? "" : "recording state ", info.frame, s_loads, ms(info.loadTicks),
                ms(info.checkTicks));
+#endif
         if (s_feedback != kQuiet)
         {
             sound(game::kSoundBack);

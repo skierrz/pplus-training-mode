@@ -2,6 +2,9 @@
 
 #include <cstdarg>
 #include <cstdio>
+#ifdef __MWERKS__
+#include <it/it_manager.h>
+#endif
 #include <types.h>
 
 #include "main/cpu/actions.h"
@@ -197,11 +200,35 @@ namespace main {
 
     static void (*s_recordPads)(u32, gfPadStatus*) = NULL;
 
+    // Skip Brawl/P+'s unused Training preloads of 5 Pokemon (PokemonResource,
+    // 1,024 KiB) and 1 Assist Trophy (AssistFigureResource, 410 KiB) by
+    // clearing itManager+0x149F before scMelee::start sets +0xFF5 = 1
+    // (itManager::processBegin checks lbz r0, 0xFF5(r28) at 0x809AD580 and
+    // lbz r0, 0x149F(r28) at 0x809AD58C; zero g_mtRand churn).
+    static void skipTrainingItemPreload()
+    {
+#ifdef __MWERKS__
+        if (!game::trainingGameMode())
+        {
+            return;
+        }
+        itManager* mgr = itManager::getInstance();
+        if (game::isRam(mgr))
+        {
+            *reinterpret_cast<u8*>(reinterpret_cast<u32>(mgr) + 0x149Fu) = 0;
+        }
+#endif
+    }
+
     // While P+'s Code Menu is open (state 4), it pauses gfTaskScheduler and
     // masks pads; close our lab menu if open and keep every pad consumer
     // (recording, savestates, lab, drills) quiet until it closes.
     static void onPadsOuter(u32 phase, gfPadStatus* pads)
     {
+        if (phase == iface::kPadsSystem)
+        {
+            skipTrainingItemPreload();
+        }
         if (game::codeMenuOpen())
         {
             if (phase == iface::kPadsSystem && lab::menuOpen())

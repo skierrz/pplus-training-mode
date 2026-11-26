@@ -36,6 +36,7 @@
 //    gf/gf_memory_pool.h). The test layer itself never calls the C
 //    library's free.
 void host_game_free(void* block);
+bool host_game_block_live(const void* block);
 #define free host_game_free
 
 // The sources keep game addresses in pointers and in 32-bit integers

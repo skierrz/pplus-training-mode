@@ -302,7 +302,13 @@ namespace extra {
         {
             return false;
         }
-        out.data = tex0 + static_cast<u32>(ofsData);
+        const u8* data = tex0 + static_cast<u32>(ofsData);
+        // Hollywood GX GXInitTexObjCI encodes physical address as addr >> 5.
+        if ((reinterpret_cast<u32>(data) & 31u) != 0u)
+        {
+            return false;
+        }
+        out.data = data;
         out.width = width;
         out.height = height;
         out.gxFmt = gxFmt;
@@ -344,7 +350,13 @@ namespace extra {
         {
             return false;
         }
-        out.data = plt0 + static_cast<u32>(ofsData);
+        const u8* data = plt0 + static_cast<u32>(ofsData);
+        // Hollywood GX GXInitTlutObj encodes physical address as addr >> 5.
+        if ((reinterpret_cast<u32>(data) & 31u) != 0u)
+        {
+            return false;
+        }
+        out.data = data;
         out.fmt = fmt;
         out.entryCount = entryCount;
         return true;

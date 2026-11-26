@@ -3,11 +3,11 @@
 #include "host/mem.h"
 
 namespace host {
-    // Lists from 0x93000000 up, arguments from 0x93400000, modules from
-    // 0x93800000: MEM2, far from each other.
-    static const u32 kLists = 0x93000000u;
-    static const u32 kArgs = 0x93400000u;
-    static const u32 kModules = 0x93800000u;
+    // Lists from 0x92000000 up, arguments from 0x92400000, modules from
+    // 0x92800000: Broadway-safe MEM2 (< 0x93600000), far from each other.
+    static const u32 kLists = 0x92000000u;
+    static const u32 kArgs = 0x92400000u;
+    static const u32 kModules = 0x92800000u;
     static u32 s_nextList = kLists;
     static u32 s_nextArg = kArgs;
     static u32 s_nextModule = kModules;

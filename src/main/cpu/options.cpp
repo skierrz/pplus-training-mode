@@ -2981,6 +2981,14 @@ namespace cpu {
                 s_aux = &s_heap->aux;
             }
         }
+        s_moving = false;
+        s_freezeRequest = false;
+        g_moveCpuLabel[0] = g_freezeCpuLabel[0] = '\0';
+        for (int i = 0; i < kMaxSlots; i++)
+        {
+            s_portChanged[i] = false;
+            s_origPort[i] = static_cast<s8>(controllerOf(i));
+        }
         if (s_brains == NULL)
         {
             TM_LOG("cpu: options heap alloc failed (%u bytes in Network)\n",
@@ -2995,8 +3003,6 @@ namespace cpu {
             s_brains[i].revAction = 0;
             s_brains[i].revDelay = 0;
             s_brains[i].reset();
-            s_portChanged[i] = false;
-            s_origPort[i] = static_cast<s8>(controllerOf(i));
             s_aux->handed[i].frame = game::kNoFrame;
             s_aux->playbackSeen[i].frame = game::kNoFrame;
         }
@@ -3006,9 +3012,6 @@ namespace cpu {
         s_aux->cueTest.playerNo = -1;
         TM_LOG("cpu: cue test block at %08x\n", &s_aux->cueTest);
         s_rng = game::frameCounter() | 1;
-        s_moving = false;
-        s_freezeRequest = false;
-        g_moveCpuLabel[0] = g_freezeCpuLabel[0] = '\0';
         advancedAttach();
         optionsSaved(0);
         optionsSaved(1);

@@ -10,6 +10,12 @@
 using namespace tm;
 
 namespace {
+    static u8* align32(u8* p)
+    {
+        u32 a = reinterpret_cast<u32>(p);
+        return p + ((32u - (a & 31u)) & 31u);
+    }
+
     static void putBe16(u8* p, u16 v)
     {
         p[0] = static_cast<u8>((v >> 8) & 0xFF);
@@ -154,14 +160,15 @@ namespace {
 
 TEST(ui_assets, brres_parses_ci8_and_ci4_assets_and_handles_over_729_entries)
 {
-    static u8 buf[65536];
+    static u8 bufRaw[65536 + 32];
+    u8* buf = align32(bufRaw);
     const SynthEntry items[3] = {
         {"InfPauseButton00", 120, 132, extra::kGxTfC8, extra::kGxTlRgb5A3, 256, 0xA1, 0x55},
         {"InfStc.0301", 32, 32, extra::kGxTfC8, extra::kGxTlRgb5A3, 32, 0xB2, 0x66},
         {"InfStc.2500", 16, 16, extra::kGxTfC4, extra::kGxTlRgb5A3, 16, 0xC3, 0x77}
     };
-    u32 total = buildSyntheticBrres(buf, sizeof(buf), items, 3);
-    REQUIRE(total > 0 && total <= sizeof(buf));
+    u32 total = buildSyntheticBrres(buf, 65536u, items, 3);
+    REQUIRE(total > 0 && total <= 65536u);
 
     extra::BrresView view;
     REQUIRE(extra::brresOpen(buf, total, view));
@@ -202,7 +209,8 @@ TEST(ui_assets, brres_parses_ci8_and_ci4_assets_and_handles_over_729_entries)
     CHECK(!missing.valid);
 
     // StockFaceTex.brres has 729 entries: verify lookups past entry 729 succeed!
-    static u8 bigBuf[256 * 1024];
+    static u8 bigBufRaw[256 * 1024 + 32];
+    u8* bigBuf = align32(bigBufRaw);
     static SynthEntry many[760];
     static char names[760][16];
     for (u32 i = 0; i < 760; i++)
@@ -217,8 +225,8 @@ TEST(ui_assets, brres_parses_ci8_and_ci4_assets_and_handles_over_729_entries)
         many[i].texFill = static_cast<u8>(i & 0xFF);
         many[i].pltFill = static_cast<u8>((i * 3) & 0xFF);
     }
-    u32 bigTotal = buildSyntheticBrres(bigBuf, sizeof(bigBuf), many, 760);
-    REQUIRE(bigTotal > 0 && bigTotal <= sizeof(bigBuf));
+    u32 bigTotal = buildSyntheticBrres(bigBuf, 256u * 1024u, many, 760);
+    REQUIRE(bigTotal > 0 && bigTotal <= 256u * 1024u);
     extra::BrresView bigView;
     REQUIRE(extra::brresOpen(bigBuf, bigTotal, bigView));
     extra::CiAsset last;
@@ -230,11 +238,13 @@ TEST(ui_assets, brres_parses_ci8_and_ci4_assets_and_handles_over_729_entries)
 
 TEST(ui_assets, brres_rejects_corrupt_headers_oob_offsets_and_truncated_blocks)
 {
-    static u8 base[4096];
-    static u8 copy[4096];
+    static u8 baseRaw[4096 + 32];
+    static u8 copyRaw[4096 + 32];
+    u8* base = align32(baseRaw);
+    u8* copy = align32(copyRaw);
     const SynthEntry item = {"TestTex", 16, 16, extra::kGxTfC8, extra::kGxTlRgb5A3, 32, 0x11, 0x22};
-    u32 total = buildSyntheticBrres(base, sizeof(base), &item, 1);
-    REQUIRE(total > 0 && total <= sizeof(base));
+    u32 total = buildSyntheticBrres(base, 4096u, &item, 1);
+    REQUIRE(total > 0 && total <= 4096u);
 
     extra::BrresView view;
     extra::CiAsset asset;
@@ -295,7 +305,7 @@ TEST(ui_assets, brres_rejects_corrupt_headers_oob_offsets_and_truncated_blocks)
     CHECK(!extra::parseTex0(badTex, sizeof(badTex), ti));
     // Non-CI format (RGBA8 = 6) fails brresFindCiAsset.
     const SynthEntry nonCi = {"RgbaTex", 8, 8, 6, extra::kGxTlRgb5A3, 16, 0x11, 0x22};
-    u32 nonCiTotal = buildSyntheticBrres(copy, sizeof(copy), &nonCi, 1);
+    u32 nonCiTotal = buildSyntheticBrres(copy, 4096u, &nonCi, 1);
     REQUIRE(extra::brresOpen(copy, nonCiTotal, view));
     CHECK(!extra::brresFindCiAsset(view, "RgbaTex", asset));
 
@@ -303,13 +313,33 @@ TEST(ui_assets, brres_rejects_corrupt_headers_oob_offsets_and_truncated_blocks)
     extra::Plt0Info pi;
     CHECK(extra::parsePlt0(pltE.data, pltE.availBytes, pi));
     CHECK(!extra::parsePlt0(pltE.data, 0x40 + 10, pi));
-    u8 badPlt[0x100];
+    u8 badPltRaw[0x100 + 32];
+    u8* badPlt = align32(badPltRaw);
     memcpy(badPlt, pltE.data, 0x40 + 64);
     putBe32(badPlt + 0x18, 99); // invalid GXTlutFmt
-    CHECK(!extra::parsePlt0(badPlt, sizeof(badPlt), pi));
+    CHECK(!extra::parsePlt0(badPlt, 0x100u, pi));
     memcpy(badPlt, pltE.data, 0x40 + 64);
     putBe16(badPlt + 0x1C, 0); // zero entries
-    CHECK(!extra::parsePlt0(badPlt, sizeof(badPlt), pi));
+    CHECK(!extra::parsePlt0(badPlt, 0x100u, pi));
+
+    // Non-32-byte-aligned TEX0/PLT0 data pointers must be rejected (GX addr >> 5).
+    u8 unalignedTexRaw[0x240 + 32];
+    u8* unalignedTex = align32(unalignedTexRaw);
+    memcpy(unalignedTex, texE.data, 0x40 + 256);
+    CHECK(extra::parseTex0(unalignedTex, 0x200u, ti));
+    putBe32(unalignedTex + 0x04, 0x44u + 256u);
+    putBe32(unalignedTex + 0x10, 0x44u);
+    CHECK(!extra::parseTex0(unalignedTex, 0x240u, ti));
+    memcpy(unalignedTex + 4, texE.data, 0x40 + 256);
+    CHECK(!extra::parseTex0(unalignedTex + 4, 0x200u, ti));
+
+    memcpy(badPlt, pltE.data, 0x40 + 64);
+    CHECK(extra::parsePlt0(badPlt, 0x100u, pi));
+    putBe32(badPlt + 0x04, 0x44u + 64u);
+    putBe32(badPlt + 0x10, 0x44u);
+    CHECK(!extra::parsePlt0(badPlt, 0x100u, pi));
+    memcpy(badPlt + 4, pltE.data, 0x40 + 64);
+    CHECK(!extra::parsePlt0(badPlt + 4, 0xFCu, pi));
 }
 
 TEST(ui_assets, all_27_icons_have_valid_rects_aspects_and_uv_rotations)

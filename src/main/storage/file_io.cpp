@@ -177,7 +177,13 @@ namespace storage {
     int checkHeader(const void* file, u32 bytes, u32 magic, u16 format, bool whole)
     {
         const FileHeader* h = static_cast<const FileHeader*>(file);
-        if (bytes < sizeof(FileHeader) || h->magic != magic)
+        if (bytes < sizeof(FileHeader) || h->magic != magic || h->headerSize < sizeof(FileHeader)
+            || h->size < h->headerSize)
+        {
+            return kCorrupt;
+        }
+        if (whole && (bytes < h->size || checksum(static_cast<const u8*>(file) + kChecksumFrom,
+                                                  h->size - kChecksumFrom) != h->checksum))
         {
             return kCorrupt;
         }
@@ -188,15 +194,6 @@ namespace storage {
         if (h->format < format)
         {
             return kOlder;
-        }
-        if (h->headerSize < sizeof(FileHeader) || h->size < h->headerSize)
-        {
-            return kCorrupt;
-        }
-        if (whole && (bytes < h->size || checksum(static_cast<const u8*>(file) + kChecksumFrom,
-                                                  h->size - kChecksumFrom) != h->checksum))
-        {
-            return kCorrupt;
         }
         return kOk;
     }
@@ -220,6 +217,7 @@ namespace storage {
 
     Job::Job() : m_kind(kIdle), m_preset(kOk)
     {
+        memset(&m_handle, 0, sizeof(m_handle));
     }
 
     u8* allocReadBuffer(u32 bytes)
@@ -233,6 +231,7 @@ namespace storage {
         for (int i = 0; i < 2; i++)
         {
             game::HeapUsage u;
+            u.largest = 0;
             if (game::heapUsage(kHeaps[i], u) && u.largest >= need)
             {
                 void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(kHeaps[i]), need, 32);
@@ -245,18 +244,84 @@ namespace storage {
         return NULL;
     }
 
+    static bool poolBlockLive(const void* buf)
+    {
+#ifdef __MWERKS__
+        // gfMemoryPool::alloc (0x80025D40) writes 0xCCCCCCCC at (buf - 4),
+        // the block header at (buf - 12), and clears bit 0 of block+0x13;
+        // gfMemoryPool::free (0x8002600C) writes 0xDDDDDDDD at (buf - 4) and
+        // sets bit 0 of block+0x13. Checking these before freeing on any
+        // non-kOk read error prevents double-free even if readSDFile frees
+        // `buf` and returns status == 1.
+        if (!game::isRam(buf))
+        {
+            return false;
+        }
+        u32 addr = reinterpret_cast<u32>(buf);
+        if ((addr & 3u) != 0u || *reinterpret_cast<const u32*>(addr - 4) != 0xCCCCCCCCu)
+        {
+            return false;
+        }
+        u32 block = *reinterpret_cast<const u32*>(addr - 12);
+        if (!game::isRam(reinterpret_cast<const void*>(block)))
+        {
+            return false;
+        }
+        if ((*reinterpret_cast<const u8*>(block + 19) & 1u) != 0u)
+        {
+            return false;
+        }
+        u32 pool = *reinterpret_cast<const u32*>(block);
+        return pool == reinterpret_cast<u32>(gfHeapManager::getHeap(Heaps::Network))
+               || pool == reinterpret_cast<u32>(gfHeapManager::getHeap(Heaps::MenuInstance));
+#else
+        return host_game_block_live(buf);
+#endif
+    }
+
     void freeReadBuffer(u8*& buf, int result, int status)
     {
         if (buf == NULL)
         {
             return;
         }
-        if (result == kBusy || readFreedBuffer(result, status))
+        if (result == kBusy || readFreedBuffer(result, status) || (result != kOk && !poolBlockLive(buf)))
         {
             buf = NULL;
             return;
         }
         free(buf);
+        buf = NULL;
+    }
+
+    u8* allocWriteBuffer(u32 bytes)
+    {
+        u32 need = padded(bytes);
+        game::HeapUsage u;
+        u.largest = 0;
+        if (need == 0 || !game::heapUsage(Heaps::Network, u) || u.largest < need)
+        {
+            return NULL;
+        }
+        void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
+        if (!game::isRam(p))
+        {
+            return NULL;
+        }
+        memset(p, 0, need);
+        return static_cast<u8*>(p);
+    }
+
+    void freeWriteBuffer(u8*& buf, int result)
+    {
+        if (buf == NULL)
+        {
+            return;
+        }
+        if (result != kBusy)
+        {
+            free(buf);
+        }
         buf = NULL;
     }
 
@@ -295,7 +360,7 @@ namespace storage {
         char path[kPathMax];
         makePath(path, "", true);
         path[length(path) - 1] = '\0';
-        m_handle.createDirRequest(path);
+        handle().createDirRequest(path);
         return true;
     }
 
@@ -306,7 +371,7 @@ namespace storage {
         {
             return false;
         }
-        m_handle.writeRequest(path, const_cast<void*>(data), static_cast<int>(bytes), 0);
+        handle().writeRequest(path, const_cast<void*>(data), static_cast<int>(bytes), 0);
         return true;
     }
 
@@ -331,7 +396,7 @@ namespace storage {
         // Into `dest` (Project+'s SD read patches use the request's address
         // when no heap is given, and its length when it is not 0:
         // FilePatchCode.asm, hooks at 0x8001CD0C and 0x8001CCB8).
-        m_handle.readRequestNoSync(path, dest, static_cast<int>(bytes), 0);
+        handle().readRequestNoSync(path, dest, static_cast<int>(bytes), 0);
         return true;
     }
 
@@ -342,7 +407,7 @@ namespace storage {
         {
             return false;
         }
-        m_handle.del(path);
+        handle().del(path);
         return true;
     }
 
@@ -362,27 +427,35 @@ namespace storage {
             m_kind = kIdle;
             return true;
         }
-        if (!m_handle.isReady())
+        if (!handle().isReady())
         {
             return false;
         }
-        status = m_handle.getReturnStatus();
+        status = handle().getReturnStatus();
         int kind = m_kind;
-        m_handle.release();
+        handle().release();
         m_kind = kIdle;
         if (status == 0)
         {
             result = kOk;
         }
+        else if (!cardInserted())
+        {
+            result = kNoCard;
+        }
         else if (kind == kWrite)
         {
             // writeSDFile (fn_8001D740): 1 when FAFopen fails, 3 on a short
             // FAFwrite (0x8001D794, 0x8001D884; returned at 0x8001D8D0).
-            result = status == 3 ? kFull : kWriteFailed;
+            result = cardLocked() ? kLocked : (status == 3 ? kFull : kWriteFailed);
         }
         else if (kind == kFolder)
         {
-            result = kWriteFailed;
+            result = cardLocked() ? kLocked : kWriteFailed;
+        }
+        else if (kind == kDelete && cardLocked())
+        {
+            result = kLocked;
         }
         else
         {
@@ -438,12 +511,14 @@ namespace storage {
         // (sy_core.cpp, FAFsfirst(tmp, 0x20, &info)).
         if (FAFsfirst(pattern, 0x20, &s_list.e) != 0)
         {
-            return 0;
+            return cardInserted() ? 0 : -1;
         }
         do
         {
-            const char* name = s_list.e.name[0] != '\0' ? s_list.e.name : s_list.e.shortname;
-            if (name[0] != '.' && terminated(name, sizeof(s_list.e.name)))
+            bool longName = s_list.e.name[0] != '\0';
+            const char* name = longName ? s_list.e.name : s_list.e.shortname;
+            u32 nameCap = longName ? sizeof(s_list.e.name) : sizeof(s_list.e.shortname);
+            if (name[0] != '.' && terminated(name, nameCap))
             {
                 each(name, static_cast<u32>(s_list.e.size), ctx);
                 count++;
