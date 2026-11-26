@@ -3,7 +3,6 @@
 #include <OS/OSLink.h>
 #include <stddef.h>
 
-#include "extra/reversal_slots.h"
 #include "main/savestate/snapshot.h"
 #include "main/ui/info_display.h"
 #include "shared/game/mem.h"
@@ -285,11 +284,8 @@ namespace main {
 
     bool extraReversalPick(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay)
     {
-        if (s_hooks != NULL && s_hooks->reversalPick != NULL)
-        {
-            return s_hooks->reversalPick(trigger, fighterKind, roll, outAction, outDelay);
-        }
-        return extra::reversalSlotsPick(trigger, fighterKind, roll, outAction, outDelay);
+        return s_hooks != NULL && s_hooks->reversalPick != NULL
+               && s_hooks->reversalPick(trigger, fighterKind, roll, outAction, outDelay);
     }
 
     void extraPsaInspectorDraw(const game::MatchState& match, bool menuOpen)

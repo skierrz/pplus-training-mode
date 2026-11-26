@@ -37,6 +37,7 @@
 #include "main/gfx/text.h"
 #include "main/record/record.h"
 #include "main/savestate/savestate.h"
+#include "main/savestate/settings.h"
 #include "main/settings.h"
 #include "main/storage/notice.h"
 #include "main/storage/settings_file.h"
@@ -73,10 +74,14 @@ namespace {
     };
     static LabStubs s_labStubs;
 
+    static int s_fakeDrillFlags = 0;
+    static u32 fakeDrillHook(u32, gfPadStatus*) { return static_cast<u32>(s_fakeDrillFlags); }
+
     static void resetLabStubs()
     {
         memset(&s_labStubs, 0, sizeof(s_labStubs));
         s_labStubs.trainingCursor = 0;
+        s_fakeDrillFlags = 0;
     }
 
     static bool fakeFalse() { return false; }
@@ -230,6 +235,7 @@ namespace {
         hooks.frameData = fakeVoid;
         hooks.advantageMeasured = fakeAdv;
         hooks.characterRng = fakeRng;
+        hooks.drillHook = fakeDrillHook;
         main::setExtraHooks(&hooks);
         host::fakes::match().running = true;
         host::fakes::match().training = true;
@@ -481,12 +487,19 @@ TEST(wii_lab, sideways_bare_dpad_untouched_minus_chord_toggles_fa_and_fa_gates_c
     // D-pad Down stays visible while '-' advances (only '-' is hidden).
     CHECK_EQ(static_cast<u32>(game::kPadDDown), pads[4].m_buttonsCurrentFrame.bits);
 
-    // Classic Controller on port 5: bare D-pad Down strips kTauntDown in onFighterInput.
+    // Classic Controller on port 5: raw D-pad Down is cleared in onFighterPad
+    // before ipPadConfig mapping, so onFighterInput leaves post-mapping kTauntDown
+    // intact (preserving face buttons remapped to Taunt/Footstool).
     main::settings().general.frameAdvance = 0;
     main::settings().controls.dpadDown = main::kDownFrameAdvance;
     pads[4].m_controllerType = gfPadType::WII_CLASSIC;
     setPad(pads[4], 0);
     stepBoth(pads);
+    gfPadStatus fpad = pads[4];
+    setPad(fpad, game::kPadDDown | game::kPadA);
+    lab_uut::onFighterPad(4, &fpad);
+    CHECK_EQ(static_cast<u32>(game::kPadA), fpad.m_buttonsCurrentFrame.bits);
+    CHECK_EQ(static_cast<u32>(game::kPadA), fpad.m_buttonsCurrentFrame2.bits);
     s_labStubs.ownerValid = true;
     s_labStubs.owner.playerNo = 0;
     s_labStubs.owner.cpu = false;
@@ -494,7 +507,7 @@ TEST(wii_lab, sideways_bare_dpad_untouched_minus_chord_toggles_fa_and_fa_gates_c
     u32 fakeInput[8] = {0, 0, 0, 0x1000u, 0, 0, 0, 0}; // +0xC = kTauntDown
     iface::FighterInput call = {fakeInput, 0};
     lab_uut::onFighterInput(&call);
-    CHECK_EQ(0u, fakeInput[3]);
+    CHECK_EQ(0x1000u, fakeInput[3]);
 
     // Disconnect clears releaseMask and hot-swap suppresses phantom pressed edge.
     pads[4].m_controllerType = gfPadType::WII_CLASSIC;
@@ -687,5 +700,106 @@ TEST(wii_lab, sideways_a_cycles_tabs_and_draws_badges)
     setPad(pads[4], 0);
     stepBoth(pads);
     CHECK_EQ(static_cast<int>(catBefore), static_cast<int>(lab_uut::s_menu.category));
+    teardownLab();
+}
+
+TEST(wii_lab, fighter_pad_dpad_suppression_across_controllers_and_all_off)
+{
+    setupLab();
+    main::settings().controls.dpadLeft = savestate::kLeftLoadState;
+    main::settings().controls.dpadRight = savestate::kRightSaveState;
+    main::settings().controls.dpadUp = main::kUpTaunt;
+    main::settings().controls.dpadDown = main::kDownNone;
+
+    const u32 kTypes[3] = {
+        static_cast<u32>(gfPadType::GCC),
+        static_cast<u32>(gfPadType::WII_CLASSIC),
+        static_cast<u32>(gfPadType::NUNCHUK)
+    };
+    const u32 kPortsForType[3] = {0u, 4u, 4u};
+
+    // 1. GCC, Classic, and Nunchuk strip savestate D-pad Left/Right from all 6 button words
+    //    on fighterPad before ipPadConfig mapping, while leaving other buttons intact.
+    for (int t = 0; t < 3; t++)
+    {
+        gfPadStatus pad;
+        memset(&pad, 0, sizeof(pad));
+        pad.m_error = gfPadError::NONE;
+        pad.m_controllerType = static_cast<gfPadType::PadType>(kTypes[t]);
+        u32 bits = game::kPadDLeft | game::kPadDRight | game::kPadA;
+        setPad(pad, bits);
+        pad.m_buttonsReleasedThisFrame.bits = bits;
+        lab_uut::onFighterPad(kPortsForType[t], &pad);
+        CHECK_EQ(static_cast<u32>(game::kPadA), pad.m_buttonsCurrentFrame.bits);
+        CHECK_EQ(static_cast<u32>(game::kPadA), pad.m_buttonsCurrentFrame2.bits);
+        CHECK_EQ(static_cast<u32>(game::kPadA), pad.m_buttonsHeld.bits);
+        CHECK_EQ(static_cast<u32>(game::kPadA), pad.m_buttonsPressedThisFrame.bits);
+        CHECK_EQ(static_cast<u32>(game::kPadA), pad.m_buttonsPressedThisFrame2.bits);
+        CHECK_EQ(static_cast<u32>(game::kPadA), pad.m_buttonsReleasedThisFrame.bits);
+    }
+
+    // 2. Sideways Wii Remote: bare D-pad Left/Right stays intact (movement);
+    //    chording '-' + D-pad Left clears both D-pad Left AND '-' on fighterPad;
+    //    standalone '-' without a bound D-pad press stays intact.
+    {
+        gfPadStatus pad;
+        memset(&pad, 0, sizeof(pad));
+        pad.m_error = gfPadError::NONE;
+        pad.m_controllerType = gfPadType::WIIMOTE;
+
+        setPad(pad, game::kPadDLeft | game::kPadDRight);
+        lab_uut::onFighterPad(4u, &pad);
+        CHECK_EQ(static_cast<u32>(game::kPadDLeft | game::kPadDRight), pad.m_buttonsCurrentFrame2.bits);
+
+        setPad(pad, game::kPadWiiMinus | game::kPadDLeft);
+        lab_uut::onFighterPad(4u, &pad);
+        CHECK_EQ(0u, pad.m_buttonsCurrentFrame.bits);
+        CHECK_EQ(0u, pad.m_buttonsCurrentFrame2.bits);
+
+        setPad(pad, game::kPadWiiMinus);
+        lab_uut::onFighterPad(4u, &pad);
+        CHECK_EQ(static_cast<u32>(game::kPadWiiMinus), pad.m_buttonsCurrentFrame2.bits);
+    }
+
+    // 3. Skill Drill D-pad bits (4u = Left/Right, 16u = Down) are suppressed on fighterPad
+    //    even when user D-pad bindings are all OFF.
+    main::settings().controls.dpadLeft = savestate::kLeftNone;
+    main::settings().controls.dpadRight = savestate::kRightNone;
+    main::settings().controls.dpadUp = main::kUpTaunt;
+    main::settings().controls.dpadDown = main::kDownNone;
+    {
+        s_fakeDrillFlags = 4 | 16;
+        gfPadStatus pad;
+        memset(&pad, 0, sizeof(pad));
+        pad.m_error = gfPadError::NONE;
+        pad.m_controllerType = gfPadType::GCC;
+        setPad(pad, game::kPadDLeft | game::kPadDRight | game::kPadDDown | game::kPadDUp);
+        lab_uut::onFighterPad(0u, &pad);
+        CHECK_EQ(static_cast<u32>(game::kPadDUp), pad.m_buttonsCurrentFrame2.bits);
+        s_fakeDrillFlags = 0;
+    }
+
+    // 4. All Lab/savestate/drill D-pad bindings OFF: every controller passes all 4 D-pad bits cleanly.
+    const u32 kAllTypes[4] = {
+        static_cast<u32>(gfPadType::GCC),
+        static_cast<u32>(gfPadType::WII_CLASSIC),
+        static_cast<u32>(gfPadType::NUNCHUK),
+        static_cast<u32>(gfPadType::WIIMOTE)
+    };
+    const u32 kAllPorts[4] = {0u, 4u, 4u, 4u};
+    const u32 kAllDpad = game::kPadDLeft | game::kPadDRight | game::kPadDDown | game::kPadDUp;
+    for (int t = 0; t < 4; t++)
+    {
+        gfPadStatus pad;
+        memset(&pad, 0, sizeof(pad));
+        pad.m_error = gfPadError::NONE;
+        pad.m_controllerType = static_cast<gfPadType::PadType>(kAllTypes[t]);
+        u32 bits = kAllDpad | (kAllTypes[t] == static_cast<u32>(gfPadType::WIIMOTE) ? game::kPadWiiMinus : 0u);
+        setPad(pad, bits);
+        lab_uut::onFighterPad(kAllPorts[t], &pad);
+        CHECK_EQ(bits, pad.m_buttonsCurrentFrame.bits);
+        CHECK_EQ(bits, pad.m_buttonsCurrentFrame2.bits);
+    }
+
     teardownLab();
 }

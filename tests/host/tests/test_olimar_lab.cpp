@@ -29,9 +29,15 @@ namespace {
     static bool s_fakeOlimarInMatch = false;
     static int s_fakeActionCalls = 0;
     static u32 s_fakeLastAction = 0;
+    static int s_fakeRngApplyCalls = 0;
 
     static bool fakeCharacterRng(int call)
     {
+        if (call == main::kRngApply)
+        {
+            s_fakeRngApplyCalls++;
+            return true;
+        }
         if (call == main::kRngOlimar || call == main::kRngOlimarP1)
         {
             return s_fakeOlimarInMatch;
@@ -542,5 +548,88 @@ TEST(olimar_lab, menu_submenu_visibility_scratch_sync_and_storage_roundtrip)
     CHECK_EQ(6, static_cast<int>(oms->dpadPreset[0]));
 
     storage::detach();
+    main::setExtraHooks(NULL);
+}
+
+TEST(olimar_lab, legacy_olimar_pikmin_migration_and_page_reset)
+{
+    bootClean();
+    s_fakeOlimarInMatch = true;
+    s_fakeRngApplyCalls = 0;
+    main::setExtraHooks(&kOlimarTestHooks);
+
+    // 3A: Pre-B4-A 25-byte save has olimarPikmin = Blue (3) and default pull pool 0x1F.
+    // Entering P_OLIMAR (olimarSyncFromSettings) must migrate it into olimarPullAndWhistle
+    // bit 2 (Blue only = 0x04) and retire olimarPikmin = 0 so Pull toggles reflect Blue immediately.
+    main::FighterMechanicsSettings& fm = main::settings().fighterMechanics;
+    fm.olimarPikmin = main::kPikminBlue;
+    fm.olimarPullAndWhistle = main::kOlimarPullPoolAll;
+
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+    const u8 oliPath[2] = {ui::pages::P_STAGE_CAST, ui::pages::P_OLIMAR};
+    REQUIRE(ui::menuJump(menu, st, oliPath, 2));
+    CHECK_EQ(static_cast<u32>(1u << extra::kOliColorBlue), static_cast<u32>(extra::olimarRawPullMask(fm)));
+    CHECK_EQ(static_cast<int>(main::kPikminDefault), static_cast<int>(fm.olimarPikmin));
+
+    // Also verify zero-initialized raw pull mask migrates identically.
+    fm.olimarPikmin = main::kPikminPurple;
+    fm.olimarPullAndWhistle = 0u;
+    ui::pages::olimarSyncFromSettings();
+    CHECK_EQ(static_cast<u32>(1u << extra::kOliColorPurple), static_cast<u32>(extra::olimarRawPullMask(fm)));
+    CHECK_EQ(static_cast<int>(main::kPikminDefault), static_cast<int>(fm.olimarPikmin));
+
+    // 3B: Mutate all 22 Olimar settings and verify 2-tap Y Reset Page resets all of them,
+    // re-syncs scratch mirrors, and calls extraCharacterRng().
+    fm.olimarPikmin = main::kPikminRed;
+    fm.olimarMaturity = main::kPikminFlower;
+    extra::olimarSetRawPullMask(fm, 0x05u);
+    extra::olimarSetWhistleColor(fm, main::kPikminYellow);
+    extra::olimarSetDpadMode(fm, main::kOlimarDpadPresets);
+    for (int c = 0; c < extra::kOliColorCount; c++)
+    {
+        extra::olimarSetColorMaturityRaw(fm, c, main::kPikminBud);
+    }
+    for (int i = 0; i < 4; i++)
+    {
+        extra::olimarSetStartSlot(fm, i, static_cast<u8>(i + 1));
+        extra::olimarSetDpadPreset(fm, i, static_cast<u8>(i + 2));
+    }
+    ui::pages::olimarSyncFromSettings();
+
+    ui::MenuInput inResetPage = {0, 0, 0, 0, false, false, false, false, false, true};
+    int applyBefore = s_fakeRngApplyCalls;
+
+    // First Y tap arms confirmation without resetting yet.
+    ui::menuStep(menu, st, inResetPage);
+    CHECK(st.resetConfirmPage != 0);
+    CHECK_EQ(static_cast<int>(main::kOlimarDpadPresets), static_cast<int>(extra::olimarDpadMode(fm)));
+
+    // Second Y tap executes full Olimar page reset.
+    ui::menuStep(menu, st, inResetPage);
+    CHECK_EQ(0, static_cast<int>(st.resetConfirmPage));
+    CHECK_EQ(0, static_cast<int>(fm.olimarPikmin));
+    CHECK_EQ(0, static_cast<int>(fm.olimarMaturity));
+    CHECK_EQ(static_cast<u32>(main::kOlimarPullPoolAll), static_cast<u32>(fm.olimarPullAndWhistle));
+    CHECK_EQ(0u, static_cast<u32>(fm.olimarColorMatAndMode));
+    CHECK_EQ(0u, static_cast<u32>(fm.olimarStartLineup));
+    CHECK_EQ(0u, static_cast<u32>(fm.olimarDpadPresets));
+    CHECK(s_fakeRngApplyCalls > applyBefore);
+
+    const ui::pages::OlimarMenuState* oms = ui::pages::olimarMenuState();
+    CHECK_EQ(0, static_cast<int>(oms->dpadMode));
+    CHECK_EQ(0, static_cast<int>(oms->whistleColor));
+    CHECK_EQ(0, static_cast<int>(oms->allMaturity));
+    for (int c = 0; c < extra::kOliColorCount; c++)
+    {
+        CHECK_EQ(0, static_cast<int>(oms->colorMat[c]));
+    }
+    for (int i = 0; i < 4; i++)
+    {
+        CHECK_EQ(0, static_cast<int>(oms->startSlot[i]));
+        CHECK_EQ(0, static_cast<int>(oms->dpadPreset[i]));
+    }
+
     main::setExtraHooks(NULL);
 }

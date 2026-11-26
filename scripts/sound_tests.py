@@ -104,20 +104,20 @@ def run(emu, s, state):
     DT.wait_count(emu, "the launcher to open by itself", r"\[{name}\] drills: list opened \(auto\)", 1, 300)
     emu.advance(40)
 
-    state["step"] = "4-section boot launcher (All Modes / Offense / Defense / Tech Practice)"
+    state["step"] = "6-section boot launcher (All Modes / Offense / Defense / Tech Practice / Challenges / Character Trainers)"
     s.expect("menu", "launcher: opening by itself", lambda: None, [])
     if s.since(0):
         raise SoundError(f"sounds before any press: {s.since(0)}")
-    # Page 0 ("All Modes", 19 rows): row 0 = Training Lab, row 1 = L-Cancel.
+    # Page 0 ("All Modes"): row 0 = Training Lab, row 1 = L-Cancel.
     s.expect("menu", "launcher: stick up on the first row", lambda: press(stick=UP), [])
     s.expect("menu", "launcher: down to L-Cancel", lambda: press(stick=DOWN), [MOVE])
     s.expect("menu", "launcher: back up to Training Lab", lambda: press(stick=UP), [MOVE])
-    # Switch sections with R / L: All Modes -> Offense (5 rows) -> Defense (7 rows) -> Tech Practice (8 rows).
+    # Switch sections with R: All Modes -> Offense (4 rows) -> Defense -> Tech Practice -> Challenges -> Character Trainers -> All Modes.
     s.expect("menu", "launcher: R to Offense page", lambda: press(["R"]), [MOVE])
     if DT.last_page(emu) != "Offense":
         raise SoundError(f"expected Offense after R, got {DT.last_page(emu)!r}")
-    s.moves("menu", "launcher: down to bottom of Offense (row 4)",
-            lambda: [press(stick=DOWN) for _ in range(4)], lambda pos: 4)
+    s.moves("menu", "launcher: down to bottom of Offense (row 3)",
+            lambda: [press(stick=DOWN) for _ in range(3)], lambda pos: 3)
     s.expect("menu", "launcher: stick down on the last row of Offense", lambda: press(stick=DOWN), [])
     s.expect("menu", "launcher: R to Defense page", lambda: press(["R"]), [MOVE])
     if DT.last_page(emu) != "Defense":
@@ -125,6 +125,12 @@ def run(emu, s, state):
     s.expect("menu", "launcher: R to Tech Practice page", lambda: press(["R"]), [MOVE])
     if DT.last_page(emu) != "Tech Practice":
         raise SoundError(f"expected Tech Practice after R, got {DT.last_page(emu)!r}")
+    s.expect("menu", "launcher: R to Challenges page", lambda: press(["R"]), [MOVE])
+    if DT.last_page(emu) != "Challenges":
+        raise SoundError(f"expected Challenges after R, got {DT.last_page(emu)!r}")
+    s.expect("menu", "launcher: R to Character Trainers page", lambda: press(["R"]), [MOVE])
+    if DT.last_page(emu) != "Character Trainers":
+        raise SoundError(f"expected Character Trainers after R, got {DT.last_page(emu)!r}")
     s.expect("menu", "launcher: R wraps to All Modes page", lambda: press(["R"]), [MOVE])
     if DT.last_page(emu) != "All Modes":
         raise SoundError(f"expected All Modes after R wrap, got {DT.last_page(emu)!r}")

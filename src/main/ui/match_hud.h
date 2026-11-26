@@ -18,7 +18,7 @@ namespace ui {
     // the timer.
     void matchHudApply(const game::MatchState& m);
 
-    // True while Brawl's native top-left Training Info/Combo HUD is visible:
+    // True while Brawl's native right-side Training Info/Combo HUD is visible:
     // IfMngr (0x805A02D0) +0x04 == 5 (Training) -> IfTraining* (+0x78) -> u8 +0x30.
     // Verified against RSBE01 rev 2 (0x800DC1EC / 0x80104F64).
     inline bool matchHudCounterShown()

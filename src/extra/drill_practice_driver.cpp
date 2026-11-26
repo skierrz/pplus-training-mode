@@ -454,6 +454,16 @@ namespace extra {
     }
 
     bool drillPracticeClaimsDpadLR() { return s_net != NULL && s_net->debug.activeDrill == kPracticeDrillLedgedash; }
+    bool drillPracticeClaimsDpadDown()
+    {
+        if (s_net == NULL)
+        {
+            return false;
+        }
+        const u8 tMode = getTargetMode(*s_net);
+        return (tMode == kTargetStationary || tMode == kTargetShielding)
+               && main::settings().controls.dpadDown != main::kDownFrameAdvance;
+    }
     const WdZoneState* drillPracticeWdZone() { return s_net != NULL ? &s_net->sub.wdZone : NULL; }
     const DrillPracticeDebugBlock* drillPracticeDebugBlock() { return s_net != NULL ? &s_net->debug : NULL; }
 

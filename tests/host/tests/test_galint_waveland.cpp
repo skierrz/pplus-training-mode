@@ -34,6 +34,7 @@ namespace game {
     // Real tracker.cpp functions compiled in test_tracker_swap.cpp.
     s32 tracker_under_test_frame();
     const Tracked* tracker_under_test_tracked(int i);
+    extern s32 g_testWorkLCancel;
 
     bool outOfPlay(int status, bool platform)
     {
@@ -127,6 +128,8 @@ namespace {
         game::Technique lastGalint;
         int wavedashCount;
         game::Technique lastWavedash;
+        int lCancelCount;
+        game::Technique lastLCancel;
         int comboCount;
         game::Technique lastCombo;
     };
@@ -143,6 +146,11 @@ namespace {
         {
             s_sinkLog.wavedashCount++;
             s_sinkLog.lastWavedash = t;
+        }
+        else if (t.kind == game::kTechLCancel)
+        {
+            s_sinkLog.lCancelCount++;
+            s_sinkLog.lastLCancel = t;
         }
         else if (t.kind == game::kTechCombo)
         {
@@ -212,6 +220,11 @@ namespace {
 
     static void teardownWorld()
     {
+        game::g_testWorkLCancel = 0;
+        if (g_GameGlobal != NULL && g_GameGlobal->m_modeMelee != NULL)
+        {
+            g_GameGlobal->m_modeMelee->raw[0xE5] = 0;
+        }
         game::galint_techniquesDetach();
         game::trackerDetach();
     }
@@ -683,4 +696,128 @@ TEST(galint_waveland, ledge_core_direct_guard_blocks_stale_actionable_on_landing
     CHECK(extra::ledgeCoreStep(st, in));
     CHECK_EQ(19, static_cast<int>(st.last.galint));
     CHECK_EQ(10, static_cast<int>(st.last.landingLagFrames));
+}
+
+TEST(galint_waveland, auto_lcancel_rule_emits_auto_and_manual_takes_priority)
+{
+    TestUnit u = setupWorld();
+
+    // Enable P+ Auto L-Cancel rule bit (g_GameGlobal->m_modeMelee + 0xE5 bit 0x01).
+    g_GameGlobal->m_modeMelee->raw[0xE5] |= 0x01u;
+
+    // 1. Aerial landing with e.lCancel == 0 under Auto L-Cancel rule:
+    //    emits kLCancelAuto and keeps missedLCancel == false (no red Missed overlay).
+    game::g_testWorkLCancel = 0;
+    s_testBody.lCancel = 0;
+    fireStatusChange(u, game::kStatusFall, game::kStatusAttackAirFirst, Situation_Air);
+    finishAndStep(NULL);
+    fireStatusChange(u, game::kStatusAttackAirFirst, game::kStatusLandingAttackAir, Situation_Ground);
+    finishAndStep(NULL);
+    CHECK_EQ(1, s_sinkLog.lCancelCount);
+    CHECK_EQ(static_cast<int>(game::kLCancelAuto), static_cast<int>(s_sinkLog.lastLCancel.flag));
+    CHECK_EQ(0, static_cast<int>(s_sinkLog.lastLCancel.a));
+    CHECK_EQ(1, static_cast<int>(s_sinkLog.lastLCancel.b));
+    const game::TechniqueState* ts = game::galint_techniqueState(0);
+    REQUIRE(ts != NULL);
+    CHECK(!ts->missedLCancel);
+
+    // 2. Manual L-cancel hit (lCancel == 5 -> frame 8 - 5 = 3) takes priority over Auto L-Cancel rule.
+    fireStatusChange(u, game::kStatusLandingAttackAir, game::kStatusAttackAirFirst, Situation_Air);
+    s_testBody.lCancel = 7;
+    finishAndStep(NULL);
+    game::g_testWorkLCancel = 5;
+    s_testBody.lCancel = 5;
+    fireStatusChange(u, game::kStatusAttackAirFirst, game::kStatusLandingAttackAir, Situation_Ground);
+    finishAndStep(NULL);
+    CHECK_EQ(2, s_sinkLog.lCancelCount);
+    CHECK_EQ(static_cast<int>(game::kLCancelHit), static_cast<int>(s_sinkLog.lastLCancel.flag));
+    CHECK_EQ(3, static_cast<int>(s_sinkLog.lastLCancel.frame));
+    CHECK_EQ(1, static_cast<int>(s_sinkLog.lastLCancel.a));
+    CHECK_EQ(2, static_cast<int>(s_sinkLog.lastLCancel.b));
+    ts = game::galint_techniqueState(0);
+    REQUIRE(ts != NULL);
+    CHECK(!ts->missedLCancel);
+
+    // 3. With Auto L-Cancel rule OFF and e.lCancel == 0: reports kLCancelMissed and missedLCancel == true.
+    g_GameGlobal->m_modeMelee->raw[0xE5] &= static_cast<u8>(~0x01u);
+    game::g_testWorkLCancel = 0;
+    s_testBody.lCancel = 0;
+    fireStatusChange(u, game::kStatusLandingAttackAir, game::kStatusAttackAirFirst, Situation_Air);
+    finishAndStep(NULL);
+    fireStatusChange(u, game::kStatusAttackAirFirst, game::kStatusLandingAttackAir, Situation_Ground);
+    finishAndStep(NULL);
+    CHECK_EQ(3, s_sinkLog.lCancelCount);
+    CHECK_EQ(static_cast<int>(game::kLCancelMissed), static_cast<int>(s_sinkLog.lastLCancel.flag));
+    ts = game::galint_techniqueState(0);
+    REQUIRE(ts != NULL);
+    CHECK(ts->missedLCancel);
+
+    teardownWorld();
+}
+
+TEST(galint_waveland, wavedash_rejects_platform_waveland_high_air_and_upward_angle)
+{
+    TestUnit u = setupWorld();
+
+    // 1. Platform waveland: takeoff at y=0, land on platform at y=27.2 (|dy| >= 3.0) -> rejected.
+    s_testBody.y = 0.0f;
+    s_testBody.stickX = 0.9f;
+    s_testBody.stickY = -0.3f;
+    fireStatusChange(u, game::kStatusWait, game::kStatusJumpSquat, Situation_Ground);
+    finishAndStep(NULL);
+    fireStatusChange(u, game::kStatusJumpSquat, game::kStatusJump, Situation_Air);
+    finishAndStep(NULL);
+    finishAndStep(NULL);
+    fireStatusChange(u, game::kStatusJump, game::kStatusEscapeAir, Situation_Air);
+    finishAndStep(NULL);
+    s_testBody.y = 27.2f;
+    fireStatusChange(u, game::kStatusEscapeAir, game::kStatusLandingFallSpecial, Situation_Ground);
+    finishAndStep(NULL);
+    CHECK_EQ(0, s_sinkLog.wavedashCount);
+
+    // 2. High-air airdodge (> 10 air frames before airdodge) landing at y=0 -> rejected.
+    s_testBody.y = 0.0f;
+    s_testBody.stickX = 0.9f;
+    s_testBody.stickY = -0.4f;
+    fireStatusChange(u, game::kStatusLandingFallSpecial, game::kStatusJumpSquat, Situation_Ground);
+    finishAndStep(NULL);
+    fireStatusChange(u, game::kStatusJumpSquat, game::kStatusJump, Situation_Air);
+    finishAndStep(NULL);
+    for (int f = 0; f < 11; f++)
+    {
+        finishAndStep(NULL);
+    }
+    fireStatusChange(u, game::kStatusJump, game::kStatusEscapeAir, Situation_Air);
+    finishAndStep(NULL);
+    fireStatusChange(u, game::kStatusEscapeAir, game::kStatusLandingFallSpecial, Situation_Ground);
+    finishAndStep(NULL);
+    CHECK_EQ(0, s_sinkLog.wavedashCount);
+
+    // 3. Upward stick angle (stickY > 0.0) on frame-1 airdodge -> rejected.
+    s_testBody.y = 0.0f;
+    fireStatusChange(u, game::kStatusLandingFallSpecial, game::kStatusJumpSquat, Situation_Ground);
+    finishAndStep(NULL);
+    s_testBody.stickX = 0.8f;
+    s_testBody.stickY = 0.5f;
+    fireStatusChange(u, game::kStatusJumpSquat, game::kStatusJump, Situation_Air);
+    fireStatusChange(u, game::kStatusJump, game::kStatusEscapeAir, Situation_Air);
+    fireStatusChange(u, game::kStatusEscapeAir, game::kStatusLandingFallSpecial, Situation_Ground);
+    finishAndStep(NULL);
+    CHECK_EQ(0, s_sinkLog.wavedashCount);
+
+    // 4. Positive control: grounded wavedash (|dy| < 3.0, <= 10f, stickY <= 0.0) emits cleanly.
+    s_testBody.y = 0.0f;
+    fireStatusChange(u, game::kStatusLandingFallSpecial, game::kStatusJumpSquat, Situation_Ground);
+    finishAndStep(NULL);
+    s_testBody.stickX = 0.96f;
+    s_testBody.stickY = -0.28f;
+    s_testBody.y = 0.5f;
+    fireStatusChange(u, game::kStatusJumpSquat, game::kStatusJump, Situation_Air);
+    fireStatusChange(u, game::kStatusJump, game::kStatusEscapeAir, Situation_Air);
+    fireStatusChange(u, game::kStatusEscapeAir, game::kStatusLandingFallSpecial, Situation_Ground);
+    finishAndStep(NULL);
+    CHECK_EQ(1, s_sinkLog.wavedashCount);
+    CHECK_EQ(1, static_cast<int>(s_sinkLog.lastWavedash.frame));
+
+    teardownWorld();
 }

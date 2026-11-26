@@ -109,6 +109,7 @@ NOT_DRAWN_FILES = [
 # value per conversion (None: the default).
 NUMBERS = {
     ("lab.cpp", "L-Cancel (%d%%)\nMissed"): ["100"],
+    ("lab.cpp", "L-Cancel (%d%%)\nAuto (Rule On)"): ["100"],
     ("lab.cpp", "L-Cancel (%d%%)\nFrame %d/7"): ["100", "7"],
     ("lab.cpp", "%s\nRate: %d%%"): [None, "100"],
     ("pplus_tech_tracker.cpp", "%s\nCount: %u"): [None, "999"],

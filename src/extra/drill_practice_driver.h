@@ -68,6 +68,7 @@ namespace extra {
     bool drillPracticeCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons);
     bool drillPracticeOnPad(u32 phase, gfPadStatus* pads);
     bool drillPracticeClaimsDpadLR();
+    bool drillPracticeClaimsDpadDown();
     void drillPracticeSetActiveDrill(u8 drillId);
     void drillPracticeApplyMenu();
     PracticeConfig& drillPracticeConfig();

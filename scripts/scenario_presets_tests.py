@@ -325,11 +325,11 @@ def scenario_combo_lab(r, sb, cb):
     r.emu.advance(1)
     d_next = sb.read()
 
-    res.row("Combo Lab sets comboTrainer & CPU options", "en=1 fix=1 nc=1 rec=1",
+    res.row("Combo Lab sets comboTrainer & CPU options", "en=1 fix=1 nc=0 rec=1",
             f"en={read_combo_cfg(r.emu, r.opt.base)[0]} fix={read_combo_cfg(r.emu, r.opt.base)[2]} "
             f"nc={read_combo_cfg(r.emu, r.opt.base)[1]} rec={read_cpu_opts(r.emu, r.opt.base)[39]}",
             read_combo_cfg(r.emu, r.opt.base)[0] == 1 and read_combo_cfg(r.emu, r.opt.base)[2] == 1
-            and read_combo_cfg(r.emu, r.opt.base)[1] == 1 and read_cpu_opts(r.emu, r.opt.base)[39] == 1)
+            and read_combo_cfg(r.emu, r.opt.base)[1] == 0 and read_cpu_opts(r.emu, r.opt.base)[39] == 1)
     res.row("grounded 1-frame noclip 0->2 on warp", "warp=(0,0) next=(2,2)",
             f"warp={d_warp['lastCorrectWritten']} next={d_next['lastCorrectWritten']} obs={d_next['observedCorrect']}",
             d_warp["lastCorrectWritten"] == (CORRECT_NONE, CORRECT_NONE)

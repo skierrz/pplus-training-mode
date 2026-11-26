@@ -10,6 +10,7 @@
 #include "main/lab.h"
 #include "main/record/record.h"
 #include "main/savestate/savestate.h"
+#include "main/savestate/settings.h"
 #include "main/savestate/snapshot.h"
 #include "main/extra.h"
 #include "main/settings.h"
@@ -187,7 +188,8 @@ namespace savestate {
     }
     u32 boundBits()
     {
-        return 0;
+        const main::ControlSettings& c = main::settings().controls;
+        return (c.dpadLeft == kLeftLoadState ? 1u : 0u) | (c.dpadRight == kRightSaveState ? 2u : 0u);
     }
     void setOwnExclusion(u32, u32)
     {

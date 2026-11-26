@@ -2,6 +2,8 @@
 
 #include <types.h>
 
+#include "main/game/status_ids.h"
+
 class Fighter;
 
 // Where a recording starts (Save Positions). record.cpp keeps two: the
@@ -38,6 +40,24 @@ namespace record {
     };
 
     StartState& liteStartState();
+
+    // Pure decision helper for LiteStartState::place(): resolves target status,
+    // ground-correct mode (soGroundShapeImpl::Correct_Ground_Cliff_Stop = 2,
+    // Correct_Air = 5), and jump count (LA-Basic[1]) across grounded,
+    // mirrored-over-void, mid-air-near-floor, and tumble-to-ground restores.
+    enum {
+        kLiteCorrectGroundCliffStop = 2,
+        kLiteCorrectAir = 5
+    };
+
+    inline void resolveLiteRestore(bool savedAir, bool attachOk, s32 savedJumps,
+                                   int& outStatus, u32& outCorrect, s32& outJumps)
+    {
+        bool airborne = savedAir || !attachOk;
+        outStatus = airborne ? game::kStatusFall : game::kStatusWait;
+        outCorrect = airborne ? static_cast<u32>(kLiteCorrectAir) : static_cast<u32>(kLiteCorrectGroundCliffStop);
+        outJumps = airborne ? (savedJumps > 0 ? savedJumps : 1) : 0;
+    }
 
     // Puts `f` standing in Wait at (x, y), facing `lr`, the way a restore of
     // the lite start state places a fighter (DPad Down's Place CPU).

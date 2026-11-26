@@ -22,7 +22,7 @@ namespace ui {
         float y = style::textYForCap(layout::kWatermarkCapTop, scale);
         gfx::fillRect(x - padX, layout::kWatermarkCapTop - 1.0f, width + 2.0f * padX, cap + 2.0f, kBack);
         style::boldText(x + 1.0f, y + 1.0f, kText, kShadow, scale, scale);
-        style::boldText(x, y, kText, 0xDCE6EEFF, scale, scale);
+        style::boldText(x, y, kText, 0xF2F7FBFF, scale, scale);
     }
 }
 }
