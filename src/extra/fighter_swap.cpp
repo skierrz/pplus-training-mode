@@ -1,6 +1,7 @@
 // Mid-session Fighter Swap runtime (gmPlayerInitData + stLoaderPlayer +
 // set_guard). Heavy roster data and swap execution live in extra so match
 // stays lean.
+#define TM_FIGHTER_SWAP_IMPL 1
 #include "extra/fighter_swap.h"
 
 #include <ft/ft_manager.h>

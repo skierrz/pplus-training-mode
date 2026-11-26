@@ -794,14 +794,9 @@ namespace extra {
         }
         const ScenarioState& st = s_net->state;
         const ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
-        const main::Settings& s = main::settings();
         bool wide = gfx::widescreen();
         float xs = ui::layout::xsOf(wide);
-        ui::layout::Box card = ui::layout::techchaseHudBox(
-            ui::layout::topBand(), ui::layout::inputViewerSlotCount(s.display.inputViewer),
-            s.general.diDisplay != 0 && s.display.diVectorMode != main::kDiVectorLive,
-            s.display.psaInspector != main::kPsaOff, wide,
-            s.cpu.options.control == cpu::kControlLab && s.cpu.options.adaptiveMode != cpu::kAdaptiveOff);
+        ui::layout::Box card = hudRightCardBox(kHudCardTechchase, wide);
         float x0 = card.x0;
         float x1 = card.x1;
         float y0 = card.y0;

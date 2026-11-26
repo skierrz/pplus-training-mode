@@ -3,6 +3,7 @@
 #include <GX/GXTypes.h>
 #include <string.h>
 
+#include "main/cpu/cpu_settings.h"
 #include "main/display/display.h"
 #include "main/gfx/text.h"
 #include "main/settings.h"
@@ -119,6 +120,31 @@ namespace extra {
             ox = b;
             oy = -a;
         }
+    }
+
+    ui::layout::Box hudRightCardBox(int kind, bool wide, int viewerSlotsOverride, int hasCompOverride)
+    {
+        const main::Settings& s = main::settings();
+        ui::layout::Box band = ui::layout::topBand();
+        int vSlots = viewerSlotsOverride >= 0 ? viewerSlotsOverride : ui::layout::inputViewerSlotCount(s.display.inputViewer);
+        bool hasComp = hasCompOverride >= 0
+                           ? (hasCompOverride != 0)
+                           : (s.general.diDisplay != 0 && s.display.diVectorMode != main::kDiVectorLive);
+        bool hasPsa = s.display.psaInspector != main::kPsaOff;
+        bool hasAdapt = s.cpu.options.control == cpu::kControlLab && s.cpu.options.adaptiveMode != cpu::kAdaptiveOff;
+        if (kind == kHudCardDiCompass)
+        {
+            return ui::layout::diCompassBox(band, vSlots, wide);
+        }
+        if (kind == kHudCardPsa)
+        {
+            return ui::layout::psaInspectorBox(band, vSlots, hasComp, wide);
+        }
+        if (kind == kHudCardAdaptive)
+        {
+            return ui::layout::adaptiveHudBox(band, vSlots, hasComp, hasPsa, wide);
+        }
+        return ui::layout::techchaseHudBox(band, vSlots, hasComp, hasPsa, wide, hasAdapt);
     }
 }
 }

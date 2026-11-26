@@ -1216,7 +1216,7 @@ namespace extra {
                               ? countInputViewerSlots(refs, game::listFighters(refs, game::kMaxFighters))
                               : 0;
 
-        ui::layout::Box b = ui::layout::diCompassBox(ui::layout::topBand(), viewerSlots, gfx::widescreen());
+        ui::layout::Box b = hudRightCardBox(kHudCardDiCompass, gfx::widescreen(), viewerSlots);
         float xs = gfx::xScale();
         float x = b.x0;
         float y = b.y0;

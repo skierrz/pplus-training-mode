@@ -4,6 +4,7 @@
 
 #include "main/game/fighters.h"
 #include "main/gfx/draw.h"
+#include "main/ui/hud_layout.h"
 
 // Shared 2D HUD chrome and circle-math helpers for the extra module, avoiding
 // duplicated GX call sites and kept match-module relocations across overlays.
@@ -30,5 +31,17 @@ namespace extra {
 
     // 16-segment unit circle vertex (step 22.5 deg; stride 2 gives an octagon).
     void unitPoint16(int idx, float& ox, float& oy);
+
+    enum HudRightCard {
+        kHudCardDiCompass = 0,
+        kHudCardPsa = 1,
+        kHudCardAdaptive = 2,
+        kHudCardTechchase = 3
+    };
+
+    // Out-of-line wrapper around ui::layout right-column card boxes so
+    // rightColumnBottom() is compiled once in hud_draw.o instead of inlined
+    // into every overlay translation unit.
+    ui::layout::Box hudRightCardBox(int kind, bool wide, int viewerSlotsOverride = -1, int hasCompOverride = -1);
 }
 }

@@ -472,8 +472,7 @@ namespace extra {
         }
         int viewerSlots = match.training ? countInputViewerSlots(refs, n) : 0;
         bool hasCompass = match.training && diCompassVisible(match, menuOpen);
-        ui::layout::Box box = ui::layout::psaInspectorBox(ui::layout::topBand(), viewerSlots, hasCompass,
-                                                          gfx::widescreen());
+        ui::layout::Box box = hudRightCardBox(kHudCardPsa, gfx::widescreen(), viewerSlots, hasCompass ? 1 : 0);
         drawCard(box, target == main::kPsaCpu);
         s_debug->drawCalls++;
     }

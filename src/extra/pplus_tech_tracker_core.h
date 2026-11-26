@@ -101,6 +101,83 @@ namespace extra {
 
     // Data-driven 44-fighter P+ 3.2.1 signature tech table (1:1 over all 44
     // playable ftKinds; Nana 0x10 aliases to Popo 0x0F via findFighterTechDef).
+#ifdef __MWERKS__
+    inline u32 findFighterTechDef(int ftKind, const FighterTechDef*& outDef)
+    {
+        if (ftKind == 0x10)
+        {
+            ftKind = 0x0F;
+        }
+        // Packed 4-byte rows (176 B vs 528 B) + NUL-separated label pool (20 unique labels).
+        // variant: 0=default for techKind; SpecialJc: 0=Lw->JS, 1=S->JS, 2=Hi->Air; FloatCancel: 0=Peach, 1=Mewtwo.
+        struct PackedTechRow { u8 ftKind, techKind, variant, labelIdx; };
+        static const PackedTechRow kRows[kTechTrackerRosterCount] = {
+            {0x00, kTechRar,         0,  0}, {0x01, kTechRar,         0,  1}, {0x02, kTechAgt,         0,  2},
+            {0x03, kTechTetherZair,  0,  3}, {0x04, kTechDjc,         0,  4}, {0x05, kTechBReverse,    0,  5},
+            {0x06, kTechSpecialJc,   0,  6}, {0x07, kTechBReverse,    0,  5}, {0x08, kTechWaveland,    0,  7},
+            {0x09, kTechRar,         0,  0}, {0x0A, kTechDjc,         0,  4}, {0x0B, kTechDacus,       0,  8},
+            {0x0C, kTechFloatCancel, 0,  9}, {0x0D, kTechBReverse,    0,  5}, {0x0E, kTechDacus,       0,  8},
+            {0x0F, kTechWaveland,    0,  7}, {0x11, kTechWaveland,    0, 10}, {0x12, kTechWaveland,    0, 10},
+            {0x13, kTechSpecialJc,   0,  6}, {0x14, kTechFloatAerial, 0, 11}, {0x15, kTechDacus,       0,  8},
+            {0x16, kTechGlideCancel, 0, 12}, {0x17, kTechGlideCancel, 0, 12}, {0x18, kTechTetherZair,  0,  3},
+            {0x19, kTechTetherZair,  0, 13}, {0x1A, kTechDjc,         0,  4}, {0x1B, kTechAgt,         0, 14},
+            {0x1D, kTechGlideCancel, 0, 12}, {0x1E, kTechSpecialJc,   1, 15}, {0x1F, kTechTetherZair,  0, 16},
+            {0x20, kTechDacus,       0,  8}, {0x21, kTechSpecialJc,   2, 17}, {0x22, kTechSpecialJc,   1, 18},
+            {0x23, kTechAgt,         0, 19}, {0x25, kTechWaveland,    0, 10}, {0x26, kTechFloatCancel, 1, 20},
+            {0x27, kTechRar,         0,  0}, {0x29, kTechAgt,         0,  2}, {0x2C, kTechSpecialJc,   0,  6},
+            {0x2D, kTechWallClimb,   0, 21}, {0x2E, kTechDacus,       0, 22}, {0x2F, kTechSpecialJc,   0, 23},
+            {0x30, kTechRar,         0,  0}, {0x31, kTechDacus,       0,  8}
+        };
+        static const u16 kKindParams[kTechKindCount][2] = {
+            {0, 0}, {kTtStSpecialLw, kTtStJumpSquat}, {kTtStPeachFloat, kTtStLanding},
+            {kTtStSpecialN, kTtStAttackAir}, {kTtStJumpAerial, kTtStAttackAir},
+            {kTtStTurnRun, kTtStAttackAir}, {kTtStAttackDash, kTtStAttackHi4Start},
+            {kTtStSpecialN, kTtStSpecialLw}, {kTtStEscapeAir, kTtStLandingFallSpecial},
+            {kTtStEscapeAir, kTtStItemThrow}, {kTtStGlideStart, kTtStAttackAir},
+            {kTtStAirLasso, kTtStAirLassoHang}, {kTtStAttachWall, kTtStWallJump}
+        };
+        static const char kLabels[] =
+            "RAR Bair\0DK RAR Bair\0Bomb AGT\0Zair / Tether\0DJC Aerial\0B-Reverse\0"
+            "JC Shine\0Wavedash\0DACUS\0Float Cancel\0Waveland\0Float Aerial\0"
+            "Glide Cancel\0Tether\0Banana AGT\0Withdraw JC\0Tether / Zair\0Aura Cancel\0"
+            "Quick Draw JC\0Gyro AGT\0Hover Cancel\0Wall Climb\0Snake DACUS\0Spin Dash JC";
+        static FighterTechDef s_def;
+        for (int i = 0; i < kTechTrackerRosterCount; i++)
+        {
+            if (static_cast<int>(kRows[i].ftKind) == ftKind)
+            {
+                const PackedTechRow& r = kRows[i];
+                s_def.ftKind = r.ftKind;
+                s_def.techKind = r.techKind;
+                s_def.paramA = kKindParams[r.techKind][0];
+                s_def.paramB = kKindParams[r.techKind][1];
+                s_def.laBit = 0;
+                s_def.reserved = 0;
+                if (r.techKind == kTechSpecialJc)
+                {
+                    if (r.variant == 1) s_def.paramA = kTtStSpecialS;
+                    else if (r.variant == 2) { s_def.paramA = kTtStSpecialHi; s_def.paramB = kTtStAttackAir; }
+                }
+                else if (r.techKind == kTechFloatCancel)
+                {
+                    s_def.paramA = r.variant != 0 ? kTtStMewtwoHover : kTtStPeachFloat;
+                    s_def.laBit = r.variant != 0 ? 97 : 62;
+                }
+                const char* p = kLabels;
+                for (u8 n = r.labelIdx; n > 0; n--)
+                {
+                    while (*p != '\0') p++;
+                    p++;
+                }
+                s_def.label = p;
+                outDef = &s_def;
+                return static_cast<u32>(i + 1);
+            }
+        }
+        outDef = NULL;
+        return 0;
+    }
+#else
     inline const FighterTechDef* fighterTechTable()
     {
         static const FighterTechDef kTable[kTechTrackerRosterCount] = {
@@ -172,6 +249,7 @@ namespace extra {
         outDef = NULL;
         return 0;
     }
+#endif
 
     struct TechStatusEv {
         s16 status;

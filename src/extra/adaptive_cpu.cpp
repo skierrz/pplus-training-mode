@@ -311,10 +311,7 @@ namespace extra {
         }
         bool wide = gfx::widescreen();
         float xs = ui::layout::xsOf(wide);
-        int vSlots = ui::layout::inputViewerSlotCount(s.display.inputViewer);
-        bool hasComp = s.general.diDisplay != 0 && s.display.diVectorMode != main::kDiVectorLive;
-        bool hasPsa = s.display.psaInspector != main::kPsaOff;
-        ui::layout::Box b = ui::layout::adaptiveHudBox(ui::layout::topBand(), vSlots, hasComp, hasPsa, wide);
+        ui::layout::Box b = hudRightCardBox(kHudCardAdaptive, wide);
 
         AdaptiveHudView v;
         adaptiveBuildHudView(mode, s_net->patterns, s_net->telemetryPlayer, static_cast<u8>(s_net->debug.biasAction),

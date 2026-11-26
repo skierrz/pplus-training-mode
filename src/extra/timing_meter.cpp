@@ -112,21 +112,22 @@ namespace extra {
 
     void timingMeterFrame()
     {
-        if (s_net == NULL)
+        TimingMeterNet* net = s_net;
+        if (net == NULL)
         {
             return;
         }
         u8 mode = main::settings().osd.timingMeter;
         s32 f = game::trackerFrame();
-        s_net->debug.frame = static_cast<u32>(f >= 0 ? f : 0);
-        s_net->debug.mode = mode;
+        net->debug.frame = static_cast<u32>(f >= 0 ? f : 0);
+        net->debug.mode = mode;
 
         if (mode == main::kTimingMeterOff)
         {
             for (int i = 0; i < game::kMaxFighters; i++)
             {
-                s_net->slots[i].view.phase = kTmPhaseHidden;
-                s_net->debug.slots[i].active = kTmPhaseHidden;
+                net->slots[i].view.phase = kTmPhaseHidden;
+                net->debug.slots[i].active = kTmPhaseHidden;
             }
             return;
         }
@@ -177,7 +178,7 @@ namespace extra {
                 in.events[k].lCancel = t->events[k].lCancel;
             }
 
-            tmStepSlot(s_net->slots[p], in);
+            tmStepSlot(net->slots[p], in);
             syncDebugSlot(p, in.actIn);
         }
     }
@@ -251,8 +252,9 @@ namespace extra {
 
     void timingMeterDraw(const game::MatchState& match)
     {
+        TimingMeterNet* net = s_net;
         u8 mode = main::settings().osd.timingMeter;
-        if (s_net == NULL || !match.running || match.paused || mode == main::kTimingMeterOff)
+        if (net == NULL || !match.running || match.paused || mode == main::kTimingMeterOff)
         {
             return;
         }
@@ -265,7 +267,7 @@ namespace extra {
             {
                 continue;
             }
-            const TimingBarView& v = s_net->slots[p].view;
+            const TimingBarView& v = net->slots[p].view;
             if (v.phase == kTmPhaseHidden)
             {
                 continue;
@@ -279,9 +281,9 @@ namespace extra {
             float cx = top.m_x;
             float cy = top.m_y + 10.5f + comboMeterClearance(p);
             drawOverheadBar(cx, cy, v);
-            s_net->debug.slots[p].worldX = cx;
-            s_net->debug.slots[p].worldY = cy;
-            s_net->debug.slots[p].drawCount++;
+            net->debug.slots[p].worldX = cx;
+            net->debug.slots[p].worldY = cy;
+            net->debug.slots[p].drawCount++;
         }
     }
 }

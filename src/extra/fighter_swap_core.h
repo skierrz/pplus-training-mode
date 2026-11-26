@@ -64,8 +64,15 @@ namespace extra {
     }
 
     // Alphabetical P+ 3.2.1 roster (41 standard fighters + Ice Climbers/Sopo +
-    // Giga Bowser + Wario-Man = 45 entries).
-    inline const FighterSwapEntry* fighterSwapRoster()
+    // Giga Bowser + Wario-Man = 45 entries). Out-of-line on MWCC so ui_assets.o
+    // does not emit a duplicate copy of the 45-entry table.
+#if defined(__MWERKS__) && !defined(TM_FIGHTER_SWAP_IMPL)
+    const FighterSwapEntry* fighterSwapRoster();
+#else
+#ifndef __MWERKS__
+    inline
+#endif
+    const FighterSwapEntry* fighterSwapRoster()
     {
         static const FighterSwapEntry kRoster[kFighterSwapCount] = {
             {"Bowser",           0x0C, 0x0C, 0x0C},
@@ -116,6 +123,7 @@ namespace extra {
         };
         return kRoster;
     }
+#endif
 
     inline const FighterSwapEntry* fighterSwapAt(int index)
     {

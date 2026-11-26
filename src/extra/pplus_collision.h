@@ -2,6 +2,11 @@
 
 #include <types.h>
 
+#include "main/game/fighters.h"
+
+class StageObject;
+struct soModuleEnumeration;
+
 // Shared P+ 3.2.1 soCollision / kBubble inspection and bubble-rendering helpers
 // used by hitbox_colors, grab_visualizer, and hitbox_heatmap inside the extra module.
 namespace tm {
@@ -59,5 +64,21 @@ namespace extra {
     // Validates an active soCollision shape and emits it through kBubble.
     bool collEmitShapeBubble(const void* shape, u32 c1, u32 c2, const float viewMtx[3][4],
                              bool& drewBubble);
+
+    struct CollFighterSlot {
+        bool present;
+        bool wanted;
+        u32 mainTaskId;
+        u32 partnerTaskId;
+        float originX;
+        float originY;
+    };
+
+    // Verifies a non-fighter gfTask is a StageObject of `expectedKind`
+    // (StageObject_Weapon or StageObject_Item) before reading its module array.
+    const soModuleEnumeration* collVerifiedTaskModules(const void* task, int expectedKind, bool requireWork,
+                                                       StageObject*& outObj);
+
+    int collOwnerSlotByTaskId(const CollFighterSlot* slots, int count, int taskId);
 }
 }

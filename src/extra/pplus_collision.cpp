@@ -1,5 +1,8 @@
 #include "extra/pplus_collision.h"
 
+#include <so/so_kind.h>
+#include <so/so_module_accesser.h>
+#include <so/stageobject.h>
 #include <string.h>
 
 #include "shared/game/mem.h"
@@ -170,6 +173,60 @@ namespace extra {
         collDrawBubble(static_cast<double>(r), scaleMtx, pos1, pos2, c1, c2, viewMtx);
         drewBubble = true;
         return true;
+    }
+
+    const soModuleEnumeration* collVerifiedTaskModules(const void* task, int expectedKind, bool requireWork,
+                                                       StageObject*& outObj)
+    {
+        enum {
+            kTaskFlags = 0x2C,
+            kTaskAlive = 0x40000000,
+            kStageObjVptr = 0x3C,
+            kSlotProcessAnim = 0x10,
+            kStageObjProcessAnim = 0x8070F444,
+            kAccesserOffset = 0x60
+        };
+        outObj = NULL;
+        if (!game::isRam(task) || (game::wordAt(task, kTaskFlags) & kTaskAlive) == 0)
+        {
+            return NULL;
+        }
+        const void* vt = reinterpret_cast<const void*>(game::wordAt(task, kStageObjVptr));
+        if (!game::isRam(vt) || game::wordAt(vt, kSlotProcessAnim) != kStageObjProcessAnim)
+        {
+            return NULL;
+        }
+        StageObject* obj = const_cast<StageObject*>(reinterpret_cast<const StageObject*>(task));
+        if (static_cast<int>(obj->soGetKind()) != expectedKind)
+        {
+            return NULL;
+        }
+        const soModuleAccesser* accesser =
+            reinterpret_cast<const soModuleAccesser*>(game::wordAt(task, kAccesserOffset));
+        if (!game::isRam(accesser) || !game::isRam(accesser->m_enumerationStart)
+            || (requireWork && !game::isRam(accesser->m_enumerationStart->m_workManageModule)))
+        {
+            return NULL;
+        }
+        outObj = obj;
+        return accesser->m_enumerationStart;
+    }
+
+    int collOwnerSlotByTaskId(const CollFighterSlot* slots, int count, int taskId)
+    {
+        if (taskId <= 0)
+        {
+            return -1;
+        }
+        u32 tid = static_cast<u32>(taskId);
+        for (int p = 0; p < count; p++)
+        {
+            if (slots[p].present && (slots[p].mainTaskId == tid || (slots[p].partnerTaskId != 0 && slots[p].partnerTaskId == tid)))
+            {
+                return p;
+            }
+        }
+        return -1;
     }
 }
 }

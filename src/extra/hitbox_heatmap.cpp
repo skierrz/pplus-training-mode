@@ -38,16 +38,10 @@ namespace extra {
     namespace {
         enum {
             kDebugMagic = 0x544D484D, // "TMHM"
-            kStageObjVptr = 0x3C,             // gfTask vptr (sizeof(gfTask) == 0x40)
-            kSlotProcessAnim = 0x10,
-            kStageObjProcessAnim = 0x8070F444, // StageObject::processAnim
-            kAccesserOffset = 0x60,
             kPosturePos = 0x0C,
             kPartGroup = 0x88,
             kCategoryLists = 0x58,            // gfTaskScheduler category list heads (0x8002EFE8)
             kTaskNext = 0x10,
-            kTaskFlags = 0x2C,
-            kTaskAlive = 0x40000000,
             kMaxCategoryTasks = 96,
             kUnownedSlot = 0xFF
         };
@@ -68,15 +62,6 @@ namespace extra {
             HitboxBounds bounds[kHeatmapMaxFighters]; // 0x20
         };
 
-        struct FighterSlotInfo {
-            bool present;
-            bool wanted;
-            u32 mainTaskId;
-            u32 partnerTaskId;
-            float originX;
-            float originY;
-        };
-
         struct HeatmapNet {
             HeatmapRing ring;
             HeatmapDebugBlock debug;
@@ -86,36 +71,6 @@ namespace extra {
         };
 
         HeatmapNet* s_net = NULL;
-
-        // Verifies a non-fighter gfTask is a StageObject of `expectedKind`
-        // (StageObject_Weapon or StageObject_Item) BEFORE reading its
-        // soModuleAccesser (+0x60) and soCollisionAttackModule.
-        const soModuleEnumeration* verifiedTaskModules(const void* task, soKind expectedKind, StageObject*& outObj)
-        {
-            outObj = NULL;
-            if (!game::isRam(task) || (game::wordAt(task, kTaskFlags) & kTaskAlive) == 0)
-            {
-                return NULL;
-            }
-            const void* vt = reinterpret_cast<const void*>(game::wordAt(task, kStageObjVptr));
-            if (!game::isRam(vt) || game::wordAt(vt, kSlotProcessAnim) != kStageObjProcessAnim)
-            {
-                return NULL;
-            }
-            StageObject* obj = const_cast<StageObject*>(reinterpret_cast<const StageObject*>(task));
-            if (obj->soGetKind() != expectedKind)
-            {
-                return NULL;
-            }
-            const soModuleAccesser* accesser =
-                reinterpret_cast<const soModuleAccesser*>(game::wordAt(task, kAccesserOffset));
-            if (!game::isRam(accesser) || !game::isRam(accesser->m_enumerationStart))
-            {
-                return NULL;
-            }
-            outObj = obj;
-            return accesser->m_enumerationStart;
-        }
 
         bool whoMatches(u8 who, bool cpu)
         {
@@ -205,29 +160,8 @@ namespace extra {
             }
         }
 
-        int ownerSlotByTaskId(const FighterSlotInfo slots[kHeatmapMaxFighters], int taskId)
-        {
-            if (taskId <= 0)
-            {
-                return -1;
-            }
-            u32 tid = static_cast<u32>(taskId);
-            for (int p = 0; p < kHeatmapMaxFighters; p++)
-            {
-                if (!slots[p].present)
-                {
-                    continue;
-                }
-                if (slots[p].mainTaskId == tid || (slots[p].partnerTaskId != 0 && slots[p].partnerTaskId == tid))
-                {
-                    return p;
-                }
-            }
-            return -1;
-        }
-
         void sampleCategoryTasks(gfTask::Category category, soKind expectedKind, u8 heatmapWho,
-                                 const FighterSlotInfo slots[kHeatmapMaxFighters])
+                                 const CollFighterSlot slots[kHeatmapMaxFighters])
         {
             const void* scheduler = g_taskScheduler;
             if (!game::isRam(scheduler))
@@ -239,7 +173,7 @@ namespace extra {
             for (int n = 0; n < kMaxCategoryTasks && game::isRam(task); n++)
             {
                 StageObject* obj = NULL;
-                const soModuleEnumeration* m = verifiedTaskModules(task, expectedKind, obj);
+                const soModuleEnumeration* m = collVerifiedTaskModules(task, expectedKind, false, obj);
                 if (m != NULL && obj != NULL)
                 {
                     int ownerTaskId = -1;
@@ -255,7 +189,7 @@ namespace extra {
                     {
                         ownerTaskId = m->m_collisionAttackModule->getIndirectTaskId();
                     }
-                    int slot = ownerSlotByTaskId(slots, ownerTaskId);
+                    int slot = collOwnerSlotByTaskId(slots, kHeatmapMaxFighters, ownerTaskId);
                     if (slot >= 0)
                     {
                         if (slots[slot].wanted && s_net != NULL)
@@ -346,7 +280,7 @@ namespace extra {
             s_net->ring.tickAge();
         }
 
-        FighterSlotInfo slots[kHeatmapMaxFighters];
+        CollFighterSlot slots[kHeatmapMaxFighters];
         memset(slots, 0, sizeof(slots));
         for (int p = 0; p < kHeatmapMaxFighters; p++)
         {
@@ -362,7 +296,7 @@ namespace extra {
             {
                 continue;
             }
-            FighterSlotInfo& info = slots[p];
+            CollFighterSlot& info = slots[p];
             info.present = true;
             info.wanted = whoMatches(d.heatmap, refs[i].cpu);
             s_net->playerWanted[p] = info.wanted;
