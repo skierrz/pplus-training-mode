@@ -230,6 +230,9 @@ namespace extra {
         return -1;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline bool isAttackAirMotion(s32 mk)
     {
         return mk >= kFdMotionAttackAirN && mk <= kFdMotionAttackAirLw;
@@ -262,6 +265,9 @@ namespace extra {
         }
         return ftKind == kDrillFtMewtwo && s == kFdStMewtwoHoverExit;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline bool isHitOrDeadStatus(int s)
     {

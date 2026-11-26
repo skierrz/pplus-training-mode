@@ -123,6 +123,9 @@ namespace extra {
         s32 firstActionableFrame;
     };
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline u8 tcClassifyEscapeTool(s16 s)
     {
         struct ToolRange {
@@ -212,6 +215,9 @@ namespace extra {
         st.cueFrame = kChallengeNoFrame;
         st.firstActionableFrame = kChallengeNoFrame;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline void reactionTechchaseResetAll(ReactionTechchaseState& st, u16* ringBuf, u16 cap)
     {

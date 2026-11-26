@@ -408,18 +408,8 @@ namespace savestate {
                     s += done;
                     n -= done;
                 }
-                double* to64 = reinterpret_cast<double*>(d);
-                const double* from64 = reinterpret_cast<const double*>(s);
-                u32 dwords = n >> 3;
-                for (; dwords > 0; dwords--)
-                {
-                    *to64++ = *from64++;
-                }
-                d = reinterpret_cast<u32>(to64);
-                s = reinterpret_cast<u32>(from64);
-                n &= 7u;
             }
-            else if (n >= 8 && ((d | s) & 7) == 0)
+            if (n >= 8 && ((d | s) & 7) == 0)
             {
                 double* to64 = reinterpret_cast<double*>(d);
                 const double* from64 = reinterpret_cast<const double*>(s);
@@ -795,36 +785,8 @@ namespace savestate {
         }
     }
 
-    // Where the set's heaps and modules are, and the resource heaps' files.
-    static bool fingerprint(u32& layout, u32& archives)
-    {
-        layout = 2166136261u;
-        archives = 2166136261u;
-        for (u32 r = 0; r < kRuleCount; r++)
-        {
-            u32 id = kRules[r].id;
-            u32 pool = poolOf(id);
-            if (pool != 0 && !chunkHeap(id))
-            {
-                layout = mix(mix(mix(layout, id), pool), field(pool, kPoolEnd));
-            }
-            if (!walkHeap(NULL, id, kRules[r].cls, kRules[r].cls == kClassResource ? &archives : NULL))
-            {
-                return false;
-            }
-        }
-        walkModules(NULL, &layout);
-        // Our own buffers inside heaps of the set (e.g. recorded inputs) can
-        // be allocated after match start: a state saved before that must not
-        // be loaded once an exclusion changes.
-        for (u32 i = 0; i < kMaxOwnExclusions; i++)
-        {
-            layout = mix(mix(layout, s_own[i].addr), s_own[i].len);
-        }
-        return true;
-    }
-
-    static bool walkAll(Writer& w, u32* layout, u32* archives)
+    // Shared heap/module/exclusion walk used by both fingerprint() and walkAll().
+    static bool walkHeapsAndModules(Writer* w, u32* layout, u32* archives)
     {
         if (layout != NULL)
         {
@@ -846,18 +808,36 @@ namespace savestate {
                     *layout = mix(mix(mix(*layout, id), pool), field(pool, kPoolEnd));
                 }
             }
-            if (!walkHeap(&w, id, cls, cls == kClassResource ? archives : NULL))
+            if (!walkHeap(w, id, cls, cls == kClassResource ? archives : NULL))
             {
                 return false;
             }
         }
-        walkModules(&w, layout);
+        walkModules(w, layout);
+        // Our own buffers inside heaps of the set (e.g. recorded inputs) can
+        // be allocated after match start: a state saved before that must not
+        // be loaded once an exclusion changes.
         if (layout != NULL)
         {
             for (u32 i = 0; i < kMaxOwnExclusions; i++)
             {
                 *layout = mix(mix(*layout, s_own[i].addr), s_own[i].len);
             }
+        }
+        return true;
+    }
+
+    // Where the set's heaps and modules are, and the resource heaps' files.
+    static bool fingerprint(u32& layout, u32& archives)
+    {
+        return walkHeapsAndModules(NULL, &layout, &archives);
+    }
+
+    static bool walkAll(Writer& w, u32* layout, u32* archives)
+    {
+        if (!walkHeapsAndModules(&w, layout, archives))
+        {
+            return false;
         }
         // Finish Tier 1 bulk heaps/modules, then enter the short atomic kFixed tail.
         flush(w);

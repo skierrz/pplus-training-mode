@@ -29,6 +29,14 @@ namespace cpu {
     struct DriverNet {
         Slot slots[kMaxSlots];
         Slot saved[2][kMaxSlots];
+        Claimer claim[2];
+        u32 takes;
+        u32 releases;
+        u32 restores;
+        u32 drivenTotal;
+        bool attached;
+        int keepAi;    // keepAi: the slot whose frame leaves the AI on
+        int holdStill; // holdStill: the slot whose stick is not a flick
     };
 #ifdef __MWERKS__
     static DriverNet* s_net = NULL;
@@ -36,23 +44,21 @@ namespace cpu {
     static DriverNet s_hostNet;
     static DriverNet* s_net = &s_hostNet;
 #endif
-    static Claimer s_claim[2];
-    static u32 s_takes = 0;
-    static u32 s_releases = 0;
-    static u32 s_restores = 0;
-    static u32 s_drivenTotal = 0;
-    static bool s_attached = false;
-    static int s_keepAi = -1; // keepAi: the slot whose frame leaves the AI on
-    static int s_holdStill = -1; // holdStill: the slot whose stick is not a flick
 
     void keepAi(int slot)
     {
-        s_keepAi = slot;
+        if (s_net != NULL)
+        {
+            s_net->keepAi = slot;
+        }
     }
 
     void holdStill(int slot)
     {
-        s_holdStill = slot;
+        if (s_net != NULL)
+        {
+            s_net->holdStill = slot;
+        }
     }
 
     static void clear(Slot& s)
@@ -79,7 +85,7 @@ namespace cpu {
         s.silenced = false;
         if (setAiFlag(slot, s.savedFlag))
         {
-            s_restores++;
+            s_net->restores++;
             TM_LOG("cpu: slot %d AI flag back to %u (%s)\n", slot, s.savedFlag, why);
         }
     }
@@ -126,7 +132,7 @@ namespace cpu {
         s.source = source;
         s.flags = flags;
         s.who = who;
-        s_takes++;
+        s_net->takes++;
         TM_LOG("cpu: take slot %d (P%d entry %x, %s), flags %x\n", who.slot, who.playerNo + 1, who.entryId,
                who.cpu ? "cpu" : "human", flags);
         return true;
@@ -146,7 +152,7 @@ namespace cpu {
         u32 frame = s.frame;
         clear(s);
         s.frame = frame;
-        s_releases++;
+        s_net->releases++;
         source->released(who);
     }
 
@@ -172,7 +178,8 @@ namespace cpu {
 
     static void onMain(void* input, const Owner& who)
     {
-        Slot& s = s_net->slots[who.slot];
+        DriverNet& net = *s_net;
+        Slot& s = net.slots[who.slot];
         s.frame++;
         s.nanaReady = false;
         if (s.source != NULL && s.who.entryId != who.entryId)
@@ -186,13 +193,13 @@ namespace cpu {
         }
         // The first claimer is asked every frame and may take a slot over;
         // the second only gets free slots.
-        if (s_claim[0] != NULL)
+        if (net.claim[0] != NULL)
         {
-            s_claim[0](who);
+            net.claim[0](who);
         }
-        if (s.source == NULL && s_claim[1] != NULL)
+        if (s.source == NULL && net.claim[1] != NULL)
         {
-            s_claim[1](who);
+            net.claim[1](who);
         }
         if (s.source == NULL)
         {
@@ -220,11 +227,11 @@ namespace cpu {
         Frame produced;
         readFrame(input, produced);
         Frame out = produced;
-        s_keepAi = -1;
-        s_holdStill = -1;
+        net.keepAi = -1;
+        net.holdStill = -1;
         bool wrote = s.source->next(who, produced, out);
-        bool keep = s_keepAi == who.slot;
-        bool still = wrote && s_holdStill == who.slot;
+        bool keep = net.keepAi == who.slot;
+        bool still = wrote && net.holdStill == who.slot;
         if (!wrote || keep)
         {
             // The source lets the game have this frame, or changes what
@@ -248,7 +255,7 @@ namespace cpu {
         }
         s.lastButtons = out.buttons;
         s.driven++;
-        s_drivenTotal++;
+        net.drivenTotal++;
         // Nana's AI made her own frame when the AI is left on.
         if ((s.flags & kWithNana) && !keep)
         {
@@ -296,7 +303,7 @@ namespace cpu {
     void onFighterInput(const iface::FighterInput* call)
     {
         Owner who;
-        if (!s_attached || s_net == NULL || !findOwner(call->input, call->entryId, who) || who.slot < 0
+        if (s_net == NULL || !s_net->attached || !findOwner(call->input, call->entryId, who) || who.slot < 0
             || who.slot >= kMaxSlots)
         {
             return;
@@ -335,37 +342,41 @@ namespace cpu {
             s_net = static_cast<DriverNet*>(game::allocNetworkZero(static_cast<u32>(sizeof(DriverNet))));
         }
 #endif
-        if (s_net != NULL)
+        if (s_net == NULL)
         {
-            for (int i = 0; i < kMaxSlots; i++)
-            {
-                clear(s_net->slots[i]);
-                s_net->slots[i].frame = 0;
-            }
-            driverSaved(0);
-            driverSaved(1);
+            return;
         }
-        s_claim[0] = first;
-        s_claim[1] = second;
-        s_takes = 0;
-        s_releases = 0;
-        s_restores = 0;
-        s_drivenTotal = 0;
-        s_attached = s_net != NULL;
+        DriverNet& net = *s_net;
+        memset(&net, 0, sizeof(net));
+        for (int i = 0; i < kMaxSlots; i++)
+        {
+            net.slots[i].who.entryId = -1;
+        }
+        driverSaved(0);
+        driverSaved(1);
+        net.claim[0] = first;
+        net.claim[1] = second;
+        net.keepAi = -1;
+        net.holdStill = -1;
+        net.attached = true;
     }
 
     void detach()
     {
+        if (s_net == NULL)
+        {
+            return;
+        }
         for (int i = 0; i < kMaxSlots; i++)
         {
             release(i, "match ending");
         }
-        s_attached = false;
+        s_net->attached = false;
+        TM_LOG("cpu: %u takes, %u releases, %u AI flags put back, %u frames driven\n", s_net->takes, s_net->releases,
+               s_net->restores, s_net->drivenTotal);
 #ifdef __MWERKS__
         game::freeNetworkSlot(reinterpret_cast<void**>(&s_net));
 #endif
-        TM_LOG("cpu: %u takes, %u releases, %u AI flags put back, %u frames driven\n", s_takes, s_releases,
-               s_restores, s_drivenTotal);
     }
 }
 }

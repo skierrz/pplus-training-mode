@@ -66,6 +66,9 @@ namespace extra {
 
     // Maps Project+ 3.2.1 fighter status IDs (BrawlHeaders ft/fighter.h) to
     // MovementTracker's 16 movement/action categories.
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline u8 classifyStatusToMov(int status)
     {
         if (status >= 0x112)
@@ -100,6 +103,9 @@ namespace extra {
         }
         return kMovNone;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // Maps a fighter status into an RPS category (Attack / Grab / Defend / Null).
     inline u8 statusToRps(int status)
@@ -610,6 +616,9 @@ namespace extra {
     //   Attack habit -> Shield / Spotdodge (or Grab OoS)
     //   Grab habit   -> Spotdodge / Jab / Jump
     //   Defend habit -> Grab
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline u8 chooseAdaptiveBias(u8 adaptiveMode, u8 dominantRps, float confidence, bool inShield, u32 mixCounter)
     {
         if (adaptiveMode != cpu::kAdaptiveActive || confidence < kAdaptiveConfidenceThreshold)
@@ -636,6 +645,9 @@ namespace extra {
             return kBiasNone;
         }
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // Maps an AdaptiveBiasAction to a cpu/actions.cpp index for kListGround (0)
     // or kListShield (2); returns -1 if not applicable.

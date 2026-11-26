@@ -11,6 +11,7 @@
 // 0x805483FF == 1) and rectangular item-pickup areas via GX_LINESTRIP, restoring
 // camera GX state afterward. Zero heap allocation; zero work when disabled.
 #include "extra/grab_visualizer.h"
+#include "extra/net_alloc.h"
 #include "extra/pplus_collision.h"
 
 #include <GX/GXTypes.h>
@@ -84,11 +85,12 @@ namespace extra {
             float ys[4];
         };
 
-        GrabVizDebugBlock s_debug;
+        GrabVizDebugBlock* s_debug = NULL;
 
         bool drawCollisionShape(const void* shape, u8 kind, const float viewMtx[3][4], bool& drewBubble)
         {
-            if (!s_debug.bubbleOk)
+            GrabVizDebugBlock& dbg = *s_debug;
+            if (!dbg.bubbleOk)
             {
                 return false;
             }
@@ -97,14 +99,14 @@ namespace extra {
             {
                 return false;
             }
-            s_debug.drawCalls++;
+            dbg.drawCalls++;
             return true;
         }
 
-#pragma dont_inline on
         void drawCollModule(const void* mod, bool isSearch, const float viewMtx[3][4], bool& drewBubble)
         {
-            if (!s_debug.shapeOk || !game::isRam(mod))
+            GrabVizDebugBlock& dbg = *s_debug;
+            if (!dbg.shapeOk || !game::isRam(mod))
             {
                 return;
             }
@@ -143,18 +145,17 @@ namespace extra {
                 {
                     if (isSearch)
                     {
-                        s_debug.searchShapes++;
-                        s_debug.totalSearchDrawn++;
+                        dbg.searchShapes++;
+                        dbg.totalSearchDrawn++;
                     }
                     else
                     {
-                        s_debug.grabShapes++;
-                        s_debug.totalGrabDrawn++;
+                        dbg.grabShapes++;
+                        dbg.totalGrabDrawn++;
                     }
                 }
             }
         }
-#pragma dont_inline reset
 
         void drawCatchAndSearch(const soModuleEnumeration* m, const float viewMtx[3][4], bool& drewBubble)
         {
@@ -227,7 +228,7 @@ namespace extra {
                         rects[rectCount++] = r;
                     }
                 }
-                else if (shapeType == 1 && s_debug.bubbleOk)
+                else if (shapeType == 1 && s_debug->bubbleOk)
                 {
                     float cx = px + collFloatAt(gf, kGfAreaShapeData);
                     float cy = py + collFloatAt(gf, kGfAreaShapeData + 4);
@@ -241,9 +242,9 @@ namespace extra {
                         collDrawBubble(static_cast<double>(radius), scaleMtx, pos, pos, c1, grabVizShadeColor(c1),
                                        viewMtx);
                         drewBubble = true;
-                        s_debug.itemShapes++;
-                        s_debug.totalItemDrawn++;
-                        s_debug.drawCalls++;
+                        s_debug->itemShapes++;
+                        s_debug->totalItemDrawn++;
+                        s_debug->drawCalls++;
                     }
                 }
             }
@@ -283,29 +284,36 @@ namespace extra {
 #endif
     void grabVizAttach()
     {
-        memset(&s_debug, 0, sizeof(s_debug));
-        s_debug.magic = kDebugMagic;
+        freeNetPtr(s_debug);
+        s_debug = allocNetArray<GrabVizDebugBlock>(1);
+        if (s_debug == NULL)
+        {
+            return;
+        }
+        s_debug->magic = kDebugMagic;
         bool shapeOk = collShapeSupported();
         bool bubbleOk = collBubbleSupported();
-        s_debug.shapeOk = shapeOk ? 1u : 0u;
-        s_debug.bubbleOk = bubbleOk ? 1u : 0u;
-        TM_LOG("grabviz: debug block at %08x; shape %s, bubble %s\n", &s_debug, shapeOk ? "ok" : "off",
+        s_debug->shapeOk = shapeOk ? 1u : 0u;
+        s_debug->bubbleOk = bubbleOk ? 1u : 0u;
+        TM_LOG("grabviz: debug block at %08x; shape %s, bubble %s\n", s_debug, shapeOk ? "ok" : "off",
                bubbleOk ? "ok" : "off");
     }
 
     void grabVizDetach()
     {
-        s_debug.grabShapes = 0;
-        s_debug.searchShapes = 0;
-        s_debug.itemShapes = 0;
-        s_debug.drawCalls = 0;
+        freeNetPtr(s_debug);
     }
 
     void grabVizDraw(const game::MatchState& match)
     {
-        s_debug.grabShapes = 0;
-        s_debug.searchShapes = 0;
-        s_debug.itemShapes = 0;
+        if (s_debug == NULL)
+        {
+            return;
+        }
+        GrabVizDebugBlock& dbg = *s_debug;
+        dbg.grabShapes = 0;
+        dbg.searchShapes = 0;
+        dbg.itemShapes = 0;
         const main::DisplaySettings& d = main::settings().display;
         if (!match.running || match.paused || d.grabVisualizer == display::kWhoNone)
         {
@@ -316,7 +324,7 @@ namespace extra {
         {
             return;
         }
-        s_debug.frame = static_cast<u32>(game::trackerFrame());
+        dbg.frame = static_cast<u32>(game::trackerFrame());
 
         float viewMtx[3][4];
         memcpy(viewMtx, &camMgr->m_cameras[0], sizeof(viewMtx));
@@ -373,14 +381,13 @@ namespace extra {
         {
             const ItemRect& r = itemRects[i];
             gfx::lineBegin(GX_LINESTRIP, 5, kItemLineWidth);
-            gfx::vertex(r.xs[0], r.ys[0], kGrabVizItemLineColor);
-            gfx::vertex(r.xs[1], r.ys[1], kGrabVizItemLineColor);
-            gfx::vertex(r.xs[2], r.ys[2], kGrabVizItemLineColor);
-            gfx::vertex(r.xs[3], r.ys[3], kGrabVizItemLineColor);
-            gfx::vertex(r.xs[0], r.ys[0], kGrabVizItemLineColor);
-            s_debug.itemShapes++;
-            s_debug.totalItemDrawn++;
-            s_debug.drawCalls++;
+            for (int k = 0; k < 5; k++)
+            {
+                gfx::vertex(r.xs[k & 3], r.ys[k & 3], kGrabVizItemLineColor);
+            }
+            dbg.itemShapes++;
+            dbg.totalItemDrawn++;
+            dbg.drawCalls++;
         }
     }
 #ifdef TM_MODULE_MAIN

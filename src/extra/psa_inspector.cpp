@@ -76,8 +76,12 @@ namespace extra {
             bool valid;
         };
 
-        PsaDebugBlock* s_debug = NULL;
-        PsaFocusCache* s_focusCache = NULL;
+        struct PsaNet {
+            PsaDebugBlock debug;
+            PsaFocusCache focusCache;
+        };
+
+        PsaNet* s_net = NULL;
 
         s16 s16At(const void* base, u32 offset)
         {
@@ -94,11 +98,11 @@ namespace extra {
 
         void clearSnapshot()
         {
-            PsaDebugBlock* dbg = s_debug;
-            if (dbg == NULL)
+            if (s_net == NULL)
             {
                 return;
             }
+            PsaDebugBlock* dbg = &s_net->debug;
             u32 calls = dbg->drawCalls;
             memset(dbg, 0, sizeof(*dbg));
             dbg->magic = kPsaDebugMagic;
@@ -211,11 +215,11 @@ namespace extra {
 
         bool sampleFighter(const game::FighterRef& ref)
         {
-            PsaDebugBlock* dbg = s_debug;
-            if (dbg == NULL)
+            if (s_net == NULL)
             {
                 return false;
             }
+            PsaDebugBlock* dbg = &s_net->debug;
             clearSnapshot();
             dbg->playerNo = ref.playerNo;
 
@@ -320,8 +324,8 @@ namespace extra {
                     }
                 }
                 dbg->focusArgCount = got;
-                PsaFocusCache* fc = s_focusCache;
-                bool hit = fc != NULL && fc->valid && fc->hdr == hdr && fc->argCount == got;
+                PsaFocusCache* fc = &s_net->focusCache;
+                bool hit = fc->valid && fc->hdr == hdr && fc->argCount == got;
                 for (u32 k = 0; hit && k < got; k++)
                 {
                     if (fc->args[k].type != dbg->focusArgs[k].type ||
@@ -338,17 +342,14 @@ namespace extra {
                 {
                     psaFormatFocusCommand(hdr, dbg->focusArgs, got, dbg->focusText,
                                           static_cast<int>(sizeof(dbg->focusText)));
-                    if (fc != NULL)
+                    fc->hdr = hdr;
+                    fc->argCount = got;
+                    if (got > 0u)
                     {
-                        fc->hdr = hdr;
-                        fc->argCount = got;
-                        if (got > 0u)
-                        {
-                            memcpy(fc->args, dbg->focusArgs, got * sizeof(PsaArgSnapshot));
-                        }
-                        memcpy(fc->text, dbg->focusText, sizeof(fc->text));
-                        fc->valid = true;
+                        memcpy(fc->args, dbg->focusArgs, got * sizeof(PsaArgSnapshot));
                     }
+                    memcpy(fc->text, dbg->focusText, sizeof(fc->text));
+                    fc->valid = true;
                 }
             }
             return true;
@@ -356,7 +357,7 @@ namespace extra {
 
         void drawCard(const ui::layout::Box& b, bool isCpu)
         {
-            const PsaDebugBlock* dbg = s_debug;
+            const PsaDebugBlock* dbg = &s_net->debug;
             float xs = gfx::xScale();
             float x = b.x0;
             float y = b.y0;
@@ -383,30 +384,25 @@ namespace extra {
             char fsm[20];
             psaFormatTitle(isCpu, dbg->playerNo, title, sizeof(title));
             psaFormatFsm(dbg->fsmRate, fsm, sizeof(fsm));
-            float hdrScale = ui::style::scaleForCap(7.5f);
-            float hdrY = ui::style::textYForCap(y + 6.0f, hdrScale);
-            drawShadowText(x + 6.0f * xs, hdrY, title, isCpu ? 0x9AD0F8FFu : 0xFFB0B0FFu, hdrScale);
+            float colName = x + 6.0f * xs;
+            drawShadowCapText(colName, y + 6.0f, title, isCpu ? 0x9AD0F8FFu : 0xFFB0B0FFu, 7.5f);
             gfx::Rgba fsmCol = psaFsmIsModified(dbg->fsmRate) ? 0xFFD300FFu : 0xF1F5F9FFu;
-            drawShadowText(x + 92.0f * xs, hdrY, fsm, fsmCol, hdrScale);
+            drawShadowCapText(x + 92.0f * xs, y + 6.0f, fsm, fsmCol, 7.5f);
 
             // Header line 2: Action / Subaction / AnimFrame (+ secondary rate if active).
             char subLine[40];
             psaFormatSubHeader(dbg->status, dbg->subaction, dbg->animFrame, dbg->secondaryKind,
                                dbg->secondaryRate, subLine, sizeof(subLine));
-            float subScale = ui::style::scaleForCap(7.5f);
-            float subY = ui::style::textYForCap(y + 16.0f, subScale);
-            drawShadowText(x + 6.0f * xs, subY, subLine, 0xB8CDD6FFu, subScale);
+            drawShadowCapText(colName, y + 16.0f, subLine, 0xB8CDD6FFu, 7.5f);
 
             // Up to 6 active threads: Name | Frame | Wait | Decoded Opcode Name.
             float rowScale = ui::style::scaleForCap(7.5f);
             if (rowCount == 0)
             {
-                float ry = ui::style::textYForCap(y + 30.0f, rowScale);
-                drawShadowText(x + 6.0f * xs, ry, "No active threads", 0x7A8E9CFFu, rowScale);
+                drawShadowCapText(colName, y + 30.0f, "No active threads", 0x7A8E9CFFu, 7.5f);
                 return;
             }
 
-            float colName = x + 6.0f * xs;
             float colFrame = x + 49.0f * xs;
             float colWait = x + 80.0f * xs;
             float colOp = x + 111.0f * xs;
@@ -449,8 +445,7 @@ namespace extra {
                     snprintf(focusLine, sizeof(focusLine), "%s:%s", psaThreadName(dbg->focusThread),
                              dbg->focusText);
                     clipTextToWidth(focusLine, rowScale, bw - 12.0f * xs);
-                    float fy = ui::style::textYForCap(divY + 4.0f, rowScale);
-                    drawShadowText(colName, fy, focusLine, 0x8EF5EAFFu, rowScale);
+                    drawShadowCapText(colName, divY + 4.0f, focusLine, 0x8EF5EAFFu, 7.5f);
                 }
             }
         }
@@ -459,43 +454,35 @@ namespace extra {
     void psaInspectorAttach()
     {
         psaOpcodesAttach();
-        freeNetPtr(s_focusCache);
-        freeNetPtr(s_debug);
-        s_debug = allocNetArray<PsaDebugBlock>(1);
-        s_focusCache = allocNetArray<PsaFocusCache>(1);
-        if (s_debug == NULL)
+        freeNetPtr(s_net);
+        s_net = allocNetArray<PsaNet>(1);
+        if (s_net == NULL)
         {
             return;
         }
-        memset(s_debug, 0, sizeof(*s_debug));
-        s_debug->magic = kPsaDebugMagic;
-        s_debug->playerNo = -1;
-        s_debug->status = -1;
-        s_debug->subaction = -1;
-        s_debug->secondaryKind = -1;
-        s_debug->focusThread = -1;
-        TM_LOG("psa: debug block at %08x\n", s_debug);
+        clearSnapshot();
+        TM_LOG("psa: debug block at %08x\n", &s_net->debug);
     }
 
     void psaInspectorDetach()
     {
         clearSnapshot();
-        freeNetPtr(s_focusCache);
-        freeNetPtr(s_debug);
+        freeNetPtr(s_net);
         psaOpcodesDetach();
     }
 
     void psaInspectorDraw(const game::MatchState& match, bool menuOpen)
     {
-        if (s_debug == NULL)
+        if (s_net == NULL)
         {
             return;
         }
+        PsaDebugBlock* dbg = &s_net->debug;
         u8 target = main::settings().display.psaInspector;
         if (!match.running || match.paused || menuOpen || target == main::kPsaOff || target >= main::kPsaTargetCount)
         {
-            s_debug->playerNo = -1;
-            s_debug->activeThreadCount = 0;
+            dbg->playerNo = -1;
+            dbg->activeThreadCount = 0;
             return;
         }
         game::FighterRef refs[game::kMaxFighters];
@@ -514,7 +501,7 @@ namespace extra {
         bool hasCompass = match.training && diCompassVisible(match, menuOpen);
         ui::layout::Box box = hudRightCardBox(kHudCardPsa, gfx::widescreen(), viewerSlots, hasCompass ? 1 : 0);
         drawCard(box, target == main::kPsaCpu);
-        s_debug->drawCalls++;
+        dbg->drawCalls++;
     }
 }
 }

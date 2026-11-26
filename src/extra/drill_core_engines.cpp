@@ -47,12 +47,12 @@ namespace extra {
         struct CoreDrillNet {
             CoreDrillSlot slots[game::kMaxTracked];
             CoreDrillDebugBlock debug;
+            s32 prevFrame;
+            bool autoLCancel;
+            bool inputBuffer3f;
         };
 
         static CoreDrillNet* s_net = NULL;
-        static s32 s_prevFrame = game::kNoFrame;
-        static bool s_autoLCancel = false;
-        static bool s_inputBuffer3f = false;
 
         // Reads P+ 3.2.1 Auto L-Cancel (bit 0x01) and 3-frame input buffer
         // (bit 0x02) flags via isRam()-guarded dereference (L-Cancel.asm:235-240).
@@ -117,9 +117,6 @@ namespace extra {
             return y > 1.0f;
         }
 
-#ifdef __MWERKS__
-#pragma dont_inline on
-#endif
         static void resetSlotAll(CoreDrillSlot& slot)
         {
             slot.active = false;
@@ -227,9 +224,6 @@ namespace extra {
             memcpy(&d.lcPressFrame, &c.last.pressFrame, 3 * sizeof(s16));
             memcpy(&d.lcTotal, &c.stats, sizeof(c.stats));
         }
-#ifdef __MWERKS__
-#pragma dont_inline reset
-#endif
 
         static const CoreDrillSlot* activeSlot(int tracked)
         {
@@ -243,11 +237,9 @@ namespace extra {
     {
         freeNetPtr(s_net);
         s_net = allocNetArray<CoreDrillNet>(1);
-        s_prevFrame = game::kNoFrame;
-        s_autoLCancel = false;
-        s_inputBuffer3f = false;
         if (s_net != NULL)
         {
+            s_net->prevFrame = game::kNoFrame;
             for (int i = 0; i < game::kMaxTracked; i++)
             {
                 resetSlotAll(s_net->slots[i]);
@@ -268,18 +260,15 @@ namespace extra {
     void coreDrillEnginesDetach()
     {
         freeNetPtr(s_net);
-        s_prevFrame = game::kNoFrame;
-        s_autoLCancel = false;
-        s_inputBuffer3f = false;
     }
 
     void coreDrillEnginesSavestateReset()
     {
-        s_prevFrame = game::kNoFrame;
         if (s_net == NULL)
         {
             return;
         }
+        s_net->prevFrame = game::kNoFrame;
         for (int i = 0; i < game::kMaxTracked; i++)
         {
             resetSlotTransient(s_net->slots[i]);
@@ -295,16 +284,16 @@ namespace extra {
             return;
         }
         s32 f = game::trackerFrame();
-        if (s_prevFrame != game::kNoFrame && f <= s_prevFrame)
+        if (net->prevFrame != game::kNoFrame && f <= net->prevFrame)
         {
             coreDrillEnginesSavestateReset();
         }
-        s_prevFrame = f;
+        net->prevFrame = f;
 
-        readPPlusRuleFlags(s_autoLCancel, s_inputBuffer3f);
+        readPPlusRuleFlags(net->autoLCancel, net->inputBuffer3f);
         net->debug.frame = static_cast<u32>(f >= 0 ? f : 0);
-        net->debug.autoLCancelActive = s_autoLCancel ? 1 : 0;
-        net->debug.inputBuffer3fActive = s_inputBuffer3f ? 1 : 0;
+        net->debug.autoLCancelActive = net->autoLCancel ? 1 : 0;
+        net->debug.inputBuffer3fActive = net->inputBuffer3f ? 1 : 0;
 
         game::FighterRef refs[game::kMaxFighters];
         int refCount = game::listFighters(refs, game::kMaxFighters);
@@ -467,8 +456,8 @@ namespace extra {
             ci.attackActive = t->cur.attackActive;
             ci.dealtHit = (t->lastDealt.frame == f && t->lastDealt.shield == 0) ? 1 : 0;
             ci.dealtShield = (t->lastDealt.frame == f && t->lastDealt.shield != 0) ? 1 : 0;
-            ci.autoLCancelActive = s_autoLCancel ? 1 : 0;
-            ci.inputBuffer3fActive = s_inputBuffer3f ? 1 : 0;
+            ci.autoLCancelActive = net->autoLCancel ? 1 : 0;
+            ci.inputBuffer3fActive = net->inputBuffer3f ? 1 : 0;
             ci.eventCount = static_cast<u8>(evCount < kLcCoreMaxEvents ? evCount : kLcCoreMaxEvents);
             for (int k = 0; k < ci.eventCount; k++)
             {
@@ -503,12 +492,12 @@ namespace extra {
 
     bool coreDrillAutoLCancelActive()
     {
-        return s_autoLCancel;
+        return s_net != NULL && s_net->autoLCancel;
     }
 
     bool coreDrillInputBuffer3fActive()
     {
-        return s_inputBuffer3f;
+        return s_net != NULL && s_net->inputBuffer3f;
     }
 }
 }

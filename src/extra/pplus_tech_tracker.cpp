@@ -25,11 +25,11 @@ namespace extra {
         struct TechTrackerNet {
             TechTrackerBlock block;
             TechWatch watches[game::kMaxTracked];
+            s32 prevFrame;
+            u32 resetCount;
         };
 
         TechTrackerNet* s_net = NULL;
-        s32 s_prevFrame = game::kNoFrame;
-        u32 s_resetCount = 0;
 
         void resetAll(bool countReset)
         {
@@ -43,12 +43,12 @@ namespace extra {
             }
             if (countReset)
             {
-                s_resetCount++;
+                s_net->resetCount++;
             }
             memset(&s_net->block, 0, sizeof(s_net->block));
             s_net->block.magic = kTechTrackerMagic;
             s_net->block.version = kTechTrackerVersion;
-            s_net->block.resetCount = s_resetCount;
+            s_net->block.resetCount = s_net->resetCount;
             for (int p = 0; p < kTechTrackerMaxPlayers; p++)
             {
                 techSlotStatsReset(s_net->block.slots[p]);
@@ -60,26 +60,27 @@ namespace extra {
     {
         freeNetPtr(s_net);
         s_net = allocNetArray<TechTrackerNet>(1);
-        s_resetCount = 0;
-        s_prevFrame = game::kNoFrame;
         if (s_net == NULL)
         {
             return;
         }
+        s_net->prevFrame = game::kNoFrame;
         resetAll(false);
         TM_LOG("tech_tracker: debug block at %08x\n", &s_net->block);
     }
 
     void techTrackerDetach()
     {
-        s_prevFrame = game::kNoFrame;
         resetAll(false);
         freeNetPtr(s_net);
     }
 
     void techTrackerReset()
     {
-        s_prevFrame = game::kNoFrame;
+        if (s_net != NULL)
+        {
+            s_net->prevFrame = game::kNoFrame;
+        }
         resetAll(true);
     }
 
@@ -90,11 +91,11 @@ namespace extra {
             return;
         }
         const s32 f = game::trackerFrame();
-        if (s_prevFrame != game::kNoFrame && f <= s_prevFrame)
+        if (s_net->prevFrame != game::kNoFrame && f <= s_net->prevFrame)
         {
             resetAll(true);
         }
-        s_prevFrame = f;
+        s_net->prevFrame = f;
         s_net->block.frame = static_cast<u32>(f >= 0 ? f : 0);
 
         const bool postOsd = main::settings().cpu.options.techTrackerOsd != 0;
@@ -134,8 +135,7 @@ namespace extra {
             in.lr = 1.0f;
             if (m != NULL && game::isRam(m->m_postureModule))
             {
-                float rawLr = *reinterpret_cast<const float*>(reinterpret_cast<u32>(m->m_postureModule) + kPostureLr);
-                in.lr = rawLr < 0.0f ? -1.0f : 1.0f;
+                in.lr = floatAt(m->m_postureModule, kPostureLr) < 0.0f ? -1.0f : 1.0f;
             }
             if (m != NULL)
             {

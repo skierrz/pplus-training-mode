@@ -352,7 +352,8 @@ namespace osdQuick {
             AreaEntry* entries = reinterpret_cast<AreaEntry*>(outFile + tableOff);
             for (u16 i = 0; i < ohead->areaCount; i++)
             {
-                if (entries[i].id == storage::kAreaCpu && entries[i].used > kCpuTechOsdOff)
+                if (entries[i].id == storage::kAreaCpu && entries[i].generation == 1
+                    && entries[i].used > kCpuTechOsdOff)
                 {
                     outFile[entries[i].offset + kCpuTechOsdOff] = static_cast<u8>(techTrackerOsd ? 1u : 0u);
                     FileHeader* oh = reinterpret_cast<FileHeader*>(outFile);
@@ -601,7 +602,8 @@ namespace osdQuick {
                         u32 n = entries[i].used < kOsdUsed ? entries[i].used : kOsdUsed;
                         memcpy(&s_osd, s_cardBuf + entries[i].offset, n);
                     }
-                    else if (entries[i].id == storage::kAreaCpu && entries[i].used > kCpuTechOsdOff)
+                    else if (entries[i].id == storage::kAreaCpu && entries[i].generation == 1
+                             && entries[i].used > kCpuTechOsdOff)
                     {
                         s_techTrackerOsd = s_cardBuf[entries[i].offset + kCpuTechOsdOff] != 0 ? 1u : 0u;
                     }

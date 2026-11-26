@@ -199,10 +199,16 @@ namespace extra {
 #endif
     };
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline int clampChoice(u8 raw, int count)
     {
         return raw < static_cast<u8>(count) ? static_cast<int>(raw) : 0;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // True if `ftKind` has any row on the Character RNG / Fighter Mechanics page.
     inline bool fighterHasMechanicsRow(int ftKind)

@@ -117,6 +117,9 @@ namespace extra {
         return cstickOverridesMainStick(mode) && cstickActiveRaw(cx, cy) && !wasActive;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline float mainDeadZone(float v)
     {
         return (v >= -kMainDeadZone && v <= kMainDeadZone) ? 0.0f : v;
@@ -135,6 +138,9 @@ namespace extra {
                       || (curY <= -kSdiFlickAxis && prevY > -kSdiFlickAxis);
         return (flickX || flickY) && stickPushed(curX, curY, threshold);
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline s8 clampS8(int v)
     {

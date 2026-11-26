@@ -2,6 +2,7 @@
 
 #include <gf/gf_application.h>
 #include <gf/gf_pad_status.h>
+#include <string.h>
 
 #include "main/display/debug_draw.h"
 #include "main/display/input_display.h"
@@ -66,16 +67,19 @@ namespace display {
     typedef void (*ChangeInputFn)(void* controller, int kind);
     typedef void (*SetCameraTypeFn)(void* menu, int type);
 
-    static bool s_layersOk = false;
-    static bool s_staleOk = false;
-    static bool s_cameraOk = false;
-    static bool s_hidden[kLayers];
-    static bool s_rateOwned = false;
-    static u16 s_rateSaved = 60;
-    static u16 s_rateWritten = 0;
-    static u8 s_camera = kCameraNormal; // the mode last applied
-    static u32 s_heldBefore[kPads]; // system pads' buttons on the last pass, ports 1-8
-    static u32 s_pending[kPads];    // presses no game step has seen yet
+    struct DisplayRt {
+        bool layersOk;
+        bool staleOk;
+        bool cameraOk;
+        bool hidden[kLayers];
+        bool rateOwned;
+        u16 rateSaved;
+        u16 rateWritten;
+        u8 camera; // the mode last applied
+        u32 heldBefore[kPads]; // system pads' buttons on the last pass, ports 1-8
+        u32 pending[kPads];    // presses no game step has seen yet
+    };
+    static DisplayRt s_rt;
 
     static bool codeIs(u32 address, const u32* words, int count)
     {
@@ -93,19 +97,21 @@ namespace display {
 
     static void setLayer(int layer, bool hidden)
     {
+        DisplayRt& rt = s_rt;
         void* root = reinterpret_cast<void*>(game::wordAt(reinterpret_cast<const void*>(kSceneRootPointer), 0));
-        if (!s_layersOk || !game::isRam(root) || (!hidden && !s_hidden[layer]))
+        if (!rt.layersOk || !game::isRam(root) || (!hidden && !rt.hidden[layer]))
         {
             return;
         }
         reinterpret_cast<SetLayerFn>(kSetLayer)(root, layer, hidden ? 0 : 1);
-        s_hidden[layer] = hidden;
+        rt.hidden[layer] = hidden;
     }
 
     void savestateLoaded()
     {
+        DisplayRt& rt = s_rt;
         const u8* root = reinterpret_cast<const u8*>(game::wordAt(reinterpret_cast<const void*>(kSceneRootPointer), 0));
-        if (!s_layersOk || !game::isRam(root))
+        if (!rt.layersOk || !game::isRam(root))
         {
             return;
         }
@@ -114,7 +120,7 @@ namespace display {
         // brought it back.
         for (int i = 0; i < kLayers; i++)
         {
-            s_hidden[i] = (root[kLayerByte + kLayerStep * i] & kLayerOn) == 0;
+            rt.hidden[i] = (root[kLayerByte + kLayerStep * i] & kLayerOn) == 0;
         }
     }
 
@@ -168,6 +174,7 @@ namespace display {
 
     static void applySpeed(bool want, int speed)
     {
+        DisplayRt& rt = s_rt;
         u16* rate = rateField();
         if (rate == NULL)
         {
@@ -175,28 +182,28 @@ namespace display {
         }
         if (want && speed > kSpeed1 && speed < kSpeedCount)
         {
-            if (!s_rateOwned || *rate != s_rateWritten)
+            if (!rt.rateOwned || *rate != rt.rateWritten)
             {
                 // First time, or Training changed it since: that is the
                 // rate to put back.
-                s_rateSaved = *rate;
+                rt.rateSaved = *rate;
             }
-            s_rateOwned = true;
+            rt.rateOwned = true;
             if (*rate != kRates[speed])
             {
                 TM_LOG("display: frame rate %d -> %d\n", *rate, kRates[speed]);
             }
             *rate = kRates[speed];
-            s_rateWritten = kRates[speed];
+            rt.rateWritten = kRates[speed];
         }
-        else if (s_rateOwned)
+        else if (rt.rateOwned)
         {
-            if (*rate == s_rateWritten)
+            if (*rate == rt.rateWritten)
             {
-                *rate = s_rateSaved;
+                *rate = rt.rateSaved;
             }
             TM_LOG("display: frame rate back to %d\n", *rate);
-            s_rateOwned = false;
+            rt.rateOwned = false;
         }
     }
 
@@ -215,7 +222,7 @@ namespace display {
 
     void* cameraController()
     {
-        if (!s_cameraOk)
+        if (!s_rt.cameraOk)
         {
             return NULL;
         }
@@ -232,6 +239,7 @@ namespace display {
 
     static void applyCamera(const game::MatchState& m)
     {
+        DisplayRt& rt = s_rt;
         void* menu = trainingMenu();
         void* controller = cameraController();
         if (controller == NULL || menu == NULL || !m.training)
@@ -243,18 +251,18 @@ namespace display {
         {
             want = kCameraNormal;
         }
-        if (want != s_camera)
+        if (want != rt.camera)
         {
-            TM_LOG("display: camera mode %d -> %d\n", s_camera, want);
-            if (s_camera == kCameraFixed && want == kCameraNormal)
+            TM_LOG("display: camera mode %d -> %d\n", rt.camera, want);
+            if (rt.camera == kCameraFixed && want == kCameraNormal)
             {
                 trainingCamera(menu, game::wordAt(menu, kTrainingCamera) != 0);
             }
-            else if (s_camera == kCameraZoom || want == kCameraZoom)
+            else if (rt.camera == kCameraZoom || want == kCameraZoom)
             {
                 trainingCamera(menu, want == kCameraZoom);
             }
-            s_camera = static_cast<u8>(want);
+            rt.camera = static_cast<u8>(want);
         }
         if (want == kCameraFixed && !m.paused && game::wordAt(controller, kCameraKind) != kKindFixed)
         {
@@ -266,70 +274,61 @@ namespace display {
 
     void attach()
     {
-        s_layersOk = codeIs(kSetLayer, kSetLayerWords, 6);
-        s_staleOk = codeIs(kClearPattern, kClearPatternWords, 4);
-        s_cameraOk = codeIs(kCameraGetInstance, kGetInstanceWords, 2)
-                     && codeIs(kCameraChangeInput, kChangeInputWords, 8)
-                     && codeIs(kSetCameraType, kSetCameraTypeWords, 8);
-        for (int i = 0; i < kLayers; i++)
-        {
-            s_hidden[i] = false;
-        }
-        for (int i = 0; i < kPads; i++)
-        {
-            s_heldBefore[i] = 0;
-            s_pending[i] = 0;
-        }
-        s_rateOwned = false;
-        s_camera = kCameraNormal;
-        TM_LOG("display: layers %s, staling %s, camera %s\n", s_layersOk ? "ok" : "not as expected: off",
-               s_staleOk ? "ok" : "not as expected: off", s_cameraOk ? "ok" : "not as expected: off");
+        DisplayRt& rt = s_rt;
+        memset(&rt, 0, sizeof(rt));
+        rt.rateSaved = kNormalRate;
+        rt.layersOk = codeIs(kSetLayer, kSetLayerWords, 6);
+        rt.staleOk = codeIs(kClearPattern, kClearPatternWords, 4);
+        rt.cameraOk = codeIs(kCameraGetInstance, kGetInstanceWords, 2)
+                      && codeIs(kCameraChangeInput, kChangeInputWords, 8)
+                      && codeIs(kSetCameraType, kSetCameraTypeWords, 8);
+        TM_LOG("display: layers %s, staling %s, camera %s\n", rt.layersOk ? "ok" : "not as expected: off",
+               rt.staleOk ? "ok" : "not as expected: off", rt.cameraOk ? "ok" : "not as expected: off");
         debugDrawCheck();
     }
 
     void detach()
     {
+        DisplayRt& rt = s_rt;
         showAllLayers();
         applySpeed(false, kSpeed1);
         // A Zoom set here goes back to Training's Normal; the next match sets
         // its camera up from that option.
         void* menu = trainingMenu();
-        if (s_camera == kCameraZoom && menu != NULL)
+        if (rt.camera == kCameraZoom && menu != NULL)
         {
             *reinterpret_cast<u32*>(reinterpret_cast<u32>(menu) + kTrainingCamera) = 0;
         }
-        s_camera = kCameraNormal;
+        rt.camera = kCameraNormal;
     }
 
     void capturePads(const gfPadStatus* pads)
     {
         inputCapture(pads);
         // This step has seen the presses kept for it.
-        for (int i = 0; i < kPads; i++)
-        {
-            s_pending[i] = 0;
-        }
+        memset(s_rt.pending, 0, sizeof(s_rt.pending));
     }
 
     void systemPads(gfPadStatus* pads)
     {
+        DisplayRt& rt = s_rt;
         u16* rate = rateField();
         bool slow = rate != NULL && *rate < kNormalRate;
         for (int i = 0; i < kPads; i++)
         {
             if (!game::padConnectedInMatch(i, pads[i]))
             {
-                s_pending[i] = 0;
-                s_heldBefore[i] = 0;
+                rt.pending[i] = 0;
+                rt.heldBefore[i] = 0;
                 continue;
             }
             u32 held = pads[i].m_buttonsCurrentFrame.bits;
             // Kept even once released: a press shorter than the time between
             // two steps (up to 4 passes at 1/4) still reaches one.
-            s_pending[i] = slow ? s_pending[i] | (held & ~s_heldBefore[i]) : 0;
-            pads[i].m_buttonsPressedThisFrame.bits |= s_pending[i];
-            pads[i].m_buttonsPressedThisFrame2.bits |= s_pending[i];
-            s_heldBefore[i] = held;
+            rt.pending[i] = slow ? rt.pending[i] | (held & ~rt.heldBefore[i]) : 0;
+            pads[i].m_buttonsPressedThisFrame.bits |= rt.pending[i];
+            pads[i].m_buttonsPressedThisFrame2.bits |= rt.pending[i];
+            rt.heldBefore[i] = held;
         }
     }
 
@@ -342,7 +341,7 @@ namespace display {
         {
             applyLayers(m);
         }
-        if (live && !settings().general.moveStaling && s_staleOk)
+        if (live && !settings().general.moveStaling && s_rt.staleOk)
         {
             clearStaling();
         }

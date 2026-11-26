@@ -110,7 +110,7 @@ namespace storage {
 
     private:
         enum Kind { kIdle, kFolder, kWrite, kRead, kDelete };
-        bool start(int kind, const char* name);
+        bool start(int kind, const char* name, char* pathOut);
         gfFileIOHandle& handle()
         {
             return *reinterpret_cast<gfFileIOHandle*>(m_handle.raw);

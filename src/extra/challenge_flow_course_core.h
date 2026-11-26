@@ -76,6 +76,9 @@ namespace extra {
         FlowGate gates[kFlowGateCount];
     };
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline void fcSetTarget(FlowCourseState& st)
     {
         const FlowGate& g = st.gates[st.out.activeGate & 3u];
@@ -100,6 +103,9 @@ namespace extra {
         st.courseCompletedThisFrame = 0;
         fcSetTarget(st);
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline void flowCourseResetAll(FlowCourseState& st)
     {

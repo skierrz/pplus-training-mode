@@ -102,6 +102,7 @@ namespace extra {
     // Data-driven 44-fighter P+ 3.2.1 signature tech table (1:1 over all 44
     // playable ftKinds; Nana 0x10 aliases to Popo 0x0F via findFighterTechDef).
 #ifdef __MWERKS__
+#pragma dont_inline on
     inline u32 findFighterTechDef(int ftKind, const FighterTechDef*& outDef)
     {
         if (ftKind == 0x10)
@@ -177,6 +178,7 @@ namespace extra {
         outDef = NULL;
         return 0;
     }
+#pragma dont_inline reset
 #else
     inline const FighterTechDef* fighterTechTable()
     {
@@ -326,6 +328,9 @@ namespace extra {
         s.osdPosted = 0;
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline bool isTtAttackAirMotion(s16 mk)
     {
         return mk >= kTtMotionAttackAirN && mk <= kTtMotionAttackAirLw;
@@ -335,6 +340,9 @@ namespace extra {
     {
         return s >= kTtStSpecialN && s != kTtStFinal;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline bool stepFighterTechDef(const TechFrameInput& in, u32 techId, const FighterTechDef* def, TechWatch& w,
                                    TechSlotStats& stats, const char*& outLabel)

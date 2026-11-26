@@ -160,6 +160,12 @@ namespace extra {
         return g_ftEntryManager;
     }
 
+    ftEntry* extraEntry(int entryId)
+    {
+        ftEntryManager* entries = g_ftEntryManager;
+        return game::isRam(entries) ? entries->getEntity(entryId) : NULL;
+    }
+
     const void* extraFtCommonData(int ftKind)
     {
         return g_ftCommonDataAccesser.getData(static_cast< ::ftKind>(ftKind));

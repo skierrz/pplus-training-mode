@@ -127,18 +127,18 @@ namespace extra {
             PendingSlot pending[game::kMaxFighters];
             FighterSwapDebugBlock debug;
             ui::pages::ScenarioMenuState savedScenarioMenu;
+            u32 settleFrames;
+            u32 waitFrames;
+            u32 lastGameFrame;
+            u8 prevSelection[2];
+            bool costumeHelperOk;
+            bool altCostumeOk;
+            bool synced;
+            bool swapInProgress;
+            bool hadActiveScenario;
         };
 
         FighterSwapNet* s_net = NULL;
-        bool s_costumeHelperOk = false;
-        bool s_altCostumeOk = false;
-        bool s_synced = false;
-        bool s_swapInProgress = false;
-        u8 s_prevSelection[2] = {0xFF, 0xFF};
-        u32 s_settleFrames = 0;
-        u32 s_waitFrames = 0;
-        u32 s_lastGameFrame = 0;
-        bool s_hadActiveScenario = false;
 
         bool codeMatches(u32 addr, const u32* words, int count)
         {
@@ -181,7 +181,7 @@ namespace extra {
 
         bool selchTableValid(int cssIcon)
         {
-            if (!s_costumeHelperOk || cssIcon < 0 || cssIcon > kCharColorMaxIndex)
+            if (s_net == NULL || !s_net->costumeHelperOk || cssIcon < 0 || cssIcon > kCharColorMaxIndex)
             {
                 return false;
             }
@@ -277,18 +277,19 @@ namespace extra {
             int n = entry != NULL ? queryNumColors(entry->cssIcon) : 1;
             int maxIdx = n > 0 ? n - 1 : 0;
             main::setFighterSwapCostumeMax(side, maxIdx);
-            if (s_net != NULL)
+            if (s_net == NULL)
             {
-                if (side == 0)
-                {
-                    s_net->debug.p1MaxCostume = static_cast<u8>(maxIdx);
-                }
-                else
-                {
-                    s_net->debug.cpuMaxCostume = static_cast<u8>(maxIdx);
-                }
+                return;
             }
-            if (resetOnFighterChange && s_prevSelection[side] != 0xFF && s_prevSelection[side] != rosterIdx)
+            if (side == 0)
+            {
+                s_net->debug.p1MaxCostume = static_cast<u8>(maxIdx);
+            }
+            else
+            {
+                s_net->debug.cpuMaxCostume = static_cast<u8>(maxIdx);
+            }
+            if (resetOnFighterChange && s_net->prevSelection[side] != 0xFF && s_net->prevSelection[side] != rosterIdx)
             {
                 costumeVal = 0;
             }
@@ -296,7 +297,7 @@ namespace extra {
             {
                 costumeVal = static_cast<u8>(fighterSwapClampCostume(costumeVal, n));
             }
-            s_prevSelection[side] = rosterIdx;
+            s_net->prevSelection[side] = rosterIdx;
         }
 
         void syncMenuToLive()
@@ -305,12 +306,13 @@ namespace extra {
             {
                 return;
             }
+            FighterSwapNet& net = *s_net;
             u8* players = modePlayers();
             int p1Slot = -1;
             int cpuSlot = -1;
             findTargetSlots(players, p1Slot, cpuSlot);
-            s_net->debug.p1Slot = static_cast<s8>(p1Slot);
-            s_net->debug.cpuSlot = static_cast<s8>(cpuSlot);
+            net.debug.p1Slot = static_cast<s8>(p1Slot);
+            net.debug.cpuSlot = static_cast<s8>(cpuSlot);
             ui::pages::FighterSwapMenuState* st = ui::pages::fighterSwapMenuState();
             int slots[2] = {p1Slot, cpuSlot};
             u8* fighters[2] = {&st->p1Fighter, &st->cpuFighter};
@@ -322,7 +324,7 @@ namespace extra {
                 {
                     *fighters[side] = 0;
                     *costumes[side] = 0;
-                    s_prevSelection[side] = 0;
+                    net.prevSelection[side] = 0;
                     updateSideCostumeBound(side, 0, *costumes[side], false);
                     continue;
                 }
@@ -338,10 +340,10 @@ namespace extra {
                                  ? detectLiveCostumeIndex(entry->cssIcon, pd[kPlayerColorFile], pd[kPlayerColor])
                                  : 0;
                 *costumes[side] = static_cast<u8>(cosIdx);
-                s_prevSelection[side] = static_cast<u8>(idx);
+                net.prevSelection[side] = static_cast<u8>(idx);
                 updateSideCostumeBound(side, static_cast<u8>(idx), *costumes[side], false);
             }
-            s_synced = true;
+            net.synced = true;
         }
 
         const char* refuseNoticeText(u8 code)
@@ -374,7 +376,7 @@ namespace extra {
         bool canSwapNow()
         {
             game::MatchState m = game::matchState();
-            return s_net != NULL && m.running && m.training && !drillActive() && !s_swapInProgress
+            return s_net != NULL && m.running && m.training && !drillActive() && !s_net->swapInProgress
                    && !savestate::loadingFiles();
         }
         static const char kRosterNames[] =
@@ -421,17 +423,6 @@ namespace extra {
     {
         freeNetPtr(s_net);
         s_net = allocNetArray<FighterSwapNet>(1);
-        s_costumeHelperOk = codeMatches(kGetNumColorAddr, kGetNumColorWords, 4)
-                            && codeMatches(kGetColorFileAddr, kGetColorFileWords, 4);
-        s_altCostumeOk = codeMatches(kAltCostumeMarkerAddr, kAltCostumeWords, 4);
-        s_synced = false;
-        s_swapInProgress = false;
-        s_hadActiveScenario = false;
-        s_prevSelection[0] = 0xFF;
-        s_prevSelection[1] = 0xFF;
-        s_settleFrames = 0;
-        s_waitFrames = 0;
-        s_lastGameFrame = 0;
         memset(ui::pages::fighterSwapMenuState(), 0, sizeof(ui::pages::FighterSwapMenuState));
         main::setFighterSwapCostumeMax(0, 0);
         main::setFighterSwapCostumeMax(1, 0);
@@ -440,23 +431,26 @@ namespace extra {
             main::setFighterSwapLabels(NULL, 0);
             return;
         }
-        initRoster(*s_net);
-        s_net->debug.magic = kDebugMagic;
-        s_net->debug.scratchAddr = reinterpret_cast<u32>(ui::pages::fighterSwapMenuState());
-        s_net->debug.costumeHelperOk = s_costumeHelperOk ? 1 : 0;
-        s_net->debug.altCostumeOk = s_altCostumeOk ? 1 : 0;
-        s_net->debug.p1Slot = -1;
-        s_net->debug.cpuSlot = -1;
-        main::setFighterSwapLabels(s_net->rosterNames, kFighterSwapCount - 1);
-        TM_LOG("swap: debug block %08x; costumes %s, alt %s\n", &s_net->debug, s_costumeHelperOk ? "ok" : "fallback",
-               s_altCostumeOk ? "ok" : "off");
+        FighterSwapNet& net = *s_net;
+        net.costumeHelperOk = codeMatches(kGetNumColorAddr, kGetNumColorWords, 4)
+                              && codeMatches(kGetColorFileAddr, kGetColorFileWords, 4);
+        net.altCostumeOk = codeMatches(kAltCostumeMarkerAddr, kAltCostumeWords, 4);
+        net.prevSelection[0] = 0xFF;
+        net.prevSelection[1] = 0xFF;
+        initRoster(net);
+        net.debug.magic = kDebugMagic;
+        net.debug.scratchAddr = reinterpret_cast<u32>(ui::pages::fighterSwapMenuState());
+        net.debug.costumeHelperOk = net.costumeHelperOk ? 1 : 0;
+        net.debug.altCostumeOk = net.altCostumeOk ? 1 : 0;
+        net.debug.p1Slot = -1;
+        net.debug.cpuSlot = -1;
+        main::setFighterSwapLabels(net.rosterNames, kFighterSwapCount - 1);
+        TM_LOG("swap: debug block %08x; costumes %s, alt %s\n", &net.debug, net.costumeHelperOk ? "ok" : "fallback",
+               net.altCostumeOk ? "ok" : "off");
     }
 
     void fighterSwapDetach()
     {
-        s_swapInProgress = false;
-        s_hadActiveScenario = false;
-        s_synced = false;
         main::setFighterSwapLabels(NULL, 0);
         main::setFighterSwapCostumeMax(0, 0);
         main::setFighterSwapCostumeMax(1, 0);
@@ -469,20 +463,21 @@ namespace extra {
         {
             return;
         }
+        FighterSwapNet& net = *s_net;
         if (!lab::menuOpen())
         {
-            s_synced = false;
+            net.synced = false;
         }
-        if (!s_swapInProgress)
+        if (!net.swapInProgress)
         {
-            s_net->debug.inProgress = 0;
+            net.debug.inProgress = 0;
             return;
         }
-        s_net->debug.inProgress = 1;
+        net.debug.inProgress = 1;
         if (!match.running || !match.training)
         {
-            s_swapInProgress = false;
-            s_net->debug.inProgress = 0;
+            net.swapInProgress = false;
+            net.debug.inProgress = 0;
             return;
         }
         // Only advance swap completion tracking on simulated unpaused frames.
@@ -491,12 +486,12 @@ namespace extra {
             return;
         }
         u32 curFrame = game::frameCounter();
-        if (curFrame == s_lastGameFrame)
+        if (curFrame == net.lastGameFrame)
         {
             return;
         }
-        s_lastGameFrame = curFrame;
-        s_waitFrames++;
+        net.lastGameFrame = curFrame;
+        net.waitFrames++;
 
         bool allReady = !savestate::loadingFiles();
         if (allReady)
@@ -505,14 +500,14 @@ namespace extra {
             int n = game::listFighters(refs, game::kMaxFighters);
             for (int p = 0; p < game::kMaxFighters; p++)
             {
-                if (!s_net->pending[p].active)
+                if (!net.pending[p].active)
                 {
                     continue;
                 }
                 bool foundNew = false;
                 for (int i = 0; i < n; i++)
                 {
-                    if (refs[i].playerNo == p && refs[i].entryId != s_net->pending[p].oldEntryId
+                    if (refs[i].playerNo == p && refs[i].entryId != net.pending[p].oldEntryId
                         && game::fighterModules(refs[i].fighter) != NULL)
                     {
                         foundNew = true;
@@ -529,30 +524,30 @@ namespace extra {
 
         if (allReady)
         {
-            if (++s_settleFrames >= kSwapSettleFrames)
+            if (++net.settleFrames >= kSwapSettleFrames)
             {
-                s_swapInProgress = false;
-                s_net->debug.inProgress = 0;
-                s_net->debug.completedCount++;
-                memset(s_net->pending, 0, sizeof(s_net->pending));
-                TM_LOG("swap: complete after %u frames\n", s_waitFrames);
-                if (s_hadActiveScenario)
+                net.swapInProgress = false;
+                net.debug.inProgress = 0;
+                net.debug.completedCount++;
+                memset(net.pending, 0, sizeof(net.pending));
+                TM_LOG("swap: complete after %u frames\n", net.waitFrames);
+                if (net.hadActiveScenario)
                 {
-                    s_hadActiveScenario = false;
-                    scenarioPresetsRestoreAfterSwap(s_net->savedScenarioMenu);
+                    net.hadActiveScenario = false;
+                    scenarioPresetsRestoreAfterSwap(net.savedScenarioMenu);
                 }
             }
         }
         else
         {
-            s_settleFrames = 0;
-            if (s_waitFrames >= kSwapTimeoutFrames)
+            net.settleFrames = 0;
+            if (net.waitFrames >= kSwapTimeoutFrames)
             {
-                s_swapInProgress = false;
-                s_net->debug.inProgress = 0;
-                s_hadActiveScenario = false;
-                memset(s_net->pending, 0, sizeof(s_net->pending));
-                TM_LOG("swap: wait timed out after %u frames\n", s_waitFrames);
+                net.swapInProgress = false;
+                net.debug.inProgress = 0;
+                net.hadActiveScenario = false;
+                memset(net.pending, 0, sizeof(net.pending));
+                TM_LOG("swap: wait timed out after %u frames\n", net.waitFrames);
             }
         }
     }
@@ -563,7 +558,7 @@ namespace extra {
         {
             return false;
         }
-        if (!s_synced)
+        if (!s_net->synced)
         {
             syncMenuToLive();
         }
@@ -572,7 +567,7 @@ namespace extra {
 
     void fighterSwapChanged()
     {
-        if (!s_synced)
+        if (s_net == NULL || !s_net->synced)
         {
             return;
         }
@@ -587,8 +582,9 @@ namespace extra {
         {
             return;
         }
-        FighterSwapDebugBlock& s_debug = s_net->debug;
-        PendingSlot* s_pending = s_net->pending;
+        FighterSwapNet& net = *s_net;
+        FighterSwapDebugBlock& s_debug = net.debug;
+        PendingSlot* s_pending = net.pending;
         if (drillActive())
         {
             recordRefusal(kRefuseDrill, "drill active");
@@ -600,7 +596,7 @@ namespace extra {
             recordRefusal(kRefuseState, "not in a running Training match");
             return;
         }
-        if (s_swapInProgress || savestate::loadingFiles())
+        if (net.swapInProgress || savestate::loadingFiles())
         {
             recordRefusal(kRefuseLoading, "swap or file load already in progress");
             return;
@@ -699,10 +695,10 @@ namespace extra {
 
         // ---- 1. Pre-swap cleanup barrier across all subsystems ----
         const ui::pages::ScenarioMenuState* curScen = ui::pages::scenarioMenuState();
-        s_hadActiveScenario = curScen->preset != ui::pages::kPresetOff;
-        if (s_hadActiveScenario)
+        net.hadActiveScenario = curScen->preset != ui::pages::kPresetOff;
+        if (net.hadActiveScenario)
         {
-            s_net->savedScenarioMenu = *curScen;
+            net.savedScenarioMenu = *curScen;
         }
         scenarioPresetsPrepareSwap();
         record::prepareSwap();
@@ -749,7 +745,7 @@ namespace extra {
             {
                 // Clear P+ AltZ/AltR word so AltCostume.asm does not overwrite
                 // m_colorFileNo to 61/62 on the next frame.
-                if (s_altCostumeOk)
+                if (net.altCostumeOk)
                 {
                     u32* altWord = reinterpret_cast<u32*>(sel + kSelAltCostume + p * kPlayerSize);
                     if (game::isRam(altWord))
@@ -782,11 +778,11 @@ namespace extra {
                    targetCostumes[p], targetColorFiles[p], targetIcons[p]);
         }
 
-        s_swapInProgress = true;
-        s_settleFrames = 0;
-        s_waitFrames = 0;
-        s_lastGameFrame = game::frameCounter();
-        s_synced = false;
+        net.swapInProgress = true;
+        net.settleFrames = 0;
+        net.waitFrames = 0;
+        net.lastGameFrame = game::frameCounter();
+        net.synced = false;
         s_debug.inProgress = 1;
         s_debug.lastRefusal = kRefuseNone;
         s_debug.swapCount++;
@@ -797,7 +793,7 @@ namespace extra {
 
     bool fighterSwapBusy()
     {
-        return s_swapInProgress;
+        return s_net != NULL && s_net->swapInProgress;
     }
 }
 }

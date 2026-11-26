@@ -69,24 +69,33 @@ namespace extra {
             u32 guideDrawCalls;
             u32 tauntInterrupts;
             u32 preResetTauntMask;
+            u32 resetCount;
+            s32 prevFrame;
             u8 tauntGuardFrames;
             u8 floorhugGuardActive;
             u8 haveGeom;
         };
 
         NetState* s_net = NULL;
-        u32 s_resetCount = 0;
-        s32 s_prevFrame = game::kNoFrame;
-
-        inline float readFloatAt(const void* base, u32 offset)
-        {
-            return *reinterpret_cast<const float*>(reinterpret_cast<u32>(base) + offset);
-        }
 
         // Single out-of-line RAM check keeps readFrame() compact on MWCC.
         bool ramOk(const void* p)
         {
             return game::isRam(p);
+        }
+
+        void emitQuad(float x0, float x1, float yTop, float yBot, gfx::Rgba topCol, gfx::Rgba botCol)
+        {
+            gfx::vertex(x0, yTop, topCol);
+            gfx::vertex(x1, yTop, topCol);
+            gfx::vertex(x1, yBot, botCol);
+            gfx::vertex(x0, yBot, botCol);
+        }
+
+        void emitLine(float x0, float y0, float x1, float y1, gfx::Rgba col)
+        {
+            gfx::vertex(x0, y0, col);
+            gfx::vertex(x1, y1, col);
         }
 
         ChallengeDebugSlot* debugSlotFor(const ChallengeSlot& slot)
@@ -166,8 +175,8 @@ namespace extra {
             out.groups = t->cur.groups;
             out.x = body.x;
             out.y = body.y;
-            out.vx = body.x - readFloatAt(posture, kPosturePrevPos);
-            out.lr = readFloatAt(posture, kPostureLr);
+            out.vx = body.x - floatAt(posture, kPosturePrevPos);
+            out.lr = floatAt(posture, kPostureLr);
             out.motionKind = static_cast<s16>(body.motionKind);
             out.xluFrames = static_cast<s16>(body.xluFrames);
             if (ramOk(m->m_controllerModule))
@@ -274,15 +283,15 @@ namespace extra {
             int n = game::listFighters(refs, game::kMaxFighters);
             for (int i = 0; i < n; i++)
             {
-                if (ramOk(refs[i].fighter))
+                Fighter* pair[2] = {refs[i].fighter, (refs[i].partner != refs[i].fighter) ? refs[i].partner : NULL};
+                for (int k = 0; k < 2; k++)
                 {
-                    interruptFighterTaunt(refs[i].fighter, refs[i].playerNo, false,
-                                          game::fighterKind(refs[i].entryId, false), s_net->tauntGuardFrames, onReset);
-                }
-                if (ramOk(refs[i].partner) && refs[i].partner != refs[i].fighter)
-                {
-                    interruptFighterTaunt(refs[i].partner, refs[i].playerNo, true,
-                                          game::fighterKind(refs[i].entryId, true), s_net->tauntGuardFrames, onReset);
+                    if (ramOk(pair[k]))
+                    {
+                        interruptFighterTaunt(pair[k], refs[i].playerNo, k != 0,
+                                              game::fighterKind(refs[i].entryId, k != 0), s_net->tauntGuardFrames,
+                                              onReset);
+                    }
                 }
             }
         }
@@ -304,11 +313,11 @@ namespace extra {
     {
         challengeBackendsDetach();
         s_net = static_cast<NetState*>(allocNetZero(static_cast<u32>(sizeof(NetState))));
-        s_resetCount = 0;
         if (s_net == NULL)
         {
             return;
         }
+        s_net->prevFrame = game::kNoFrame;
         s_net->debug.magic = kChallengeDebugMagic;
         s_net->debug.version = kChallengeDebugVersion;
         for (int i = 0; i < game::kMaxTracked; i++)
@@ -324,22 +333,17 @@ namespace extra {
 
     void challengeBackendsDetach()
     {
-        s_prevFrame = game::kNoFrame;
-        if (s_net != NULL)
-        {
-            freeNetRaw(s_net);
-            s_net = NULL;
-        }
+        freeNetPtr(s_net);
     }
 
     void challengeBackendsReset()
     {
-        s_prevFrame = game::kNoFrame;
-        s_resetCount++;
         if (s_net == NULL)
         {
             return;
         }
+        s_net->prevFrame = game::kNoFrame;
+        s_net->resetCount++;
         u32 preResetTauntMask = 0u;
         for (int i = 0; i < game::kMaxTracked; i++)
         {
@@ -374,7 +378,7 @@ namespace extra {
                 mirrorSlot(s_net->slots[i], 0);
             }
         }
-        s_net->debug.resetCount = s_resetCount;
+        s_net->debug.resetCount = s_net->resetCount;
 
         // Only arm the taunt/AppealHi reset guard during Floorhug or when a
         // fighter was actually in taunt right before reset, so non-taunt
@@ -403,11 +407,11 @@ namespace extra {
             return;
         }
         const s32 f = game::trackerFrame();
-        if (s_prevFrame != game::kNoFrame && f <= s_prevFrame)
+        if (s_net->prevFrame != game::kNoFrame && f <= s_net->prevFrame)
         {
             challengeBackendsReset();
         }
-        s_prevFrame = f;
+        s_net->prevFrame = f;
         s_net->debug.frame = static_cast<u32>(f >= 0 ? f : 0);
 
         if (s_net->tauntGuardFrames > 0)
@@ -559,15 +563,8 @@ namespace extra {
         for (int s = 0; s < 2; s++)
         {
             const RecoveryLedgeGuide& d = guide.sides[s];
-            gfx::vertex(d.grabMinX, d.grabMaxY, kBoxTop);
-            gfx::vertex(d.grabMaxX, d.grabMaxY, kBoxTop);
-            gfx::vertex(d.grabMaxX, d.grabMinY, kBoxBot);
-            gfx::vertex(d.grabMinX, d.grabMinY, kBoxBot);
-
-            gfx::vertex(d.sweetMinX, d.sweetCeilY, kBandFill);
-            gfx::vertex(d.sweetMaxX, d.sweetCeilY, kBandFill);
-            gfx::vertex(d.sweetMaxX, d.lipY, kBandFill);
-            gfx::vertex(d.sweetMinX, d.lipY, kBandFill);
+            emitQuad(d.grabMinX, d.grabMaxX, d.grabMaxY, d.grabMinY, kBoxTop, kBoxBot);
+            emitQuad(d.sweetMinX, d.sweetMaxX, d.sweetCeilY, d.lipY, kBandFill, kBandFill);
         }
         GXEnd();
 
@@ -576,27 +573,15 @@ namespace extra {
         for (int s = 0; s < 2; s++)
         {
             const RecoveryLedgeGuide& d = guide.sides[s];
-            // Grab box rectangle (4 segments)
-            gfx::vertex(d.grabMinX, d.grabMaxY, kBoxEdge);
-            gfx::vertex(d.grabMaxX, d.grabMaxY, kBoxEdge);
-            gfx::vertex(d.grabMinX, d.grabMinY, kBoxEdge);
-            gfx::vertex(d.grabMaxX, d.grabMinY, kBoxEdge);
-            gfx::vertex(d.grabMinX, d.grabMinY, kBoxEdge);
-            gfx::vertex(d.grabMinX, d.grabMaxY, kBoxEdge);
-            gfx::vertex(d.grabMaxX, d.grabMinY, kBoxEdge);
-            gfx::vertex(d.grabMaxX, d.grabMaxY, kBoxEdge);
-            // Sweetspot ceiling rail + end ticks (3 segments)
-            gfx::vertex(d.sweetMinX, d.sweetCeilY, kRailCol);
-            gfx::vertex(d.sweetMaxX, d.sweetCeilY, kRailCol);
-            gfx::vertex(d.sweetMinX, d.lipY, kRailCol);
-            gfx::vertex(d.sweetMinX, d.sweetCeilY, kRailCol);
-            gfx::vertex(d.sweetMaxX, d.lipY, kRailCol);
-            gfx::vertex(d.sweetMaxX, d.sweetCeilY, kRailCol);
-            // Ledge lip horizontal + vertical crosshair (2 segments)
-            gfx::vertex(d.lipX - 2.0f, d.lipY, kLipCol);
-            gfx::vertex(d.lipX + 2.0f, d.lipY, kLipCol);
-            gfx::vertex(d.lipX, d.lipY - 2.0f, kLipCol);
-            gfx::vertex(d.lipX, d.lipY + 2.0f, kLipCol);
+            emitLine(d.grabMinX, d.grabMaxY, d.grabMaxX, d.grabMaxY, kBoxEdge);
+            emitLine(d.grabMinX, d.grabMinY, d.grabMaxX, d.grabMinY, kBoxEdge);
+            emitLine(d.grabMinX, d.grabMinY, d.grabMinX, d.grabMaxY, kBoxEdge);
+            emitLine(d.grabMaxX, d.grabMinY, d.grabMaxX, d.grabMaxY, kBoxEdge);
+            emitLine(d.sweetMinX, d.sweetCeilY, d.sweetMaxX, d.sweetCeilY, kRailCol);
+            emitLine(d.sweetMinX, d.lipY, d.sweetMinX, d.sweetCeilY, kRailCol);
+            emitLine(d.sweetMaxX, d.lipY, d.sweetMaxX, d.sweetCeilY, kRailCol);
+            emitLine(d.lipX - 2.0f, d.lipY, d.lipX + 2.0f, d.lipY, kLipCol);
+            emitLine(d.lipX, d.lipY - 2.0f, d.lipX, d.lipY + 2.0f, kLipCol);
         }
         GXEnd();
 

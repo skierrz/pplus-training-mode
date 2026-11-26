@@ -3,6 +3,7 @@
 #include <types.h>
 
 class Stage;
+class ftEntry;
 class ftEntryManager;
 class soModuleAccesser;
 class soModuleEnumeration;
@@ -26,6 +27,7 @@ namespace extra {
     // Single-relocation sora_melee accessors (collapse mod=27 kept relocs).
     Stage* extraStage();
     ftEntryManager* extraEntryManager();
+    ftEntry* extraEntry(int entryId);
     const void* extraFtCommonData(int ftKind);
     float extraConstFloat(soModuleAccesser* acc, u32 id);
     s32 extraConstInt(soModuleAccesser* acc, u32 id);
@@ -48,6 +50,7 @@ namespace extra {
 #else
 #define extraStage() g_Stage
 #define extraEntryManager() g_ftEntryManager
+#define extraEntry(id) (tm::game::isRam(g_ftEntryManager) ? g_ftEntryManager->getEntity(id) : NULL)
 #define extraFtCommonData(kind) g_ftCommonDataAccesser.getData(static_cast<ftKind>(kind))
 #define extraConstFloat(acc, id) soValueAccesser::getConstantFloat((acc), (id), 0)
 #define extraConstInt(acc, id) soValueAccesser::getConstantInt((acc), (id), 0)

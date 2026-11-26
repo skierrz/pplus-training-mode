@@ -416,12 +416,13 @@ namespace extra {
                 {
                     continue;
                 }
+                const float bx[2] = {b.worldXMin, b.worldXMax};
+                const float by[2] = {b.worldYMin, b.worldYMax};
                 gfx::lineBegin(GX_LINESTRIP, 5, kBoundsLineWidth);
-                gfx::vertex(b.worldXMin, b.worldYMin, kBoundsColor);
-                gfx::vertex(b.worldXMax, b.worldYMin, kBoundsColor);
-                gfx::vertex(b.worldXMax, b.worldYMax, kBoundsColor);
-                gfx::vertex(b.worldXMin, b.worldYMax, kBoundsColor);
-                gfx::vertex(b.worldXMin, b.worldYMin, kBoundsColor);
+                for (int k = 0; k < 5; k++)
+                {
+                    gfx::vertex(bx[(k == 1 || k == 2) ? 1 : 0], by[(k == 2 || k == 3) ? 1 : 0], kBoundsColor);
+                }
                 s_net->debug.boundsDrawn++;
             }
         }

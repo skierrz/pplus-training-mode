@@ -116,12 +116,11 @@ NUMBERS = {
     ("lab.cpp", "Grab Escape\nTimer: %d\n%.1f / frame"): ["999", "9.9"],
     ("lab.cpp", "Grab Escape\nFrames %d / %d\n%.1f / frame"): ["999", "99", "17.0"],
     ("lab.cpp", "CPU Damage: %d%%"): ["999"],
-    ("ledgedash_hud.cpp", "GALINT: +%df INVULN  Hang: %df  Angle: %.1f deg"): ["31", "99", "90.0"],
-    ("ledgedash_hud.cpp", "GALINT: +%df INVULN  Hang: %df"): ["31", "99"],
-    ("ledgedash_hud.cpp", "GALINT: %df (VULN)  Hang: %df  Angle: %.1f deg"): ["-24", "99", "90.0"],
-    ("ledgedash_hud.cpp", "GALINT: %df (VULN)  Hang: %df"): ["-24", "99"],
-    ("ledgedash_hud.cpp", "GALINT: None  Hang: %df"): ["99"],
-    ("ledgedash_hud.cpp", "GALINT: None (%d/5)  Hang: %df"): ["99", "99"],
+    ("ledgedash_hud.cpp", "None (%d/5)"): ["99"],
+    ("ledgedash_hud.cpp", "+%df INVULN"): ["31"],
+    ("ledgedash_hud.cpp", "%df (VULN)"): ["-24"],
+    ("ledgedash_hud.cpp", "  Angle: %.1f deg"): ["90.0"],
+    ("ledgedash_hud.cpp", "GALINT: %s  Hang: %df%s"): [None, "99", None],
     ("wall_info_core.h", "Can Walljump: CD %df"): ["99"],
     ("psa_inspector_core.h", "PSA P%d"): ["4"],
     ("psa_inspector_core.h", "FSM x%.2f"): ["99.99"],
@@ -275,6 +274,12 @@ def import_reasons(sources):
     return file_results(sources) + returned("main/storage/recording_file.cpp", "applyImport")(sources)
 
 
+def fail_notice_reasons(sources):
+    literals = [l.text for l in sources["main/storage/recording_file.cpp"].literals
+                if l.name == "failNotice" and l.arg == 1 and l.text]
+    return import_reasons(sources) + literals
+
+
 # The recording's file name as fileName() builds it: date, time, a counter.
 RECORDING_FILE = "991231-235959-99.tmr"
 
@@ -297,6 +302,7 @@ WORDS = {
     ("recording_file.cpp", "storage::resultText(s_job.result())"): file_results,
     ("recording_file.cpp", "storage::resultText(result)"): file_results,
     ("recording_file.cpp", "why"): import_reasons,
+    ("recording_file.cpp", "msg"): fail_notice_reasons,
     ("recording_file.cpp", "s_name"): [RECORDING_FILE],
     ("recording_file.cpp", "name"): [RECORDING_FILE],
     ("settings_file.cpp", "storage::resultText(r)"): file_results,
@@ -307,6 +313,8 @@ WORDS = {
     ("fighter_swap.cpp", "refuseNoticeText(code)"): returned("extra/fighter_swap.cpp", "refuseNoticeText"),
     ("adaptive_cpu.cpp", "adaptiveBiasLabel(v.biasAction)"): returned("extra/adaptive_cpu_core.h", "adaptiveBiasLabel"),
     ("adaptive_cpu.cpp", "adaptiveRpsLabel(v.dominantRps)"): returned("extra/adaptive_cpu_core.h", "adaptiveRpsLabel"),
+    ("ledgedash_hud.cpp", "gText"): ["+31f INVULN", "-24f (VULN)", "None (99/5)", "None"],
+    ("ledgedash_hud.cpp", "angleBuf"): ["", "  Angle: 90.0 deg"],
 }
 
 # ---- restated layouts ----------------------------------------------------------
@@ -603,7 +611,7 @@ def info_display(c, src):
         c.take(lit)
 
 
-guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "9eeff92a")
+guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "a22c1011")
 
 
 def ledgedash_hud(c, src):
@@ -613,9 +621,17 @@ def ledgedash_hud(c, src):
         if c.taken(lit):
             continue
         if lit.name == "snprintf" and lit.arg == 2:
-            for t in c.expand(lit, 2):
-                c.item("fit", lit, t, scale_for_cap(8.0), 0, 520.0, 0.0)
-                c.buffer(lit, t, 64.0)
+            if lit.text == "GALINT: %s  Hang: %df%s":
+                for t in c.expand(lit, 2):
+                    c.item("fit", lit, t, scale_for_cap(8.0), 0, 520.0, 0.0)
+                    c.buffer(lit, t, 64.0)
+            else:
+                # Sub-buffer fragments folded into gText / angleBuf above; verify sub-buffer capacity too.
+                cap = 24.0 if lit.text.startswith("  Angle:") else 20.0
+                for t in c.expand(lit, 2):
+                    c.buffer(lit, t, cap)
+        elif lit.func == "drawLedgedashHud" and lit.text == "None":
+            pass  # folded into gText above
         elif lit.var == "kLegNames":
             c.item("fit", lit, lit.text, scale_for_cap(7.5), 0, 80.0, 0.0)
         else:
@@ -808,8 +824,9 @@ def file_io(c, src):
 
 def recording_file(c, src):
     for lit in src.literals:
-        if not c.taken(lit) and (lit.func in ("fileName", "applyImport")):
-            c.take(lit)  # the file's name; reasons (words of "Import failed: %s")
+        if not c.taken(lit) and (lit.func in ("fileName", "applyImport")
+                                 or (lit.name == "failNotice" and lit.arg == 1)):
+            c.take(lit)  # the file's name; reasons (words of "Export/Import failed: %s")
 
 
 def settings_file(c, src):
@@ -948,7 +965,7 @@ def psa_inspector_cpp(c, src):
     for lit in src.literals:
         if c.taken(lit):
             continue
-        if lit.name == "drawShadowText":
+        if lit.name in ("drawShadowText", "drawShadowCapText"):
             c.item("fit", lit, lit.text, scale_for_cap(6.0), 0, 170.0, 0.0)
             c.take(lit)
         elif lit.name == "snprintf" and lit.arg == 2 and lit.text == "%s:%s":
@@ -975,7 +992,7 @@ def adaptive_cpu_cpp(c, src):
             continue
         if lit.var == "kBarLabels":
             c.item("fit", lit, lit.text, scale_for_cap(6.0), 0, 23.0, 0.0)
-        elif lit.name in ("drawHudText", "drawShadowText"):
+        elif lit.name in ("drawHudText", "drawShadowText", "drawShadowCapText"):
             c.item("fit", lit, lit.text, scale_for_cap(6.4), 0, 72.0, 0.0)
         elif lit.name == "strcpy":
             if lit.text == "WAITING":
@@ -1009,7 +1026,7 @@ def scenario_presets_cpp(c, src):
             continue
         if lit.func != "scenarioPresetsDraw":
             continue
-        if lit.name == "gfx::displayText":
+        if lit.name in ("gfx::displayText", "drawHudBannerTitle"):
             c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 146.0, 0.0)
         elif not lit.calls:
             if lit.text == "GROUND":
@@ -1036,32 +1053,45 @@ def scenario_presets_cpp(c, src):
 
 def drill_hud_core_h(c, src):
     # Live Tech Practice HUD (kDrillHudWidth = 316) and End-Screen Modal (kDrillModalWidth = 384).
+    def expand_part(lit, part):
+        convs = conversions(part)
+        if not convs:
+            return [render(part, [])]
+        fixed = NUMBERS.get(("drill_hud_core.h", part)) or [None] * len(convs)
+        vals = [fixed[k] if fixed[k] is not None else widest_number(m, 3) for k, m in enumerate(convs)]
+        return [render(part, vals)]
+
     for lit in src.literals:
         if c.taken(lit):
             continue
         if lit.func == "drillHudTitle":
-            c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 146.0, 0.0)
+            for part in lit.text.split("\0"):
+                c.item("fit", lit, part, scale_for_cap(8.5), 0, 146.0, 0.0)
         elif lit.func == "drillModeLabel":
-            c.item("fit", lit, lit.text, scale_for_cap(7.2), 0, 56.0, 0.0)
+            for part in lit.text.split("\0"):
+                c.item("fit", lit, part, scale_for_cap(7.2), 0, 56.0, 0.0)
         elif lit.func == "drillHighlightLabel":
-            c.item("fit", lit, lit.text, scale_for_cap(10.0), 0, 185.0, 0.0)
+            for part in lit.text.split("\0"):
+                c.item("fit", lit, part, scale_for_cap(10.0), 0, 185.0, 0.0)
         elif lit.func == "drillHudFormatHighlight":
             if lit.name == "snprintf" and lit.arg == 2:
                 for t in c.expand(lit, 2):
                     c.item("fit", lit, t, scale_for_cap(10.0), 0, 144.0, 0.0)
                     c.buffer(lit, t, 24.0)
             else:
-                for t in c.expand(lit, 0):
-                    c.item("fit", lit, t, scale_for_cap(10.0), 0, 144.0, 0.0)
-                    c.buffer(lit, t, 24.0)
+                for part in lit.text.split("\0"):
+                    for t in expand_part(lit, part):
+                        c.item("fit", lit, t, scale_for_cap(10.0), 0, 144.0, 0.0)
+                        c.buffer(lit, t, 24.0)
         elif lit.func in ("drillHudInit", "drillHudInitMode", "drillHudSetMode", "drillHudCycleMode",
                           "drillHudClearSet", "drillHudStep", "drillHudPoll"):
             if lit.name == "snprintf" and lit.arg == 2:
                 pass
             else:
-                for t in c.expand(lit, 0):
-                    c.item("squeeze", lit, t, scale_for_cap(8.0), 0, 168.0, 0.0)
-                    c.buffer(lit, t, 28.0)
+                for part in lit.text.split("\0"):
+                    for t in expand_part(lit, part):
+                        c.item("squeeze", lit, t, scale_for_cap(8.0), 0, 168.0, 0.0)
+                        c.buffer(lit, t, 28.0)
         else:
             continue
         c.take(lit)
@@ -1071,8 +1101,10 @@ def drill_hud_cpp(c, src):
     for lit in src.literals:
         if c.taken(lit):
             continue
-        if lit.var in ("kPromptLabels", "kPromptGlyphs"):
-            c.item("fit", lit, lit.text, scale_for_cap(9.5), 0, 110.0, 0.0)
+        if (lit.var in ("kPromptLabels", "kPromptGlyphs")
+                or "kPromptLabels" in lit.stmt or "kPromptGlyphs" in lit.stmt):
+            for part in lit.text.split("\0"):
+                c.item("fit", lit, part, scale_for_cap(9.5), 0, 110.0, 0.0)
         elif lit.func == "drawLiveHud":
             if lit.name == "snprintf" and lit.arg == 2:
                 is_meta = lit.text.startswith("STREAK")

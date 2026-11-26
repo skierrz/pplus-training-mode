@@ -325,14 +325,13 @@ namespace storage {
         buf = NULL;
     }
 
-    bool Job::start(int kind, const char* name)
+    bool Job::start(int kind, const char* name, char* pathOut)
     {
         if (busy())
         {
             return false;
         }
-        char path[kPathMax];
-        if (!makePath(path, name, true))
+        if (!makePath(pathOut, name, true))
         {
             return false;
         }
@@ -341,10 +340,10 @@ namespace storage {
             // gfFACreateDir creates every missing folder of the path (when
             // the whole path fails it creates each '/' prefix in turn,
             // 0x8001BE78-0x8001BEEC).
-            u32 n = length(path);
-            if (n > 0 && path[n - 1] == '/')
+            u32 n = length(pathOut);
+            if (n > 0 && pathOut[n - 1] == '/')
             {
-                path[n - 1] = '\0';
+                pathOut[n - 1] = '\0';
             }
         }
         m_kind = kind;
@@ -353,13 +352,11 @@ namespace storage {
 
     bool Job::makeFolder()
     {
-        if (!start(kFolder, ""))
+        char path[kPathMax];
+        if (!start(kFolder, "", path))
         {
             return false;
         }
-        char path[kPathMax];
-        makePath(path, "", true);
-        path[length(path) - 1] = '\0';
         handle().createDirRequest(path);
         return true;
     }
@@ -367,7 +364,7 @@ namespace storage {
     bool Job::write(const char* name, const void* data, u32 bytes)
     {
         char path[kPathMax];
-        if (!start(kWrite, name) || !makePath(path, name, true))
+        if (!start(kWrite, name, path))
         {
             return false;
         }
@@ -378,7 +375,7 @@ namespace storage {
     bool Job::read(const char* name, void* dest, u32 bytes)
     {
         char path[kPathMax];
-        if (bytes == 0 || !start(kRead, name) || !makePath(path, name, true))
+        if (bytes == 0 || !start(kRead, name, path))
         {
             return false;
         }
@@ -403,7 +400,7 @@ namespace storage {
     bool Job::remove(const char* name)
     {
         char path[kPathMax];
-        if (!start(kDelete, name) || !makePath(path, name, true))
+        if (!start(kDelete, name, path))
         {
             return false;
         }

@@ -212,6 +212,9 @@ namespace extra {
         LedgeStats stats;
     };
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline bool isLedgeTetherStatus(int s)
     {
         return s >= kLedgeStAirLassoFirst && s <= kLedgeStAirLassoLast;
@@ -221,6 +224,9 @@ namespace extra {
     {
         return s == kLedgeStCliffCatchMove || s == kLedgeStCliffCatch || s == kLedgeStCliffWait;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     inline bool isLedgeOutOfPlay(int s)
     {

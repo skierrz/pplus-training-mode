@@ -82,11 +82,11 @@ namespace extra {
         struct PPlusTechNet {
             SlotEngine engines[game::kMaxTracked];
             PPlusTechDebugBlock debug;
+            u32 resetCount;
+            s32 prevFrame;
         };
 
         PPlusTechNet* s_net = NULL;
-        u32 s_resetCount = 0;
-        s32 s_prevFrame = game::kNoFrame;
 
         s32 statusInt(const soModuleEnumeration* m, u32 index)
         {
@@ -151,13 +151,13 @@ namespace extra {
 
         void clearAllTransient(bool countReset)
         {
-            if (countReset)
-            {
-                s_resetCount++;
-            }
             if (s_net == NULL)
             {
                 return;
+            }
+            if (countReset)
+            {
+                s_net->resetCount++;
             }
             for (int i = 0; i < game::kMaxTracked; i++)
             {
@@ -166,7 +166,7 @@ namespace extra {
             memset(&s_net->debug, 0, sizeof(s_net->debug));
             s_net->debug.magic = kPPlusTechDebugMagic;
             s_net->debug.version = kPPlusTechDebugVersion;
-            s_net->debug.resetCount = s_resetCount;
+            s_net->debug.resetCount = s_net->resetCount;
         }
 
         bool readSlotSnap(int i, s32 f, SlotSnap& out)
@@ -325,25 +325,26 @@ namespace extra {
     {
         freeNetPtr(s_net);
         s_net = allocNetArray<PPlusTechNet>(1);
-        s_resetCount = 0;
-        s_prevFrame = game::kNoFrame;
-        clearAllTransient(false);
         if (s_net != NULL)
         {
+            s_net->prevFrame = game::kNoFrame;
+            clearAllTransient(false);
             TM_LOG("pplus_tech: debug block at %08x\n", &s_net->debug);
         }
     }
 
     void pplusTechDetach()
     {
-        s_prevFrame = game::kNoFrame;
         clearAllTransient(false);
         freeNetPtr(s_net);
     }
 
     void pplusTechReset()
     {
-        s_prevFrame = game::kNoFrame;
+        if (s_net != NULL)
+        {
+            s_net->prevFrame = game::kNoFrame;
+        }
         clearAllTransient(true);
     }
 
@@ -354,11 +355,11 @@ namespace extra {
             return;
         }
         const s32 f = game::trackerFrame();
-        if (s_prevFrame != game::kNoFrame && f <= s_prevFrame)
+        if (s_net->prevFrame != game::kNoFrame && f <= s_net->prevFrame)
         {
             clearAllTransient(true);
         }
-        s_prevFrame = f;
+        s_net->prevFrame = f;
         s_net->debug.frame = static_cast<u32>(f >= 0 ? f : 0);
 
         SlotSnap snaps[game::kMaxTracked];

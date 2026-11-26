@@ -112,6 +112,9 @@ namespace extra {
         memset(&b, 0, sizeof(b));
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     inline void boundsExpandPoint(HitboxBounds& b, float originX, float originY, float px, float py, float r)
     {
         float x0 = px - r;
@@ -154,6 +157,9 @@ namespace extra {
         b.width = b.worldXMax - b.worldXMin;
         b.height = b.worldYMax - b.worldYMin;
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     // Accumulates a capsule segment [pos1, pos2] of world radius `radius` into
     // `b` whenever either endpoint intersects the Z=0 gameplay plane (-r < z < r)

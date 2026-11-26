@@ -569,7 +569,6 @@ namespace extra {
         };
 #undef AR
 
-#pragma dont_inline on
         void refreshAirSingle(Fighter* f, int ftKind, bool grounded, bool spendDoubleJump)
         {
             const soModuleEnumeration* m = game::fighterModules(f);
@@ -620,7 +619,6 @@ namespace extra {
                 else w->setFloat(0.0f, kLaFloatBase + idx);
             }
         }
-#pragma dont_inline reset
     }
 
     void refreshAirResources(const game::FighterRef& ref, bool spendDoubleJump)
@@ -635,7 +633,6 @@ namespace extra {
         }
     }
 
-#pragma dont_inline on
     static void placePair(const game::FighterRef& ref, float x, float y, bool falling, bool setNoclip, float damage,
                           float lr)
     {
@@ -657,7 +654,6 @@ namespace extra {
             game::setDamage(ref, damage);
         }
     }
-#pragma dont_inline reset
 
     void placeStanding(const game::FighterRef& ref, float x, float y, bool setNoclip, float damage, float lr)
     {

@@ -20,10 +20,10 @@ namespace extra {
         int lastEntryId[kHoverPsMaxSlots];
         u32 lastTaskId[kHoverPsMaxSlots];
         HoverPsDebugBlock debug;
+        s32 lastFrame;
     };
 
     static HoverPsState* s_state = NULL;
-    static s32 s_lastFrame = game::kNoFrame;
 
     static void clearSlotIdentity(HoverPsState* st, int i)
     {
@@ -86,12 +86,12 @@ namespace extra {
 
     void hoverPsResetAll()
     {
-        s_lastFrame = game::kNoFrame;
         HoverPsState* st = s_state;
         if (st == NULL)
         {
             return;
         }
+        st->lastFrame = game::kNoFrame;
         for (int i = 0; i < kHoverPsMaxSlots; i++)
         {
             floatDjcResetAll(st->floatDjc[i]);
@@ -109,12 +109,12 @@ namespace extra {
 
     void hoverPsResetTransient()
     {
-        s_lastFrame = game::kNoFrame;
         HoverPsState* st = s_state;
         if (st == NULL)
         {
             return;
         }
+        st->lastFrame = game::kNoFrame;
         for (int i = 0; i < kHoverPsMaxSlots; i++)
         {
             floatDjcResetTransient(st->floatDjc[i]);
@@ -151,11 +151,11 @@ namespace extra {
             return;
         }
         const s32 frame = game::trackerFrame();
-        if (s_lastFrame != game::kNoFrame && frame <= s_lastFrame)
+        if (state->lastFrame != game::kNoFrame && frame <= state->lastFrame)
         {
             hoverPsResetTransient();
         }
-        s_lastFrame = frame;
+        state->lastFrame = frame;
         state->debug.frame = static_cast<u32>(frame >= 0 ? frame : 0);
 
         const int limit = game::kMaxTracked < kHoverPsMaxSlots ? game::kMaxTracked : kHoverPsMaxSlots;

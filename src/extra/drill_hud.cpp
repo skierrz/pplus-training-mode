@@ -19,6 +19,7 @@
 #include "extra/drill_hud_core.h"
 #include "extra/drill_pplus_tech_engines.h"
 #include "extra/drill_practice_driver.h"
+#include "extra/hud_draw.h"
 #include "extra/net_alloc.h"
 #include "extra/scenario_presets.h"
 #include "extra/ui_assets.h"
@@ -68,8 +69,8 @@ namespace extra {
             {ui::kIconGcStart, ui::kIconWiiPlus, ui::kIconWiiPlus, ui::kIconWiiPlus},
             {ui::kIconGcB, ui::kIconClB, ui::kIconWii1, ui::kIconWiiB}
         };
-        const char* const kPromptLabels[3] = {"Retry", "Lab", "Return to CSS"};
-        const char* const kPromptGlyphs[3] = {"A", "+", "B"};
+        const char kPromptLabels[] = "Retry\0Lab\0Return to CSS";
+        const char kPromptGlyphs[] = "A\0+\0B";
 
         // Single consolidated runtime block avoids per-static PowerPC -sdata 0 address loads.
         struct Runtime {
@@ -87,6 +88,15 @@ namespace extra {
         };
 
         static Runtime* s_rtPtr = NULL;
+
+        void unpauseIfNeeded(Runtime& s_rt)
+        {
+            if (s_rt.pausedByUs)
+            {
+                game::setGameplayPaused(false);
+                s_rt.pausedByUs = 0;
+            }
+        }
 
         void syncDebug()
         {
@@ -168,16 +178,11 @@ namespace extra {
             DrillHudState& st = s_rt.st;
             float xs = s_rt.xs;
             float ox = 320.0f - 158.0f * xs;
-            drawPanel(ox, 24.0f, 316.0f, 40.0f, st.alcNotice ? kGradeCols[4] : 0x35B8C8FFu, 0x0D1E26ECu, 0x071117ECu);
-
-            float ix = ox + 4.0f * xs;
-            float iw = 308.0f * xs;
-            gfx::fillGradV(ix, 28.0f, iw, 15.0f, 0x226874F0u, 0x123C46F0u);
-            gfx::fillRect(ix, 43.0f, iw, 2.0f, 0x2A5866E0u);
+            const char* title = drillHudTitle(st.activeDrill);
+            drawHudBannerTitle(ox, 24.0f, 316.0f * xs, 40.0f, xs, st.alcNotice ? kGradeCols[4] : 0x35B8C8FFu, title);
 
             float lx = ox + 10.0f * xs;
             float rx = ox + 306.0f * xs;
-            label(lx, 31.0f, drillHudTitle(st.activeDrill), 0xFFFFFFFFu, kSzDisp85);
 
             // Format and measure top-right counter BEFORE drawing the mode pill so
             // the pill never collides with the counter text.
@@ -203,15 +208,13 @@ namespace extra {
 
             // Compact Brawl-styled mode pill beside title (FREE / 10-REP / 20-REP / 60s).
             const char* modeTxt = drillModeLabel(st.mode);
-            float titleW = gfx::displayTextWidth(drillHudTitle(st.activeDrill), kScales[2]);
+            float titleW = gfx::displayTextWidth(title, kScales[2]);
             float pillX = lx + titleW + 6.0f * xs;
             float pillW = gfx::textWidth(modeTxt, kScales[0]) + 8.0f * xs;
             if (pillX + pillW < rx - rightTextW - 6.0f * xs)
             {
                 bool scored = (target > 0 || st.mode == kDrillModeTimed60);
-                gfx::fillRect(pillX, 29.0f, pillW, 13.0f, 0x07141AE8u);
-                gfx::fillGradV(pillX + 2.0f * xs, 31.0f, pillW - 4.0f * xs, 9.0f,
-                               scored ? 0xB88200FFu : 0x1B6B76FFu, scored ? 0x7A5000FFu : 0x0E3D45FFu);
+                drawHudPill(pillX, 29.0f, pillW, xs, scored);
                 label(pillX + pillW * 0.5f, 31.5f, modeTxt, 0xFFFFFFFFu, kAlignCenter);
             }
 
@@ -261,8 +264,9 @@ namespace extra {
                         float tw = gfx::textWidth(tag, kScales[0]);
                         float pad = 5.0f * xs;
                         float bw = tw + 2.0f * pad;
-                        gfx::fillRect(sx - bw * 0.5f, sy - 7.0f, bw, 14.0f, 0x060D12E4u);
-                        gfx::fillRect(sx - bw * 0.5f + 2.0f * xs, sy - 5.0f, bw - 4.0f * xs, 10.0f, 0x102832E8u);
+                        float bx = sx - bw * 0.5f;
+                        gfx::fillRect(bx, sy - 7.0f, bw, 14.0f, 0x060D12E4u);
+                        gfx::fillRect(bx + 2.0f * xs, sy - 5.0f, bw - 4.0f * xs, 10.0f, 0x102832E8u);
                         label(sx, sy - 4.0f, tag, 0xFFD300FFu, kAlignCenter);
                     }
                 }
@@ -293,15 +297,13 @@ namespace extra {
             char buf[28];
             snprintf(buf, sizeof(buf), "%s PRACTICE", drillHudTitle(st.activeDrill));
             label(320.0f, 115.0f, buf, 0xFFFFFFFFu, kAlignCenter | kSzDisp13);
-            if (timed)
-            {
-                snprintf(buf, sizeof(buf), "60s RUN COMPLETE");
-            }
-            else
+            const char* subTitle = "60s RUN COMPLETE";
+            if (!timed)
             {
                 snprintf(buf, sizeof(buf), "%u-REP SET COMPLETE", static_cast<unsigned>(target));
+                subTitle = buf;
             }
-            label(320.0f, 136.0f, buf, 0xFFF5B8FFu, kAlignCenter);
+            label(320.0f, 136.0f, subTitle, 0xFFF5B8FFu, kAlignCenter);
 
             unsigned denom = timed ? (st.totalAtt > 0u ? static_cast<unsigned>(st.totalAtt) : 1u)
                                    : static_cast<unsigned>(target);
@@ -376,9 +378,9 @@ namespace extra {
                 if (!uiAssetsDrawIcon(kPromptIcons[p][ct], px, 340.0f, bw, 16.0f, 0xFFFFFFFFu))
                 {
                     gfx::fillRect(px, 340.0f, bw, 16.0f, 0x35B8C8FFu);
-                    label(px + bw * 0.5f, 344.0f, kPromptGlyphs[p], 0xF0F4F8FFu, kAlignCenter);
+                    label(px + bw * 0.5f, 344.0f, drillNthStr(kPromptGlyphs, p), 0xF0F4F8FFu, kAlignCenter);
                 }
-                label(px + bw + 5.0f * xs, 343.0f, kPromptLabels[p], 0xF0F4F8FFu, kSz10);
+                label(px + bw + 5.0f * xs, 343.0f, drillNthStr(kPromptLabels, p), 0xF0F4F8FFu, kSz10);
             }
         }
     }
@@ -418,11 +420,7 @@ namespace extra {
             return;
         }
         Runtime& s_rt = *s_rtPtr;
-        if (s_rt.pausedByUs)
-        {
-            game::setGameplayPaused(false);
-            s_rt.pausedByUs = 0;
-        }
+        unpauseIfNeeded(s_rt);
         s_rt.st.modalOpen = 0;
         syncDebug();
         freeNetPtr(s_rtPtr);
@@ -478,94 +476,87 @@ namespace extra {
         {
             DrillEngineFeed feed;
             memset(&feed, 0, sizeof(feed));
-            if (d == drills::kDrillLedgedash)
+            const game::Tracked* tr = game::tracked(slot);
+            switch (d)
             {
+            case drills::kDrillLedgedash:
                 feed.ledge = coreDrillLedgeState(slot);
-            }
-            else if (d == drills::kDrillWavedash)
-            {
+                break;
+            case drills::kDrillWavedash:
                 feed.wd = coreDrillWavedashState(slot);
-            }
-            else if (d == drills::kDrillLCancel)
-            {
+                break;
+            case drills::kDrillLCancel:
                 feed.lc = coreDrillLCancelState(slot);
                 feed.autoLCancel = coreDrillAutoLCancelActive();
-            }
-            else if (d == drills::kDrillHoverFloat)
-            {
+                break;
+            case drills::kDrillHoverFloat:
                 feed.fd = hoverPsFloatDjcSlot(slot);
-                const game::Tracked* tr = game::tracked(slot);
                 if (tr != NULL)
                 {
                     int ftKind = game::fighterKind(tr->entryId, tr->partner);
                     feed.ineligibleFighter = !isFloatCapable(ftKind) && !isDjcCapable(ftKind);
                 }
-            }
-            else if (d == drills::kDrillPowershield)
-            {
+                break;
+            case drills::kDrillPowershield:
                 feed.ps = hoverPsPowershieldSlot(slot);
-            }
-            else if (d == drills::kDrillRar)
-            {
+                break;
+            case drills::kDrillRar:
                 feed.rar = pplusTechRar(slot);
-            }
-            else if (d == drills::kDrillDacus)
-            {
+                break;
+            case drills::kDrillDacus:
                 feed.dacus = pplusTechDacus(slot);
-            }
-            else if (d == drills::kDrillBReverse)
-            {
+                break;
+            case drills::kDrillBReverse:
                 feed.brev = pplusTechBReverse(slot);
-            }
+                break;
 #if TM_STAGE4C
-            else if (d == drills::kDrillCancelSprint)
-            {
+            case drills::kDrillCancelSprint:
                 feed.cs = challengeCancelSprint(slot);
-                const game::Tracked* tr = game::tracked(slot);
                 if (tr != NULL)
                 {
                     feed.ineligibleFighter = cancelSprintSpec(game::fighterKind(tr->entryId, tr->partner)) == NULL;
                 }
-            }
-            else if (d == drills::kDrillFlowCourse)
-            {
+                break;
+            case drills::kDrillFlowCourse:
                 feed.fc = challengeFlowCourse(slot);
-            }
-            else if (d == drills::kDrillReactionLab || d == drills::kDrillTechchaseEscape)
-            {
+                break;
+            case drills::kDrillReactionLab:
+            case drills::kDrillTechchaseEscape:
                 feed.rt = challengeReactionTechchase(slot);
-            }
-            else if (d == drills::kDrillRecoverySweetspot || d == drills::kDrillFloorhug)
-            {
+                break;
+            case drills::kDrillRecoverySweetspot:
+            case drills::kDrillFloorhug:
                 feed.rf = challengeRecoveryFloorhug(slot);
-            }
-            else if (d == drills::kDrillSnakeRecovery)
-            {
+                break;
+            case drills::kDrillSnakeRecovery:
                 feed.snk = challengeSnakeRecovery(slot);
-                const game::Tracked* tr = game::tracked(slot);
                 if (tr != NULL)
                 {
                     feed.ineligibleFighter = game::fighterKind(tr->entryId, tr->partner) != kSnkFtSnake;
                 }
-            }
+                break;
 #endif
-            if (!s_rt.synced)
+            default:
+                break;
+            }
+            bool sync = !s_rt.synced;
+            if (sync)
             {
-                drillHudPoll(st, feed, true);
                 s_rt.synced = 1;
             }
-            else if (!st.modalOpen && drillHudPoll(st, feed, false))
+            bool modalTriggered = false;
+            if ((sync || !st.modalOpen) && drillHudPoll(st, feed, sync) && !sync)
             {
                 saveBest = true;
-                if (st.modalOpen)
-                {
-                    s_rt.waitRelease = 1;
-                    ui::menuSound(game::kSoundConfirm);
-                }
+                modalTriggered = st.modalOpen != 0;
             }
             if (!st.modalOpen && drillHudTickTimer(st))
             {
                 saveBest = true;
+                modalTriggered = true;
+            }
+            if (modalTriggered)
+            {
                 s_rt.waitRelease = 1;
                 ui::menuSound(game::kSoundConfirm);
             }
@@ -680,11 +671,7 @@ namespace extra {
                 else if (act)
                 {
                     memcpy(s_rt.releaseMask, s_rt.prevHeld, sizeof(s_rt.releaseMask));
-                    if (s_rt.pausedByUs)
-                    {
-                        game::setGameplayPaused(false);
-                        s_rt.pausedByUs = 0;
-                    }
+                    unpauseIfNeeded(s_rt);
                     if (act == 1)
                     {
                         drillHudRetry(st);
@@ -819,11 +806,7 @@ namespace extra {
             return;
         }
         Runtime& s_rt = *s_rtPtr;
-        if (s_rt.pausedByUs)
-        {
-            game::setGameplayPaused(false);
-            s_rt.pausedByUs = 0;
-        }
+        unpauseIfNeeded(s_rt);
         drillHudInit(s_rt.st, static_cast<u8>(drills::kDrillNone), 0u);
         drillPracticeSetActiveDrill(kPracticeDrillNone);
         ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
