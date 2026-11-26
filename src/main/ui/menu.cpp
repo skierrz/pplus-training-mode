@@ -237,6 +237,29 @@ namespace ui {
         return label != NULL && label[0] == TM_DROPPED_LABEL[0];
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
+    static const char* choiceLabel(const Option& o, int idx)
+    {
+#ifdef __MWERKS__
+        if (o.min != 0)
+        {
+            const char* p = static_cast<const char*>(o.data);
+            while (idx > 0)
+            {
+                while (*p++ != '\0') {}
+                idx--;
+            }
+            return p;
+        }
+#endif
+        return static_cast<const char* const*>(o.data)[idx];
+    }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
+
     void retireDropped(const MenuDef& def)
     {
         for (int pg = 0; pg < def.pageCount; pg++)
@@ -250,7 +273,7 @@ namespace ui {
                     continue;
                 }
                 int v = optionValue(def, o);
-                if (v >= 0 && v <= o.max && droppedLabel(static_cast<const char* const*>(o.data)[v]))
+                if (v >= 0 && v <= o.max && droppedLabel(choiceLabel(o, v)))
                 {
                     setOptionValue(def, o, o.def);
                 }
@@ -425,10 +448,10 @@ namespace ui {
         if (o.kind == kKindChoice && delta != 0)
         {
             // Step over retired or unavailable choices.
-            const char* const* labels = static_cast<const char* const*>(o.data);
             int step = delta > 0 ? 1 : -1;
-            while (next != v && labels[next] != NULL
-                   && (droppedLabel(labels[next]) || labels[next][0] == TM_UNAVAILABLE_LABEL[0]))
+            const char* lbl;
+            while (next != v && (lbl = choiceLabel(o, next)) != NULL
+                   && (droppedLabel(lbl) || lbl[0] == TM_UNAVAILABLE_LABEL[0]))
             {
                 int further = clampTo(o, next + step);
                 next = further == next ? v : further;
@@ -733,7 +756,7 @@ namespace ui {
             return v ? "On" : "Off";
         case kKindChoice:
         {
-            const char* label = static_cast<const char* const*>(o.data)[v];
+            const char* label = choiceLabel(o, v);
             greyValue = unavailableLabel(label);
             return labelText(label);
         }

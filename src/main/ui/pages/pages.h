@@ -78,6 +78,22 @@ namespace pages {
     // Indexed by PageId (registry.cpp).
     extern const Page* const kPages[P_COUNT];
 
+#ifdef __MWERKS__
+    inline const char* packedLabelAt(const char* p, int idx)
+    {
+        while (idx > 0)
+        {
+            while (*p++ != '\0') {}
+            idx--;
+        }
+        return p;
+    }
+#else
+    inline const char* packedLabelAt(const char* const* p, int idx)
+    {
+        return p[idx];
+    }
+#endif
     bool never();
 }
 }
@@ -94,9 +110,25 @@ namespace pages {
 #ifdef __MWERKS__
 #define TM_ROW(kind, flags, offset, lo, hi, def, name, data, onChange, enabled) \
     {kind, flags, offset, static_cast<u8>(lo), static_cast<s8>(def), static_cast<s16>(hi), name, data, onChange, enabled}
+// Packed choice label tables: NUL-separated char array on Wii (o.min == 1),
+// standard pointer array on host (o.min == 0) so host tests inspect o.data directly.
+#define TM_L(s) s "\0"
+#define TM_LABELS_BEGIN(name) static const char name[] =
+#define TM_LABELS_EXTERN_DECL(name, n) extern const char name[]
+#define TM_LABELS_EXTERN_BEGIN(name, n) extern const char name[] =
+#define TM_LABELS_END ;
+#define TM_CHOICE_LO 1
+#define TM_LABELS_ASSERT(name, n, msg)
 #else
 #define TM_ROW(kind, flags, offset, lo, hi, def, name, data, onChange, enabled) \
     {kind, flags, offset, lo, hi, def, 0, name, NULL, data, onChange, enabled}
+#define TM_L(s) s,
+#define TM_LABELS_BEGIN(name) static const char* const name[] = {
+#define TM_LABELS_EXTERN_DECL(name, n) extern const char* const name[n]
+#define TM_LABELS_EXTERN_BEGIN(name, n) extern const char* const name[n] = {
+#define TM_LABELS_END };
+#define TM_CHOICE_LO 0
+#define TM_LABELS_ASSERT(name, n, msg) TM_STATIC_ASSERT(TM_COUNT(name) == (n), msg)
 #endif
 
 #define TM_MENU(name, page) \
@@ -109,5 +141,9 @@ namespace pages {
     TM_ROW(::tm::ui::kKindInt, TM_HALF(f) | TM_SIGNED(lo), TM_FIELD(f), lo, hi, def, name, format, onChange, NULL)
 #define TM_CHOICE(name, f, labels, def, onChange) \
     TM_ROW(::tm::ui::kKindChoice, TM_HALF(f), TM_FIELD(f), 0, TM_COUNT(labels) - 1, def, name, labels, onChange, NULL)
+#define TM_CHOICE_P(name, f, labels, count, def, onChange) \
+    TM_ROW(::tm::ui::kKindChoice, TM_HALF(f), TM_FIELD(f), TM_CHOICE_LO, (count) - 1, def, name, labels, onChange, NULL)
+#define TM_ROW_CHOICE_P(flags, off, count, def, name, labels, onChange, enabled) \
+    TM_ROW(::tm::ui::kKindChoice, flags, off, TM_CHOICE_LO, (count) - 1, def, name, labels, onChange, enabled)
 #define TM_FUNC(name, onSelect) \
     TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, name, NULL, onSelect, NULL)

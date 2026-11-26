@@ -8,20 +8,20 @@ namespace tm {
 namespace ui {
 namespace pages {
     // In osd::Position order (main/ui/osd_place.h).
-    static const char* const kPosition[] = {"HUD", "Sides", "Top Left", "Top Right"};
-    TM_STATIC_ASSERT(TM_COUNT(kPosition) == osd::kPositionCount, tm_osd_positions_match);
+    TM_LABELS_BEGIN(kPosition) TM_L("HUD") TM_L("Sides") TM_L("Top Left") TM_L("Top Right") TM_LABELS_END
+    TM_LABELS_ASSERT(kPosition, osd::kPositionCount, tm_osd_positions_match);
 
     // In main::TimingMeterMode order (main/settings.h).
-    static const char* const kTimingMeter[] = {"Off", "All", "L-Cancel", "Wavedash", "Act-Out"};
-    TM_STATIC_ASSERT(TM_COUNT(kTimingMeter) == main::kTimingMeterCount, tm_timing_meter_labels_match);
+    TM_LABELS_BEGIN(kTimingMeter) TM_L("Off") TM_L("All") TM_L("L-Cancel") TM_L("Wavedash") TM_L("Act-Out") TM_LABELS_END
+    TM_LABELS_ASSERT(kTimingMeter, main::kTimingMeterCount, tm_timing_meter_labels_match);
 
     // In main::OsdPreset order (main/settings.h).
-    static const char* const kOsdPresets[] = {"Custom", "Essentials", "Movement", "Defense", "All Off"};
-    TM_STATIC_ASSERT(TM_COUNT(kOsdPresets) == main::kOsdPresetCount, tm_osd_presets_match);
+    TM_LABELS_BEGIN(kOsdPresets) TM_L("Custom") TM_L("Essentials") TM_L("Movement") TM_L("Defense") TM_L("All Off") TM_LABELS_END
+    TM_LABELS_ASSERT(kOsdPresets, main::kOsdPresetCount, tm_osd_presets_match);
 
     // In main::TechSparkleMode order (main/settings.h).
-    static const char* const kTechSparkle[] = {"Off", "Perfect Wavedash", "Shorthop", "Both"};
-    TM_STATIC_ASSERT(TM_COUNT(kTechSparkle) == main::kTechSparkleCount, tm_tech_sparkle_labels_match);
+    TM_LABELS_BEGIN(kTechSparkle) TM_L("Off") TM_L("Perfect Wavedash") TM_L("Shorthop") TM_L("Both") TM_LABELS_END
+    TM_LABELS_ASSERT(kTechSparkle, main::kTechSparkleCount, tm_tech_sparkle_labels_match);
 
     static void osdRowEdited()
     {
@@ -80,13 +80,13 @@ namespace pages {
 
     static const Option kRows[] = {
         // Layout & meta controls.
-        TM_CHOICE("OSD Preset", osd.preset, kOsdPresets, main::kOsdPresetEssentials, osdPresetChanged),
-        TM_CHOICE("OSD Position", osd.position, kPosition, osd::kPositionSides, lab::osdSettingsChanged),
+        TM_CHOICE_P("OSD Preset", osd.preset, kOsdPresets, main::kOsdPresetCount, main::kOsdPresetEssentials, osdPresetChanged),
+        TM_CHOICE_P("OSD Position", osd.position, kPosition, osd::kPositionCount, osd::kPositionSides, lab::osdSettingsChanged),
         TM_INT("Max OSDs", osd.maxMessages, 1, osd::kPerPlayer, 4, "%d", NULL),
-        TM_ROW(kKindChoice, 0, TM_FIELD(osd.timingMeter), 0, TM_COUNT(kTimingMeter) - 1, main::kTimingMeterOff,
-               "Overhead Timing Bar", kTimingMeter, NULL, main::extraLoaded),
-        TM_ROW(kKindChoice, 0, TM_FIELD(osd.techSparkle), 0, TM_COUNT(kTechSparkle) - 1, main::kTechSparkleWavedash,
-               "Tech Sparkle", kTechSparkle, NULL, main::extraLoaded),
+        TM_ROW_CHOICE_P(0, TM_FIELD(osd.timingMeter), main::kTimingMeterCount, main::kTimingMeterOff,
+                        "Overhead Timing Bar", kTimingMeter, NULL, main::extraLoaded),
+        TM_ROW_CHOICE_P(0, TM_FIELD(osd.techSparkle), main::kTechSparkleCount, main::kTechSparkleWavedash,
+                        "Tech Sparkle", kTechSparkle, NULL, main::extraLoaded),
         TM_ROW(kKindToggle, 0, TM_FIELD(cpu.options.techTrackerOsd), 0, 1, 0, "P+ Tech OSD", NULL, osdRowEdited,
                main::extraLoaded),
         // Highest-use P+ competitive OSDs (Essentials defaults On).

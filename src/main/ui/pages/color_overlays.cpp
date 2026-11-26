@@ -4,13 +4,16 @@
 namespace tm {
 namespace ui {
 namespace pages {
-    static const char* const kPreset[] = {"Custom", "ProjectPunch"};
+    TM_LABELS_BEGIN(kPreset) TM_L("Custom") TM_L("ProjectPunch") TM_LABELS_END
     // In game::OverlayChoice order.
-    static const char* const kColor[] = {"None",      "Red",      "Green",          "Blue",
-                                         "Yellow",    "White",    "Black",          "Cyan",
-                                         "Orange",    "Remove",   "Show Collision", "Invisible",
-                                         "Play Sound"};
-    TM_STATIC_ASSERT(TM_COUNT(kColor) == game::kOverlayChoiceCount, tm_overlay_choices_match);
+    TM_LABELS_BEGIN(kColor)
+        TM_L("None") TM_L("Red") TM_L("Green") TM_L("Blue")
+        TM_L("Yellow") TM_L("White") TM_L("Black") TM_L("Cyan")
+        TM_L("Orange") TM_L("Remove") TM_L("Show Collision") TM_L("Invisible")
+        TM_L("Play Sound")
+    TM_LABELS_END
+    TM_LABELS_ASSERT(kPreset, 2, tm_overlay_preset_match);
+    TM_LABELS_ASSERT(kColor, game::kOverlayChoiceCount, tm_overlay_choices_match);
 
     // ProjectPunch's overlays as a preset (color_overlay.cpp, MIT; see
     // THIRD_PARTY_NOTICES.md): waiting green, dash cyan, run blue, IASA orange.
@@ -52,9 +55,9 @@ namespace pages {
         main::settings().overlay[main::kSideCpu].preset = 0;
     }
 
-#define TM_GROUP(side, g, name, onGroup) TM_CHOICE(name, overlay[side].groups[g], kColor, 0, onGroup)
+#define TM_GROUP(side, g, name, onGroup) TM_CHOICE_P(name, overlay[side].groups[g], kColor, game::kOverlayChoiceCount, 0, onGroup)
 #define TM_OVERLAY_PAGE(side, onPreset, onGroup)                                                                     \
-    TM_CHOICE("Preset", overlay[side].preset, kPreset, 0, onPreset),                                                 \
+    TM_CHOICE_P("Preset", overlay[side].preset, kPreset, 2, 0, onPreset),                                            \
         TM_GROUP(side, 0, "Actionable", onGroup), TM_GROUP(side, 1, "Hitstun", onGroup),                             \
         TM_GROUP(side, 2, "Invincible", onGroup), TM_GROUP(side, 3, "Ledge Actionable", onGroup),                    \
         TM_GROUP(side, 4, "Missed L-Cancel", onGroup), TM_GROUP(side, 5, "Can Fastfall", onGroup),                   \

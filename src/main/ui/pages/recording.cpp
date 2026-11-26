@@ -6,13 +6,12 @@
 // Conditional availability: post-save rows hide until positions are saved
 // (kFlagHideWhenDisabled); CPU rows require CPU Control: Lab; Loop and Auto
 // Restore disable while recording; Mirrored Playback locks both modes.
-#define TM_REC_ROW(kind, f, max, labels, def, name, onChange, enabled)                                              \
-    TM_ROW(::tm::ui::kind, TM_HALF(f) | ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(f), 0, max, def, name, labels,    \
-           onChange, enabled)
-#define TM_REC_CHOICE(name, f, labels, def, onChange, enabled) \
-    TM_REC_ROW(kKindChoice, f, TM_COUNT(labels) - 1, labels, def, name, onChange, enabled)
-#define TM_REC_TOGGLE(name, f, def, enabled) \
-    TM_REC_ROW(kKindToggle, f, 1, NULL, def, name, NULL, enabled)
+#define TM_REC_CHOICE(name, f, labels, count, def, onChange, enabled)                                       \
+    TM_ROW_CHOICE_P(TM_HALF(f) | ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(f), count, def, name, labels,    \
+                    onChange, enabled)
+#define TM_REC_TOGGLE(name, f, def, enabled)                                                                \
+    TM_ROW(::tm::ui::kKindToggle, TM_HALF(f) | ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(f), 0, 1, def,     \
+           name, NULL, NULL, enabled)
 #define TM_REC_FUNC(name, onSelect, enabled) \
     TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, name, NULL, onSelect, enabled)
 #define TM_REC_MENU(name, page, enabled) \
@@ -22,30 +21,37 @@
 namespace tm {
 namespace ui {
 namespace pages {
-    static const char* const kHmnMode[] = {"Off", "Record", "Playback", "Re-Record"};
-    static const char* const kCpuMode[] = {"Off", "Control", "Record", "Playback", "Re-Record"};
-    static const char* const kSlot[] = {"Random", "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5", "Slot 6"};
-    static const char* const kMirrored[] = {"Off", "On", "Random"};
-    static const char* const kCpuCounter[] = {"Off", "After Playback", "On CPU Hit", "On P1 Hit", "On Any Hit"};
-    static const char* const kAutoRestore[] = {"Off", "Playback Ends", "CPU Counters"};
-    static const char* const kTakeover[] = {"P1", "CPU", "None"};
+    TM_LABELS_BEGIN(kHmnMode) TM_L("Off") TM_L("Record") TM_L("Playback") TM_L("Re-Record") TM_LABELS_END
+    TM_LABELS_BEGIN(kCpuMode) TM_L("Off") TM_L("Control") TM_L("Record") TM_L("Playback") TM_L("Re-Record") TM_LABELS_END
+    TM_LABELS_BEGIN(kSlot) TM_L("Random") TM_L("Slot 1") TM_L("Slot 2") TM_L("Slot 3") TM_L("Slot 4") TM_L("Slot 5") TM_L("Slot 6") TM_LABELS_END
+    TM_LABELS_BEGIN(kMirrored) TM_L("Off") TM_L("On") TM_L("Random") TM_LABELS_END
+    TM_LABELS_BEGIN(kCpuCounter) TM_L("Off") TM_L("After Playback") TM_L("On CPU Hit") TM_L("On P1 Hit") TM_L("On Any Hit") TM_LABELS_END
+    TM_LABELS_BEGIN(kAutoRestore) TM_L("Off") TM_L("Playback Ends") TM_L("CPU Counters") TM_LABELS_END
+    TM_LABELS_BEGIN(kTakeover) TM_L("P1") TM_L("CPU") TM_L("None") TM_LABELS_END
+    TM_LABELS_ASSERT(kHmnMode, 4, tm_rec_hmn_mode_match);
+    TM_LABELS_ASSERT(kCpuMode, 5, tm_rec_cpu_mode_match);
+    TM_LABELS_ASSERT(kSlot, 7, tm_rec_slot_match);
+    TM_LABELS_ASSERT(kMirrored, 3, tm_rec_mirror_match);
+    TM_LABELS_ASSERT(kCpuCounter, 5, tm_rec_ctr_match);
+    TM_LABELS_ASSERT(kAutoRestore, 3, tm_rec_auto_match);
+    TM_LABELS_ASSERT(kTakeover, 3, tm_rec_take_match);
 
     static bool saveRow();
 
     // Non-const so row 0 switches between Save Positions and Restore Positions.
     static Option kRows[] = {
         TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Save Positions", NULL, record::saveOrRestore, saveRow),
-        TM_REC_CHOICE("P1 Mode", recording.hmnMode, kHmnMode, 0, record::hmnModeChanged, record::modeRowsAvailable),
-        TM_REC_CHOICE("P1 Record Slot", recording.hmnSlot, kSlot, 1, record::slotChanged, record::modeRowsAvailable),
-        TM_REC_CHOICE("CPU Mode", recording.cpuMode, kCpuMode, 0, record::cpuModeChanged, record::cpuRowsAvailable),
-        TM_REC_CHOICE("CPU Record Slot", recording.cpuSlot, kSlot, 1, record::slotChanged, record::cpuRowsAvailable),
-        TM_REC_CHOICE("Mirrored Playback", recording.mirrored, kMirrored, 0, record::mirroredChanged,
+        TM_REC_CHOICE("P1 Mode", recording.hmnMode, kHmnMode, 4, 0, record::hmnModeChanged, record::modeRowsAvailable),
+        TM_REC_CHOICE("P1 Record Slot", recording.hmnSlot, kSlot, 7, 1, record::slotChanged, record::modeRowsAvailable),
+        TM_REC_CHOICE("CPU Mode", recording.cpuMode, kCpuMode, 5, 0, record::cpuModeChanged, record::cpuRowsAvailable),
+        TM_REC_CHOICE("CPU Record Slot", recording.cpuSlot, kSlot, 7, 1, record::slotChanged, record::cpuRowsAvailable),
+        TM_REC_CHOICE("Mirrored Playback", recording.mirrored, kMirrored, 3, 0, record::mirroredChanged,
                       record::mirrorRowAvailable),
-        TM_REC_CHOICE("CPU Counter", recording.cpuCounter, kCpuCounter, 1, NULL, record::cpuRowsAvailable),
+        TM_REC_CHOICE("CPU Counter", recording.cpuCounter, kCpuCounter, 5, 1, NULL, record::cpuRowsAvailable),
         TM_REC_TOGGLE("Loop Playback", recording.loop, 0, record::loopRowsAvailable),
-        TM_REC_CHOICE("Auto Restore", recording.autoRestore, kAutoRestore, 0, NULL, record::loopRowsAvailable),
+        TM_REC_CHOICE("Auto Restore", recording.autoRestore, kAutoRestore, 3, 0, NULL, record::loopRowsAvailable),
         TM_REC_TOGGLE("Start Paused", recording.startPaused, 0, record::positionsSaved),
-        TM_REC_CHOICE("Playback Takeover", recording.takeover, kTakeover, 0, NULL, record::positionsSaved),
+        TM_REC_CHOICE("Playback Takeover", recording.takeover, kTakeover, 3, 0, NULL, record::positionsSaved),
         TM_REC_TOGGLE("Start On Input", recording.startOnFirstInput, 0, record::positionsSaved),
         TM_REC_FUNC("Re-Save Positions", record::resavePositions, record::positionsSaved),
         TM_REC_FUNC("Prune Positions", record::prunePositions, record::positionsSaved),
@@ -68,7 +74,6 @@ namespace pages {
 }
 }
 
-#undef TM_REC_ROW
 #undef TM_REC_CHOICE
 #undef TM_REC_TOGGLE
 #undef TM_REC_FUNC

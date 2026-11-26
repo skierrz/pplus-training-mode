@@ -5,7 +5,9 @@
 namespace tm {
 namespace ui {
 namespace pages {
-    static const char* const kLogic[] = {"Default", "Off", "Custom"};
+    TM_LABELS_BEGIN(kLogic) TM_L("Default") TM_L("Off") TM_L("Custom") TM_LABELS_END
+    enum { kLogicCount = 3 };
+    TM_LABELS_ASSERT(kLogic, kLogicCount, tm_adv_logic_labels_match);
 
     static void hitChanged()
     {
@@ -30,10 +32,11 @@ namespace pages {
     static const Option kRows[] = {
         TM_ROW(::tm::ui::kKindInt, 0, TM_FIELD(cpu.options.advHit), 1, cpu::kAdvancedHits, 1, "Hit Index", "%d",
                hitChanged, cpuLabControl),
-        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(cpu.options.advLogic), 0, TM_COUNT(kLogic) - 1, 0, "Hit Rule",
-               kLogic, valueChanged, cpuLabControl),
+        TM_ROW_CHOICE_P(0, TM_FIELD(cpu.options.advLogic), kLogicCount, 0, "Hit Rule",
+                        kLogic, valueChanged, cpuLabControl),
         TM_ADV_CHOICE("Ground Action", cpu.options.advGround, kCounterGround, kCounterGroundSize, 13),
-        TM_ADV_CHOICE("Air Action", cpu.options.advAir, kCounterAir, kCounterAirSize, 1),
+        TM_ROW_CHOICE_P(0, TM_FIELD(cpu.options.advAir), kCounterAirSize, 1, "Air Action",
+                        kCounterAir, valueChanged, custom),
         TM_ADV_CHOICE("Shield Action", cpu.options.advShield, kCounterShield, kCounterShieldSize, 1),
         TM_ADV_DELAY("Ground Delay", cpu.options.advDelayGround),
         TM_ADV_DELAY("Air Delay", cpu.options.advDelayAir),

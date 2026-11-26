@@ -79,7 +79,6 @@ namespace ui {
         // The ten Advanced Counter pages keep their actions outside the
         // rows (the rows show one page's copy): the same rule, with the
         // rows' defaults (cpu/lab_data.cpp defaultHit).
-        static const char* const* const kLists[3] = {kCounterGround, kCounterAir, kCounterShield};
         static const int kSizes[3] = {kCounterGroundSize, kCounterAirSize, kCounterShieldSize};
         static const u8 kDefaults[3] = {13, 1, 1};
         cpu::CpuTables& t = main::settings().cpuTables;
@@ -88,9 +87,14 @@ namespace ui {
             for (int k = 0; k < 3; k++)
             {
                 u8& a = t.hits[h].action[k];
-                if (a < kSizes[k] && droppedLabel(kLists[k][a]))
+                if (a < kSizes[k])
                 {
-                    a = kDefaults[k];
+                    const char* lbl = (k == 1) ? pages::packedLabelAt(kCounterAir, a)
+                                               : (k == 0 ? kCounterGround[a] : kCounterShield[a]);
+                    if (droppedLabel(lbl))
+                    {
+                        a = kDefaults[k];
+                    }
                 }
             }
         }

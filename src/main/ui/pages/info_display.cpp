@@ -48,8 +48,10 @@ namespace pages {
     };
 #undef NA
 
-    static const char* const kPresets[kInfoPresetCount] = {"None", "Basic", "Ledge", "Combat", "Frame Data"};
-    static const char* const kSizes[main::kInfoSizeCount] = {"Small", "Medium", "Large"};
+    TM_LABELS_BEGIN(kPresets) TM_L("None") TM_L("Basic") TM_L("Ledge") TM_L("Combat") TM_L("Frame Data") TM_LABELS_END
+    TM_LABELS_BEGIN(kSizes) TM_L("Small") TM_L("Medium") TM_L("Large") TM_LABELS_END
+    TM_LABELS_ASSERT(kPresets, kInfoPresetCount, tm_info_presets_match);
+    TM_LABELS_ASSERT(kSizes, main::kInfoSizeCount, tm_info_sizes_match);
 
     static void hmnPreset()
     {
@@ -96,9 +98,9 @@ namespace pages {
 
 #define TM_INFO_ROW(side, n, name, onEdit) TM_CHOICE(name, info[side].rows[n], kValues, kInfoNone, onEdit)
 #define TM_INFO_PAGE(side, onPreset, onEdit, hasRows)                                                         \
-    TM_CHOICE("Preset", info[side].preset, kPresets, kInfoPresetNone, onPreset),                              \
-        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(info[side].size), 0, TM_COUNT(kSizes) - 1, main::kInfoMedium, \
-               "Size", kSizes, NULL, hasRows),                                                                \
+    TM_CHOICE_P("Preset", info[side].preset, kPresets, kInfoPresetCount, kInfoPresetNone, onPreset),          \
+        TM_ROW_CHOICE_P(0, TM_FIELD(info[side].size), main::kInfoSizeCount, main::kInfoMedium,                \
+                        "Size", kSizes, NULL, hasRows),                                                       \
         TM_INFO_ROW(side, 0, "Row 1", onEdit), TM_INFO_ROW(side, 1, "Row 2", onEdit),                         \
         TM_INFO_ROW(side, 2, "Row 3", onEdit), TM_INFO_ROW(side, 3, "Row 4", onEdit),                         \
         TM_INFO_ROW(side, 4, "Row 5", onEdit), TM_INFO_ROW(side, 5, "Row 6", onEdit),                         \

@@ -5,14 +5,14 @@
 namespace tm {
 namespace ui {
 namespace pages {
-    static const char* const kResetDamageMode[] = {"Use CPU %", "Custom %"};
-    TM_STATIC_ASSERT(TM_COUNT(kResetDamageMode) == main::kComboDmgModeCount, tm_combo_dmg_mode_labels_match);
-    static const char* const kResetDelays[] = {"Instant", "15f", "30f", "45f", "60f"};
-    TM_STATIC_ASSERT(TM_COUNT(kResetDelays) == main::kComboDelayCount, tm_combo_delay_labels_match);
-    static const char* const kPostEscapes[] = {"Dodge", "Jump-Invuln", "Counter", "Custom Pool", "None"};
-    TM_STATIC_ASSERT(TM_COUNT(kPostEscapes) == main::kComboEscapeCount, tm_combo_escape_labels_match);
-    static const char* const kRecMixups[] = {"Mixed", "Low (Sweetspot)", "High", "Direct"};
-    TM_STATIC_ASSERT(TM_COUNT(kRecMixups) == main::kRecMixupCount, tm_rec_mixup_labels_match);
+    TM_LABELS_BEGIN(kResetDamageMode) TM_L("Use CPU %") TM_L("Custom %") TM_LABELS_END
+    TM_LABELS_ASSERT(kResetDamageMode, main::kComboDmgModeCount, tm_combo_dmg_mode_labels_match);
+    TM_LABELS_BEGIN(kResetDelays) TM_L("Instant") TM_L("15f") TM_L("30f") TM_L("45f") TM_L("60f") TM_LABELS_END
+    TM_LABELS_ASSERT(kResetDelays, main::kComboDelayCount, tm_combo_delay_labels_match);
+    TM_LABELS_BEGIN(kPostEscapes) TM_L("Dodge") TM_L("Jump-Invuln") TM_L("Counter") TM_L("Custom Pool") TM_L("None") TM_LABELS_END
+    TM_LABELS_ASSERT(kPostEscapes, main::kComboEscapeCount, tm_combo_escape_labels_match);
+    TM_LABELS_BEGIN(kRecMixups) TM_L("Mixed") TM_L("Low (Sweetspot)") TM_L("High") TM_L("Direct") TM_LABELS_END
+    TM_LABELS_ASSERT(kRecMixups, main::kRecMixupCount, tm_rec_mixup_labels_match);
 
     static bool comboActive()
     {
@@ -73,23 +73,22 @@ namespace pages {
         TM_COMBO_TOGGLE("Noclip Reset", comboTrainer.noclip, 1, comboAnyResetEnabled),
         TM_COMBO_TOGGLE("Fix Position", comboTrainer.fixPosition, 0, comboFixPosEligible),
         TM_COMBO_TOGGLE("Reset P1", comboTrainer.resetP1, 1, comboFixPosChildEnabled),
-        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(comboTrainer.resetDelay), 0, TM_COUNT(kResetDelays) - 1,
-               main::kComboDelay30, "Reset Delay", kResetDelays, NULL, comboFixPosChildEnabled),
-        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(comboTrainer.postHitstunEscape), 0, TM_COUNT(kPostEscapes) - 1,
-               main::kComboEscapeDodge, "Post-Hitstun", kPostEscapes, NULL, comboFixPosChildEnabled),
+        TM_ROW_CHOICE_P(0, TM_FIELD(comboTrainer.resetDelay), main::kComboDelayCount,
+                        main::kComboDelay30, "Reset Delay", kResetDelays, NULL, comboFixPosChildEnabled),
+        TM_ROW_CHOICE_P(0, TM_FIELD(comboTrainer.postHitstunEscape), main::kComboEscapeCount,
+                        main::kComboEscapeDodge, "Post-Hitstun", kPostEscapes, NULL, comboFixPosChildEnabled),
         TM_MENU_IF("DI & SDI", P_CPU_DI, comboFixPosChildEnabled),
         TM_COMBO_TOGGLE("Random Position", comboTrainer.randomizePosition, 0, comboFixPosChildEnabled),
         TM_COMBO_TOGGLE("Random On Ground", comboTrainer.randOnGround, 0, comboRandGroundEnabled),
         TM_COMBO_TOGGLE("Random Damage", comboTrainer.randomizeDamage, 0, comboAnyResetEnabled),
-        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(comboTrainer.fixedDamageMode), 0, TM_COUNT(kResetDamageMode) - 1,
-               main::kComboDmgCpu, "Reset Damage", kResetDamageMode, NULL, comboDamageSourceEnabled),
+        TM_ROW_CHOICE_P(0, TM_FIELD(comboTrainer.fixedDamageMode), main::kComboDmgModeCount,
+                        main::kComboDmgCpu, "Reset Damage", kResetDamageMode, NULL, comboDamageSourceEnabled),
         TM_ROW(::tm::ui::kKindInt, TM_HALF(comboTrainer.fixedDamage) | ::tm::ui::kFlagHideWhenDisabled,
                TM_FIELD(comboTrainer.fixedDamage), 0, 999, 0, "Fixed Damage", "%d%%", NULL, comboFixedDmgEnabled),
         TM_COMBO_INT("Timer Adjust", comboTrainer.comboTimerAdjustment, -60, 60, 0, "%+df", comboFixPosChildEnabled),
         TM_COMBO_TOGGLE("Recovery Trainer", comboTrainer.recoveryTrainer, 0, comboOptionEnabled),
-        TM_ROW(::tm::ui::kKindChoice, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(comboTrainer.recoveryMixup), 0,
-               TM_COUNT(kRecMixups) - 1, main::kRecMixupMixed, "Recovery Mixup", kRecMixups, NULL,
-               comboRecChildEnabled),
+        TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(comboTrainer.recoveryMixup), main::kRecMixupCount,
+                        main::kRecMixupMixed, "Recovery Mixup", kRecMixups, NULL, comboRecChildEnabled),
         TM_MENU_IF("Floating Meters", P_COMBO_METERS, main::extraLoaded)
     };
 
