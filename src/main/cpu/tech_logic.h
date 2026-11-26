@@ -113,5 +113,67 @@ namespace cpu {
         float side = tech == kTechAway ? -toward : toward;
         return side * 0.5f * (rollParam + wiggleParam);
     }
+
+    // Matches main::PreTechDrift in main/settings.h.
+    enum PreTechDriftMode {
+        kDriftOff = 0,
+        kDriftRandom = 1,
+        kDriftIn = 2,
+        kDriftOut = 3,
+        kDriftTowardTech = 4,
+        kDriftAwayTech = 5
+    };
+
+    // Pre-tech tumble aerial drift stick X, or 0 if stick stays neutral.
+    // Defers to techRollStickX during the final landing window (0..kTechRollLead)
+    // and keeps magnitude strictly below wiggleParam so tumble is never broken.
+    inline float preTechDriftStickX(int driftMode, int tech, float toward, u32 roll, int nLand, int hitlag,
+                                    bool allowStick, float wiggleParam)
+    {
+        if (driftMode == kDriftOff || hitlag > 0 || !allowStick)
+        {
+            return 0.0f;
+        }
+        if (nLand >= 0 && nLand <= kTechRollLead)
+        {
+            return 0.0f;
+        }
+        float side = 0.0f;
+        switch (driftMode)
+        {
+        case kDriftIn:
+            side = toward;
+            break;
+        case kDriftOut:
+            side = -toward;
+            break;
+        case kDriftRandom:
+        {
+            u32 pick = roll % 3u;
+            side = pick == 0u ? -toward : (pick == 2u ? toward : 0.0f);
+            break;
+        }
+        case kDriftTowardTech:
+            if (tech == kTechTowards) side = toward;
+            else if (tech == kTechAway) side = -toward;
+            break;
+        case kDriftAwayTech:
+            if (tech == kTechTowards) side = -toward;
+            else if (tech == kTechAway) side = toward;
+            break;
+        default:
+            break;
+        }
+        if (side == 0.0f)
+        {
+            return 0.0f;
+        }
+        float mag = wiggleParam > 0.15f ? wiggleParam - 0.15f : 0.0f;
+        if (mag > 0.60f)
+        {
+            mag = 0.60f;
+        }
+        return side * mag;
+    }
 }
 }

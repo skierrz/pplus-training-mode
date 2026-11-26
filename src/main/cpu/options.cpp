@@ -523,6 +523,7 @@ namespace cpu {
         // teching
         int tech;
         bool techChosen, techPressed;
+        u32 preTechRoll;
         float groundY, gravity;
         bool groundKnown;
         s32 lastPress;    // the frame of the CPU's last guard press (any)
@@ -585,6 +586,7 @@ namespace cpu {
             sdiDone = hitlagFrame = afterHitlag = 0;
             tech = kTechNone;
             techChosen = techPressed = false;
+            preTechRoll = 0;
             groundY = 0.0f;
             gravity = 0.1f;
             groundKnown = false;
@@ -1032,6 +1034,7 @@ namespace cpu {
             const CpuOptions& c = opts();
             static const u8 kFromRandom[4] = {kTechInPlace, kTechAway, kTechTowards, kTechNone};
             tech = c.tech == kTechRandom ? kFromRandom[weighted(c.techChance)] : c.tech;
+            preTechRoll = rnd();
             TM_LOG("cpu: P%d tech choice %d, frame %u\n", who.playerNo + 1, tech, frameOf(slot));
             techChosen = true;
             techPressed = false;
@@ -1158,82 +1161,101 @@ namespace cpu {
             {
                 chooseTech(who);
             }
-            if (tech == kTechNone)
-            {
-                return;
-            }
-            s32 now = game::trackerFrame();
-            if (techPressed && now - lastPress >= kTechGap)
-            {
-                techPressed = false;
-            }
             const bool slipping = slipTechStatus(v.status);
             const float lift = slipping ? 0.0f : ecbLift();
             int nLand = -1;
             bool checkedLand = false;
-            if (!techPressed)
+            bool appliedRoll = false;
+            if (tech != kTechNone)
             {
-                // Do not double-press if a valid tech window is already open:
-                // a second guard press within 40 frames overwrites m_countPrev
-                // and locks out the tech.
-                if (techWindowActive(f))
+                s32 now = game::trackerFrame();
+                if (techPressed && now - lastPress >= kTechGap)
                 {
-                    techPressed = true;
+                    techPressed = false;
                 }
-                else
+                if (!techPressed)
                 {
-                    // In the window and kTechGap after the press before:
-                    // docs/internals.md, "CPU tech timing". While hitlag > 1,
-                    // soControllerImpl::update (0x80764F64, 0x80765394; isStop from
-                    // 0x8085B0D8) keeps OR-ing m_trigger on every hitlag frame,
-                    // overwriting m_countPrev with 0 (self-lockout) if guard is
-                    // pressed before the last hitlag frame (v.hitlag == 1).
-                    if (v.hitlag > 1)
+                    // Do not double-press if a valid tech window is already open:
+                    // a second guard press within 40 frames overwrites m_countPrev
+                    // and locks out the tech.
+                    if (techWindowActive(f))
                     {
-                        return;
-                    }
-                    int lead = opts().techLockout == kLockoutEarliest ? kTechLeadEarly : kTechLead;
-                    int n = -1;
-                    if (slipping)
-                    {
-                        nLand = framesToSlipTech(v.motionFrame, v.motionRate);
-                        checkedLand = true;
-                        if (nLand >= 0 && nLand <= lead - v.hitlag)
-                        {
-                            n = nLand;
-                        }
+                        techPressed = true;
                     }
                     else
                     {
-                        nLand = framesToLand(lead - v.hitlag, lift);
-                        checkedLand = true;
-                        n = nLand >= 0 ? nLand : framesToWall(lead - v.hitlag, lift);
+                        // In the window and kTechGap after the press before:
+                        // docs/internals.md, "CPU tech timing". While hitlag > 1,
+                        // soControllerImpl::update (0x80764F64, 0x80765394; isStop from
+                        // 0x8085B0D8) keeps OR-ing m_trigger on every hitlag frame,
+                        // overwriting m_countPrev with 0 (self-lockout) if guard is
+                        // pressed before the last hitlag frame (v.hitlag == 1).
+                        if (v.hitlag > 1)
+                        {
+                            return;
+                        }
+                        int lead = opts().techLockout == kLockoutEarliest ? kTechLeadEarly : kTechLead;
+                        int n = -1;
+                        if (slipping)
+                        {
+                            nLand = framesToSlipTech(v.motionFrame, v.motionRate);
+                            checkedLand = true;
+                            if (nLand >= 0 && nLand <= lead - v.hitlag)
+                            {
+                                n = nLand;
+                            }
+                        }
+                        else
+                        {
+                            nLand = framesToLand(lead - v.hitlag, lift);
+                            checkedLand = true;
+                            n = nLand >= 0 ? nLand : framesToWall(lead - v.hitlag, lift);
+                        }
+                        if (n >= 0 && now - lastPress >= kTechGap && now >= techFrom)
+                        {
+                            out.buttons |= kGuard;
+                            techPressed = true;
+                            TM_LOG("cpu: P%d tech %d: guard %d frames before the predicted landing, frame %u\n",
+                                   who.playerNo + 1, tech, n + v.hitlag, frameOf(slot));
+                        }
                     }
-                    if (n >= 0 && now - lastPress >= kTechGap && now >= techFrom)
+                }
+                // Fighter.pac samples stickX on the landing/tech frame itself
+                // (Term_Passive_Fb 0x80FAB024, Passive_Fb entry 0x80FB563C). Wait
+                // until within kTechRollLead frames of impact so the CPU does not
+                // drift in tumble before landing unless Pre-Tech Drift is active.
+                if (techPressed && v.hitlag == 0 && (tech == kTechAway || tech == kTechTowards))
+                {
+                    if (!checkedLand)
                     {
-                        out.buttons |= kGuard;
-                        techPressed = true;
-                        TM_LOG("cpu: P%d tech %d: guard %d frames before the predicted landing, frame %u\n",
-                               who.playerNo + 1, tech, n + v.hitlag, frameOf(slot));
+                        nLand = slipping ? framesToSlipTech(v.motionFrame, v.motionRate)
+                                         : framesToLand(kTechRollLead, lift);
+                        checkedLand = true;
+                    }
+                    float rx = techRollStickX(tech, toward, nLand, techPressed, v.hitlag, allowStick,
+                                              param(kParamRollStick, 0.2f), param(kParamWiggleStick, 0.75f));
+                    if (rx != 0.0f)
+                    {
+                        out.x = rx;
+                        appliedRoll = true;
                     }
                 }
             }
-            // Fighter.pac samples stickX on the landing/tech frame itself
-            // (Term_Passive_Fb 0x80FAB024, Passive_Fb entry 0x80FB563C). Wait
-            // until within kTechRollLead frames of impact so the CPU does not
-            // drift in tumble before landing.
-            if (techPressed && v.hitlag == 0 && (tech == kTechAway || tech == kTechTowards))
+            if (!appliedRoll && !slipping && v.air && tumbleStatus(v.status) && v.hitlag == 0 && allowStick)
             {
-                if (!checkedLand)
+                int driftMode = main::settings().techInvis.preTechDrift;
+                if (driftMode != main::kPreTechDriftOff)
                 {
-                    nLand = slipping ? framesToSlipTech(v.motionFrame, v.motionRate)
-                                     : framesToLand(kTechRollLead, lift);
-                }
-                float rx = techRollStickX(tech, toward, nLand, techPressed, v.hitlag, allowStick,
-                                          param(kParamRollStick, 0.2f), param(kParamWiggleStick, 0.75f));
-                if (rx != 0.0f)
-                {
-                    out.x = rx;
+                    if (!checkedLand)
+                    {
+                        nLand = framesToLand(kTechRollLead, lift);
+                    }
+                    float dx = preTechDriftStickX(driftMode, tech, toward, preTechRoll, nLand, v.hitlag, allowStick,
+                                                  param(kParamWiggleStick, 0.75f));
+                    if (dx != 0.0f)
+                    {
+                        out.x = dx;
+                    }
                 }
             }
         }

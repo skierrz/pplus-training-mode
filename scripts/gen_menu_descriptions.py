@@ -220,11 +220,12 @@ TABLES = {
     "kTechDesc": [
         "Choose how the CPU techs knockdowns (or Random weights).",
         "Choose the CPU wakeup action after a missed tech.",
-        "Hide fighter models briefly during tech roll animations.",
+        "Hide models during techs, or Flash only on the tell frame.",
         "Frames after the distinguishable tech frame before hiding model.",
         "Play a sound cue when the CPU commits to a tech option.",
         "Simulate a bad mid-air press to test early/late tech lockouts.",
         "Choose early or late timing inside the valid CPU tech window.",
+        "Drift horizontally in tumble before landing to mix up spacing.",
         "Weight for neutral tech in place when Tech is set to Random.",
         "Weight for tech roll away when Tech is set to Random.",
         "Weight for tech roll toward when Tech is set to Random.",

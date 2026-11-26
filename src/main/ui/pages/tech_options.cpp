@@ -6,9 +6,10 @@ namespace ui {
 namespace pages {
     static const char* const kTech[] = {"Random", "In Place", "Away", "Toward", "Miss"};
     static const char* const kGetUp[] = {"Random", "Stand", "Roll Away", "Roll Toward", "Attack"};
-    static const char* const kInvisibility[] = {"Off", "CPU", "All"};
+    static const char* const kInvisibility[] = {"Off", "CPU", "All", "Flash"};
     static const char* const kTechTrap[] = {"Off", "Early", "Late"};
     static const char* const kLockout[] = {"Early", "Late"};
+    static const char* const kPreTechDrift[] = {"Off", "Random", "In", "Out", "Toward Tech", "Away From Tech"};
 
     static bool techInvisActive()
     {
@@ -85,6 +86,7 @@ namespace pages {
                kTechTrap, NULL, techNotMiss),
         TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(cpu.options.techLockout), 0, TM_COUNT(kLockout) - 1, 0,
                "Tech Timing", kLockout, NULL, techNotMiss),
+        TM_CPU_CHOICE("Pre-Tech Drift", techInvis.preTechDrift, kPreTechDrift, 0),
         TM_CHANCE("Tech In Place %", cpu.options.techChance[0], tech0, techRandom),
         TM_CHANCE("Tech Away %", cpu.options.techChance[1], tech1, techRandom),
         TM_CHANCE("Tech Toward %", cpu.options.techChance[2], tech2, techRandom),

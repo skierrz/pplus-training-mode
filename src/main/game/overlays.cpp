@@ -220,7 +220,12 @@ namespace game {
     {
         const Tracked* t = tracked(i);
         const TechniqueState* st = techniqueState(i);
-        if (t == NULL || st == NULL || config.techInvis == 0 || (config.techInvis == 1 && !t->cpu))
+        if (t == NULL || st == NULL || config.techInvis == 0)
+        {
+            return false;
+        }
+        // CPU (1) and Flash (3) hide only CPU fighters; All (2) hides everyone.
+        if ((config.techInvis == 1 || config.techInvis == 3) && !t->cpu)
         {
             return false;
         }
@@ -230,6 +235,12 @@ namespace game {
         // ProjectPunch invis_techs.cpp:50) and 1-indexed stateFrame =
         // subactionFrame + 1.
         int subactionFrame = st->body.motionFrame + 1;
+        if (config.techInvis == 3)
+        {
+            int dist = passiveMotion(kind) ? techDistinguishable(fighterKind(t->entryId, t->partner))
+                                           : kTechDistinguishableMissing;
+            return techFlashHidden(t->cur.status, kind, subactionFrame + 1, subactionFrame, dist, config.techDelay);
+        }
         if (passiveMotion(kind))
         {
             int dist = techDistinguishable(fighterKind(t->entryId, t->partner));

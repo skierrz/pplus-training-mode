@@ -142,3 +142,35 @@ TEST(tech_frames, invisibility_and_sound_rules)
         CHECK(!getupInvisFrame(f, 15));
     }
 }
+
+TEST(tech_frames, flash_mode_hides_tumble_and_flashes_only_on_tell_frame)
+{
+    // Tumble (Damage_Fly..Damage_Fall) and knockdown (Down..Lay_Down) stay hidden.
+    CHECK(techFlashHidden(0x45, 0x00, 1, 0, 4, 0));
+    CHECK(techFlashHidden(0x49, 0x00, 1, 0, 4, 0));
+    CHECK(techFlashHidden(0x4A, 0x00, 1, 0, 4, 0));
+    CHECK(techFlashHidden(0x4D, 0x00, 1, 0, 4, 0));
+    // Neutral Wait is visible.
+    CHECK(!techFlashHidden(0x00, 0x00, 1, 0, 4, 0));
+
+    // Fox Passive tech (motion 0xBE, dist 4), delay 0: flashes visible ONLY at frame 4, then visible >= 21.
+    for (int f = 1; f <= 25; f++)
+    {
+        bool expectHidden = (f < 21) && (f != 4);
+        CHECK_EQ(expectHidden, techFlashHidden(0x60, 0xBE, f, f - 1, 4, 0));
+    }
+    // Delay 3 shifts the flash frame to 4 + 3 = 7.
+    for (int f = 1; f <= 25; f++)
+    {
+        bool expectHidden = (f < 21) && (f != 7);
+        CHECK_EQ(expectHidden, techFlashHidden(0x61, 0xBF, f, f - 1, 4, 3));
+    }
+    // Getup animation (motion 0xAF): flashes visible ONLY at 0-indexed frame 5 + delay, then visible >= 20.
+    for (int f = 0; f <= 25; f++)
+    {
+        bool expectHidden = (f < 20) && (f != 5);
+        CHECK_EQ(expectHidden, techFlashHidden(0x51, 0xAF, f + 1, f, kTechDistinguishableMissing, 0));
+    }
+    // Missing dist on passive motion never hides indefinitely.
+    CHECK(!techFlashHidden(0x60, 0xBE, 5, 4, kTechDistinguishableMissing, 0));
+}
