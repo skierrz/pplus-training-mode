@@ -1,13 +1,13 @@
 // Fighter set guard. Each different character in a match gets one of four
 // fighter heap sets; set n loads its code module into OverlayFighter(n+1).
-// The extra module lives in OverlayFighter4, which Training alone never
-// needs, but P+'s Code Menu ("P1..P4 Character Select") can give each CPU
-// its own character: with four different characters the fourth set's module
-// does not fit ("gfModule::create Error : Can't Alloc Heap Buffer", then a
-// freeze). A character that would take that set is swapped, just before it
-// loads, for one already loaded (the CPU's first). Changes that fit, and
-// matches without the extra module, are left alone. Covered by make
-// test-fighter-sets.
+// By default the extra module lives in AssistFigureResource (MEM2), so
+// tmSetGuardBody self-disables (heap not in OverlayFighter1..4) and all four
+// distinct characters load cleanly in Training. If the extra module is placed
+// in an OverlayFighter heap (e.g. EXTRA_HEAP=56 or fallback), a character that
+// would take that set is swapped just before it loads for one already loaded
+// (preventing "gfModule::create Error : Can't Alloc Heap Buffer" and a freeze).
+// Changes that fit, and matches without the extra module in OverlayFighter1..4,
+// are left alone. Covered by make test-fighter-sets.
 //
 // Read in code (RSBE01 rev 2, P+ 3.2.1; names from the Brawl decompilation):
 //  - stLoaderPlayer::processBegin (sora_melee 0x80946004; r30 the loader,

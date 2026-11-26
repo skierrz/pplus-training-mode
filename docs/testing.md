@@ -54,8 +54,8 @@ Dolphin settings, saves and SD card are never touched.
 | `make test-savestate` | save/load determinism, replays, D-pad bindings, refusals, and multi-character sweeps (`SAVESTATE_ARGS`) |
 | `make test-record` | input recording, playback, slot weights, mirrored playback, Modify Inputs, and Frame Rewind (`RECORD_ARGS`) |
 | `make test-big-file` | verify ranged SD loading on a 1 MiB padded `.rel` file |
-| `make test-extra-heaps` | verify `OverlayFighter3` and `OverlayFighter4` stay untouched across Kirby copies, items, and 3 CPUs |
-| `make test-fighter-sets` | verify Code Menu 3rd-character load allowed and 4th-character load blocked while extra is loaded |
+| `make test-extra-heaps` | verify `OverlayFighter3` and `OverlayFighter4` stay empty and `AssistFigureResource` holds only `extra` across Kirby copies, Assist Trophy/Poke Ball/Smash Ball spawns, items, and 3 CPUs |
+| `make test-fighter-sets` | verify Code Menu 3rd- and 4th-character loads both succeed cleanly with `extra` in `AssistFigureResource` |
 | `make test-storage` | multi-boot writable SD tests for settings persistence, bests, export/import, browser, and locked card |
 | `make test-card CARD=...` | validate a ready-made `sd.raw` image end to end |
 | `make test-sounds` | verify menu sound requests across Training Menu, Recordings browser, and lab menu |

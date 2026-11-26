@@ -2,7 +2,7 @@
 come from the environment the same way).
 
   test-extra-heaps REL [--stages K,K,K] [--victims A,B,C] [--items N]
-      Training matches with the extra module loaded in OverlayFighter4, one
+      Training matches with the extra module loaded in AssistFigureResource, one
       per stage kind (written into the match setup after the stage select
       takes its first icon), with P1 Kirby against a CPU victim each time.
       In every match: Kirby inhales and swallows the CPU (copies it), an
@@ -11,9 +11,9 @@ come from the environment the same way).
       spawned and P1 runs through them pressing A, Kirby presses B and Up+B
       (a final smash if a Smash Ball was broken), and No. of CPUs goes to 3
       and back to 1. After each step the game's heap table is read: the test
-      fails if OverlayFighter3 ever holds a block or OverlayFighter4 holds
-      anything but the extra module. Build with EXPERIMENTS=1 for the
-      module-load log (every REL the game loads, with its heap).
+      fails if OverlayFighter3 or OverlayFighter4 ever holds a block or
+      AssistFigureResource holds anything but the extra module. Build with
+      EXPERIMENTS=1 for the module-load log (every REL the game loads, with its heap).
 """
 import argparse
 import re
@@ -115,11 +115,13 @@ class Run:
         w = watched(table)
         mods = loaded_modules(e, table)
         self.steps.append((label, w, mods))
-        of3, of4 = w["OverlayFighter3"], w["OverlayFighter4"]
+        of3, of4, assist = w["OverlayFighter3"], w["OverlayFighter4"], w["AssistFigureResource"]
         if of3 is None or of3[2] != 0:
             self.bad.append(f"{label}: OverlayFighter3 {of3}")
-        if of4 is None or of4[2] != 1:
-            self.bad.append(f"{label}: OverlayFighter4 {of4} (the extra module is its one block)")
+        if of4 is None or of4[2] != 0:
+            self.bad.append(f"{label}: OverlayFighter4 {of4}")
+        if assist is None or assist[2] != 1:
+            self.bad.append(f"{label}: AssistFigureResource {assist} (the extra module is its one block)")
         k, c = self.fighters() if e.ptr(C.ENTRY_MANAGER) else ({}, {})
         print(f"  [{label}] OF3 {of3[2] if of3 else '-'} blocks, OF4 {of4[2] if of4 else '-'} blocks; "
               f"OverlayStage {w['OverlayStage'][3] if w['OverlayStage'] else '-'} B used; "
@@ -354,7 +356,7 @@ def cmd_test_extra_heaps(rest):
     if run is not None:
         for line in run.bad:
             print(f"problem: {line}")
-        why = why or ("OverlayFighter3/4 held a game block" if run.bad else "")
+        why = why or ("OverlayFighter3/4 or AssistFigureResource held an unexpected block" if run.bad else "")
     bad = L.problems(log)
     for line in bad:
         print(f"problem: {line}")

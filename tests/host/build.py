@@ -284,6 +284,11 @@ def main(argv):
             chk = subprocess.run([sys.executable, gen_path, "--check"], cwd=ROOT)
             if chk.returncode != 0:
                 return chk.returncode
+    pack_test = os.path.join(HERE, "test_pack_rel.py")
+    if os.path.isfile(pack_test):
+        chk = subprocess.run([sys.executable, pack_test], cwd=ROOT)
+        if chk.returncode != 0:
+            return chk.returncode
     found = compiler_environment()
     if found is None:
         print(NO_COMPILER)

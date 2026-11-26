@@ -24,17 +24,15 @@ hasn't been checked yet.
   the game's memory areas is in use, and the mod keeps part of itself there
   during Training. Project+ isn't played with Final Smashes, so this is left
   as it is.
-- **No Mr. Resetti.** Mr. Resetti's Assist Trophy does not appear in Training
-  while the mod is loaded because his files would take the memory area the mod
-  uses for input recording.
-- **Items are barely tested.** The mod doesn't stop items working, but almost
-  none of the tests use them.
-- **Three different characters at most.** The Code Menu's Character Select
-  (when **Controls > P+ Code Menu Shortcut** is turned on in the lab) can give
-  each CPU its own character, but the game's memory for a fourth different
-  character (`OverlayFighter4`) is where the mod keeps its extra module, and
-  the match would freeze. A change that would bring in a fourth character is
-  refused and that CPU stays on the CPU's character.
+- **No Assist Trophies in Training.** Assist Trophy preloading is disabled in
+  Training while the mod is loaded because `AssistFigureResource` holds the
+  mod's extra module (unlocking all four distinct characters in 4-player
+  Training via Code Menu or Fighter Swap), and Mr. Resetti would otherwise take
+  the memory area (`FighterTechqniq`) used for input recording. In opted-in
+  local offline Versus with Assist Trophies enabled, the mod leaves
+  `AssistFigureResource` free for the game.
+- **Items are barely tested.** The mod doesn't stop items working (other than
+  Assist Trophies in Training), but almost none of the tests use them.
 
 ## Stage Options
 

@@ -1,25 +1,25 @@
-"""Emulator test of the fighter set guard (run through emu.py; settings come
-from the environment the same way).
+"""Emulator test of fighter heap sets with extra in AssistFigureResource (run
+through emu.py; settings come from the environment the same way).
 
   test-fighter-sets REL
       Project+'s Code Menu can give each Training CPU its own character
       ("P1..P4 Character Select"). Every different character takes one of the
-      game's four fighter heap sets, and the fourth set loads its character's
-      code into OverlayFighter4, where the extra module lives; that load fails
-      and the match freezes. The stub refuses only the change that would take
-      that set and keeps the CPU on a character already loaded.
+      game's four fighter heap sets, loading its code into OverlayFighter1..4.
+      With the extra module in AssistFigureResource (MEM2), OverlayFighter4 is
+      completely free and all four distinct characters load cleanly with zero
+      refusals.
 
       Lab match, P1 Mario against a CPU Fox, No. of CPUs 3, then:
-        1. P3 -> Luigi through the Code Menu: a third set, allowed (Luigi's
-           code goes into OverlayFighter3).
-        2. P4 -> Jigglypuff: would take the fourth set: refused, P4 stays Fox,
-           one log line says so, the match goes on.
-        3. The Code Menu opened and closed again: the refused choice is not
-           applied again.
+        1. P3 -> Luigi through the Code Menu: third set loads into OverlayFighter3.
+        2. P4 -> Jigglypuff: fourth set loads cleanly into OverlayFighter4
+           (zero refusals, AssistFigureResource still holds only extra).
+        3. The Code Menu opened and closed again: choices remain intact with
+           zero refusals.
         4. Finish, then a second match: P3 -> Luigi and P4 -> Jigglypuff in
-           one menu close: one is loaded, the other refused.
-      In every step the game's frame counter must keep running, OverlayFighter4
-      must hold only the extra module, and the log must have no problem lines.
+           one menu close: both load cleanly with zero refusals.
+      In every step the game's frame counter must keep running,
+      AssistFigureResource must hold only the extra module, and the log must
+      have no problem lines.
 
       Then a third match (swap safety): Mario (P1) against a Fox CPU with the
       tracker, OSDs, color overlays, info display, CPU control and Character
@@ -140,26 +140,26 @@ class Run:
         self.results = []
 
     def settle(self, label, frames=300):
-        """Lets the match run; fails if its frame counter stops (the freeze
-        the guard prevents) or, with the extra module, OverlayFighter4 holds
-        more than it. Returns the heap table."""
+        """Lets the match run; fails if its frame counter stops or, with the
+        extra module, AssistFigureResource holds anything other than it.
+        Returns the heap table."""
         e = self.emu
         before = nav.game_frame(e)
         for _ in range(frames // 30):
             e.advance(30)
         after = nav.game_frame(e)
         table = L.heap_table(e)
-        of3, of4 = table.get("OverlayFighter3"), table.get("OverlayFighter4")
+        of3, of4, assist = table.get("OverlayFighter3"), table.get("OverlayFighter4"), table.get("AssistFigureResource")
         mods = [n for n, h, _ in X.loaded_modules(e, table) if n.startswith("ft_")]
         line = (f"  [{label}] game frame {before} -> {after}; players {[NAMES.get(k, hex(k)) for k in kinds(e)]}; "
-                f"OverlayFighter3 {of3[2] if of3 else '-'} blocks, OverlayFighter4 {of4[2] if of4 else '-'} blocks; "
-                f"fighter modules {mods}")
+                f"OverlayFighter3 {of3[2] if of3 else '-'} blocks, OverlayFighter4 {of4[2] if of4 else '-'} blocks, "
+                f"AssistFigureResource {assist[2] if assist else '-'} blocks; fighter modules {mods}")
         print(line)
         self.results.append(line)
         if after - before < frames // 2:
             raise GuardError(f"{label}: the match froze (game frame {before} -> {after})")
-        if self.extra and (of4 is None or of4[2] != 1):
-            raise GuardError(f"{label}: OverlayFighter4 holds {of4[2] if of4 else '-'} blocks, not just the extra module")
+        if self.extra and (assist is None or assist[2] != 1):
+            raise GuardError(f"{label}: AssistFigureResource holds {assist[2] if assist else '-'} blocks, not just the extra module")
         self.shots.append(e.screenshot("fighter-sets-" + re.sub(r"\W+", "-", label).strip("-")))
         return table
 
@@ -435,7 +435,8 @@ def swap_safety(emu, run, checks, mark):
 
 
 def guarded(emu, run, checks, mark, only=None):
-    """The extra module loaded: the fourth set is refused, the third is not;
+    """With the extra module in AssistFigureResource, all four distinct fighter
+    heap sets (Mario, Fox, Luigi, Jigglypuff) load cleanly with zero refusals;
     then mid-match swap safety checks."""
     want = set(only) if only else {"sets", "swap"}
     matches = 0
@@ -451,14 +452,18 @@ def guarded(emu, run, checks, mark, only=None):
         of3 = table.get("OverlayFighter3")
         checks.append(("P3 is Luigi", kinds(emu)[2] == LUIGI))
         checks.append(("Luigi's code in OverlayFighter3", of3 is not None and of3[2] == 1))
-        checks.append(("nothing refused", refusals(emu, pos) == []))
+        checks.append(("nothing refused (P3)", refusals(emu, pos) == []))
 
         mark("match 1: P4 -> Jigglypuff (fourth set)")
         pos = len(emu.log_text())
         code_menu(emu, {4: JIGGLYPUFF})
-        run.settle("P4 -> Jigglypuff")
-        checks.append(("P4's change refused once, Fox kept", refusals(emu, pos) == [(4, JIGGLYPUFF, FOX)]))
-        checks.append(("P4 is Fox, P3 still Luigi", kinds(emu)[2:] == [LUIGI, FOX]))
+        table = run.settle("P4 -> Jigglypuff")
+        of4 = table.get("OverlayFighter4")
+        assist = table.get("AssistFigureResource")
+        checks.append(("nothing refused (P4)", refusals(emu, pos) == []))
+        checks.append(("P3 Luigi, P4 Jigglypuff", kinds(emu)[2:] == [LUIGI, JIGGLYPUFF]))
+        checks.append(("Jigglypuff's code in OverlayFighter4", of4 is not None and of4[2] == 1))
+        checks.append(("extra stays resident in AssistFigureResource", assist is not None and assist[2] == 1))
 
         mark("match 1: the Code Menu again")
         pos = len(emu.log_text())
@@ -466,8 +471,8 @@ def guarded(emu, run, checks, mark, only=None):
         run.settle("Code Menu closed again")
         _, value, ids = line_info(emu, 4)
         checks.append(("not refused again", refusals(emu, pos) == []))
-        checks.append(("P4's line shows Fox", ids[value] == FOX))
-        checks.append(("players unchanged", kinds(emu)[2:] == [LUIGI, FOX]))
+        checks.append(("P4's line shows Jigglypuff", ids[value] == JIGGLYPUFF))
+        checks.append(("players unchanged", kinds(emu)[2:] == [LUIGI, JIGGLYPUFF]))
 
         mark("match 1: finish")
         nav.finish_training(emu)
@@ -479,12 +484,13 @@ def guarded(emu, run, checks, mark, only=None):
         mark("match 2: P3 -> Luigi and P4 -> Jigglypuff in one close")
         pos = len(emu.log_text())
         code_menu(emu, {3: LUIGI, 4: JIGGLYPUFF})
-        run.settle("P3 and P4 in one close")
-        found = refusals(emu, pos)
-        now = kinds(emu)[2:]
-        checks.append(("one of the two refused", len(found) == 1 and found[0][2] == FOX))
-        checks.append(("one loaded, the other kept Fox",
-                       sorted(now) in (sorted([LUIGI, FOX]), sorted([JIGGLYPUFF, FOX]))))
+        table = run.settle("P3 and P4 in one close")
+        of3 = table.get("OverlayFighter3")
+        of4 = table.get("OverlayFighter4")
+        checks.append(("nothing refused in simultaneous load", refusals(emu, pos) == []))
+        checks.append(("both P3 Luigi and P4 Jigglypuff loaded", kinds(emu)[2:] == [LUIGI, JIGGLYPUFF]))
+        checks.append(("OverlayFighter3 and OverlayFighter4 both active",
+                       of3 is not None and of3[2] == 1 and of4 is not None and of4[2] == 1))
         mark("match 2: finish")
         nav.finish_training(emu)
         emu.advance(120)

@@ -12,7 +12,7 @@ class grCollision;
 
 // Allocates large data-only working buffers for the extra module from
 // Heaps::Network (MEM2, ~1.29 MiB free in offline Training and offline Versus,
-// excluded from savestates) so MEM1 OverlayFighter4 stays reserved for code.
+// excluded from savestates) so AssistFigureResource stays reserved for code.
 // Also provides single-relocation sora_melee accessors and shared out-of-line
 // FP/work-module helpers so extra TUs do not duplicate them.
 namespace tm {

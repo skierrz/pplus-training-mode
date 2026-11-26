@@ -852,14 +852,14 @@ def boot_offline_vs_readonly(backend):
         if emu.u8(settings_addr + 21) != 0:
             return f"general.offlineVersus was not 0 by default ({emu.u8(settings_addr + 21)})"
 
-        # Open Lab Menu via Start, navigate to Offline VS Displays (row 7,
-        # 7 Downs from row 0 in Rail mode), and toggle it ON.
+        # Open Lab Menu via Start, navigate to Offline VS Displays (row 8,
+        # 8 Downs from row 0 in Rail mode), and toggle it ON.
         pos_menu = len(log)
         emu.press(0, ["START"], frames=3, after=8)
         emu.wait_for("Lab Menu open in Training",
                      lambda: "lab: menu opened by port 1 (Start)" in E.read_log(emu.log_path)[pos_menu:],
                      180, every=2)
-        for _ in range(7):
+        for _ in range(8):
             emu.press(0, ["DDOWN"], frames=2, after=5)
         emu.press(0, ["DRIGHT"], frames=2, after=6)
         if emu.u8(settings_addr + 21) != 1:
@@ -985,12 +985,161 @@ def boot_offline_vs_readonly(backend):
     return None
 
 
+def boot_offline_vs_4p(backend):
+    """Opt-in 4P local offline Versus with 4 distinct characters:
+      1. Assist Trophies OFF (default competitive P+ ruleset): MTCH loads in
+         OverlayMenu and XTRA loads in AssistFigureResource (MEM2), all four
+         OverlayFighter1..4 heaps stay free for the four fighters, clean unload.
+      2. Assist Trophies ON (m_itemFrequency > 0 and m_assistTrophy bit set):
+         MTCH loads in OverlayMenu, XTRA is skipped (match only), leaving
+         AssistFigureResource free for Brawl's Assist Trophy preloading."""
+    with E.harness_run(backend, E.FOUR_PADS_ARGS, allow_null=True) as (proc, emu):
+        for p in range(4):
+            emu.neutral(p)
+        nav.enter_training_match(emu, p1="mario", cpu="fox", stage="final_destination")
+        emu.advance(15)
+        log = E.read_log(emu.log_path)
+        m_set = rx(r"\[{name}\] main: attached in scMelee / sqTraining; settings v\d+ at ([0-9a-f]{{8}})").search(log)
+        if m_set is None:
+            return "could not read settings block address from Training attach log"
+        settings_addr = int(m_set.group(1), 16)
+
+        # Open Lab Menu via Start, enable Offline VS Displays (General row 8).
+        pos_menu = len(log)
+        emu.press(0, ["START"], frames=3, after=8)
+        emu.wait_for("Lab Menu open in Training",
+                     lambda: "lab: menu opened by port 1 (Start)" in E.read_log(emu.log_path)[pos_menu:],
+                     180, every=2)
+        for _ in range(8):
+            emu.press(0, ["DDOWN"], frames=2, after=5)
+        emu.press(0, ["DRIGHT"], frames=2, after=6)
+        if emu.u8(settings_addr + 21) != 1:
+            return f"Offline VS Displays toggle did not set byte +21 to 1 (got {emu.u8(settings_addr + 21)})"
+
+        # Return to Training CSS -> Main Menu -> Versus -> Brawl (sqVsMelee).
+        emu.press(0, ["B"], frames=2, after=6)
+        for _ in range(9):
+            emu.press(0, ["DDOWN"], frames=2, after=5)
+        emu.press(0, ["A"], frames=2, after=6)
+        emu.wait_for("Training CSS after Return to CSS",
+                     lambda: nav.scene(emu)[0] == "scSelctCharacter", 600, every=5)
+        emu.advance(25)
+        nav.close_drill_list(emu)
+        emu.advance(15)
+        emu.hold(0, buttons=["B"])
+        emu.wait_for("Main Menu from Training CSS",
+                     lambda: nav.scene(emu)[0] == "muMenuMain", 600, every=5)
+        emu.neutral(0)
+        emu.advance(25)
+        emu.press(0, ["B"], frames=3, after=25)
+        emu.press(0, stick=(28, 128), frames=3, after=15)
+        emu.press(0, ["A"], frames=3, after=25)
+        emu.press(0, ["A"], frames=3, after=25)
+        emu.wait_for("Versus CSS (sqVsMelee)",
+                     lambda: nav.scene(emu)[0] == "scSelctCharacter" and nav.scene(emu)[1] == "sqVsMelee",
+                     600, every=5)
+        emu.advance(30)
+
+        chars = ("mario", "fox", "luigi", "jigglypuff")
+        for port, char in enumerate(chars):
+            a = nav.css_area(emu, port)
+            if not a or a["kind"] == 0:
+                emu.press(port, ["A"])
+                emu.wait_for(f"Versus P{port + 1} join",
+                             lambda p=port: (nav.css_area(emu, p) or {}).get("kind") in (1, 2), 120, every=2)
+            emu.advance(8)
+            if nav.css_area(emu, port)["held"]:
+                nav.drop_own_token(emu, port, char)
+        emu.advance(15)
+
+        # ---- Case 1: 4P Offline VS with Assist Trophies OFF ----
+        pos_off = len(E.read_log(emu.log_path))
+        nav.press_until(emu, "Versus stage select (4P assist OFF)", ["START"],
+                        lambda: nav.scene(emu)[0] == "scSelStage", 600)
+        nav.pick_stage(emu, "final_destination")
+        nav.wait_match_start(emu)
+        emu.advance(30)
+
+        off_log = E.read_log(emu.log_path)[pos_off:]
+        m_mtch = rx(LOADED).search(off_log)
+        m_xtra = rx(EXTRA_LOADED).search(off_log)
+        if not m_mtch:
+            return "4P VS (assist OFF): match module did not load"
+        if not m_xtra:
+            return "4P VS (assist OFF): extra module did not load"
+        if m_xtra.group(2) != "AssistFigureResource":
+            return f"4P VS (assist OFF): extra loaded in {m_xtra.group(2)}, expected AssistFigureResource"
+        if not m_xtra.group(1).startswith(("92", "93")):
+            return f"4P VS (assist OFF): extra loaded at {m_xtra.group(1)}, expected MEM2"
+        table = heap_table(emu)
+        for idx in range(1, 5):
+            of = table.get(f"OverlayFighter{idx}")
+            if of is None or of[2] != 1:
+                return f"4P VS (assist OFF): OverlayFighter{idx} expected 1 block, got {of}"
+        assist = table.get("AssistFigureResource")
+        if assist is None or assist[2] != 1:
+            return f"4P VS (assist OFF): AssistFigureResource expected 1 block (extra), got {assist}"
+
+        seen = nav.finish_versus_by_falling(emu, 4)
+        if nav.scene(emu)[1] != "sqVsMelee":
+            return f"4P VS (assist OFF): returned to {nav.scene(emu)[:2]} ({seen}), not Versus CSS"
+        emu.advance(30)
+        off_log = E.read_log(emu.log_path)[pos_off:]
+        found, ok = check_sequence(off_log, [
+            ("extra unloaded at baseline", EXTRA_UNLOADED.replace("(yes|NO)", "yes")),
+            ("match unloaded at baseline", UNLOADED.replace("(yes|NO)", "yes")),
+        ])
+        if not ok:
+            return f"4P VS (assist OFF): unload checks failed ({found})"
+        bad = problems(off_log)
+        if bad:
+            return f"4P VS (assist OFF): problem lines {bad[:3]}"
+
+        # ---- Case 2: 4P Offline VS with Assist Trophies ON ----
+        pos_on = len(E.read_log(emu.log_path))
+        nav.press_until(emu, "Versus stage select (4P assist ON)", ["START"],
+                        lambda: nav.scene(emu)[0] == "scSelStage", 600)
+        nav.pick_stage(emu, "final_destination")
+        emu.wait_for("stage select exit before scMelee",
+                     lambda: nav.scene(emu)[0] != "scSelStage", 600, every=1)
+        # Enable Medium item frequency (+0x16 = 2) and Assist Trophy bit (+0x37 |= 0x02)
+        # on gmGlobalModeMelee before scMelee::start() runs.
+        mode = emu.ptr(emu.ptr(nav.GAME_GLOBAL) + 0x8)
+        emu.h.call("write_mem", addr=mode + 0x16, hex="02")
+        cur_sw = emu.u8(mode + 0x37)
+        emu.h.call("write_mem", addr=mode + 0x37, hex=f"{(cur_sw | 0x02) & 0xFF:02x}")
+        nav.wait_match_start(emu)
+        emu.advance(30)
+
+        on_log = E.read_log(emu.log_path)[pos_on:]
+        if not rx(LOADED).search(on_log):
+            return "4P VS (assist ON): match module did not load"
+        if rx(EXTRA_LOADED).search(on_log):
+            return "4P VS (assist ON): extra module loaded when Assist Trophies were ON in 4P"
+        if not rx(r"\[{name}\] main: read-only offline Versus displays attached").search(on_log):
+            return "4P VS (assist ON): missing read-only offline Versus attach log line"
+
+        seen2 = nav.finish_versus_by_falling(emu, 4)
+        if nav.scene(emu)[1] != "sqVsMelee":
+            return f"4P VS (assist ON): returned to {nav.scene(emu)[:2]} ({seen2}), not Versus CSS"
+        emu.advance(30)
+        on_log = E.read_log(emu.log_path)[pos_on:]
+        if not rx(UNLOADED.replace("(yes|NO)", "yes")).search(on_log):
+            return "4P VS (assist ON): match module did not unload to baseline"
+        bad2 = problems(on_log)
+        if bad2:
+            return f"4P VS (assist ON): problem lines {bad2[:3]}"
+        print(f"  Offline VS 4P: assist OFF loaded XTRA at {m_xtra.group(1)} in AssistFigureResource (OF1..4=1); "
+              f"assist ON loaded MTCH only (XTRA skipped); both unloaded to baseline ok")
+    return None
+
+
 def cmd_test_boot(rest):
     ap = argparse.ArgumentParser(prog="emu.py test-boot")
     ap.add_argument("rel")
-    ap.add_argument("--only", nargs="+", choices=("cases", "multi", "versus", "offline-vs-readonly"))
+    ap.add_argument("--only", nargs="+", choices=("cases", "multi", "versus", "offline-vs-readonly", "offline-vs-4p"))
     opts = ap.parse_args(rest)
-    want = set(opts.only) if opts.only else {"cases", "multi", "versus", "offline-vs-readonly"}
+    want = set(opts.only) if opts.only else {"cases", "multi", "versus", "offline-vs-readonly", "offline-vs-4p"}
     backend = E.headless_backend()
     if "cases" in want:
         for port, held, seq, line in BOOT_CASES:
@@ -1022,6 +1171,14 @@ def cmd_test_boot(rest):
             why = boot_offline_vs_readonly(backend)
         except (OSError, HarnessError, Timeout, ValueError, nav.NavError) as e:
             why = f"offline-vs-readonly: {e}"
+        if why:
+            print(f"test-boot: FAIL ({why})")
+            return 1
+    if "offline-vs-4p" in want:
+        try:
+            why = boot_offline_vs_4p(backend)
+        except (OSError, HarnessError, Timeout, ValueError, nav.NavError) as e:
+            why = f"offline-vs-4p: {e}"
         if why:
             print(f"test-boot: FAIL ({why})")
             return 1

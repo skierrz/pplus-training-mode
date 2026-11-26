@@ -574,22 +574,25 @@ def sc_stress_swaps(emu):
         emu.advance(20)
         f1 = nav.game_frame(emu)
         table = L.heap_table(emu)
+        assist = table.get("AssistFigureResource")
         of4 = table.get("OverlayFighter4")
         p1_now, cpu_now = player_init(emu, 0), player_init(emu, 1)
         ok_p1 = ("p1" not in st) or (p1_now["kind"] == ROSTER_INFO[st["p1"]][0])
         ok_cpu = ("cpu" not in st) or (cpu_now["kind"] == ROSTER_INFO[st["cpu"]][0])
-        ok_step = (f1 > f0 + 10) and (of4 is not None and of4[2] == 1) and ok_p1 and ok_cpu
+        ok_step = (f1 > f0 + 10) and (assist is not None and assist[2] == 1) and (of4 is not None and of4[2] == 0) and ok_p1 and ok_cpu
         if not ok_step:
             all_ok = False
-            res.note(f"step {i + 1} {st} failed: frames {f0}->{f1} of4={of4} p1={p1_now} cpu={cpu_now}")
+            res.note(f"step {i + 1} {st} failed: frames {f0}->{f1} assist={assist} of4={of4} p1={p1_now} cpu={cpu_now}")
     res.row("12 consecutive heavy/sub-fighter swaps ran cleanly", "12/12 ok",
             "12/12 ok" if all_ok else "FAILED", all_ok)
 
     heaps_after = L.heap_table(emu)
+    assist_after = heaps_after.get("AssistFigureResource")
     of4_after = heaps_after.get("OverlayFighter4")
-    # Confirm Effect / ItemResource / OverlayFighter4 remain healthy after 12 swaps.
-    res.row("OverlayFighter4 holds only extra after 12 swaps", "blocks=1",
-            f"of4={of4_after}", of4_after is not None and of4_after[2] == 1)
+    # Confirm AssistFigureResource holds only extra and OverlayFighter4 stays empty after 12 swaps.
+    res.row("AssistFigureResource holds only extra and OverlayFighter4 empty", "assist=1, of4=0",
+            f"assist={assist_after} of4={of4_after}",
+            assist_after is not None and assist_after[2] == 1 and of4_after is not None and of4_after[2] == 0)
 
     for hname in ("OverlayFighter1", "OverlayFighter2", "Fighter1Resoruce", "Fighter2Resoruce",
                   "Fighter1Instance", "Fighter2Instance", "IteamResource", "Effect"):

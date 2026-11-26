@@ -17,7 +17,7 @@
 #include "stub/loader.h"
 
 namespace {
-    static s32 s_testExtraHeap = Heaps::OverlayFighter4;
+    static s32 s_testExtraHeap = Heaps::AssistFigureResource;
 }
 
 namespace tm {
@@ -52,7 +52,7 @@ namespace {
         memset(modePlayers, 0, game::kMaxFighters * stub::kPlayerSize);
         loaderBuf = static_cast<u8*>(host::mem::alloc(0x80, 8));
         dispatch::table().services.settings = hostSettings;
-        s_testExtraHeap = Heaps::OverlayFighter4;
+        s_testExtraHeap = Heaps::AssistFigureResource;
     }
 
     static drills::Session* initDrillSession(u8 drill, u8 drillRan)
@@ -126,7 +126,7 @@ TEST(set_guard, drill_guard_ignores_lab_or_unstarted_or_no_extra)
 
     // Absent player slot (player[1] == kAbsent): left alone.
     initDrillSession(1, 1);
-    s_testExtraHeap = Heaps::OverlayFighter4;
+    s_testExtraHeap = Heaps::AssistFigureResource;
     p1[0] = 0x0D;
     p1[1] = stub::kAbsent;
     stub::tmDrillGuardBody(loader, p1);
@@ -138,6 +138,34 @@ TEST(set_guard, drill_guard_ignores_lab_or_unstarted_or_no_extra)
     p1[0] = 0x0D;
     stub::tmDrillGuardBody(loader, p1);
     CHECK_EQ(0x0Du, p1[0]);
+}
+
+TEST(set_guard, assist_heap_allows_4th_set_while_drill_guard_stays_active)
+{
+    u8* players = NULL;
+    u8* loader = NULL;
+    setupGameGlobal(players, loader);
+    s_testExtraHeap = Heaps::AssistFigureResource;
+
+    // With extra in AssistFigureResource (not OverlayFighter1..4), tmSetGuardBody
+    // returns immediately without touching the 4th player's character choice.
+    u8* p4 = players + 3 * stub::kPlayerSize;
+    p4[0] = 0x27; // Jigglypuff (4th distinct fighter)
+    p4[1] = 0;
+    stub::tmSetGuardBody(loader, p4);
+    CHECK_EQ(0x27u, p4[0]);
+
+    // Meanwhile tmDrillGuardBody still guards active drills because extraHeap() >= 0.
+    initDrillSession(1, 1);
+    loader[stub::kLoaderCharacter] = 0x00;
+    loader[stub::kLoaderCostume] = 2;
+    players[0] = 0x15;
+    players[1] = 0;
+    players[stub::kPlayerColorFile] = 0;
+    players[stub::kPlayerFlags] = 0;
+    stub::tmDrillGuardBody(loader, players);
+    CHECK_EQ(0x00u, players[0]);
+    CHECK_EQ(2u, players[stub::kPlayerColorFile]);
 }
 
 TEST(set_guard, drill_guard_preserves_dark_fake_color_override)

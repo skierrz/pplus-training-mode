@@ -94,8 +94,8 @@
 # filler (into build/experiments-padn) to test loading at that size, and
 # ANY_MATCH=1 loads it for every offline match, not only Training ones.
 # EXTRA_PAD_KIB=n adds n KiB of zero-filled storage to the extra module, and
-# EXTRA_HEAP=id (a g_HeapInfos index, e.g. 29 for Fighter3Instance) loads it
-# into that heap instead of OverlayFighter4.
+# EXTRA_HEAP=id (a g_HeapInfos index, e.g. 56 for OverlayFighter4) loads it
+# into that heap instead of AssistFigureResource.
 # `make PERF=1 ...` builds into build/perf with the time measurements of
 # src/shared/perf.h; `make PERF=1 test-perf` plays the scenarios of
 # scripts/perf_tests.py and prints the times (PERF_ARGS, e.g. "--only idle").
@@ -173,10 +173,12 @@ MAIN_BUDGET ?= 292832
 # select into OverlayMenu (293,728 bytes free on CSS; match is not loaded).
 MENU_BUDGET ?= 98304
 # The extra module (its block, as above), loaded next to the main module
-# into OverlayFighter4 (296,032 bytes free in every Training match measured):
-# the largest size that passed the stress test there (8 character pairs,
-# No. of CPUs raised to 3 in each match).
-EXTRA_BUDGET ?= 295712
+# into AssistFigureResource (MEM2, 419,424 bytes usable when empty; 409 KiB
+# budget leaves 608 B margin).
+EXTRA_BUDGET ?= 418816
+# Peak unpacked module file size during OSLinkFixed (MenuInstance holds
+# 0x79A60 = 498,272 B free at scMelee start; 484 KiB budget leaves margin).
+TEMP_BUDGET ?= 495616
 
 MWCC    := $(TOOLS)/MWCC4_2/mwcceppc.exe
 MWLD    := $(TOOLS)/MWCC4_2/mwldeppc.exe
@@ -194,8 +196,7 @@ SHARED_SRCS := $(sort $(call rwildcard,src/shared,*.cpp))
 STUB_SRCS   := $(sort $(call rwildcard,src/stub,*.cpp)) $(SHARED_SRCS)
 MAIN_MOVED_SRCS := src/extra/tech_sparkle.cpp src/extra/reversal_slots.cpp \
                    src/extra/pplus_collision.cpp \
-                   src/extra/hitbox_colors.cpp src/extra/lab_tools.cpp \
-                   src/extra/action_log.cpp
+                   src/extra/hitbox_colors.cpp src/extra/lab_tools.cpp
 MAIN_SRCS   := $(sort $(call rwildcard,src/main,*.cpp)) $(MAIN_MOVED_SRCS) $(SHARED_SRCS)
 # The menu module draws with the main module's 2D helpers and reads the SD
 # card with its file helpers, compiled again from where they live.
@@ -296,20 +297,22 @@ all: $(BUILT_REL)
 
 MODULES := --module match:$(MAIN_ID):$(MAIN_REL) --module menu:$(MENU_ID):$(MENU_REL) \
            --module extra:$(EXTRA_ID):$(EXTRA_REL)
+PACK_FAR_CALLS := --far-calls extra
 
 $(BUILT_REL): $(STUB_REL) $(MAIN_REL) $(MENU_REL) $(EXTRA_REL) $(PACK)
 	@echo "pack    $@"
-	$(Q)$(PYTHON) $(PACK) pack --stub $(STUB_REL) $(MODULES) --stub-budget $(STUB_BUDGET) \
+	$(Q)$(PYTHON) $(PACK) pack --stub $(STUB_REL) $(MODULES) $(PACK_FAR_CALLS) --stub-budget $(STUB_BUDGET) \
+	    --temp-budget $(TEMP_BUDGET) \
 	    --budget match=$(MAIN_BUDGET) --budget menu=$(MENU_BUDGET) --budget extra=$(EXTRA_BUDGET) -o $@
 
 negative: $(STUB_REL) $(MAIN_REL) $(MENU_REL) $(EXTRA_REL) $(PACK)
 	@mkdir -p $(NEGATIVE)
 	$(Q)for kind in badversion corrupt truncated; do \
-	    $(PYTHON) $(PACK) pack --stub $(STUB_REL) $(MODULES) \
+	    $(PYTHON) $(PACK) pack --stub $(STUB_REL) $(MODULES) $(PACK_FAR_CALLS) \
 	        --break $$kind -o $(NEGATIVE)/$(TARGET)-$$kind.rel || exit 1; done
-	$(Q)$(PYTHON) $(PACK) pack --stub $(STUB_REL) $(MODULES) --break corrupt --break-module extra \
+	$(Q)$(PYTHON) $(PACK) pack --stub $(STUB_REL) $(MODULES) $(PACK_FAR_CALLS) --break corrupt --break-module extra \
 	    -o $(NEGATIVE)/$(TARGET)-extra-corrupt.rel
-	$(Q)$(PYTHON) $(PACK) pack --stub $(STUB_REL) $(MODULES) --pad $(BIG_PAD) -o $(NEGATIVE)/$(TARGET)-big.rel
+	$(Q)$(PYTHON) $(PACK) pack --stub $(STUB_REL) $(MODULES) $(PACK_FAR_CALLS) --pad $(BIG_PAD) -o $(NEGATIVE)/$(TARGET)-big.rel
 
 REL_ID = $(if $(findstring /stub/,$@),$(STUB_ID),$(if $(findstring /menu/,$@),$(MENU_ID),$(if \
          $(findstring /extra/,$@),$(EXTRA_ID),$(MAIN_ID))))
@@ -508,8 +511,9 @@ test-record: install
 test-extra-heaps: install
 	$(Q)$(EMU) test-extra-heaps $(REL) $(EXTRA_HEAPS_ARGS)
 
-# Code Menu character changes in a Training match with three CPUs: a fourth
-# fighter heap set is refused while the extra module holds its code heap.
+# Code Menu character changes in a Training match with three CPUs: with the
+# extra module in AssistFigureResource, all four distinct fighter heap sets
+# load cleanly with zero refusals.
 test-fighter-sets: install
 	$(Q)$(EMU) test-fighter-sets $(REL)
 

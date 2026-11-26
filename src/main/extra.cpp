@@ -1,15 +1,58 @@
 #include "main/extra.h"
 
+#include <OS/OSLink.h>
 #include <stddef.h>
 
 #include "extra/reversal_slots.h"
+#include "main/savestate/snapshot.h"
 #include "main/ui/info_display.h"
+#include "shared/game/mem.h"
 #include "shared/log.h"
 #include "shared/perf.h"
+
+#ifndef TM_STUB_MODULE_ID
+#define TM_STUB_MODULE_ID 21581
+#endif
 
 namespace tm {
 namespace main {
     static const ExtraHooks* s_hooks = NULL;
+
+    // Exclude the extra module's gfMemoryPool payload [block, block + payloadLen)
+    // from savestate snapshots (slot 1; slot 0 belongs to recording storage).
+    // AssistFigureResource is walked by snapshot.cpp, so leaving extra's code,
+    // .data, and .bss out keeps the heap snapshot tiny (~192 B) and preserves
+    // extra's live state across savestate loads.
+    static void syncExtraSavestateExclusion(bool present)
+    {
+        if (!present)
+        {
+            savestate::setOwnExclusionAt(1, 0, 0);
+            return;
+        }
+        OSModuleInfo* const* head = reinterpret_cast<OSModuleInfo* const*>(0x800030C8);
+        OSModuleInfo* m = *head;
+        for (u32 count = 0; game::isRam(m) && count < 64; count++)
+        {
+            if (m->id == TM_STUB_MODULE_ID + 3)
+            {
+                u32 blockAddr = reinterpret_cast<u32>(m);
+                const u8* hdr = reinterpret_cast<const u8*>(blockAddr - 0x20);
+                if (game::isRam(hdr))
+                {
+                    u32 total = game::wordAt(hdr, 4);
+                    if (total > 0x20 && (total & 0x1F) == 0)
+                    {
+                        u32 payloadLen = total - 0x20;
+                        savestate::setOwnExclusionAt(1, blockAddr, payloadLen);
+                        TM_LOG("main: extra savestate exclusion %08x +%x\n", blockAddr, payloadLen);
+                    }
+                }
+                return;
+            }
+            m = m->link.next;
+        }
+    }
 
     // Only the extra module calls this: kept from the linker's stripping,
     // as anything else only the extra module uses must be.
@@ -17,6 +60,7 @@ namespace main {
     void setExtraHooks(const ExtraHooks* hooks)
     {
         s_hooks = hooks;
+        syncExtraSavestateExclusion(hooks != NULL);
         TM_LOG("main: extra module %s\n", hooks != NULL ? "registered" : "gone");
     }
 #pragma force_active reset

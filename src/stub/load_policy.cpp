@@ -14,28 +14,38 @@ namespace policy {
     // Match/menu modules: OverlayMenu (unused in Training and 2P/4P Versus).
     static const Heaps::HeapType kOverlayMenu = Heaps::OverlayMenu;
 
-    // Extra module: Training and opted-in 2P/3P local offline Versus only;
-    // 4P Versus skips extra so OverlayFighter1..4 stay untouched.
+    // Extra module: AssistFigureResource (MEM2, 410 KiB) in Training (1P-4P)
+    // and opted-in local offline Versus when Assist Trophies are off (2P-4P).
+    // When Assist Trophies are on in local offline Versus, <= 3P falls back to
+    // OverlayFighter4 (gracefully skipped if extra exceeds it) and 4P loads
+    // match only so Brawl keeps both AssistFigureResource and OverlayFighter4.
 #ifdef TM_EXTRA_HEAP
     static const Heaps::HeapType kExtraHeap = static_cast<Heaps::HeapType>(TM_EXTRA_HEAP);
 #else
-    static const Heaps::HeapType kExtraHeap = Heaps::OverlayFighter4;
+    static const Heaps::HeapType kExtraHeap = Heaps::AssistFigureResource;
 #endif
 
-    // P+ 3.2.1 ground-truth addresses for Netplay, Replay, and player slots:
+    // P+ 3.2.1 ground-truth addresses for Netplay, Replay, items, and players:
     //  - 0x80550000: MultiGCT filename pointer ("BOOST.GCT" offline in
     //    Source/Project+/MultiGCT.asm:4-9 vs "NETBOOST.GCT" in
     //    Source/Netplay/Net-MultiGCT.asm:7-12).
     //  - 0x80023B88: v-sync branch patched to nop (0x60000000) by
     //    Source/Extras/Netplay.asm:4-5.
     //  - 0x805BBFC0: 1 while viewing a replay (Source/LegacyTE/Replays.asm:360-362).
-    //  - modeMelee + 0x98 + i*0x5C, byte +1 != 3 for active players i = 0..3.
+    //  - gmGlobalModeMelee (gm_global_mode_melee.h):
+    //      +0x08 (>>2): m_meleeInitData.m_gameMode
+    //      +0x16:       m_meleeInitData.m_itemFrequency (0 = Frequency_None)
+    //      +0x37 bit 1: m_meleeInitData.m_itSwitch.m_item.m_assistTrophy
+    //      +0x98 + i*0x5C, byte +1 != 3 for active players i = 0..3.
     enum {
         kMultiGctPtr = 0x80550000,
         kNetplayVsyncAddr = 0x80023B88,
         kNetplayVsyncNop = 0x60000000,
         kReplayFlagAddr = 0x805BBFC0,
         kModeMeleeGameMode = 0x8,
+        kItemFrequencyOffset = 0x16,
+        kItemSwitchLowByte = 0x37,
+        kAssistTrophyMask = 0x02,
         kPlayersOffset = 0x98,
         kPlayerStride = 0x5C,
         kPlayerAbsent = 3
@@ -63,9 +73,7 @@ namespace policy {
             }
             const u8* block = dispatch::table().services.settings();
             const char* gct = *reinterpret_cast<const char* const*>(kMultiGctPtr);
-            if (gm != kMeleeGameMode || block == NULL
-                || *reinterpret_cast<const u32*>(block + block::kSettings) != block::kSettingsMagic
-                || block[block::kOfflineVersusOffset] == 0 || !game::sequenceIs("sqVsMelee")
+            if (gm != kMeleeGameMode || !offlineVersusOptIn(block) || !game::sequenceIs("sqVsMelee")
                 || (game::isRam(gct) && gct[0] == 'N' && gct[1] == 'E' && gct[2] == 'T')
                 || *reinterpret_cast<const u32*>(kNetplayVsyncAddr) == kNetplayVsyncNop
                 || *reinterpret_cast<const u32*>(kReplayFlagAddr) == 1u)
@@ -76,12 +84,25 @@ namespace policy {
                 return kPlanNone;
 #endif
             }
+            bool assistEnabled =
+                mode[kItemFrequencyOffset] != 0 && (mode[kItemSwitchLowByte] & kAssistTrophyMask) != 0;
+            if (!assistEnabled)
+            {
+                return kPlanMatchAndExtra;
+            }
             u32 active = 0;
             for (u32 i = 0; i < 4; i++)
             {
                 active += (mode[kPlayersOffset + i * kPlayerStride + 1] != kPlayerAbsent);
             }
-            return active <= kMaxVsPlayersForExtra ? kPlanMatchAndExtra : kPlanMatchOnly;
+            if (active <= kMaxVsPlayersForOverlay4Fallback)
+            {
+#ifndef TM_EXTRA_HEAP
+                out[1].heap = Heaps::OverlayFighter4;
+#endif
+                return kPlanMatchAndExtra;
+            }
+            return kPlanMatchOnly;
         }
         if (game::sceneIs(scene, "scSelctCharacter") && game::sequenceIs("sqTraining"))
         {
