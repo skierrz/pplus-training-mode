@@ -2,9 +2,10 @@
 // tracker.cpp, techniques.cpp, and drill_ledge_core.h.
 //
 // Reproduces the 0-air-frame horizontal waveland bug where entering EscapeAir
-// (0x21) and LandingFallSpecial (0x19) on the same frame left Frame::actionable
-// stuck at 1 on frame 1 of the 10-frame landing lag, causing ledgedash GALINT
-// to fire 10 frames early.
+// (0x21) and LandingFallSpecial (0x19) on the same frame keeps FighterFrame::
+// actionable == 1 (the fighter acted in the air that frame), while grounded
+// ledgedash completion in techniques.cpp and drill_ledge_core.h must wait out
+// the newly entered landing lag instead of firing GALINT 10 frames early.
 #define TM_MODULE_MAIN 1
 
 #include <ft/ft_entry_manager.h>
@@ -126,6 +127,8 @@ namespace {
         game::Technique lastGalint;
         int wavedashCount;
         game::Technique lastWavedash;
+        int comboCount;
+        game::Technique lastCombo;
     };
     static SinkLog s_sinkLog;
 
@@ -140,6 +143,11 @@ namespace {
         {
             s_sinkLog.wavedashCount++;
             s_sinkLog.lastWavedash = t;
+        }
+        else if (t.kind == game::kTechCombo)
+        {
+            s_sinkLog.comboCount++;
+            s_sinkLog.lastCombo = t;
         }
     }
 
@@ -319,11 +327,12 @@ TEST(galint_waveland, horizontal_frame1_waveland_waits_10f_landing_lag_for_galin
     bool drillDone = false;
     t = finishAndStep(&ledgeSt, &drillDone);
 
-    // Grounded frame 1 of 10f waveland lag MUST NOT be marked actionable and
-    // MUST NOT prematurely emit GALINT +25!
+    // Frame 1 keeps tracker.cpp's actionable == 1 contract (fighter acted into
+    // EscapeAir during this frame), while techniques.cpp and drill_ledge_core.h
+    // MUST block premature GALINT on newly entered landing lag!
     CHECK_EQ(0, static_cast<int>(t->cur.airborne));
     CHECK_EQ(static_cast<int>(game::kStatusLandingFallSpecial), static_cast<int>(t->cur.status));
-    CHECK_EQ(0, static_cast<int>(t->cur.actionable));
+    CHECK_EQ(1, static_cast<int>(t->cur.actionable));
     CHECK_EQ(0, s_sinkLog.galintCount);
     CHECK(!drillDone);
 
@@ -446,13 +455,14 @@ TEST(galint_waveland, multiframe_airdodge_and_landing_interrupt_open_work)
     fireStatusChange(u, 0x75, game::kStatusJumpAerial, Situation_Air);
     finishAndStep(&ledgeSt);
 
-    // Same-frame JumpAerial -> Fall -> Landing (0x16): lag frames 1..3 have groups = 0.
+    // Same-frame JumpAerial -> Fall -> Landing (0x16): tracker keeps actionable == 1
+    // from Fall, while inNewLandingLag blocks early GALINT; lag frames 2..3 have actionable == 0.
     s_testBody.xluFrames = 29;
     u.ff->statusModule->m_groups = 0;
     fireStatusChange(u, game::kStatusJumpAerial, game::kStatusFall, Situation_Air);
     fireStatusChange(u, game::kStatusFall, game::kStatusLanding, Situation_Ground);
     t = finishAndStep(&ledgeSt, &drillDone);
-    CHECK_EQ(0, static_cast<int>(t->cur.actionable));
+    CHECK_EQ(1, static_cast<int>(t->cur.actionable));
     CHECK_EQ(0, s_sinkLog.galintCount);
     CHECK(!drillDone);
 
@@ -506,8 +516,8 @@ TEST(galint_waveland, preserves_same_frame_shield_hitlag_and_grounded_wavedash_o
     finishAndStep(NULL);
 
     // 2. Frame-1 grounded wavedash (JumpSquat -> Jump -> EscapeAir -> LandingFallSpecial):
-    // actionable must be 0 on frame 1 of LandingFallSpecial, while kTechWavedash
-    // still emits Frame 1 cleanly.
+    // tracker preserves actionable == 1 on frame 1 (fighter chose EscapeAir),
+    // drops to 0 on lag frame 2, and kTechWavedash emits Frame 1 cleanly.
     fireStatusChange(u, game::kStatusWait, game::kStatusJumpSquat, Situation_Ground);
     finishAndStep(NULL);
 
@@ -519,9 +529,89 @@ TEST(galint_waveland, preserves_same_frame_shield_hitlag_and_grounded_wavedash_o
     fireStatusChange(u, game::kStatusEscapeAir, game::kStatusLandingFallSpecial, Situation_Ground);
     t = finishAndStep(NULL);
     CHECK_EQ(static_cast<int>(game::kStatusLandingFallSpecial), static_cast<int>(t->cur.status));
-    CHECK_EQ(0, static_cast<int>(t->cur.actionable));
+    CHECK_EQ(1, static_cast<int>(t->cur.actionable));
     CHECK_EQ(1, s_sinkLog.wavedashCount);
     CHECK_EQ(1, static_cast<int>(s_sinkLog.lastWavedash.frame));
+
+    t = finishAndStep(NULL);
+    CHECK_EQ(0, static_cast<int>(t->cur.actionable));
+
+    teardownWorld();
+}
+
+TEST(galint_waveland, damage_fly_frame1_waveland_preserves_actionable_and_breaks_combo)
+{
+    TestUnit p1 = setupWorld();
+
+    // Add a second fighter (P2 attacker in slot 1) so tracker.cpp attributes hits
+    // and techniques.cpp::combo() emits kTechCombo on true 2+ hit combos.
+    host::fakes::FakeFighter& ff2 = host::fakes::addFighter();
+    ff2.fighter->m_taskId = 502;
+    soEventManageModuleImpl* evMod2 = host::mem::make<soEventManageModuleImpl>();
+    evMod2->m_manageID = 11;
+    ff2.modules->m_eventManageModule = evMod2;
+    ff2.modules->m_collisionAttackModule = host::mem::make<soCollisionAttackModuleImpl>();
+    soEventManager* evMgr2 = host::mem::make<soEventManager>();
+    evMgr2->reset();
+    soEventSystem::getInstance()->registerManager(11, evMgr2);
+    soStatusEventObserver* fs2 = static_cast<soStatusEventObserver*>(ff2.fighter);
+    soAnimCmdEventObserver* fa2 = static_cast<soAnimCmdEventObserver*>(static_cast<StageObject*>(ff2.fighter));
+    fs2->m_unitID = 4;
+    fs2->addObserver(11, -1);
+    fa2->m_unitID = 5;
+    fa2->addObserver(11, 0);
+    ftEntry* e2 = host::mem::make<ftEntry>();
+    e2->m_entryId = 0x20001;
+    e2->m_playerNo = 1;
+    e2->m_activeInstanceIndex = 0;
+    e2->m_instances[0].m_fighter = ff2.fighter;
+    e2->m_owner = host::mem::make<ftOwner>();
+    g_ftEntryManager->setSlot(1, e2);
+    game::trackerStep(true);
+
+    // Hit 1: P2 sends P1 into DamageFly (0x45) with 2 frames of hitstun.
+    p1.ff->hitstun = 2;
+    p1.ff->statusModule->m_groups = 0;
+    fireStatusChange(p1, game::kStatusWait, 0x45, Situation_Air);
+    const game::Tracked* t = finishAndStep(NULL);
+    CHECK_EQ(1, static_cast<int>(t->cur.hitReceived));
+    CHECK_EQ(0, static_cast<int>(t->cur.actionable));
+    CHECK_EQ(0, s_sinkLog.comboCount);
+
+    // Frame 2 of hitstun: still unactionable.
+    p1.ff->hitstun = 1;
+    t = finishAndStep(NULL);
+    CHECK_EQ(0, static_cast<int>(t->cur.actionable));
+
+    // Hitstun ends (0): P1 immediately does a frame-1 waveland out of tumble:
+    // DamageFly (0x45) -> EscapeAir (0x21) -> LandingFallSpecial (0x19).
+    // tracker.cpp MUST report actionable == 1 so combo() marks comboBroken = true.
+    p1.ff->hitstun = 0;
+    p1.ff->stop->m_hitStopRealFrame = 0;
+    fireStatusChange(p1, 0x45, game::kStatusEscapeAir, Situation_Air);
+    fireStatusChange(p1, game::kStatusEscapeAir, game::kStatusLandingFallSpecial, Situation_Ground);
+    t = finishAndStep(NULL);
+    CHECK_EQ(static_cast<int>(game::kStatusLandingFallSpecial), static_cast<int>(t->cur.status));
+    CHECK_EQ(0, static_cast<int>(t->cur.airborne));
+    CHECK_EQ(1, static_cast<int>(t->cur.actionable));
+
+    // P2 hits P1 again during LandingFallSpecial lag: NOT a true combo because P1
+    // was actionable on the waveland frame!
+    p1.ff->hitstun = 10;
+    fireStatusChange(p1, game::kStatusLandingFallSpecial, game::kStatusDamage, Situation_Ground);
+    t = finishAndStep(NULL);
+    CHECK_EQ(1, static_cast<int>(t->cur.hitReceived));
+    CHECK_EQ(0, static_cast<int>(t->cur.actionable));
+    CHECK_EQ(0, s_sinkLog.comboCount);
+
+    // Positive control: a follow-up hit while still in hitstun (actionable == 0)
+    // IS a true 2-hit combo and emits kTechCombo.
+    p1.ff->hitstun = 10;
+    fireStatusChange(p1, game::kStatusDamage, game::kStatusDamage, Situation_Ground);
+    t = finishAndStep(NULL);
+    CHECK_EQ(1, static_cast<int>(t->cur.hitReceived));
+    CHECK_EQ(1, s_sinkLog.comboCount);
+    CHECK_EQ(2, static_cast<int>(s_sinkLog.lastCombo.a));
 
     teardownWorld();
 }

@@ -651,7 +651,7 @@ namespace extra {
         // Grounded actionable completion check. Frame 1 of a newly entered
         // landing lag status (0x16..0x19) is never grounded-actionable.
         bool inNewLandingLag = enteredLanding && s >= kLedgeStLandingFirst && s <= kLedgeStLandingFallSpecial;
-        bool otherGetupDone = st.isOtherGetup != 0 && !in.airborne && in.actionable != 0
+        bool otherGetupDone = st.isOtherGetup != 0 && !in.airborne && in.actionable != 0 && !inNewLandingLag
                               && !(s >= kLedgeStCliffAttack && s <= kLedgeStCliffEscape);
         bool airborneDone = !in.airborne && in.actionable != 0 && st.ledgeAir != 0 && !inNewLandingLag;
 
