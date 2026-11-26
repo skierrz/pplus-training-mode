@@ -1186,134 +1186,22 @@ namespace extra {
 
     bool diCompassVisible(const game::MatchState& m, bool menuOpen)
     {
-        const main::Settings& set = main::settings();
-        if (s_net == NULL || !m.running || !m.training || m.paused || menuOpen || set.general.diDisplay == 0)
-        {
-            return false;
-        }
-        return s_net->compass.active || set.display.diVectorMode != main::kDiVectorLive;
+        (void)m;
+        (void)menuOpen;
+        // Live floating corner DI radar box window retired; 3D trajectory arcs
+        // (diDraw) and the menu Pick DI Angle overlay (diDrawCustomPickerOverlay)
+        // remain active and untouched.
+        return false;
     }
 
     void diCompassDraw(const game::MatchState& m, bool menuOpen)
     {
-        if (s_net == NULL)
+        (void)m;
+        (void)menuOpen;
+        if (s_net != NULL)
         {
-            return;
+            s_net->pickerDebug.compassDrawn = 0;
         }
-        DiCompassState& s_compass = s_net->compass;
-        DiPickerDebugBlock& s_pickerDebug = s_net->pickerDebug;
-        s_pickerDebug.compassDrawn = 0;
-        const main::Settings& set = main::settings();
-        u8 mode = set.display.diVectorMode;
-        if (!m.running || m.paused || menuOpen || set.general.diDisplay == 0)
-        {
-            return;
-        }
-        if (!s_compass.active && mode == main::kDiVectorLive)
-        {
-            return;
-        }
-
-        float launchX = s_compass.launchX;
-        float launchY = s_compass.launchY;
-        float diX = s_compass.diX;
-        float diY = s_compass.diY;
-        float liveX = s_compass.liveX;
-        float liveY = s_compass.liveY;
-        if (!s_compass.active)
-        {
-            // Reference 45 deg preview launch when inspecting a preset while idle.
-            launchX = 0.70710678f;
-            launchY = 0.70710678f;
-            liveX = 0.0f;
-            liveY = 0.0f;
-            game::FighterRef human;
-            if (game::findFighter(false, human))
-            {
-                s8 raw[4];
-                if (display::inputStickWithType(extraHumanPort(human), raw, NULL))
-                {
-                    game::mainStick(raw[0], raw[1], &liveX, &liveY);
-                }
-            }
-            DiVectorResult dv = resolveDi(mode, launchX, launchY, 0.0f, 0.0f, 1.0f, liveX, liveY);
-            diX = dv.dx;
-            diY = dv.dy;
-        }
-
-        // Count active Input Viewer slots so the compass stacks cleanly below them.
-        game::FighterRef refs[game::kMaxFighters];
-        int viewerSlots = set.display.inputViewer != display::kWhoNone
-                              ? countInputViewerSlots(refs, game::listFighters(refs, game::kMaxFighters))
-                              : 0;
-
-        ui::layout::Box b = hudRightCardBox(kHudCardDiCompass, gfx::widescreen(), viewerSlots);
-        float xs = gfx::xScale();
-        float x = b.x0;
-        float y = b.y0;
-        float w = b.x1 - b.x0;
-        float h = b.y1 - b.y0;
-
-        drawHudCard(x, y, w, h, xs, 0x2BB7ABFFu, 0x8EF5EA90u);
-
-        // Unit-circle compass centered inside the lower body of the card.
-        float cx = (b.x0 + b.x1) * 0.5f;
-        float cy = b.y0 + 16.0f + (h - 19.0f) * 0.5f;
-        float ry = 22.0f;
-        float rx = ry * xs;
-
-        drawUnitDial(cx, cy, rx, ry, 0x060E14D0u, 0x5A96A8F0u);
-
-        // Launch direction arrow (amber-gold).
-        float lLen = root(launchX * launchX + launchY * launchY);
-        if (lLen > 0.001f)
-        {
-            float ux = launchX / lLen;
-            float uy = launchY / lLen;
-            float tipX = cx + ux * rx * 0.88f;
-            float tipY = cy - uy * ry * 0.88f;
-            gfx::lineBegin(GX_LINES, 2, 14);
-            gfx::vertex(cx, cy, 0xF59E0BFFu);
-            gfx::vertex(tipX, tipY, 0xF59E0BFFu);
-
-            float head = 5.0f;
-            float bx = tipX - ux * head * xs;
-            float by = tipY + uy * head;
-            float perpX = -uy * 3.0f * xs;
-            float perpY = -ux * 3.0f;
-            gfx::fillTri(tipX, tipY, bx + perpX, by + perpY, bx - perpX, by - perpY, 0xF59E0BFFu);
-        }
-
-        // Active DI vector ray (electric cyan).
-        float dLen = root(diX * diX + diY * diY);
-        if (dLen > 0.01f)
-        {
-            float dTipX = cx + diX * rx * 0.90f;
-            float dTipY = cy - diY * ry * 0.90f;
-            gfx::lineBegin(GX_LINES, 2, 16);
-            gfx::vertex(cx, cy, 0x22D3EEFFu);
-            gfx::vertex(dTipX, dTipY, 0x22D3EEFFu);
-            gfx::fillEllipse(dTipX, dTipY, 3.0f * xs, 3.0f, 0x22D3EEFFu);
-        }
-
-        // Live stick dot (crisp white with dark rim).
-        float lStickX = liveX;
-        float lStickY = liveY;
-        clampLength(lStickX, lStickY, 1.0f);
-        drawDialRayDot(cx, cy, rx, ry, lStickX, lStickY, 0.85f, 2.3f, xs, 0u, 0xFFFFFFFFu, 0, false);
-
-        // Draw mode header text last to avoid a mid-card GX shape->text->shape switch.
-        char label[16];
-        diVectorShortLabel(mode, label);
-        drawShadowCapText(x + ui::style::w(5.0f), y + 6.0f, label, 0xE2EEF4FFu, 7.5f);
-
-        s_pickerDebug.compassDrawn = 1;
-        s_pickerDebug.totalDrawn++;
-        s_pickerDebug.mode = mode;
-        s_pickerDebug.launchX = launchX;
-        s_pickerDebug.launchY = launchY;
-        s_pickerDebug.diX = diX;
-        s_pickerDebug.diY = diY;
     }
 
     static int atan2Deg360(float x, float y)

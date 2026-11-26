@@ -120,7 +120,8 @@ namespace extra {
         bool drawRush = !s_vsReadOnly && !modalUp && !match.paused && !lab::menuOpen() && comboBreakRushActive();
         bool drawLog = !modalUp && !match.paused && !lab::menuOpen()
                        && main::settings().general.actionLog != main::kActionLogOff;
-        if (drawDrill || drawAdap || drawScen || drawRush || drawLog)
+        bool drawCpuTag = !s_vsReadOnly && !modalUp && !match.paused && !lab::menuOpen() && match.training;
+        if (drawDrill || drawAdap || drawScen || drawRush || drawLog || drawCpuTag)
         {
             gfx::begin();
             if (drawDrill)
@@ -142,6 +143,10 @@ namespace extra {
             if (drawLog)
             {
                 actionLogDraw(match);
+            }
+            if (drawCpuTag)
+            {
+                drawCpuStatusTag(match, lab::menuOpen());
             }
             gfx::end();
         }
@@ -236,6 +241,38 @@ namespace extra {
                 ui::layout::setLabBand(ui::layout::comboBreakHudBox(gfx::widescreen()));
             }
             bits |= 1u | 8u;
+        }
+        if (pads == NULL && phase == 2u && main::settings().general.actionLog != main::kActionLogOff)
+        {
+            int maxP = 2;
+            for (int i = 0; i < game::kMaxTracked; i++)
+            {
+                const game::Tracked* t = game::tracked(i);
+                if (t != NULL && t->used && !t->partner && t->playerNo + 1 > maxP)
+                {
+                    maxP = t->playerNo + 1;
+                }
+            }
+            if (maxP > 2)
+            {
+                bool wide = gfx::widescreen();
+                bool timerOn = (bits & 1u) == 0u;
+                ui::layout::Box cur = ui::layout::topBand();
+                ui::layout::Box strip = ui::layout::actionLogBox(wide, maxP, timerOn);
+                ui::layout::Box merged = cur;
+                if (merged.x1 <= merged.x0 || merged.y1 <= merged.y0)
+                {
+                    merged = strip;
+                }
+                else
+                {
+                    if (strip.x0 < merged.x0) merged.x0 = strip.x0;
+                    if (strip.y0 < merged.y0) merged.y0 = strip.y0;
+                    if (strip.x1 > merged.x1) merged.x1 = strip.x1;
+                    if (strip.y1 > merged.y1) merged.y1 = strip.y1;
+                }
+                ui::layout::setLabBand(merged);
+            }
         }
         return bits;
     }

@@ -793,68 +793,73 @@ namespace extra {
         const ScenarioState& st = s_net->state;
         const ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
         bool wide = gfx::widescreen();
-        float xs = ui::layout::xsOf(wide);
-        ui::layout::Box card = hudRightCardBox(kHudCardTechchase, wide);
-        float ox = card.x0;
-        float bw = card.x1 - card.x0;
 
-        // Unified top-center Brawl/P+ banner matching drill_hud.cpp (sharp in 4:3 and 16:9).
-        drawHudBannerTitle(ox, 24.0f, bw, 40.0f, xs, 0x35B8C8FFu, "TECHCHASE");
+        // Zone 1: Calm white-label timing bar (Early | Cover | Late) with ^ pointer.
+        static const gfx::Rgba kTcCells[11] = {
+            0xDC4444E8u, 0xDC4444E8u, 0xDC4444E8u, 0xF0B838E8u,
+            0x3CE890FFu, 0x3CE890FFu, 0x3CE890FFu,
+            0xF0B838E8u, 0xDC4444E8u, 0xDC4444E8u, 0xDC4444E8u
+        };
+        TimingLegendItem leg[3];
+        leg[0].swatch = 0xDC4444FFu; leg[0].label = "Early";
+        leg[1].swatch = 0x3CE890FFu; leg[1].label = "Cover";
+        leg[2].swatch = 0xDC4444FFu; leg[2].label = "Late";
+        int ptrCell = -1;
 
-        float lx = ox + 10.0f * xs;
-        float rx = ox + 306.0f * xs;
-        float txtSc = 8.0f / 15.0f;
-
-        char posBuf[16];
-        const char* posStr = "GROUND";
-        if (st.resolvedTechPos != 0)
-        {
-            sprintf(posBuf, "PLAT %u", static_cast<unsigned>(st.resolvedTechPos));
-            posStr = posBuf;
-        }
-        float posTw = gfx::textWidth(posStr, txtSc);
-        float pillW = posTw + 10.0f * xs;
-        float pillX = rx - pillW;
-        drawHudPill(pillX, 29.0f, pillW, xs, false);
-        gfx::text(pillX + (pillW - posTw) * 0.5f, 31.5f - 5.0f * txtSc, posStr, 0xFFFFFFFFu, txtSc, txtSc);
-
-        char buf[32];
-        const char* midStr = "READY";
-        gfx::Rgba midCol = 0xA0BCC4FFu;
+        char resBuf[24];
+        const char* resStr = "Ready";
+        gfx::Rgba resCol = 0xC6D4E0FFu;
         if (st.techResult == kTechResCover)
         {
-            midCol = 0x4CE688FFu;
+            ptrCell = 5;
+            resCol = 0x4CE688FFu;
             if (m->techShowReaction != 0 && st.techReactionFrames >= 0)
             {
-                sprintf(buf, "COVER  REACT %df", static_cast<int>(st.techReactionFrames));
-                midStr = buf;
+                sprintf(resBuf, "%df React", static_cast<int>(st.techReactionFrames));
+                resStr = resBuf;
             }
             else
             {
-                midStr = "COVER";
+                resStr = "Covered";
             }
         }
         else if (st.techResult != kTechResNone)
         {
             bool early = st.techResult == kTechResEarly;
-            midCol = early ? 0xFFB848FFu : 0xFF6658FFu;
-            sprintf(buf, early ? "%df EARLY" : "%df LATE", static_cast<int>(st.techDeltaFrames));
-            midStr = buf;
+            int d = static_cast<int>(st.techDeltaFrames);
+            if (d < 1) d = 1;
+            ptrCell = early ? (4 - d) : (6 + d);
+            if (ptrCell < 0) ptrCell = 0;
+            if (ptrCell > 10) ptrCell = 10;
+            resCol = early ? 0xFFB848FFu : 0xFF6658FFu;
+            sprintf(resBuf, early ? "%df Early" : "%df Late", d);
+            resStr = resBuf;
         }
-        float rowY = 48.0f - 5.0f * txtSc;
-        gfx::text(lx, rowY, midStr, midCol, txtSc, txtSc);
+        drawTimingBar(kTcCells, 11, ptrCell, leg, 3, NULL, wide);
 
+        // Zone 2: Panel B Right-Margin Quiet Smoked Stat Plate under Option A GC controller.
+        char posBuf[16];
+        const char* posStr = "Ground";
+        if (st.resolvedTechPos != 0)
+        {
+            sprintf(posBuf, "Plat %u", static_cast<unsigned>(st.resolvedTechPos));
+            posStr = posBuf;
+        }
+        char streakBuf[20];
         if (st.techBest > 0)
         {
-            sprintf(buf, "STREAK %u  BEST %u", static_cast<unsigned>(st.techStreak),
+            sprintf(streakBuf, "%u (Best %u)", static_cast<unsigned>(st.techStreak),
                     static_cast<unsigned>(st.techBest));
         }
         else
         {
-            sprintf(buf, "STREAK %u  BEST --", static_cast<unsigned>(st.techStreak));
+            sprintf(streakBuf, "%u", static_cast<unsigned>(st.techStreak));
         }
-        float streakW = gfx::textWidth(buf, txtSc);
-        gfx::text(rx - streakW, rowY, buf, 0xFFD300FFu, txtSc, txtSc);
+        StatPlateRow rows[3];
+        rows[0].label = "Timing"; rows[0].value = resStr;    rows[0].valueColor = resCol;
+        rows[1].label = "Zone";   rows[1].value = posStr;    rows[1].valueColor = 0xF4F8FCFFu;
+        rows[2].label = "Streak"; rows[2].value = streakBuf; rows[2].valueColor = 0xFFD300FFu;
+        drawStatPlate(rows, 3, hudViewerColumnBottom(wide), wide);
     }
 
     static void stepTechchasePosition(ScenarioNet* net, int delta)

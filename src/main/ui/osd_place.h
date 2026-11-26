@@ -27,7 +27,7 @@ namespace osd {
     static const float kHudRight[4] = {144.0f, 290.0f, 436.0f, 575.0f};
     static const float kHudRight43[4] = {155.0f, 301.0f, 448.0f, 595.0f};
     static const float kDigitsTop = 415.0f;
-    static const float kHudGap = 32.0f;
+    static const float kHudGap = 39.0f; // floor 376 px: clears portrait-docked CPU tag (y 382..395) even during glide-in
 
     static const float kBoxWidth = 124.0f;
     static const float kBoxHeight = 46.0f;

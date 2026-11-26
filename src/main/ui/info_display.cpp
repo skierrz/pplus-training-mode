@@ -26,11 +26,13 @@
 #include "main/gfx/text.h"
 #include "main/settings.h"
 #include "main/ui/hud_layout.h"
+#include "main/ui/match_hud.h"
 #include "main/ui/menu_theme_core.h"
 #include "main/ui/style.h"
 #include "main/ui/wall_info_core.h"
 #include "shared/game/heap.h"
 #include "shared/game/mem.h"
+#include "shared/game/scene.h"
 #include "shared/log.h"
 
 // Neutral dark-slate per-fighter info panels; reads game state only.
@@ -40,10 +42,8 @@ namespace tm {
 namespace ui {
     using main::settings;
 
-    static const float kCap[main::kInfoSizeCount] = {7.5f, 8.4f, 9.2f};
-    static const float kPitch[main::kInfoSizeCount] = {10.2f, 11.2f, 13.0f};
-    // Port accent border colours (P1 red, P2 blue, P3 gold, P4 green).
-    static const gfx::Rgba kOutline[4] = {0xEF4444FF, 0x3B82F6FF, 0xEAB308FF, 0x22C55EFF};
+    static const float kCap[main::kInfoSizeCount] = {10.5f, 10.5f, 11.2f};
+    static const float kPitch[main::kInfoSizeCount] = {12.5f, 13.0f, 14.5f};
 
     // Per side: frames in the current status kind per simulated step
     // (re-entering the same kind does not restart it), and the last shield
@@ -287,7 +287,7 @@ namespace ui {
                 return false;
             }
             Vec2f v = k->getSumSpeed(soKineticEnergy::AttributeFlag(value - kInfoVelocitySelf + 1));
-            format = "%s: (%+.3f , %+.3f)";
+            format = "%s: (%+.2f,%+.2f)";
             x = v.m_x;
             y = v.m_y;
             break;
@@ -323,7 +323,7 @@ namespace ui {
             }
             if (value == kInfoSystemTrigger)
             {
-                format = "%s: (%+.3f , %+.3f)";
+                format = "%s: (%+.2f,%+.2f)";
                 x = i2f(static_cast<u8>(pad->m_lTriggerAnalog)) * (1.0f / 255.0f);
                 y = i2f(static_cast<u8>(pad->m_rTriggerAnalog)) * (1.0f / 255.0f);
             }
@@ -482,7 +482,7 @@ namespace ui {
             return true;
         case kInfoVelocityTotal:
             // Position change over the last frame (self + knockback).
-            snprintf(buf, size, "Vel (Tot): (%+.3f, %+.3f)", st.vx, st.vy);
+            snprintf(buf, size, "Vel (Tot): (%+.2f,%+.2f)", st.vx, st.vy);
             return true;
         case kInfoDamage:
             snprintf(buf, size, "Damage: %.1f%%", st.damage);
@@ -529,15 +529,15 @@ namespace ui {
             game::MotionInfo mi;
             if (!game::readMotion(ref.fighter, mi))
             {
-                snprintf(buf, size, "Subaction: ?");
+                snprintf(buf, size, "Sub: ?");
             }
             else if (mi.name != NULL)
             {
-                snprintf(buf, size, "Subaction: %.20s %d/%d", mi.name, mi.frame, mi.length);
+                snprintf(buf, size, "Sub: %.14s %d/%d", mi.name, mi.frame, mi.length);
             }
             else
             {
-                snprintf(buf, size, "Subaction: 0x%X %d/%d", mi.kind, mi.frame, mi.length);
+                snprintf(buf, size, "Sub: 0x%X %d/%d", mi.kind, mi.frame, mi.length);
             }
             return true;
         }
@@ -602,8 +602,8 @@ namespace ui {
             }
             else
             {
-                snprintf(buf, size, "Last Hit: P%d%s, %d f ago", by != NULL ? by->playerNo + 1 : 0,
-                         t->lastReceived.shield ? " on shield" : "", f.frame - t->lastReceived.frame);
+                snprintf(buf, size, "Hit: P%d%s %df ago", by != NULL ? by->playerNo + 1 : 0,
+                         t->lastReceived.shield ? " shld" : "", f.frame - t->lastReceived.frame);
             }
             break;
         }
@@ -613,8 +613,8 @@ namespace ui {
         return true;
     }
 
-    // One side's panel from `top`; returns its bottom (`top` if nothing drawn).
-    static float drawSide(int side, float top)
+    // One side's quiet Panel B smoked-plate panel from `top`; returns its bottom (`top` if nothing drawn).
+    static float drawSide(int side, float top, bool drawTopDivider)
     {
         int rows = rowCount(side);
         game::FighterRef ref;
@@ -626,26 +626,33 @@ namespace ui {
         const main::InfoSettings& s = settings().info[side];
         int size = s.size < main::kInfoSizeCount ? s.size : main::kInfoMedium;
         bool wide = gfx::widescreen();
-        float k = layout::infoScale(size);
+        float xs = layout::xsOf(wide);
         float width = layout::infoWidth(size, wide);
         float height = layout::infoHeight(rows, size);
         float left = layout::infoLeft(wide);
         const main::Settings& all = settings();
-        InfoThemeColors theme = resolveInfoTheme(all.size ? all.osd.infoBgColor : static_cast<u8>(main::kInfoBgDefault),
-                                                 all.size ? all.osd.infoBgAlpha : static_cast<u8>(main::kInfoAlphaDefault));
-        if (theme.fillColor != 0)
+        u8 bgId = all.size ? all.osd.infoBgColor : static_cast<u8>(main::kInfoBgDefault);
+        u8 alphaId = all.size ? all.osd.infoBgAlpha : static_cast<u8>(main::kInfoAlphaDefault);
+        InfoThemeColors theme = resolveInfoTheme(bgId, alphaId);
+        gfx::Rgba fillCol = (bgId == main::kInfoBgDefault && alphaId == main::kInfoAlphaDefault)
+                                ? 0x0E161EA6u
+                                : theme.fillColor;
+        // Quiet borderless Panel B smoked plate (zero outer wireframe border, zero title tab).
+        if (fillCol != 0)
         {
-            gfx::fillRect(left, top, width, height, theme.fillColor);
+            gfx::fillRect(left, top, width, height, fillCol);
         }
-        gfx::Rgba edge = kOutline[ref.playerNo >= 0 && ref.playerNo < 4 ? ref.playerNo : 0];
-        gfx::frameRect(left, top, width, height, edge);
-        gfx::frameRect(left + 1.0f, top + 1.0f, width - 2.0f, height - 2.0f, edge);
+        if (drawTopDivider)
+        {
+            float divInset = 8.0f * xs;
+            gfx::fillRect(left + divInset, top - 1.0f, width - 2.0f * divInset, 2.0f, 0xDCE8F028u);
+        }
 
         const game::Tracked* t = game::trackedEntry(ref.entryId);
         float scale = style::scaleForCap(kCap[size]);
-        float inset = style::w(8.0f * k);
+        float inset = 6.0f * xs;
         float maxW = width - 2.0f * inset;
-        float capTop = top + 8.0f * k;
+        float capTop = top + 5.0f;
         char buf[64];
         for (int r = 0; r < rows; r++)
         {
@@ -657,15 +664,13 @@ namespace ui {
                 {
                     TM_LOG("info P%d: %s\n", ref.playerNo + 1, buf);
                 }
-                float textW = style::boldWidth(buf, scale);
+                float textW = gfx::textWidth(buf, scale);
                 float sx = textW > maxW && textW > 0.0f ? scale * maxW / textW : scale;
                 float tx = left + inset;
                 float ty = style::textYForCap(capTop + r * kPitch[size], scale);
-                if (theme.shadowColor != 0)
-                {
-                    style::boldText(tx + gfx::xScale(), ty + 1.0f, buf, theme.shadowColor, sx, scale);
-                }
-                style::boldText(tx, ty, buf, built ? style::kText : style::kTextDisabled, sx, scale);
+                gfx::Rgba shadowCol = theme.shadowColor != 0 ? theme.shadowColor : 0x000000D0u;
+                gfx::text(tx + xs, ty + 1.0f, buf, shadowCol, sx, scale);
+                gfx::text(tx, ty, buf, built ? style::kText : style::kTextDisabled, sx, scale);
             }
         }
         return top + height;
@@ -677,8 +682,9 @@ namespace ui {
         {
             return;
         }
-        // Under the top band where the wider of the two panels would meet it
-        // (hud_layout.h).
+        // Step cleanly below Brawl's native top-left Training Info/Combo HUD (y = 83)
+        // when visible (IfTraining +0x30), or labBand (y = 69) when either intersects
+        // horizontally; default y0 = 28.
         bool wide = gfx::widescreen();
         float width = 0.0f;
         for (int side = 0; side < main::kSideCount; side++)
@@ -688,8 +694,19 @@ namespace ui {
             width = w > width ? w : width;
         }
         float top = layout::infoTop(layout::topBand(), width, wide);
-        float bottom = drawSide(main::kSideHuman, top);
-        drawSide(main::kSideCpu, layout::infoCpuTop(top, bottom));
+        if (game::trainingGameMode() && settings().display.hud != 0 && ui::matchHudCounterShown())
+        {
+            float cX0 = wide ? 106.0f : 31.0f;
+            float cX1 = wide ? 183.0f : 130.0f;
+            float cY1 = 77.0f;
+            if (layout::kInfoLeft < cX1 && cX0 < layout::kInfoLeft + width && cY1 + layout::kStepGap > top)
+            {
+                top = cY1 + layout::kStepGap;
+            }
+        }
+        float bottom = drawSide(main::kSideHuman, top, false);
+        bool hasBoth = bottom > top && rowCount(main::kSideCpu) > 0;
+        drawSide(main::kSideCpu, hasBoth ? bottom : top, hasBoth);
     }
 }
 }

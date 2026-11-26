@@ -18,31 +18,69 @@ namespace layout {
 
     Box frameBarBox(int cells, bool wide)
     {
+        float xs = xsOf(wide);
         float cell = kCellW;
         if (cells * (kCellW + kCellGap) + kCellGap > kBarMaxW)
         {
             cell = (kBarMaxW - kCellGap) / cells - kCellGap;
         }
-        float total = cells * (cell + kCellGap) * xsOf(wide) + kCellGap * xsOf(wide);
-        Box b = {320.0f - total * 0.5f, kBarTop, 320.0f + total * 0.5f, kBarBottom};
+        float total = cells * (cell + kCellGap) * xs + kCellGap * xs;
+        float x0 = 320.0f - total * 0.5f;
+        float x1 = 320.0f + total * 0.5f;
+        float maxRight = kViewerRight - kViewerWidth * xs - kStepGap;
+        if (x1 > maxRight)
+        {
+            float shift = x1 - maxRight;
+            x0 -= shift;
+            x1 -= shift;
+        }
+        if (x0 < kSafeMarginX)
+        {
+            x0 = kSafeMarginX;
+        }
+        Box b = {x0, kBarTop, x1, kBarBottom};
         return b;
     }
 
     Box ledgeHeaderBox(bool wide)
     {
-        float half = 260.0f * xsOf(wide);
-        // Matches drawLedgedashHud(): scale = kKeyCap / 15, textYForCap(kKeyLabelTop, scale)
-        // with 2 px vertical rect padding above and below lineHeight(scale).
-        float scale = kKeyCap / 15.0f;
-        float y = kKeyLabelTop - 5.0f * scale;
-        Box b = {320.0f - half, y - 2.0f, 320.0f + half, y + 24.0f * scale + 2.0f};
+        float xs = xsOf(wide);
+        float maxRight = kViewerRight - kViewerWidth * xs - kStepGap;
+        float half = 196.0f * xs;
+        float x0 = 320.0f - half;
+        float x1 = 320.0f + half;
+        if (x1 > maxRight)
+        {
+            float shift = x1 - maxRight;
+            x0 -= shift;
+            x1 -= shift;
+        }
+        if (x0 < kSafeMarginX)
+        {
+            x0 = kSafeMarginX;
+        }
+        Box b = {x0, kKeyY, x1, kBarTop - 2.0f};
         return b;
     }
 
     Box ledgeLegendBox(bool wide)
     {
-        float half = 240.0f * xsOf(wide);
-        Box b = {320.0f - half, 68.0f, 320.0f + half, 84.0f};
+        float xs = xsOf(wide);
+        float maxRight = kViewerRight - kViewerWidth * xs - kStepGap;
+        float half = 196.0f * xs;
+        float x0 = 320.0f - half;
+        float x1 = 320.0f + half;
+        if (x1 > maxRight)
+        {
+            float shift = x1 - maxRight;
+            x0 -= shift;
+            x1 -= shift;
+        }
+        if (x0 < kSafeMarginX)
+        {
+            x0 = kSafeMarginX;
+        }
+        Box b = {x0, kBarBottom + 1.0f, x1, kBarBottom + 9.0f};
         return b;
     }
 

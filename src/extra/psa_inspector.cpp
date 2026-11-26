@@ -355,7 +355,7 @@ namespace extra {
             return true;
         }
 
-        void drawCard(const ui::layout::Box& b, bool isCpu)
+        void drawCard(const ui::layout::Box& b, bool isCpu, bool stackedUnderInfo)
         {
             const PsaDebugBlock* dbg = &s_net->debug;
             float xs = gfx::xScale();
@@ -367,52 +367,79 @@ namespace extra {
             bool hasFocus = dbg->focusText[0] != '\0';
             int fitRows = rowCount > 0 ? rowCount : 1;
             float maxBh = b.y1 - b.y0;
-            float rowsBot = 30.0f + i2fScale(fitRows, 10.0f);
-            float bh = rowsBot + (hasFocus ? 16.0f : 4.0f);
+            float rowPitch = 12.0f;
+            float rowsTop = 32.0f;
+            float rowsBot = rowsTop + i2fScale(fitRows, rowPitch);
+            float bh = rowsBot + (hasFocus ? 16.0f : 5.0f);
             if (bh > maxBh)
             {
                 bh = maxBh;
             }
 
-            drawHudCard(x, y, bw, bh, xs, isCpu ? 0x4E86B8FFu : 0xD83838FFu, 0xFFFFFF40u);
+            // Quiet borderless Panel B smoked plate (zero window border, zero colored title tab).
+            drawSmokedPlate(x, y, bw, bh);
+            if (stackedUnderInfo)
+            {
+                drawPlateDivider(x, y, bw, xs);
+            }
 
-            // Crisp 2.0px integer header divider below Act/Sub/AnimFrame line.
-            drawHudDivider(x, y + 26.0f, bw, xs);
+            float insetX = 8.0f * xs;
+            float colName = x + insetX;
+            float innerW = bw - 2.0f * insetX;
 
-            // Header line 1: PSA target + FSM rate.
+            // Header line 1: subtle target + FSM rate (>= 10.5 scanlines, crisp 1px drop shadow).
             char title[16];
             char fsm[20];
             psaFormatTitle(isCpu, dbg->playerNo, title, sizeof(title));
             psaFormatFsm(dbg->fsmRate, fsm, sizeof(fsm));
-            float colName = x + 6.0f * xs;
-            drawShadowCapText(colName, y + 6.0f, title, isCpu ? 0x9AD0F8FFu : 0xFFB0B0FFu, 7.5f);
-            gfx::Rgba fsmCol = psaFsmIsModified(dbg->fsmRate) ? 0xFFD300FFu : 0xF1F5F9FFu;
-            drawShadowCapText(x + 92.0f * xs, y + 6.0f, fsm, fsmCol, 7.5f);
+            float hdrSc = ui::style::scaleForCap(10.5f);
+            float hdrY = ui::style::textYForCap(y + 5.0f, hdrSc);
+            drawShadowText(colName, hdrY, title, 0xC6D4E0FFu, hdrSc);
+            gfx::Rgba fsmCol = psaFsmIsModified(dbg->fsmRate) ? 0xFFD300FFu : 0xF4F8FCFFu;
+            float fsmW = gfx::textWidth(fsm, hdrSc);
+            drawShadowText(x + bw - insetX - fsmW, hdrY, fsm, fsmCol, hdrSc);
 
-            // Header line 2: Action / Subaction / AnimFrame (+ secondary rate if active).
+            // Header line 2: Action / Subaction / AnimFrame.
             char subLine[40];
             psaFormatSubHeader(dbg->status, dbg->subaction, dbg->animFrame, dbg->secondaryKind,
                                dbg->secondaryRate, subLine, sizeof(subLine));
-            drawShadowCapText(colName, y + 16.0f, subLine, 0xB8CDD6FFu, 7.5f);
+            float subSc = ui::style::scaleForCap(10.5f);
+            float subW = gfx::textWidth(subLine, subSc);
+            float subSx = (subW > innerW && subW > 0.0f) ? (subSc * innerW / subW) : subSc;
+            float subY = ui::style::textYForCap(y + 18.0f, subSc);
+            gfx::text(colName + xs, subY + 1.0f, subLine, 0x000000C8u, subSx, subSc);
+            gfx::text(colName, subY, subLine, 0xD8E6F0FFu, subSx, subSc);
 
-            // Up to 6 active threads: Name | Frame | Wait | Decoded Opcode Name.
-            float rowScale = ui::style::scaleForCap(7.5f);
+            drawPlateDivider(x, y + 29.0f, bw, xs);
+
+            // Active threads: Name | Frame | Wait | Decoded Opcode Name (fit to <= 218 px on 4:3).
+            float rowScale = ui::style::scaleForCap(10.5f);
             if (rowCount == 0)
             {
-                drawShadowCapText(colName, y + 30.0f, "No active threads", 0x7A8E9CFFu, 7.5f);
+                drawShadowText(colName, ui::style::textYForCap(y + rowsTop, rowScale), "No active threads",
+                               0x96AAB8FFu, rowScale);
                 return;
             }
 
-            float colFrame = x + 49.0f * xs;
-            float colWait = x + 80.0f * xs;
-            float colOp = x + 111.0f * xs;
-            float opMaxW = (x + bw - 6.0f * xs) - colOp;
+            float colFrame = x + 64.0f * xs;
+            float colWait = x + 104.0f * xs;
+            float colOp = x + 142.0f * xs;
+            float opMaxW = (x + bw - insetX) - colOp;
+            float nameMaxW = colFrame - colName - 3.0f * xs;
+            float frameMaxW = colWait - colFrame - 3.0f * xs;
+            float waitMaxW = colOp - colWait - 3.0f * xs;
 
-            for (int r = 0; r < rowCount; r++)
+            int maxRows = static_cast<int>((bh - rowsTop - (hasFocus ? 16.0f : 4.0f)) / rowPitch);
+            if (maxRows < 1)
+            {
+                maxRows = 1;
+            }
+            int drawRows = rowCount < maxRows ? rowCount : maxRows;
+            for (int r = 0; r < drawRows; r++)
             {
                 int idx = shown[r];
                 const PsaThreadSnapshot& th = dbg->threads[idx];
-                float ry = ui::style::textYForCap(y + 30.0f + i2fScale(r, 10.0f), rowScale);
+                float ry = ui::style::textYForCap(y + rowsTop + i2fScale(r, rowPitch), rowScale);
 
                 char frameBuf[12];
                 char waitBuf[12];
@@ -423,29 +450,42 @@ namespace extra {
                 clipTextToWidth(opBuf, rowScale, opMaxW);
 
                 gfx::Rgba nameCol = (idx == dbg->focusThread) ? 0xFFE24AFFu
-                                                               : ((idx <= 1) ? 0xF1F5F9FFu : 0xB8CDD6FFu);
-                static const gfx::Rgba kWaitCols[3] = {0x6E8694FFu, 0x36CFC2FFu, 0xFFE24AFFu};
+                                                               : ((idx <= 1) ? 0xF4F8FCFFu : 0xC6D4E0FFu);
+                static const gfx::Rgba kWaitCols[3] = {0x8094A4FFu, 0x36CFC2FFu, 0xFFE24AFFu};
                 gfx::Rgba waitCol = kWaitCols[th.waitKind < 3u ? th.waitKind : 0u];
-                gfx::Rgba opCol = th.cmdHeader != 0u ? 0xD8E8F0FFu : 0x6E8694FFu;
+                gfx::Rgba opCol = th.cmdHeader != 0u ? 0xE2EEF6FFu : 0x8094A4FFu;
 
-                drawShadowText(colName, ry, psaThreadName(idx), nameCol, rowScale);
-                drawShadowText(colFrame, ry, frameBuf, 0xC6D8E0FFu, rowScale);
-                drawShadowText(colWait, ry, waitBuf, waitCol, rowScale);
+                const char* nm = psaThreadName(idx);
+                float nW = gfx::textWidth(nm, rowScale);
+                float nSx = (nW > nameMaxW && nW > 0.0f) ? (rowScale * nameMaxW / nW) : rowScale;
+                gfx::text(colName + xs, ry + 1.0f, nm, 0x000000C8u, nSx, rowScale);
+                gfx::text(colName, ry, nm, nameCol, nSx, rowScale);
+
+                float fW = gfx::textWidth(frameBuf, rowScale);
+                float fSx = (fW > frameMaxW && fW > 0.0f) ? (rowScale * frameMaxW / fW) : rowScale;
+                gfx::text(colFrame + xs, ry + 1.0f, frameBuf, 0x000000C8u, fSx, rowScale);
+                gfx::text(colFrame, ry, frameBuf, 0xC6D8E0FFu, fSx, rowScale);
+
+                float wW = gfx::textWidth(waitBuf, rowScale);
+                float wSx = (wW > waitMaxW && wW > 0.0f) ? (rowScale * waitMaxW / wW) : rowScale;
+                gfx::text(colWait + xs, ry + 1.0f, waitBuf, 0x000000C8u, wSx, rowScale);
+                gfx::text(colWait, ry, waitBuf, waitCol, wSx, rowScale);
+
                 drawShadowText(colOp, ry, opBuf, opCol, rowScale);
             }
 
-            // Focused command + typed arguments footer strip with 2.0px divider.
             if (hasFocus)
             {
-                float divY = y + rowsBot + 1.0f;
-                if (divY + 11.0f <= y + bh)
+                float divY = y + rowsTop + i2fScale(drawRows, rowPitch) + 1.0f;
+                if (divY + 13.0f <= y + bh)
                 {
-                    drawHudDivider(x, divY, bw, xs);
+                    drawPlateDivider(x, divY, bw, xs);
                     char focusLine[56];
                     snprintf(focusLine, sizeof(focusLine), "%s:%s", psaThreadName(dbg->focusThread),
                              dbg->focusText);
-                    clipTextToWidth(focusLine, rowScale, bw - 12.0f * xs);
-                    drawShadowCapText(colName, divY + 4.0f, focusLine, 0x8EF5EAFFu, 7.5f);
+                    clipTextToWidth(focusLine, rowScale, innerW);
+                    drawShadowText(colName, ui::style::textYForCap(divY + 3.0f, rowScale), focusLine, 0x8EF5EAFFu,
+                                   rowScale);
                 }
             }
         }
@@ -497,10 +537,12 @@ namespace extra {
         {
             return;
         }
+        bool wide = gfx::widescreen();
         int viewerSlots = match.training ? countInputViewerSlots(refs, n) : 0;
-        bool hasCompass = match.training && diCompassVisible(match, menuOpen);
-        ui::layout::Box box = hudRightCardBox(kHudCardPsa, gfx::widescreen(), viewerSlots, hasCompass ? 1 : 0);
-        drawCard(box, target == main::kPsaCpu);
+        ui::layout::Box box = hudRightCardBox(kHudCardPsa, wide, viewerSlots, 0);
+        float infoBot = hudInfoStackBottom(wide);
+        bool stacked = (infoBot > 0.0f && box.x0 < 320.0f);
+        drawCard(box, target == main::kPsaCpu, stacked);
         dbg->drawCalls++;
     }
 }
