@@ -468,7 +468,62 @@ PAGE_TABLES = [
     ("kRailDesc", "P_COUNT (Category Rail entries)"),
 ]
 
-def encode_lz77_ascii(raw):
+def _dist_slot(dist):
+    if dist <= 4:
+        return dist - 1, 0, 0
+    v = dist - 1
+    extra = v.bit_length() - 2
+    slot = (extra + 1) * 2 + ((v >> extra) & 1)
+    base = ((2 + (slot & 1)) << extra) + 1
+    return slot, dist - base, extra
+
+
+def _huff_lengths(freqs, n_syms, max_bits=15):
+    import heapq
+    lens = [0] * n_syms
+    active = [(w, (s,)) for s, w in enumerate(freqs) if w > 0]
+    if not active:
+        return lens
+    if len(active) == 1:
+        lens[active[0][1][0]] = 1
+        return lens
+    heapq.heapify(active)
+    while len(active) > 1:
+        w1, s1 = heapq.heappop(active)
+        w2, s2 = heapq.heappop(active)
+        for s in s1 + s2:
+            lens[s] += 1
+        heapq.heappush(active, (w1 + w2, s1 + s2))
+    # Cap any depth > max_bits while preserving Kraft sum <= 1.
+    while max(lens) > max_bits:
+        for i in range(n_syms):
+            if lens[i] > max_bits:
+                lens[i] = max_bits
+        kraft = sum((1 << (max_bits - l)) for l in lens if l > 0)
+        limit = 1 << max_bits
+        while kraft > limit:
+            # Lengthen the longest non-max code (lowest weight first).
+            cands = [(freqs[i], -lens[i], i) for i in range(n_syms) if 0 < lens[i] < max_bits]
+            cands.sort()
+            _, _, idx = cands[0]
+            kraft -= 1 << (max_bits - lens[idx] - 1)
+            lens[idx] += 1
+    return lens
+
+
+def _canonical_codes(lens):
+    codes = {}
+    code = 0
+    for bits in range(1, 16):
+        for s, l in enumerate(lens):
+            if l == bits:
+                codes[s] = (code, bits)
+                code += 1
+        code <<= 1
+    return codes
+
+
+def encode_huff_lzss(raw):
     from collections import defaultdict
     for b in raw:
         if b >= 0x80:
@@ -479,80 +534,164 @@ def encode_lz77_ascii(raw):
     for i in range(n - 2):
         tg = raw[i:i + 3]
         lst = trigrams[tg]
-        best_short = {}
-        best_long = {}
-        limit = min(66, n - i)
+        best = {}
+        limit = min(34, n - i)
         for p in reversed(lst):
             dist = i - p
-            if dist > 65536:
+            if dist > 32768:
                 break
             l = 3
             while l < limit and raw[p + l] == raw[i + l]:
                 l += 1
-            if dist <= 2048:
-                l2 = min(l, 10)
-                if l2 not in best_short:
-                    best_short[l2] = dist
-            if l not in best_long:
-                best_long[l] = dist
-        for l, d in best_short.items():
-            matches[i].append((2, l, d))
-        for l, d in best_long.items():
-            matches[i].append((3, l, d))
+            for ll in range(3, l + 1):
+                if ll not in best:
+                    best[ll] = dist
+            if l == limit:
+                break
+        if best:
+            matches[i] = sorted(best.items())
         lst.append(i)
-    dp = [10**9] * (n + 1)
-    choice = [None] * n
-    dp[n] = 0
-    for i in range(n - 1, -1, -1):
-        dp[i] = 1 + dp[i + 1]
-        choice[i] = (1, 1, raw[i])
-        for cost, l, d in matches[i]:
-            max_ll = 10 if cost == 2 else l
-            for ll in range(3, min(l, max_ll) + 1):
-                c = cost + dp[i + ll]
-                if c < dp[i]:
-                    dp[i] = c
-                    choice[i] = (cost, ll, d)
+
+    # Iterative optimal DP parsing under exact canonical Huffman bit costs.
+    ll_cost = [7] * 128 + [6] * 32
+    d_cost = [5] * 30
+    tokens = []
+    for _pass in range(3):
+        dp = [10**9] * (n + 1)
+        choice = [None] * n
+        dp[n] = 0
+        for i in range(n - 1, -1, -1):
+            c_lit = ll_cost[raw[i]] + dp[i + 1]
+            dp[i] = c_lit
+            choice[i] = (0, raw[i], 0)
+            for ll, dist in matches[i]:
+                sl, _, eb = _dist_slot(dist)
+                c_m = ll_cost[125 + ll] + d_cost[sl] + eb + dp[i + ll]
+                if c_m < dp[i]:
+                    dp[i] = c_m
+                    choice[i] = (1, ll, dist)
+        tokens = []
+        ll_freq = [0] * 160
+        d_freq = [0] * 30
+        i = 0
+        while i < n:
+            kind, a, b = choice[i]
+            if kind == 0:
+                tokens.append((0, a, 0))
+                ll_freq[a] += 1
+                i += 1
+            else:
+                tokens.append((1, a, b))
+                ll_freq[125 + a] += 1
+                sl, _, _ = _dist_slot(b)
+                d_freq[sl] += 1
+                i += a
+        ll_lens = _huff_lengths(ll_freq, 160)
+        d_lens = _huff_lengths(d_freq, 30)
+        ll_cost = [l if l > 0 else 15 for l in ll_lens]
+        d_cost = [l if l > 0 else 15 for l in d_lens]
+
+    ll_codes = _canonical_codes(ll_lens)
+    d_codes = _canonical_codes(d_lens)
+
     out = bytearray()
-    i = 0
-    while i < n:
-        cost, l, d = choice[i]
-        if cost == 1:
-            out.append(d)
-            i += 1
-        elif cost == 2:
-            dm = d - 1
-            out.append(0x80 | ((l - 3) << 3) | (dm >> 8))
-            out.append(dm & 0xFF)
-            i += l
+    for i in range(0, 160, 2):
+        out.append((ll_lens[i] << 4) | ll_lens[i + 1])
+    for i in range(0, 30, 2):
+        out.append((d_lens[i] << 4) | d_lens[i + 1])
+
+    acc = 0
+    nbits = 0
+
+    def put_bits(val, bits):
+        nonlocal acc, nbits
+        for k in range(bits - 1, -1, -1):
+            acc = (acc << 1) | ((val >> k) & 1)
+            nbits += 1
+            if nbits == 8:
+                out.append(acc)
+                acc = 0
+                nbits = 0
+
+    for kind, a, b in tokens:
+        if kind == 0:
+            code, bits = ll_codes[a]
+            put_bits(code, bits)
         else:
-            dm = d - 1
-            out.append(0xC0 | (l - 3))
-            out.append((dm >> 8) & 0xFF)
-            out.append(dm & 0xFF)
-            i += l
+            code, bits = ll_codes[125 + a]
+            put_bits(code, bits)
+            sl, ex, eb = _dist_slot(b)
+            dc, db = d_codes[sl]
+            put_bits(dc, db)
+            if eb:
+                put_bits(ex, eb)
+    if nbits:
+        out.append(acc << (8 - nbits))
     return bytes(out)
 
 
-def decode_lz77_ascii(comp):
+def decode_huff_lzss(comp, raw_len):
+    def build(nibbles, n_syms):
+        lens = []
+        for b in nibbles:
+            lens.append(b >> 4)
+            lens.append(b & 0xF)
+        count = [0] * 16
+        for l in lens[:n_syms]:
+            if l:
+                count[l] += 1
+        first_code = [0] * 16
+        first_sym = [0] * 16
+        code = 0
+        sym_off = 0
+        for b in range(1, 16):
+            first_code[b] = code
+            first_sym[b] = sym_off
+            code = (code + count[b]) << 1
+            sym_off += count[b]
+        syms = [0] * sym_off
+        offs = list(first_sym)
+        for s, l in enumerate(lens[:n_syms]):
+            if l:
+                syms[offs[l]] = s
+                offs[l] += 1
+        return count, first_code, first_sym, syms
+
+    ll_tab = build(comp[0:80], 160)
+    d_tab = build(comp[80:95], 30)
+    bit_pos = [95 * 8]
+
+    def read_bit():
+        p = bit_pos[0]
+        bit_pos[0] = p + 1
+        return (comp[p >> 3] >> (7 - (p & 7))) & 1
+
+    def dec(tab):
+        count, first_code, first_sym, syms = tab
+        code = 0
+        for b in range(1, 16):
+            code = (code << 1) | read_bit()
+            d = code - first_code[b]
+            if d < count[b]:
+                return syms[first_sym[b] + d]
+        raise AssertionError("Bad Huffman code")
+
     out = bytearray()
-    i = 0
-    n = len(comp)
-    while i < n:
-        b = comp[i]
-        i += 1
-        if (b & 0x80) == 0:
-            out.append(b)
-        elif (b & 0x40) == 0:
-            ln = ((b >> 3) & 7) + 3
-            dist = (((b & 7) << 8) | comp[i]) + 1
-            i += 1
-            for _ in range(ln):
-                out.append(out[-dist])
+    while len(out) < raw_len:
+        sym = dec(ll_tab)
+        if sym < 128:
+            out.append(sym)
         else:
-            ln = (b & 0x3F) + 3
-            dist = ((comp[i] << 8) | comp[i + 1]) + 1
-            i += 2
+            ln = sym - 125
+            sl = dec(d_tab)
+            if sl < 4:
+                dist = sl + 1
+            else:
+                eb = (sl - 2) >> 1
+                ex = 0
+                for _ in range(eb):
+                    ex = (ex << 1) | read_bit()
+                dist = ((2 + (sl & 1)) << eb) + 1 + ex
             for _ in range(ln):
                 out.append(out[-dist])
     return bytes(out)
@@ -589,9 +728,9 @@ def generate_cpp():
     raw = b"".join(s.encode("ascii") + b"\x00" for s in row_strings)
     if len(raw) > 65535:
         raise ValueError(f"Raw stream {len(raw)} exceeds u16 offset range")
-    comp = encode_lz77_ascii(raw)
-    if decode_lz77_ascii(comp) != raw:
-        raise AssertionError("LZ77 round-trip mismatch in menu descriptions")
+    comp = encode_huff_lzss(raw)
+    if decode_huff_lzss(comp, len(raw)) != raw:
+        raise AssertionError("Huffman+LZSS round-trip mismatch in menu descriptions")
 
     page_rows = []
     for idx, (t, cmt) in enumerate(PAGE_TABLES):
@@ -628,8 +767,8 @@ namespace extra {{
         u16 offsets[kRowCount];
     }};
 
-    // ASCII bit-7 LZ77 packed NUL-terminated description strings ({len(comp)} B vs {len(raw)} B raw).
-    static const u8 kDescLz77[kCompBytes] = {{
+    // Canonical Huffman + LZSS packed NUL-terminated description strings ({len(comp)} B vs {len(raw)} B raw).
+    static const u8 kDescComp[kCompBytes] = {{
 {format_u8_array(comp)}
     }};
 
@@ -645,14 +784,115 @@ namespace extra {{
     static MenuDescNet* s_net = NULL;
 #endif
 
+    struct HuffTab {{
+        u16 count[16];
+        u16 firstCode[16];
+        u16 firstSym[16];
+        u8 syms[160];
+    }};
+
+    static void buildHuff(HuffTab& t, const u8* nib, int nSyms)
+    {{
+        for (int b = 0; b < 16; b++)
+        {{
+            t.count[b] = 0;
+        }}
+        for (int s = 0; s < nSyms; s++)
+        {{
+            int l = (s & 1) == 0 ? (nib[s >> 1] >> 4) : (nib[s >> 1] & 0xF);
+            if (l != 0)
+            {{
+                t.count[l]++;
+            }}
+        }}
+        u16 code = 0;
+        u16 off = 0;
+        u16 next[16];
+        for (int b = 1; b < 16; b++)
+        {{
+            t.firstCode[b] = code;
+            t.firstSym[b] = off;
+            next[b] = off;
+            code = static_cast<u16>((code + t.count[b]) << 1);
+            off = static_cast<u16>(off + t.count[b]);
+        }}
+        for (int s = 0; s < nSyms; s++)
+        {{
+            int l = (s & 1) == 0 ? (nib[s >> 1] >> 4) : (nib[s >> 1] & 0xF);
+            if (l != 0)
+            {{
+                t.syms[next[l]++] = static_cast<u8>(s);
+            }}
+        }}
+    }}
+
+    static int readBit(const u8* src, u32& bp)
+    {{
+        int bit = (src[bp >> 3] >> (7 - (bp & 7))) & 1;
+        bp++;
+        return bit;
+    }}
+
+    static int decodeSym(const HuffTab& t, const u8* src, u32& bp)
+    {{
+        int code = 0;
+        for (int b = 1; b < 16; b++)
+        {{
+            code = (code << 1) | readBit(src, bp);
+            int d = code - static_cast<int>(t.firstCode[b]);
+            if (d < static_cast<int>(t.count[b]))
+            {{
+                return t.syms[t.firstSym[b] + d];
+            }}
+        }}
+        return 0;
+    }}
+
     static bool populate(MenuDescNet* net)
     {{
         if (net == NULL)
         {{
             return false;
         }}
-        u32 n = decompressLz77Ascii(kDescLz77, kCompBytes, net->text, kRawBytes);
-        return n == kRawBytes && indexPackedStrings(net->text, n, net->offsets, kRowCount);
+        HuffTab ll, dt;
+        buildHuff(ll, kDescComp, 160);
+        buildHuff(dt, kDescComp + 80, 30);
+        u32 bp = 95u * 8u;
+        u32 out = 0;
+        while (out < kRawBytes)
+        {{
+            int sym = decodeSym(ll, kDescComp, bp);
+            if (sym < 128)
+            {{
+                net->text[out++] = static_cast<char>(sym);
+            }}
+            else
+            {{
+                u32 ln = static_cast<u32>(sym - 125);
+                int sl = decodeSym(dt, kDescComp, bp);
+                u32 dist = static_cast<u32>(sl + 1);
+                if (sl >= 4)
+                {{
+                    int eb = (sl - 2) >> 1;
+                    u32 ex = 0;
+                    for (int k = 0; k < eb; k++)
+                    {{
+                        ex = (ex << 1) | static_cast<u32>(readBit(kDescComp, bp));
+                    }}
+                    dist = ((2u + static_cast<u32>(sl & 1)) << eb) + 1u + ex;
+                }}
+                if (dist == 0 || dist > out || out + ln > kRawBytes)
+                {{
+                    return false;
+                }}
+                for (u32 k = 0; k < ln; k++)
+                {{
+                    net->text[out] = net->text[out - dist];
+                    out++;
+                }}
+            }}
+        }}
+        return indexPackedStrings(net->text, out, net->offsets, kRowCount);
     }}
 
     void menuDescAttach()

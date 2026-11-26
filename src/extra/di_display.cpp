@@ -183,8 +183,6 @@ namespace extra {
 
     static DiNet* s_net = NULL;
 
-    // The stick threshold and the Code Menu's values (in this order from
-    // 0x80B88350, then the decay) and the blast zones, read once per drawing.
     static struct {
         float threshold, sdi, asdi, decay;
         float reflectSpeed, reflectMul, groundMul;
@@ -205,10 +203,6 @@ namespace extra {
         float maxFall;
     };
 
-    // The fighter being drawn: where its body is, how far above its
-    // position the paths are drawn, its ECB's points as offsets from its
-    // position (bottom and top, half the width, the side points' height),
-    // for how many frames.
     static struct {
         float x, y, lift;
         float down, up, half, mid;
@@ -223,6 +217,7 @@ namespace extra {
                                     0, 0x7C781B78, 0x7C992378, 0x7CBA2B78};
     static bool s_rays = false;
 
+#pragma dont_inline on
     static bool within(float v, float lo, float hi)
     {
         return v >= lo && v <= hi;
@@ -252,19 +247,9 @@ namespace extra {
         c.liveY = sy;
     }
 
-    // sqrt(v) for v >= 0: the hardware estimate refined by Newton steps.
     static float root(float v)
     {
-        if (v <= 0.0f)
-        {
-            return 0.0f;
-        }
-        float r = static_cast<float>(__frsqrte(v));
-        for (int i = 0; i < 3; i++)
-        {
-            r = r * (1.5f - 0.5f * v * r * r);
-        }
-        return v * r;
+        return game::stickRoot(v);
     }
 
     // Scales (x, y) back onto a circle of `radius` if it is longer.
@@ -277,6 +262,7 @@ namespace extra {
             y *= radius / len;
         }
     }
+#pragma dont_inline reset
 
     // The energy with `id` at its place in the kinetic module's list; NULL
     // if the list is not as measured.
@@ -413,6 +399,7 @@ namespace extra {
         return true;
     }
 
+#pragma dont_inline on
     // Moves the start by `distance` along the stick (scaled onto a circle of
     // 1); never down through the floor.
     static void shift(Flight& s, float x, float y, float distance)
@@ -460,6 +447,7 @@ namespace extra {
         s.x += s.vx;
         s.y += s.vy + s.g;
     }
+#pragma dont_inline reset
 
     // Where a path first meets the stage.
     struct Contact {
@@ -1067,7 +1055,7 @@ namespace extra {
             s_net->compass.active = false;
             s_net->compass.inHitlag = false;
         }
-        if (!m.running || !readEnv())
+        if (s_net == NULL || !m.running || !readEnv())
         {
             return;
         }

@@ -244,6 +244,7 @@ namespace extra {
         return true;
     }
 
+#pragma dont_inline on
     static bool readArg(const u32* args, u32 argc, u32 i, u32& kind, s32& value)
     {
         if (i >= argc || !game::isRam(args + 2 * i) || !game::isRam(args + 2 * i + 1))
@@ -591,45 +592,45 @@ namespace extra {
         else if (group == 6)
         {
             s32 v = have && kind == 0 ? value : 0;
-            switch (type)
+            if (type == 0x5)
             {
-            case 0x5:
                 body(st, rec, v);
-                break;
-            case 0x0:
-            case 0x15:
-            case 0x2B:
-            case 0x2C:
+            }
+            else if (type == 0x0 || type == 0x15 || type == 0x2B || type == 0x2C)
+            {
                 st.hitMask |= 1u << (v & 31);
                 hitOn(st, rec, kFdHit);
-                break;
-            case 0x3:
+            }
+            else if (type == 0x3)
+            {
                 st.hitMask &= ~(1u << (v & 31));
                 if (st.hitMask == 0)
                 {
                     hitOff(st, rec, kFdHit);
                 }
-                break;
-            case 0x4:
+            }
+            else if (type == 0x4)
+            {
                 hitOff(st, rec, kFdHit);
-                break;
-            case 0xA:
+            }
+            else if (type == 0xA)
+            {
                 hitOn(st, rec, kFdCatch);
-                break;
-            case 0xD:
+            }
+            else if (type == 0xD)
+            {
                 hitOff(st, rec, kFdCatch);
-                break;
-            case 0xF:
+            }
+            else if (type == 0xF)
+            {
                 if (rec.throwTime < 0.0f)
                 {
                     rec.throwTime = st.t;
                 }
-                break;
-            case 0x8:
+            }
+            else if (type == 0x8)
+            {
                 rec.flags |= kFdPartialBody;
-                break;
-            default:
-                break;
             }
         }
         return true;
@@ -657,6 +658,7 @@ namespace extra {
         st.termStatus = -1;
         st.termEnd = st.termOther = st.termGround = st.termAir = false;
     }
+#pragma dont_inline reset
 
     // Past the And / Or terms that follow an If or an Else If.
     static const u32* skipTerms(const u32* pc)
@@ -948,28 +950,31 @@ namespace extra {
             u32 kind = 0;
             s32 value = 0;
             bool have = readArg(args, argc, 0, kind, value);
-            switch (type)
+            if (type == 0x0 || type == 0x8)
             {
-            case 0x0: // End
-            case 0x8: // Return
                 return true;
-            case 0x1: // Wait
+            }
+            else if (type == 0x1)
+            {
                 if (have && kind == 1)
                 {
                     st.t = st.t + scalar(value);
                 }
-                break;
-            case 0x2: // Wait until frame
+            }
+            else if (type == 0x2)
+            {
                 if (have && kind == 1 && scalar(value) > st.t)
                 {
                     st.t = scalar(value);
                 }
-                break;
-            case 0x3: // the clock is reset
-            case 0x6: // Break
+            }
+            else if (type == 0x3 || type == 0x6)
+            {
                 rec.flags |= kFdFlow;
                 return false;
-            case 0x4: // Loop: the body runs max(count, 1) times, forever below 0
+            }
+            else if (type == 0x4)
+            {
                 if (have && kind == 0)
                 {
                     if (value < 0 || loops >= kMaxLoops)
@@ -980,8 +985,9 @@ namespace extra {
                     loopStart[loops] = pc;
                     loopLeft[loops++] = value;
                 }
-                break;
-            case 0x5: // the loop's end
+            }
+            else if (type == 0x5)
+            {
                 if (loops > 0)
                 {
                     if (--loopLeft[loops - 1] > 0)
@@ -993,9 +999,8 @@ namespace extra {
                         loops--;
                     }
                 }
-                break;
-            case 0x7: // Subroutine
-            case 0x9: // Goto
+            }
+            else if (type == 0x7 || type == 0x9)
             {
                 const u32* target = pointerArg(args, argc);
                 if (target == NULL || (type == 0x7 && depth >= kMaxDepth))
@@ -1014,30 +1019,27 @@ namespace extra {
                     pc = target;
                     continue;
                 }
-                break;
             }
-            case 0xA: // If
-            case 0x10: // Switch
+            else if (type == 0xA || type == 0x10)
+            {
                 pc = conditional(pc, depth, b, st, rec, type == 0x10);
                 if (pc == NULL)
                 {
                     return false;
                 }
                 continue;
-            case 0x14: // While and its parts
-            case 0x15:
-            case 0x16:
-            case 0x17:
+            }
+            else if (type >= 0x14 && type <= 0x17)
+            {
                 rec.flags |= kFdLoop;
                 return false;
-            case 0x18: // out of a Switch
+            }
+            else if (type == 0x18)
+            {
                 if (end != NULL)
                 {
                     return true;
                 }
-                break;
-            default:
-                break;
             }
             pc += 2;
         }
@@ -1379,30 +1381,23 @@ namespace extra {
 
     static bool openNow(const Live& v)
     {
-        switch (v.status)
+        static const u32 kOpenMask =
+            (1u << game::kStatusWait) | (1u << game::kStatusWalk) | (1u << game::kStatusWalkBrake)
+            | (1u << game::kStatusDash) | (1u << game::kStatusRun) | (1u << game::kStatusTurn)
+            | (1u << game::kStatusTurnDash) | (1u << game::kStatusTurnRun) | (1u << game::kStatusSquat)
+            | (1u << game::kStatusSquatWait) | (1u << game::kStatusFall) | (1u << game::kStatusFallAerial)
+            | (1u << game::kStatusGuardOn) | (1u << game::kStatusGuard);
+        if (static_cast<u32>(v.status) < 32u && (kOpenMask & (1u << v.status)) != 0)
         {
-        case game::kStatusWait:
-        case game::kStatusWalk:
-        case game::kStatusWalkBrake:
-        case game::kStatusDash:
-        case game::kStatusRun:
-        case game::kStatusTurn:
-        case game::kStatusTurnDash:
-        case game::kStatusTurnRun:
-        case game::kStatusSquat:
-        case game::kStatusSquatWait:
-        case game::kStatusFall:
-        case game::kStatusFallAerial:
-        case game::kStatusGuardOn:
-        case game::kStatusGuard:
             return true;
-        case game::kStatusGuardOff:
+        }
+        if (v.status == game::kStatusGuardOff)
+        {
             // Its script lets jumps out from the start; the count is about
             // everything else, so the attack group stands for "open".
             return (v.groups & (1u << game::kGroupGroundAttack)) != 0;
-        default:
-            return (v.groups & (v.air ? kAirActionGroups : kGroundActionGroups)) != 0;
         }
+        return (v.groups & (v.air ? kAirActionGroups : kGroundActionGroups)) != 0;
     }
 
     // The statuses a hit puts a fighter in while its hitstun counts
