@@ -264,7 +264,7 @@ ifeq ($(PERF),1)
 CXXFLAGS += -DTM_PERF=1
 endif
 # -r1: partial link (elf2rel resolves game symbols); -m: module entry point.
-LDFLAGS  := -lcf $(LCF) -r1 -fp hard -m _prolog -g -strip_partial -code_merging all
+LDFLAGS  := -lcf $(LCF) -r1 -fp hard -m _prolog -g -strip_partial -code_merging all,aggressive
 
 # MWCC writes dependency files with CRLF, backslashes and absolute Windows
 # paths (C:\...), which make cannot parse. Rewrite build/x.d into build/x.dep
@@ -360,7 +360,7 @@ $(BUILD)/stub/%.o: src/%.cpp Makefile | $(MWCC)
 # pack time by scripts/pack-rel.py check_extra_thunks.
 COMMA := ,
 COMPACT_CXXFLAGS := $(subst -inline auto,-inline on$(COMMA)noauto,$(CXXFLAGS)) \
-                    -ipa file -schedule off -func_align 4 -use_lmw_stmw on -str pool,reuse,readonly -fp_contract on
+                    -ipa file -schedule off -func_align 4 -use_lmw_stmw on -str pool,reuse,readonly -fp_contract on -ordered-fp-compares
 
 $(BUILD)/main/shared/global_chain.o: src/shared/global_chain.cpp Makefile | $(MWCC)
 	@echo "c++     $< (main)"

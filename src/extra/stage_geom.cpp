@@ -1,3 +1,4 @@
+#define TM_STAGE_GEOM_IMPL 1
 #include "extra/stage_geom.h"
 
 #include <ft/fighter.h>
