@@ -253,36 +253,17 @@ namespace extra {
             // Engine 1: RAR
             d.rarAttempts = e.rar.attempts;
             d.rarBairCount = e.rar.successBairCount;
-            d.rarOutcome = e.rar.last.outcome;
-            d.rarTurnRunFrames = e.rar.last.turnRunFrames;
-            d.rarBairDelay = e.rar.last.bairDelay;
-            d.rarBackwardMomentum = e.rar.last.backwardMomentum;
-            d.rarMomentumRetained = e.rar.last.momentumRetained;
-            d.rarTakeoffVx = e.rar.last.takeoffVx;
+            memcpy(&d.rarOutcome, &e.rar.last.outcome, 12);
 
             // Engine 2: DACUS & Gatling
-            d.dacusAttempts = e.dacus.attempts;
-            d.dacusSuccessCount = e.dacus.successCount;
-            d.dacusGatlingCount = e.dacus.gatlingCount;
-            d.dacusOutcome = e.dacus.last.outcome;
-            d.dacusRawDashFrame = e.dacus.last.rawDashFrame;
-            d.dacusNonHitlagFrame = e.dacus.last.nonHitlagDashFrame;
-            d.dacusGatling = e.dacus.last.gatling;
-            d.dacusVxCarry = e.dacus.last.vxCarry;
-            d.dacusSlideDistance = e.dacus.last.slideDistance;
+            memcpy(&d.dacusAttempts, &e.dacus.attempts, 12);
+            memcpy(&d.dacusOutcome, &e.dacus.last.outcome, 4);
+            memcpy(&d.dacusVxCarry, &e.dacus.last.vxCarry, 8);
 
             // Engine 3: B-Reverse & Wavebounce
-            d.brevAttempts = e.brev.attempts;
-            d.brevBReverseCount = e.brev.bReverseCount;
-            d.brevWavebounceCount = e.brev.wavebounceCount;
-            d.brevTurnaroundCount = e.brev.turnaroundCount;
-            d.brevOutcome = e.brev.last.outcome;
-            d.brevEarlyFlick = e.brev.last.earlyFlickFrames;
-            d.brevLateFlick = e.brev.last.lateFlickFrames;
-            d.brevAirborne = e.brev.last.airborne;
-            d.brevVxBefore = e.brev.last.vxBefore;
-            d.brevVxAfter = e.brev.last.vxAfter;
-            d.brevMomentumRatio = e.brev.last.momentumRatio;
+            memcpy(&d.brevAttempts, &e.brev.attempts, 16);
+            memcpy(&d.brevOutcome, &e.brev.last.outcome, 4);
+            memcpy(&d.brevVxBefore, &e.brev.last.vxBefore, 12);
 
             // Engine 4: Footstool & Lock + AGT
             d.footstoolCount = e.fa.footstoolCount;
@@ -297,30 +278,28 @@ namespace extra {
             d.agtCurrentChain = e.fa.currentAgtChain;
             d.agtIsAerial = e.fa.lastAgt.isAerial;
             d.agtThrowFrame = e.fa.lastAgt.throwFrame;
-            d.agtLastChainCount = static_cast<u8>(e.fa.lastAgt.agtChainCount > 255
-                                                      ? 255
-                                                      : (e.fa.lastAgt.agtChainCount < 0 ? 0 : e.fa.lastAgt.agtChainCount));
-            d.agtChainResetCount = static_cast<u8>(e.fa.agtChainResetCount > 255 ? 255 : e.fa.agtChainResetCount);
-            d.agtVxCarry = e.fa.lastAgt.vxCarry;
-            d.agtVyCarry = e.fa.lastAgt.vyCarry;
+            d.agtLastChainCount = faClampU8(e.fa.lastAgt.agtChainCount);
+            d.agtChainResetCount = faClampU8(static_cast<s32>(e.fa.agtChainResetCount));
+            memcpy(&d.agtVxCarry, &e.fa.lastAgt.vxCarry, 8);
             d.footstoolFailLockoutCount = e.fa.failLockoutCount;
 
             // Engine 5: Floorhug / ASDI-Down & Crouch-Cancel
-            d.fhHitCount = e.fh.hitCount;
-            d.fhCancelCount = e.fh.cancelCount;
-            d.fhTruePunishCount = e.fh.truePunishCount;
-            d.fhOutcome = e.fh.last.outcome;
-            d.fhWasCrouching = e.fh.last.wasCrouching;
-            d.fhAsdiDown = e.fh.last.asdiDown;
-            d.fhAsdiFromCStick = e.fh.last.asdiFromCStick;
-            d.fhHitstunAtLanding = e.fh.last.hitstunAtLanding;
-            d.fhHitstunSaved = e.fh.last.hitstunSaved;
-            d.fhPunishActFrame = e.fh.last.punishActFrame;
+            memcpy(&d.fhHitCount, &e.fh.hitCount, 12);
+            memcpy(&d.fhOutcome, &e.fh.last.outcome, 4);
+            memcpy(&d.fhHitstunAtLanding, &e.fh.last.hitstunAtLanding, 6);
             d.fhTrueCounterPunish = e.fh.last.trueCounterPunish;
             d.fhPad = 0;
-            d.fhEffectiveAsdiX = e.fh.last.effectiveAsdiX;
-            d.fhEffectiveAsdiY = e.fh.last.effectiveAsdiY;
-            d.fhLandingFrame = e.fh.last.landingFrame;
+            memcpy(&d.fhEffectiveAsdiX, &e.fh.last.effectiveAsdiX, 12);
+        }
+
+        void copyFaEvents(const game::Tracked& t, FaEvent* dst, int evN)
+        {
+            for (int k = 0; k < evN; k++)
+            {
+                dst[k].status = t.events[k].status;
+                dst[k].prev = t.events[k].prev;
+                dst[k].flags = t.events[k].flags;
+            }
         }
 
         void copySimpleEvents(const game::Tracked& t, void* dst, int evN)
@@ -548,12 +527,7 @@ namespace extra {
             faIn.laBasic81 = sn.laBasic81;
             faIn.laBasic82 = sn.laBasic82;
             faIn.eventCount = evN;
-            for (int k = 0; k < evN; k++)
-            {
-                faIn.events[k].status = t.events[k].status;
-                faIn.events[k].prev = t.events[k].prev;
-                faIn.events[k].flags = t.events[k].flags;
-            }
+            copyFaEvents(t, faIn.events, evN);
             for (int j = 0; j < game::kMaxTracked && faIn.opponentCount < kFaMaxOpponents; j++)
             {
                 if (j == i || !snaps[j].valid || snaps[j].t->entryId == t.entryId)
@@ -575,12 +549,7 @@ namespace extra {
                 ov.y = os.y;
                 u8 oevN = ot.eventCount < kFaMaxEvents ? ot.eventCount : static_cast<u8>(kFaMaxEvents);
                 ov.eventCount = oevN;
-                for (int k = 0; k < oevN; k++)
-                {
-                    ov.events[k].status = ot.events[k].status;
-                    ov.events[k].prev = ot.events[k].prev;
-                    ov.events[k].flags = ot.events[k].flags;
-                }
+                copyFaEvents(ot, ov.events, oevN);
             }
             footstoolAgtStep(e.fa, faIn);
 

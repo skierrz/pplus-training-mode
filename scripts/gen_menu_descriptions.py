@@ -791,6 +791,9 @@ namespace extra {{
         u8 syms[160];
     }};
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     static void buildHuff(HuffTab& t, const u8* nib, int nSyms)
     {{
         for (int b = 0; b < 16; b++)
@@ -847,6 +850,9 @@ namespace extra {{
         }}
         return 0;
     }}
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     static bool populate(MenuDescNet* net)
     {{

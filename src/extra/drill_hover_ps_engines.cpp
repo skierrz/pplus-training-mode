@@ -62,60 +62,25 @@ namespace extra {
             d.curMotion = -1;
         }
 
-        d.fcAttempts = fd.stats.fcAttempts;
-        d.fcSuccesses = fd.stats.fcSuccesses;
-        d.fcStreak = fd.stats.fcStreak;
-        d.fcBestStreak = fd.stats.fcBestStreak;
+        memcpy(&d.fcAttempts, &fd.stats.fcAttempts, 16);
         d.lastFcOutcome = fd.last.fcOutcome;
         d.lastFcIsHover = fd.last.fcIsHover;
         d.inFloat = fd.inFloat ? 1 : 0;
         d.floatAerialActive = (fd.floatAerialActive || fd.floatAerialVia33 || fd.droppedFloatAerial) ? 1 : 0;
-        d.lastFcDuration = fd.last.fcDurationFrames;
-        d.lastFcAerialFrame = fd.last.fcAerialFrame;
-        d.lastFcActFrame = fd.last.fcActFrame;
+        memcpy(&d.lastFcDuration, &fd.last.fcDurationFrames, 6);
         d.bestActFrame = fd.stats.bestActFrame;
         d.lastFcMotion = fd.last.fcMotionKind;
         d.lastFcLandingLCancel = fd.last.fcLandingLCancelled;
         d.padFc = 0;
-        d.lastFcFrame = fd.last.fcEventFrame;
-        d.lastFcEntryY = fd.last.fcEntryY;
-        d.lastFcMinY = fd.last.fcMinY;
+        memcpy(&d.lastFcFrame, &fd.last.fcEventFrame, 12);
 
-        d.djcAttempts = fd.stats.djcAttempts;
-        d.djcInstant = fd.stats.djcInstant;
-        d.djcStreak = fd.stats.djcStreak;
-        d.djcBestStreak = fd.stats.djcBestStreak;
-        d.lastDjcGrade = fd.last.djcGrade;
-        d.lastDjcLandOutcome = fd.last.djcLandOutcome;
-        d.lastDjcLandedClean = fd.last.djcLandedClean;
-        d.lastDjcHadBit33 = fd.last.djcHadBit33;
-        d.lastDjcFrame = fd.last.djcFrame;
-        d.lastDjcMotion = fd.last.djcMotionKind;
-        d.lastDjcEventFrame = fd.last.djcEventFrame;
-        d.lastDjcVyBefore = fd.last.djcVyBefore;
-        d.lastDjcVyAfter = fd.last.djcVyAfter;
-        d.lastDjcHeight = fd.last.djcHeight;
+        memcpy(&d.djcAttempts, &fd.stats.djcAttempts, 16);
+        memcpy(&d.lastDjcGrade, &fd.last.djcGrade, 24);
 
-        d.psAttempts = ps.stats.attempts;
-        d.psPhysicalHits = ps.stats.physicalHits;
-        d.psReflectHits = ps.stats.reflectHits;
-        d.psRePsHits = ps.stats.rePsHits;
-        d.psLightToHardHits = ps.stats.lightToHardHits;
-        d.psEarlyMisses = ps.stats.earlyMisses;
-        d.psLateMisses = ps.stats.lateMisses;
-        d.psBufferedMisses = ps.stats.bufferedMisses;
-        d.psDropCancels = ps.stats.psDropCancels;
-        d.psStreak = ps.stats.streak;
-        d.psBestStreak = ps.stats.bestStreak;
-        d.lastPsOutcome = ps.last.outcome;
-        d.lastPsRePs = ps.last.rePs;
-        d.lastPsLightToHard = ps.last.lightToHard;
-        d.lastPsDropUsed = ps.last.psDropUsed;
-        d.lastPsDropChainedRePs = ps.last.psDropChainedRePs;
+        memcpy(&d.psAttempts, &ps.stats, sizeof(ps.stats));
+        memcpy(&d.lastPsOutcome, &ps.last.outcome, 5);
         d.guardArmed = ps.guardArmed ? 1 : 0;
-        d.lastPsWindowFrame = ps.last.windowFrame;
-        d.lastPsOffsetFrames = ps.last.offsetFrames;
-        d.lastPsDropActFrame = ps.last.psDropActFrame;
+        memcpy(&d.lastPsWindowFrame, &ps.last.windowFrame, 6);
         d.lastPsEventFrame = ps.last.eventFrame;
     }
 

@@ -5,11 +5,11 @@
 // Checks for reading game structures that may not exist yet.
 namespace tm {
 namespace game {
-    // True if `p` points into MEM1 or MEM2.
+    // True if `p` points into MEM1 (0x80000000..0x817FFFFF) or MEM2 (0x90000000..0x93FFFFFF).
     inline bool isRam(const void* p)
     {
-        u32 a = reinterpret_cast<u32>(p);
-        return (a >= 0x80000000 && a < 0x81800000) || (a >= 0x90000000 && a < 0x94000000);
+        u32 hi = reinterpret_cast<u32>(p) >> 16;
+        return (hi ^ 0x8000u) < 0x0180u || (hi ^ 0x9000u) < 0x0400u;
     }
 
     inline bool sameString(const char* a, const char* b)
