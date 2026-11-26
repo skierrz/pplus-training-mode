@@ -47,7 +47,7 @@ namespace pages {
 
     static bool saveRow()
     {
-        if (s_recRows != NULL)
+        if (s_recRows != NULL && pageStringsReady())
         {
             s_recRows[0].name = pageStr(record::positionsSaved() ? kPs_rec_restore : kPs_rec_save);
         }
@@ -95,6 +95,11 @@ namespace pages {
             {kKindFunc,   kH, 0, 0, 0, 0, 0xFF, 9, 7, 0}
         };
         fillPageRows(kRecording, buf, 19, kSpecs, kPs_rec_names, kStrs, kExtra, kCbs, kGates);
+    }
+
+    void detachRecordingPage()
+    {
+        s_recRows = NULL;
     }
 #else
     // Non-const so row 0 switches between Save Positions and Restore Positions.

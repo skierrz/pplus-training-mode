@@ -262,6 +262,11 @@ namespace pages {
         game::freeNetworkSlot(reinterpret_cast<void**>(&s_pageStrBuf));
     }
 
+    bool pageStringsReady()
+    {
+        return s_pageStrBuf != NULL;
+    }
+
     const char* pageStr(u16 offset)
     {
         static const char kEmpty[1] = {0};

@@ -110,6 +110,11 @@ namespace pages {
         kStageCast.options = buf;
         kStageCast.count = kStageCastRows;
     }
+
+    void detachStageCastPage()
+    {
+        s_stageCastRows = NULL;
+    }
 #else
     // Stage Options choice tables.
     TM_LABELS_BEGIN(kHazards) TM_L("Default") TM_L("On") TM_L("Off") TM_LABELS_END
@@ -227,7 +232,7 @@ namespace main {
     {
         using namespace ui::pages;
 #ifdef __MWERKS__
-        if (s_stageCastRows == NULL)
+        if (s_stageCastRows == NULL || !pageStringsReady())
         {
             return;
         }

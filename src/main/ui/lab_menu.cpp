@@ -89,9 +89,14 @@ namespace ui {
                 u8& a = t.hits[h].action[k];
                 if (a < kSizes[k])
                 {
+#ifdef __MWERKS__
+                    const char* tbl = (k == 1) ? kCounterAir : (k == 0 ? kCounterGround : kCounterShield);
+                    const char* lbl = tbl != NULL ? pages::packedLabelAt(tbl, a) : NULL;
+#else
                     const char* lbl = (k == 1) ? pages::packedLabelAt(kCounterAir, a)
                                                : (k == 0 ? pages::packedLabelAt(kCounterGround, a)
                                                          : pages::packedLabelAt(kCounterShield, a));
+#endif
                     if (droppedLabel(lbl))
                     {
                         a = kDefaults[k];

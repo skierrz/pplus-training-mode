@@ -79,31 +79,38 @@ namespace pages {
     void pagesAttach()
     {
         pageStringsAttach();
+        if (!pageStringsReady())
+        {
+            pagesDetach();
+            return;
+        }
         if (s_dynRows == NULL)
         {
             s_dynRows = static_cast<Option*>(game::allocNetworkZero(static_cast<u32>(sizeof(Option) * kDynRowTotal)));
         }
-        if (s_dynRows != NULL)
+        if (s_dynRows == NULL)
         {
-            Option* p = s_dynRows;
-            initCpuPages(p); p += kCpuAllRowCount;
-            initAdvancedCounterPage(p); p += kAdvCounterRowCount;
-            initOverlayPages(p); p += kOverlayRowCount;
-            initInfoPages(p); p += kInfoRowCount;
-            initStageCastPage(p); p += kStageCastRowCount;
-            initScenariosPage(p); p += kScenariosRowCount;
-            initOsdMenuPage(p); p += kOsdMenuRowCount;
-            initComboTrainerPages(p); p += kComboTrainerRowCount;
-            initTechOptionsPage(p); p += kTechOptionsRowCount;
-            initRecordingPage(p); p += kRecordingRowCount;
-            initGeneralPage(p); p += kGeneralRowCount;
-            initControlsPage(p); p += kControlsRowCount;
-            initThemePage(p); p += kThemeRowCount;
-            initAlterInputsPage(p); p += kAlterInputsRowCount;
-            initSlotManagementPage(p); p += kSlotManagementRowCount;
-            initSlotChancesPages(p); p += kSlotChancesRowCount;
-            initLedgedashHudPage(p);
+            pagesDetach();
+            return;
         }
+        Option* p = s_dynRows;
+        initCpuPages(p); p += kCpuAllRowCount;
+        initAdvancedCounterPage(p); p += kAdvCounterRowCount;
+        initOverlayPages(p); p += kOverlayRowCount;
+        initInfoPages(p); p += kInfoRowCount;
+        initStageCastPage(p); p += kStageCastRowCount;
+        initScenariosPage(p); p += kScenariosRowCount;
+        initOsdMenuPage(p); p += kOsdMenuRowCount;
+        initComboTrainerPages(p); p += kComboTrainerRowCount;
+        initTechOptionsPage(p); p += kTechOptionsRowCount;
+        initRecordingPage(p); p += kRecordingRowCount;
+        initGeneralPage(p); p += kGeneralRowCount;
+        initControlsPage(p); p += kControlsRowCount;
+        initThemePage(p); p += kThemeRowCount;
+        initAlterInputsPage(p); p += kAlterInputsRowCount;
+        initSlotManagementPage(p); p += kSlotManagementRowCount;
+        initSlotChancesPages(p); p += kSlotChancesRowCount;
+        initLedgedashHudPage(p);
     }
 
     void pagesDetach()
@@ -118,6 +125,10 @@ namespace pages {
             dyn[i]->options = NULL;
             dyn[i]->count = 0;
         }
+        detachCpuPages();
+        detachStageCastPage();
+        detachRecordingPage();
+        detachAlterInputsPage();
         game::freeNetworkSlot(reinterpret_cast<void**>(&s_dynRows));
         pageStringsDetach();
     }

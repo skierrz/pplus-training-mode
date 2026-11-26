@@ -392,7 +392,7 @@ namespace pages {
         else if (trig == cpu::kRevOnGetup && c.getup < 5)
         {
 #ifdef __MWERKS__
-            src = packedLabelAt(pageStr(kPs_cpu_kRevSlot1Getup), c.getup);
+            src = pageStringsReady() ? packedLabelAt(pageStr(kPs_cpu_kRevSlot1Getup), c.getup) : "None";
 #else
             src = packedLabelAt(kRevSlot1Getup, c.getup);
 #endif
@@ -400,7 +400,7 @@ namespace pages {
         else if (trig == cpu::kRevOnLedge && c.ledgeOption < 7)
         {
 #ifdef __MWERKS__
-            src = packedLabelAt(pageStr(kPs_cpu_kLedgeOption), c.ledgeOption);
+            src = pageStringsReady() ? packedLabelAt(pageStr(kPs_cpu_kLedgeOption), c.ledgeOption) : "None";
 #else
             src = packedLabelAt(kLedgeOption, c.ledgeOption);
 #endif
@@ -700,6 +700,14 @@ namespace pages {
         initReversalPage(buf);
         buf += 15;
         initPoolPage(buf);
+    }
+
+    void detachCpuPages()
+    {
+        kTdiLabels = NULL;
+        kCounterGround = NULL;
+        kCounterAir = NULL;
+        kCounterShield = NULL;
     }
 #else
 #define TM_POOL_BIT(cat, idx, def, name, gate)                                                                    \

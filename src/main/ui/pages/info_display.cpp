@@ -141,6 +141,10 @@ namespace pages {
             return "?";
         }
 #ifdef __MWERKS__
+        if (!pages::pageStringsReady())
+        {
+            return "?";
+        }
         const char* s = pages::packedLabelAt(pages::pageStr(pages::kPs_info_kValues), value);
 #else
         const char* s = pages::packedLabelAt(pages::kValues, value);
@@ -152,6 +156,7 @@ namespace pages {
     {
         return value >= 0 && value < kInfoValueCount
 #ifdef __MWERKS__
+               && pages::pageStringsReady()
                && pages::packedLabelAt(pages::pageStr(pages::kPs_info_kValues), value)[0] != TM_UNAVAILABLE_LABEL[0];
 #else
                && pages::packedLabelAt(pages::kValues, value)[0] != TM_UNAVAILABLE_LABEL[0];

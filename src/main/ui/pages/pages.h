@@ -102,19 +102,23 @@ namespace pages {
     void pagesAttach();
     void pagesDetach();
     void initCpuPages(Option* buf);
+    void detachCpuPages();
     void initAdvancedCounterPage(Option* buf);
     void initOverlayPages(Option* buf);
     void initInfoPages(Option* buf);
     void initStageCastPage(Option* buf);
+    void detachStageCastPage();
     void initScenariosPage(Option* buf);
     void initOsdMenuPage(Option* buf);
     void initComboTrainerPages(Option* buf);
     void initTechOptionsPage(Option* buf);
     void initRecordingPage(Option* buf);
+    void detachRecordingPage();
     void initGeneralPage(Option* buf);
     void initControlsPage(Option* buf);
     void initThemePage(Option* buf);
     void initAlterInputsPage(Option* buf);
+    void detachAlterInputsPage();
     void initSlotManagementPage(Option* buf);
     void initSlotChancesPages(Option* buf);
     void initLedgedashHudPage(Option* buf);
@@ -126,6 +130,11 @@ namespace pages {
 #ifdef __MWERKS__
     inline const char* packedLabelAt(const char* p, int idx)
     {
+        if (p == NULL)
+        {
+            static const char kEmpty[1] = {0};
+            return kEmpty;
+        }
         while (idx > 0)
         {
             while (*p++ != '\0') {}
@@ -136,7 +145,8 @@ namespace pages {
 #else
     inline const char* packedLabelAt(const char* const* p, int idx)
     {
-        return p[idx];
+        static const char kEmpty[1] = {0};
+        return p != NULL ? p[idx] : kEmpty;
     }
 #endif
     bool never();

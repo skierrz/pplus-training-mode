@@ -174,6 +174,7 @@ namespace pages {
 
     void pageStringsAttach();
     void pageStringsDetach();
+    bool pageStringsReady();
     const char* pageStr(u16 offset);
 }
 }
