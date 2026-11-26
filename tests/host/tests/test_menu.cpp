@@ -13,6 +13,8 @@
 #include "host/fakes.h"
 #include "host/log.h"
 #include "host/test.h"
+#include "main/cpu/lab_data.h"
+#include "main/cpu/options.h"
 #include "main/extra.h"
 #include "main/gfx/text.h"
 #include "main/lab.h"
@@ -2204,6 +2206,127 @@ TEST(lab_menu, reset_option_and_page_via_menu_input_and_rail_and_footer_badges)
         CHECK_EQ(kCases[c].hasOpt, sawReset);
         CHECK_EQ(kCases[c].hasPage, sawResetPage);
     }
+
+    main::setExtraHooks(NULL);
+    storage::detach();
+}
+
+TEST(lab_menu, reset_page_on_advanced_counter_and_cpu_counters_resets_all_modes)
+{
+    bootLab();
+    main::setExtraHooks(&kNoHooks);
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+    ui::MenuInput inResetPage = {0, 0, 0, 0, false, false, false, false, false, true};
+
+    // 1. P_ADVANCED_COUNTER: 2-tap Y must reset all 10 cpuTables.hits[] AND visible adv* fields.
+    main::settings().cpu.options.control = cpu::kControlLab;
+    for (int h = 0; h < cpu::kAdvancedHits; h++)
+    {
+        cpu::AdvancedHit& hit = main::settings().cpuTables.hits[h];
+        hit.logic = cpu::kLogicCustom;
+        hit.action[0] = 3;
+        hit.action[1] = 4;
+        hit.action[2] = 5;
+        hit.delay[0] = 6;
+        hit.delay[1] = 7;
+        hit.delay[2] = 8;
+    }
+    main::settings().cpu.options.advHit = 3;
+    cpu::advancedHitChanged();
+    CHECK_EQ(static_cast<int>(cpu::kLogicCustom), static_cast<int>(main::settings().cpu.options.advLogic));
+    CHECK_EQ(3, static_cast<int>(main::settings().cpu.options.advGround));
+
+    const u8 advPath[] = {ui::pages::P_CPU, ui::pages::P_CPU_COUNTERS, ui::pages::P_ADVANCED_COUNTER};
+    REQUIRE(ui::menuJump(menu, st, advPath, 3));
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK(st.resetConfirmPage != 0);
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK_EQ(0, static_cast<int>(st.resetConfirmPage));
+
+    for (int h = 0; h < cpu::kAdvancedHits; h++)
+    {
+        const cpu::AdvancedHit& hit = main::settings().cpuTables.hits[h];
+        CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(hit.logic));
+        CHECK_EQ(13, static_cast<int>(hit.action[0]));
+        CHECK_EQ(1, static_cast<int>(hit.action[1]));
+        CHECK_EQ(1, static_cast<int>(hit.action[2]));
+        CHECK_EQ(0, static_cast<int>(hit.delay[0]));
+        CHECK_EQ(0, static_cast<int>(hit.delay[1]));
+        CHECK_EQ(0, static_cast<int>(hit.delay[2]));
+    }
+    CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.advHit));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpu.options.advLogic));
+    CHECK_EQ(13, static_cast<int>(main::settings().cpu.options.advGround));
+    CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.advAir));
+    CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.advShield));
+    CHECK_EQ(0, static_cast<int>(main::settings().cpu.options.advDelayGround));
+
+    // 2. P_CPU_COUNTERS: 2-tap Y must reset cleanly from Reversals, Per-Hit, AND Off back to Single Action.
+    const u8 ctrPath[] = {ui::pages::P_CPU, ui::pages::P_CPU_COUNTERS};
+
+    // 2a. From Reversal Slots (multiReversal = 1).
+    main::settings().cpu.options.multiReversal = 1;
+    main::settings().cpu.options.counterDelay = 9;
+    REQUIRE(ui::menuJump(menu, st, ctrPath, 2));
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK(st.resetConfirmPage != 0);
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK_EQ(0, static_cast<int>(st.resetConfirmPage));
+    CHECK_EQ(0, static_cast<int>(main::settings().cpu.options.multiReversal));
+    CHECK_EQ(0, static_cast<int>(main::settings().cpu.options.counterDelay));
+    CHECK_EQ(13, static_cast<int>(main::settings().cpu.options.counterGround));
+    CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.counterAir));
+    CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.counterShield));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK_EQ(1, static_cast<int>(ui::menuScratch()[ui::kCounterModeScratchOffset]));
+
+    // 2b. From Per-Hit (hits[0].logic = kLogicCustom).
+    main::settings().cpuTables.hits[0].logic = cpu::kLogicCustom;
+    main::settings().cpuTables.hits[4].logic = cpu::kLogicCustom;
+    REQUIRE(ui::menuJump(menu, st, ctrPath, 2));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK_EQ(4, static_cast<int>(ui::menuScratch()[ui::kCounterModeScratchOffset])); // Per-Hit
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK(st.resetConfirmPage != 0);
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK_EQ(0, static_cast<int>(st.resetConfirmPage));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpuTables.hits[0].logic));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpuTables.hits[4].logic));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK_EQ(1, static_cast<int>(ui::menuScratch()[ui::kCounterModeScratchOffset])); // Single Action
+
+    // 2c. From Off (counterGround = counterAir = counterShield = 0, where all stored rows are hidden/disabled).
+    main::settings().cpu.options.counterGround = 0;
+    main::settings().cpu.options.counterAir = 0;
+    main::settings().cpu.options.counterShield = 0;
+    REQUIRE(ui::menuJump(menu, st, ctrPath, 2));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK_EQ(0, static_cast<int>(ui::menuScratch()[ui::kCounterModeScratchOffset])); // Off
+    bool sawResetPageOff = false;
+    for (int i = 0; i < host::canvas::runs(); i++)
+    {
+        if (strcmp(host::canvas::run(i).text, "Reset Page") == 0)
+        {
+            sawResetPageOff = true;
+        }
+    }
+    CHECK(sawResetPageOff);
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK(st.resetConfirmPage != 0);
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK_EQ(0, static_cast<int>(st.resetConfirmPage));
+    CHECK_EQ(13, static_cast<int>(main::settings().cpu.options.counterGround));
+    CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.counterAir));
+    CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.counterShield));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK_EQ(1, static_cast<int>(ui::menuScratch()[ui::kCounterModeScratchOffset])); // Single Action
 
     main::setExtraHooks(NULL);
     storage::detach();

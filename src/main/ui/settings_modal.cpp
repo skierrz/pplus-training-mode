@@ -113,13 +113,7 @@ namespace ui {
         const float inBot = botY - b;
         const float slantTan = 0.445f;
         float xs = gfx::xScale();
-        float left = cx(left43);
-        float panelW = w(right43 - left43);
-        float bx = w(b);
-        gfx::fillRect(left, topY, panelW, b, kLabBorderColor);
-        gfx::fillRect(left, botY - b, panelW, b, kLabBorderColor);
-        gfx::fillRect(left, inTop, bx, inBot - inTop, kLabBorderColor);
-        gfx::fillRect(cx(inR43), inTop, bx, inBot - inTop, kLabBorderColor);
+        drawFrameBorder(left43, right43, topY, botY, b, kLabBorderColor);
 
         static const struct {
             float y, h;

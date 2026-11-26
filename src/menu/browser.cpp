@@ -653,12 +653,17 @@ namespace browser {
     static const float kBrowserBottom = 452.0f;
     static const float kBrowserFootTop = 420.0f;
 
-    static void descLine(int line, const char* text, gfx::Rgba color)
+    static void descLineAt(float capTop, const char* text, gfx::Rgba color)
     {
         float scale = scaleForCap(10.5f);
         float width = boldWidth(text, scale);
         float sx = width > w(kFooterMaxW) ? scale * w(kFooterMaxW) / width : scale;
-        boldText(cx(kFooterX), textYForCap(kFooterCapTop + line * 14.0f, scale), text, color, sx, scale);
+        boldText(cx(kFooterX), textYForCap(capTop, scale), text, color, sx, scale);
+    }
+
+    static void descLine(int line, const char* text, gfx::Rgba color)
+    {
+        descLineAt(kFooterCapTop + line * 14.0f, text, color);
     }
 
     static void drawDescription()
@@ -677,9 +682,11 @@ namespace browser {
             gfx::fillRect(bx, by + 2.0f, w(2.0f), bh - 4.0f, kLabBtnBTop);
             gfx::fillRect(bx + bw - w(2.0f), by + 2.0f, w(2.0f), bh - 4.0f, kLabBtnBTop);
             gfx::fillGradV(bx + w(2.0f), by + 2.0f, bw - w(4.0f), bh - 4.0f, 0x341016F0u, 0x20080DF0u);
+            float linePitch = 16.0f;
+            float line0Top = by + (bh - (linePitch + 10.5f)) * 0.5f;
             snprintf(line, sizeof(line), "Delete %s?", s_entries[s_row].file);
-            descLine(0, line, kLabFocusGold);
-            descLine(1, "This cannot be undone.", kText);
+            descLineAt(line0Top, line, kLabFocusGold);
+            descLineAt(line0Top + linePitch, "This cannot be undone.", kText);
             return;
         }
         if (s_phase == kDelete)

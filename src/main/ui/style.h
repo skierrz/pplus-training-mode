@@ -268,6 +268,9 @@ namespace style {
     // Watermark capital height (placed in hud_layout.h).
     static const float kWatermarkCap = 9.0f;
 
+    // 4-strip opaque outer frame border around a translucent 4:3-proportioned panel.
+    void drawFrameBorder(float left43, float right43, float topY, float botY, float border, gfx::Rgba color);
+
     // Draws the legacy panel layout (recordings browser). When `withFooter` is
     // false, the rows band fills the full height down to the bottom border.
     void drawMenuPanel(bool withFooter = false);

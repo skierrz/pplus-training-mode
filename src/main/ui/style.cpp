@@ -143,6 +143,25 @@ namespace style {
         fillStadium(x + width * 0.22f, y + height * 0.14f, width * 0.56f, height * 0.22f, 0xFFFFFF70);
     }
 
+    void drawFrameBorder(float left43, float right43, float topY, float botY, float border, gfx::Rgba color)
+    {
+        float left = cx(left43);
+        float panelW = w(right43 - left43);
+        float bx = w(border);
+        float inTop = topY + border;
+        float inH = botY - topY - 2.0f * border;
+        const float r[4][4] = {
+            {left, topY, panelW, border},
+            {left, botY - border, panelW, border},
+            {left, inTop, bx, inH},
+            {left + panelW - bx, inTop, bx, inH}
+        };
+        for (int i = 0; i < 4; i++)
+        {
+            gfx::fillRect(r[i][0], r[i][1], r[i][2], r[i][3], color);
+        }
+    }
+
     void drawMenuPanel(bool withFooter)
     {
         float left = cx(kPanelLeft);

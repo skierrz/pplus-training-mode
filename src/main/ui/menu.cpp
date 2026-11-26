@@ -5,6 +5,7 @@
 #include <string.h>
 #include <gf/gf_pad_status.h>
 
+#include "main/cpu/lab_data.h"
 #include "main/cpu/options.h"
 #include "main/extra.h"
 #include "main/game/code_menu.h"
@@ -469,11 +470,17 @@ namespace ui {
         return stored(o) && (o.flags & kFlagScratch) == 0 && active(o);
     }
 
+#pragma dont_inline on
     static bool pageHasResettableOptions(const MenuDef& def, int pageId)
     {
         if (static_cast<u32>(pageId) >= def.pageCount)
         {
             return false;
+        }
+        if (pageId == pages::P_CPU_COUNTERS && isLabMenu(def)
+            && main::settings().cpu.options.control == cpu::kControlLab)
+        {
+            return true;
         }
         bool savedRail = s_rail;
         bool savedAllow = s_allowShowInactive;
@@ -492,48 +499,6 @@ namespace ui {
         s_rail = savedRail;
         s_allowShowInactive = savedAllow;
         return found;
-    }
-
-    static void syncResetPage(int pageId)
-    {
-        switch (pageId)
-        {
-        case pages::P_GENERAL:
-            lab::frameAdvanceChanged();
-            lab::applyPercent(main::kSideHuman);
-            break;
-        case pages::P_CONTROLS:
-            game::codeMenuSync();
-            break;
-        case pages::P_CPU:
-            lab::applyPercent(main::kSideCpu);
-            cpu::controlledByChanged();
-            break;
-        case pages::P_OSD_MENU:
-            lab::osdSettingsChanged();
-            break;
-        case pages::P_STAGE_CAST:
-            main::extraStageOptionsChanged();
-            main::extraCharacterRng();
-            break;
-        case pages::P_ADVANCED_COUNTER:
-            cpu::advancedHitChanged();
-            break;
-        case pages::P_RECORDING:
-            record::clearDeleteConfirm();
-            if (record::positionsSaved())
-            {
-                record::hmnModeChanged();
-                record::cpuModeChanged();
-                record::mirroredChanged();
-            }
-            break;
-        case pages::P_SLOTS:
-            record::clearDeleteConfirm();
-            break;
-        default:
-            break;
-        }
     }
 
     static bool resetMenuOption(const MenuDef& def, int pageId, int row)
@@ -557,22 +522,74 @@ namespace ui {
         return ok;
     }
 
-    static bool resetMenuPage(const MenuDef& def, int pageId)
+    static int stepPageReset(const MenuDef& def, MenuState& state, u8 targetPg, bool byOpt)
     {
-        if (static_cast<u32>(pageId) >= def.pageCount)
+        if (!pageHasResettableOptions(def, targetPg))
         {
-            return false;
+            state.resetConfirmPage = 0;
+            return -1;
         }
+        if ((state.resetConfirmPage & 0x7Fu) != static_cast<u8>(targetPg + 1))
+        {
+            state.resetConfirmPage = static_cast<u8>((targetPg + 1) | (byOpt ? 0x80u : 0u));
+            return game::kSoundMove;
+        }
+        state.resetConfirmPage = 0;
         if (isLabMenu(def))
         {
-            if (!main::resetSettingsPage(pageId))
+            if (!main::resetSettingsPage(targetPg))
             {
-                return false;
+                return -1;
             }
-            syncResetPage(pageId);
-            return true;
+            switch (targetPg)
+            {
+            case pages::P_GENERAL:
+                lab::frameAdvanceChanged();
+                lab::applyPercent(main::kSideHuman);
+                break;
+            case pages::P_CONTROLS:
+                game::codeMenuSync();
+                break;
+            case pages::P_CPU:
+                lab::applyPercent(main::kSideCpu);
+                cpu::controlledByChanged();
+                break;
+            case pages::P_CPU_COUNTERS:
+                main::settings().cpu.options.multiReversal = 0;
+                s_scratch[kCounterModeScratchOffset] = 0xFFu;
+                // fall through
+            case pages::P_ADVANCED_COUNTER:
+                cpu::advancedHitsDefaults(main::settings().cpuTables);
+                cpu::advancedHitChanged();
+                break;
+            case pages::P_OSD_MENU:
+                lab::osdSettingsChanged();
+                break;
+            case pages::P_STAGE_CAST:
+                main::extraStageOptionsChanged();
+                main::extraCharacterRng();
+                break;
+            case pages::P_RECORDING:
+                if (record::positionsSaved())
+                {
+                    record::hmnModeChanged();
+                    record::cpuModeChanged();
+                    record::mirroredChanged();
+                }
+                // fall through
+            case pages::P_SLOTS:
+                record::clearDeleteConfirm();
+                break;
+            case pages::P_HMN_CHANCES:
+            case pages::P_CPU_CHANCES:
+                record::chanceChanged(targetPg == pages::P_HMN_CHANCES ? main::kSideHuman : main::kSideCpu, -1);
+                break;
+            default:
+                break;
+            }
+            return game::kSoundConfirm;
         }
-        const Page& p = pageAt(def, pageId);
+        const Page& p = pageAt(def, targetPg);
         bool any = false;
         for (int i = 0; i < p.count; i++)
         {
@@ -592,8 +609,9 @@ namespace ui {
                 }
             }
         }
-        return any;
+        return any ? game::kSoundConfirm : -1;
     }
+#pragma dont_inline reset
 
     static bool isDamageOption(int pageId, const Option& o)
     {
@@ -721,28 +739,8 @@ namespace ui {
                 {
                     if (state.railCursor < def.categoryCount)
                     {
-                        u8 targetPg = def.categoryPages[state.railCursor];
-                        if (pageHasResettableOptions(def, targetPg))
-                        {
-                            if ((state.resetConfirmPage & 0x7Fu) == static_cast<u8>(targetPg + 1))
-                            {
-                                state.resetConfirmPage = 0;
-                                if (resetMenuPage(def, targetPg))
-                                {
-                                    sound = game::kSoundConfirm;
-                                }
-                            }
-                            else
-                            {
-                                u8 flag = (in.resetOpt && !in.resetPage) ? 0x80u : 0u;
-                                state.resetConfirmPage = static_cast<u8>((targetPg + 1) | flag);
-                                sound = game::kSoundMove;
-                            }
-                        }
-                        else
-                        {
-                            state.resetConfirmPage = 0;
-                        }
+                        sound = stepPageReset(def, state, def.categoryPages[state.railCursor],
+                                              in.resetOpt && !in.resetPage);
                     }
                     else
                     {
@@ -859,26 +857,7 @@ namespace ui {
                 }
                 else if (in.resetPage)
                 {
-                    if (pageHasResettableOptions(def, pageId))
-                    {
-                        if ((state.resetConfirmPage & 0x7Fu) == static_cast<u8>(pageId + 1))
-                        {
-                            state.resetConfirmPage = 0;
-                            if (resetMenuPage(def, pageId))
-                            {
-                                sound = game::kSoundConfirm;
-                            }
-                        }
-                        else
-                        {
-                            state.resetConfirmPage = static_cast<u8>(pageId + 1);
-                            sound = game::kSoundMove;
-                        }
-                    }
-                    else
-                    {
-                        state.resetConfirmPage = 0;
-                    }
+                    sound = stepPageReset(def, state, pageId, false);
                 }
             }
             s_rail = isRailStyle(def);
@@ -1099,18 +1078,12 @@ namespace ui {
 
     static const float kSlantTan = 0.445f; // ~24 deg stock P+ slant
 
-    static void drawSlantRow(float x043, float x143, float y, float h, bool flushLeft, gfx::Rgba topCol,
-                             gfx::Rgba botCol, gfx::Rgba edgeCol)
-    {
-        drawSlantBar(x043, x143, y, h, flushLeft, topCol, botCol, edgeCol);
-    }
-
     static void drawGoldBar(float x43, float w43, float y, float h, float cursorSize, bool flushLeft = false,
                             float stripeRight43 = 0.0f)
     {
         float slant = h * kSlantTan;
         float x143 = x43 + w43;
-        drawSlantRow(x43, x143, y, h, flushLeft, kLabGoldTop, kLabGoldBot, kLabGoldEdge);
+        drawSlantBar(x43, x143, y, h, flushLeft, kLabGoldTop, kLabGoldBot, kLabGoldEdge);
         if (stripeRight43 > 0.0f)
         {
             float inH = h - 4.0f;
@@ -1214,21 +1187,6 @@ namespace ui {
         }
         usedIcon = true;
         return total;
-    }
-
-    static void drawPillBox(float left43, float right43, float y, bool isOn, bool on, bool selected)
-    {
-        drawValuePill(left43, right43, y, kLabRowH, isOn, on, selected);
-    }
-
-    static void drawLabFrame()
-    {
-        float wPanel = kLabRight - kLabLeft;
-        float innerH = kLabBottom - kLabTop - 2.0f * kLabBorder;
-        fillBox(kLabLeft, kLabTop, wPanel, kLabBorder, kLabBorderColor);
-        fillBox(kLabLeft, kLabBottom - kLabBorder, wPanel, kLabBorder, kLabBorderColor);
-        fillBox(kLabLeft, kLabTop + kLabBorder, kLabBorder, innerH, kLabBorderColor);
-        fillBox(kLabRight - kLabBorder, kLabTop + kLabBorder, kLabBorder, innerH, kLabBorderColor);
     }
 
     static void drawLabScrollBar(int count, int scroll, int visible, float topY, float height, const MenuPalette& pal)
@@ -1565,17 +1523,25 @@ namespace ui {
             }
         }
 
-        bool dense = n >= 6;
-        bool ultra = n >= 7;
-        float cap = ultra ? 7.5f : (dense ? 8.0f : kLabFooterCap);
+        static const struct {
+            float cap, startX, minW, iconGap, itemGap, padW;
+        } kFoot[3] = {
+            {kLabFooterCap, 48.0f, 16.0f, 5.0f, 13.0f, 10.0f},
+            {8.0f,          43.0f, 14.5f, 3.0f,  7.0f,  7.0f},
+            {7.5f,          43.0f, 13.5f, 2.5f,  5.5f,  6.0f}
+        };
+        int tier = n >= 7 ? 2 : (n >= 6 ? 1 : 0);
+        const float cap = kFoot[tier].cap;
         float scale = scaleForCap(cap);
         float footerMidY = kLabFooterTop + 2.0f + (kLabInnerBottom - kLabFooterTop - 4.0f) * 0.5f;
         float textY = textYForCap(footerMidY - cap * 0.5f, scale);
         float xs = gfx::xScale();
-        float curX = 320.0f + ((dense ? 43.0f : 48.0f) - 320.0f) * xs;
-        float minBadgeW = (ultra ? 13.5f : (dense ? 14.5f : 16.0f)) * xs;
-        float iconGap = (ultra ? 2.5f : (dense ? 3.0f : 5.0f)) * xs;
-        float itemGap = (ultra ? 5.5f : (dense ? 7.0f : 13.0f)) * xs;
+        float curX = cx(kFoot[tier].startX);
+        float minBadgeW = kFoot[tier].minW * xs;
+        float iconGap = kFoot[tier].iconGap * xs;
+        float itemGap = kFoot[tier].itemGap * xs;
+        float padW = kFoot[tier].padW * xs;
+        u8 embFlags = tier > 0 ? kEmblemDense : 0;
 
         float badgeX[7], badgeW[7], labelX[7];
         bool usedIcon[7];
@@ -1583,13 +1549,12 @@ namespace ui {
         {
             const FooterItem& it = items[i];
             badgeX[i] = curX;
-            float fbW = it.round ? minBadgeW : (boldWidth(it.badge, scale) + (ultra ? 6.0f : (dense ? 7.0f : 10.0f)) * xs);
+            float fbW = it.round ? minBadgeW : (boldWidth(it.badge, scale) + padW);
             if (fbW < minBadgeW)
             {
                 fbW = minBadgeW;
             }
-            badgeW[i] = drawEmblem(it.icon1, it.icon2, curX, footerMidY, fbW, it.theme, dense ? kEmblemDense : 0,
-                                   usedIcon[i]);
+            badgeW[i] = drawEmblem(it.icon1, it.icon2, curX, footerMidY, fbW, it.theme, embFlags, usedIcon[i]);
             labelX[i] = curX + badgeW[i] + iconGap;
             curX = labelX[i] + boldWidth(it.label, scale) + itemGap;
         }
@@ -1622,7 +1587,7 @@ namespace ui {
         float hdrH = kRailHeaderBottom - kLabInnerTop;
         float hdrSlant = hdrH * kSlantTan;
         float ribbonRight = state.depth > 0 ? 394.0f : 268.0f;
-        drawSlantRow(kLabInnerLeft, ribbonRight, kLabInnerTop, hdrH, true, pal.accentTop, pal.accentBot, 0);
+        drawSlantBar(kLabInnerLeft, ribbonRight, kLabInnerTop, hdrH, true, pal.accentTop, pal.accentBot, 0);
         drawDiagStripes(cx(ribbonRight - 6.0f), kLabInnerTop, kRailHeaderBottom, w(hdrSlant), w(4.5f), w(3.5f),
                         kLabStripeCol);
 
@@ -1637,7 +1602,7 @@ namespace ui {
             }
             else if (!state.railFocus && state.category == i)
             {
-                drawSlantRow(kLabInnerLeft, kLabInnerLeft + itemW, y, kRailItemH, true, pal.accentTop, pal.accentBot,
+                drawSlantBar(kLabInnerLeft, kLabInnerLeft + itemW, y, kRailItemH, true, pal.accentTop, pal.accentBot,
                              0);
             }
         }
@@ -1831,7 +1796,7 @@ namespace ui {
         const MenuPalette& pal = activePalette();
 
         // 1. Outer frame + layout chrome.
-        drawLabFrame();
+        drawFrameBorder(kLabLeft, kLabRight, kLabTop, kLabBottom, kLabBorder, kLabBorderColor);
         if (railMode)
         {
             drawRailChrome(def, state, pal);
@@ -1894,13 +1859,13 @@ namespace ui {
                 }
                 else
                 {
-                    drawSlantRow(g.hlLeft, g.hlRight, y, kLabRowH, false, kLabRowSlateTop, kLabRowSlateBot,
+                    drawSlantBar(g.hlLeft, g.hlRight, y, kLabRowH, false, kLabRowSlateTop, kLabRowSlateBot,
                                  kLabRowSlateEdge);
                 }
                 if (hasVal)
                 {
                     bool isOnToggle = o.kind == kKindToggle && optionValue(def, o) != 0;
-                    drawPillBox(g.pillLeft, g.pillRight, y, isOnToggle, on, selected);
+                    drawValuePill(g.pillLeft, g.pillRight, y, kLabRowH, isOnToggle, on, selected);
                     if (selected && hasValue(o) && on)
                     {
                         drawHorizArrows(g.pillLeft, g.pillRight, y, isOnToggle ? kLabFocusGold : kLabGoldInk);
