@@ -104,5 +104,8 @@ namespace fakes {
     void setPlayerPort(int playerNo, u8 port);
     // Toggle a running Training character select for training::startMatch().
     void setTrainingSelectRunning(bool running);
+    // Toggle CSS coin/dropdown safety gate for select::canBackToBootMenu().
+    void setCssCanBack(bool canBack);
+    int cssBHoldCleared();
 }
 }

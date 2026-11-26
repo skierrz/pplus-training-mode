@@ -18,10 +18,14 @@
 #include "host/log.h"
 #include "host/mem.h"
 #include "host/test.h"
+#include "main/settings.h"
+#include "main/storage/areas.h"
 #include "main/storage/file_io.h"
 #include "main/storage/format.h"
 #include "menu/drill_list.h"
+#include "menu/game/select.h"
 #include "menu/game/training.h"
+#include "menu/osd_quick.h"
 #include "menu/session.h"
 #include "shared/game/pad_map.h"
 #include "shared/interface.h"
@@ -420,15 +424,19 @@ TEST(drill_list, pad_map_buttons_and_reopen)
     CHECK_EQ(0u, cls.pagePrev & game::kPadZ);
     CHECK_EQ(0u, cls.pageNext & game::kPadZ);
 
-    // Reopen combos require both buttons held and a fresh edge on at least one.
+    // Reopen combos require both buttons held, a fresh edge on at least one, and !D-Down.
     CHECK(game::reopenPressed(gcc, game::kPadL | game::kPadR, game::kPadR));
+    CHECK(!game::reopenPressed(gcc, game::kPadL | game::kPadR | game::kPadDDown, game::kPadR));
     CHECK(!game::reopenPressed(gcc, game::kPadL | game::kPadR, 0));
     CHECK(!game::reopenPressed(gcc, game::kPadL, game::kPadL));
     CHECK(!game::reopenPressed(wii, game::kPadWiiMinus, game::kPadWiiMinus));
     CHECK(!game::reopenPressed(wii, game::kPadWiiB | game::kPadL, game::kPadWiiB | game::kPadL));
     CHECK(game::reopenPressed(wii, game::kPadWiiMinus | game::kPadWiiB | game::kPadL, game::kPadWiiB | game::kPadL));
+    CHECK(!game::reopenPressed(wii, game::kPadWiiMinus | game::kPadWiiB | game::kPadL | game::kPadDDown,
+                               game::kPadWiiB | game::kPadL));
     CHECK(!game::reopenPressed(wii, game::kPadWiiMinus | game::kPadWiiB | game::kPadL, 0));
     CHECK(game::reopenPressed(nun, game::kPadX | game::kPadNunchukC | game::kPadZ, game::kPadZ));
+    CHECK(!game::reopenPressed(nun, game::kPadX | game::kPadNunchukC | game::kPadZ | game::kPadDDown, game::kPadZ));
     CHECK(!game::reopenPressed(nun, game::kPadX | game::kPadNunchukC, game::kPadX | game::kPadNunchukC));
 }
 
@@ -446,22 +454,23 @@ TEST(drill_list, sideways_and_nunchuk_actions_reopen_and_selective_hiding)
     setPadInput(pads[4], game::kPadL | game::kPadWiiB);
     stepFrame(pads);
     CHECK(!host::log::contains("drills: list closed"));
+    CHECK(!host::log::contains("drills: exiting to Solo"));
     setPadInput(pads[4], 0);
     stepFrame(pads);
 
-    // Sideways 1 (0x10200) closes the list and hides both bits of 1 until released,
-    // without hiding another button (2 = 0x20100) pressed after closing.
-    setPadInput(pads[4], game::kPadB | game::kPadWii1);
+    // Sideways 2 (0x20100) selects Training Lab, closes to CSS, and hides both bits of 2
+    // until released without hiding another button (1 = 0x10200) pressed after closing.
+    setPadInput(pads[4], game::kPadA | game::kPadWii2);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: list closed (1)"));
+    CHECK(host::log::contains("drills: list closed (Training Lab)"));
     CHECK_EQ(0u, pads[4].m_buttonsCurrentFrame.bits);
 
-    // While 1 is still held and 2 is newly pressed: 1 stays hidden, 2 passes through.
-    setPadInput(pads[4], game::kPadB | game::kPadWii1 | game::kPadA | game::kPadWii2);
+    // While 2 is still held and 1 is newly pressed (and CSS back gate is closed): 2 stays hidden, 1 passes through.
+    setPadInput(pads[4], game::kPadA | game::kPadWii2 | game::kPadB | game::kPadWii1);
     stepFrame(pads);
-    CHECK_EQ(static_cast<u32>(game::kPadA | game::kPadWii2), pads[4].m_buttonsCurrentFrame.bits);
+    CHECK_EQ(static_cast<u32>(game::kPadB | game::kPadWii1), pads[4].m_buttonsCurrentFrame.bits);
 
-    // Releasing 1 clears its mask; pressing - alone neither opens the list nor
+    // Releasing 2 clears its mask; pressing - alone neither opens the list nor
     // hides - from the game (P+ reads - for special fighters at match start).
     setPadInput(pads[4], 0);
     stepFrame(pads);
@@ -479,16 +488,18 @@ TEST(drill_list, sideways_and_nunchuk_actions_reopen_and_selective_hiding)
 
     // Hot-swap to Nunchuk while a button is held: wait-release resets so no phantom action fires.
     setPadType(pads, 4, gfPadType::NUNCHUK);
-    setPadInput(pads[4], game::kPadB | game::kPadWiiB);
+    setPadInput(pads[4], game::kPadA | game::kPadWiiA);
     stepFrame(pads);
-    CHECK(!host::log::contains("drills: list closed (B)"));
+    CHECK(!host::log::contains("drills: exiting to Solo"));
     setPadInput(pads[4], 0);
     stepFrame(pads);
 
-    // Nunchuk B (0x400200) closes the list with stick held; stick stays hidden until neutral.
-    setPadInput(pads[4], game::kPadB | game::kPadWiiB, 0, -80);
+    // Nunchuk A selects the highlighted row with stick held (down moves 0 -> 1 L-Cancel);
+    // stick stays hidden until neutral.
+    host::log::clear();
+    setPadInput(pads[4], game::kPadA | game::kPadWiiA, 0, -80);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: list closed (B)"));
+    CHECK(host::log::contains("drills: list closed (L-Cancel)"));
     CHECK_EQ(0u, pads[4].m_buttonsCurrentFrame.bits);
     CHECK_EQ(0, static_cast<int>(pads[4].m_stickY));
     setPadInput(pads[4], 0, 0, -80);
@@ -597,7 +608,7 @@ namespace {
     }
 }
 
-TEST(drill_list, draw_pending_keeps_css_uncluttered_while_reopen_works)
+TEST(drill_list, draw_pending_shows_css_mode_pill_and_reopen_works)
 {
     gfPadStatus pads[iface::kPadCount];
     initPads(pads, 1u << 4, gfPadType::NUNCHUK);
@@ -607,27 +618,28 @@ TEST(drill_list, draw_pending_keeps_css_uncluttered_while_reopen_works)
     menu::list::attach();
     stepFrame(pads);
 
-    // CSS stays uncluttered (zero runs, zero rects) across all 4 controller types.
+    // Brawl-styled CSS mode pill shows active mode + controller-appropriate reopen hint.
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK_EQ(0, host::canvas::runs());
-    CHECK_EQ(0, host::canvas::rects());
+    CHECK(host::canvas::runs() >= 2);
+    CHECK(host::canvas::rects() >= 2);
+    CHECK(canvasDrew("TRAINING LAB"));
+    CHECK(canvasDrew("B / C+Z: Modes"));
     CHECK(strcmp(menu::list::reopenHint(), "C+Z = Training Menu") == 0);
 
     setPadType(pads, 4, gfPadType::WIIMOTE);
     stepFrame(pads);
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK_EQ(0, host::canvas::runs());
-    CHECK_EQ(0, host::canvas::rects());
+    CHECK(canvasDrew("TRAINING LAB"));
+    CHECK(canvasDrew("1 / - + B: Modes"));
     CHECK(strcmp(menu::list::reopenHint(), "- + B = Training Menu") == 0);
 
     setPadType(pads, 4, gfPadType::WII_CLASSIC);
     stepFrame(pads);
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK_EQ(0, host::canvas::runs());
-    CHECK_EQ(0, host::canvas::rects());
+    CHECK(canvasDrew("B / L+R: Modes"));
     CHECK(strcmp(menu::list::reopenHint(), "L+R = Training Menu") == 0);
 
     pads[0].m_error = gfPadError::NONE;
@@ -635,9 +647,22 @@ TEST(drill_list, draw_pending_keeps_css_uncluttered_while_reopen_works)
     stepFrame(pads);
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK_EQ(0, host::canvas::runs());
-    CHECK_EQ(0, host::canvas::rects());
+    CHECK(canvasDrew("B / L+R: Modes"));
     CHECK(strcmp(menu::list::reopenHint(), "L+R = Training Menu") == 0);
+
+    // Armed tech practice shows its own name in the CSS mode pill.
+    menu::session().drill = drills::kDrillDacus;
+    host::canvas::clear();
+    menu::list::onRender(0);
+    CHECK(canvasDrew("DACUS"));
+    menu::session().drill = drills::kDrillNone;
+
+    // L+R+D-Down must NOT reopen (never collides with P+ Code Menu).
+    setPadInput(pads[0], game::kPadL | game::kPadR | game::kPadDDown);
+    stepFrame(pads);
+    CHECK(!host::log::contains("drills: list opened (L+R)"));
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
 
     // Reopen combo (GC L+R) still opens the menu cleanly.
     setPadInput(pads[0], game::kPadL | game::kPadR);
@@ -798,9 +823,11 @@ TEST(drill_list, per_controller_footer_and_browser_labels)
     CHECK(canvasDrew("A"));
     CHECK(canvasDrew("Select"));
     CHECK(canvasDrew("B"));
-    CHECK(canvasDrew("Close"));
+    CHECK(canvasDrew("Back"));
     CHECK(canvasDrew("X"));
-    CHECK(canvasDrew("Import"));
+    CHECK(canvasDrew("Recordings"));
+    CHECK(canvasDrew("Y"));
+    CHECK(canvasDrew("OSDs"));
     CHECK(canvasDrew("L/R"));
     CHECK(canvasDrew("Section"));
 
@@ -876,19 +903,32 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     menu::list::attach();
     stepFrame(pads); // neutral clears wait-release
 
-    // Starts on Page 0 (All Modes, 17 rows: Lab + 9 Scenarios + Browse Recordings + 6 Skill Drills).
+    // Starts on Page 0 (All Modes, 19 rows: Lab -> Core Fundamentals ->
+    // Defensive & Situational -> P+ Advanced Tech -> Browse Recordings).
     CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
 
-    // Scroll down 10 steps past row 9 (P+ Multi-Hit SDI) to row 10 (Browse Recordings) and open browser.
-    for (int i = 0; i < 10; i++)
+    // Step through All Modes and verify intuitive ordering & recommendation badges.
+    for (int i = 0; i < 18; i++)
     {
         setPadInput(pads[0], kDpadDown);
         stepFrame(pads);
         setPadInput(pads[0], 0);
         stepFrame(pads);
     }
-    CHECK(host::log::contains("drills: row 9 P+ Multi-Hit SDI"));
-    CHECK(host::log::contains("drills: row 10 Browse Recordings"));
+    CHECK(host::log::contains("drills: row 1 L-Cancel"));
+    CHECK(host::log::contains("drills: row 2 Wavedash / Waveland"));
+    CHECK(host::log::contains("drills: row 3 Ledgedash"));
+    CHECK(host::log::contains("drills: row 4 Combo Lab"));
+    CHECK(host::log::contains("drills: row 8 Powershield"));
+    CHECK(host::log::contains("drills: row 11 Slide-Off"));
+    CHECK(host::log::contains("drills: row 13 P+ Multi-Hit SDI"));
+    CHECK(host::log::contains("drills: row 14 RAR"));
+    CHECK(host::log::contains("drills: row 15 DACUS"));
+    CHECK(host::log::contains("drills: row 16 B-Reverse / Wavebounce"));
+    CHECK(host::log::contains("drills: row 17 Float / Hover & DJC"));
+    CHECK(host::log::contains("drills: row 18 Browse Recordings"));
+
+    // Select row 18 (Browse Recordings) -> opens browser, B returns to Boot Menu.
     setPadInput(pads[0], kButtonA);
     stepFrame(pads);
     CHECK(host::log::contains("browser: opened for port 1"));
@@ -900,18 +940,7 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
-    // Scrolling 6 more steps inside All Modes reaches all 6 Skill Drills through row 16 (P+ Tech).
-    for (int i = 0; i < 6; i++)
-    {
-        setPadInput(pads[0], kDpadDown);
-        stepFrame(pads);
-        setPadInput(pads[0], 0);
-        stepFrame(pads);
-    }
-    CHECK(host::log::contains("drills: row 11 Ledgedash"));
-    CHECK(host::log::contains("drills: row 16 RAR / DACUS / B-Rev"));
-
-    // GC R cycles: All Modes -> Offense -> Defense -> All Modes.
+    // GC R cycles: All Modes -> Offense -> Defense -> Tech Practice -> All Modes.
     setPadInput(pads[0], game::kPadR);
     stepFrame(pads);
     CHECK(host::log::contains("drills: page Offense"));
@@ -945,7 +974,7 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
-    // Cycle R -> Defense (Page 2, 5 rows) and move to bottom row 4 (P+ Multi-Hit SDI, presetId = 9).
+    // Cycle R -> Defense (Page 2, 7 rows) and move to bottom row 6 (P+ Multi-Hit SDI, presetId = 9).
     setPadInput(pads[0], game::kPadR);
     stepFrame(pads);
     CHECK(host::log::contains("drills: page Defense"));
@@ -958,13 +987,13 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
         setPadInput(pads[0], 0);
         stepFrame(pads);
     }
-    CHECK(host::log::contains("drills: row 4 P+ Multi-Hit SDI"));
+    CHECK(host::log::contains("drills: row 6 P+ Multi-Hit SDI"));
     setPadInput(pads[0], kButtonA);
     stepFrame(pads);
     CHECK_EQ(9, static_cast<int>(menu::session().pendingScenario));
     CHECK(host::log::contains("drills: scenario 9 (P+ Multi-Hit SDI) armed"));
 
-    // Reopen, cycle R -> Skill Drills (Page 3) -> All Modes (Page 0), select row 0 (Training Lab) -> clears pendingScenario to 0!
+    // Reopen, cycle R -> Tech Practice (Page 3) -> All Modes (Page 0), select row 0 (Training Lab) -> clears pendingScenario to 0!
     setPadInput(pads[0], 0);
     stepFrame(pads);
     setPadInput(pads[0], game::kPadL | game::kPadR);
@@ -973,7 +1002,7 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     stepFrame(pads);
     setPadInput(pads[0], game::kPadR);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: page Skill Drills"));
+    CHECK(host::log::contains("drills: page Tech Practice"));
     setPadInput(pads[0], 0);
     stepFrame(pads);
     setPadInput(pads[0], game::kPadR);
@@ -1064,50 +1093,321 @@ TEST(drill_list, skill_drills_section_arms_drill_and_shows_personal_best)
     menu::list::attach();
     stepFrame(pads);
 
-    // L from All Modes wraps directly to Page 3 (Skill Drills).
+    // L from All Modes wraps directly to Page 3 (Tech Practice, 8 single-page rows).
     setPadInput(pads[0], game::kPadL);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: page Skill Drills"));
+    CHECK(host::log::contains("drills: page Tech Practice"));
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
-    // Details card shows Personal Best placeholder when best == 0.
+    // Details card shows Best Streak placeholder when best == 0.
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK(canvasDrew("Skill Drills"));
-    CHECK(canvasDrew("Ledgedash"));
-    CHECK(canvasDrew("Personal Best"));
+    CHECK(canvasDrew("Tech Practice"));
+    CHECK(canvasDrew("L-Cancel"));
+    CHECK(canvasDrew("Best Streak"));
     CHECK(canvasDrew("Best: --"));
 
-    // Select Ledgedash (row 0 of Skill Drills) -> arms drill 1, clears scenario, closes list.
+    // Move down to Ledgedash (row 2 of Tech Practice) and select it -> arms drill 1, clears scenario, closes list.
+    for (int i = 0; i < 2; i++)
+    {
+        setPadInput(pads[0], kDpadDown);
+        stepFrame(pads);
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+    }
     setPadInput(pads[0], kButtonA);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: skill drill 1 (Ledgedash) armed"));
+    CHECK(host::log::contains("drills: tech practice 1 (Ledgedash) armed"));
     CHECK_EQ(static_cast<int>(drills::kDrillLedgedash), static_cast<int>(menu::session().drill));
     CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
     CHECK_EQ(0, static_cast<int>(menu::session().drillRan));
     CHECK_EQ(3, static_cast<int>(menu::session().page));
-    CHECK_EQ(0, static_cast<int>(menu::session().row));
+    CHECK_EQ(2, static_cast<int>(menu::session().row));
 
     // Detach into match (exitCode == 1) preserves armed drill for extra/drill_hud.cpp.
     gfSceneManager::getInstance()->unk1 = 1;
     menu::list::detach();
     CHECK_EQ(static_cast<int>(drills::kDrillLedgedash), static_cast<int>(menu::session().drill));
 
-    // Simulate match finishing with score 8/10 -> returning to CSS auto-opens launcher
-    // on Skill Drills row 0 showing "Best: 8/10" and clears drill/drillRan.
+    // Simulate match finishing with best streak 8 -> returning to CSS auto-opens launcher
+    // on Tech Practice row 2 showing "Best: 8" and clears drill/drillRan.
     menu::session().drillRan = 1;
     menu::session().best[drills::kDrillLedgedash] = 8;
     host::log::clear();
     menu::attachSession(host::fakes::block());
     menu::list::attach();
-    CHECK(host::log::contains("drills: list opened (auto) for port 1, row 0 Ledgedash"));
+    CHECK(host::log::contains("drills: list opened (auto) for port 1, row 2 Ledgedash"));
     CHECK_EQ(static_cast<int>(drills::kDrillNone), static_cast<int>(menu::session().drill));
     CHECK_EQ(0, static_cast<int>(menu::session().drillRan));
 
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK(canvasDrew("Best: 8/10"));
+    CHECK(canvasDrew("Best: 8"));
+    menu::list::detach();
+}
+
+TEST(drill_list, tech_practice_eight_rows_and_recommendation_badges)
+{
+    gfPadStatus pads[iface::kPadCount];
+    initPads(pads, 1u << 0);
+    host::fakes::setMenuPort(0);
+    host::fakes::setTrainingSelectRunning(true);
+    menu::list::attach();
+    stepFrame(pads);
+
+    // Verify all 8 Tech Practice rows arm their exact DrillId on one page without scrolling.
+    setPadInput(pads[0], game::kPadL);
+    stepFrame(pads);
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+
+    static const u8 kExpectedDrills[8] = {
+        drills::kDrillLCancel,    drills::kDrillWavedash, drills::kDrillLedgedash, drills::kDrillPowershield,
+        drills::kDrillRar,        drills::kDrillDacus,    drills::kDrillBReverse,  drills::kDrillHoverFloat
+    };
+    for (int r = 0; r < 8; r++)
+    {
+        if (r > 0)
+        {
+            setPadInput(pads[0], game::kPadL | game::kPadR);
+            stepFrame(pads);
+            setPadInput(pads[0], 0);
+            stepFrame(pads);
+            setPadInput(pads[0], kDpadDown);
+            stepFrame(pads);
+            setPadInput(pads[0], 0);
+            stepFrame(pads);
+        }
+        if (r == 3)
+        {
+            host::canvas::clear();
+            menu::list::onRender(0);
+            CHECK(canvasDrew("Projectile CPU"));
+        }
+        setPadInput(pads[0], kButtonA);
+        stepFrame(pads);
+        CHECK_EQ(static_cast<int>(kExpectedDrills[r]), static_cast<int>(menu::session().drill));
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+    }
+
+    // Verify recommendation chips on Defense scenarios (Shield Drop, Ledgetech, Slide-Off).
+    setPadInput(pads[0], game::kPadL | game::kPadR);
+    stepFrame(pads);
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+    setPadInput(pads[0], game::kPadL); // Tech Practice -> Defense
+    stepFrame(pads);
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+    // Defense rows 2..4 are Shield Drop, Ledgetech, Slide-Off.
+    for (int s = 0; s < 2; s++)
+    {
+        setPadInput(pads[0], kDpadDown);
+        stepFrame(pads);
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+    }
+    static const char* const kDefenseBadges[3] = {"Platform Stage", "Wall Stage", "Platform Stage / PS2"};
+    for (int i = 0; i < 3; i++)
+    {
+        host::canvas::clear();
+        menu::list::onRender(0);
+        CHECK(canvasDrew(kDefenseBadges[i]));
+        setPadInput(pads[0], kDpadDown);
+        stepFrame(pads);
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+    }
+    menu::list::detach();
+}
+
+TEST(drill_list, natural_b_hierarchy_boot_to_solo_and_css_coin_safe_back)
+{
+    // Pure truth-table check of select::canBackFromCss().
+    menu::select::CssBackState st = {true, true, 1, 0, true, true, false, false};
+    CHECK(menu::select::canBackFromCss(st, 0));
+    CHECK(!menu::select::canBackFromCss(st, 1)); // wrong port
+    st.controllerPort = -1;
+    CHECK(menu::select::canBackFromCss(st, 4)); // unmapped port allowed (e.g. Wii)
+    st.controllerPort = 0;
+    st.ownCoinPlaced = true;
+    CHECK(!menu::select::canBackFromCss(st, 0)); // B recalls P1's placed coin
+    st.ownCoinPlaced = false;
+    st.handHoldingOwn = false;
+    st.handHoldingAny = true;
+    CHECK(!menu::select::canBackFromCss(st, 0)); // dragging CPU's coin
+    st.handHoldingOwn = true;
+    st.anyDropdownOpen = true;
+    CHECK(!menu::select::canBackFromCss(st, 0)); // tag or CPU slider open
+    st.anyDropdownOpen = false;
+    st.playerKind = 0;
+    CHECK(!menu::select::canBackFromCss(st, 0)); // not human
+    st.playerKind = 1;
+    st.selectRunning = false;
+    CHECK(!menu::select::canBackFromCss(st, 0));
+
+    // Seed sqTraining::setNext exit-to-Solo words verified by training::exitToSolo().
+    host::mem::setWord(0x806F154Cu, 0x3B40000Bu);
+    host::mem::setWord(0x806F1628u, 0x80110284u);
+    host::mem::setWord(0x806F1644u, 0x934F0008u);
+    host::mem::setWord(0x807038C4u, 0x806F1628u);
+
+    // Live Boot Menu B exits cleanly to Solo (m->unk1 = 0, m->processStep = 2).
+    gfPadStatus pads[iface::kPadCount];
+    initPads(pads, 1u << 0);
+    host::fakes::setMenuPort(0);
+    host::fakes::setTrainingSelectRunning(true);
+    menu::list::attach();
+    stepFrame(pads);
+
+    setPadInput(pads[0], kButtonB);
+    stepFrame(pads);
+    CHECK(host::log::contains("drills: exiting to Solo (B)"));
+    CHECK_EQ(0u, gfSceneManager::getInstance()->unk1);
+    CHECK_EQ(2u, gfSceneManager::getInstance()->processStep);
+    CHECK_EQ(0, static_cast<int>(menu::session().labChosen));
+    menu::list::detach();
+
+    // CSS -> Boot Menu via B when coin/dropdown safety gate allows it.
+    host::fakes::reset();
+    host::log::clear();
+    initPads(pads, 1u << 0);
+    host::fakes::setMenuPort(0);
+    host::fakes::setTrainingSelectRunning(true);
+    menu::session().labChosen = 1;
+    menu::list::attach();
+    stepFrame(pads);
+
+    // Gate false (e.g. P1 coin placed): B passes through to CSS, does NOT reopen Boot Menu.
+    host::fakes::setCssCanBack(false);
+    setPadInput(pads[0], kButtonB);
+    stepFrame(pads);
+    CHECK(!host::log::contains("drills: list opened (B)"));
+    CHECK_EQ(static_cast<u32>(kButtonB), pads[0].m_buttonsCurrentFrame.bits);
+    CHECK_EQ(0, host::fakes::cssBHoldCleared());
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+
+    // Gate true (no placed coin, no dropdown): B reopens Boot Menu, hides B, clears B-hold counter.
+    host::fakes::setCssCanBack(true);
+    setPadInput(pads[0], kButtonB);
+    stepFrame(pads);
+    CHECK(host::log::contains("drills: list opened (B) for port 1"));
+    CHECK_EQ(0u, pads[0].m_buttonsCurrentFrame.bits);
+    CHECK_EQ(1, host::fakes::cssBHoldCleared());
+    menu::list::detach();
+}
+
+TEST(drill_list, y_quick_osds_patches_osd_area_in_place_without_clobbering_other_areas)
+{
+    // Build a full 16-area v2 settings file on the fake SD card with custom non-OSD areas.
+    main::loadSettings(host::fakes::block());
+    main::settings().general.ledgeMaxFrames = 55;
+    main::settings().controls.advanceButton = main::kAdvanceX;
+    main::settings().display.hitboxes = 2;
+    main::settings().osd.wavedash = 1;
+    main::settings().osd.lCancel = 1;
+    main::settings().osd.maxMessages = 4;
+
+    u8 origFile[storage::kSettingsFileCap];
+    memset(origFile, 0, sizeof(origFile));
+    storage::FileHeader* oh = reinterpret_cast<storage::FileHeader*>(origFile);
+    storage::SettingsHead* ohead = reinterpret_cast<storage::SettingsHead*>(origFile + sizeof(storage::FileHeader));
+    u32 at = sizeof(storage::FileHeader) + sizeof(storage::SettingsHead);
+    u16 areaCount = 0;
+    u32 bodyBytes = storage::writeAreas(origFile + at, sizeof(origFile) - at, at,
+                                        reinterpret_cast<const u8*>(&main::settings()), storage::kAllAreas, areaCount);
+    REQUIRE(bodyBytes > 0 && areaCount == 16);
+    ohead->areaCount = areaCount;
+    ohead->layout = main::kSettingsVersion;
+    oh->magic = storage::kSettingsMagic;
+    oh->format = storage::kSettingsFormat;
+    oh->headerSize = sizeof(storage::FileHeader);
+    oh->size = at + bodyBytes;
+    oh->sequence = 7;
+    oh->checksum = storage::checksum(origFile + storage::kChecksumFrom, oh->size - storage::kChecksumFrom);
+
+    // Pure patchOsdAreaInFile test: changes kAreaOsd only; all other 15 areas stay byte-for-byte identical.
+    main::OsdSettings editedOsd = main::settings().osd;
+    editedOsd.wavedash = 0;
+    editedOsd.dashback = 1;
+    editedOsd.maxMessages = 6;
+    editedOsd.preset = main::kOsdPresetCustom;
+
+    u8 patched[storage::kSettingsFileCap];
+    u32 patchedSize = 0;
+    REQUIRE(menu::osdQuick::patchOsdAreaInFile(origFile, oh->size, editedOsd, patched, sizeof(patched), 8, patchedSize));
+    CHECK_EQ(static_cast<int>(storage::kOk),
+             storage::checkHeader(patched, patchedSize, storage::kSettingsMagic, storage::kSettingsFormat, true));
+
+    const storage::SettingsHead* phead = reinterpret_cast<const storage::SettingsHead*>(patched + sizeof(storage::FileHeader));
+    CHECK_EQ(16, static_cast<int>(phead->areaCount));
+    CHECK_EQ(static_cast<int>(main::kSettingsVersion), static_cast<int>(phead->layout));
+
+    // Read patched file back into fresh defaults and confirm EVERY non-OSD area survived verbatim.
+    main::Settings restored;
+    main::Settings before = main::settings();
+    main::resetSettings();
+    storage::AreaStats stats;
+    REQUIRE(storage::readAreas(patched, patchedSize, at, phead->areaCount,
+                               reinterpret_cast<u8*>(&main::settings()), storage::kAllAreas, stats));
+    restored = main::settings();
+    CHECK_EQ(16u, stats.copied);
+    CHECK_EQ(0u, stats.grown);
+    CHECK_EQ(0u, stats.reset);
+    CHECK_EQ(55, static_cast<int>(restored.general.ledgeMaxFrames));
+    CHECK_EQ(static_cast<int>(main::kAdvanceX), static_cast<int>(restored.controls.advanceButton));
+    CHECK_EQ(2, static_cast<int>(restored.display.hitboxes));
+    CHECK_EQ(0, static_cast<int>(restored.osd.wavedash));
+    CHECK_EQ(1, static_cast<int>(restored.osd.dashback));
+    CHECK_EQ(6, static_cast<int>(restored.osd.maxMessages));
+    // Restore original settings before testing interactive Y: OSDs UI flow.
+    memcpy(&main::settings(), &before, sizeof(main::Settings));
+
+    // Interactive Y: OSDs flow from Boot Menu -> opens screen, edits Max OSDs, backs out -> saves to SD + live block.
+    host::card::put("settings-a.bin", origFile, oh->size);
+    gfPadStatus pads[iface::kPadCount];
+    initPads(pads, 1u << 0);
+    host::fakes::setMenuPort(0);
+    host::fakes::setTrainingSelectRunning(true);
+    menu::list::attach();
+    stepFrame(pads);
+
+    setPadInput(pads[0], game::kPadY);
+    stepFrame(pads);
+    CHECK(menu::osdQuick::isOpen());
+    CHECK(host::log::contains("osdquick: opened for port 1"));
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+
+    // Move down to row 2 (Max OSDs) and press Right (4 -> 5).
+    for (int i = 0; i < 2; i++)
+    {
+        setPadInput(pads[0], kDpadDown);
+        stepFrame(pads);
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+    }
+    setPadInput(pads[0], game::kPadDRight);
+    stepFrame(pads);
+    CHECK_EQ(5, static_cast<int>(main::settings().osd.maxMessages));
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+
+    // Press B to close Quick OSDs and flush to settings-b.bin (sequence 8).
+    setPadInput(pads[0], kButtonB);
+    stepFrame(pads);
+    CHECK(!menu::osdQuick::isOpen());
+    setPadInput(pads[0], 0);
+    for (int i = 0; i < 4; i++)
+    {
+        menu::list::onRender(0);
+        stepFrame(pads);
+    }
+    CHECK(host::card::has("settings-b.bin"));
+    CHECK(host::log::contains("osdquick: saved to settings-b.bin (save 8"));
     menu::list::detach();
 }
 

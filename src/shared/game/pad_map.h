@@ -112,6 +112,11 @@ namespace game {
 
     inline bool reopenPressed(const PadMap& map, u32 held, u32 pressed)
     {
+        // Explicitly gated on !D-Down so L+R never collides with P+'s Code Menu (L+R+D-Down).
+        if ((held & kPadDDown) != 0)
+        {
+            return false;
+        }
         return map.reopenA != 0 && (held & map.reopenA) != 0 && (held & map.reopenB) != 0
                && (pressed & (map.reopenA | map.reopenB)) != 0;
     }

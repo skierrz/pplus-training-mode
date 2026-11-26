@@ -600,9 +600,16 @@ namespace select {
         kTaskAreas = 0x44,
         kTaskRosterCount = 0x138,
         kTaskIcons = 0x16C,
+        kTaskAreaCount = 0x648,
         kAreaHand = 0x1A8,
+        kAreaCoin = 0x1AC,
         kAreaIndex = 0x1B0,
+        kAreaPlayerKind = 0x1B4,
+        kAreaControllerNo = 0x1DC,
         kHandCoin = 0xA0,
+        kHandMode = 0xA4,
+        kHandBButtonCnt = 0xC8,
+        kCoinHand = 0x10,
         kCoinArea = 0x14, // BrawlHeaders mu_selchar_coin.h
         kObjectModel = 0xC,
         kModelDirty = 0x140,
@@ -793,6 +800,93 @@ namespace select {
         m->processStep = 2;
         s_reopening = true;
         return NULL;
+    }
+
+    bool canBackToBootMenu(int port)
+    {
+        CssBackState st;
+        st.selectRunning = training::selectRunning();
+        st.areaValid = false;
+        st.playerKind = 0;
+        st.controllerPort = -1;
+        st.handHoldingAny = false;
+        st.handHoldingOwn = false;
+        st.ownCoinPlaced = false;
+        st.anyDropdownOpen = false;
+        if (!st.selectRunning)
+        {
+            return false;
+        }
+        gfSceneManager* m = gfSceneManager::getInstance();
+        if (!isRam(m) || !isRam(m->m_currentScene))
+        {
+            return false;
+        }
+        u8* task = reinterpret_cast<u8*>(game::wordAt(m->m_currentScene, kSceneTask));
+        if (!isRam(task))
+        {
+            return false;
+        }
+        // Check all active player areas for open tag/name/CPU dropdowns
+        // (muSelCharHand::m_mode at +0xA4: 0x80689DEC, 0x8068A040, 0x8069E088).
+        u32 areaCount = game::wordAt(task, kTaskAreaCount);
+        if (areaCount > 4)
+        {
+            areaCount = 4;
+        }
+        for (u32 i = 0; i < areaCount; i++)
+        {
+            u8* a = areaAt(task, static_cast<int>(i));
+            u8* h = a != NULL ? reinterpret_cast<u8*>(game::wordAt(a, kAreaHand)) : NULL;
+            if (isRam(h) && game::wordAt(h, kHandMode) != 0)
+            {
+                st.anyDropdownOpen = true;
+            }
+        }
+        u8* p1 = areaAt(task, kAreaHuman);
+        u8* hand = p1 != NULL ? reinterpret_cast<u8*>(game::wordAt(p1, kAreaHand)) : NULL;
+        u8* coin = p1 != NULL ? reinterpret_cast<u8*>(game::wordAt(p1, kAreaCoin)) : NULL;
+        if (!isRam(p1) || !isRam(hand) || !isRam(coin))
+        {
+            return false;
+        }
+        st.areaValid = true;
+        st.playerKind = static_cast<int>(game::wordAt(p1, kAreaPlayerKind));
+        st.controllerPort = static_cast<int>(game::wordAt(p1, kAreaControllerNo));
+        u8* heldCoin = reinterpret_cast<u8*>(game::wordAt(hand, kHandCoin));
+        u8* coinHolder = reinterpret_cast<u8*>(game::wordAt(coin, kCoinHand));
+        st.handHoldingAny = isRam(heldCoin);
+        st.handHoldingOwn = isRam(heldCoin) && heldCoin == coin;
+        st.ownCoinPlaced = !isRam(heldCoin) && !isRam(coinHolder);
+        return canBackFromCss(st, port);
+    }
+
+    void clearBHoldCounter()
+    {
+        gfSceneManager* m = gfSceneManager::getInstance();
+        if (!isRam(m) || !isRam(m->m_currentScene) || !training::selectRunning())
+        {
+            return;
+        }
+        u8* task = reinterpret_cast<u8*>(game::wordAt(m->m_currentScene, kSceneTask));
+        if (!isRam(task))
+        {
+            return;
+        }
+        u32 areaCount = game::wordAt(task, kTaskAreaCount);
+        if (areaCount > 4)
+        {
+            areaCount = 4;
+        }
+        for (u32 i = 0; i < areaCount; i++)
+        {
+            u8* a = areaAt(task, static_cast<int>(i));
+            u8* h = a != NULL ? reinterpret_cast<u8*>(game::wordAt(a, kAreaHand)) : NULL;
+            if (isRam(h))
+            {
+                *reinterpret_cast<u32*>(h + kHandBButtonCnt) = 0;
+            }
+        }
     }
 }
 }

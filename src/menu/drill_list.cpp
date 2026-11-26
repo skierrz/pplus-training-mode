@@ -10,10 +10,12 @@
 #include "extra/scenario_presets_core.h"
 #include "main/gfx/draw.h"
 #include "main/gfx/text.h"
+#include "main/ui/hud_layout.h"
 #include "main/ui/style.h"
 #include "menu/browser.h"
 #include "menu/game/select.h"
 #include "menu/game/training.h"
+#include "menu/osd_quick.h"
 #include "menu/session.h"
 #include "menu/sound.h"
 #include "shared/drill_session.h"
@@ -50,6 +52,31 @@ namespace list {
         const char* caption;
     };
 
+    // Row indices referenced by section tables below.
+    enum {
+        kIdxLab = 0,
+        kIdxLCancel = 1,
+        kIdxWavedash = 2,
+        kIdxLedgedash = 3,
+        kIdxComboLab = 4,
+        kIdxTechchase = 5,
+        kIdxEdgeguard = 6,
+        kIdxShieldPressure = 7,
+        kIdxPowershield = 8,
+        kIdxShieldDrop = 9,
+        kIdxLedgetech = 10,
+        kIdxSlideOff = 11,
+        kIdxGrabDefense = 12,
+        kIdxMultiHitSdi = 13,
+        kIdxRar = 14,
+        kIdxDacus = 15,
+        kIdxBReverse = 16,
+        kIdxFloatHover = 17,
+        kIdxRecordings = 18
+    };
+
+    // Intuitive All Modes order: Training Lab -> Core Fundamentals ->
+    // Defensive & Situational -> P+ Advanced Tech -> Browse Recordings.
     static const LauncherRow kAllRows[] = {
         {
             "Training Lab",
@@ -65,13 +92,52 @@ namespace list {
             "In-match Start menu"
         },
         {
+            "L-Cancel",
+            kRowSkillDrill,
+            drills::kDrillLCancel,
+            {
+                "Hit P+'s 7-frame L-cancel window",
+                "on whiff, hit, or shield. Flags",
+                "Auto L-Cancel when active."
+            },
+            "Any Fighter",
+            "Free Practice",
+            "L+Up in-match: 10/20-Rep Set"
+        },
+        {
+            "Wavedash / Waveland",
+            kRowSkillDrill,
+            drills::kDrillWavedash,
+            {
+                "Practice frame-1 wavedashes and",
+                "platform wavelands with angle,",
+                "slide, and miss timing feedback."
+            },
+            "Any Fighter",
+            "Free Practice",
+            "L+Up in-match: 10/20-Rep Set"
+        },
+        {
+            "Ledgedash",
+            kRowSkillDrill,
+            drills::kDrillLedgedash,
+            {
+                "Drill P+ ledgedashes, GALINT,",
+                "Tourney Winner avoidance, and",
+                "the 5-ledge-grab invuln limit."
+            },
+            "Any Fighter",
+            "Free Practice",
+            "L+Up in-match: 10/20-Rep Set"
+        },
+        {
             "Combo Lab",
             kRowScenario,
             extra::kScenarioComboLab,
             {
                 "Practice follow-ups with random",
                 "DI, techs, and P+ AI recovery.",
-                "Resets when your combo drops."
+                "Resets after escape window."
             },
             "Any Fighter",
             "Any Stage",
@@ -95,9 +161,9 @@ namespace list {
             kRowScenario,
             extra::kScenarioEdgeguard,
             {
-                "CPU spawns offstage and recovers",
-                "with P+ AI and survival DI.",
-                "Resets after a KO or recovery."
+                "CPU recovers from offstage with",
+                "P+ AI mixups and survival DI.",
+                "Resets after KO or safe land."
             },
             "Any Fighter",
             "Any Stage",
@@ -108,13 +174,26 @@ namespace list {
             kRowScenario,
             extra::kScenarioShieldPressure,
             {
-                "CPU holds full shield and fires",
-                "your chosen OoS counter option.",
-                "Drill spacing, traps, & punishes."
+                "Drill offense against CPU shield",
+                "counters or defend & punish OoS.",
+                "Switch Role in Scenarios menu."
             },
             "Any Fighter",
             "Any Stage",
             "Starts on match load"
+        },
+        {
+            "Powershield",
+            kRowSkillDrill,
+            drills::kDrillPowershield,
+            {
+                "Land P+'s 2-frame physical or",
+                "projectile powershields and",
+                "5-frame PS-Drop punishes."
+            },
+            "Any Fighter",
+            "Projectile CPU",
+            "L+Up in-match: 10/20-Rep Set"
         },
         {
             "Shield Drop",
@@ -126,7 +205,7 @@ namespace list {
                 "Uses the floor on flat stages."
             },
             "Any Fighter",
-            "Any Stage",
+            "Platform Stage",
             "Starts on match load"
         },
         {
@@ -134,12 +213,12 @@ namespace list {
             kRowScenario,
             extra::kScenarioLedgetech,
             {
-                "Start offstage near the ledge as",
-                "the CPU pokes the lip. Drill",
-                "wall techs and ledge timing."
+                "Recover into the CPU's edgeguard",
+                "attack to drill wall techs and",
+                "consistent ledge timing."
             },
             "Any Fighter",
-            "Any Stage",
+            "Wall Stage",
             "Starts on match load"
         },
         {
@@ -147,22 +226,22 @@ namespace list {
             kRowScenario,
             extra::kScenarioSlideOff,
             {
-                "Start near a platform edge at",
-                "high percent as the CPU attacks.",
+                "Start near a platform edge as",
+                "the CPU attacks from below.",
                 "DI off the edge to act sooner."
             },
             "Any Fighter",
-            "Any Stage",
+            "Platform Stage / PS2",
             "Starts on match load"
         },
         {
-            "Grab Escape",
+            "Grab Defense / Throw DI",
             kRowScenario,
             extra::kScenarioGrabEscape,
             {
-                "Close grab spacing with high",
-                "CPU mash-out. Practice fast",
-                "pummels and throw timings."
+                "Mash out of CPU grabs with live",
+                "efficiency or drill throw DI",
+                "and your own throw timings."
             },
             "Any Fighter",
             "Any Stage",
@@ -182,56 +261,43 @@ namespace list {
             "Starts on match load"
         },
         {
-            "Browse Recordings",
-            kRowRecordings,
-            0,
-            {
-                "Load or delete exported .tmr",
-                "replays saved on your SD card.",
-                "Launches the matchup directly."
-            },
-            "SD Card",
-            ".tmr Replay",
-            "Loads match directly"
-        },
-        {
-            "Ledgedash",
+            "RAR",
             kRowSkillDrill,
-            drills::kDrillLedgedash,
+            drills::kDrillRar,
             {
-                "Drill P+ ledgedashes, GALINT,",
-                "Tourney Winner avoidance, and",
-                "the 5-ledge-grab invuln limit."
+                "Execute Reverse Aerial Rush turn",
+                "jumps and frame-1 back aerials",
+                "retaining forward dash momentum."
             },
             "Any Fighter",
-            "10-Rep Set",
-            "Score: GALINT > 0 reps"
+            "Free Practice",
+            "L+Up in-match: 10/20-Rep Set"
         },
         {
-            "Wavedash / Waveland",
+            "DACUS",
             kRowSkillDrill,
-            drills::kDrillWavedash,
+            drills::kDrillDacus,
             {
-                "Practice frame-1 wavedashes and",
-                "platform wavelands with angle,",
-                "slide, and miss timing feedback."
+                "Cancel dash attack frames 2-3",
+                "into sliding up-smash, including",
+                "hitlag Gatling DACUS timing."
             },
             "Any Fighter",
-            "10-Rep Set",
-            "Score: clean slide reps"
+            "Free Practice",
+            "L+Up in-match: 10/20-Rep Set"
         },
         {
-            "L-Cancel",
+            "B-Reverse / Wavebounce",
             kRowSkillDrill,
-            drills::kDrillLCancel,
+            drills::kDrillBReverse,
             {
-                "Hit P+'s 7-frame L-cancel window",
-                "on whiff, hit, or shield. Flags",
-                "Auto L-Cancel when active."
+                "Drill Turnaround-B, Frame-5",
+                "B-Reverse momentum flips, and",
+                "combined Wavebounce spacing."
             },
             "Any Fighter",
-            "10-Rep Set",
-            "Score: manual L-cancel reps"
+            "Free Practice",
+            "L+Up in-match: 10/20-Rep Set"
         },
         {
             "Float / Hover & DJC",
@@ -243,41 +309,42 @@ namespace list {
                 "instant Double-Jump Cancels."
             },
             "Peach/Mewtwo/DJC",
-            "10-Rep Set",
-            "Score: clean FC/HC/DJC reps"
+            "Free Practice",
+            "L+Up in-match: 10/20-Rep Set"
         },
         {
-            "P+ Powershield",
-            kRowSkillDrill,
-            drills::kDrillPowershield,
+            "Browse Recordings",
+            kRowRecordings,
+            0,
             {
-                "Land P+'s 2-frame physical or",
-                "projectile powershields and",
-                "5-frame PS-Drop punishes."
+                "Load or delete exported .tmr",
+                "replays saved on your SD card.",
+                "Launches the matchup directly."
             },
-            "Any Fighter",
-            "10-Rep Set",
-            "Score: PS & reflect reps"
-        },
-        {
-            "RAR / DACUS / B-Rev",
-            kRowSkillDrill,
-            drills::kDrillPPlusTech,
-            {
-                "Execute Reverse Aerial Rush,",
-                "DACUS / Gatling cancels, and",
-                "B-Reverse or Wavebounce techs."
-            },
-            "Any Fighter",
-            "10-Rep Set",
-            "Score: clean P+ tech reps"
+            "SD Card",
+            ".tmr Replay",
+            "Loads match directly"
         }
     };
 
-    static const u8 kAllModeIndices[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-    static const u8 kOffenseIndices[] = {1, 2, 3, 4, 8};
-    static const u8 kDefenseIndices[] = {4, 5, 6, 7, 9};
-    static const u8 kSkillDrillIndices[] = {11, 12, 13, 14, 15, 16};
+    static const u8 kAllModeIndices[] = {
+        kIdxLab,        kIdxLCancel,      kIdxWavedash,    kIdxLedgedash,  kIdxComboLab,
+        kIdxTechchase,  kIdxEdgeguard,    kIdxShieldPressure, kIdxPowershield, kIdxShieldDrop,
+        kIdxLedgetech,  kIdxSlideOff,     kIdxGrabDefense, kIdxMultiHitSdi, kIdxRar,
+        kIdxDacus,      kIdxBReverse,     kIdxFloatHover,  kIdxRecordings
+    };
+    static const u8 kOffenseIndices[] = {
+        kIdxComboLab, kIdxTechchase, kIdxEdgeguard, kIdxShieldPressure, kIdxGrabDefense
+    };
+    static const u8 kDefenseIndices[] = {
+        kIdxShieldPressure, kIdxPowershield, kIdxShieldDrop, kIdxLedgetech,
+        kIdxSlideOff, kIdxGrabDefense, kIdxMultiHitSdi
+    };
+    // 8 single-page rows (zero scrolling; kVisibleRows == 10).
+    static const u8 kTechPracticeIndices[] = {
+        kIdxLCancel, kIdxWavedash, kIdxLedgedash, kIdxPowershield,
+        kIdxRar, kIdxDacus, kIdxBReverse, kIdxFloatHover
+    };
 
     struct LauncherSection {
         const char* name;
@@ -289,8 +356,8 @@ namespace list {
         {"All Modes", kAllModeIndices, static_cast<int>(sizeof(kAllModeIndices) / sizeof(kAllModeIndices[0]))},
         {"Offense", kOffenseIndices, static_cast<int>(sizeof(kOffenseIndices) / sizeof(kOffenseIndices[0]))},
         {"Defense", kDefenseIndices, static_cast<int>(sizeof(kDefenseIndices) / sizeof(kDefenseIndices[0]))},
-        {"Skill Drills", kSkillDrillIndices,
-         static_cast<int>(sizeof(kSkillDrillIndices) / sizeof(kSkillDrillIndices[0]))}
+        {"Tech Practice", kTechPracticeIndices,
+         static_cast<int>(sizeof(kTechPracticeIndices) / sizeof(kTechPracticeIndices[0]))}
     };
     enum { kSectionCount = static_cast<int>(sizeof(kSections) / sizeof(kSections[0])) };
 
@@ -320,6 +387,8 @@ namespace list {
     static const gfx::Rgba kChipBot = 0x162E38FF;
     static const gfx::Rgba kBadgeImportTop = 0xD6E0E6FF;
     static const gfx::Rgba kBadgeImportBot = 0x8E9EA8FF;
+    static const gfx::Rgba kBadgeOsdTop = 0x4ED6E4FF;
+    static const gfx::Rgba kBadgeOsdBot = 0x1B8C98FF;
 
     // ---- Boot menu geometry (640x480 2D space; text/glyphs inside 5% CRT safe area) ----
     static const float kBannerTop = 32.0f;
@@ -357,17 +426,17 @@ namespace list {
     static const float kCardTitleCap = 14.5f;
     static const float kCardBodyCap = 10.5f;
     static const float kCardMetaCap = 9.5f;
-    static const float kCardChipCap = 10.0f;
+    static const float kCardChipCap = 9.5f;
     static const float kCardChipH = 24.0f;
-    static const float kCardChipPadX = 10.0f;
-    static const float kCardChipGap = 10.0f;
+    static const float kCardChipPadX = 8.0f;
+    static const float kCardChipGap = 8.0f;
 
     static const float kStripTop = 424.0f;
     static const float kStripH = 56.0f;
     static const float kStripCenterY = 442.0f;
     static const float kBadgeH = 18.0f;
     static const float kBadgeCap = 9.5f;
-    static const float kBadgeLabelCap = 10.5f;
+    static const float kBadgeLabelCap = 10.0f;
 
     struct Raw {
         u32 held;
@@ -410,6 +479,7 @@ namespace list {
     static bool s_open = false;
     static bool s_starting = false;   // a recording match is being started
     static bool s_rebuilding = false; // the character select is being built again
+    static bool s_exiting = false;    // leaving CSS cleanly back to Solo menu
     static int s_owner = 0;
     static int s_page = 0;
     static int s_row = 0;
@@ -607,7 +677,7 @@ namespace list {
             session().drill = r.targetId;
             session().pendingScenario = 0;
             session().drillRan = 0;
-            TM_LOG("drills: skill drill %u (%s) armed\n", r.targetId, r.name);
+            TM_LOG("drills: tech practice %u (%s) armed\n", r.targetId, r.name);
             close(r.name);
             sound(game::kSoundConfirm);
             rebuildIfNeeded();
@@ -646,6 +716,24 @@ namespace list {
         sound(game::kSoundMove);
     }
 
+    static bool osdQuickPressed(const Raw& in)
+    {
+        if (in.type == gfPadType::GCC || in.type == gfPadType::WII_CLASSIC)
+        {
+            return (in.pressed & game::kPadY) != 0;
+        }
+        if (in.type == gfPadType::NUNCHUK)
+        {
+            return (in.pressed & game::kPadZ) != 0;
+        }
+        if (in.type == gfPadType::WIIMOTE)
+        {
+            return (in.held & game::kPadWiiMinus) != 0 && (in.held & game::kPadWiiA) != 0
+                   && (in.pressed & (game::kPadWiiMinus | game::kPadWiiA)) != 0;
+        }
+        return false;
+    }
+
     static void step()
     {
         for (int i = 0; i < kPorts; i++)
@@ -661,9 +749,7 @@ namespace list {
         }
         // Any connected controller (GameCube 0-3 or Wii 4-7) may take the list
         // over when the current owner is disconnected or idle, never while the
-        // owner is active. The takeover press claims ownership only:
-        // wait-for-neutral keeps it from also acting on a row the new port did
-        // not choose.
+        // owner is active.
         bool ownerActive = s_sys[s_owner].connected && !rawNeutral(s_sys[s_owner]);
         if (!ownerActive)
         {
@@ -684,6 +770,10 @@ namespace list {
                 if (browser::isOpen())
                 {
                     browser::setControllerType(s_sys[s_owner].type);
+                }
+                if (osdQuick::isOpen())
+                {
+                    osdQuick::setControllerType(s_sys[s_owner].type);
                 }
                 TM_LOG("drills: list handed to port %d\n", s_owner + 1);
                 break;
@@ -712,9 +802,31 @@ namespace list {
             }
             return;
         }
+        if (osdQuick::isOpen())
+        {
+            if (!in.connected || s_waitRelease[s_owner])
+            {
+                return;
+            }
+            osdQuick::Input oi = {in.held, in.pressed, in.stickX, in.stickY, in.type};
+            osdQuick::step(s_owner, oi);
+            if (!osdQuick::isOpen())
+            {
+                resetWaitRelease();
+                gfx::forgetWidths();
+            }
+            return;
+        }
         if (!in.connected || s_waitRelease[s_owner])
         {
             s_repeat[0].held = s_repeat[1].held = 0;
+            return;
+        }
+        if (osdQuickPressed(in))
+        {
+            sound(game::kSoundConfirm);
+            osdQuick::open(s_owner, in.type);
+            resetWaitRelease();
             return;
         }
         const game::PadMap& map = game::padMap(in.type);
@@ -744,6 +856,21 @@ namespace list {
         }
         if (in.pressed & map.back)
         {
+            // Natural Nintendo B hierarchy: B on Boot Menu exits cleanly to Brawl's Solo menu.
+            const char* why = training::exitToSolo();
+            if (why == NULL)
+            {
+                s_open = false;
+                s_exiting = true;
+                session().pendingScenario = 0;
+                session().drill = drills::kDrillNone;
+                session().labChosen = 0;
+                remember();
+                holdBackHeld();
+                sound(game::kSoundBack);
+                TM_LOG("drills: exiting to Solo (%s)\n", map.backName);
+                return;
+            }
             close(map.backName);
             sound(game::kSoundBack);
             return;
@@ -780,6 +907,16 @@ namespace list {
                 sound(game::kSoundOpen);
                 return;
             }
+            // Natural B step-back from CSS to Boot Menu when P1 has no placed
+            // coin to recall, is not dragging CPU's coin, and no dropdown is open.
+            if ((s_sys[i].pressed & map.back) != 0 && select::canBackToBootMenu(i))
+            {
+                select::clearBHoldCounter();
+                open(i, map.backName);
+                holdBackHeld();
+                sound(game::kSoundOpen);
+                return;
+            }
         }
     }
 
@@ -808,6 +945,10 @@ namespace list {
                     {
                         browser::setControllerType(type);
                     }
+                    if (osdQuick::isOpen())
+                    {
+                        osdQuick::setControllerType(type);
+                    }
                 }
             }
         }
@@ -816,7 +957,7 @@ namespace list {
 
     static void applyHiding(gfPadStatus* pads)
     {
-        bool all = s_open || s_starting || s_rebuilding;
+        bool all = s_open || s_starting || s_rebuilding || s_exiting;
         for (int i = 0; i < kPorts; i++)
         {
             if (all)
@@ -832,7 +973,7 @@ namespace list {
 
     static void handleTestRequest()
     {
-        if (s_test.request != 1 || s_starting || s_rebuilding)
+        if (s_test.request != 1 || s_starting || s_rebuilding || s_exiting)
         {
             return;
         }
@@ -873,11 +1014,11 @@ namespace list {
                 }
             }
             handleTestRequest();
-            if (s_open && !s_starting)
+            if (s_open && !s_starting && !s_exiting)
             {
                 step();
             }
-            else if (!s_starting && !s_rebuilding)
+            else if (!s_starting && !s_rebuilding && !s_exiting)
             {
                 checkReopen();
             }
@@ -909,7 +1050,6 @@ namespace list {
     {
         fillSlantedGradV(0.0f, cx(kBannerRightTop), cx(kBannerRightBot), kBannerTop, kBannerBottom, kBannerTopCol,
                          kBannerBotCol);
-        // 2px top metallic sheen and 2px bottom dark rule (CRT-safe).
         fillSlantedGradV(0.0f, cx(kBannerRightTop), cx(kBannerRightTop - 1.0f), kBannerTop, kBannerTop + 2.0f,
                          kBannerSheen, kBannerSheen);
         fillSlantedGradV(0.0f, cx(kBannerRightBot), cx(kBannerRightBot - 1.0f), kBannerBottom,
@@ -980,7 +1120,6 @@ namespace list {
             boldText(textX, textYForCap(y + capOffset, scale), name, selected ? kLabGoldInk : kText, sx, scale);
         }
 
-        // Sleek scrollbar whenever the section has more rows than kVisibleRows.
         if (sec.count > kVisibleRows)
         {
             float sbLeft = cx(kColScrollLeft);
@@ -1000,18 +1139,25 @@ namespace list {
         }
     }
 
-    static float drawChip(float x, float y, const char* label)
+    static float drawChip(float x, float y, const char* label, float maxW)
     {
         float scale = scaleForCap(kCardChipCap);
         float tw = gfx::textWidth(label, scale);
         float pad = w(kCardChipPadX);
         float chipW = tw + 2.0f * pad;
+        float sx = scale;
+        if (chipW > maxW && tw > 0.0f)
+        {
+            float avail = maxW - 2.0f * pad;
+            sx = scale * avail / tw;
+            chipW = maxW;
+        }
         float bx = w(1.2f);
         fillStadium(x - bx, y - 1.0f, chipW + 2.0f * bx, kCardChipH + 2.0f, 0x05080CFF);
         fillStadium(x, y, chipW, kCardChipH, kChipBot);
         fillStadium(x + w(0.8f), y + 0.5f, chipW - w(1.6f), kCardChipH * 0.58f, kChipTop);
         fillStadium(x + chipW * 0.18f, y + 1.5f, chipW * 0.64f, 2.5f, 0x8EF5EA24);
-        gfx::text(x + pad, textYForCap(y + (kCardChipH - kCardChipCap) * 0.5f, scale), label, kText, scale);
+        gfx::text(x + pad, textYForCap(y + (kCardChipH - kCardChipCap) * 0.5f, scale), label, kText, sx, scale);
         return x + chipW;
     }
 
@@ -1069,15 +1215,29 @@ namespace list {
         float metaScale = scaleForCap(kCardMetaCap);
         gfx::text(contentX, textYForCap(242.0f, metaScale), "Setup", kCardMuted, metaScale);
 
-        float chipX = contentX;
-        chipX = drawChip(chipX, 260.0f, row.chipA);
-        chipX += w(kCardChipGap);
-        drawChip(chipX, 260.0f, row.chipB);
+        float chipScale = scaleForCap(kCardChipCap);
+        float wA = gfx::textWidth(row.chipA, chipScale) + 2.0f * w(kCardChipPadX);
+        float wB = gfx::textWidth(row.chipB, chipScale) + 2.0f * w(kCardChipPadX);
+        float gap = w(kCardChipGap);
+        float captionY = 302.0f;
+        if (wA + gap + wB <= contentW)
+        {
+            float chipX = drawChip(contentX, 260.0f, row.chipA, contentW);
+            drawChip(chipX + gap, 260.0f, row.chipB, contentX + contentW - (chipX + gap));
+        }
+        else
+        {
+            drawChip(contentX, 256.0f, row.chipA, contentW);
+            drawChip(contentX, 286.0f, row.chipB, contentW);
+            captionY = 318.0f;
+        }
 
         if (row.caption != NULL && row.caption[0] != '\0')
         {
             float capScale = scaleForCap(kCardChipCap);
-            gfx::text(contentX, textYForCap(302.0f, capScale), row.caption, kCardMuted, capScale);
+            float cw = gfx::textWidth(row.caption, capScale);
+            float csx = cw > contentW && cw > 0.0f ? capScale * contentW / cw : capScale;
+            gfx::text(contentX, textYForCap(captionY, capScale), row.caption, kCardMuted, csx, capScale);
         }
 
         if (row.kind == kRowSkillDrill && row.targetId > 0 && row.targetId < drills::kBestSlots)
@@ -1088,20 +1248,16 @@ namespace list {
             {
                 snprintf(bestText, sizeof(bestText), "Best: --");
             }
-            else if (best <= 10)
-            {
-                snprintf(bestText, sizeof(bestText), "Best: %u/10", static_cast<unsigned>(best));
-            }
             else
             {
                 snprintf(bestText, sizeof(bestText), "Best: %u", static_cast<unsigned>(best));
             }
-            float barY = 326.0f;
+            float barY = captionY + 24.0f;
             float barH = 26.0f;
             drawBevelBar(contentX, barY, contentW, barH, kRowFillTop, kRowFillBot, kRowSheen, kLabBevelDark);
             float bScale = scaleForCap(kCardChipCap);
             float textY = textYForCap(barY + (barH - kCardChipCap) * 0.5f, bScale);
-            gfx::text(contentX + w(10.0f), textY, "Personal Best", kCardMuted, bScale);
+            gfx::text(contentX + w(10.0f), textY, "Best Streak", kCardMuted, bScale);
             float bw = boldWidth(bestText, bScale);
             boldText(contentX + contentW - w(10.0f) - bw, textY, bestText, best > 0 ? kLabFocusGold : kCardMuted,
                      bScale, bScale);
@@ -1121,7 +1277,7 @@ namespace list {
         float glyphScale = scaleForCap(kBadgeCap);
         float labelScale = scaleForCap(kBadgeLabelCap);
         float gw = gfx::textWidth(glyph, glyphScale);
-        float badgeW = round ? w(kBadgeH) : (gw + w(12.0f));
+        float badgeW = round ? w(kBadgeH) : (gw + w(10.0f));
         float minW = w(kBadgeH);
         if (badgeW < minW)
         {
@@ -1138,10 +1294,10 @@ namespace list {
         }
         gfx::text(x + (badgeW - gw) * 0.5f, textYForCap(kStripCenterY - kBadgeCap * 0.5f, glyphScale), glyph, fg,
                   glyphScale);
-        float lx = x + badgeW + w(7.0f);
+        float lx = x + badgeW + w(6.0f);
         float endX = gfx::text(lx, textYForCap(kStripCenterY - kBadgeLabelCap * 0.5f, labelScale), label, kText,
                                labelScale);
-        return endX + w(22.0f);
+        return endX + w(15.0f);
     }
 
     static void drawFooterStrip(u32 type)
@@ -1150,15 +1306,18 @@ namespace list {
         gfx::fillRect(0.0f, kStripTop, 640.0f, 2.0f, kRowEdge);
 
         const char* confirmGlyph = type == gfPadType::WIIMOTE ? "2" : "A";
-        const char* closeGlyph = type == gfPadType::WIIMOTE ? "1" : "B";
-        const char* importGlyph = type == gfPadType::WIIMOTE ? "A" : (type == gfPadType::NUNCHUK ? "C" : "X");
+        const char* backGlyph = type == gfPadType::WIIMOTE ? "1" : "B";
+        const char* recGlyph = type == gfPadType::WIIMOTE ? "A" : (type == gfPadType::NUNCHUK ? "C" : "X");
+        const char* osdGlyph = type == gfPadType::WIIMOTE ? "-+A" : (type == gfPadType::NUNCHUK ? "Z" : "Y");
         const char* sectionGlyph = (type == gfPadType::WIIMOTE || type == gfPadType::NUNCHUK) ? "-/+" : "L/R";
-        bool importRound = type == gfPadType::WIIMOTE;
+        bool recRound = type == gfPadType::WIIMOTE;
+        bool osdRound = type == gfPadType::NUNCHUK;
 
         float x = cx(kColLeft);
         x = drawControlBadge(x, confirmGlyph, true, kLabBtnATop, kLabBtnABot, kCardTitle, "Select");
-        x = drawControlBadge(x, closeGlyph, true, kLabBtnBTop, kLabBtnBBot, kCardTitle, "Close");
-        x = drawControlBadge(x, importGlyph, importRound, kBadgeImportTop, kBadgeImportBot, kLabBtnDarkText, "Import");
+        x = drawControlBadge(x, backGlyph, true, kLabBtnBTop, kLabBtnBBot, kCardTitle, "Back");
+        x = drawControlBadge(x, recGlyph, recRound, kBadgeImportTop, kBadgeImportBot, kLabBtnDarkText, "Recordings");
+        x = drawControlBadge(x, osdGlyph, osdRound, kBadgeOsdTop, kBadgeOsdBot, kLabBtnDarkText, "OSDs");
         drawControlBadge(x, sectionGlyph, false, kLabBtnLightTop, kLabBtnLightBot, kLabBtnDarkText, "Section");
     }
 
@@ -1177,47 +1336,125 @@ namespace list {
         drawFooterStrip(type);
     }
 
-    const char* reopenHint()
+    static u32 preferredPadType()
     {
         for (int i = 0; i < 4; i++)
         {
             if (s_sys[i].connected)
             {
-                return game::padMap(gfPadType::GCC).reopenHint;
+                return gfPadType::GCC;
             }
         }
         if (s_owner >= 0 && s_owner < kPorts && s_sys[s_owner].connected)
         {
-            return game::padMap(s_sys[s_owner].type).reopenHint;
+            return s_sys[s_owner].type;
         }
         for (int i = 4; i < kPorts; i++)
         {
             if (s_sys[i].connected)
             {
-                return game::padMap(s_sys[i].type).reopenHint;
+                return s_sys[i].type;
             }
         }
-        return game::padMap(gfPadType::GCC).reopenHint;
+        return gfPadType::GCC;
     }
 
-    // Reopen hint clutter on CSS is retired; reopen combos stay active via checkReopen().
+    const char* reopenHint()
+    {
+        return game::padMap(preferredPadType()).reopenHint;
+    }
+
+    static const char* activeModeTag()
+    {
+        u8 sc = session().pendingScenario;
+        if (sc > 0 && sc < extra::kScenarioCount)
+        {
+            static const char* const kScenTags[extra::kScenarioCount] = {
+                "TRAINING LAB", "COMBO LAB", "TECHCHASE", "EDGEGUARD", "SHIELD PRESSURE",
+                "SHIELD DROP",  "LEDGETECH", "SLIDE-OFF", "GRAB DEFENSE", "MULTI-HIT SDI"
+            };
+            return kScenTags[sc];
+        }
+        u8 dr = session().drill;
+        if (dr >= drills::kDrillLedgedash && dr < drills::kDrillIdCount)
+        {
+            static const char* const kDrillTags[drills::kDrillIdCount] = {
+                "TRAINING LAB", "LEDGEDASH", "WAVEDASH", "L-CANCEL", "FLOAT / HOVER",
+                "POWERSHIELD",  "RAR",       "DACUS",    "B-REVERSE"
+            };
+            return kDrillTags[dr];
+        }
+        return "TRAINING LAB";
+    }
+
+    // CRT-safe Brawl/P+ metallic CSS mode pill in the dark teal band (y 58..82)
+    // above the character grid (y >= 89): double-framed dark chrome, metallic
+    // bevel, zero generic left-accent bars.
     static void drawPending()
     {
+        float scale = scaleForCap(8.5f);
+        if (gfx::lineHeight(scale) <= 0.0f)
+        {
+            return;
+        }
+        const game::PadMap& map = game::padMap(preferredPadType());
+        const char* mode = activeModeTag();
+        char rightTxt[32];
+        snprintf(rightTxt, sizeof(rightTxt), "%s / %s: Modes", map.backName, map.reopenName);
+
+        float modeW = boldWidth(mode, scale);
+        float sepW = boldWidth(" | ", scale);
+        float hintW = boldWidth(rightTxt, scale);
+        float padX = w(10.0f);
+        float pillW = modeW + sepW + hintW + 2.0f * padX;
+        float pillH = 22.0f;
+        float topY = 58.0f;
+        float rightX = rx(604.0f);
+        float leftX = rightX - pillW;
+        float bx = w(2.0f);
+
+        // Double-framed dark chrome + P+ teal inner frame + metallic bevel fill.
+        gfx::fillRect(leftX, topY, pillW, pillH, kLabBorderColor);
+        gfx::fillRect(leftX + bx, topY + 2.0f, pillW - 2.0f * bx, pillH - 4.0f, kLabAccent);
+        drawBevelBar(leftX + 2.0f * bx, topY + 4.0f, pillW - 4.0f * bx, pillH - 8.0f, kLabHeaderTop, kLabHeaderBot,
+                     kLabBevelLight, kLabBevelDark);
+
+        float ty = textYForCap(topY + (pillH - 8.5f) * 0.5f, scale);
+        float x = leftX + padX;
+        boldText(x, ty, mode, kLabFocusGold, scale, scale);
+        x += modeW;
+        boldText(x, ty, " | ", kLabMutedText, scale, scale);
+        x += sepW;
+        boldText(x, ty, rightTxt, kText, scale, scale);
     }
 
     void onRender(u32)
     {
         browser::update();
+        osdQuick::update();
         select::update();
+        if (s_exiting)
+        {
+            return;
+        }
         if (!s_open && !s_starting)
         {
-            drawPending();
+            if (training::selectRunning())
+            {
+                gfx::begin();
+                drawPending();
+                gfx::end();
+            }
             return;
         }
         gfx::begin();
         if (browser::isOpen())
         {
             browser::draw();
+        }
+        else if (osdQuick::isOpen())
+        {
+            osdQuick::draw();
         }
         else
         {
@@ -1233,6 +1470,7 @@ namespace list {
         s_open = false;
         s_starting = false;
         s_rebuilding = false;
+        s_exiting = false;
         s_fresh = true;
         s_test.magic = kTestMagic;
         s_test.request = 0;
@@ -1246,6 +1484,7 @@ namespace list {
         s_test.reserved = 0;
         TM_LOG("drills: test block at %08x\n", &s_test);
         browser::attach();
+        osdQuick::attach();
         for (int i = 0; i < kPorts; i++)
         {
             s_sys[i].held = 0;
@@ -1297,11 +1536,13 @@ namespace list {
             session().pendingScenario = 0;
             session().matchRan = 0;
         }
+        osdQuick::detach();
         browser::detach();
         TM_LOG("drills: detached, exit code %d\n", code);
         s_open = false;
         s_starting = false;
         s_rebuilding = false;
+        s_exiting = false;
     }
 }
 }
