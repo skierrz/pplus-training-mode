@@ -1232,7 +1232,7 @@ namespace lab {
 
     void onPads(u32 phase, gfPadStatus* pads)
     {
-        if (!s_vsReadOnly && !s_st.exiting && ui::settingsModalOpen())
+        if (!s_vsReadOnly && !s_st.exiting && game::matchState().running && ui::settingsModalOpen())
         {
             bool confirmed = false;
             if (phase == iface::kPadsSystem)

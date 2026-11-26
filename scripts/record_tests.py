@@ -3021,7 +3021,7 @@ def s_controlled_by_record(r):
     emu.advance(5)
     msg_shown = bool(rec.status()["flags"] & FLAG_MESSAGE)
     msg_log = log_since(emu, pos_msg)
-    msg_text_ok = "record: CPU Mode is off while Controlled By is on" in msg_log
+    msg_text_ok = "record: CPU Mode is off while Port Control is on" in msg_log
     emu.advance(165)  # past kMessageFrames (150)
     msg_cleared = not bool(rec.status()["flags"] & FLAG_MESSAGE)
     emu.advance(20)

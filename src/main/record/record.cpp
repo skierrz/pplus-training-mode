@@ -574,8 +574,7 @@ namespace record {
         const SideState& c = s_side[kCpu];
         s_swapPad = cm == kModeControl || cm == kModeRecord || cm == kModeReRecord
                     || (cm == kModePlayback && (takeoverTarget() == kTakeCpu || c.takenOver));
-        s_hmnNeutral = cm == kModeControl || cm == kModeRecord || cm == kModeReRecord
-                       || (cm == kModePlayback && c.takenOver);
+        s_hmnNeutral = s_swapPad;
         if (s_swapPad)
         {
             cpuReadsPad(true);
