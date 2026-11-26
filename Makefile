@@ -192,17 +192,15 @@ PACK    := scripts/pack-rel.py
 rwildcard = $(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 SHARED_SRCS := $(sort $(call rwildcard,src/shared,*.cpp))
 STUB_SRCS   := $(sort $(call rwildcard,src/stub,*.cpp)) $(SHARED_SRCS)
-INFO_EXTRA_SRCS := src/main/ui/info_display.cpp src/main/game/status_names.cpp
 MAIN_MOVED_SRCS := src/extra/tech_sparkle.cpp src/extra/reversal_slots.cpp
-MAIN_SRCS   := $(filter-out $(INFO_EXTRA_SRCS),$(sort $(call rwildcard,src/main,*.cpp))) $(MAIN_MOVED_SRCS) $(SHARED_SRCS)
+MAIN_SRCS   := $(sort $(call rwildcard,src/main,*.cpp)) $(MAIN_MOVED_SRCS) $(SHARED_SRCS)
 # The menu module draws with the main module's 2D helpers and reads the SD
 # card with its file helpers, compiled again from where they live.
 MENU_SRCS   := $(sort $(call rwildcard,src/menu,*.cpp)) src/main/gfx/draw.cpp src/main/gfx/text.cpp \
                src/main/ui/style.cpp src/main/storage/file_io.cpp $(SHARED_SRCS)
 # The extra module is linked against the main module and uses its code, so
-# it compiles only its own sources, info display/status names moved out of
-# match for headroom, and the destructor chain every module needs its own copy of.
-EXTRA_SRCS  := $(filter-out $(MAIN_MOVED_SRCS),$(sort $(call rwildcard,src/extra,*.cpp))) $(INFO_EXTRA_SRCS) src/shared/global_chain.cpp
+# it compiles only its own sources and the destructor chain every module needs.
+EXTRA_SRCS  := $(filter-out $(MAIN_MOVED_SRCS),$(sort $(call rwildcard,src/extra,*.cpp))) src/shared/global_chain.cpp
 ifneq ($(STAGE4C),1)
 EXTRA_SRCS  := $(filter-out src/extra/challenge_backends.cpp,$(EXTRA_SRCS))
 endif

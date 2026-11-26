@@ -95,6 +95,15 @@ namespace perf {
     }
 #endif
 
+    Scope::Scope(u32 section) : m_section(section), m_start(OSGetTick())
+    {
+    }
+
+    Scope::~Scope()
+    {
+        add(m_section, OSGetTick() - m_start);
+    }
+
     void add(u32 section, u32 ticks)
     {
         if (s_blockPtr == NULL)

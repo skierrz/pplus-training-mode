@@ -154,13 +154,8 @@ namespace perf {
 
     class Scope {
     public:
-        Scope(u32 section) : m_section(section), m_start(OSGetTick())
-        {
-        }
-        ~Scope()
-        {
-            add(m_section, OSGetTick() - m_start);
-        }
+        Scope(u32 section);
+        ~Scope();
 
     private:
         u32 m_section;

@@ -13,7 +13,6 @@
 #include <st/stage.h>
 #include <string.h>
 
-#include "extra/lz77_ascii.h"
 #include "main/services.h"
 #include "shared/game/heap.h"
 #include "shared/game/mem.h"
@@ -147,16 +146,6 @@ namespace extra {
             freeNetRaw(*slot);
             *slot = NULL;
         }
-    }
-
-    u32 decompressLz77Ascii(const u8* src, u32 srcLen, char* dst, u32 dstCap)
-    {
-        return decompressLz77AsciiImpl(src, srcLen, dst, dstCap);
-    }
-
-    bool indexPackedStrings(const char* text, u32 len, u16* offsets, u32 count)
-    {
-        return indexPackedStringsImpl(text, len, offsets, count);
     }
 
     Stage* extraStage()

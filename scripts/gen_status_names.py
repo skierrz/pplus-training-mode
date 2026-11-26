@@ -176,7 +176,11 @@ def generate_cpp():
 
 #include "extra/lz77_ascii.h"
 #ifdef __MWERKS__
-#include "extra/net_alloc.h"
+#include <gf/gf_heap_manager.h>
+#include <gf/gf_memory_pool.h>
+#include <memory.h>
+#include "shared/game/heap.h"
+#include "shared/game/mem.h"
 #endif
 #include "main/game/status_ids.h"
 
@@ -184,6 +188,21 @@ def generate_cpp():
 // Fighter::Status::Kind (lib/BrawlHeaders ft/fighter.h) with underscores
 // dropped. Stored as ASCII bit-7 LZ77 and decompressed once into Heaps::Network.
 namespace tm {{
+#ifdef __MWERKS__
+namespace extra {{
+#pragma force_active on
+    u32 decompressLz77Ascii(const u8* src, u32 srcLen, char* dst, u32 dstCap)
+    {{
+        return decompressLz77AsciiImpl(src, srcLen, dst, dstCap);
+    }}
+
+    bool indexPackedStrings(const char* text, u32 len, u16* offsets, u32 count)
+    {{
+        return indexPackedStringsImpl(text, len, offsets, count);
+    }}
+#pragma force_active reset
+}}
+#endif
 namespace game {{
     enum {{
         kRawBytes = {len(raw)},
@@ -222,14 +241,27 @@ namespace game {{
         return n == kRawBytes && extra::indexPackedStrings(net->text, n, net->offsets, kCommonStatusCount);
     }}
 
+#ifdef __MWERKS__
+#pragma force_active on
+#endif
     void statusNamesAttach()
     {{
 #ifdef __MWERKS__
-        extra::freeNetPtr(s_net);
-        s_net = extra::allocNetArray<StatusNamesNet>(1);
+        statusNamesDetach();
+        u32 need = (static_cast<u32>(sizeof(StatusNamesNet)) + 31u) & ~31u;
+        HeapUsage u;
+        if (heapUsage(Heaps::Network, u) && u.largest >= need)
+        {{
+            void* p = gfMemoryPool::alloc(gfHeapManager::getHeap(Heaps::Network), need, 32);
+            if (isRam(p))
+            {{
+                memset(p, 0, need);
+                s_net = static_cast<StatusNamesNet*>(p);
+            }}
+        }}
         if (!populate(s_net))
         {{
-            extra::freeNetPtr(s_net);
+            statusNamesDetach();
         }}
 #else
         if (s_net == NULL && populate(&s_hostNet))
@@ -242,11 +274,18 @@ namespace game {{
     void statusNamesDetach()
     {{
 #ifdef __MWERKS__
-        extra::freeNetPtr(s_net);
+        if (s_net != NULL)
+        {{
+            free(s_net);
+            s_net = NULL;
+        }}
 #else
         s_net = NULL;
 #endif
     }}
+#ifdef __MWERKS__
+#pragma force_active reset
+#endif
 
     const char* statusName(int status)
     {{
