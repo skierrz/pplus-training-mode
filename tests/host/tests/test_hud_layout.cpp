@@ -1127,6 +1127,27 @@ TEST(hud_layout, stream2_live_hud_ergonomics_f1_to_f8_43_and_169)
         CHECK_NEAR(stackedBot, psaFlush.y0, 0.01f);
         CHECK_NEAR(layout::kInfoLeft, psaFlush.x0, 0.01f);
 
+        // PSA stays flush on Top-Left for 6-row Info at y=28 AND 4-row Info stepped to y=83
+        // (infoBottom=145, y1=253 <= 348), and falls back cleanly only when infoBottom + kPsaHeight > 348.
+        float sixRowBot = layout::kInfoTop + layout::infoHeight(6, 2);
+        Box psaSix = layout::psaInspectorBox(timer, 1, false, wide, sixRowBot);
+        CHECK_NEAR(layout::kInfoLeft, psaSix.x0, 0.01f);
+        CHECK_NEAR(sixRowBot, psaSix.y0, 0.01f);
+        CHECK(psaSix.y1 <= 348.0f + 0.01f);
+
+        float counterInfoBot = layout::infoTopWithCounter(timer, maxInfoW, wide, true) + layout::infoHeight(4, 1);
+        CHECK_NEAR(145.0f, counterInfoBot, 0.01f);
+        Box psaStepped = layout::psaInspectorBox(timer, 1, false, wide, counterInfoBot);
+        CHECK_NEAR(layout::kInfoLeft, psaStepped.x0, 0.01f);
+        CHECK_NEAR(counterInfoBot, psaStepped.y0, 0.01f);
+        CHECK_NEAR(253.0f, psaStepped.y1, 0.01f);
+
+        float extreme8x8Bot = layout::infoStackBottom(timer, 8, 2, 8, 2, wide);
+        CHECK(extreme8x8Bot + layout::kPsaHeight > 348.0f);
+        Box psaFallback = layout::psaInspectorBox(timer, 1, false, wide, extreme8x8Bot);
+        CHECK(psaFallback.x0 > layout::infoLeft(wide) + maxInfoW);
+        CHECK(inside(psaFallback, safe));
+
         // F3/F4: Option A Bare GC Controller never teleports; dual layout clears timer & Ledgedash bar.
         Box v0Timer = layout::inputViewerCardBox(0, timer, wide);
         Box v0Ledge = layout::inputViewerCardBox(0, ledgeBand, wide);

@@ -2016,13 +2016,22 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
                                         }
 
                                         Box stack = none();
-                                        // When legacy DI Compass is stacked below dual Viewers on 4:3 with recBar
-                                        // lifting Sides to floor=350 (y0=206), 2 stacked Sides CPU OSDs fit cleanly
-                                        // (note DI Compass is retired from live HUD).
-                                        int stackSlots = (pl == 1 && pos == osd_real::kPositionSides && hasComp
-                                                          && (vSlots >= 2 || (hasAdap && vSlots >= 1)))
-                                                             ? 2
-                                                             : 3;
+                                        // When 10-row Info (8+2) + Panel B PSA Inspector share the Top-Left
+                                        // column (y <= 328), 1 newest lower-left OSD card clears cleanly below
+                                        // PSA (y >= 330 without recBar, y >= 304 with recBar); when legacy DI
+                                        // Compass is stacked below dual Viewers on 4:3 with recBar lifting Sides
+                                        // to floor=350 (y0=206), 2 stacked Sides CPU OSDs fit cleanly.
+                                        bool psaOnLeft = hasPsa && psaInspectorBox(band, vSlots, hasComp != 0, wide, infoBot).x0 < 320.0f;
+                                        int stackSlots = 3;
+                                        if (psaOnLeft && (pos == osd_real::kPositionHud || pl == 0))
+                                        {
+                                            stackSlots = 1;
+                                        }
+                                        else if (pl == 1 && pos == osd_real::kPositionSides && hasComp
+                                                 && (vSlots >= 2 || (hasAdap && vSlots >= 1)))
+                                        {
+                                            stackSlots = 2;
+                                        }
                                         for (int sl = 0; sl < stackSlots; sl++)
                                         {
                                             float sx = sp.x + sl * sp.dx;

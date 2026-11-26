@@ -439,7 +439,7 @@ namespace layout {
             float y0 = infoTop(band, w, wide);
             return box(kInfoLeft, y0, w, kPsaHeight);
         }
-        if (infoBottom + kPsaHeight <= 204.0f)
+        if (infoBottom + kPsaHeight <= 348.0f)
         {
             return box(kInfoLeft, infoBottom, w, kPsaHeight);
         }
