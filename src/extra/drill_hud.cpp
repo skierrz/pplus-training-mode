@@ -128,12 +128,21 @@ namespace extra {
             }
         }
 
-        void drawPips(float x, float y, float totalW, float h)
+        void drawPips(float x, float y, float totalW, float h, int count)
         {
             Runtime& s_rt = *s_rtPtr;
-            float step = totalW * 0.1f;
-            float pw = step - 2.0f * s_rt.xs;
-            for (int k = 0; k < kDrillSetReps; k++, x += step)
+            if (count <= 0)
+            {
+                count = kDrillFreePips;
+            }
+            float step = totalW / static_cast<float>(count);
+            float gap = (count > 10 ? 1.0f : 2.0f) * s_rt.xs;
+            float pw = step - gap;
+            if (pw < 1.0f)
+            {
+                pw = 1.0f;
+            }
+            for (int k = 0; k < count && k < kDrillMaxSetReps; k++, x += step)
             {
                 u8 p = s_rt.st.repPips[k];
                 gfx::fillRect(x, y, pw, h, kPipCols[p < 5 ? p : 0]);
@@ -157,9 +166,32 @@ namespace extra {
             float rx = ox + 286.0f * xs;
             label(lx, 31.0f, drillHudTitle(st.activeDrill), 0xFFFFFFFFu, kSzDisp85);
 
-            char buf[24];
-            snprintf(buf, sizeof(buf), "REP %u/10  HIT %u", static_cast<unsigned>(st.repsDone),
-                     static_cast<unsigned>(st.repsHit));
+            // Compact Brawl-styled mode pill beside title (FREE / 10-REP / 20-REP).
+            u8 target = drillModeTargetReps(st.mode);
+            const char* modeTxt = drillModeLabel(st.mode);
+            float titleW = gfx::displayTextWidth(drillHudTitle(st.activeDrill), kScales[2]);
+            float pillX = lx + titleW + 6.0f * xs;
+            float pillW = gfx::textWidth(modeTxt, kScales[0]) + 8.0f * xs;
+            if (pillX + pillW < rx - 110.0f * xs)
+            {
+                gfx::fillRect(pillX, 29.5f, pillW, 12.0f, 0x07141AE8u);
+                gfx::fillGradV(pillX + xs, 30.5f, pillW - 2.0f * xs, 10.0f,
+                               target == 0 ? 0x1B6B76FFu : 0xB88200FFu, target == 0 ? 0x0E3D45FFu : 0x7A5000FFu);
+                label(pillX + pillW * 0.5f, 31.5f, modeTxt, 0xFFFFFFFFu, kAlignCenter);
+            }
+
+            char buf[28];
+            if (target == 0)
+            {
+                unsigned pct = st.totalAtt > 0u ? (static_cast<unsigned>(st.totalHit) * 100u) / st.totalAtt : 0u;
+                snprintf(buf, sizeof(buf), "%u/%u (%u%%)", static_cast<unsigned>(st.totalHit),
+                         static_cast<unsigned>(st.totalAtt), pct);
+            }
+            else
+            {
+                snprintf(buf, sizeof(buf), "REP %u/%u  HIT %u", static_cast<unsigned>(st.repsDone),
+                         static_cast<unsigned>(target), static_cast<unsigned>(st.repsHit));
+            }
             label(rx, 31.5f, buf, 0xFFD300FFu, kAlignRight);
 
             u8 g = st.lastGrade < 5 ? st.lastGrade : 0;
@@ -167,15 +199,15 @@ namespace extra {
 
             if (st.sessionBest)
             {
-                snprintf(buf, sizeof(buf), "STK %u  BEST %u", static_cast<unsigned>(st.streak),
+                snprintf(buf, sizeof(buf), "STK %u  BEST %u", static_cast<unsigned>(st.streakFull),
                          static_cast<unsigned>(st.sessionBest));
             }
             else
             {
-                snprintf(buf, sizeof(buf), "STK %u  BEST --", static_cast<unsigned>(st.streak));
+                snprintf(buf, sizeof(buf), "STK %u  BEST --", static_cast<unsigned>(st.streakFull));
             }
             label(rx, 46.0f, buf, kGradeCols[0], kAlignRight);
-            drawPips(lx, 56.0f, 276.0f * xs, 3.0f);
+            drawPips(lx, 56.0f, 276.0f * xs, 3.0f, target > 0 ? static_cast<int>(target) : kDrillFreePips);
         }
 
         void drawEndModal()
@@ -186,6 +218,11 @@ namespace extra {
             float ox = 320.0f - 192.0f * xs;
             float ix = ox + 4.0f * xs;
             float iw = 376.0f * xs;
+            u8 target = drillModeTargetReps(st.mode);
+            if (target == 0)
+            {
+                target = kDrillSetReps10;
+            }
 
             gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, 0x050C10B0u);
             drawPanel(ox, 104.0f, 384.0f, 272.0f, st.newBest ? 0xFFD300FFu : 0x35B8C8FFu, 0x10242EF4u, 0x09151CF4u);
@@ -194,12 +231,14 @@ namespace extra {
             gfx::fillRect(ix, 150.0f, iw, 2.0f, 0x12404AFFu);
 
             char buf[28];
-            snprintf(buf, sizeof(buf), "%s DRILL", drillHudTitle(st.activeDrill));
+            snprintf(buf, sizeof(buf), "%s PRACTICE", drillHudTitle(st.activeDrill));
             label(320.0f, 115.0f, buf, 0xFFFFFFFFu, kAlignCenter | kSzDisp13);
-            label(320.0f, 136.0f, "10-REP SET COMPLETE", 0xFFF5B8FFu, kAlignCenter);
+            snprintf(buf, sizeof(buf), "%u-REP SET COMPLETE", static_cast<unsigned>(target));
+            label(320.0f, 136.0f, buf, 0xFFF5B8FFu, kAlignCenter);
 
-            unsigned pct = static_cast<unsigned>(st.repsHit) * 10u;
-            snprintf(buf, sizeof(buf), "%u / 10  (%u%%)", static_cast<unsigned>(st.repsHit), pct);
+            unsigned hits = st.totalHit < target ? st.totalHit : static_cast<unsigned>(target);
+            unsigned pct = (hits * 100u) / static_cast<unsigned>(target);
+            snprintf(buf, sizeof(buf), "%u / %u  (%u%%)", hits, static_cast<unsigned>(target), pct);
             u8 scFl = kAlignCenter | kSzDisp20 | (pct >= 80u ? kDispGold : (pct < 50u ? kDispRed : 0));
             label(320.0f, 166.0f, buf, pct >= 80u ? 0xFFE866FFu : (pct >= 50u ? 0xFFFFFFFFu : 0xFF9E92FFu), scFl);
 
@@ -212,7 +251,7 @@ namespace extra {
             else
             {
                 float pw = 220.0f * xs;
-                drawPips(320.0f - pw * 0.5f, 202.0f, pw, 6.0f);
+                drawPips(320.0f - pw * 0.5f, 202.0f, pw, 6.0f, static_cast<int>(target));
             }
 
             float rowX = ox + 20.0f * xs;
@@ -231,7 +270,7 @@ namespace extra {
                 {
                     if (st.sessionBest)
                     {
-                        snprintf(buf, sizeof(buf), "%u / 10", static_cast<unsigned>(st.sessionBest));
+                        snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(st.sessionBest));
                     }
                     else
                     {
@@ -244,7 +283,7 @@ namespace extra {
                 }
                 else if (r == 1)
                 {
-                    snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(st.bestStreak));
+                    snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(st.bestStreakFull));
                 }
                 else
                 {
@@ -391,10 +430,16 @@ namespace extra {
             {
                 feed.ps = hoverPsPowershieldSlot(slot);
             }
-            else if (d == drills::kDrillPPlusTech)
+            else if (d == drills::kDrillRar)
             {
                 feed.rar = pplusTechRar(slot);
+            }
+            else if (d == drills::kDrillDacus)
+            {
                 feed.dacus = pplusTechDacus(slot);
+            }
+            else if (d == drills::kDrillBReverse)
+            {
                 feed.brev = pplusTechBReverse(slot);
             }
             if (!s_rt.synced)
@@ -468,6 +513,19 @@ namespace extra {
                     if (act)
                     {
                         s_rt.lastPadType = static_cast<u8>(p.m_controllerType);
+                    }
+                }
+                else if (!st.modalOpen && isValidSkillDrill(st.activeDrill) && (pr & game::kPadDUp) != 0
+                         && (held & game::kPadDDown) == 0)
+                {
+                    u32 modBit = game::inMatchPad(static_cast<u32>(p.m_controllerType)).prevCat;
+                    if (modBit != 0 && (held & modBit) != 0)
+                    {
+                        drillHudCycleMode(st);
+                        s_rt.synced = 0;
+                        s_rt.releaseMask[i] |= game::kPadDUp;
+                        ui::menuSound(game::kSoundMove);
+                        syncDebug();
                     }
                 }
             }

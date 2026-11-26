@@ -1,5 +1,5 @@
-// Host tests for the pure 10-rep Skill Drill HUD & End-Screen state machine
-// (src/extra/drill_hud_core.h) and stable DrillId session layout
+// Host tests for the pure Tech Practice HUD & optional 10/20-Rep Set state
+// machine (src/extra/drill_hud_core.h) and stable DrillId session layout
 // (src/shared/drill_session.h).
 #include <string.h>
 
@@ -26,8 +26,10 @@ TEST(drill_hud, session_ids_and_layout_stable)
     CHECK_EQ(3, static_cast<int>(drills::kDrillLCancel));
     CHECK_EQ(4, static_cast<int>(drills::kDrillHoverFloat));
     CHECK_EQ(5, static_cast<int>(drills::kDrillPowershield));
-    CHECK_EQ(6, static_cast<int>(drills::kDrillPPlusTech));
-    CHECK_EQ(7, static_cast<int>(drills::kDrillIdCount));
+    CHECK_EQ(6, static_cast<int>(drills::kDrillRar));
+    CHECK_EQ(7, static_cast<int>(drills::kDrillDacus));
+    CHECK_EQ(8, static_cast<int>(drills::kDrillBReverse));
+    CHECK_EQ(9, static_cast<int>(drills::kDrillIdCount));
     CHECK_EQ(88u, static_cast<unsigned>(sizeof(drills::Session)));
     CHECK_EQ(5, static_cast<int>(drills::kSessionVersion));
 
@@ -36,10 +38,91 @@ TEST(drill_hud, session_ids_and_layout_stable)
     CHECK_EQ(8u, static_cast<unsigned>(drills::betterBest(drills::kDrillLedgedash, 8, 5)));
 }
 
-TEST(drill_hud, ledgedash_10_rep_set_opens_modal_and_tracks_best)
+TEST(drill_hud, free_practice_default_runs_infinite_reps_and_persists_best_streak)
 {
     DrillHudState hud;
     drillHudInit(hud, drills::kDrillLedgedash, 5);
+    CHECK_EQ(static_cast<int>(kDrillModeFree), static_cast<int>(hud.mode));
+    CHECK_EQ(0, static_cast<int>(drillModeTargetReps(hud.mode)));
+    CHECK(strcmp(drillModeLabel(hud.mode), "FREE") == 0);
+
+    LedgeCoreState ledge;
+    ledgeCoreResetAll(ledge);
+    DrillEngineFeed f = emptyFeed();
+    f.ledge = &ledge;
+    drillHudSyncBaselines(hud, f);
+
+    // 15 consecutive hits in Free Practice must NEVER open the modal and must
+    // track totalHit/totalAtt, best streak, and sessionBest past 10 reps.
+    for (int i = 0; i < 15; i++)
+    {
+        ledge.seq++;
+        ledge.last.outcome = kLedgeOutcomeLedgedash;
+        ledge.last.galint = static_cast<s16>(6 + (i % 5));
+        ledge.last.noXlu = 0;
+        ledge.last.dropFrame = 1;
+        CHECK(drillHudStep(hud, f));
+        CHECK_EQ(0, static_cast<int>(hud.modalOpen));
+    }
+    CHECK_EQ(15u, static_cast<unsigned>(hud.totalAtt));
+    CHECK_EQ(15u, static_cast<unsigned>(hud.totalHit));
+    CHECK_EQ(15u, static_cast<unsigned>(hud.streakFull));
+    CHECK_EQ(15u, static_cast<unsigned>(hud.bestStreakFull));
+    CHECK_EQ(15u, static_cast<unsigned>(hud.sessionBest));
+    CHECK_EQ(1, static_cast<int>(hud.newBest));
+    CHECK_EQ(10, static_cast<int>(hud.freePipCount));
+
+    // A miss resets streak but keeps sessionBest and still never opens modal.
+    ledge.seq++;
+    ledge.last.outcome = kLedgeOutcomeSd;
+    CHECK(drillHudStep(hud, f));
+    CHECK_EQ(0, static_cast<int>(hud.modalOpen));
+    CHECK_EQ(16u, static_cast<unsigned>(hud.totalAtt));
+    CHECK_EQ(15u, static_cast<unsigned>(hud.totalHit));
+    CHECK_EQ(0u, static_cast<unsigned>(hud.streakFull));
+    CHECK_EQ(15u, static_cast<unsigned>(hud.sessionBest));
+    CHECK_EQ(static_cast<int>(kRepPipMiss), static_cast<int>(hud.repPips[kDrillFreePips - 1]));
+
+    // Mode cycling: Free -> 10-Rep -> 20-Rep -> Free, preserving sessionBest.
+    drillHudCycleMode(hud);
+    CHECK_EQ(static_cast<int>(kDrillModeSet10), static_cast<int>(hud.mode));
+    CHECK_EQ(15u, static_cast<unsigned>(hud.sessionBest));
+    CHECK_EQ(0u, static_cast<unsigned>(hud.totalAtt));
+
+    drillHudCycleMode(hud);
+    CHECK_EQ(static_cast<int>(kDrillModeSet20), static_cast<int>(hud.mode));
+    CHECK_EQ(20, static_cast<int>(drillModeTargetReps(hud.mode)));
+
+    // 20-Rep Set runs cleanly to 20 reps and opens modal on rep 20 only.
+    drillHudSyncBaselines(hud, f);
+    for (int i = 0; i < 19; i++)
+    {
+        ledge.seq++;
+        ledge.last.outcome = kLedgeOutcomeLedgedash;
+        ledge.last.galint = 8;
+        ledge.last.noXlu = 0;
+        ledge.last.dropFrame = 1;
+        CHECK(drillHudStep(hud, f));
+        CHECK_EQ(0, static_cast<int>(hud.modalOpen));
+    }
+    ledge.seq++;
+    ledge.last.outcome = kLedgeOutcomeLedgedash;
+    ledge.last.galint = 9;
+    CHECK(drillHudStep(hud, f));
+    CHECK_EQ(20, static_cast<int>(hud.repsDone));
+    CHECK_EQ(20u, static_cast<unsigned>(hud.totalHit));
+    CHECK_EQ(1, static_cast<int>(hud.modalOpen));
+    CHECK_EQ(20u, static_cast<unsigned>(hud.sessionBest));
+
+    drillHudCycleMode(hud);
+    CHECK_EQ(static_cast<int>(kDrillModeFree), static_cast<int>(hud.mode));
+    CHECK_EQ(0, static_cast<int>(hud.modalOpen));
+}
+
+TEST(drill_hud, ledgedash_10_rep_set_opens_modal_and_tracks_best)
+{
+    DrillHudState hud;
+    drillHudInitMode(hud, drills::kDrillLedgedash, 5, kDrillModeSet10);
     LedgeCoreState ledge;
     ledgeCoreResetAll(ledge);
     DrillEngineFeed f = emptyFeed();
@@ -99,8 +182,9 @@ TEST(drill_hud, ledgedash_10_rep_set_opens_modal_and_tracks_best)
     drillHudFormatHighlight(hud, hl, sizeof(hl));
     CHECK(strcmp(hl, "+11f") == 0);
 
-    // Retry resets reps & closes modal while preserving sessionBest and incrementing retryCount.
+    // Retry resets reps & closes modal while preserving mode, sessionBest and incrementing retryCount.
     drillHudRetry(hud);
+    CHECK_EQ(static_cast<int>(kDrillModeSet10), static_cast<int>(hud.mode));
     CHECK_EQ(0, static_cast<int>(hud.repsDone));
     CHECK_EQ(0, static_cast<int>(hud.repsHit));
     CHECK_EQ(0, static_cast<int>(hud.modalOpen));
@@ -123,7 +207,7 @@ TEST(drill_hud, ledgedash_10_rep_set_opens_modal_and_tracks_best)
 
 TEST(drill_hud, wavedash_and_lcancel_grading_and_late_upgrade)
 {
-    // Wavedash + Waveland.
+    // Wavedash + Waveland (including angle readout).
     DrillHudState wdHud;
     drillHudInit(wdHud, drills::kDrillWavedash, 0);
     WdCoreState wd;
@@ -136,8 +220,9 @@ TEST(drill_hud, wavedash_and_lcancel_grading_and_late_upgrade)
     wd.last.kind = kWdKindWavedash;
     wd.last.outcome = kWdOutcomeSuccess;
     wd.last.jumpsquatToDodge = 1;
+    wd.last.angleDeg = 17.5f;
     CHECK(drillHudStep(wdHud, fw));
-    CHECK(strcmp(wdHud.lastFeedback, "PERFECT f1") == 0);
+    CHECK(strcmp(wdHud.lastFeedback, "PERFECT f1 17.5") == 0);
     CHECK_EQ(1, static_cast<int>(wdHud.bestMetric));
 
     wd.seq++;
@@ -210,7 +295,7 @@ TEST(drill_hud, wavedash_and_lcancel_grading_and_late_upgrade)
     CHECK(strcmp(lcHud.lastFeedback, "AUTO L-CANCEL ON") == 0);
 }
 
-TEST(drill_hud, hover_ps_and_pplus_tech_drills)
+TEST(drill_hud, hover_ps_and_split_pplus_tech_drills)
 {
     // Drill 4: Float / Hover & DJC ineligible fighter warning before any rep completes.
     DrillHudState fdHud;
@@ -272,9 +357,7 @@ TEST(drill_hud, hover_ps_and_pplus_tech_drills)
     CHECK_EQ(1, static_cast<int>(psHud.repsDone));
     CHECK_EQ(1, static_cast<int>(psHud.bestMetric));
 
-    // Drill 6: P+ Tech (RAR, DACUS, B-Reverse / Wavebounce).
-    DrillHudState tpHud;
-    drillHudInit(tpHud, drills::kDrillPPlusTech, 0);
+    // Drill 6: Dedicated RAR (ignores DACUS/B-Reverse events).
     RarState rar;
     DacusState dacus;
     BReverseState brev;
@@ -285,36 +368,54 @@ TEST(drill_hud, hover_ps_and_pplus_tech_drills)
     ft.rar = &rar;
     ft.dacus = &dacus;
     ft.brev = &brev;
-    drillHudSyncBaselines(tpHud, ft);
 
+    DrillHudState rarHud;
+    drillHudInit(rarHud, drills::kDrillRar, 0);
+    drillHudSyncBaselines(rarHud, ft);
+    dacus.attempts++;
+    dacus.last.outcome = kDacusSuccessGatling;
+    CHECK(!drillHudStep(rarHud, ft));
     rar.attempts++;
     rar.last.outcome = kRarSuccessBair;
     rar.last.turnRunFrames = 1;
-    CHECK(drillHudStep(tpHud, ft));
-    CHECK(strcmp(tpHud.lastFeedback, "RAR BAIR") == 0);
+    CHECK(drillHudStep(rarHud, ft));
+    CHECK(strcmp(rarHud.lastFeedback, "RAR BAIR f1") == 0);
+    char hl[kDrillHighlightBuf];
+    drillHudFormatHighlight(rarHud, hl, sizeof(hl));
+    CHECK(strcmp(hl, "Frame 1") == 0);
 
+    // Drill 7: Dedicated DACUS (ignores RAR/B-Reverse events).
+    DrillHudState dacusHud;
+    drillHudInit(dacusHud, drills::kDrillDacus, 0);
+    drillHudSyncBaselines(dacusHud, ft);
+    rar.attempts++;
+    CHECK(!drillHudStep(dacusHud, ft));
     dacus.attempts++;
     dacus.last.outcome = kDacusSuccessGatling;
-    CHECK(drillHudStep(tpHud, ft));
-    CHECK(strcmp(tpHud.lastFeedback, "GATLING DACUS") == 0);
+    dacus.last.nonHitlagDashFrame = 2;
+    CHECK(drillHudStep(dacusHud, ft));
+    CHECK(strcmp(dacusHud.lastFeedback, "GATLING DACUS f2") == 0);
+    drillHudFormatHighlight(dacusHud, hl, sizeof(hl));
+    CHECK(strcmp(hl, "1") == 0);
 
+    // Drill 8: Dedicated B-Reverse / Wavebounce (ignores RAR/DACUS events).
+    DrillHudState brevHud;
+    drillHudInit(brevHud, drills::kDrillBReverse, 0);
+    drillHudSyncBaselines(brevHud, ft);
+    dacus.attempts++;
+    CHECK(!drillHudStep(brevHud, ft));
     brev.attempts++;
     brev.last.outcome = kBRevWavebounce;
-    CHECK(drillHudStep(tpHud, ft));
-    CHECK(strcmp(tpHud.lastFeedback, "WAVEBOUNCE") == 0);
-
-    CHECK_EQ(3, static_cast<int>(tpHud.repsHit));
-    char hl[kDrillHighlightBuf];
-    drillHudFormatHighlight(tpHud, hl, sizeof(hl));
-    CHECK(strcmp(hl, "1 / 1 / 1") == 0);
+    CHECK(drillHudStep(brevHud, ft));
+    CHECK(strcmp(brevHud.lastFeedback, "WAVEBOUNCE") == 0);
+    drillHudFormatHighlight(brevHud, hl, sizeof(hl));
+    CHECK(strcmp(hl, "1") == 0);
 
     // Baseline sync after savestate reset ignores stale engine counter shifts.
-    rar.attempts = 0;
-    dacus.attempts = 0;
     brev.attempts = 0;
-    drillHudSyncBaselines(tpHud, ft);
-    CHECK(!drillHudStep(tpHud, ft));
-    CHECK_EQ(3, static_cast<int>(tpHud.repsDone));
+    drillHudSyncBaselines(brevHud, ft);
+    CHECK(!drillHudStep(brevHud, ft));
+    CHECK_EQ(1, static_cast<int>(brevHud.repsDone));
 }
 
 TEST(drill_hud, geometry_within_crt_safe_area_43_and_169)

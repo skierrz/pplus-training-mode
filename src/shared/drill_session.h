@@ -23,8 +23,10 @@ namespace drills {
         kDrillLCancel = 3,
         kDrillHoverFloat = 4,
         kDrillPowershield = 5,
-        kDrillPPlusTech = 6,
-        kDrillIdCount = 7
+        kDrillRar = 6,
+        kDrillDacus = 7,
+        kDrillBReverse = 8,
+        kDrillIdCount = 9
     };
 
     enum {

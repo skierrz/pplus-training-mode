@@ -18,13 +18,13 @@ namespace extra {
     struct DrillHudDebugBlock {
         u32 magic;        // 0x00: kDrillHudDebugMagic ("TMDH")
         u32 version;      // 0x04: kDrillHudDebugVersion (1)
-        u8 activeDrill;   // 0x08: drills::DrillId (0..6)
-        u8 repsDone;      // 0x09: 0..10
-        u8 repsHit;       // 0x0A: 0..10
+        u8 activeDrill;   // 0x08: drills::DrillId (0..8)
+        u8 repsDone;      // 0x09: 0..255 (or 0..10/20 in Set mode)
+        u8 repsHit;       // 0x0A: 0..255 (or 0..10/20 in Set mode)
         u8 streak;        // 0x0B: current hit streak
-        u8 bestStreak;    // 0x0C: best streak in this set
+        u8 bestStreak;    // 0x0C: best streak in this run
         u8 newBest;       // 0x0D: 1 if session best improved
-        u8 modalOpen;     // 0x0E: 1 while End-Screen Modal is open
+        u8 modalOpen;     // 0x0E: 1 while End-Screen Modal is open (Set mode)
         u8 lastGrade;     // 0x0F: DrillGrade (0..4)
         u16 bestScore;    // 0x10: persisted session best for activeDrill
         u16 retryCount;   // 0x12: increments each time Retry resets the set
