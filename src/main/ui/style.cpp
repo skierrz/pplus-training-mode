@@ -47,6 +47,52 @@ namespace style {
         fillStadium(x + 0.8f * xs, y + 0.5f, width - 1.6f * xs, height * 0.72f, topCol);
         fillStadium(x + width * 0.22f, y + height * 0.14f, width * 0.56f, height * 0.22f, 0xFFFFFF70);
     }
+
+    void drawMenuPanel(bool withFooter)
+    {
+        float left = cx(kPanelLeft);
+        float right = cx(kPanelRight);
+        float bx = w(kBorderX);
+        float width = right - left;
+        float innerH = kPanelBottom - kPanelTop - 2.0f * kBorderY;
+        gfx::fillRect(left, kPanelTop, width, kBorderY, kBorder);
+        gfx::fillRect(left, kPanelBottom - kBorderY, width, kBorderY, kBorder);
+        gfx::fillRect(left, kPanelTop + kBorderY, bx, innerH, kBorder);
+        gfx::fillRect(right - bx, kPanelTop + kBorderY, bx, innerH, kBorder);
+        float x0 = left + bx;
+        float iw = width - 2.0f * bx;
+        float top = kPanelTop + kBorderY;
+        float bottom = kPanelBottom - kBorderY;
+        gfx::fillRect(x0, top, iw, kTitleBandBottom - top, kTitleBand);
+        if (withFooter)
+        {
+            gfx::fillRect(x0, kTitleBandBottom, iw, kRowsBandBottom - kTitleBandBottom, kRowsBand);
+            gfx::fillRect(x0, kRowsBandBottom, iw, bottom - kRowsBandBottom, kFooterBand);
+        }
+        else
+        {
+            gfx::fillRect(x0, kTitleBandBottom, iw, bottom - kTitleBandBottom, kRowsBand);
+        }
+    }
+
+    void drawScrollBar(int count, int scroll, int visible, float height)
+    {
+        if (count <= visible)
+        {
+            return;
+        }
+        float left = cx(kScrollLeft);
+        float width = w(kScrollW);
+        gfx::fillRect(left, kScrollTop, width, height, kLabDivider);
+        float inner = height - 4.0f;
+        float length = inner * visible / count;
+        if (length < 14.0f)
+        {
+            length = 14.0f;
+        }
+        float top = kScrollTop + 2.0f + (inner - length) * scroll / (count - visible);
+        gfx::fillGradV(left + w(1.0f), top, width - w(2.0f), length, kLabTealTop, kLabTealBot);
+    }
 }
 }
 }

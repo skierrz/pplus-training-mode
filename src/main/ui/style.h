@@ -264,32 +264,7 @@ namespace style {
 
     // Draws the legacy panel layout (recordings browser). When `withFooter` is
     // false, the rows band fills the full height down to the bottom border.
-    inline void drawMenuPanel(bool withFooter = false)
-    {
-        float left = cx(kPanelLeft);
-        float right = cx(kPanelRight);
-        float bx = w(kBorderX);
-        float width = right - left;
-        float innerH = kPanelBottom - kPanelTop - 2.0f * kBorderY;
-        gfx::fillRect(left, kPanelTop, width, kBorderY, kBorder);
-        gfx::fillRect(left, kPanelBottom - kBorderY, width, kBorderY, kBorder);
-        gfx::fillRect(left, kPanelTop + kBorderY, bx, innerH, kBorder);
-        gfx::fillRect(right - bx, kPanelTop + kBorderY, bx, innerH, kBorder);
-        float x0 = left + bx;
-        float iw = width - 2.0f * bx;
-        float top = kPanelTop + kBorderY;
-        float bottom = kPanelBottom - kBorderY;
-        gfx::fillRect(x0, top, iw, kTitleBandBottom - top, kTitleBand);
-        if (withFooter)
-        {
-            gfx::fillRect(x0, kTitleBandBottom, iw, kRowsBandBottom - kTitleBandBottom, kRowsBand);
-            gfx::fillRect(x0, kRowsBandBottom, iw, bottom - kRowsBandBottom, kFooterBand);
-        }
-        else
-        {
-            gfx::fillRect(x0, kTitleBandBottom, iw, bottom - kTitleBandBottom, kRowsBand);
-        }
-    }
+    void drawMenuPanel(bool withFooter = false);
 
     // CRT-safe metallic bevel bar: 2-stop vertical gradient with 2px top sheen
     // and 2px bottom shadow (zero 1px horizontal lines for flicker-free 480i).
@@ -314,24 +289,7 @@ namespace style {
         drawGlossyPillBadge(cxPos - rx, cyPos - radius, 2.0f * rx, 2.0f * radius, topCol, botCol);
     }
 
-    inline void drawScrollBar(int count, int scroll, int visible = kVisibleRows, float height = kScrollH)
-    {
-        if (count <= visible)
-        {
-            return;
-        }
-        float left = cx(kScrollLeft);
-        float width = w(kScrollW);
-        gfx::fillRect(left, kScrollTop, width, height, kLabDivider);
-        float inner = height - 4.0f;
-        float length = inner * visible / count;
-        if (length < 14.0f)
-        {
-            length = 14.0f;
-        }
-        float top = kScrollTop + 2.0f + (inner - length) * scroll / (count - visible);
-        gfx::fillGradV(left + w(1.0f), top, width - w(2.0f), length, kLabTealTop, kLabTealBot);
-    }
+    void drawScrollBar(int count, int scroll, int visible = kVisibleRows, float height = kScrollH);
 }
 }
 }

@@ -86,16 +86,12 @@ namespace cpu {
                                      TM_STEP(0, 100, 0, kRefAway, 6), TM_END};
     static const Step kJumpToward[] = {TM_STEP(X, 0, 0, kRefAbs, 1), TM_UNTIL(0, 0, 0, kRefAbs, kUntilJumped, 2),
                                        TM_STEP(0, 100, 0, kRefToward, 6), TM_END};
-    static const Step kJumpNeutral[] = {TM_STEP(X, 0, 0, kRefAbs, 1), TM_END};
     static const Step kUpBAway[] = {TM_STEP(B, 0, 100, kRefAbs, 1), TM_UNTIL(0, 0, 100, kRefAbs, kUntilSpecial, 2),
                                     TM_STEP(0, kAngledX, kAngledY, kRefAway, 5), TM_END};
     static const Step kUpBToward[] = {TM_STEP(B, 0, 100, kRefAbs, 1), TM_UNTIL(0, 0, 100, kRefAbs, kUntilSpecial, 2),
                                       TM_STEP(0, kAngledX, kAngledY, kRefToward, 5), TM_END};
-    static const Step kNair[] = {TM_STEP(A, 0, 0, kRefAbs, 1), TM_END};
     static const Step kFair[] = {TM_STEP(C, 100, 0, kRefForward, 1), TM_END};
     static const Step kBair[] = {TM_STEP(C, -100, 0, kRefForward, 1), TM_END};
-    static const Step kUair[] = {TM_STEP(C, 0, 100, kRefAbs, 1), TM_END};
-    static const Step kDair[] = {TM_STEP(C, 0, -100, kRefAbs, 1), TM_END};
     // Fastfalls: a down flick once the fall begins (waited for up to 4
     // seconds: light fighters rise long), in tumble, or after a sideways
     // push left tumble (a wiggle).
@@ -103,9 +99,9 @@ namespace cpu {
 // characters can only fastfall some frames after the fall begins).
 #define TM_FLICK TM_UNTIL(0, 0, -100, kRefAbs, kUntilFastfall, 1), TM_UNTIL(0, 0, 0, kRefAbs, kUntilFastfall, 1)
 #define TM_FLICKS TM_FLICK, TM_FLICK, TM_FLICK, TM_FLICK, TM_FLICK, TM_FLICK, TM_FLICK, TM_FLICK
-    static const Step kTumbleFastfall[] = {TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 240), TM_FLICKS, TM_END};
     static const Step kWiggleFastfall[] = {TM_STEP(0, 100, 0, kRefToward, 1), TM_STEP(0, 0, 0, kRefAbs, 1),
                                            TM_UNTIL(0, 0, 0, kRefAbs, kUntilFalling, 240), TM_FLICKS, TM_END};
+    static const Step* const kTumbleFastfall = kWiggleFastfall + 2;
     // Canonical Frame-Perfect SHFFL and FFL templates; options.cpp expands them
     // with CpuOptions::shfflTiming via shffl_core.h, so 1 flick pair suffices.
 #define TM_SHFFL_SCRIPT(aerial) \
@@ -131,11 +127,6 @@ namespace cpu {
     static const Step kWiggle[] = {TM_STEP(0, 100, 0, kRefToward, 1), TM_END};
 
     // ---- out of shield (after shield stun; guard is held until then) ------
-    static const Step kOosGrab[] = {TM_STEP(G | A, 0, 0, kRefAbs, 1), TM_END};
-    static const Step kOosSpotdodge[] = {TM_STEP(G, 0, -100, kRefAbs, 2), TM_END};
-    static const Step kOosRollAway[] = {TM_STEP(G, 100, 0, kRefAway, 2), TM_END};
-    static const Step kOosRollToward[] = {TM_STEP(G, 100, 0, kRefToward, 2), TM_END};
-    static const Step kOosRollRandom[] = {TM_STEP(G, 100, 0, kRefRandom, 2), TM_END};
     // Jump, then the move on the jump squat's second frame (P+ lets an up
     // smash and an up special cancel the jump squat; not found in
     // Project+'s source, the fighters' JumpSquat scripts not checked).
@@ -153,7 +144,6 @@ namespace cpu {
                                       TM_STEP(C, 0, -100, kRefAbs, 1), TM_END};
     static const Step kOosFSmash[] = {TM_STEP(0, 0, 0, kRefAbs, 1), TM_UNTIL(0, 0, 0, kRefAbs, kUntilCanAct, 30),
                                       TM_STEP(C, 100, 0, kRefToward, 1), TM_END};
-    static const Step kOosShieldDrop[] = {TM_STEP(0, 0, 0, kRefAbs, 1), TM_END};
 
     // ---- P+ character techniques (ground and shield lists) ---------------
     // Double jump cancelled aerials: the double jump on the first airborne
@@ -242,21 +232,21 @@ namespace cpu {
         TM_DJCS,             TM_FLOATS,            TM_SHFFLS,             TM_CUSTOM_POOL};
     static const Action kAir[] = {
         TM_NONE,           TM_DO(kAirdodge),        {kJumpAway, kNeedsJump, 0}, {kJumpToward, kNeedsJump, 0},
-        {kJumpNeutral, kNeedsJump, 0}, TM_DO(kUpBAway), TM_DO(kUpBToward),      TM_DO(kNeutralB),
-        TM_DO(kSideBAway), TM_DO(kSideBToward),     TM_DO(kDownB),          TM_DO(kNair),
-        TM_DO(kFair),      TM_DO(kBair),            TM_DO(kUair),           TM_DO(kDair),
+        {kShortHop, kNeedsJump, 0}, TM_DO(kUpBAway), TM_DO(kUpBToward),         TM_DO(kNeutralB),
+        TM_DO(kSideBAway), TM_DO(kSideBToward),     TM_DO(kDownB),              TM_DO(kJab),
+        TM_DO(kFair),      TM_DO(kBair),            TM_DO(kUSmash),             TM_DO(kDSmash),
         {kTumbleFastfall, kEndsWithSteps, 0},       {kWiggleFastfall, kEndsWithSteps, 0},
         TM_NONE,           {kWait, kNoTech | kEndsWithSteps, 0},
-        TM_PLAY_SLOTS,     TM_PLAY_RANDOM,          TM_RANDOM_ADV,          TM_RANDOM,
+        TM_PLAY_SLOTS,     TM_PLAY_RANDOM,          TM_RANDOM_ADV,              TM_RANDOM,
         TM_FFLS,           TM_CUSTOM_POOL};
     static const Action kShieldList[] = {
-        TM_NONE,              TM_DO(kOosGrab),        TM_DO(kShortHop),      TM_DO(kFullHop),
-        TM_DO(kOosSpotdodge), TM_DO(kOosRollAway),    TM_DO(kOosRollToward), TM_DO(kOosUpB),
+        TM_NONE,              TM_DO(kGrab),           TM_DO(kShortHop),      TM_DO(kFullHop),
+        TM_DO(kSpotdodge),    TM_DO(kRollAway),       TM_DO(kRollToward),    TM_DO(kOosUpB),
         TM_DO(kOosSideBAway), TM_DO(kOosSideBToward), TM_DO(kOosDownB),      TM_DO(kOosNeutralB),
         TM_DO(kOosUSmash),    TM_DO(kOosDSmash),      TM_DO(kOosFSmash),     TM_DO(kSHNair),
         TM_DO(kSHFair),       TM_DO(kSHBair),         TM_DO(kSHUair),        TM_DO(kSHDair),
-        TM_DO(kWavedashAway), TM_DO(kOosShieldDrop),  TM_PLAY_SLOTS,         TM_PLAY_RANDOM,
-        TM_DO(kWavedashToward), TM_DO(kWavedashDown), TM_DO(kOosRollRandom), TM_RANDOM_ADV,
+        TM_DO(kWavedashAway), TM_DO(kWait),           TM_PLAY_SLOTS,         TM_PLAY_RANDOM,
+        TM_DO(kWavedashToward), TM_DO(kWavedashDown), TM_DO(kRollRandom),    TM_RANDOM_ADV,
         TM_RANDOM,            TM_DJCS,                TM_FLOATS,             TM_SHFFLS,
         TM_CUSTOM_POOL};
 

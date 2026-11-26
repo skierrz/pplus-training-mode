@@ -149,7 +149,7 @@ namespace ui {
         {
             if (o.kind == kKindInt)
             {
-                lo = o.min;
+                lo = (o.flags & kFlagSigned) ? static_cast<int>(static_cast<s8>(o.min)) : static_cast<int>(o.min);
             }
             if (o.kind != kKindToggle)
             {
@@ -1065,10 +1065,12 @@ namespace ui {
         else if (p.count > 0 && cur < p.count)
         {
             desc = main::extraOptionDesc(pageId, static_cast<u8>(cur));
+#ifndef __MWERKS__
             if (desc == NULL)
             {
                 desc = p.options[cur].desc;
             }
+#endif
         }
         if (desc == NULL || desc[0] == '\0')
         {

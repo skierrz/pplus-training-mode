@@ -60,17 +60,28 @@ namespace ui {
         u8 kind;    // OptionKind
         u8 flags;   // OptionFlag bits
         u16 offset; // byte offset of the value in the settings struct
+#ifdef __MWERKS__
+        u8 min;     // s8 when kFlagSigned, u8 bitmask when kFlagBit
+        s8 def;     // default value (also what a row not built yet shows)
+        s16 max;    // INT: largest value; CHOICE: count - 1; MENU: page id
+        const char* name;
+#else
         s16 min;
         s16 max;    // INT: largest value; CHOICE: count - 1; MENU: page id
         s16 def;    // default value (also what a row not built yet shows)
         u16 reserved;
         const char* name;
         const char* desc;   // unused in match (descriptions live in extra/menu_descriptions.cpp)
+#endif
         const void* data;   // CHOICE: const char* const* labels; INT: format; FUNC/INFO: value text
         void (*onChange)(); // after the value changed, or when A runs a FUNC
         bool (*enabled)();  // NULL: always; false: grey and skipped by the cursor
     };
+#ifdef __MWERKS__
+    TM_STATIC_ASSERT(sizeof(Option) == 24, tm_option_is_24_bytes);
+#else
     TM_STATIC_ASSERT(sizeof(Option) == 32, tm_option_is_32_bytes);
+#endif
 
     struct Page {
         const char* title;

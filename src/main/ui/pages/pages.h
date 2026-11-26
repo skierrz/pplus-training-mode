@@ -91,8 +91,13 @@ namespace pages {
 #define TM_HALF(f) (sizeof(((::tm::main::Settings*)0)->f) == 2 ? ::tm::ui::kFlagHalf : 0)
 #define TM_SIGNED(lo) ((lo) < 0 ? ::tm::ui::kFlagSigned : 0)
 
+#ifdef __MWERKS__
+#define TM_ROW(kind, flags, offset, lo, hi, def, name, data, onChange, enabled) \
+    {kind, flags, offset, static_cast<u8>(lo), static_cast<s8>(def), static_cast<s16>(hi), name, data, onChange, enabled}
+#else
 #define TM_ROW(kind, flags, offset, lo, hi, def, name, data, onChange, enabled) \
     {kind, flags, offset, lo, hi, def, 0, name, NULL, data, onChange, enabled}
+#endif
 
 #define TM_MENU(name, page) \
     TM_ROW(::tm::ui::kKindMenu, 0, 0, 0, ::tm::ui::pages::page, 0, name, NULL, NULL, NULL)
