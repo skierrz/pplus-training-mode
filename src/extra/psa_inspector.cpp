@@ -366,7 +366,7 @@ namespace extra {
             bool hasFocus = dbg->focusText[0] != '\0';
             int fitRows = rowCount > 0 ? rowCount : 1;
             float maxBh = b.y1 - b.y0;
-            float rowsBot = 28.0f + i2fScale(fitRows, 10.0f);
+            float rowsBot = 30.0f + i2fScale(fitRows, 10.0f);
             float bh = rowsBot + (hasFocus ? 16.0f : 4.0f);
             if (bh > maxBh)
             {
@@ -376,14 +376,14 @@ namespace extra {
             drawHudCard(x, y, bw, bh, xs, isCpu ? 0x4E86B8FFu : 0xD83838FFu, 0xFFFFFF40u);
 
             // Crisp 2.0px integer header divider below Act/Sub/AnimFrame line.
-            drawHudDivider(x, y + 24.0f, bw, xs);
+            drawHudDivider(x, y + 26.0f, bw, xs);
 
             // Header line 1: PSA target + FSM rate.
             char title[16];
             char fsm[20];
             psaFormatTitle(isCpu, dbg->playerNo, title, sizeof(title));
             psaFormatFsm(dbg->fsmRate, fsm, sizeof(fsm));
-            float hdrScale = ui::style::scaleForCap(6.5f);
+            float hdrScale = ui::style::scaleForCap(7.5f);
             float hdrY = ui::style::textYForCap(y + 6.0f, hdrScale);
             drawShadowText(x + 6.0f * xs, hdrY, title, isCpu ? 0x9AD0F8FFu : 0xFFB0B0FFu, hdrScale);
             gfx::Rgba fsmCol = psaFsmIsModified(dbg->fsmRate) ? 0xFFD300FFu : 0xF1F5F9FFu;
@@ -393,15 +393,15 @@ namespace extra {
             char subLine[40];
             psaFormatSubHeader(dbg->status, dbg->subaction, dbg->animFrame, dbg->secondaryKind,
                                dbg->secondaryRate, subLine, sizeof(subLine));
-            float subScale = ui::style::scaleForCap(6.0f);
+            float subScale = ui::style::scaleForCap(7.5f);
             float subY = ui::style::textYForCap(y + 16.0f, subScale);
             drawShadowText(x + 6.0f * xs, subY, subLine, 0xB8CDD6FFu, subScale);
 
             // Up to 6 active threads: Name | Frame | Wait | Decoded Opcode Name.
-            float rowScale = ui::style::scaleForCap(6.0f);
+            float rowScale = ui::style::scaleForCap(7.5f);
             if (rowCount == 0)
             {
-                float ry = ui::style::textYForCap(y + 29.0f, rowScale);
+                float ry = ui::style::textYForCap(y + 30.0f, rowScale);
                 drawShadowText(x + 6.0f * xs, ry, "No active threads", 0x7A8E9CFFu, rowScale);
                 return;
             }
@@ -416,7 +416,7 @@ namespace extra {
             {
                 int idx = shown[r];
                 const PsaThreadSnapshot& th = dbg->threads[idx];
-                float ry = ui::style::textYForCap(y + 28.0f + i2fScale(r, 10.0f), rowScale);
+                float ry = ui::style::textYForCap(y + 30.0f + i2fScale(r, 10.0f), rowScale);
 
                 char frameBuf[12];
                 char waitBuf[12];

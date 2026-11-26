@@ -31,10 +31,12 @@ namespace osdQuick {
 
     enum {
         kOsdUsed = offsetof(OsdSettings, reserved),
+        kCpuTechOsdOff = offsetof(main::CpuSettings, options.techTrackerOsd),
+        kRowOffTechTracker = 0xFF,
         kOsdGen = 1,
         kWaitMs = 3000,
         kStickDeadZone = 40,
-        kVisibleRows = 10,
+        kVisibleRows = 9,
         kRepeatStart = ui::style::kRepeatStart,
         kRepeatEvery = ui::style::kRepeatEvery
     };
@@ -51,38 +53,67 @@ namespace osdQuick {
     struct QuickRow {
         const char* name;
         u8 kind;
-        u8 offset; // offsetof(OsdSettings, field)
+        u8 offset; // offsetof(OsdSettings, field), or kRowOffTechTracker for cpu.options.techTrackerOsd
         u8 minVal;
         u8 maxVal;
         const char* const* labels;
+        const char* help;
     };
 
 #define TM_QOFF(f) static_cast<u8>(offsetof(OsdSettings, f))
     static const QuickRow kRows[] = {
-        {"OSD Preset",          kKindChoice, TM_QOFF(preset),              0, main::kOsdPresetCount - 1,   kPresets},
-        {"OSD Position",        kKindChoice, TM_QOFF(position),            0, osd::kPositionCount - 1,     kPositions},
-        {"Max OSDs",            kKindInt,    TM_QOFF(maxMessages),         1, osd::kPerPlayer,             NULL},
-        {"Overhead Timing Bar", kKindChoice, TM_QOFF(timingMeter),         0, main::kTimingMeterCount - 1, kTiming},
-        {"Tech Sparkle",        kKindChoice, TM_QOFF(techSparkle),         0, main::kTechSparkleCount - 1, kSparkle},
-        {"Wavedash",            kKindToggle, TM_QOFF(wavedash),            0, 1,                           NULL},
-        {"L-Cancel",            kKindToggle, TM_QOFF(lCancel),             0, 1,                           NULL},
-        {"Ledgedash Info",      kKindToggle, TM_QOFF(ledgedashInfo),       0, 1,                           NULL},
-        {"Act OoS Frame",       kKindToggle, TM_QOFF(actOos),              0, 1,                           NULL},
-        {"Shield Advantage",    kKindToggle, TM_QOFF(frameAdvantage),      0, 1,                           NULL},
-        {"Hit Advantage",       kKindToggle, TM_QOFF(frameAdvantageOnHit), 0, 1,                           NULL},
-        {"Dashback",            kKindToggle, TM_QOFF(dashback),            0, 1,                           NULL},
-        {"Powershield",         kKindToggle, TM_QOFF(powershield),         0, 1,                           NULL},
-        {"Act OoLag",           kKindToggle, TM_QOFF(actOoLag),            0, 1,                           NULL},
-        {"Act OoAirborne",      kKindToggle, TM_QOFF(actOoAirborne),       0, 1,                           NULL},
-        {"Act OoHitstun",       kKindToggle, TM_QOFF(actOoHitstun),        0, 1,                           NULL},
-        {"Jump Cancel",         kKindToggle, TM_QOFF(jumpCancel),          0, 1,                           NULL},
-        {"Fastfall Timing",     kKindToggle, TM_QOFF(fastfall),            0, 1,                           NULL},
-        {"Boost Grab / DACUS",  kKindToggle, TM_QOFF(boostGrab),           0, 1,                           NULL},
-        {"SDI Inputs",          kKindToggle, TM_QOFF(sdi),                 0, 1,                           NULL},
-        {"Tech Lockout",        kKindToggle, TM_QOFF(lockoutTimers),       0, 1,                           NULL},
-        {"Combo Counter",       kKindToggle, TM_QOFF(comboCounter),        0, 1,                           NULL},
-        {"Grab Escape",         kKindToggle, TM_QOFF(grabBreakout),        0, 1,                           NULL},
-        {"Item Throw",          kKindToggle, TM_QOFF(itemThrow),           0, 1,                           NULL}
+        {"OSD Preset",          kKindChoice, TM_QOFF(preset),              0, main::kOsdPresetCount - 1,   kPresets,
+         "Apply a curated bundle of on-screen displays (OSDs)."},
+        {"OSD Position",        kKindChoice, TM_QOFF(position),            0, osd::kPositionCount - 1,     kPositions,
+         "Where OSD notifications appear on screen during matches."},
+        {"Max OSDs",            kKindInt,    TM_QOFF(maxMessages),         1, osd::kPerPlayer,             NULL,
+         "Maximum simultaneous OSD messages stacked per player."},
+        {"Overhead Timing Bar", kKindChoice, TM_QOFF(timingMeter),         0, main::kTimingMeterCount - 1, kTiming,
+         "Floating bar over fighters for L-Cancel, Wavedash, or Act-Out."},
+        {"Tech Sparkle",        kKindChoice, TM_QOFF(techSparkle),         0, main::kTechSparkleCount - 1, kSparkle,
+         "Visual sparkle cue on Frame-1 Wavedashes or crisp Shorthops."},
+        {"P+ Tech OSD",         kKindToggle, kRowOffTechTracker,           0, 1,                           NULL,
+         "Show Project+ tech readouts (RAR, DACUS, B-Reverse, CC/ASDI)."},
+        {"Wavedash",            kKindToggle, TM_QOFF(wavedash),            0, 1,                           NULL,
+         "Show Wavedash timing frame and airdodge angle."},
+        {"L-Cancel",            kKindToggle, TM_QOFF(lCancel),             0, 1,                           NULL,
+         "Show L-Cancel timing window (1-7f) and success rate."},
+        {"Ledgedash Info",      kKindToggle, TM_QOFF(ledgedashInfo),       0, 1,                           NULL,
+         "Show GALINT (invincible frames actionable onstage) after ledge."},
+        {"Act OoS Frame",       kKindToggle, TM_QOFF(actOos),              0, 1,                           NULL,
+         "Show frames taken to act Out of Shield (OoS) after blockstun."},
+        {"Shield Advantage",    kKindToggle, TM_QOFF(frameAdvantage),      0, 1,                           NULL,
+         "Show +/- frame advantage when an attack hits a shield."},
+        {"Hit Advantage",       kKindToggle, TM_QOFF(frameAdvantageOnHit), 0, 1,                           NULL,
+         "Show +/- frame advantage when an attack connects on hit."},
+        {"Advantage Tolerance", kKindInt,    TM_QOFF(advantageTolerance),  0, 5,                           NULL,
+         "Frames of slack before Shield/Hit Advantage stops measuring."},
+        {"Dashback",            kKindToggle, TM_QOFF(dashback),            0, 1,                           NULL,
+         "Report direct dashback vs slow-turn frames."},
+        {"Powershield",         kKindToggle, TM_QOFF(powershield),         0, 1,                           NULL,
+         "Show 2-frame Powershield timing and early/buffered misses."},
+        {"Act OoLag",           kKindToggle, TM_QOFF(actOoLag),            0, 1,                           NULL,
+         "Show frames waited before acting out of landing or attack lag."},
+        {"Act OoAirborne",      kKindToggle, TM_QOFF(actOoAirborne),       0, 1,                           NULL,
+         "Show first-frame aerial or special timing after leaving ground."},
+        {"Act OoHitstun",       kKindToggle, TM_QOFF(actOoHitstun),        0, 1,                           NULL,
+         "Show frames waited before acting out of hitstun or tumble."},
+        {"Jump Cancel",         kKindToggle, TM_QOFF(jumpCancel),          0, 1,                           NULL,
+         "Show jump-cancel grab and up-smash timing frames."},
+        {"Fastfall Timing",     kKindToggle, TM_QOFF(fastfall),            0, 1,                           NULL,
+         "Show how many frames after apex you triggered fastfall."},
+        {"Boost Grab / DACUS",  kKindToggle, TM_QOFF(boostGrab),           0, 1,                           NULL,
+         "Show Dash Attack Cancelled Up Smash (DACUS) and Boost Grab frames."},
+        {"SDI Inputs",          kKindToggle, TM_QOFF(sdi),                 0, 1,                           NULL,
+         "Count Smash Directional Influence (SDI) shifts during hitlag."},
+        {"Tech Lockout",        kKindToggle, TM_QOFF(lockoutTimers),       0, 1,                           NULL,
+         "Warn when a tech press lands inside the 40-frame lockout window."},
+        {"Combo Counter",       kKindToggle, TM_QOFF(comboCounter),        0, 1,                           NULL,
+         "Show true-combo hit count and total damage dealt."},
+        {"Grab Escape",         kKindToggle, TM_QOFF(grabBreakout),        0, 1,                           NULL,
+         "Show grab mash breakout speed and frames spent grabbed."},
+        {"Item Throw",          kKindToggle, TM_QOFF(itemThrow),           0, 1,                           NULL,
+         "Show item throw and glide-toss execution timing."}
     };
 #undef TM_QOFF
     enum { kRowCount = static_cast<int>(sizeof(kRows) / sizeof(kRows[0])) };
@@ -111,10 +142,12 @@ namespace osdQuick {
     };
     static const u32 kPresetMasks[main::kOsdPresetCount - 1] = {
         0x0003Fu, // Essentials
-        0x03B47u, // Movement
+        0x83B47u, // Movement (includes P+ Tech OSD bit 19)
         0x2C498u, // Defense
         0x00000u  // All Off
     };
+
+    static u8 s_techTrackerOsd = 0;
 
     void defaultOsdSettings(OsdSettings& out)
     {
@@ -150,6 +183,7 @@ namespace osdQuick {
         {
             raw[kPresetOffsets[i]] = static_cast<u8>((mask >> i) & 1u);
         }
+        s_techTrackerOsd = static_cast<u8>((mask >> 19) & 1u);
     }
 
     static bool validAreaTable(const u8* file, u32 size, u32 tableOff, u16 count)
@@ -301,6 +335,32 @@ namespace osdQuick {
         oh->sequence = nextSeq;
         oh->checksum = storage::checksum(outFile + storage::kChecksumFrom, at - storage::kChecksumFrom);
         outSize = at;
+        return true;
+    }
+
+    static bool patchOsdAndCpuInFile(const u8* inFile, u32 inSize, const OsdSettings& osd, s8 techTrackerOsd,
+                                     u8* outFile, u32 outCap, u32 nextSeq, u32& outSize)
+    {
+        if (!patchOsdAreaInFile(inFile, inSize, osd, outFile, outCap, nextSeq, outSize))
+        {
+            return false;
+        }
+        if (techTrackerOsd >= 0 && outSize >= sizeof(FileHeader) + sizeof(SettingsHead))
+        {
+            SettingsHead* ohead = reinterpret_cast<SettingsHead*>(outFile + sizeof(FileHeader));
+            u32 tableOff = sizeof(FileHeader) + sizeof(SettingsHead);
+            AreaEntry* entries = reinterpret_cast<AreaEntry*>(outFile + tableOff);
+            for (u16 i = 0; i < ohead->areaCount; i++)
+            {
+                if (entries[i].id == storage::kAreaCpu && entries[i].used > kCpuTechOsdOff)
+                {
+                    outFile[entries[i].offset + kCpuTechOsdOff] = static_cast<u8>(techTrackerOsd ? 1u : 0u);
+                    FileHeader* oh = reinterpret_cast<FileHeader*>(outFile);
+                    oh->checksum = storage::checksum(outFile + storage::kChecksumFrom, outSize - storage::kChecksumFrom);
+                    break;
+                }
+            }
+        }
         return true;
     }
 
@@ -457,6 +517,7 @@ namespace osdQuick {
     {
         finishPendingWrite();
         defaultOsdSettings(s_osd);
+        s_techTrackerOsd = 0;
         s_hasCard = false;
         s_cardSize = 0;
         s_cardSeq = 0;
@@ -517,7 +578,10 @@ namespace osdQuick {
                     {
                         u32 n = entries[i].used < kOsdUsed ? entries[i].used : kOsdUsed;
                         memcpy(&s_osd, s_cardBuf + entries[i].offset, n);
-                        break;
+                    }
+                    else if (entries[i].id == storage::kAreaCpu && entries[i].used > kCpuTechOsdOff)
+                    {
+                        s_techTrackerOsd = s_cardBuf[entries[i].offset + kCpuTechOsdOff] != 0 ? 1u : 0u;
                     }
                 }
             }
@@ -528,6 +592,7 @@ namespace osdQuick {
         if (live != NULL)
         {
             memcpy(&s_osd, &live->osd, sizeof(OsdSettings));
+            s_techTrackerOsd = live->cpu.options.techTrackerOsd != 0 ? 1u : 0u;
         }
     }
 
@@ -544,6 +609,7 @@ namespace osdQuick {
         if (live != NULL)
         {
             memcpy(&live->osd, &s_osd, sizeof(OsdSettings));
+            live->cpu.options.techTrackerOsd = s_techTrackerOsd;
         }
 
         // 2. Patch kAreaOsd in-place on SD (never clobbering v1 pending upgrade or newer save).
@@ -559,8 +625,8 @@ namespace osdQuick {
         }
         u32 nextSeq = storage::nextSequence(s_cardSeq);
         u32 outSz = 0;
-        if (!patchOsdAreaInFile(s_hasCard ? s_cardBuf : NULL, s_hasCard ? s_cardSize : 0, s_osd, s_writeBuf,
-                                sizeof(s_writeBuf), nextSeq, outSz))
+        if (!patchOsdAndCpuInFile(s_hasCard ? s_cardBuf : NULL, s_hasCard ? s_cardSize : 0, s_osd,
+                                  static_cast<s8>(s_techTrackerOsd), s_writeBuf, sizeof(s_writeBuf), nextSeq, outSz))
         {
             TM_LOG("osdquick: patch failed\n");
             return;
@@ -608,16 +674,41 @@ namespace osdQuick {
         }
     }
 
+    static bool rowEnabled(int idx)
+    {
+        if (kRows[idx].offset == offsetof(OsdSettings, advantageTolerance))
+        {
+            return s_osd.frameAdvantage != 0 || s_osd.frameAdvantageOnHit != 0;
+        }
+        return true;
+    }
+
+    static u8 readRowValue(const QuickRow& r)
+    {
+        return r.offset == kRowOffTechTracker ? s_techTrackerOsd : reinterpret_cast<const u8*>(&s_osd)[r.offset];
+    }
+
+    static void writeRowValue(const QuickRow& r, u8 v)
+    {
+        if (r.offset == kRowOffTechTracker)
+        {
+            s_techTrackerOsd = v;
+        }
+        else
+        {
+            reinterpret_cast<u8*>(&s_osd)[r.offset] = v;
+        }
+    }
+
     static void adjustRow(int idx, int delta)
     {
-        if (s_newerOnCard || s_olderLayoutOnCard)
+        if (s_newerOnCard || s_olderLayoutOnCard || !rowEnabled(idx))
         {
             sound(game::kSoundError);
             return;
         }
         const QuickRow& r = kRows[idx];
-        u8* raw = reinterpret_cast<u8*>(&s_osd);
-        int cur = raw[r.offset];
+        int cur = readRowValue(r);
         int next = cur;
         if (r.kind == kKindToggle)
         {
@@ -639,7 +730,7 @@ namespace osdQuick {
         {
             return;
         }
-        raw[r.offset] = static_cast<u8>(next);
+        writeRowValue(r, static_cast<u8>(next));
         if (r.offset == offsetof(OsdSettings, preset))
         {
             applyPreset(s_osd, static_cast<u8>(next));
@@ -653,6 +744,7 @@ namespace osdQuick {
         if (live != NULL)
         {
             memcpy(&live->osd, &s_osd, sizeof(OsdSettings));
+            live->cpu.options.techTrackerOsd = s_techTrackerOsd;
         }
         s_dirty = true;
         sound(game::kSoundMove);
@@ -743,7 +835,7 @@ namespace osdQuick {
             }
             else
             {
-                int cur = reinterpret_cast<const u8*>(&s_osd)[kRows[s_cursor].offset];
+                int cur = readRowValue(kRows[s_cursor]);
                 int next = cur >= kRows[s_cursor].maxVal ? kRows[s_cursor].minVal : cur + 1;
                 adjustRow(s_cursor, next - cur);
             }
@@ -809,11 +901,13 @@ namespace osdQuick {
         }
 
         // Dark backdrop + Brawl/P+ double-framed dark chrome panel (5% CRT safe).
-        gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, 0x050C10B8u);
+        gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, 0x050C10D8u);
         const float left43 = 60.0f;
         const float right43 = 580.0f;
         const float topY = 36.0f;
         const float botY = 444.0f;
+        const float descTop = 376.0f;
+        const float footTop = 404.0f;
         float left = cx(left43);
         float right = cx(right43);
         float panelW = right - left;
@@ -836,25 +930,27 @@ namespace osdQuick {
         float bodyW = iw - 2.0f * bIn;
         gfx::fillGradV(bodyX, topY + 4.0f, bodyW, 44.0f, kLabHeaderTop, kLabHeaderBot);
         gfx::fillRect(bodyX, topY + 48.0f, bodyW, 2.0f, kLabDivider);
-        gfx::fillGradV(bodyX, topY + 50.0f, bodyW, botY - 40.0f - (topY + 50.0f), kLabBaseTop, kLabBaseBot);
-        gfx::fillRect(bodyX, botY - 40.0f, bodyW, 2.0f, kLabDivider);
-        gfx::fillGradV(bodyX, botY - 38.0f, bodyW, 34.0f, kLabFooterTopCol, kLabFooterBotCol);
+        gfx::fillGradV(bodyX, topY + 50.0f, bodyW, descTop - (topY + 50.0f), kLabBaseTop, kLabBaseBot);
+        gfx::fillRect(bodyX, descTop, bodyW, 2.0f, kLabDivider);
+        gfx::fillGradV(bodyX, descTop + 2.0f, bodyW, footTop - (descTop + 2.0f), kLabDescTopCol, kLabDescBotCol);
+        gfx::fillRect(bodyX, footTop, bodyW, 2.0f, kLabDivider);
+        gfx::fillGradV(bodyX, footTop + 2.0f, bodyW, botY - 4.0f - (footTop + 2.0f), kLabFooterTopCol, kLabFooterBotCol);
 
         // Header Brawl Display title + optional status tag.
-        float titleScale = displayScaleForCap(13.5f);
-        gfx::displayText(cx(left43 + 18.0f), displayYForCap(topY + 19.0f, titleScale), "QUICK OSDS", kLabTitleTop,
-                         kLabTitleBot, titleScale, titleScale, 1.2f, kLabTitleEdge);
-        const char* sub = s_statusNote != NULL ? s_statusNote : "Saves OSDs to SD (other settings kept)";
+        float titleScale = displayScaleForCap(12.5f);
+        gfx::displayText(cx(left43 + 18.0f), displayYForCap(topY + 19.5f, titleScale), "QUICK OVERLAYS - OSDs",
+                         kLabTitleTop, kLabTitleBot, titleScale, titleScale, 1.2f, kLabTitleEdge);
+        const char* sub = s_statusNote != NULL ? s_statusNote : "Saves to SD on exit";
         float subScale = scaleForCap(8.5f);
         float subW = gfx::textWidth(sub, subScale);
-        float subMax = w(310.0f);
+        float subMax = w(230.0f);
         float subSx = subW > subMax && subW > 0.0f ? subScale * subMax / subW : subScale;
         float subDrawW = subW > subMax ? subMax : subW;
         gfx::text(cx(right43 - 18.0f) - subDrawW, textYForCap(topY + 22.0f, subScale), sub,
                   s_statusNote != NULL ? kLabFocusGold : kLabMutedText, subSx, subScale);
 
-        // 10 visible rows with metallic gold cursor bar & sculpted value pills.
-        const float rowTop = topY + 58.0f;
+        // 9 visible rows with metallic gold cursor bar, sculpted value pills & < > arrows.
+        const float rowTop = topY + 56.0f;
         const float rowPitch = 30.0f;
         const float rowH = 25.0f;
         const float hlLeft = cx(left43 + 14.0f);
@@ -863,9 +959,11 @@ namespace osdQuick {
         const float nameMaxW = w(240.0f);
         const float pillLeft = cx(382.0f);
         const float pillW = w(160.0f);
+        const float pillRight = pillLeft + pillW;
         const float pillCenter = pillLeft + pillW * 0.5f;
-        const float valMaxW = w(136.0f);
+        const float valMaxW = w(122.0f);
         float capOff = (rowH - kLabRowCap) * 0.5f;
+        float xs = gfx::xScale();
 
         for (int r = 0; r < kVisibleRows && s_scroll + r < kRowCount; r++)
         {
@@ -873,6 +971,7 @@ namespace osdQuick {
             const QuickRow& row = kRows[idx];
             float y = rowTop + r * rowPitch;
             bool sel = idx == s_cursor;
+            bool on = rowEnabled(idx);
             if (sel)
             {
                 drawBevelBar(hlLeft, y, hlW, rowH, kLabGoldTop, kLabGoldBot, kLabGoldSheen, kLabGoldEdge);
@@ -883,19 +982,30 @@ namespace osdQuick {
                 drawBevelBar(hlLeft, y, hlW, rowH, 0x11242EE0u, 0x0A161CE0u, 0x3A687A30u, kLabBevelDark);
             }
 
-            u8 v = reinterpret_cast<const u8*>(&s_osd)[row.offset];
+            u8 v = readRowValue(row);
             bool isOn = row.kind == kKindToggle && v != 0;
             float pad = w(1.5f);
             gfx::fillRect(pillLeft, y + 1.0f, pillW, rowH - 2.0f, kLabPillBorder);
             gfx::fillGradV(pillLeft + pad, y + 3.0f, pillW - 2.0f * pad, rowH - 6.0f,
-                           isOn ? kLabPillOnTop : kLabPillOffTop, isOn ? kLabPillOnBot : kLabPillOffBot);
+                           isOn ? (on ? kLabPillOnTop : kLabPillOnMutedTop) : (on ? kLabPillOffTop : kLabPillOffMutedTop),
+                           isOn ? (on ? kLabPillOnBot : kLabPillOnMutedBot) : (on ? kLabPillOffBot : kLabPillOffMutedBot));
             gfx::fillRect(pillLeft + pad, y + 3.0f, pillW - 2.0f * pad, 2.0f,
                           isOn ? kLabPillOnSheen : kLabPillOffSheen);
+
+            if (sel && on && (row.kind == kKindChoice || row.kind == kKindInt))
+            {
+                float midY = y + rowH * 0.5f;
+                gfx::fillTri(pillLeft + 5.0f * xs, midY, pillLeft + 11.5f * xs, midY - 4.5f,
+                             pillLeft + 11.5f * xs, midY + 4.5f, kLabFocusGold);
+                gfx::fillTri(pillRight - 5.0f * xs, midY, pillRight - 11.5f * xs, midY - 4.5f,
+                             pillRight - 11.5f * xs, midY + 4.5f, kLabFocusGold);
+            }
 
             float ty = textYForCap(y + capOff, rowScale);
             float nw = boldWidth(row.name, rowScale);
             float nsx = nw > nameMaxW && nw > 0.0f ? rowScale * nameMaxW / nw : rowScale;
-            boldText(nameX, ty, row.name, sel ? kLabGoldInk : kText, nsx, rowScale);
+            gfx::Rgba nameCol = sel ? (on ? kLabGoldInk : kLabGoldInkMuted) : (on ? kText : kTextDisabled);
+            boldText(nameX, ty, row.name, nameCol, nsx, rowScale);
 
             char buf[24];
             const char* valTxt = buf;
@@ -905,7 +1015,8 @@ namespace osdQuick {
             }
             else if (row.kind == kKindInt)
             {
-                snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(v));
+                snprintf(buf, sizeof(buf), row.offset == offsetof(OsdSettings, advantageTolerance) ? "%uf" : "%u",
+                         static_cast<unsigned>(v));
             }
             else
             {
@@ -914,7 +1025,7 @@ namespace osdQuick {
             float vw = boldWidth(valTxt, rowScale);
             float vsx = vw > valMaxW && vw > 0.0f ? rowScale * valMaxW / vw : rowScale;
             float drawVw = vw > valMaxW ? valMaxW : vw;
-            boldText(pillCenter - drawVw * 0.5f, ty, valTxt, kLabWhiteText, vsx, rowScale);
+            boldText(pillCenter - drawVw * 0.5f, ty, valTxt, on ? kLabWhiteText : kTextDisabled, vsx, rowScale);
         }
 
         // Scrollbar.
@@ -935,10 +1046,21 @@ namespace osdQuick {
             gfx::fillGradV(sbX + w(1.0f), thumbY, sbW - w(2.0f), thumbH, kLabTealTop, kLabTealBot);
         }
 
+        // Per-row 1-line help description bar above the footer.
+        const char* help = (s_cursor >= 0 && s_cursor < kRowCount && kRows[s_cursor].help != NULL)
+                               ? kRows[s_cursor].help
+                               : "Use D-Pad or Stick to toggle or cycle overlays.";
+        float hScale = scaleForCap(kLabDescCap);
+        float hw = boldWidth(help, hScale);
+        float hMax = w(right43 - left43 - 36.0f);
+        float hsx = hw > hMax && hw > 0.0f ? hScale * hMax / hw : hScale;
+        float hy = textYForCap(descTop + 2.0f + (footTop - descTop - 2.0f - kLabDescCap) * 0.5f, hScale);
+        boldText(cx(left43 + 18.0f), hy, help, kLabDescText, hsx, hScale);
+
         // Glossy Brawl footer badges.
         const char* okGlyph = s_type == gfPadType::WIIMOTE ? "2" : "A";
         const char* backGlyph = s_type == gfPadType::WIIMOTE ? "1" : "B";
-        float fy = botY - 21.0f;
+        float fy = footTop + 2.0f + (botY - 4.0f - (footTop + 2.0f)) * 0.5f;
         float bCap = 9.0f;
         float bScale = scaleForCap(bCap);
         float lScale = scaleForCap(10.0f);

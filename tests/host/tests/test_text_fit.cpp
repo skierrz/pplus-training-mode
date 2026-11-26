@@ -1079,7 +1079,7 @@ TEST(text_fit, drill_list)
             REQUIRE(runOf("Select") != NULL);
             REQUIRE(runOf("Back") != NULL);
             REQUIRE(runOf("Recordings") != NULL);
-            REQUIRE(runOf("OSDs") != NULL);
+            REQUIRE(runOf("Overlays") != NULL);
             REQUIRE(runOf("Section") != NULL);
             for (int k = 0; k < canvas::runs(); k++)
             {

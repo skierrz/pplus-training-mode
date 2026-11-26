@@ -462,15 +462,16 @@ TEST(reversals_tech, sd_migration_from_46_byte_cpu_options_and_round_trip)
     CHECK_EQ(static_cast<int>(ui::pages::P_CPU_COUNTERS), static_cast<int>(cpuPage.options[6].max));
 
     const ui::Page& countersPage = ui::pages::kCpuCounters;
-    REQUIRE(countersPage.count == 11);
-    CHECK(strcmp(countersPage.options[3].name, "Shield Timing") == 0);
-    CHECK_EQ(static_cast<int>(cpu::kShieldTimingFullMove), static_cast<int>(countersPage.options[3].def));
-    CHECK(strcmp(countersPage.options[5].name, "Custom Pools") == 0);
-    CHECK(strcmp(countersPage.options[7].name, "Reversal Slots") == 0);
-    CHECK_EQ(ui::kKindMenu, countersPage.options[7].kind);
-    CHECK_EQ(static_cast<int>(ui::pages::P_REVERSALS), static_cast<int>(countersPage.options[7].max));
-    CHECK(strcmp(countersPage.options[9].name, "Auto L-Cancel") == 0);
-    CHECK(strcmp(countersPage.options[10].name, "SHFFL Timing") == 0);
+    REQUIRE(countersPage.count == 12);
+    CHECK(strcmp(countersPage.options[0].name, "Counter Mode") == 0);
+    CHECK(strcmp(countersPage.options[4].name, "Shield Timing") == 0);
+    CHECK_EQ(static_cast<int>(cpu::kShieldTimingFullMove), static_cast<int>(countersPage.options[4].def));
+    CHECK(strcmp(countersPage.options[6].name, "Custom Pools") == 0);
+    CHECK(strcmp(countersPage.options[8].name, "Reversal Slots") == 0);
+    CHECK_EQ(ui::kKindMenu, countersPage.options[8].kind);
+    CHECK_EQ(static_cast<int>(ui::pages::P_REVERSALS), static_cast<int>(countersPage.options[8].max));
+    CHECK(strcmp(countersPage.options[10].name, "Auto L-Cancel") == 0);
+    CHECK(strcmp(countersPage.options[11].name, "SHFFL Timing") == 0);
 
     const ui::Page& osdPage = ui::pages::kOsdMenu;
     REQUIRE(osdPage.count == 26);

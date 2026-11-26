@@ -273,8 +273,14 @@ namespace extra {
             lab::applyPercent(main::kSideCpu);
         }
     }
+    static void dismissLedgedashHud()
+    {
+        ui::menuScratch()[ui::kLedgeDismissScratchOffset]++;
+    }
+
     static void resetScenarioAndCpu()
     {
+        dismissLedgedashHud();
         requestScenarioManualReset(s_net->state);
         scenarioCpuStateReset(s_net->cpuState);
     }
@@ -305,11 +311,19 @@ namespace extra {
         if (sess != NULL)
         {
             net->state.techBest = sess->best[kTechBestSlot];
-            if (sess->pendingScenario >= kScenarioComboLab && sess->pendingScenario < kScenarioCount)
+            u8 rawPending = sess->pendingScenario;
+            u8 p = static_cast<u8>(rawPending & 0x7Fu);
+            bool altRole = (rawPending & 0x80u) != 0u;
+            if (p >= kScenarioComboLab && p < kScenarioCount)
             {
-                u8 p = sess->pendingScenario;
                 sess->pendingScenario = 0;
-                ui::pages::scenarioMenuState()->preset = p;
+                ui::pages::ScenarioMenuState* sm = ui::pages::scenarioMenuState();
+                sm->preset = p;
+                if (p == kScenarioShieldPressure)
+                {
+                    sm->shieldRole = altRole ? 1u : 0u;
+                }
+                dismissLedgedashHud();
                 TM_LOG("scenarios: armed preset %u from menu session\n", p);
             }
         }
@@ -695,6 +709,10 @@ namespace extra {
         u16 prevHmn = s.general.playerPercent;
         u16 prevCpu = s.cpu.percent;
         applyScenarioConfig(st, *cfg, s);
+        if (st.activePreset != prevPreset)
+        {
+            dismissLedgedashHud();
+        }
         bool leftToOff = prevPreset != kScenarioOff && st.activePreset == kScenarioOff;
         applyBothPercents(s.general.playerPercent != prevHmn || leftToOff
                               || (prevPreset == kScenarioGrabEscape && st.activePreset != kScenarioGrabEscape),
@@ -776,13 +794,6 @@ namespace extra {
         return s_net != NULL && match.running && !match.paused && s_net->state.activePreset == kScenarioTechchase;
     }
 
-#pragma dont_inline on
-    static void drawHudTxt(float x, float y, const char* s, gfx::Rgba col, float sc, float xs)
-    {
-        gfx::text(x, y, s, col, sc * xs, sc);
-    }
-#pragma dont_inline reset
-
     void scenarioPresetsDraw(const game::MatchState& match)
     {
         if (!scenarioPresetsWantsDraw(match))
@@ -793,37 +804,46 @@ namespace extra {
         const ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
         bool wide = gfx::widescreen();
         float xs = ui::layout::xsOf(wide);
-        ui::layout::Box card = hudRightCardBox(kHudCardTechchase, wide);
-        float x0 = card.x0;
-        float x1 = card.x1;
-        float y0 = card.y0;
+        ui::layout::Box card = ui::layout::drillHudBox(wide);
+        float ox = card.x0;
         float bw = card.x1 - card.x0;
-
-        // Brawl/P+ double-framed panel + bevel header (zero left-accent bars).
-        drawHudCard(x0, y0, bw, 52.0f, xs, 0x35B8C8FFu, 0xFFFFFF40u);
-        float ix = x0 + 4.0f * xs;
+        float ix = ox + 4.0f * xs;
         float iw = bw - 8.0f * xs;
-        gfx::fillGradV(ix, y0 + 4.0f, iw, 14.0f, 0x226874F0u, 0x123C46F0u);
-        gfx::fillRect(ix, y0 + 18.0f, iw, 1.5f, 0x2A5866E0u);
 
-        float lx = x0 + 8.0f * xs;
-        float dispSc = 8.0f / 24.0f;
-        gfx::displayText(lx, y0 + 5.5f, "TECHCHASE", 0xFFFFFFFFu, 0xB8E0EEFFu, dispSc * xs, dispSc, 1.0f, 0x050C12FFu);
+        // Unified top-center Brawl/P+ banner matching drill_hud.cpp (sharp in 4:3 and 16:9).
+        gfx::fillRect(ox, 24.0f, bw, 40.0f, 0x060D12F2u);
+        gfx::fillRect(ox + 2.0f * xs, 26.0f, bw - 4.0f * xs, 36.0f, 0x35B8C8FFu);
+        gfx::fillGradV(ix, 28.0f, iw, 32.0f, 0x0D1E26ECu, 0x071117ECu);
+        gfx::fillGradV(ix, 28.0f, iw, 15.0f, 0x226874F0u, 0x123C46F0u);
+        gfx::fillRect(ix, 43.0f, iw, 2.0f, 0x2A5866E0u);
 
-        char buf[32];
+        float lx = ox + 10.0f * xs;
+        float rx = ox + 306.0f * xs;
+        float dispSc = 8.5f / 24.0f;
+        float txtSc = 8.0f / 15.0f;
+        gfx::displayText(lx, 31.0f - 2.5f * dispSc, "TECHCHASE", 0xFFFFFFFFu, 0xB8E0EEFFu, dispSc, dispSc, 1.2f,
+                         0x050C12FFu);
+
+        char posBuf[16];
         const char* posStr = "GROUND";
         if (st.resolvedTechPos != 0)
         {
-            sprintf(buf, "PLAT %u", static_cast<unsigned>(st.resolvedTechPos));
-            posStr = buf;
+            sprintf(posBuf, "PLAT %u", static_cast<unsigned>(st.resolvedTechPos));
+            posStr = posBuf;
         }
-        drawHudTxt(x1 - 8.0f * xs - gfx::textWidth(posStr, 0.45f * xs), y0 + 6.5f, posStr, 0xB8E0EEFFu, 0.45f, xs);
+        float posTw = gfx::textWidth(posStr, txtSc);
+        float pillW = posTw + 10.0f * xs;
+        float pillX = rx - pillW;
+        gfx::fillRect(pillX, 29.0f, pillW, 13.0f, 0x07141AE8u);
+        gfx::fillGradV(pillX + 2.0f * xs, 31.0f, pillW - 4.0f * xs, 9.0f, 0x1B6B76FFu, 0x0E3D45FFu);
+        gfx::text(pillX + (pillW - posTw) * 0.5f, 31.5f - 5.0f * txtSc, posStr, 0xFFFFFFFFu, txtSc, txtSc);
 
+        char buf[32];
         const char* midStr = "READY";
-        gfx::Rgba midCol = 0xB8C8DCFFu;
+        gfx::Rgba midCol = 0xA0BCC4FFu;
         if (st.techResult == kTechResCover)
         {
-            midCol = 0x4CE088FFu;
+            midCol = 0x4CE688FFu;
             if (m->techShowReaction != 0 && st.techReactionFrames >= 0)
             {
                 sprintf(buf, "COVER  REACT %df", static_cast<int>(st.techReactionFrames));
@@ -837,15 +857,24 @@ namespace extra {
         else if (st.techResult != kTechResNone)
         {
             bool early = st.techResult == kTechResEarly;
-            midCol = early ? 0xF2C24CFFu : 0xF05E68FFu;
+            midCol = early ? 0xFFB848FFu : 0xFF6658FFu;
             sprintf(buf, early ? "%df EARLY" : "%df LATE", static_cast<int>(st.techDeltaFrames));
             midStr = buf;
         }
-        drawHudTxt(lx, y0 + 21.5f, midStr, midCol, 0.48f, xs);
+        float rowY = 48.0f - 5.0f * txtSc;
+        gfx::text(lx, rowY, midStr, midCol, txtSc, txtSc);
 
-        sprintf(buf, "STREAK %u  BEST %u", static_cast<unsigned>(st.techStreak),
-                static_cast<unsigned>(st.techBest));
-        drawHudTxt(lx, y0 + 35.5f, buf, 0xE6EEF8FFu, 0.44f, xs);
+        if (st.techBest > 0)
+        {
+            sprintf(buf, "STREAK %u  BEST %u", static_cast<unsigned>(st.techStreak),
+                    static_cast<unsigned>(st.techBest));
+        }
+        else
+        {
+            sprintf(buf, "STREAK %u  BEST --", static_cast<unsigned>(st.techStreak));
+        }
+        float streakW = gfx::textWidth(buf, txtSc);
+        gfx::text(rx - streakW, rowY, buf, 0xFFD300FFu, txtSc, txtSc);
     }
 
     static void stepTechchasePosition(ScenarioNet* net, int delta)
@@ -953,6 +982,7 @@ namespace extra {
             net->pendingRevivalExit = (s_state.activePreset == kScenarioOff && wasRevival);
             break;
         case main::kScenarioResetNow:
+            dismissLedgedashHud();
             requestScenarioManualReset(s_state);
             break;
         case main::kScenarioSavestateLoaded:
@@ -960,6 +990,7 @@ namespace extra {
             stageGeomReset();
             break;
         case main::kScenarioSettingsReset:
+            dismissLedgedashHud();
             discardScenarioSnapshot(s_state);
             initScratchDefaults();
             break;

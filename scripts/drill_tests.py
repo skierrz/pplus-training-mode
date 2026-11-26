@@ -177,27 +177,27 @@ def check_list_screens(emu, taken, notes):
     if hi0 or not hi1:
         raise nav.NavError(f"the highlight is not on L-Cancel alone (row 0 {c0}, row 1 {c1})")
 
-    # Hold Down with key repeat to row 26 (Browse Recordings, scrolled by 17 -> visible row 9)
+    # Hold Down with key repeat to row 27 (Browse Recordings, scrolled by 18 -> visible row 9)
     # and verify bottom clamp.
     emu.hold(0, stick=DOWN)
-    emu.advance(220)
+    emu.advance(230)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 26:
-        raise nav.NavError(f"Down repeat did not reach bottom All Modes row 26, at {last_row(emu)}")
+    if last_row(emu) != 27:
+        raise nav.NavError(f"Down repeat did not reach bottom All Modes row 27, at {last_row(emu)}")
     emu.hold(0, stick=DOWN)
     emu.advance(20)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 26:
-        raise nav.NavError(f"Down at bottom row moved off row 26 to {last_row(emu)}")
+    if last_row(emu) != 27:
+        raise nav.NavError(f"Down at bottom row moved off row 27 to {last_row(emu)}")
     path = shot(emu, taken, "drills-list-all-bottom")
     hi9, c9 = row_highlighted(path, 9)
     hi8, c8 = row_highlighted(path, 8)
     if not hi9 or hi8:
         raise nav.NavError(f"the highlight is not on visible row 9 alone (row 8 {c8}, row 9 {c9})")
 
-    # Switch to Offense (Page 1, 5 rows: Combo Lab .. Grab Defense / Throw DI), check top and bottom clamp.
+    # Switch to Offense (Page 1, 4 rows: Combo Lab .. Shield Pressure - Offense), check top and bottom clamp.
     go_to_page(emu, "Offense", "R")
     emu.advance(10)
     path = shot(emu, taken, "drills-list-offense-top")
@@ -209,21 +209,21 @@ def check_list_screens(emu, taken, notes):
     emu.advance(50)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 4:
-        raise nav.NavError(f"Down repeat did not reach bottom Offense row 4, at {last_row(emu)}")
+    if last_row(emu) != 3:
+        raise nav.NavError(f"Down repeat did not reach bottom Offense row 3, at {last_row(emu)}")
     emu.hold(0, stick=DOWN)
     emu.advance(20)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 4:
-        raise nav.NavError(f"Down at bottom Offense row moved off row 4 to {last_row(emu)}")
+    if last_row(emu) != 3:
+        raise nav.NavError(f"Down at bottom Offense row moved off row 3 to {last_row(emu)}")
     path = shot(emu, taken, "drills-list-offense-bottom")
-    hi4, c4 = row_highlighted(path, 4)
-    hi3, c3 = row_highlighted(path, 3)
-    if not hi4 or hi3:
-        raise nav.NavError(f"the highlight is not on Offense row 4 alone (row 3 {c3}, row 4 {c4})")
+    hi3, c3 = row_highlighted(path, 3, x0=278.0, x1=298.0)
+    hi2, c2 = row_highlighted(path, 2, x0=278.0, x1=298.0)
+    if not hi3 or hi2:
+        raise nav.NavError(f"the highlight is not on Offense row 3 alone (row 2 {c2}, row 3 {c3})")
 
-    # Switch to Defense (Page 2, 7 rows: Shield Pressure / OoS .. P+ Multi-Hit SDI).
+    # Switch to Defense (Page 2, 7 rows: OoS Reversal - Defense .. P+ Multi-Hit SDI).
     go_to_page(emu, "Defense", "R")
     emu.advance(10)
     path = shot(emu, taken, "drills-list-defense")
@@ -232,7 +232,7 @@ def check_list_screens(emu, taken, notes):
     if not hi0 or hi1:
         raise nav.NavError(f"the highlight is not on Defense row 0 alone (row 0 {c0}, row 1 {c1})")
 
-    # Switch to Tech Practice (Page 3, 8 single-page rows: L-Cancel .. Float / Hover & DJC).
+    # Switch to Tech Practice (Page 3, 7 single-page rows: L-Cancel .. B-Reverse).
     go_to_page(emu, "Tech Practice", "R")
     emu.advance(10)
     path = shot(emu, taken, "drills-list-tech-practice")
@@ -244,8 +244,8 @@ def check_list_screens(emu, taken, notes):
     emu.advance(80)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 7:
-        raise nav.NavError(f"Down repeat did not reach bottom Tech Practice row 7, at {last_row(emu)}")
+    if last_row(emu) != 6:
+        raise nav.NavError(f"Down repeat did not reach bottom Tech Practice row 6, at {last_row(emu)}")
 
     # Switch to Challenges (Page 4, 7 rows) and Character Trainers (Page 5, 1 row), then wrap to All Modes.
     go_to_page(emu, "Challenges", "R")
@@ -422,12 +422,12 @@ def run(emu, opts, taken, notes, state):
     # out of Stage Select with B keeps the list closed and preserves the armed
     # scenario, then start the match and confirm extra/scenario_presets.cpp
     # auto-activates it on match load.
-    state["step"] = "Scenario auto-activation from boot menu (Shield Pressure / OoS)"
+    state["step"] = "Scenario auto-activation from boot menu (Shield Pressure - Offense)"
     go_to_page(emu, "Offense", "R")
     go_to_row(emu, 3)
-    n_armed = count(emu, r"\] drills: scenario 4 \(Shield Pressure / OoS\) armed")
+    n_armed = count(emu, r"\] drills: scenario 4 \(Shield Pressure - Offense\) armed")
     emu.press(0, ["A"], frames=4, after=10)
-    wait_count(emu, "Shield Pressure / OoS armed", r"\] drills: scenario 4 \(Shield Pressure / OoS\) armed", n_armed + 1, 120)
+    wait_count(emu, "Shield Pressure - Offense armed", r"\] drills: scenario 4 \(Shield Pressure - Offense\) armed", n_armed + 1, 120)
     # Stage Select -> B -> CSS must NOT reopen the boot list.
     state["step"] = "Stage Select back to CSS keeps boot list closed"
     nav.choose_on_css(emu, "mario", "fox")
@@ -458,8 +458,8 @@ def run(emu, opts, taken, notes, state):
     notes.append(f"Scenario handoff ok: Shield Pressure / OoS (preset={active_preset}, resets={reset_count})")
     nav.finish_training(emu)
     state["visits"] += 1
-    wait_count(emu, "the list to reopen on remembered Shield Pressure / OoS row after scenario match",
-               r"\] drills: list opened \(auto\) for port 1, row 3 Shield Pressure / OoS", 1, 300)
+    wait_count(emu, "the list to reopen on remembered Shield Pressure - Offense row after scenario match",
+               r"\] drills: list opened \(auto\) for port 1, row 3 Shield Pressure - Offense", 1, 300)
     emu.advance(10)
     n_all = count(emu, r"\] drills: page All Modes")
     emu.press(0, ["L"], frames=4, after=10)

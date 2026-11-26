@@ -128,26 +128,27 @@ namespace ui {
 
         // Brawl Display header + subtitle.
         float ts = displayScaleForCap(13.0f);
-        const char* title = "SETTINGS UPDATED";
+        const char* title = "UPDATE SAVED SETTINGS";
         gfx::displayText(320.0f - gfx::displayTextWidth(title, ts) * 0.5f, displayYForCap(110.0f, ts), title,
                          kLabTitleTop, kLabTitleBot, ts, ts, 1.2f, kLabTitleEdge);
         float ss = scaleForCap(8.8f);
-        const char* sub = "Older v1 settings found on SD. Choose how to update:";
+        const char* sub = "Settings from an older build were found on SD.";
         gfx::text(320.0f - gfx::textWidth(sub, ss) * 0.5f, textYForCap(152.0f, ss), sub, kLabMutedText, ss);
 
         // 3 metallic-bevel choices (zero generic left-accent bars).
         static const char* const kTitles[3] = {
-            "Reset All Settings (Recommended)",
-            "Reset Affected Settings",
-            "Keep My Settings"
+            "Reset All to New Defaults (Recommended)",
+            "Reset Updated Options Only",
+            "Keep Existing Settings"
         };
-        char affectedSub[48];
-        snprintf(affectedSub, sizeof(affectedSub), "Reset %d changed area(s); keep the rest.",
-                 storage::settingsUpgradeAffectedCount());
+        int affected = storage::settingsUpgradeAffectedCount();
+        char affectedSub[64];
+        snprintf(affectedSub, sizeof(affectedSub), "Resets %d changed %s and keeps your other choices.",
+                 affected, affected == 1 ? "section" : "sections");
         const char* subs[3] = {
-            "Use fresh v2 defaults for every option.",
+            "Starts fresh with the latest default settings.",
             affectedSub,
-            "Keep compatible values and trim old fields."
+            "Keeps compatible choices and removes obsolete options."
         };
         float cardX = left + 18.0f * xs;
         float cardW = 412.0f * xs;
@@ -169,19 +170,20 @@ namespace ui {
             fitText(textX, y + 28.0f, subs[i], sel ? 0x2B2100FFu : kLabMutedText, 8.5f, textMaxW);
         }
 
-        // Native Brawl footer emblems (glossy GX pill fallback when icons are absent).
+        // Native Brawl footer emblems (force crisp green glossy pill for GC/Classic A).
         static const u8 kOkIcons[4] = {kIconGcA, kIconClA, kIconWii2, kIconWiiA};
         static const gfx::Rgba kFootCols[2][2] = {{kLabBtnZTop, kLabBtnZBot}, {kLabBtnATop, kLabBtnABot}};
         u8 icons[2] = {static_cast<u8>(s_ctrlType == gfPadType::GCC ? kIconGcDpad : kIconWiiDpad), kOkIcons[s_ctrlType]};
         const char* glyphs[2] = {"+", s_ctrlType == gfPadType::WIIMOTE ? "2" : "A"};
-        const char* labels[2] = {"Choose", "Confirm & Save v2"};
+        const char* labels[2] = {"Choose", "Confirm & Save"};
         float fx = left + 22.0f * xs;
         float ls = scaleForCap(9.5f);
         float gs = scaleForCap(8.5f);
         float iw = 16.0f * xs;
         for (int i = 0; i < 2; i++)
         {
-            if (!main::extraDrawUiIcon(icons[i], fx, 360.0f, iw, 16.0f, 0xFFFFFFFFu))
+            bool forceGreenA = (i == 1 && (s_ctrlType == gfPadType::GCC || s_ctrlType == gfPadType::WII_CLASSIC));
+            if (forceGreenA || !main::extraDrawUiIcon(icons[i], fx, 360.0f, iw, 16.0f, 0xFFFFFFFFu))
             {
                 drawGlossyPillBadge(fx, 360.0f, iw, 16.0f, kFootCols[i][0], kFootCols[i][1]);
                 float gw = gfx::textWidth(glyphs[i], gs);

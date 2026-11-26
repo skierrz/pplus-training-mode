@@ -377,7 +377,11 @@ namespace extra {
         freeNetPtr(s_net);
     }
 
-    void drillPracticeReset() { resetSubsystems(false); }
+    void drillPracticeReset()
+    {
+        ui::menuScratch()[ui::kLedgeDismissScratchOffset]++;
+        resetSubsystems(false);
+    }
 
     void drillPracticeSetActiveDrill(u8 drillId)
     {
@@ -389,6 +393,7 @@ namespace extra {
         if (clean != s_net->debug.activeDrill)
         {
             s_net->debug.activeDrill = clean;
+            ui::menuScratch()[ui::kLedgeDismissScratchOffset]++;
             resetSubsystems(clean == kPracticeDrillNone);
         }
         syncPracticeMenuFromCfg(*s_net);
@@ -816,8 +821,9 @@ namespace extra {
         return act;
     }
 
-    // Draws the sleek low Wavedash / Waveland GX floor ribbon in the 3D main
-    // world camera pass (call only when s_camera == kMainCamera).
+    // Draws the Wavedash / Waveland target zone in the 3D main world camera
+    // pass (call only when s_camera == kMainCamera): translucent vertical light
+    // zone, floor pad, crisp left/right bracket posts, and hovering chevron.
     void drillPracticeDraw(const game::MatchState& match)
     {
         if (s_net == NULL || !match.running || match.paused || lab::menuOpen())
@@ -836,38 +842,62 @@ namespace extra {
             return;
         }
 
-        static const gfx::Rgba kPal[3][3] = {
-            {0x22B8CC48u, 0x0C4858A8u, 0xFFD300F0u}, // Idle Brawl/P+ teal + gold
-            {0x4CE68888u, 0x1E8048D0u, 0xFFE866FFu}, // Hit flash
-            {0xFF665878u, 0x902820C0u, 0xFF8878F0u}  // Short / Overshoot flash
+        static const gfx::Rgba kPal[3][4] = {
+            // {curtainTop, curtainBot, floorPad, bracketCol}
+            {0x22B8CC18u, 0x16809878u, 0xFFD300A8u, 0xFFD300F8u}, // Idle Brawl/P+ teal + gold
+            {0x4CE68824u, 0x26A860A0u, 0x4CE688D0u, 0xFFE866FFu}, // Hit flash
+            {0xFF665824u, 0xB8322890u, 0xFF6658C0u, 0xFF8878F8u}  // Short / Overshoot flash
         };
         const gfx::Rgba* pal = kPal[z.flashFrames > 0u ? (z.lastOutcome == kWdZoneHit ? 1 : 2) : 0];
-        const gfx::Rgba bc = pal[2];
-        const float x0 = z.minX, x1 = z.maxX, y0 = z.y + 0.12f, y1 = y0 + 0.65f, yt = y0 + 1.2f;
+        const gfx::Rgba bc = pal[3];
+        const float x0 = z.minX, x1 = z.maxX, y0 = z.y + 0.12f;
+        const float yPad = y0 + 0.90f;
+        const float yTop = y0 + 7.20f;
         const float xm = 0.5f * (x0 + x1);
+        const float serif = (x1 - x0) * 0.22f < 2.2f ? (x1 - x0) * 0.22f : 2.2f;
 
         camMgr->m_cameras[0].setGX();
         gfx::forgetState();
         gfx::prepare();
-        GXBegin(GX_QUADS, GX_VTXFMT1, 4);
-        gfx::vertex(x0, y1, pal[0]);
-        gfx::vertex(x1, y1, pal[0]);
+
+        // Translucent vertical target zone curtain + bright floor landing pad.
+        GXBegin(GX_QUADS, GX_VTXFMT1, 8);
+        gfx::vertex(x0, yTop, pal[0]);
+        gfx::vertex(x1, yTop, pal[0]);
+        gfx::vertex(x1, y0, pal[1]);
+        gfx::vertex(x0, y0, pal[1]);
+
+        gfx::vertex(x0, yPad, pal[2]);
+        gfx::vertex(x1, yPad, pal[2]);
         gfx::vertex(x1, y0, pal[1]);
         gfx::vertex(x0, y0, pal[1]);
         GXEnd();
 
-        // Sleek top/bottom gold rails + left/right/center vertical ticks in one batch.
-        gfx::lineBegin(GX_LINES, 10, 14);
+        // Hovering downward chevron pointer centered above the target zone.
+        GXBegin(GX_TRIANGLES, GX_VTXFMT1, 3);
+        gfx::vertex(xm - 1.5f, yTop + 2.4f, bc);
+        gfx::vertex(xm + 1.5f, yTop + 2.4f, bc);
+        gfx::vertex(xm, yTop + 0.7f, bc);
+        GXEnd();
+
+        // Bold left/right vertical bracket goalposts + inward serifs + floor rail + center tick.
+        gfx::lineBegin(GX_LINES, 16, 18);
         gfx::vertex(x0, y0, bc);
         gfx::vertex(x1, y0, bc);
-        gfx::vertex(x0, y1, bc);
-        gfx::vertex(x1, y1, bc);
+        gfx::vertex(x0, yPad, bc);
+        gfx::vertex(x1, yPad, bc);
         gfx::vertex(x0, y0, bc);
-        gfx::vertex(x0, yt, bc);
+        gfx::vertex(x0, yTop, bc);
         gfx::vertex(x1, y0, bc);
-        gfx::vertex(x1, yt, bc);
+        gfx::vertex(x1, yTop, bc);
+        gfx::vertex(x0, yTop, bc);
+        gfx::vertex(x0 + serif, yTop, bc);
+        gfx::vertex(x1, yTop, bc);
+        gfx::vertex(x1 - serif, yTop, bc);
         gfx::vertex(xm, y0, bc);
-        gfx::vertex(xm, yt, bc);
+        gfx::vertex(xm, yPad + 1.2f, bc);
+        gfx::vertex(x0, y0 + 3.6f, bc);
+        gfx::vertex(x0 + serif * 0.6f, y0 + 3.6f, bc);
         GXEnd();
 
         GXSetLineWidth(6, 0);

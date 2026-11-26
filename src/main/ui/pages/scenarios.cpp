@@ -44,6 +44,16 @@ namespace pages {
         return cpuLabControl() && main::extraLoaded();
     }
 
+    static bool presetRowVisible()
+    {
+        return main::extraLoaded() && practiceMenuState()->activeDrill == 0;
+    }
+
+    static bool comboTrainerRowVisible()
+    {
+        return comboTrainerAvailable() && practiceMenuState()->activeDrill == 0;
+    }
+
     static bool scenarioActive()
     {
         return activePreset() != kPresetOff;
@@ -112,12 +122,12 @@ namespace pages {
         kPs_scen_kPracticeTargets, kPs_fmt_df
     };
     static bool (*const kScenGates[])() = {
-        NULL, main::extraLoaded, scenarioActive, scenarioSideActive, scenarioTechchaseActive,
+        NULL, presetRowVisible, scenarioActive, scenarioSideActive, scenarioTechchaseActive,
         scenarioTechInvisDelayActive, scenarioEdgeguardActive, scenarioEdgeguardLaunchActive,
         scenarioEdgeguardSpawnActive, scenarioShieldPressureActive, scenarioShieldOffenseActive,
         scenarioShieldDefenseActive, scenarioLedgetechActive, scenarioShieldDropActive, scenarioSlideOffActive,
         scenarioGrabActive, scenarioMultiHitActive, practiceActive, practicePsActive, practicePsProjActive,
-        practiceLedgeActive, practiceLcActive, practiceFloatActive, practiceWdActive, comboTrainerAvailable
+        practiceLedgeActive, practiceLcActive, practiceFloatActive, practiceWdActive, comboTrainerRowVisible
     };
     static void (*const kScenCbs[])() = {
         NULL, main::extraScenarioChanged, main::extraScenarioResetNow, practiceChanged
@@ -130,7 +140,7 @@ namespace pages {
 #define SC_OFF(f) static_cast<u16>(kScenarioScratchOffset + offsetof(ScenarioMenuState, f))
 #define PR_OFF(f) static_cast<u16>(kPracticeScratchOffset + offsetof(PracticeMenuState, f))
     static const RowSpec kScenSpecs[kScenRows] = {
-        {kKindChoice, ::tm::ui::kFlagScratch, SC_OFF(preset), TM_CHOICE_LO, 0, 9, 0, 1, 1, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(preset), TM_CHOICE_LO, 0, 9, 0, 1, 1, 0},
         {kKindToggle, kScenFlagSH, SC_OFF(autoReset), 0, 1, 1, 0xFF, 1, 2, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(side), TM_CHOICE_LO, 0, 2, 1, 1, 3, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(techSetup), TM_CHOICE_LO, 0, 1, 2, 1, 4, 0},
@@ -174,7 +184,7 @@ namespace pages {
         {kKindChoice, kScenFlagSH, PR_OFF(lcancelTarget), TM_CHOICE_LO, 1, 3, 34, 3, 21, 0},
         {kKindChoice, kScenFlagSH, PR_OFF(floatDjcTarget), TM_CHOICE_LO, 1, 3, 34, 3, 22, 0},
         {kKindToggle, kScenFlagSH, PR_OFF(wdTargetZone), 0, 0, 1, 0xFF, 3, 23, 0},
-        {kKindMenu,   0, 0, 0, 0, P_COMBO_TRAINER, 0xFF, 0, 24, 0}
+        {kKindMenu,   kScenFlagHide, 0, 0, 0, P_COMBO_TRAINER, 0xFF, 0, 24, 0}
     };
 #undef SC_OFF
 #undef PR_OFF
@@ -231,8 +241,8 @@ namespace pages {
     TM_LABELS_BEGIN(kPsAtkModes) TM_L("Projectile") TM_L("Physical") TM_LABELS_END
     TM_LABELS_BEGIN(kPsHeights) TM_L("Low") TM_L("Mid") TM_L("High") TM_L("Ground") TM_L("Random") TM_LABELS_END
     TM_LABELS_BEGIN(kPsCadences) TM_L("Slow") TM_L("Medium") TM_L("Fast") TM_L("Random") TM_LABELS_END
-    TM_LABELS_BEGIN(kLedgeSides) TM_L("Same") TM_L("Opposite") TM_L("Random") TM_LABELS_END
-    TM_LABELS_BEGIN(kLedgeInvulns) TM_L("P+ 5-Grab") TM_L("Unlimited") TM_LABELS_END
+    TM_LABELS_BEGIN(kLedgeSides) TM_L("Same Side") TM_L("Opposite") TM_L("Random") TM_LABELS_END
+    TM_LABELS_BEGIN(kLedgeInvulns) TM_L("P+ 5-Grab Limit") TM_L("Unlimited") TM_LABELS_END
     TM_LABELS_BEGIN(kPracticeTargets) TM_L("Off") TM_L("Stationary CPU") TM_L("Shielding CPU") TM_L("Moving CPU") TM_LABELS_END
 
 #define TM_SCEN_OFF(f) static_cast<u16>(kScenarioScratchOffset + offsetof(ScenarioMenuState, f))
@@ -248,8 +258,8 @@ namespace pages {
            TM_PRAC_OFF(field), 0, 1, def, name, NULL, practiceChanged, en)
 
     static const Option kRows[] = {
-        TM_ROW_CHOICE_P(::tm::ui::kFlagScratch, TM_SCEN_OFF(preset), 10, 0,
-                        "Preset", kPresets, main::extraScenarioChanged, main::extraLoaded),
+        TM_ROW_CHOICE_P(::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled, TM_SCEN_OFF(preset), 10, 0,
+                        "Preset", kPresets, main::extraScenarioChanged, presetRowVisible),
         TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled, TM_SCEN_OFF(autoReset),
                0, 1, 1, "Auto-Reset", NULL, main::extraScenarioChanged, scenarioActive),
         TM_SCEN_CHOICE("Side", side, kSides, 3, 0, scenarioSideActive),
@@ -312,7 +322,8 @@ namespace pages {
         TM_PRAC_CHOICE("Target", lcancelTarget, kPracticeTargets, 4, 1, practiceLcActive),
         TM_PRAC_CHOICE("Target", floatDjcTarget, kPracticeTargets, 4, 1, practiceFloatActive),
         TM_PRAC_TOGGLE("Target Zone", wdTargetZone, 0, practiceWdActive),
-        TM_MENU_IF("Combo Trainer", P_COMBO_TRAINER, comboTrainerAvailable)
+        TM_ROW(::tm::ui::kKindMenu, ::tm::ui::kFlagHideWhenDisabled, 0, 0, P_COMBO_TRAINER, 0, "Combo Trainer",
+               NULL, NULL, comboTrainerRowVisible)
     };
 #undef TM_PRAC_TOGGLE
 #undef TM_PRAC_CHOICE

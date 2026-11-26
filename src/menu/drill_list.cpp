@@ -62,25 +62,26 @@ namespace list {
         kIdxTechchase = 5,
         kIdxEdgeguard = 6,
         kIdxShieldPressure = 7,
-        kIdxPowershield = 8,
-        kIdxShieldDrop = 9,
-        kIdxLedgetech = 10,
-        kIdxSlideOff = 11,
-        kIdxGrabDefense = 12,
-        kIdxMultiHitSdi = 13,
-        kIdxRar = 14,
-        kIdxDacus = 15,
-        kIdxBReverse = 16,
-        kIdxFloatHover = 17,
-        kIdxCancelSprint = 18,
-        kIdxFlowCourse = 19,
-        kIdxReactionLab = 20,
-        kIdxTechchaseEscape = 21,
-        kIdxRecoverySweetspot = 22,
-        kIdxFloorhug = 23,
-        kIdxComboBreakRush = 24,
-        kIdxSnakeRecovery = 25,
-        kIdxRecordings = 26
+        kIdxOosReversal = 8,
+        kIdxPowershield = 9,
+        kIdxShieldDrop = 10,
+        kIdxLedgetech = 11,
+        kIdxSlideOff = 12,
+        kIdxGrabDefense = 13,
+        kIdxMultiHitSdi = 14,
+        kIdxRar = 15,
+        kIdxDacus = 16,
+        kIdxBReverse = 17,
+        kIdxFloatHover = 18,
+        kIdxCancelSprint = 19,
+        kIdxFlowCourse = 20,
+        kIdxReactionLab = 21,
+        kIdxTechchaseEscape = 22,
+        kIdxRecoverySweetspot = 23,
+        kIdxFloorhug = 24,
+        kIdxComboBreakRush = 25,
+        kIdxSnakeRecovery = 26,
+        kIdxRecordings = 27
     };
 
     // Intuitive All Modes order: Training Lab -> Core Fundamentals ->
@@ -98,7 +99,7 @@ namespace list {
             },
             "Any Fighter",
             "Any Stage",
-            "In-match Start menu"
+            "Press Start in-match for Lab Menu"
         },
         {
             "L-Cancel",
@@ -111,7 +112,7 @@ namespace list {
             },
             "Any Fighter",
             "Free Practice",
-            "L+Up in-match: 10/20-Rep Set"
+            "In-match L + D-Up: Free / 10 / 20-Rep"
         },
         {
             "Wavedash / Waveland",
@@ -124,20 +125,20 @@ namespace list {
             },
             "Any Fighter",
             "Free Practice",
-            "L+Up in-match: 10/20-Rep Set"
+            "In-match L + D-Up: Free / 10 / 20-Rep"
         },
         {
             "Ledgedash",
             kRowSkillDrill,
             drills::kDrillLedgedash,
             {
-                "Drill P+ ledgedashes, GALINT,",
-                "Tourney Winner avoidance, and",
-                "the 5-ledge-grab invuln limit."
+                "GALINT = invincible frames left",
+                "once actionable onstage. Tracks",
+                "Tourney Winners & 5-grab limit."
             },
             "Any Fighter",
             "Free Practice",
-            "L+Up in-match: 10/20-Rep Set"
+            "In-match L + D-Up: Free / 10 / 20-Rep"
         },
         {
             "Combo Lab",
@@ -145,12 +146,12 @@ namespace list {
             extra::kScenarioComboLab,
             {
                 "Practice follow-ups with random",
-                "DI, techs, and P+ AI recovery.",
-                "Resets after escape window."
+                "DI (Directional Influence), techs,",
+                "and P+ AI recovery auto-resets."
             },
             "Any Fighter",
             "Any Stage",
-            "Starts on match load"
+            "Press Start in-match to configure"
         },
         {
             "Techchase",
@@ -159,11 +160,11 @@ namespace list {
             {
                 "React to random tech rolls and",
                 "getup options after knockdowns.",
-                "Resets after each exchange."
+                "Tracks cover streak & reaction."
             },
             "Any Fighter",
             "Any Stage",
-            "Starts on match load"
+            "Press Start in-match to configure"
         },
         {
             "Edgeguard",
@@ -176,20 +177,33 @@ namespace list {
             },
             "Any Fighter",
             "Any Stage",
-            "Starts on match load"
+            "Press Start in-match to configure"
         },
         {
-            "Shield Pressure / OoS",
+            "Shield Pressure - Offense",
             kRowScenario,
             extra::kScenarioShieldPressure,
             {
-                "Drill offense against CPU shield",
-                "counters or defend & punish OoS.",
-                "Switch Role in Scenarios menu."
+                "Pressure a shielding CPU armed",
+                "with Out of Shield (OoS) counters",
+                "and custom punish options."
             },
             "Any Fighter",
-            "Any Stage",
-            "Starts on match load"
+            "Offense Role",
+            "Press Start in-match to configure"
+        },
+        {
+            "OoS Reversal - Defense",
+            kRowScenario,
+            static_cast<u8>(extra::kScenarioShieldPressure | 0x80u),
+            {
+                "Block CPU shield pressure and",
+                "punish Out of Shield (OoS) with",
+                "fast aerials, grabs, or Up-B."
+            },
+            "Any Fighter",
+            "Defense Role",
+            "Press Start in-match to configure"
         },
         {
             "Powershield",
@@ -202,7 +216,7 @@ namespace list {
             },
             "Any Fighter",
             "Projectile CPU",
-            "L+Up in-match: 10/20-Rep Set"
+            "In-match L + D-Up: Free / 10 / 20-Rep"
         },
         {
             "Shield Drop",
@@ -215,7 +229,7 @@ namespace list {
             },
             "Any Fighter",
             "Platform Stage",
-            "Starts on match load"
+            "Press Start in-match to configure"
         },
         {
             "Ledgetech",
@@ -228,7 +242,7 @@ namespace list {
             },
             "Any Fighter",
             "Wall Stage",
-            "Starts on match load"
+            "Press Start in-match to configure"
         },
         {
             "Slide-Off",
@@ -241,7 +255,7 @@ namespace list {
             },
             "Any Fighter",
             "Platform Stage / PS2",
-            "Starts on match load"
+            "Press Start in-match to configure"
         },
         {
             "Grab Defense / Throw DI",
@@ -254,7 +268,7 @@ namespace list {
             },
             "Any Fighter",
             "Any Stage",
-            "Starts on match load"
+            "Press Start in-match to configure"
         },
         {
             "P+ Multi-Hit SDI",
@@ -262,38 +276,38 @@ namespace list {
             extra::kScenarioMultiHitSdi,
             {
                 "CPU repeats multi-hit attacks so",
-                "you can drill Smash DI escapes.",
-                "Change move in the Start menu."
+                "you can drill Smash DI (SDI)",
+                "escapes. Switch moves via Start."
             },
             "Any Fighter",
             "Any Stage",
-            "Starts on match load"
+            "Press Start in-match to configure"
         },
         {
             "RAR",
             kRowSkillDrill,
             drills::kDrillRar,
             {
-                "Execute Reverse Aerial Rush turn",
-                "jumps and frame-1 back aerials",
+                "Reverse Aerial Rush: turnaround",
+                "dash jump into frame-1 back air",
                 "retaining forward dash momentum."
             },
             "Any Fighter",
             "Free Practice",
-            "L+Up in-match: 10/20-Rep Set"
+            "In-match L + D-Up: Free / 10 / 20-Rep"
         },
         {
             "DACUS",
             kRowSkillDrill,
             drills::kDrillDacus,
             {
-                "Cancel dash attack frames 2-3",
-                "into sliding up-smash, including",
-                "hitlag Gatling DACUS timing."
+                "Dash Attack Cancelled Up Smash:",
+                "cancel dash attack frames 2-3,",
+                "including hitlag Gatling timing."
             },
             "Any Fighter",
             "Free Practice",
-            "L+Up in-match: 10/20-Rep Set"
+            "In-match L + D-Up: Free / 10 / 20-Rep"
         },
         {
             "B-Reverse / Wavebounce",
@@ -306,7 +320,7 @@ namespace list {
             },
             "Any Fighter",
             "Free Practice",
-            "L+Up in-match: 10/20-Rep Set"
+            "In-match L + D-Up: Free / 10 / 20-Rep"
         },
         {
             "Float / Hover & DJC",
@@ -315,11 +329,11 @@ namespace list {
             {
                 "Practice Peach Float Cancels,",
                 "Mewtwo Hover Cancels, and",
-                "instant Double-Jump Cancels."
+                "Double-Jump Cancels (DJC)."
             },
             "Peach/Mewtwo/DJC",
             "Free Practice",
-            "L+Up in-match: 10/20-Rep Set"
+            "In-match L + D-Up: Free / 10 / 20-Rep"
         },
         {
             "Cancel Sprint",
@@ -332,7 +346,7 @@ namespace list {
             },
             "Cancel Fighters",
             "Free / Set / 60s",
-            "L+Up: Free / 10 / 20 / 60s"
+            "In-match L + D-Up: Free / 10 / 20 / 60s"
         },
         {
             "Movement Flow Course",
@@ -345,7 +359,7 @@ namespace list {
             },
             "Any Fighter",
             "Free / Set / 60s",
-            "L+Up: Free / 10 / 20 / 60s"
+            "In-match L + D-Up: Free / 10 / 20 / 60s"
         },
         {
             "Situational Reaction Lab",
@@ -358,7 +372,7 @@ namespace list {
             },
             "Any Fighter",
             "Free / Set / 60s",
-            "L+Up: Free / 10 / 20 / 60s"
+            "In-match L + D-Up: Free / 10 / 20 / 60s"
         },
         {
             "Universal Techchase Escape",
@@ -371,7 +385,7 @@ namespace list {
             },
             "Any Fighter",
             "Free / Set / 60s",
-            "L+Up: Free / 10 / 20 / 60s"
+            "In-match L + D-Up: Free / 10 / 20 / 60s"
         },
         {
             "Universal Recovery Sweetspot",
@@ -384,20 +398,20 @@ namespace list {
             },
             "Any Fighter",
             "3D Ledge Guides",
-            "L+Up: Free / 10 / 20 / 60s"
+            "In-match L + D-Up: Free / 10 / 20 / 60s"
         },
         {
-            "Floorhug / ASDI-Down Tech",
+            "CC / ASDI-Down",
             kRowSkillDrill,
             drills::kDrillFloorhug,
             {
-                "Hold down through grounded hits",
-                "to ASDI-down and punish fast",
-                "on P+ landing and hitstun frames."
+                "Crouch Cancel (CC) & Auto Smash",
+                "DI Down (ASDI-Down): hold down",
+                "on grounded hits to counter fast."
             },
             "Any Fighter",
             "Free / Set / 60s",
-            "L+Up: Free / 10 / 20 / 60s"
+            "In-match L + D-Up: Free / 10 / 20 / 60s"
         },
         {
             "Combo-Break Rush",
@@ -410,7 +424,7 @@ namespace list {
             },
             "Any Fighter",
             "3D Target Orbs",
-            "L+Up: Free / 30s / 60s"
+            "In-match L + D-Up: Free / 30s / 60s"
         },
         {
             "Snake Infinite Recovery",
@@ -423,7 +437,7 @@ namespace list {
             },
             "Recommended: Snake",
             "Free / Set / 60s",
-            "L+Up: Free / 10 / 20 / 60s"
+            "In-match L + D-Up: Free / 10 / 20 / 60s"
         },
         {
             "Browse Recordings",
@@ -442,23 +456,23 @@ namespace list {
 
     static const u8 kAllModeIndices[] = {
         kIdxLab,        kIdxLCancel,      kIdxWavedash,    kIdxLedgedash,  kIdxComboLab,
-        kIdxTechchase,  kIdxEdgeguard,    kIdxShieldPressure, kIdxPowershield, kIdxShieldDrop,
-        kIdxLedgetech,  kIdxSlideOff,     kIdxGrabDefense, kIdxMultiHitSdi, kIdxRar,
-        kIdxDacus,      kIdxBReverse,     kIdxFloatHover,  kIdxCancelSprint, kIdxFlowCourse,
-        kIdxReactionLab, kIdxTechchaseEscape, kIdxRecoverySweetspot, kIdxFloorhug, kIdxComboBreakRush,
-        kIdxSnakeRecovery, kIdxRecordings
+        kIdxTechchase,  kIdxEdgeguard,    kIdxShieldPressure, kIdxOosReversal, kIdxPowershield,
+        kIdxShieldDrop, kIdxLedgetech,    kIdxSlideOff,    kIdxGrabDefense, kIdxMultiHitSdi,
+        kIdxRar,        kIdxDacus,        kIdxBReverse,    kIdxFloatHover,  kIdxCancelSprint,
+        kIdxFlowCourse, kIdxReactionLab,  kIdxTechchaseEscape, kIdxRecoverySweetspot, kIdxFloorhug,
+        kIdxComboBreakRush, kIdxSnakeRecovery, kIdxRecordings
     };
     static const u8 kOffenseIndices[] = {
-        kIdxComboLab, kIdxTechchase, kIdxEdgeguard, kIdxShieldPressure, kIdxGrabDefense
+        kIdxComboLab, kIdxTechchase, kIdxEdgeguard, kIdxShieldPressure
     };
     static const u8 kDefenseIndices[] = {
-        kIdxShieldPressure, kIdxPowershield, kIdxShieldDrop, kIdxLedgetech,
+        kIdxOosReversal, kIdxPowershield, kIdxShieldDrop, kIdxLedgetech,
         kIdxSlideOff, kIdxGrabDefense, kIdxMultiHitSdi
     };
-    // 8 single-page rows (zero scrolling; kVisibleRows == 10).
+    // 7 universal single-page rows (zero scrolling; Float/Hover & DJC lives in Character Trainers).
     static const u8 kTechPracticeIndices[] = {
         kIdxLCancel, kIdxWavedash, kIdxLedgedash, kIdxPowershield,
-        kIdxRar, kIdxDacus, kIdxBReverse, kIdxFloatHover
+        kIdxRar, kIdxDacus, kIdxBReverse
     };
     // 7 single-page rows (zero scrolling; kVisibleRows == 10).
     static const u8 kChallengesIndices[] = {
@@ -467,7 +481,7 @@ namespace list {
     };
     // Character-specific P+ trainers.
     static const u8 kCharTrainersIndices[] = {
-        kIdxSnakeRecovery
+        kIdxSnakeRecovery, kIdxFloatHover
     };
 
     struct LauncherSection {
@@ -497,7 +511,7 @@ namespace list {
     using namespace ui::style;
 
     // ---- Boot menu palette (Native Project+ slanted teal banner & metallic craft) ----
-    static const gfx::Rgba kBackdropDim = 0x050C10A8;
+    static const gfx::Rgba kBackdropDim = 0x050C10D4;
     static const gfx::Rgba kBannerTopCol = 0x36CFC2FF;
     static const gfx::Rgba kBannerBotCol = 0x1C9288FF;
     static const gfx::Rgba kBannerSheen = 0x9AF8EEB0;
@@ -522,8 +536,8 @@ namespace list {
     static const float kBannerTop = 32.0f;
     static const float kBannerBottom = 82.0f;
     static const float kBannerRuleH = 2.0f;
-    static const float kBannerRightTop = 498.0f;
-    static const float kBannerRightBot = 472.0f;
+    static const float kBannerRightTop = 532.0f;
+    static const float kBannerRightBot = 506.0f;
     static const float kBannerTitleX = 40.0f;
     static const float kBannerTitleCap = 16.0f;
     static const float kBannerPillLeftX = 250.0f;
@@ -1215,6 +1229,11 @@ namespace list {
         float drawW = secW > slotLimit ? slotLimit : secW;
         gfx::displayText(slotCenter - drawW * 0.5f, displayYForCap(midY - kBannerSecCap * 0.5f, secScale), secName,
                          kBannerInk, kBannerInk, secSx, secScale, 0.0f, 0);
+
+        char secCount[8];
+        snprintf(secCount, sizeof(secCount), "%d/%d", s_page + 1, kSectionCount);
+        float cntScale = scaleForCap(8.5f);
+        gfx::text(rightPillX + pillW + w(8.0f), textYForCap(midY - 4.25f, cntScale), secCount, kBannerInk, cntScale);
     }
 
     static void drawLeftColumn()
@@ -1267,6 +1286,7 @@ namespace list {
         }
     }
 
+    // Flat subtle metadata tag (distinct from interactive glossy button badges).
     static float drawChip(float x, float y, const char* label, float maxW, bool highlight = false)
     {
         float scale = scaleForCap(kCardChipCap);
@@ -1280,14 +1300,12 @@ namespace list {
             sx = scale * avail / tw;
             chipW = maxW;
         }
-        float bx = w(1.2f);
-        gfx::Rgba topCol = highlight ? kLabGoldTop : kChipTop;
-        gfx::Rgba botCol = highlight ? kLabGoldBot : kChipBot;
-        gfx::Rgba txtCol = highlight ? kLabGoldInk : kText;
-        fillStadium(x - bx, y - 1.0f, chipW + 2.0f * bx, kCardChipH + 2.0f, 0x05080CFF);
-        fillStadium(x, y, chipW, kCardChipH, botCol);
-        fillStadium(x + w(0.8f), y + 0.5f, chipW - w(1.6f), kCardChipH * 0.58f, topCol);
-        fillStadium(x + chipW * 0.18f, y + 1.5f, chipW * 0.64f, 2.5f, 0x8EF5EA24);
+        float bx = w(2.0f);
+        gfx::Rgba borderCol = highlight ? 0xC8A220D0u : 0x2E5868C8u;
+        gfx::Rgba fillCol = highlight ? 0x262008E8u : 0x0E1E28E4u;
+        gfx::Rgba txtCol = highlight ? kLabFocusGold : kCardBody;
+        gfx::fillRect(x, y, chipW, kCardChipH, borderCol);
+        gfx::fillRect(x + bx, y + 2.0f, chipW - 2.0f * bx, kCardChipH - 4.0f, fillCol);
         gfx::text(x + pad, textYForCap(y + (kCardChipH - kCardChipCap) * 0.5f, scale), label, txtCol, sx, scale);
         return x + chipW;
     }
@@ -1367,7 +1385,9 @@ namespace list {
         float wB = gfx::textWidth(row.chipB, chipScale) + 2.0f * w(kCardChipPadX);
         float gap = w(kCardChipGap);
         float captionY = 302.0f;
-        bool highlightChipA = (row.kind == kRowSkillDrill && row.targetId == drills::kDrillSnakeRecovery);
+        bool highlightChipA = (row.kind == kRowSkillDrill
+                               && (row.targetId == drills::kDrillSnakeRecovery
+                                   || row.targetId == drills::kDrillHoverFloat));
         if (wA + gap + wB <= contentW)
         {
             float chipX = drawChip(contentX, 260.0f, row.chipA, contentW, highlightChipA);
@@ -1388,24 +1408,35 @@ namespace list {
             gfx::text(contentX, textYForCap(captionY, capScale), row.caption, kCardMuted, csx, capScale);
         }
 
+        int bestSlot = -1;
         if (row.kind == kRowSkillDrill && row.targetId > 0 && row.targetId < drills::kBestSlots)
         {
-            u16 best = session().best[row.targetId];
-            char bestText[20];
+            bestSlot = row.targetId;
+        }
+        else if (row.kind == kRowScenario && (row.targetId & 0x7Fu) == extra::kScenarioTechchase)
+        {
+            bestSlot = extra::kTechBestSlot;
+        }
+        if (bestSlot >= 0)
+        {
+            u16 best = session().best[bestSlot];
+            char bestText[16];
             if (best == 0)
             {
-                snprintf(bestText, sizeof(bestText), "Best: --");
+                snprintf(bestText, sizeof(bestText), "--");
             }
             else
             {
-                snprintf(bestText, sizeof(bestText), "Best: %u", static_cast<unsigned>(best));
+                snprintf(bestText, sizeof(bestText), "%u", static_cast<unsigned>(best));
             }
             float barY = captionY + 24.0f;
             float barH = 26.0f;
             drawBevelBar(contentX, barY, contentW, barH, kRowFillTop, kRowFillBot, kRowSheen, kLabBevelDark);
             float bScale = scaleForCap(kCardChipCap);
             float textY = textYForCap(barY + (barH - kCardChipCap) * 0.5f, bScale);
-            const char* bestLabel = (row.targetId == drills::kDrillComboBreakRush) ? "Best Score" : "Best Streak";
+            const char* bestLabel =
+                (row.kind == kRowSkillDrill && row.targetId == drills::kDrillComboBreakRush) ? "Best Score"
+                                                                                             : "Best Streak";
             gfx::text(contentX + w(10.0f), textY, bestLabel, kCardMuted, bScale);
             float bw = boldWidth(bestText, bScale);
             boldText(contentX + contentW - w(10.0f) - bw, textY, bestText, best > 0 ? kLabFocusGold : kCardMuted,
@@ -1466,7 +1497,7 @@ namespace list {
         x = drawControlBadge(x, confirmGlyph, true, kLabBtnATop, kLabBtnABot, kCardTitle, "Select");
         x = drawControlBadge(x, backGlyph, true, kLabBtnBTop, kLabBtnBBot, kCardTitle, "Back");
         x = drawControlBadge(x, recGlyph, recRound, kBadgeImportTop, kBadgeImportBot, kLabBtnDarkText, "Recordings");
-        x = drawControlBadge(x, osdGlyph, osdRound, kBadgeOsdTop, kBadgeOsdBot, kLabBtnDarkText, "OSDs");
+        x = drawControlBadge(x, osdGlyph, osdRound, kBadgeOsdTop, kBadgeOsdBot, kLabBtnDarkText, "Overlays");
         drawControlBadge(x, sectionGlyph, false, kLabBtnLightTop, kLabBtnLightBot, kLabBtnDarkText, "Section");
     }
 
@@ -1515,9 +1546,14 @@ namespace list {
 
     static const char* activeModeTag()
     {
-        u8 sc = session().pendingScenario;
+        u8 rawSc = session().pendingScenario;
+        u8 sc = static_cast<u8>(rawSc & 0x7Fu);
         if (sc > 0 && sc < extra::kScenarioCount)
         {
+            if (sc == extra::kScenarioShieldPressure && (rawSc & 0x80u) != 0u)
+            {
+                return "OOS REVERSAL";
+            }
             static const char* const kScenTags[extra::kScenarioCount] = {
                 "TRAINING LAB", "COMBO LAB", "TECHCHASE", "EDGEGUARD", "SHIELD PRESSURE",
                 "SHIELD DROP",  "LEDGETECH", "SLIDE-OFF", "GRAB DEFENSE", "MULTI-HIT SDI"
@@ -1531,7 +1567,7 @@ namespace list {
                 "TRAINING LAB",      "LEDGEDASH",         "WAVEDASH",      "L-CANCEL",
                 "FLOAT / HOVER",     "POWERSHIELD",       "RAR",           "DACUS",
                 "B-REVERSE",         "CANCEL SPRINT",     "MOVEMENT FLOW", "REACTION LAB",
-                "TECHCHASE ESCAPE",  "RECOVERY SWEETSPOT","FLOORHUG TECH", "SNAKE RECOVERY",
+                "TECHCHASE ESCAPE",  "RECOVERY SWEETSPOT","CC / ASDI-DOWN","SNAKE RECOVERY",
                 "TRAINING LAB",      "COMBO-BREAK RUSH"
             };
             return kDrillTags[dr];
@@ -1541,7 +1577,7 @@ namespace list {
 
     // CRT-safe Brawl/P+ metallic CSS mode pill in the dark teal band (y 58..82)
     // above the character grid (y >= 89): double-framed dark chrome, metallic
-    // bevel, zero generic left-accent bars.
+    // bevel, crisp button badges, and vertical divider.
     static void drawPending()
     {
         float scale = scaleForCap(8.5f);
@@ -1551,17 +1587,29 @@ namespace list {
         }
         const game::PadMap& map = game::padMap(preferredPadType());
         const char* mode = activeModeTag();
-        char rightTxt[32];
-        snprintf(rightTxt, sizeof(rightTxt), "%s / %s: Modes", map.backName, map.reopenName);
+        float bScale = scaleForCap(7.5f);
 
         float modeW = boldWidth(mode, scale);
-        float sepW = boldWidth(" | ", scale);
-        float hintW = boldWidth(rightTxt, scale);
+        float backGw = gfx::textWidth(map.backName, bScale);
+        float backBw = backGw + w(8.0f);
+        if (backBw < w(14.0f))
+        {
+            backBw = w(14.0f);
+        }
+        float slashW = gfx::textWidth("/", bScale);
+        float reopGw = gfx::textWidth(map.reopenName, bScale);
+        float reopBw = reopGw + w(8.0f);
+        float modesW = boldWidth("Modes", scale);
+
         float padX = w(10.0f);
-        float pillW = modeW + sepW + hintW + 2.0f * padX;
+        float divGap = w(7.0f);
+        float divW = w(2.0f);
+        float smGap = w(4.0f);
+        float pillW = padX + modeW + divGap + divW + divGap + backBw + smGap + slashW + smGap + reopBw + smGap
+                      + modesW + padX;
         float pillH = 22.0f;
         float topY = 58.0f;
-        float rightX = rx(604.0f);
+        float rightX = 604.0f;
         float leftX = rightX - pillW;
         float bx = w(2.0f);
 
@@ -1571,13 +1619,31 @@ namespace list {
         drawBevelBar(leftX + 2.0f * bx, topY + 4.0f, pillW - 4.0f * bx, pillH - 8.0f, kLabHeaderTop, kLabHeaderBot,
                      kLabBevelLight, kLabBevelDark);
 
-        float ty = textYForCap(topY + (pillH - 8.5f) * 0.5f, scale);
+        float midY = topY + pillH * 0.5f;
+        float ty = textYForCap(midY - 4.25f, scale);
+        float bty = textYForCap(midY - 3.75f, bScale);
+        float badgeH = 14.0f;
+        float badgeY = midY - badgeH * 0.5f;
+
         float x = leftX + padX;
         boldText(x, ty, mode, kLabFocusGold, scale, scale);
-        x += modeW;
-        boldText(x, ty, " | ", kLabMutedText, scale, scale);
-        x += sepW;
-        boldText(x, ty, rightTxt, kText, scale, scale);
+        x += modeW + divGap;
+
+        gfx::fillRect(x, topY + 5.0f, divW, pillH - 10.0f, kLabAccent);
+        x += divW + divGap;
+
+        drawGlossyPillBadge(x, badgeY, backBw, badgeH, kLabBtnBTop, kLabBtnBBot);
+        gfx::text(x + (backBw - backGw) * 0.5f, bty, map.backName, kCardTitle, bScale);
+        x += backBw + smGap;
+
+        gfx::text(x, bty, "/", kLabMutedText, bScale);
+        x += slashW + smGap;
+
+        drawGlossyPillBadge(x, badgeY, reopBw, badgeH, kLabBtnLightTop, kLabBtnLightBot);
+        gfx::text(x + (reopBw - reopGw) * 0.5f, bty, map.reopenName, kLabBtnDarkText, bScale);
+        x += reopBw + smGap;
+
+        boldText(x, ty, "Modes", kText, scale, scale);
     }
 
     void onRender(u32)

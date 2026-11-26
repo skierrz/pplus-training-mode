@@ -261,15 +261,39 @@ namespace {
         seedLedgedash(cells, true, noXlu);
         canvas::clear();
         ui::hudLayoutDrawLedgedashHud();
-        // The last rect and text run are the summary strip drawn after the bar.
+        // Summary strip rect (first rect after bar + cells) and first text run.
         Box out = layout::none();
-        if (canvas::rects() > 0)
+        int barRects = 1 + cells;
+        if (canvas::rects() > barRects)
         {
-            const canvas::Rect& r = canvas::rect(canvas::rects() - 1);
+            const canvas::Rect& r = canvas::rect(barRects);
             Box rb = {r.x, r.y, r.x + r.width, r.y + r.height};
             out = layout::unite(out, rb);
         }
-        for (int i = 0; i < canvas::runs(); i++)
+        if (canvas::runs() > 0)
+        {
+            const canvas::Run& run = canvas::run(0);
+            Box tb = {run.x, run.y, run.right, run.y + 24.0f * run.scaleY};
+            out = layout::unite(out, tb);
+        }
+        return out;
+    }
+
+    Box drawnLedgedashLegend(int cells, bool noXlu = false)
+    {
+        seedLedgedash(cells, true, noXlu);
+        canvas::clear();
+        ui::hudLayoutDrawLedgedashHud();
+        // Color legend pill, swatches, and labels drawn after the summary strip.
+        Box out = layout::none();
+        int firstLegendRect = 1 + cells + 1;
+        for (int i = firstLegendRect; i < canvas::rects(); i++)
+        {
+            const canvas::Rect& r = canvas::rect(i);
+            Box rb = {r.x, r.y, r.x + r.width, r.y + r.height};
+            out = layout::unite(out, rb);
+        }
+        for (int i = 1; i < canvas::runs(); i++)
         {
             const canvas::Run& run = canvas::run(i);
             Box tb = {run.x, run.y, run.right, run.y + 24.0f * run.scaleY};
@@ -305,6 +329,7 @@ namespace {
             {
                 s.add("ledge-bar", drawnLedgedashBar(e.ledgeCells), kBand);
                 s.add("ledge-key", drawnLedgedashHeader(e.ledgeCells), kBand);
+                s.add("ledge-legend", drawnLedgedashLegend(e.ledgeCells), kBand);
             }
             if (id != kLabLedgeHud && id != kLabPaused)
             {
@@ -328,9 +353,11 @@ namespace {
             // storage notices (!match.paused || lab::menuOpen(), storage.cpp)
             // are hidden over Brawl's Training pause menu.
             canvas::clear();
+            const char* pHint = "ZL/ZR: Lab Menu";
+            float hx = layout::kHintRight - gfx::textWidth(pHint, 0.5f);
             for (int k = 0; k < 2; k++)
             {
-                gfx::textBox(0, layout::kHintX, layout::kHintY, "Z: Lab Menu", 0xFFFFFFFF, 0x000000C0, 0.5f, false);
+                gfx::textBox(0, hx, layout::kHintY, pHint, 0xFFFFFFFF, 0x000000C0, 0.5f, false);
             }
             s.add("pause-hint", drawnBox());
             canvas::clear();
@@ -422,10 +449,14 @@ namespace {
         {"*", "4:3", "*", "info-hmn", "osd-topright-p2", "top spots"},
         {"*", "16:9", "most", "info-hmn", "osd-topright-p2", "top spots"},
         {"lab-4p", "*", "most", "info-hmn", "osd-topright-p3", "top spots"},
-        {"lab-ledgedash-hud", "*", "*", "ledge-bar", "osd-topleft-p2", "top spots"},
-        {"lab-ledgedash-hud", "*", "*", "ledge-bar", "osd-topright-p2", "top spots"},
+        {"lab-ledgedash-hud", "*", "*", "ledge-bar", "osd-topleft-p1", "top spots"},
+        {"lab-ledgedash-hud", "*", "*", "ledge-bar", "osd-topright-p1", "top spots"},
         {"lab-ledgedash-hud", "*", "*", "ledge-key", "osd-topleft-p1", "top spots"},
         {"lab-ledgedash-hud", "*", "*", "ledge-key", "osd-topright-p1", "top spots"},
+        {"lab-ledgedash-hud", "*", "*", "ledge-legend", "osd-topleft-p1", "top spots"},
+        {"lab-ledgedash-hud", "*", "*", "ledge-legend", "osd-topright-p1", "top spots"},
+        {"lab-ledgedash-hud", "*", "*", "ledge-legend", "osd-topleft-p2", "top spots"},
+        {"lab-ledgedash-hud", "*", "*", "ledge-legend", "osd-topright-p2", "top spots"},
         {"*", "*", "most", "info-cpu", "osd-hud-p1", "six messages"},
         {"*", "*", "most", "info-cpu", "osd-hud-p2", "six messages"},
         {"*", "*", "most", "info-cpu", "osd-sides-p1", "six messages"},
@@ -536,8 +567,8 @@ TEST(hud_layout, the_ledgedash_hud_is_where_the_layout_says)
             for (int noXlu = 0; noXlu <= 1; noXlu++)
             {
                 Box hdrDrawn = drawnLedgedashHeader(cells, noXlu != 0);
-                Box hdrBox = layout::ledgeHeaderBox(wide);
-                CHECK(inside(hdrDrawn, hdrBox));
+                Box hdrRoom = layout::unite(layout::ledgeHeaderBox(wide), layout::ledgeLegendBox(wide));
+                CHECK(inside(hdrDrawn, hdrRoom));
                 CHECK(inside(hdrDrawn, layout::topBand()));
                 CHECK(inside(hdrDrawn, safe));
 
@@ -550,6 +581,19 @@ TEST(hud_layout, the_ledgedash_hud_is_where_the_layout_says)
             }
         }
     }
+}
+
+TEST(hud_layout, ledgedash_hud_dismisses_on_mode_switch_until_new_attempt)
+{
+    seedLedgedash(30, true, false);
+    CHECK(ui::hudLayoutLedgedashVisible());
+    // Mode switch or scenario reset bumps the dismissal counter: stale bar hides immediately.
+    ui::menuScratch()[ui::kLedgeDismissScratchOffset]++;
+    CHECK(!ui::hudLayoutLedgedashVisible());
+    // A brand-new ledgedash finishing on a later frame becomes visible again.
+    s_testLedgedash.done = 220;
+    host::fakes::setTrackerFrame(220);
+    CHECK(ui::hudLayoutLedgedashVisible());
 }
 
 TEST(hud_layout, every_piece_is_inside_the_room_kept_for_it)
@@ -785,7 +829,7 @@ TEST(hud_layout, every_piece_stays_in_crt_safe_area)
         float scale = ui::style::scaleForCap(ui::style::kRowCap);
         float y = ui::style::textYForCap(layout::kCssPendingCapTop, scale);
         const char* hint = "- + B = Training Menu";
-        float hintX = ui::style::rx(layout::kCssPendingRight) - ui::style::boldWidth(hint, scale);
+        float hintX = layout::kCssPendingRight - ui::style::boldWidth(hint, scale);
         canvas::clear();
         ui::style::boldText(hintX, y, hint, ui::style::kText, scale, scale);
         Box hintBox = drawnBox();
@@ -891,7 +935,7 @@ TEST(hud_layout, notices_and_rec_messages_stay_above_395_and_clear)
         float scale = ui::style::scaleForCap(ui::style::kRowCap);
         float py = ui::style::textYForCap(layout::kCssPendingCapTop, scale);
         const char* hint = "- + B = Training Menu";
-        float hintX = ui::style::rx(layout::kCssPendingRight) - ui::style::boldWidth(hint, scale);
+        float hintX = layout::kCssPendingRight - ui::style::boldWidth(hint, scale);
         canvas::clear();
         ui::style::boldText(hintX, py, hint, ui::style::kText, scale, scale);
         Box hintBox = drawnBox();
@@ -928,10 +972,9 @@ TEST(hud_layout, notices_and_rec_messages_stay_above_395_and_clear)
 
 TEST(hud_layout, techchase_hud_clears_all_right_column_combos)
 {
-    // Verify Techchase HUD card stays inside CRT safe bounds, above Brawl's
-    // damage HUD (y <= 395), and clear of topBand + every active right-column
-    // overlay across all 288 combinations (4:3 & 16:9, timer/ledge/none,
-    // 0..2 input viewer slots, DI compass, PSA inspector, Adaptive HUD).
+    // Verify unified top-center Techchase HUD banner stays inside CRT safe
+    // bounds, above Brawl's damage HUD, and clears every active right-column
+    // overlay across both 4:3 and 16:9 when Techchase owns topBand().
     struct Overlap {
         static bool check(const Box& a, const Box& b)
         {
@@ -944,51 +987,40 @@ TEST(hud_layout, techchase_hud_clears_all_right_column_combos)
         bool wide = a == 1;
         Box safe = layout::safeArea(wide);
         Box dmg0 = brawlDamage(0, wide);
-        for (int timer = 0; timer <= 1; timer++)
+        Box tc = layout::techchaseHudBox(layout::none(), 0, false, false, wide, false);
+        Box band = tc;
+        CHECK(inside(tc, safe));
+        CHECK(tc.y1 <= dmg0.y0 - 2.0f);
+        for (int vSlots = 0; vSlots <= 2; vSlots++)
         {
-            static const int kLedge[3] = {0, 30, 64};
-            for (int li = 0; li < 3; li++)
+            for (int comp = 0; comp <= 1; comp++)
             {
-                Box band = layout::labBand(timer != 0, kLedge[li], wide);
-                for (int vSlots = 0; vSlots <= 2; vSlots++)
+                for (int psa = 0; psa <= 1; psa++)
                 {
-                    for (int comp = 0; comp <= 1; comp++)
+                    for (int adap = 0; adap <= 1; adap++)
                     {
-                        for (int psa = 0; psa <= 1; psa++)
+                        combos++;
+                        for (int s = 0; s < vSlots; s++)
                         {
-                            for (int adap = 0; adap <= 1; adap++)
-                            {
-                                combos++;
-                                Box tc = layout::techchaseHudBox(band, vSlots, comp != 0, psa != 0, wide, adap != 0);
-                                CHECK(inside(tc, safe));
-                                CHECK(tc.y1 <= dmg0.y0 - 2.0f);
-                                if (!layout::empty(band))
-                                {
-                                    CHECK(!Overlap::check(tc, band));
-                                }
-                                for (int s = 0; s < vSlots; s++)
-                                {
-                                    CHECK(!Overlap::check(tc, layout::inputViewerCardBox(s, band, wide)));
-                                }
-                                if (comp != 0)
-                                {
-                                    CHECK(!Overlap::check(tc, layout::diCompassBox(band, vSlots, wide)));
-                                }
-                                if (psa != 0)
-                                {
-                                    CHECK(!Overlap::check(tc, layout::psaInspectorBox(band, vSlots, comp != 0, wide)));
-                                }
-                                if (adap != 0)
-                                {
-                                    CHECK(!Overlap::check(
-                                        tc, layout::adaptiveHudBox(band, vSlots, comp != 0, psa != 0, wide)));
-                                }
-                            }
+                            CHECK(!Overlap::check(tc, layout::inputViewerCardBox(s, band, wide)));
+                        }
+                        if (comp != 0)
+                        {
+                            CHECK(!Overlap::check(tc, layout::diCompassBox(band, vSlots, wide)));
+                        }
+                        if (psa != 0)
+                        {
+                            CHECK(!Overlap::check(tc, layout::psaInspectorBox(band, vSlots, comp != 0, wide)));
+                        }
+                        if (adap != 0)
+                        {
+                            CHECK(!Overlap::check(
+                                tc, layout::adaptiveHudBox(band, vSlots, comp != 0, psa != 0, wide)));
                         }
                     }
                 }
             }
         }
     }
-    CHECK_EQ(combos, 288);
+    CHECK_EQ(combos, 48);
 }

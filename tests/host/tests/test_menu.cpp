@@ -647,7 +647,7 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     REQUIRE(sc.count == 35);
     CHECK(strcmp(sc.options[0].name, "Fighter Swap") == 0);
     CHECK_EQ(ui::pages::P_FIGHTER_SWAP, sc.options[0].max);
-    CHECK(strcmp(sc.options[1].name, "Show Inactive") == 0);
+    CHECK(strcmp(sc.options[1].name, "Show Inactive Fighters") == 0);
     storage::detach();
 }
 
@@ -1125,6 +1125,149 @@ TEST(lab_menu, rail_and_tabs_navigation_and_stage_cast_compaction)
     storage::detach();
 }
 
+TEST(lab_menu, show_inactive_fighters_scoped_to_stage_cast_only)
+{
+    bootLab();
+    main::setExtraHooks(&kSmashvillePeachHooks);
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+
+    ui::MenuInput inDown = {0, 1, 0, 0, false, false, false, false};
+    ui::MenuInput inA = {0, 0, 0, 0, true, false, false, false};
+    ui::MenuInput inRight = {0, 0, 0, 1, false, false, false, false};
+
+    // Jump to Stage & Cast and toggle Show Inactive Fighters (row 1) On.
+    const u8 scPath[] = {ui::pages::P_STAGE_CAST};
+    REQUIRE(ui::menuJump(menu, st, scPath, 1));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(1, static_cast<int>(st.cursor[ui::pages::P_STAGE_CAST]));
+    ui::menuStep(menu, st, inA);
+    CHECK(ui::g_showInactiveRows);
+
+    // Stage & Cast now reveals inactive rows (stepping past row 8 reaches row 9+).
+    for (int i = 0; i < 10; i++)
+    {
+        ui::menuStep(menu, st, inDown);
+    }
+    CHECK(static_cast<int>(st.cursor[ui::pages::P_STAGE_CAST]) > 8);
+
+    // Scenarios MUST still compact hidden preset/drill rows (only Preset [0] and Combo Trainer [44] visible).
+    const u8 scenPath[] = {ui::pages::P_SCENARIOS};
+    REQUIRE(ui::menuJump(menu, st, scenPath, 1));
+    CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(44, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(44, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+
+    // Context-scoped Tab 1: when a Tech Practice drill is active, Preset and Combo Trainer hide,
+    // leaving only the active drill's rows (Ledgedash: Practice Mode [34], Reset Ledge [38],
+    // Ledge Auto-Reset [39], Ledge Invuln [40]).
+    ui::pages::practiceMenuState()->activeDrill = 1;
+    REQUIRE(ui::menuJump(menu, st, scenPath, 1));
+    CHECK_EQ(34, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(38, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(39, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(40, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(40, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::pages::practiceMenuState()->activeDrill = 0;
+
+    // CPU > Counters & Reversals: Counter Mode starts at Single Action (1), hiding Custom Pools,
+    // Per-Hit, Reversals, and Adaptive even while Show Inactive Fighters is On!
+    const u8 ctrPath[] = {ui::pages::P_CPU, ui::pages::P_CPU_COUNTERS};
+    REQUIRE(ui::menuJump(menu, st, ctrPath, 2));
+    CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_CPU_COUNTERS]));
+    CHECK_EQ(1, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+    // Switch Counter Mode right to Custom Pool (2): reveals Custom Pools (row 6), hides Ground/Air/Shield (1..3).
+    ui::menuStep(menu, st, inRight);
+    CHECK_EQ(2, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(4, static_cast<int>(st.cursor[ui::pages::P_CPU_COUNTERS])); // Shield Timing
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(5, static_cast<int>(st.cursor[ui::pages::P_CPU_COUNTERS])); // Counter Delay
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(6, static_cast<int>(st.cursor[ui::pages::P_CPU_COUNTERS])); // Custom Pools
+
+    // Enter Custom Pools: Category=Ground MUST still compact Air/Shield rows even while Show Inactive Fighters is On!
+    ui::menuStep(menu, st, inA);
+    CHECK_EQ(ui::pages::P_COUNTER_POOL, ui::currentPage(st));
+    for (int i = 0; i < 40; i++)
+    {
+        ui::menuStep(menu, st, inDown);
+    }
+    // 4 head rows (0..3) + 28 Ground pool rows (4..31) => bottom clamps at row 31, never reaches Air (32+).
+    CHECK_EQ(31, static_cast<int>(st.cursor[ui::pages::P_COUNTER_POOL]));
+
+    main::setExtraHooks(NULL);
+    storage::detach();
+}
+
+TEST(lab_menu, counter_mode_clears_per_hit_overrides_when_switching_away)
+{
+    bootLab();
+    main::setExtraHooks(&kSmashvillePeachHooks);
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+
+    ui::MenuInput inLeft = {0, 0, 1, 0, false, false, false, false};
+    ui::MenuInput inRight = {0, 0, 0, 1, false, false, false, false};
+    ui::MenuInput noop = {0, 0, 0, 0, false, false, false, false};
+
+    // Arm a Per-Hit Custom override (and a Disable override on hit 2): Counter Mode derives Per-Hit (4).
+    main::settings().cpuTables.hits[0].logic = cpu::kLogicCustom;
+    main::settings().cpuTables.hits[1].logic = cpu::kLogicDisable;
+    main::settings().cpu.options.advLogic = cpu::kLogicCustom;
+
+    const u8 ctrPath[] = {ui::pages::P_CPU, ui::pages::P_CPU_COUNTERS};
+    REQUIRE(ui::menuJump(menu, st, ctrPath, 2));
+    CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_CPU_COUNTERS]));
+    CHECK_EQ(4, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+
+    // Step left from Per-Hit (4) -> Reversal Slots (3) -> Custom Pool (2) -> Single Action (1).
+    ui::menuStep(menu, st, inLeft);
+    ui::menuStep(menu, st, inLeft);
+    ui::menuStep(menu, st, inLeft);
+    CHECK_EQ(1, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpuTables.hits[0].logic));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpuTables.hits[1].logic));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpu.options.advLogic));
+    // Subsequent step must stay on Single Action (1), never snapping back to Per-Hit.
+    ui::menuStep(menu, st, noop);
+    CHECK_EQ(1, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+
+    // Re-arm Per-Hit Custom override and switch to Custom Pool (2): overrides clear and mode stays at 2.
+    main::settings().cpuTables.hits[0].logic = cpu::kLogicCustom;
+    main::settings().cpu.options.advLogic = cpu::kLogicCustom;
+    ui::menuStep(menu, st, noop);
+    CHECK_EQ(4, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+    ui::menuStep(menu, st, inLeft); // 3 = Reversal Slots
+    ui::menuStep(menu, st, inLeft); // 2 = Custom Pool
+    CHECK_EQ(2, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpuTables.hits[0].logic));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpu.options.advLogic));
+    ui::menuStep(menu, st, noop);
+    CHECK_EQ(2, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+
+    // Also verify Disable-only Per-Hit override derives Per-Hit (4) and clears on switching to Adaptive (5).
+    main::settings().cpuTables.hits[0].logic = cpu::kLogicDisable;
+    main::settings().cpu.options.advLogic = cpu::kLogicDisable;
+    ui::menuStep(menu, st, noop);
+    CHECK_EQ(4, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+    ui::menuStep(menu, st, inRight); // 5 = Adaptive
+    CHECK_EQ(5, ui::optionValue(menu, ui::pages::kCpuCounters.options[0]));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpuTables.hits[0].logic));
+    CHECK_EQ(static_cast<int>(cpu::kLogicDefault), static_cast<int>(main::settings().cpu.options.advLogic));
+
+    main::setExtraHooks(NULL);
+    storage::detach();
+}
+
 namespace {
     u8 s_allOffVals[4];
     bool s_allOffEnabled = true;
@@ -1272,7 +1415,8 @@ TEST(lab_menu, footer_hides_confirm_badge_on_disabled_row_and_invokes_page_overl
     CHECK(!menuCanvasDrew("Toggle"));
     CHECK(!menuCanvasDrew("Open"));
     CHECK(menuCanvasDrew("B"));
-    CHECK(menuCanvasDrew("Rail"));
+    CHECK(menuCanvasDrew("Categories"));
+    CHECK(menuCanvasDrew("START"));
 
     ui::g_showInactiveRows = false;
     main::setExtraHooks(NULL);

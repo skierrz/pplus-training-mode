@@ -8,16 +8,20 @@
 #include "main/gfx/text.h"
 #include "main/settings.h"
 #include "main/ui/hud_layout.h"
+#include "main/ui/menu.h"
 #include "main/ui/style.h"
 
 // Minimal neutral Ledgedash HUD: displays a per-frame bar for the last
-// ledgedash (kept for 300 frames) and a compact top summary line with GALINT,
-// frames on ledge, and airdodge angle.
+// ledgedash (kept for 300 frames), a standardized top summary strip (GALINT,
+// hang frames, and airdodge angle), and a compact 1-line color legend.
 namespace tm {
 namespace ui {
     using main::settings;
 
     enum { kLifetime = 300, kMaxCells = 64 };
+
+    static u8 s_seenDismissGen = 0;
+    static s32 s_dismissedDone = game::kNoFrame;
 
     // Neutral high-contrast per-phase cell colors.
     static const gfx::Rgba kCellColors[game::kCellTypes] = {
@@ -34,6 +38,16 @@ namespace ui {
     bool ledgedashHudVisible()
     {
         const game::Ledgedash& l = game::lastLedgedash();
+        u8 gen = menuScratch()[kLedgeDismissScratchOffset];
+        if (gen != s_seenDismissGen)
+        {
+            s_seenDismissGen = gen;
+            s_dismissedDone = l.done;
+        }
+        if (l.done == s_dismissedDone)
+        {
+            return false;
+        }
         s32 now = game::trackerFrame();
         return settings().general.ledgeHud && l.done != game::kNoFrame && now >= l.done
                && now - l.done < kLifetime && l.count > 0;
@@ -70,47 +84,100 @@ namespace ui {
             return;
         }
         bool wide = gfx::widescreen();
+        float xs = layout::xsOf(wide);
         layout::Box bar = layout::frameBarBox(n, wide);
         gfx::fillRect(bar.x0, bar.y0, bar.x1 - bar.x0, bar.y1 - bar.y0, 0x10141AD8);
-        float gap = layout::kCellGap * layout::xsOf(wide);
+        float gap = layout::kCellGap * xs;
         float cellW = ((bar.x1 - bar.x0) - (n + 1) * gap) / n;
-        float cellH = (bar.y1 - bar.y0) - 2.0f * layout::kCellGap;
+        float cellH = (bar.y1 - bar.y0) - 4.0f;
         for (int k = 0; k < n; k++)
         {
             u8 type = static_cast<u8>(k < frames ? l.cells[first + k] : game::kCellGalint);
             gfx::Rgba col = type < game::kCellTypes ? kCellColors[type] : kCellColors[game::kCellOther];
-            gfx::fillRect(bar.x0 + gap + k * (cellW + gap), bar.y0 + layout::kCellGap, cellW, cellH, col);
+            gfx::fillRect(bar.x0 + gap + k * (cellW + gap), bar.y0 + 2.0f, cellW, cellH, col);
         }
         if (g.ledgePanel)
         {
             char summary[64];
+            gfx::Rgba sumCol = 0xFFFFFFFFu;
             if (l.noXlu)
             {
+                sumCol = 0xFFB848FFu;
                 if (l.grabCount > 5)
                 {
-                    snprintf(summary, sizeof(summary), "GALINT: None (%d/5)   Ledge: %d", l.grabCount, l.ledgeFrames);
+                    snprintf(summary, sizeof(summary), "GALINT: None (%d/5)  Hang: %df", l.grabCount, l.ledgeFrames);
                 }
                 else
                 {
-                    snprintf(summary, sizeof(summary), "GALINT: None   Ledge: %d", l.ledgeFrames);
+                    snprintf(summary, sizeof(summary), "GALINT: None  Hang: %df", l.ledgeFrames);
                 }
             }
-            else if (l.hasAngle)
+            else if (l.galint > 0)
             {
-                snprintf(summary, sizeof(summary), "GALINT: %d   Ledge: %d   Angle: %.1f", l.galint, l.ledgeFrames,
-                         l.angle);
+                sumCol = 0x4CE688FFu;
+                if (l.hasAngle)
+                {
+                    snprintf(summary, sizeof(summary), "GALINT: +%df INVULN  Hang: %df  Angle: %.1f deg", l.galint,
+                             l.ledgeFrames, l.angle);
+                }
+                else
+                {
+                    snprintf(summary, sizeof(summary), "GALINT: +%df INVULN  Hang: %df", l.galint, l.ledgeFrames);
+                }
             }
             else
             {
-                snprintf(summary, sizeof(summary), "GALINT: %d   Ledge: %d", l.galint, l.ledgeFrames);
+                sumCol = 0xFF6658FFu;
+                if (l.hasAngle)
+                {
+                    snprintf(summary, sizeof(summary), "GALINT: %df (VULN)  Hang: %df  Angle: %.1f deg", l.galint,
+                             l.ledgeFrames, l.angle);
+                }
+                else
+                {
+                    snprintf(summary, sizeof(summary), "GALINT: %df (VULN)  Hang: %df", l.galint, l.ledgeFrames);
+                }
             }
             float scale = style::scaleForCap(layout::kKeyCap);
             float tw = gfx::textWidth(summary, scale);
-            float padX = 6.0f * layout::xsOf(wide);
+            float padX = 6.0f * xs;
             float x = 320.0f - tw * 0.5f;
             float y = style::textYForCap(layout::kKeyLabelTop, scale);
             gfx::fillRect(x - padX, y - 2.0f, tw + 2.0f * padX, gfx::lineHeight(scale) + 4.0f, 0x10141AC8);
-            gfx::text(x, y, summary, 0xFFFFFFFF, scale);
+            gfx::text(x, y, summary, sumCol, scale);
+
+            // Compact 1-line color legend directly under the frame bar.
+            static const char* const kLegNames[6] = {"Hang", "Drop", "Jump", "Dodge", "Land", "GALINT"};
+            static const u8 kLegCells[6] = {
+                game::kCellLedge, game::kCellFall, game::kCellJump,
+                game::kCellAirdodge, game::kCellLanding, game::kCellGalint
+            };
+            float lScale = style::scaleForCap(layout::kLegendCap);
+            float swW = layout::kKeySwatch * xs;
+            float swGap = 3.0f * xs;
+            float itemGap = 9.0f * xs;
+            float lWidths[6];
+            float totalW = 0.0f;
+            for (int i = 0; i < 6; i++)
+            {
+                lWidths[i] = gfx::textWidth(kLegNames[i], lScale);
+                totalW += swW + swGap + lWidths[i] + (i < 5 ? itemGap : 0.0f);
+            }
+            float lx0 = 320.0f - totalW * 0.5f;
+            gfx::fillRect(lx0 - padX, 68.0f, totalW + 2.0f * padX, 16.0f, 0x10141AC8);
+            float curX = lx0;
+            for (int i = 0; i < 6; i++)
+            {
+                gfx::fillRect(curX, 72.0f, swW, 8.0f, kCellColors[kLegCells[i]] | 0xFFu);
+                curX += swW + swGap + lWidths[i] + itemGap;
+            }
+            curX = lx0;
+            float ly = style::textYForCap(layout::kLegendTop, lScale);
+            for (int i = 0; i < 6; i++)
+            {
+                gfx::text(curX + swW + swGap, ly, kLegNames[i], 0xD8E6EEFFu, lScale);
+                curX += swW + swGap + lWidths[i] + itemGap;
+            }
         }
     }
 }

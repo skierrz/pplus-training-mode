@@ -39,6 +39,13 @@ namespace layout {
         return b;
     }
 
+    Box ledgeLegendBox(bool wide)
+    {
+        float half = 240.0f * xsOf(wide);
+        Box b = {320.0f - half, 68.0f, 320.0f + half, 84.0f};
+        return b;
+    }
+
     Box timerRoom(bool wide)
     {
         Box b16 = {275.0f, 40.0f, 367.0f, 65.0f};
@@ -85,7 +92,8 @@ namespace layout {
         Box band = timer ? timerRoom(wide) : none();
         if (ledgeCells > 0)
         {
-            band = unite(band, unite(frameBarBox(ledgeCells, wide), ledgeHeaderBox(wide)));
+            band = unite(band, unite(frameBarBox(ledgeCells, wide),
+                                     unite(ledgeHeaderBox(wide), ledgeLegendBox(wide))));
         }
         return band;
     }

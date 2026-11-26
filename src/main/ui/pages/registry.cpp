@@ -50,7 +50,7 @@ namespace pages {
     }
 
     enum {
-        kCpuAllRowCount = 14 + 8 + 11 + 7 + 15 + 65, // main, di, counters, defense, reversals, pool
+        kCpuAllRowCount = 14 + 8 + 12 + 7 + 15 + 66, // main, di, counters, defense, reversals, pool
         kOverlayRowCount = 34,                       // 17 P1 + 17 CPU
         kInfoRowCount = 20,                          // 10 P1 + 10 CPU
         kStageCastRowCount = 35,

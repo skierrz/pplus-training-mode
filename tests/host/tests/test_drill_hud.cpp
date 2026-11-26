@@ -163,7 +163,7 @@ TEST(drill_hud, ledgedash_10_rep_set_opens_modal_and_tracks_best)
     CHECK_EQ(11, static_cast<int>(hud.bestMetric));
     CHECK_EQ(1, static_cast<int>(hud.newBest));
     CHECK_EQ(7, static_cast<int>(hud.sessionBest));
-    CHECK(strcmp(hud.lastFeedback, "GALINT +11f") == 0);
+    CHECK(strcmp(hud.lastFeedback, "GALINT +11f INVULN") == 0);
 
     ledge.seq++;
     ledge.last.outcome = kLedgeOutcomeNoInvulnLimit;
@@ -638,7 +638,7 @@ TEST(drill_hud, stage4c_all_seven_challenges_modes_timed60_and_bests)
         rf.lastFhOutcome = kFhCcFloorhugCancel;
         rf.lastHitstunSaved = 9;
         CHECK(drillHudStep(hud, f));
-        CHECK(strcmp(hud.lastFeedback, "FLOORHUG -9f") == 0);
+        CHECK(strcmp(hud.lastFeedback, "CC / ASDI-DN -9f") == 0);
         CHECK_EQ(1u, static_cast<unsigned>(hud.totalHit));
         drillHudFormatHighlight(hud, hl, sizeof(hl));
         CHECK(strcmp(hl, "9f") == 0);
@@ -646,7 +646,7 @@ TEST(drill_hud, stage4c_all_seven_challenges_modes_timed60_and_bests)
         rf.out.fhReps = 2;
         rf.lastFhOutcome = kFhMissedFloorhug;
         CHECK(drillHudStep(hud, f));
-        CHECK(strcmp(hud.lastFeedback, "MISSED FLOORHUG") == 0);
+        CHECK(strcmp(hud.lastFeedback, "MISSED ASDI-DN") == 0);
     }
 
     // 7. Snake Infinite Recovery: ineligible warning, C4 refresh hit, recovery completed.

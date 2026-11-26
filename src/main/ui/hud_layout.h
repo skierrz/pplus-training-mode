@@ -38,18 +38,18 @@ namespace layout {
         return 320.0f + (x - 320.0f) * xsOf(wide);
     }
 
-    // ---- 4:3 CRT overscan safe area ----
+    // ---- 4:3 and 16:9 anamorphic CRT overscan safe area ----
     // 5% margin on each edge (SMPTE RP 27.3 / Nintendo Wii 90% action-safe
-    // frame: 32 px on 640, 24 px on 480). Brawl's own 4:3 HUD in
-    // info_training.pac stays inside this margin; on 16:9 the same vertical
-    // margin applies across the full 640 width.
+    // frame: 32 px on 640, 24 px on 480). Real Wii 16:9 is anamorphic 640x480
+    // stretched horizontally across widescreen CRTs/TVs, so X in [32, 608]
+    // applies to both 4:3 and 16:9.
     static const float kSafeMarginX = 32.0f;
     static const float kSafeMarginY = 24.0f;
 
     inline Box safeArea(bool wide)
     {
-        Box b = {wide ? 0.0f : kSafeMarginX, kSafeMarginY, wide ? 640.0f : 640.0f - kSafeMarginX,
-                 480.0f - kSafeMarginY};
+        (void)wide;
+        Box b = {kSafeMarginX, kSafeMarginY, 640.0f - kSafeMarginX, 480.0f - kSafeMarginY};
         return b;
     }
 
@@ -57,7 +57,7 @@ namespace layout {
     static const float kInfoLeft = 34.0f;
     static const float kInfoTop = 26.0f;
     static const float kInfoGap = 6.0f;
-    static const float kInfoSizeScale[3] = {0.72f, 0.86f, 1.0f};
+    static const float kInfoSizeScale[3] = {0.76f, 0.86f, 1.0f};
 
     inline float infoScale(int size)
     {
@@ -66,7 +66,8 @@ namespace layout {
 
     inline float infoLeft(bool wide)
     {
-        return leftX(kInfoLeft, wide);
+        (void)wide;
+        return kInfoLeft;
     }
 
     inline float infoWidth(int size, bool wide)
@@ -87,16 +88,18 @@ namespace layout {
     }
 
     // ---- Ledgedash HUD top band (ui/ledgedash_hud.cpp) ----
-    static const float kBarTop = 79.8f;
-    static const float kBarBottom = 91.7f;
+    static const float kBarTop = 52.0f;
+    static const float kBarBottom = 66.0f;
     // Spans 32..608 at most on 4:3 (inside the 5% CRT safe area).
     static const float kBarMaxW = 576.0f;
-    static const float kKeyY = 42.0f;
-    static const float kKeyLabelTop = 58.5f;
+    static const float kKeyY = 26.0f;
+    static const float kKeyLabelTop = 34.0f;
+    static const float kLegendTop = 72.0f;
+    static const float kLegendCap = 7.5f;
 
     static const float kCellW = 10.8f;
     static const float kCellGap = 1.0f;
-    static const float kKeySwatch = 11.0f;
+    static const float kKeySwatch = 8.0f;
     static const float kKeyCap = 8.0f;
 
     // The Ledgedash HUD's bar of `cells` cells, centred and narrowed to kBarMaxW.
@@ -105,9 +108,14 @@ namespace layout {
     // The Ledgedash HUD's summary strip above the bar.
     Box ledgeHeaderBox(bool wide);
 
+    // The Ledgedash HUD's compact 1-line color legend directly below the bar.
+    Box ledgeLegendBox(bool wide);
+
     // ---- Pause-menu hint (lab.cpp) ----
-    // textBox pads 3 px above kHintY, so 27.0 puts the box top at y = 24.0.
+    // textBox pads 3 px above kHintY and 6 px right of text, so right-aligning
+    // against kHintRight = 602.0 keeps the right edge at x = 608.0 (5% safe).
     static const float kHintX = 520.0f;
+    static const float kHintRight = 602.0f;
     static const float kHintY = 27.0f;
 
     // ---- Recording HUD and storage notice (record/hud.cpp, storage/notice.cpp) ----
@@ -132,9 +140,9 @@ namespace layout {
     static const float kCssPendingRight = 608.0f;
 
     // ---- Watermark (ui/watermark.cpp) ----
-    // Bottom-right inside the 5% CRT safe area.
-    static const float kWatermarkRight = 606.0f;
-    static const float kWatermarkCapTop = 443.5f;
+    // Bottom-right inside the 5% CRT safe area (both 4:3 and 16:9).
+    static const float kWatermarkRight = 608.0f;
+    static const float kWatermarkCapTop = 446.0f;
 
     // ---- Brawl's native top-band HUD pieces (ui/match_hud.cpp) ----
     Box timerRoom(bool wide);
@@ -306,7 +314,7 @@ namespace layout {
     // it clears Large Info Display (x1 <= 270) and the right-hand overlays in
     // both 4:3 and 16:9.
     static const float kPsaWidth = 182.0f;
-    static const float kPsaHeight = 104.0f;
+    static const float kPsaHeight = 106.0f;
 
     inline Box psaInspectorBox(const Box& band, int viewerSlots, bool hasCompass, bool wide)
     {
@@ -328,7 +336,7 @@ namespace layout {
     // Compact native Brawl/P+ dark-teal card showing live RPS habit rates, read
     // confidence, and active counter bias in both Track and Adaptive modes.
     static const float kAdaptiveHudWidth = 138.0f;
-    static const float kAdaptiveHudHeight = 56.0f;
+    static const float kAdaptiveHudHeight = 58.0f;
 
     inline Box adaptiveHudBox(const Box& band, int viewerSlots, bool hasCompass, bool hasPsa, bool wide)
     {
@@ -411,36 +419,21 @@ namespace layout {
         return bottom;
     }
 
-    // ---- Techchase Scenario HUD card (extra/scenario_presets.cpp) ----
-    // Right-aligned inside CRT safe bounds (x1 = 608), stepping cleanly below
-    // both topBand() and the full active right-column stack (Input Viewer,
-    // DI Compass, PSA Inspector, Adaptive CPU HUD).
-    static const float kTechchaseHudWidth = 168.0f;
-    static const float kTechchaseHudHeight = 52.0f;
+    // ---- Techchase Scenario HUD banner (extra/scenario_presets.cpp) ----
+    // Unified onto the same centered top-band slot as drillHudBox(wide)
+    // (316*xs x 40 at y = 24), cleanly inside the 5% CRT safe area on 4:3 and 16:9.
+    static const float kTechchaseHudWidth = kDrillHudWidth;
+    static const float kTechchaseHudHeight = kDrillHudHeight;
 
     inline Box techchaseHudBox(const Box& band, int viewerSlots, bool hasCompass, bool hasPsa, bool wide,
                                bool hasAdaptive = false)
     {
-        float xs = xsOf(wide);
-        float bw = kTechchaseHudWidth * xs;
-        float x1 = kViewerRight;
-        float x0 = x1 - bw;
-        float y0 = kViewerTop;
-        Box probe = {x0, y0, x1, y0 + 1.0f};
-        if (meetsX(probe, band) && band.y1 > y0)
-        {
-            y0 = band.y1 + kStepGap;
-        }
-        float colBot = rightColumnBottom(band, viewerSlots, hasCompass, hasPsa, wide, hasAdaptive);
-        if (colBot > 0.0f && colBot + kViewerGap > y0)
-        {
-            y0 = colBot + kViewerGap;
-        }
-        if (y0 > 343.0f)
-        {
-            y0 = 343.0f;
-        }
-        return box(x0, y0, bw, kTechchaseHudHeight);
+        (void)band;
+        (void)viewerSlots;
+        (void)hasCompass;
+        (void)hasPsa;
+        (void)hasAdaptive;
+        return drillHudBox(wide);
     }
 
     // Starting top y for TopLeft / TopRight OSD stacks so they step cleanly

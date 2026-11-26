@@ -600,7 +600,8 @@ namespace lab {
             settings().cpuTables.customDiY = s_st.diPickSavedY;
             s_st.diPickActive = false;
         }
-        strcpy(g_diPickLabel, "Tilt + A");
+        ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
+        strcpy(g_diPickLabel, "Set Angle");
         record::clearDeleteConfirm();
         // Whatever is still held when the menu closes stays hidden until it
         // is let go, so it neither moves Training's menu nor the fighters.
@@ -663,7 +664,8 @@ namespace lab {
                 || settings().cpu.options.tdi != cpu::kTdiCustom)
             {
                 s_st.diPickActive = false;
-                strcpy(g_diPickLabel, "Tilt + A");
+                ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
+                strcpy(g_diPickLabel, "Set Angle");
             }
             else
             {
@@ -684,7 +686,8 @@ namespace lab {
                 if ((in.pressed & kButtonA) != 0)
                 {
                     s_st.diPickActive = false;
-                    strcpy(g_diPickLabel, "Tilt + A");
+                    ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
+                    strcpy(g_diPickLabel, "Set Angle");
                     ui::menuSound(game::kSoundConfirm);
                 }
                 else if ((in.pressed & kButtonB) != 0)
@@ -692,7 +695,8 @@ namespace lab {
                     settings().cpuTables.customDiX = s_st.diPickSavedX;
                     settings().cpuTables.customDiY = s_st.diPickSavedY;
                     s_st.diPickActive = false;
-                    strcpy(g_diPickLabel, "Tilt + A");
+                    ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
+                    strcpy(g_diPickLabel, "Set Angle");
                     ui::menuSound(game::kSoundMove);
                 }
                 return;
@@ -763,13 +767,13 @@ namespace lab {
             s_st.nextCatHold = 0;
             s_st.nextCatUsedFast = false;
         }
-        // B on the top page (Tabs) or left rail (Rail) closes the menu when
-        // opened from Training's pause; in Start mode, Start closes.
+        // B on the left rail closes the menu in both Start and Pause modes;
+        // on Top Tabs depth 0, B closes in Pause mode (Start closes in Start mode).
         int prevPage = ui::currentPage(s_menu);
         u8 prevCur = s_menu.cursor[prevPage];
         bool prevRail = s_menu.railFocus;
         u8 prevRailCur = s_menu.railCursor;
-        if (!ui::menuStep(ui::labMenu(), s_menu, mi) && !s_st.openStart)
+        if (!ui::menuStep(ui::labMenu(), s_menu, mi) && (!s_st.openStart || prevRail))
         {
             closeByButton();
             return;
@@ -1317,7 +1321,7 @@ namespace lab {
     }
 
     char g_resetLabel[12];
-    char g_diPickLabel[16] = "Tilt + A";
+    char g_diPickLabel[16] = "Set Angle";
 
     void toggleDiStickPicker()
     {
@@ -1326,12 +1330,14 @@ namespace lab {
             s_st.diPickSavedX = settings().cpuTables.customDiX;
             s_st.diPickSavedY = settings().cpuTables.customDiY;
             s_st.diPickActive = true;
-            strcpy(g_diPickLabel, "Pinning");
+            ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 1;
+            strcpy(g_diPickLabel, "Aiming...");
         }
         else
         {
             s_st.diPickActive = false;
-            strcpy(g_diPickLabel, "Tilt + A");
+            ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
+            strcpy(g_diPickLabel, "Set Angle");
         }
     }
 
@@ -1769,7 +1775,8 @@ namespace lab {
                         gfx::forgetWidths();
                         s_st.lastHint = text;
                     }
-                    gfx::textBox(kSlotHint, ui::layout::kHintX, ui::layout::kHintY, text, kYellow, kBox, 0.5f, false);
+                    float hx = ui::layout::kHintRight - gfx::textWidth(text, 0.5f);
+                    gfx::textBox(kSlotHint, hx, ui::layout::kHintY, text, kYellow, kBox, 0.5f, false);
                 }
                 if (!ro)
                 {

@@ -425,13 +425,14 @@ TEST(dual_stick_di, settings_layout_menu_row_and_storage_round_trip)
     CHECK(strcmp(diPage.options[7].name, "ASDI Direction") == 0);
 
     const ui::Page& cntPage = ui::pages::kCpuCounters;
-    REQUIRE(cntPage.count == 11);
-    CHECK(strcmp(cntPage.options[3].name, "Shield Timing") == 0);
-    CHECK(strcmp(cntPage.options[5].name, "Custom Pools") == 0);
-    CHECK(strcmp(cntPage.options[7].name, "Reversal Slots") == 0);
-    CHECK(strcmp(cntPage.options[8].name, "Adaptive CPU") == 0);
-    CHECK(strcmp(cntPage.options[9].name, "Auto L-Cancel") == 0);
-    CHECK(strcmp(cntPage.options[10].name, "SHFFL Timing") == 0);
+    REQUIRE(cntPage.count == 12);
+    CHECK(strcmp(cntPage.options[0].name, "Counter Mode") == 0);
+    CHECK(strcmp(cntPage.options[4].name, "Shield Timing") == 0);
+    CHECK(strcmp(cntPage.options[6].name, "Custom Pools") == 0);
+    CHECK(strcmp(cntPage.options[8].name, "Reversal Slots") == 0);
+    CHECK(strcmp(cntPage.options[9].name, "Adaptive CPU") == 0);
+    CHECK(strcmp(cntPage.options[10].name, "Auto L-Cancel") == 0);
+    CHECK(strcmp(cntPage.options[11].name, "SHFFL Timing") == 0);
 
     const ui::Page& osdPage = ui::pages::kOsdMenu;
     REQUIRE(osdPage.count == 26);

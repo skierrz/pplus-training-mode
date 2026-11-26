@@ -1,6 +1,7 @@
 #include "extra/drill_hud.h"
 
 #include <cstdio>
+#include <gf/gf_camera.h>
 #include <gf/gf_pad_status.h>
 #include <string.h>
 
@@ -19,6 +20,7 @@
 #include "extra/drill_pplus_tech_engines.h"
 #include "extra/drill_practice_driver.h"
 #include "extra/net_alloc.h"
+#include "extra/scenario_presets.h"
 #include "extra/ui_assets.h"
 #include "main/game/fighters.h"
 #include "main/game/freeze.h"
@@ -31,6 +33,7 @@
 #include "main/ui/hud_layout.h"
 #include "main/ui/menu.h"
 #include "main/ui/pages/scenarios.h"
+#include "shared/game/mem.h"
 #include "shared/drill_session.h"
 #include "shared/game/menu_sound.h"
 #include "shared/game/pad_bits.h"
@@ -206,8 +209,8 @@ namespace extra {
             if (pillX + pillW < rx - rightTextW - 6.0f * xs)
             {
                 bool scored = (target > 0 || st.mode == kDrillModeTimed60);
-                gfx::fillRect(pillX, 29.5f, pillW, 12.0f, 0x07141AE8u);
-                gfx::fillGradV(pillX + xs, 30.5f, pillW - 2.0f * xs, 10.0f,
+                gfx::fillRect(pillX, 29.0f, pillW, 13.0f, 0x07141AE8u);
+                gfx::fillGradV(pillX + 2.0f * xs, 31.0f, pillW - 4.0f * xs, 9.0f,
                                scored ? 0xB88200FFu : 0x1B6B76FFu, scored ? 0x7A5000FFu : 0x0E3D45FFu);
                 label(pillX + pillW * 0.5f, 31.5f, modeTxt, 0xFFFFFFFFu, kAlignCenter);
             }
@@ -215,19 +218,55 @@ namespace extra {
             label(rx, 31.5f, buf, 0xFFD300FFu, kAlignRight);
 
             u8 g = st.lastGrade < 5 ? st.lastGrade : 0;
-            label(lx, 46.0f, st.lastFeedback, kGradeCols[g], kClamp168);
+            const char* fb = st.lastFeedback;
+            bool wdTargetCue = st.activeDrill == drills::kDrillWavedash && drillPracticeConfig().wdTargetZone != 0u;
+            if (wdTargetCue && strcmp(fb, "READY") == 0)
+            {
+                fb = "WAVEDASH INTO TARGET";
+            }
+            bool showPips = (target > 0 || st.mode == kDrillModeTimed60);
+            float rowY = showPips ? 46.0f : 48.0f;
+            label(lx, rowY, fb, kGradeCols[g], kClamp168);
 
             if (st.sessionBest)
             {
-                snprintf(buf, sizeof(buf), "STK %u  BEST %u", static_cast<unsigned>(st.streakFull),
+                snprintf(buf, sizeof(buf), "STREAK %u  BEST %u", static_cast<unsigned>(st.streakFull),
                          static_cast<unsigned>(st.sessionBest));
             }
             else
             {
-                snprintf(buf, sizeof(buf), "STK %u  BEST --", static_cast<unsigned>(st.streakFull));
+                snprintf(buf, sizeof(buf), "STREAK %u  BEST --", static_cast<unsigned>(st.streakFull));
             }
-            label(rx, 46.0f, buf, kGradeCols[0], kAlignRight);
-            drawPips(lx, 56.0f, 296.0f * xs, 3.0f, target > 0 ? static_cast<int>(target) : kDrillFreePips);
+            label(rx, rowY, buf, kGradeCols[0], kAlignRight);
+            if (showPips)
+            {
+                drawPips(lx, 56.0f, 296.0f * xs, 3.0f, target > 0 ? static_cast<int>(target) : kDrillFreePips);
+            }
+
+            // Floating 2D TARGET label above the Wavedash floor target zone.
+            if (wdTargetCue)
+            {
+                const WdZoneState* wz = drillPracticeWdZone();
+                gfCameraManager* camMgr = gfCameraManager::getManager();
+                if (wz != NULL && wz->active != 0u && game::isRam(camMgr))
+                {
+                    Vec3f wp(0.5f * (wz->minX + wz->maxX), wz->y + 10.5f, 0.0f);
+                    Vec2f sp(0.0f, 0.0f);
+                    camMgr->m_cameras[0].calcProjection3Dto2D(&wp, &sp);
+                    float sx = sp.m_x;
+                    float sy = sp.m_y;
+                    if (sx >= 48.0f && sx <= 592.0f && sy >= 74.0f && sy <= 376.0f)
+                    {
+                        const char* tag = "TARGET";
+                        float tw = gfx::textWidth(tag, kScales[0]);
+                        float pad = 5.0f * xs;
+                        float bw = tw + 2.0f * pad;
+                        gfx::fillRect(sx - bw * 0.5f, sy - 7.0f, bw, 14.0f, 0x060D12E4u);
+                        gfx::fillRect(sx - bw * 0.5f + 2.0f * xs, sy - 5.0f, bw - 4.0f * xs, 10.0f, 0x102832E8u);
+                        label(sx, sy - 4.0f, tag, 0xFFD300FFu, kAlignCenter);
+                    }
+                }
+            }
         }
 
         void drawEndModal()
@@ -366,6 +405,7 @@ namespace extra {
         if (id)
         {
             s_rt.sess->drillRan = 1;
+            ui::menuScratch()[ui::kLedgeDismissScratchOffset]++;
         }
         syncDebug();
         TM_LOG("drillhud: debug block at %08x\n", &s_rt.debug);
@@ -550,7 +590,9 @@ namespace extra {
         if (pads == NULL)
         {
             bool active = isValidSkillDrill(st.activeDrill);
-            if (phase == 2u && active)
+            bool tc = scenarioPresetsWantsDraw(game::matchState());
+            bool topHud = active || tc;
+            if (phase == 2u && topHud)
             {
                 float hw = 158.0f * ui::layout::xsOf(gfx::widescreen());
                 ui::layout::Box b = {320.0f - hw, 24.0f, 320.0f + hw, 64.0f};
@@ -564,7 +606,7 @@ namespace extra {
 #else
             bool recGuide = false;
 #endif
-            return (active ? 1u : 0u) | (st.modalOpen ? 2u : 0u) | (drillPracticeClaimsDpadLR() ? 4u : 0u)
+            return (topHud ? 1u : 0u) | (st.modalOpen ? 2u : 0u) | (drillPracticeClaimsDpadLR() ? 4u : 0u)
                    | ((wdZone || recGuide) ? 8u : 0u);
         }
         if (phase == iface::kPadsSystem)
@@ -762,6 +804,7 @@ namespace extra {
         if (clean != s_rt.st.mode)
         {
             drillHudInitMode(s_rt.st, s_rt.st.activeDrill, s_rt.st.sessionBest, clean);
+            ui::menuScratch()[ui::kLedgeDismissScratchOffset]++;
             s_rt.synced = 0;
             syncDebug();
         }
@@ -770,6 +813,7 @@ namespace extra {
     void drillHudDisable()
     {
         comboBreakRushSetActive(kRushOff);
+        ui::menuScratch()[ui::kLedgeDismissScratchOffset]++;
         if (s_rtPtr == NULL)
         {
             return;

@@ -318,10 +318,10 @@ namespace extra {
         u32 accent = activeMode ? 0xFFD300FFu : 0x35B8C8FFu;
 
         drawHudCard(x, y, bw, bh, xs, accent, 0xFFFFFF40u);
-        drawHudDivider(x, y + 15.0f, bw, xs);
+        drawHudDivider(x, y + 16.0f, bw, xs);
 
-        float hdrScale = ui::style::scaleForCap(6.4f);
-        float hdrY = ui::style::textYForCap(y + 6.2f, hdrScale);
+        float hdrScale = ui::style::scaleForCap(7.5f);
+        float hdrY = ui::style::textYForCap(y + 6.0f, hdrScale);
         drawShadowText(x + 5.5f * xs, hdrY, activeMode ? "ADAPTIVE" : "HABIT TRACK",
                        activeMode ? 0xFFE24AFFu : 0x7CE6E0FFu, hdrScale);
 
@@ -341,19 +341,19 @@ namespace extra {
         static const char* const kBarLabels[3] = {"ATK", "GRB", "DEF"};
         static const gfx::Rgba kBarCols[3] = {0xFF6B54FFu, 0xFFD300FFu, 0x38B8FFFFu};
         const u8 pcts[3] = {v.atkPct, v.grabPct, v.defPct};
-        float rowScale = ui::style::scaleForCap(6.0f);
-        float barX = x + 29.0f * xs;
-        float barW = 73.0f * xs;
+        float rowScale = ui::style::scaleForCap(7.5f);
+        float barX = x + 31.0f * xs;
+        float barW = 68.0f * xs;
         for (int r = 0; r < 3; r++)
         {
-            float ry = y + 18.0f + i2fScale(r, 9.0f);
+            float ry = y + 19.0f + i2fScale(r, 9.0f);
             float ty = ui::style::textYForCap(ry, rowScale);
             drawShadowText(x + 5.5f * xs, ty, kBarLabels[r], 0xC6D8E0FFu, rowScale);
-            gfx::fillRect(barX, ry + 0.4f, barW, 5.2f, 0x0A151CE8u);
+            gfx::fillRect(barX, ry + 1.0f, barW, 6.0f, 0x0A151CE8u);
             if (pcts[r] > 0)
             {
                 float fw = barW * i2fScale(pcts[r], 0.01f);
-                gfx::fillRect(barX, ry + 0.4f, fw, 5.2f, kBarCols[r]);
+                gfx::fillRect(barX, ry + 1.0f, fw, 6.0f, kBarCols[r]);
             }
             char pctBuf[8];
             snprintf(pctBuf, sizeof(pctBuf), "%u%%", static_cast<unsigned>(pcts[r]));
@@ -384,7 +384,7 @@ namespace extra {
         {
             strcpy(foot, "Watching P1...");
         }
-        float footY = ui::style::textYForCap(y + 46.0f, rowScale);
+        float footY = ui::style::textYForCap(y + 47.0f, rowScale);
         drawShadowText(x + 5.5f * xs, footY, foot, footCol, rowScale);
         s_net->debug.hudDraws++;
     }

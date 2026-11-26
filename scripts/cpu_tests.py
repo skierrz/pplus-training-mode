@@ -2966,7 +2966,7 @@ def o_oos_techniques(r):
     lab.tap(["A"])
     lab.down(CPU_COUNTERS_ROW)
     lab.tap(["A"])
-    lab.down(2)  # Shield Counter (row 2 of CPU > Counters & Reversals)
+    lab.down(3)  # Shield Counter (row 3 of CPU > Counters & Reversals)
     lab.tap(stick=LT.RIGHT)
     got = r.opt.get("counterShield")
     lab.back_to_main(2)

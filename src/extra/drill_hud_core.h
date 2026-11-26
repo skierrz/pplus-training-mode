@@ -140,7 +140,7 @@ namespace extra {
         static const char* const kNames[drills::kDrillIdCount] = {
             "TECH PRACTICE", "LEDGEDASH",     "WAVEDASH",      "L-CANCEL",      "FLOAT / HOVER",
             "POWERSHIELD",   "RAR",           "DACUS",         "B-REVERSE",     "CANCEL SPRINT",
-            "FLOW COURSE",   "REACTION LAB",  "TECHCHASE ESC", "SWEETSPOT",     "FLOORHUG TECH",
+            "FLOW COURSE",   "REACTION LAB",  "TECHCHASE ESC", "SWEETSPOT",     "CC / ASDI-DOWN",
             "SNAKE RECOVERY", "TECHCHASE",    "COMBO-BREAK"
         };
         return kNames[drillId < drills::kDrillIdCount ? drillId : 0];
@@ -377,9 +377,9 @@ namespace extra {
 
         // Single indexed feedback string table (shared phrases reused across drills).
         static const char* const kMsg[] = {
-            "GALINT +%df",           // 0
+            "GALINT +%df INVULN",    // 0
             "GRAB %d/5 (NO INVULN)", // 1
-            "GALINT %df",            // 2
+            "GALINT %df (VULN)",     // 2
             "TOURNEY WINNER",        // 3
             "LEDGESLIP / SD",        // 4
             "NO AIRDODGE",           // 5
@@ -430,10 +430,10 @@ namespace extra {
             "SWEETSPOT +%df",        // 50
             "HIGH OVERSHOOT",        // 51
             "SD / MISSED LEDGE",     // 52
-            "FLOORHUG -%df",         // 53
+            "CC / ASDI-DN -%df",     // 53
             "ASDI-DOWN TECH",        // 54
             "BROKEN TUMBLE",         // 55
-            "MISSED FLOORHUG",       // 56
+            "MISSED ASDI-DN",        // 56
             "TRUE PUNISH!",          // 57
             "C4 REFRESH x%d",        // 58
             "NADE REFRESH x%d",      // 59

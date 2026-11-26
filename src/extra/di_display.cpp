@@ -35,6 +35,7 @@
 #include "main/gfx/text.h"
 #include "main/settings.h"
 #include "main/ui/hud_layout.h"
+#include "main/ui/menu.h"
 #include "main/ui/style.h"
 #include "shared/game/mem.h"
 #include "shared/game/stick.h"
@@ -1308,7 +1309,7 @@ namespace extra {
         // Draw mode header text last to avoid a mid-card GX shape->text->shape switch.
         char label[16];
         diVectorShortLabel(mode, label);
-        float scale = ui::style::scaleForCap(6.5f);
+        float scale = ui::style::scaleForCap(7.5f);
         float tx = x + ui::style::w(5.0f);
         float ty = ui::style::textYForCap(y + 6.0f, scale);
         drawShadowText(tx, ty, label, 0xE2EEF4FFu, scale);
@@ -1322,6 +1323,37 @@ namespace extra {
         s_pickerDebug.diY = diY;
     }
 
+    static int atan2Deg360(float x, float y)
+    {
+        float ax = x < 0.0f ? -x : x;
+        float ay = y < 0.0f ? -y : y;
+        if (ax < 0.0001f && ay < 0.0001f)
+        {
+            return 0;
+        }
+        bool swap = ay > ax;
+        float t = swap ? (ax / ay) : (ay / ax);
+        float deg = 45.0f * t + 15.6f * t * (1.0f - t);
+        if (swap)
+        {
+            deg = 90.0f - deg;
+        }
+        if (x < 0.0f)
+        {
+            deg = 180.0f - deg;
+        }
+        if (y < 0.0f)
+        {
+            deg = 360.0f - deg;
+        }
+        int d = f2i(deg + 0.5f);
+        if (d >= 360)
+        {
+            d -= 360;
+        }
+        return d < 0 ? 0 : d;
+    }
+
     void diDrawCustomPickerOverlay(bool railMode)
     {
         const main::Settings& set = main::settings();
@@ -1329,48 +1361,73 @@ namespace extra {
         {
             return;
         }
+        bool picking = ui::menuScratch()[ui::kDiPickActiveScratchOffset] != 0;
         float xs = gfx::xScale();
         float paneCenter = railMode ? 392.0f : 315.0f;
         bool compact = !railMode;
-        float topY = compact ? 308.0f : 288.0f;
-        float cardW = ui::style::w(196.0f);
-        float cardH = compact ? 62.0f : 80.0f;
+        float topY = compact ? 298.0f : 278.0f;
+        float cardW = ui::style::w(224.0f);
+        float cardH = compact ? 74.0f : 92.0f;
         float cardX = ui::style::cx(paneCenter) - cardW * 0.5f;
 
-        drawHudCard(cardX, topY, cardW, cardH, xs, 0x2BB7ABFFu, 0x8EF5EA90u);
+        drawHudCard(cardX, topY, cardW, cardH, xs, picking ? 0xFFD300FFu : 0x2BB7ABFFu,
+                    picking ? 0xFFF2A0A0u : 0x8EF5EA90u);
 
-        float ry = compact ? 21.0f : 27.0f;
+        float ry = compact ? 24.0f : 30.0f;
         float rx = ry * xs;
         float cx = cardX + ui::style::w(46.0f);
-        float cy = topY + 5.0f + (cardH - 7.0f) * 0.5f;
+        float cy = topY + 6.0f + (cardH - 8.0f) * 0.5f;
 
-        drawUnitDial(cx, cy, rx, ry, 0x060E14D8u, 0x5A96A8F0u);
+        drawUnitDial(cx, cy, rx, ry, 0x060E14D8u, picking ? 0xFFD300E0u : 0x5A96A8F0u);
+
+        // 8 GameCube octagonal gate notches around the rim.
+        gfx::lineBegin(GX_LINES, 16, 12);
+        for (int k = 0; k < 16; k += 2)
+        {
+            float ux, uy;
+            unitPoint16(k, ux, uy);
+            gfx::vertex(cx + ux * rx * 0.84f, cy - uy * ry * 0.84f, 0x8EF5EAD0u);
+            gfx::vertex(cx + ux * rx * 1.04f, cy - uy * ry * 1.04f, 0x8EF5EAD0u);
+        }
 
         float vx = i2fScale(set.cpuTables.customDiX, 0.01f);
         float vy = i2fScale(set.cpuTables.customDiY, 0.01f);
         clampLength(vx, vy, 1.0f);
         float tipX = cx + vx * rx * 0.90f;
         float tipY = cy - vy * ry * 0.90f;
-        if (vx * vx + vy * vy > 0.0004f)
+        bool hasVec = (vx * vx + vy * vy > 0.0004f);
+        if (hasVec)
         {
             gfx::lineBegin(GX_LINES, 2, 16);
-            gfx::vertex(cx, cy, 0x22D3EEFFu);
-            gfx::vertex(tipX, tipY, 0x22D3EEFFu);
+            gfx::vertex(cx, cy, picking ? 0xFFD300FFu : 0x22D3EEFFu);
+            gfx::vertex(tipX, tipY, picking ? 0xFFD300FFu : 0x22D3EEFFu);
         }
-        gfx::fillEllipse(tipX, tipY, 3.5f * xs, 3.5f, 0x050C12E8u);
-        gfx::fillEllipse(tipX, tipY, 2.5f * xs, 2.5f, 0x22D3EEFFu);
+        gfx::fillEllipse(tipX, tipY, 3.6f * xs, 3.6f, 0x050C12E8u);
+        gfx::fillEllipse(tipX, tipY, 2.6f * xs, 2.6f, picking ? 0xFFD300FFu : 0x22D3EEFFu);
 
         float tx = cardX + ui::style::w(90.0f);
-        float headScale = ui::style::scaleForCap(compact ? 7.2f : 8.0f);
-        float bodyScale = ui::style::scaleForCap(compact ? 6.4f : 7.0f);
-        float rowStep = compact ? 15.0f : 20.0f;
-        float row0 = topY + (compact ? 10.0f : 14.0f);
-        drawShadowText(tx, ui::style::textYForCap(row0, headScale), "CUSTOM DI", 0xFFD300FFu, headScale);
-        char coords[24];
-        snprintf(coords, sizeof(coords), "X %+d  Y %+d",
+        float headScale = ui::style::scaleForCap(compact ? 7.5f : 8.2f);
+        float bodyScale = ui::style::scaleForCap(7.5f);
+        float rowStep = compact ? 15.0f : 19.0f;
+        float row0 = topY + (compact ? 10.0f : 12.0f);
+        drawShadowText(tx, ui::style::textYForCap(row0, headScale), picking ? "AIMING DI" : "CUSTOM DI",
+                       0xFFD300FFu, headScale);
+        char line[32];
+        snprintf(line, sizeof(line), "X %+d%%  Y %+d%%",
                  static_cast<int>(set.cpuTables.customDiX), static_cast<int>(set.cpuTables.customDiY));
-        drawShadowText(tx, ui::style::textYForCap(row0 + rowStep, bodyScale), coords, 0xE2EEF4FFu, bodyScale);
-        drawShadowText(tx, ui::style::textYForCap(row0 + rowStep * 2.0f, bodyScale), "A: Pin  B: Cancel", 0x9CB4C4FFu, bodyScale);
+        drawShadowText(tx, ui::style::textYForCap(row0 + rowStep, bodyScale), line, 0xE2EEF4FFu, bodyScale);
+        if (hasVec)
+        {
+            snprintf(line, sizeof(line), "%d deg  Screen X/Y", atan2Deg360(vx, vy));
+        }
+        else
+        {
+            snprintf(line, sizeof(line), "Neutral  Screen X/Y");
+        }
+        drawShadowText(tx, ui::style::textYForCap(row0 + rowStep * 2.0f, bodyScale), line, 0xB8D4E2FFu, bodyScale);
+        drawShadowText(tx, ui::style::textYForCap(row0 + rowStep * 3.0f, bodyScale),
+                       picking ? "A: Lock  B: Cancel" : "Press A to aim",
+                       picking ? 0xFFD300FFu : 0x9CB4C4FFu, bodyScale);
     }
 
     void diReset()

@@ -13,8 +13,8 @@ TEST(osd_place, hud_and_sides_align_and_step_upward)
     for (int k = 0; k < 2; k++)
     {
         float half = osd::kBoxWidth * xs[k] * 0.5f;
-        float minX = xs[k] >= 1.0f ? ui::layout::kSafeMarginX + half : half;
-        float maxX = xs[k] >= 1.0f ? 640.0f - ui::layout::kSafeMarginX - half : 640.0f - half;
+        float minX = ui::layout::kSafeMarginX + half;
+        float maxX = 640.0f - ui::layout::kSafeMarginX - half;
         for (int p = 0; p < 4; p++)
         {
             osd::StackPlace h = osd::stackPlace(osd::kPositionHud, p, xs[k]);
@@ -37,9 +37,9 @@ TEST(osd_place, hud_and_sides_align_and_step_upward)
             CHECK_EQ(0.0f, s4.dx);
             CHECK_EQ(-osd::kPitch, s4.dy);
         }
-        // 1v1 Sides pushes P1 to the outer left edge and P2 to the outer right edge,
-        // making Sides visibly distinct from HUD in both 4:3 and 16:9.
-        float marginX = xs[k] >= 1.0f ? ui::layout::kSafeMarginX : 12.0f;
+        // 1v1 Sides pushes P1 to the outer left CRT-safe edge and P2 to the
+        // outer right CRT-safe edge (32..608) in both 4:3 and 16:9.
+        float marginX = ui::layout::kSafeMarginX;
         osd::StackPlace s1 = osd::stackPlace(osd::kPositionSides, 0, xs[k], 0.0f, 0.0f, 2);
         osd::StackPlace s2 = osd::stackPlace(osd::kPositionSides, 1, xs[k], 0.0f, 0.0f, 2);
         osd::StackPlace h2 = osd::stackPlace(osd::kPositionHud, 1, xs[k], 0.0f, 0.0f, 2);
@@ -61,7 +61,7 @@ TEST(osd_place, top_left_rows_grow_right_inside_safe_area)
         CHECK_EQ(0.0f, t.dy);
     }
     osd::StackPlace w = osd::stackPlace(osd::kPositionTopLeft, 0, 0.75f);
-    CHECK_NEAR(12.0f + osd::kBoxWidth * 0.75f * 0.5f, w.x, 0.001f);
+    CHECK_NEAR(ui::layout::kSafeMarginX + osd::kBoxWidth * 0.75f * 0.5f, w.x, 0.001f);
     CHECK_NEAR((osd::kBoxWidth + osd::kTopColGap) * 0.75f, w.dx, 0.001f);
 }
 

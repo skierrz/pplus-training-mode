@@ -631,14 +631,14 @@ TEST(wii_lab, sideways_a_cycles_tabs_and_draws_badges)
     stepBoth(pads);
     CHECK_EQ(1, static_cast<int>(main::settings().general.frameAdvance));
 
-    // Switch to Draft C (Rail): Sideways A also switches categories and draws "Category" and "Rail".
+    // Switch to Draft C (Rail): Sideways A also switches categories and draws "Category" and "Categories".
     main::settings().controls.menuStyle = main::kMenuStyleRail;
     host::canvas::clear();
     lab_uut::onRender(0, host::fakes::match());
     CHECK(canvasDrew("A"));
     CHECK(canvasDrew("Category"));
     CHECK(canvasDrew("1"));
-    CHECK(canvasDrew("Rail"));
+    CHECK(canvasDrew("Categories"));
     setPad(pads[4], 0);
     stepBoth(pads);
     setPad(pads[4], game::kPadWiiA);

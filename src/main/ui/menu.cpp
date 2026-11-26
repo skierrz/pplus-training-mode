@@ -9,6 +9,8 @@
 #include "main/gfx/text.h"
 #include "main/settings.h"
 #include "main/ui/menu_theme_core.h"
+#include "main/ui/pages/pages.h"
+#include "main/ui/pages/scenarios.h"
 #include "main/ui/style.h"
 #include "shared/game/menu_sound.h"
 #include "shared/log.h"
@@ -21,8 +23,14 @@ namespace ui {
     static int s_activeRow = 0;
     static u8 s_scratch[kScratchBytes];
     static bool s_rail = false;
+    static bool s_allowShowInactive = false;
     bool g_menuQuiet = false;
     bool g_showInactiveRows = false;
+
+    static bool allowShowInactive(const MenuDef& def, int pageId)
+    {
+        return g_showInactiveRows && (def.categoryCount == 0 || pageId == pages::P_STAGE_CAST);
+    }
 #ifdef __MWERKS__
     u8 g_counterAvailMask = 0;
 #endif
@@ -296,7 +304,7 @@ namespace ui {
         {
             return true;
         }
-        return !g_showInactiveRows && (o.flags & kFlagHideWhenDisabled) != 0 && o.enabled != NULL && !o.enabled();
+        return !s_allowShowInactive && (o.flags & kFlagHideWhenDisabled) != 0 && o.enabled != NULL && !o.enabled();
     }
 
     static bool selectable(const Option& o)
@@ -306,7 +314,7 @@ namespace ui {
             return false;
         }
         bool disabled = o.enabled != NULL && !o.enabled();
-        if (disabled && !(g_showInactiveRows && (o.flags & kFlagHideWhenDisabled) != 0))
+        if (disabled && !(s_allowShowInactive && (o.flags & kFlagHideWhenDisabled) != 0))
         {
             return false;
         }
@@ -375,6 +383,7 @@ namespace ui {
     static void enterPage(MenuState& state, const MenuDef& def, int id)
     {
         s_rail = isRailStyle(def);
+        s_allowShowInactive = allowShowInactive(def, id);
         int first = nextRow(pageAt(def, id), -1, 1);
         state.cursor[id] = static_cast<u8>(first < 0 ? 0 : first);
         state.scroll[id] = 0;
@@ -557,6 +566,7 @@ namespace ui {
             }
             u8 shown = state.stack[state.depth];
             s_rail = isRailStyle(def);
+            s_allowShowInactive = allowShowInactive(def, shown);
             if (!s_rail)
             {
                 state.railFocus = false;
@@ -571,6 +581,7 @@ namespace ui {
         }
 
         u8 pageId = state.stack[state.depth];
+        s_allowShowInactive = allowShowInactive(def, pageId);
         const Page& p = pageAt(def, pageId);
         u8& cur = state.cursor[pageId];
         if (p.count > 0)
@@ -622,6 +633,7 @@ namespace ui {
                 }
             }
             s_rail = isRailStyle(def);
+            s_allowShowInactive = allowShowInactive(def, pageId);
             if (!s_rail)
             {
                 state.railFocus = false;
@@ -642,6 +654,7 @@ namespace ui {
                 state.scroll[left] = 0;
                 state.depth--;
                 u8 parentId = state.stack[state.depth];
+                s_allowShowInactive = allowShowInactive(def, parentId);
                 const Page& parent = pageAt(def, parentId);
                 if (parent.count > 0
                     && (state.cursor[parentId] >= parent.count || !selectable(parent.options[state.cursor[parentId]])))
@@ -674,6 +687,7 @@ namespace ui {
         }
         u8 shown = state.stack[state.depth];
         s_rail = isRailStyle(def);
+        s_allowShowInactive = allowShowInactive(def, shown);
         fixScroll(pageAt(def, shown), state.cursor[shown], state.scroll[shown], visibleRowLimit(def, state));
         return true;
     }
@@ -714,6 +728,7 @@ namespace ui {
         for (int k = start; k < count; k++)
         {
             u8 from = next.stack[next.depth];
+            s_allowShowInactive = allowShowInactive(def, from);
             const Page& p = pageAt(def, from);
             int row = -1;
             for (int i = 0; i < p.count && row < 0; i++)
@@ -891,6 +906,14 @@ namespace ui {
     // falls back to a sculpted glossy GX button badge.
     static float drawEmblem(u8 icon1, u8 icon2, float x, float midY, float fbW, u8 theme, u8 flags, bool& usedIcon)
     {
+        if (icon1 == kNoIcon)
+        {
+            float fbH = (flags & kEmblemTab) ? 18.0f : 16.0f;
+            float bx = (flags & kEmblemCentre) ? x - fbW * 0.5f : x;
+            drawGlossyPillBadge(bx, midY - fbH * 0.5f, fbW, fbH, kBtnTheme[theme][0], kBtnTheme[theme][1]);
+            usedIcon = false;
+            return fbW;
+        }
         float maxH = (flags & kEmblemTab) ? 18.0f : 17.0f;
         float xs = gfx::xScale();
         u8 ids[2] = {icon1, icon2};
@@ -993,8 +1016,8 @@ namespace ui {
     static const CtrlSpec& ctrlSpec(u8 ct)
     {
         static const CtrlSpec kSpecs[4] = {
-            {kIconGcA, kIconGcB, kIconGcStart, kIconGcZ, kNoIcon, kIconGcL, kIconGcR, kIconGcL, kIconGcR, 0x10,
-             "A", "B", "Start", "Z", "L/R", "L", "R"},
+            {kIconGcA, kIconGcB, kNoIcon, kIconGcZ, kNoIcon, kIconGcL, kIconGcR, kIconGcL, kIconGcR, 0x10,
+             "A", "B", "START", "Z", "L/R", "L", "R"},
             {kIconWii2, kIconWii1, kIconWiiPlus, kIconWiiMinus, kNoIcon, kIconWiiA, kNoIcon, kNoIcon, kIconWiiA, 0x0F,
              "2", "1", "+", "-", "A", NULL, "A"},
             {kIconWiiA, kIconWiiB, kIconWiiPlus, kIconNunZ, kNoIcon, kIconNunC, kIconWii2, kIconNunC, kIconWii2, 0x09,
@@ -1038,6 +1061,22 @@ namespace ui {
         it.label = label;
     }
 
+    static const char* pageTitle(const MenuDef& def, int id)
+    {
+        if (id == pages::P_SCENARIOS)
+        {
+            if (pages::practiceMenuState()->activeDrill != 0)
+            {
+                return "Drill";
+            }
+            if (pages::scenarioMenuState()->preset != pages::kPresetOff)
+            {
+                return "Scenario";
+            }
+        }
+        return pageAt(def, id).title;
+    }
+
     static void drawBreadcrumb(const MenuDef& def, const MenuState& state, float x43, float yCenter, float cap,
                                float maxW, const MenuPalette& pal)
     {
@@ -1046,7 +1085,7 @@ namespace ui {
         trail[0] = '\0';
         for (int d = 0; d < state.depth; d++)
         {
-            const char* t = pageAt(def, state.stack[d]).title;
+            const char* t = pageTitle(def, state.stack[d]);
             int wrote = snprintf(trail + pos, sizeof(trail) - pos, "%s > ", t);
             if (wrote > 0 && pos + static_cast<size_t>(wrote) < sizeof(trail))
             {
@@ -1057,7 +1096,7 @@ namespace ui {
                 break;
             }
         }
-        const char* leaf = pageAt(def, state.stack[state.depth]).title;
+        const char* leaf = pageTitle(def, state.stack[state.depth]);
         float scale = displayScaleForCap(cap);
         float prefixW = trail[0] != '\0' ? gfx::displayTextWidth(trail, scale) : 0.0f;
         float leafW = gfx::displayTextWidth(leaf, scale);
@@ -1096,6 +1135,17 @@ namespace ui {
         gfx::fillTri(r - 5.0f * xs, midY, r - 11.0f * xs, midY - 4.0f, r - 11.0f * xs, midY + 4.0f, color);
     }
 
+    static bool diPickerActiveFor(u8 pageId, const MenuState& state)
+    {
+        return pageId == pages::P_CPU_DI && !state.railFocus && s_scratch[kDiPickActiveScratchOffset] != 0;
+    }
+
+    static bool railUtilityFocused(const MenuDef& def, const MenuState& state)
+    {
+        return isRailStyle(def) && state.railFocus && state.railCursor >= def.categoryCount
+               && state.railCursor < def.categoryCount + def.utilityCount;
+    }
+
     static void drawDescStrip(const MenuDef& def, const MenuState& state, u8 pageId, int cur, const Page& p,
                               const MenuPalette& pal)
     {
@@ -1105,7 +1155,11 @@ namespace ui {
                 pal.descBot);
 
         const char* desc = NULL;
-        if (isRailStyle(def) && state.railFocus)
+        if (diPickerActiveFor(pageId, state))
+        {
+            desc = "Tilt control stick to aim DI, then press A to lock or B to cancel.";
+        }
+        else if (isRailStyle(def) && state.railFocus)
         {
             desc = main::extraOptionDesc(def.pageCount, state.railCursor);
         }
@@ -1128,7 +1182,7 @@ namespace ui {
         fitText(48.0f, y, desc, pal.descText, scale, 544.0f, false);
     }
 
-    static void drawFooterStrip(const MenuDef& def, const MenuState& state, const Page& p, int cur,
+    static void drawFooterStrip(const MenuDef& def, const MenuState& state, u8 pageId, const Page& p, int cur,
                                 const MenuPalette& pal)
     {
         float iw = kLabInnerRight - kLabInnerLeft;
@@ -1139,37 +1193,49 @@ namespace ui {
         const CtrlSpec& cs = ctrlSpec(state.controllerType);
         bool railMode = isRailStyle(def);
         s_rail = railMode;
-        bool showA = state.railFocus || (p.count > 0 && cur < p.count && active(p.options[cur]));
-
-        const char* aLabel = "Select";
-        if (!state.railFocus && p.count > 0 && cur < p.count)
-        {
-            u8 k = p.options[cur].kind;
-            aLabel = k == kKindToggle ? "Toggle" : (k == kKindMenu ? "Open" : "Select");
-        }
-        const char* bLabel =
-            state.depth > 0 ? "Back" : (railMode && !state.railFocus ? "Rail" : (!state.openStart ? "Close" : NULL));
+        s_allowShowInactive = allowShowInactive(def, pageId);
+        bool diPicking = diPickerActiveFor(pageId, state);
 
         FooterItem items[5];
         int n = 0;
-        if (showA)
+        if (diPicking)
         {
-            pushFooter(items, n, cs.a, kNoIcon, 0, true, cs.txtA, aLabel);
+            pushFooter(items, n, cs.a, kNoIcon, 0, true, cs.txtA, "Lock Angle");
+            pushFooter(items, n, cs.b, kNoIcon, 1, true, cs.txtB, "Cancel");
         }
-        if (bLabel != NULL)
+        else
         {
-            pushFooter(items, n, cs.b, kNoIcon, 1, true, cs.txtB, bLabel);
-        }
-        if (state.openStart)
-        {
-            pushFooter(items, n, cs.start, kNoIcon, 2, (cs.roundBits & 1) != 0, cs.txtStart, "Close");
-        }
-        pushFooter(items, n, cs.z1, cs.z2, (cs.roundBits & 0x10) ? 3 : 2, (cs.roundBits & 2) != 0, cs.txtZ,
-                   state.openStart ? "Brawl Pause" : "Close");
-        if (def.categoryCount > 1)
-        {
-            pushFooter(items, n, cs.cat1, cs.cat2, 2, (cs.roundBits & 4) != 0, cs.txtCat,
-                       isTabsStyle(def) ? "Tab" : "Category");
+            bool showA = state.railFocus || (p.count > 0 && cur < p.count && active(p.options[cur]));
+            const char* aLabel = "Select";
+            if (!state.railFocus && p.count > 0 && cur < p.count)
+            {
+                u8 k = p.options[cur].kind;
+                aLabel = k == kKindToggle ? "Toggle" : (k == kKindMenu ? "Open" : "Select");
+            }
+            const char* bLabel =
+                state.depth > 0
+                    ? "Back"
+                    : (railMode ? (state.railFocus ? "Close" : "Categories") : (!state.openStart ? "Close" : NULL));
+
+            if (showA)
+            {
+                pushFooter(items, n, cs.a, kNoIcon, 0, true, cs.txtA, aLabel);
+            }
+            if (bLabel != NULL)
+            {
+                pushFooter(items, n, cs.b, kNoIcon, 1, true, cs.txtB, bLabel);
+            }
+            if (state.openStart)
+            {
+                pushFooter(items, n, cs.start, kNoIcon, 2, (cs.roundBits & 1) != 0, cs.txtStart, "Close");
+            }
+            pushFooter(items, n, cs.z1, cs.z2, (cs.roundBits & 0x10) ? 3 : 2, (cs.roundBits & 2) != 0, cs.txtZ,
+                       state.openStart ? "Brawl Pause" : "Close");
+            if (def.categoryCount > 1)
+            {
+                pushFooter(items, n, cs.cat1, cs.cat2, 2, (cs.roundBits & 4) != 0, cs.txtCat,
+                           isTabsStyle(def) ? "Tab" : "Category");
+            }
         }
 
         float scale = scaleForCap(kLabFooterCap);
@@ -1241,9 +1307,19 @@ namespace ui {
         }
 
         float headerMid = (kLabInnerTop + kRailHeaderBottom) * 0.5f;
-        if (state.depth == 0)
+        if (railUtilityFocused(def, state))
         {
-            fitDisplay(48.0f, headerMid - 6.25f, pageAt(def, state.stack[0]).title, 0, 12.5f, 390.0f, 2);
+            int u = state.railCursor - def.categoryCount;
+            fitDisplay(48.0f, headerMid - 6.25f, def.utilities[u].name, 0, 12.5f, 390.0f, 2);
+            float subScale = displayScaleForCap(8.5f);
+            const char* tag = "Quick Action";
+            float tagW = gfx::displayTextWidth(tag, subScale);
+            gfx::displayText(cx(592.0f) - tagW, displayYForCap(headerMid - 4.25f, subScale), tag, pal.mutedText,
+                             subScale);
+        }
+        else if (state.depth == 0)
+        {
+            fitDisplay(48.0f, headerMid - 6.25f, pageTitle(def, state.stack[0]), 0, 12.5f, 390.0f, 2);
             float subScale = displayScaleForCap(8.5f);
             const char* tag = "Training Lab";
             float tagW = gfx::displayTextWidth(tag, subScale);
@@ -1262,7 +1338,7 @@ namespace ui {
             gfx::Rgba col = focused ? kLabGoldInk
                                     : (!state.railFocus && state.category == i ? pal.activeTabText : pal.mutedText);
             fitDisplay(kRailTextX, kRailItemTop + i * kRailItemPitch + capOff,
-                       pageAt(def, def.categoryPages[i]).title, col, kRailCap, kRailTextMaxW, 0);
+                       pageTitle(def, def.categoryPages[i]), col, kRailCap, kRailTextMaxW, 0);
         }
         for (u8 u = 0; u < def.utilityCount; u++)
         {
@@ -1333,9 +1409,18 @@ namespace ui {
         for (u8 i = 0; i < def.categoryCount && i < 7; i++)
         {
             float tw = kTabWidths[i];
-            const char* label = (def.tabLabels != NULL && def.tabLabels[i] != NULL)
-                                    ? def.tabLabels[i]
-                                    : pageAt(def, def.categoryPages[i]).title;
+            int catPage = def.categoryPages[i];
+            const char* label = NULL;
+            if (catPage == pages::P_SCENARIOS
+                && (pages::practiceMenuState()->activeDrill != 0
+                    || pages::scenarioMenuState()->preset != pages::kPresetOff))
+            {
+                label = pageTitle(def, catPage);
+            }
+            else
+            {
+                label = (def.tabLabels != NULL && def.tabLabels[i] != NULL) ? def.tabLabels[i] : pageTitle(def, catPage);
+            }
             gfx::Rgba col = i == state.category ? pal.activeTabText : pal.tabInactiveText;
             fitDisplay(tx + tw * 0.5f, labelTop, label, col, kTabsCap, tw - 6.0f, 1);
             tx += tw + 4.0f;
@@ -1370,6 +1455,7 @@ namespace ui {
         int visRows = visibleRowLimit(def, state);
         bool railMode = isRailStyle(def);
         s_rail = railMode;
+        s_allowShowInactive = allowShowInactive(def, pageId);
         bool tabsMode = isTabsStyle(def);
         char buf[32];
 
@@ -1422,65 +1508,96 @@ namespace ui {
             drawPlainChrome(p, pal);
         }
 
-        // 2. Option row metallic gold bar, Brawl red cursor triangle, inset
-        //    beveled value pills, gold < > arrows, submenu chevrons, scrollbar.
-        for (int r = 0; r < visN; r++)
+        // 2. Option rows (or clean utility action summary card when a left-rail utility is highlighted).
+        bool utilFocused = railUtilityFocused(def, state);
+        bool diPicking = diPickerActiveFor(pageId, state);
+        if (utilFocused)
         {
-            int i = visIdx[r];
-            const Option& o = p.options[i];
-            float y = rowTop + r * kLabRowPitch;
-            bool selected = !state.railFocus && i == cur;
-            bool on = active(o);
-            if (selected)
+            int u = state.railCursor - def.categoryCount;
+            const MenuAction& act = def.utilities[u];
+            bool confirming = act.label != NULL && act.label[0] != '\0';
+            float cardX = kRailPaneLeft + 26.0f;
+            float cardW = (kLabInnerRight - kRailPaneLeft) - 52.0f;
+            float cardY = 148.0f;
+            float cardH = 112.0f;
+            float cardCenter = cardX + cardW * 0.5f;
+            fillBox(cardX, cardY, cardW, cardH, pal.divider);
+            gradBox(cardX + 2.0f, cardY + 2.0f, cardW - 4.0f, 32.0f, pal.headerTop, pal.headerBot);
+            gradBox(cardX + 2.0f, cardY + 34.0f, cardW - 4.0f, cardH - 36.0f, pal.descTop, pal.descBot);
+            fillBox(cardX + 2.0f, cardY + 34.0f, cardW - 4.0f, 2.0f, pal.divider);
+
+            fitDisplay(cardCenter, cardY + 12.0f, act.name, 0, 11.0f, cardW - 24.0f, 3);
+            const char* uDesc = main::extraOptionDesc(def.pageCount, state.railCursor);
+            if (uDesc != NULL && uDesc[0] != '\0')
             {
-                drawGoldBar(g.hlLeft, g.hlRight - g.hlLeft, y, kLabRowH, 9.5f);
+                float dScale = scaleForCap(kLabDescCap);
+                fitText(cardCenter, textYForCap(cardY + 52.0f, dScale), uDesc, pal.descText, dScale, cardW - 24.0f, true);
             }
-            bool grey = false;
-            const char* value = valueText(def, o, buf, sizeof(buf), grey);
-            if (value != NULL && value[0] != '\0')
+            const char* prompt = confirming ? "Press A again to confirm." : "Press A to run this action.";
+            float pScale = scaleForCap(kLabFooterCap);
+            fitText(cardCenter, textYForCap(cardY + 82.0f, pScale), prompt,
+                    confirming ? kLabFocusGold : pal.mutedText, pScale, cardW - 24.0f, true);
+        }
+        else
+        {
+            for (int r = 0; r < visN; r++)
             {
-                bool isOnToggle = o.kind == kKindToggle && optionValue(def, o) != 0;
-                drawPillBox(g.pillLeft, g.pillRight, y, isOnToggle, on);
-                if (selected && hasValue(o) && on)
+                int i = visIdx[r];
+                const Option& o = p.options[i];
+                float y = rowTop + r * kLabRowPitch;
+                bool selected = !state.railFocus && i == cur;
+                bool on = active(o) && (!diPicking || selected);
+                if (selected)
                 {
-                    drawHorizArrows(g.pillLeft, g.pillRight, y);
+                    drawGoldBar(g.hlLeft, g.hlRight - g.hlLeft, y, kLabRowH, 9.5f);
+                }
+                bool grey = false;
+                const char* value = valueText(def, o, buf, sizeof(buf), grey);
+                if (value != NULL && value[0] != '\0')
+                {
+                    bool isOnToggle = o.kind == kKindToggle && optionValue(def, o) != 0;
+                    drawPillBox(g.pillLeft, g.pillRight, y, isOnToggle, on);
+                    if (selected && hasValue(o) && on)
+                    {
+                        drawHorizArrows(g.pillLeft, g.pillRight, y);
+                    }
+                }
+                else if (o.kind == kKindMenu)
+                {
+                    gfx::Rgba chevCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted)
+                                                 : (on ? pal.mutedText : kTextDisabled);
+                    drawSubmenuChevron(g.hlRight - 4.0f, y, chevCol);
                 }
             }
-            else if (o.kind == kKindMenu)
-            {
-                gfx::Rgba chevCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted)
-                                             : (on ? pal.mutedText : kTextDisabled);
-                drawSubmenuChevron(g.hlRight - 4.0f, y, chevCol);
-            }
-        }
-        drawLabScrollBar(totalVis, first, visRows, rowTop, scrollH, pal);
+            drawLabScrollBar(totalVis, first, visRows, rowTop, scrollH, pal);
 
-        // 3. Option row labels and value text (System Font 0x80497E44).
-        float capOffset = (kLabRowH - kLabRowCap) * 0.5f;
-        for (int r = 0; r < visN; r++)
-        {
-            int i = visIdx[r];
-            const Option& o = p.options[i];
-            float y = textYForCap(rowTop + r * kLabRowPitch + capOffset, scale);
-            bool on = active(o);
-            bool selected = !state.railFocus && i == cur;
-            bool grey = false;
-            gfx::Rgba nameCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted) : (on ? kText : kTextDisabled);
-            fitText(g.nameX, y, o.name, nameCol, scale, g.nameMaxW, false);
-            const char* value = valueText(def, o, buf, sizeof(buf), grey);
-            if (value != NULL && value[0] != '\0')
+            // 3. Option row labels and value text (System Font 0x80497E44).
+            float capOffset = (kLabRowH - kLabRowCap) * 0.5f;
+            for (int r = 0; r < visN; r++)
             {
-                gfx::Rgba valCol = on && !grey ? kLabWhiteText : kTextDisabled;
-                fitText(g.valCenter, y, value, valCol, scale, g.valMaxW, true);
+                int i = visIdx[r];
+                const Option& o = p.options[i];
+                float y = textYForCap(rowTop + r * kLabRowPitch + capOffset, scale);
+                bool selected = !state.railFocus && i == cur;
+                bool on = active(o) && (!diPicking || selected);
+                bool grey = false;
+                gfx::Rgba nameCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted) : (on ? kText : kTextDisabled);
+                fitText(g.nameX, y, o.name, nameCol, scale, g.nameMaxW, false);
+                const char* value = valueText(def, o, buf, sizeof(buf), grey);
+                if (value != NULL && value[0] != '\0')
+                {
+                    gfx::Rgba valCol = on && !grey ? kLabWhiteText : kTextDisabled;
+                    fitText(g.valCenter, y, value, valCol, scale, g.valMaxW, true);
+                }
             }
-        }
 
-        // 4. Optional page-specific overlay from extra (e.g. Fighter Swap stock icon).
-        main::extraDrawPageOverlay(pageId, railMode);
+            // 4. Optional page-specific overlay from extra (e.g. Fighter Swap stock icon).
+            main::extraDrawPageOverlay(pageId, railMode);
+        }
 
         // 5. Shared 1-line description strip, Nintendo button footer strip, and inner bevels.
         drawDescStrip(def, state, pageId, cur, p, pal);
-        drawFooterStrip(def, state, p, cur, pal);
+        drawFooterStrip(def, state, pageId, p, cur, pal);
         float iw = kLabInnerRight - kLabInnerLeft;
         fillBox(kLabInnerLeft, kLabInnerTop, iw, 2.0f, pal.bevelLight);
         fillBox(kLabInnerLeft, kLabInnerBottom - 2.0f, iw, 2.0f, pal.bevelDark);
