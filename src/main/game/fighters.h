@@ -18,7 +18,7 @@ namespace game {
     struct FighterRef {
         int entryId;      // ftManager entry id
         int playerNo;     // player number 0-3: the HUD slot
-        int port;         // controller port 0-3 for a human, -1 for a CPU
+        int port;         // controller port 0-3 (GCC) or 4-7 (Wii) for a human, -1 for a CPU
         bool cpu;         // a CPU player in the match setup (cpuPlayer)
         Fighter* fighter; // the active instance (the one transforms switch to)
         Fighter* partner; // Nana for Ice Climbers, else NULL (not verified)
@@ -96,6 +96,18 @@ namespace game {
     // unreadable. Training drops a player as its pause closes with fewer
     // CPUs and removes the fighter a frame later.
     bool playerInMatch(int playerNo);
+
+    // Resolves a fighter's controller port from ipPadConfig (0-3 GCC, 4-7 Wii,
+    // -1 for CPU), falling back to playerNo when unreadable or unassigned
+    // (ipSwitch::update 0x8004AA40..0x8004AA58).
+    static inline int resolveFighterPort(bool cpu, int playerNo, int mappedPort)
+    {
+        if (cpu)
+        {
+            return -1;
+        }
+        return (mappedPort >= 0 && mappedPort < 8) ? mappedPort : playerNo;
+    }
 
     float damage(const FighterRef& ref);
     // Sets the damage the way Training's own CPU Damage option does.

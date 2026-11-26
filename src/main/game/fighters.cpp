@@ -5,6 +5,7 @@
 #include <ft/ft_manager.h>
 #include <so/so_module_accesser.h>
 
+#include "main/game/pad_inmatch.h"
 #include "shared/game/mem.h"
 
 // Where each value comes from: docs/internals.md, "Fighter values".
@@ -87,7 +88,7 @@ namespace game {
         ref.entryId = entryId;
         ref.playerNo = entry->m_playerNo;
         ref.cpu = cpuPlayer(ref.playerNo, manager->getFighterOperationType(entryId) != 0);
-        ref.port = ref.cpu ? -1 : ref.playerNo;
+        ref.port = resolveFighterPort(ref.cpu, ref.playerNo, ref.cpu ? -1 : playerPort(ref.playerNo));
         ref.fighter = fighter;
         Fighter* partner = manager->getSubFighter(entryId);
         ref.partner = (isRam(partner) && partner != fighter) ? partner : NULL;

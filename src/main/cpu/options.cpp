@@ -2302,7 +2302,8 @@ namespace cpu {
         // also has isDamage() false (0x80840690) and keys on Guard_Damage.
         // Pummels while held and hits under Intangibility are not counted.
         bool damageLag = v.damageHitlag && (v.hitlag > prevHitlag || !prevDamageHitlag) && !noReaction;
-        bool shieldLag = v.status == game::kStatusGuardDamage && v.hitlag > prevHitlag;
+        bool shieldLag = v.status == game::kStatusGuardDamage
+                         && (v.hitlag > prevHitlag || prevStatus != game::kStatusGuardDamage);
         bool newHit = handed
                       || (havePrev && (damageLag || shieldLag || v.hitstun > prevHitstun) && !grabbedStatus(v.status));
         Cue& q = s_aux->cues[who.playerNo & 3];

@@ -40,6 +40,7 @@ namespace display {
         kSetCameraType = 0x8010535C,
         kCameraKind = 0x40,
         kKindFixed = 0xC,
+        kKindZoom = 0xD, // kSetCameraType (0x801053E4): li r4, 13
         kIfManager = 0x805A02D0,
         kIfTraining = 0x78,
         kTrainingCamera = 0x2C,
@@ -107,20 +108,39 @@ namespace display {
         rt.hidden[layer] = hidden;
     }
 
+    static void* trainingMenu();
+
+    static u8 cameraModeFromState(u32 kind, bool trainingZoom)
+    {
+        if (kind == kKindFixed)
+        {
+            return kCameraFixed;
+        }
+        return (kind == kKindZoom || trainingZoom) ? kCameraZoom : kCameraNormal;
+    }
+
     void savestateLoaded()
     {
         DisplayRt& rt = s_rt;
         const u8* root = reinterpret_cast<const u8*>(game::wordAt(reinterpret_cast<const void*>(kSceneRootPointer), 0));
-        if (!rt.layersOk || !game::isRam(root))
+        if (rt.layersOk && game::isRam(root))
         {
-            return;
+            // A state saved with a layer hidden keeps it hidden after the load,
+            // while this module may hold it as shown: then the setting never
+            // brought it back.
+            for (int i = 0; i < kLayers; i++)
+            {
+                rt.hidden[i] = (root[kLayerByte + kLayerStep * i] & kLayerOn) == 0;
+            }
         }
-        // A state saved with a layer hidden keeps it hidden after the load,
-        // while this module may hold it as shown: then the setting never
-        // brought it back.
-        for (int i = 0; i < kLayers; i++)
+        // Re-read the restored camera state so applyCamera transitions back to
+        // settings().general.cameraMode when the savestate used a different mode.
+        void* controller = cameraController();
+        if (controller != NULL)
         {
-            rt.hidden[i] = (root[kLayerByte + kLayerStep * i] & kLayerOn) == 0;
+            void* menu = trainingMenu();
+            bool trainingZoom = menu != NULL && game::wordAt(menu, kTrainingCamera) != 0;
+            rt.camera = cameraModeFromState(game::wordAt(controller, kCameraKind), trainingZoom);
         }
     }
 
