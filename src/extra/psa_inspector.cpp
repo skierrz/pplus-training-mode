@@ -7,6 +7,7 @@
 #include "extra/hud_draw.h"
 #include "extra/net_alloc.h"
 #include "extra/psa_inspector_core.h"
+#include "extra/psa_opcodes.h"
 #include "main/display/display.h"
 #include "main/game/fighters.h"
 #include "main/gfx/draw.h"
@@ -98,6 +99,7 @@ namespace extra {
             s_debug->status = -1;
             s_debug->subaction = -1;
             s_debug->secondaryKind = -1;
+            s_debug->focusThread = -1;
         }
 
         bool selectTargetFighter(u8 target, const game::FighterRef* refs, int count, game::FighterRef& out)
@@ -117,9 +119,10 @@ namespace extra {
             return false;
         }
 
-        void readThread(const void* unit, int fallbackIndex, PsaThreadSnapshot& out)
+        void readThread(const void* unit, int fallbackIndex, PsaThreadSnapshot& out, const u32*& outCmdPtr)
         {
             memset(&out, 0, sizeof(out));
+            outCmdPtr = NULL;
             out.id = static_cast<u32>(fallbackIndex);
             if (!alignedRam(unit))
             {
@@ -145,6 +148,7 @@ namespace extra {
             if (alignedRam(curCmd))
             {
                 out.cmdHeader = curCmd[0];
+                outCmdPtr = curCmd;
             }
 
             const void* stack = reinterpret_cast<const void*>(game::wordAt(interp, kInterpStackOff));
@@ -254,20 +258,59 @@ namespace extra {
             {
                 count = kPsaThreadCount;
             }
+            const u32* cmdPtrs[kPsaThreadCount];
+            memset(cmdPtrs, 0, sizeof(cmdPtrs));
             u32 activeCount = 0;
             for (s32 i = 0; i < count; i++)
             {
                 const void* unit = reinterpret_cast<VAtFn>(atPtr)(threads, i);
                 PsaThreadSnapshot snap;
-                readThread(unit, i, snap);
+                const u32* cmdPtr = NULL;
+                readThread(unit, i, snap, cmdPtr);
                 int slot = (snap.id < kPsaThreadCount) ? static_cast<int>(snap.id) : static_cast<int>(i);
                 s_debug->threads[slot] = snap;
+                cmdPtrs[slot] = cmdPtr;
                 if (snap.active != 0)
                 {
                     activeCount++;
                 }
             }
             s_debug->activeThreadCount = activeCount;
+
+            // Read relocated acCmdArgConv* pointer (curCmd + 0x04; verified at
+            // acAnimCmdImpl::getArg 0x8013CAB8) for the focused active thread.
+            int focus = psaSelectFocusThread(s_debug->threads);
+            s_debug->focusThread = focus;
+            if (focus >= 0 && focus < kPsaThreadCount)
+            {
+                u32 hdr = s_debug->threads[focus].cmdHeader;
+                s_debug->focusCmdHeader = hdr;
+                u8 numArgs = psaDecodeCmdHeader(hdr).numArgs;
+                u32 want = numArgs < kPsaMaxArgs ? static_cast<u32>(numArgs) : static_cast<u32>(kPsaMaxArgs);
+                const u32* cmdPtr = cmdPtrs[focus];
+                u32 got = 0;
+                if (want > 0u && alignedRam(cmdPtr))
+                {
+                    const u32* argsPtr = reinterpret_cast<const u32*>(cmdPtr[1]);
+                    if (alignedRam(argsPtr))
+                    {
+                        for (u32 k = 0; k < want; k++)
+                        {
+                            const u32* entry = argsPtr + k * 2u;
+                            if (!alignedRam(entry))
+                            {
+                                break;
+                            }
+                            s_debug->focusArgs[got].type = entry[0];
+                            s_debug->focusArgs[got].content = entry[1];
+                            got++;
+                        }
+                    }
+                }
+                s_debug->focusArgCount = got;
+                psaFormatFocusCommand(hdr, s_debug->focusArgs, got, s_debug->focusText,
+                                      static_cast<int>(sizeof(s_debug->focusText)));
+            }
             return true;
         }
 
@@ -290,6 +333,26 @@ namespace extra {
             return slots;
         }
 
+        void clipToWidth(char* buf, float scale, float maxW)
+        {
+            if (gfx::textWidth(buf, scale) <= maxW)
+            {
+                return;
+            }
+            int len = static_cast<int>(strlen(buf));
+            while (len > 3)
+            {
+                len--;
+                buf[len - 2] = '.';
+                buf[len - 1] = '.';
+                buf[len] = '\0';
+                if (gfx::textWidth(buf, scale) <= maxW)
+                {
+                    return;
+                }
+            }
+        }
+
         void drawCard(const ui::layout::Box& b, bool isCpu)
         {
             float xs = gfx::xScale();
@@ -298,9 +361,11 @@ namespace extra {
             float bw = b.x1 - b.x0;
             int shown[kPsaDisplayRows];
             int rowCount = psaSelectDisplayThreads(s_debug->threads, shown, kPsaDisplayRows);
+            bool hasFocus = s_debug->focusText[0] != '\0';
             int fitRows = rowCount > 0 ? rowCount : 1;
             float maxBh = b.y1 - b.y0;
-            float bh = 34.0f + static_cast<float>(fitRows) * 11.8f + 4.0f;
+            float rowsBot = 28.0f + static_cast<float>(fitRows) * 10.0f;
+            float bh = rowsBot + (hasFocus ? 16.0f : 4.0f);
             if (bh > maxBh)
             {
                 bh = maxBh;
@@ -308,8 +373,8 @@ namespace extra {
 
             drawHudCard(x, y, bw, bh, xs, isCpu ? 0x4E86B8FFu : 0xD83838FFu, 0xFFFFFF40u);
 
-            // Header divider below Act/Sub/AnimFrame line.
-            gfx::fillRect(x + 4.0f * xs, y + 27.5f, bw - 8.0f * xs, 1.0f, 0x2A4C58C0u);
+            // Crisp 2.0px integer header divider below Act/Sub/AnimFrame line.
+            gfx::fillRect(x + 4.0f * xs, y + 24.0f, bw - 8.0f * xs, 2.0f, 0x2A4C58C0u);
 
             // Header line 1: PSA target + FSM rate.
             char title[16];
@@ -317,7 +382,7 @@ namespace extra {
             psaFormatTitle(isCpu, s_debug->playerNo, title, sizeof(title));
             psaFormatFsm(s_debug->fsmRate, fsm, sizeof(fsm));
             float hdrScale = ui::style::scaleForCap(6.5f);
-            float hdrY = ui::style::textYForCap(y + 6.5f, hdrScale);
+            float hdrY = ui::style::textYForCap(y + 6.0f, hdrScale);
             drawShadowText(x + 6.0f * xs, hdrY, title, isCpu ? 0x9AD0F8FFu : 0xFFB0B0FFu, hdrScale);
             gfx::Rgba fsmCol = psaFsmIsModified(s_debug->fsmRate) ? 0xFFD300FFu : 0xF1F5F9FFu;
             drawShadowText(x + 92.0f * xs, hdrY, fsm, fsmCol, hdrScale);
@@ -327,37 +392,40 @@ namespace extra {
             psaFormatSubHeader(s_debug->status, s_debug->subaction, s_debug->animFrame, s_debug->secondaryKind,
                                s_debug->secondaryRate, subLine, sizeof(subLine));
             float subScale = ui::style::scaleForCap(6.0f);
-            float subY = ui::style::textYForCap(y + 17.5f, subScale);
+            float subY = ui::style::textYForCap(y + 16.0f, subScale);
             drawShadowText(x + 6.0f * xs, subY, subLine, 0xB8CDD6FFu, subScale);
 
-            // Up to 6 active threads in fixed columns: Name | Frame | Wait | Op.
+            // Up to 6 active threads: Name | Frame | Wait | Decoded Opcode Name.
             float rowScale = ui::style::scaleForCap(6.0f);
             if (rowCount == 0)
             {
-                float ry = ui::style::textYForCap(y + 32.5f, rowScale);
+                float ry = ui::style::textYForCap(y + 29.0f, rowScale);
                 drawShadowText(x + 6.0f * xs, ry, "No active threads", 0x7A8E9CFFu, rowScale);
                 return;
             }
 
             float colName = x + 6.0f * xs;
-            float colFrame = x + 56.0f * xs;
-            float colWait = x + 98.0f * xs;
-            float colOp = x + 140.0f * xs;
+            float colFrame = x + 49.0f * xs;
+            float colWait = x + 80.0f * xs;
+            float colOp = x + 111.0f * xs;
+            float opMaxW = (x + bw - 6.0f * xs) - colOp;
 
             for (int r = 0; r < rowCount; r++)
             {
                 int idx = shown[r];
                 const PsaThreadSnapshot& th = s_debug->threads[idx];
-                float ry = ui::style::textYForCap(y + 31.5f + static_cast<float>(r) * 11.8f, rowScale);
+                float ry = ui::style::textYForCap(y + 28.0f + static_cast<float>(r) * 10.0f, rowScale);
 
                 char frameBuf[12];
                 char waitBuf[12];
-                char opBuf[12];
+                char opBuf[20];
                 psaFormatFrame(th.logicalFrame, frameBuf, sizeof(frameBuf));
                 psaFormatWait(th.waitKind, th.waitFrames, waitBuf, sizeof(waitBuf));
-                psaFormatOpcode(th.cmdHeader, opBuf, sizeof(opBuf));
+                psaFormatOpcodeName(th.cmdHeader, opBuf, sizeof(opBuf));
+                clipToWidth(opBuf, rowScale, opMaxW);
 
-                gfx::Rgba nameCol = (idx <= 1) ? 0xF1F5F9FFu : 0xB8CDD6FFu;
+                gfx::Rgba nameCol = (idx == s_debug->focusThread) ? 0xFFE24AFFu
+                                                                   : ((idx <= 1) ? 0xF1F5F9FFu : 0xB8CDD6FFu);
                 gfx::Rgba waitCol = 0x6E8694FFu;
                 if (th.waitKind == kPsaWaitSync)
                 {
@@ -374,11 +442,28 @@ namespace extra {
                 drawShadowText(colWait, ry, waitBuf, waitCol, rowScale);
                 drawShadowText(colOp, ry, opBuf, opCol, rowScale);
             }
+
+            // Focused command + typed arguments footer strip with 2.0px divider.
+            if (hasFocus)
+            {
+                float divY = y + rowsBot + 1.0f;
+                if (divY + 11.0f <= y + bh)
+                {
+                    gfx::fillRect(x + 4.0f * xs, divY, bw - 8.0f * xs, 2.0f, 0x2A4C58C0u);
+                    char focusLine[56];
+                    snprintf(focusLine, sizeof(focusLine), "%s:%s", psaThreadName(s_debug->focusThread),
+                             s_debug->focusText);
+                    clipToWidth(focusLine, rowScale, bw - 12.0f * xs);
+                    float fy = ui::style::textYForCap(divY + 4.0f, rowScale);
+                    drawShadowText(colName, fy, focusLine, 0x8EF5EAFFu, rowScale);
+                }
+            }
         }
     }
 
     void psaInspectorAttach()
     {
+        psaOpcodesAttach();
         freeNetPtr(s_debug);
         s_debug = allocNetArray<PsaDebugBlock>(1);
         if (s_debug == NULL)
@@ -391,6 +476,7 @@ namespace extra {
         s_debug->status = -1;
         s_debug->subaction = -1;
         s_debug->secondaryKind = -1;
+        s_debug->focusThread = -1;
         TM_LOG("psa: debug block at %08x\n", s_debug);
     }
 
@@ -398,6 +484,7 @@ namespace extra {
     {
         clearSnapshot();
         freeNetPtr(s_debug);
+        psaOpcodesDetach();
     }
 
     void psaInspectorDraw(const game::MatchState& match, bool menuOpen)

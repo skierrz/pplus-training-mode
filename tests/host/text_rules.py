@@ -894,8 +894,17 @@ def psa_inspector_core_h(c, src):
             for t in c.expand(lit, 2):
                 c.item("fit", lit, t, scale_for_cap(6.0), 0, 36.0, 0.0)
                 c.buffer(lit, t, 12.0)
+        elif lit.func == "psaFormatFocusCommand":
+            # Formatted into focusText[48] and clipped via clipToWidth to 170 px.
+            pass
         else:
             continue
+        c.take(lit)
+
+
+def psa_opcodes_cpp(c, src):
+    # Opcode names and typed argument strings, clipped via clipToWidth in psa_inspector.cpp.
+    for lit in src.literals:
         c.take(lit)
 
 
@@ -905,6 +914,9 @@ def psa_inspector_cpp(c, src):
             continue
         if lit.name == "drawShadowText":
             c.item("fit", lit, lit.text, scale_for_cap(6.0), 0, 170.0, 0.0)
+            c.take(lit)
+        elif lit.name == "snprintf" and lit.arg == 2 and lit.text == "%s:%s":
+            # Focus footer strip clipped via clipToWidth to 170 px (focusLine[56]).
             c.take(lit)
 
 
@@ -1125,6 +1137,7 @@ HANDLERS = [
     ("extra/fighter_swap_core.h", fighter_swap_core_h),
     ("extra/pplus_tech_tracker_core.h", walked),
     ("extra/psa_inspector_core.h", psa_inspector_core_h),
+    ("extra/psa_opcodes.cpp", psa_opcodes_cpp),
     ("extra/psa_inspector.cpp", psa_inspector_cpp),
     ("extra/adaptive_cpu_core.h", adaptive_cpu_core_h),
     ("extra/adaptive_cpu.cpp", adaptive_cpu_cpp),

@@ -14,15 +14,15 @@ namespace extra {
 
     void drawHudCard(float x, float y, float w, float h, float xs, gfx::Rgba accent, gfx::Rgba sheen)
     {
-        float px = 1.5f * xs;
+        float px = 2.0f * xs;
         float innerW = w - 2.0f * px;
         gfx::fillRect(x, y, w, h, 0x050C12E4u);
-        gfx::fillRect(x + px, y + 1.5f, innerW, h - 3.0f, 0x3A5868D8u);
-        gfx::fillGradV(x + 2.0f * px, y + 3.0f, w - 4.0f * px, h - 6.0f, 0x132632DCu, 0x09141CE0u);
-        gfx::fillRect(x + px, y + 1.5f, innerW, 2.5f, accent);
+        gfx::fillRect(x + px, y + 2.0f, innerW, h - 4.0f, 0x3A5868D8u);
+        gfx::fillGradV(x + 2.0f * px, y + 4.0f, w - 4.0f * px, h - 8.0f, 0x132632DCu, 0x09141CE0u);
+        gfx::fillRect(x + px, y + 2.0f, innerW, 2.0f, accent);
         if (sheen != 0u)
         {
-            gfx::fillRect(x + px, y + 1.5f, innerW, 1.0f, sheen);
+            gfx::fillRect(x + px, y + 2.0f, innerW, 2.0f, sheen);
         }
     }
 
