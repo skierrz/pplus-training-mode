@@ -505,7 +505,7 @@ namespace extra {
             copySimpleEvents(t, brevIn.events, evN);
             breverseStep(e.brev, brevIn);
 
-            // 4. Footstool & Lock + AGT
+            // 4 & 5. Footstool & Lock + AGT, and Floorhug / ASDI-Down & Crouch-Cancel
             FootstoolAgtFrameInput faIn;
             memset(&faIn, 0, sizeof(faIn));
             faIn.frame = f;
@@ -528,32 +528,7 @@ namespace extra {
             faIn.laBasic82 = sn.laBasic82;
             faIn.eventCount = evN;
             copyFaEvents(t, faIn.events, evN);
-            for (int j = 0; j < game::kMaxTracked && faIn.opponentCount < kFaMaxOpponents; j++)
-            {
-                if (j == i || !snaps[j].valid || snaps[j].t->entryId == t.entryId)
-                {
-                    continue;
-                }
-                const SlotSnap& os = snaps[j];
-                const game::Tracked& ot = *os.t;
-                FaOpponentView& ov = faIn.opponents[faIn.opponentCount++];
-                ov.slot = static_cast<s8>(j);
-                ov.status = ot.cur.status;
-                ov.prevStatus = ot.prev.status;
-                ov.airborne = ot.cur.airborne;
-                ov.outOfPlay = os.outOfPlay;
-                ov.hitReceived = ot.cur.hitReceived;
-                ov.shieldReceived = ot.cur.shieldReceived;
-                ov.lastReceivedOther = (ot.lastReceived.frame == f) ? ot.lastReceived.other : -1;
-                ov.x = os.x;
-                ov.y = os.y;
-                u8 oevN = ot.eventCount < kFaMaxEvents ? ot.eventCount : static_cast<u8>(kFaMaxEvents);
-                ov.eventCount = oevN;
-                copyFaEvents(ot, ov.events, oevN);
-            }
-            footstoolAgtStep(e.fa, faIn);
 
-            // 5. Floorhug / ASDI-Down & Crouch-Cancel
             FloorhugFrameInput fhIn;
             memset(&fhIn, 0, sizeof(fhIn));
             fhIn.frame = f;
@@ -580,21 +555,44 @@ namespace extra {
             fhIn.landingFrame = sn.landingFrame;
             fhIn.eventCount = evN;
             copySimpleEvents(t, fhIn.events, evN);
-            for (int j = 0; j < game::kMaxTracked && fhIn.attackerCount < kFhMaxAttackers; j++)
+
+            for (int j = 0; j < game::kMaxTracked; j++)
             {
                 if (j == i || !snaps[j].valid || snaps[j].t->entryId == t.entryId)
                 {
                     continue;
                 }
-                const game::Tracked& at = *snaps[j].t;
-                FhAttackerView& av = fhIn.attackers[fhIn.attackerCount++];
-                av.slot = static_cast<s8>(j);
-                av.status = at.cur.status;
-                av.hitlag = at.cur.hitlag;
-                av.hitstun = at.cur.hitstun;
-                av.actionable = at.cur.actionable;
-                av.outOfPlay = snaps[j].outOfPlay;
+                const SlotSnap& os = snaps[j];
+                const game::Tracked& ot = *os.t;
+                if (faIn.opponentCount < kFaMaxOpponents)
+                {
+                    FaOpponentView& ov = faIn.opponents[faIn.opponentCount++];
+                    ov.slot = static_cast<s8>(j);
+                    ov.status = ot.cur.status;
+                    ov.prevStatus = ot.prev.status;
+                    ov.airborne = ot.cur.airborne;
+                    ov.outOfPlay = os.outOfPlay;
+                    ov.hitReceived = ot.cur.hitReceived;
+                    ov.shieldReceived = ot.cur.shieldReceived;
+                    ov.lastReceivedOther = (ot.lastReceived.frame == f) ? ot.lastReceived.other : -1;
+                    ov.x = os.x;
+                    ov.y = os.y;
+                    u8 oevN = ot.eventCount < kFaMaxEvents ? ot.eventCount : static_cast<u8>(kFaMaxEvents);
+                    ov.eventCount = oevN;
+                    copyFaEvents(ot, ov.events, oevN);
+                }
+                if (fhIn.attackerCount < kFhMaxAttackers)
+                {
+                    FhAttackerView& av = fhIn.attackers[fhIn.attackerCount++];
+                    av.slot = static_cast<s8>(j);
+                    av.status = ot.cur.status;
+                    av.hitlag = ot.cur.hitlag;
+                    av.hitstun = ot.cur.hitstun;
+                    av.actionable = ot.cur.actionable;
+                    av.outOfPlay = os.outOfPlay;
+                }
             }
+            footstoolAgtStep(e.fa, faIn);
             floorhugStep(e.fh, fhIn);
 
             if (!t.partner)

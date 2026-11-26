@@ -205,7 +205,7 @@ namespace extra {
         net->hmnAnchorY = hmnFs.y;
         net->hmnAnchorLr = lr;
         net->hmnAnchorValid = true;
-        float cpuDmg = static_cast<float>(main::settings().cpu.percent);
+        float cpuDmg = i2f(main::settings().cpu.percent);
         warpGroundClean(cpuRef, targetX, targetY, true, cpuDmg, -lr, true);
         cpu::optionsResetSlot(p);
         pplusRecoveryReset(p);
@@ -422,12 +422,12 @@ namespace extra {
                     float dmg = -1.0f;
                     if (act.pickRandomDamage)
                     {
-                        dmg = static_cast<float>(geomNextRng(s_rng) % 100u);
+                        dmg = i2f(static_cast<int>(geomNextRng(s_rng) % 100u));
                     }
                     else if (act.applyFixedDamage)
                     {
-                        dmg = static_cast<float>(cfg.fixedDamageMode != main::kComboDmgCpu ? cfg.fixedDamage
-                                                                                           : main::settings().cpu.percent);
+                        dmg = i2f(cfg.fixedDamageMode != main::kComboDmgCpu ? cfg.fixedDamage
+                                                                            : main::settings().cpu.percent);
                     }
                     bool customEdgeguard = act.pickOffstagePos && haveGeom
                                            && scenarioPresetsEdgeguardRespawn(ref, geom, s_rng, act.setCorrectNone,
@@ -449,7 +449,7 @@ namespace extra {
                     // Reset P1 position + damage back to starting anchor when Reset P1 is On.
                     if (act.resetP1 && haveHmn && net->hmnAnchorValid)
                     {
-                        float hmnDmg = static_cast<float>(main::settings().general.playerPercent);
+                        float hmnDmg = i2f(main::settings().general.playerPercent);
                         float hlr = wx >= net->hmnAnchorX ? 1.0f : -1.0f;
                         warpGroundClean(hmnRef, net->hmnAnchorX, net->hmnAnchorY, act.setCorrectNone, hmnDmg, hlr,
                                         true);

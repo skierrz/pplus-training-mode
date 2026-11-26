@@ -336,14 +336,10 @@ namespace extra {
         return s >= kTtStSpecialN && s != kTtStFinal;
     }
 
-    // Steps one finished frame for one fighter against its data-driven
-    // FighterTechDef. Returns true on a newly completed signature tech (sets
-    // `outLabel` to the table label and updates `stats`).
-    inline bool stepFighterTech(const TechFrameInput& in, TechWatch& w, TechSlotStats& stats, const char*& outLabel)
+    inline bool stepFighterTechDef(const TechFrameInput& in, u32 techId, const FighterTechDef* def, TechWatch& w,
+                                   TechSlotStats& stats, const char*& outLabel)
     {
         outLabel = NULL;
-        const FighterTechDef* def = NULL;
-        const u32 techId = findFighterTechDef(in.ftKind, def);
         if (def == NULL)
         {
             return false;
@@ -698,6 +694,16 @@ namespace extra {
             return true;
         }
         return false;
+    }
+
+    // Steps one finished frame for one fighter against its data-driven
+    // FighterTechDef. Returns true on a newly completed signature tech (sets
+    // `outLabel` to the table label and updates `stats`).
+    inline bool stepFighterTech(const TechFrameInput& in, TechWatch& w, TechSlotStats& stats, const char*& outLabel)
+    {
+        const FighterTechDef* def = NULL;
+        u32 techId = findFighterTechDef(in.ftKind, def);
+        return stepFighterTechDef(in, techId, def, w, stats, outLabel);
     }
 }
 }

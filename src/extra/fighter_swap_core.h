@@ -40,27 +40,22 @@ namespace extra {
     // OverlayFighter(i+1) + Fighter(i+1)Resoruce2 heap set in Brawl/P+.
     inline u8 fighterSwapSetGroup(u8 gmKind)
     {
-        switch (gmKind)
+        static const u8 kAlias[][2] = {
+            {0x04, 0x03}, // ZSS -> Samus
+            {0x2C, 0x0C}, // Giga Bowser -> Bowser
+            {0x0F, 0x0E}, // Sheik -> Zelda
+            {0x11, 0x10}, // Sopo -> Ice Climbers
+            {0x12, 0x10}, // Nana -> Ice Climbers
+            {0x2D, 0x17}  // Wario-Man -> Wario
+        };
+        for (int i = 0; i < 6; i++)
         {
-        case 0x03: // Samus
-        case 0x04: // Zero Suit Samus
-            return 0x03;
-        case 0x0C: // Bowser
-        case 0x2C: // Giga Bowser
-            return 0x0C;
-        case 0x0E: // Zelda
-        case 0x0F: // Sheik
-            return 0x0E;
-        case 0x10: // Ice Climbers
-        case 0x11: // Sopo
-        case 0x12: // Nana
-            return 0x10;
-        case 0x17: // Wario
-        case 0x2D: // Wario-Man
-            return 0x17;
-        default:
-            return gmKind;
+            if (gmKind == kAlias[i][0])
+            {
+                return kAlias[i][1];
+            }
         }
+        return gmKind;
     }
 
     // Alphabetical P+ 3.2.1 roster (41 standard fighters + Ice Climbers/Sopo +
@@ -154,21 +149,17 @@ namespace extra {
     // Returns 0 (Mario: neither DJC nor Float) for all other fighters.
     inline int fighterSwapCounterFtKind(u8 gmKind)
     {
-        switch (gmKind)
+        static const u8 kMap[][2] = {
+            {0x0B, 0x0A}, {0x0D, 0x0C}, {0x16, 0x14}, {0x1B, 0x1A}, {0x33, 0x26}
+        };
+        for (int i = 0; i < 5; i++)
         {
-        case 0x0B:
-            return 0x0A; // Ness (DJC)
-        case 0x0D:
-            return 0x0C; // Peach (Float)
-        case 0x16:
-            return 0x14; // Ganondorf (Float)
-        case 0x1B:
-            return 0x1A; // Lucas (DJC)
-        case 0x33:
-            return 0x26; // Mewtwo (DJC + Float)
-        default:
-            return 0x00;
+            if (gmKind == kMap[i][0])
+            {
+                return kMap[i][1];
+            }
         }
+        return 0x00;
     }
 
     // Counts distinct fighter heap sets required across `count` player slots

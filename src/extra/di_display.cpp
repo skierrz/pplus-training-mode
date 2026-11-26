@@ -638,24 +638,59 @@ namespace extra {
         d.y = y;
     }
 
-    // Batches trace point lines ("di: %c %d %.3f %.3f\n" or with "+") so tracing
-    // a 70-150 frame arc does not issue a separate OSReport per point.
+    // Batches trace point lines ("di: %c %d %.3f %.3f\n" or with "+") using
+    // integer fixed-point formatting so tracing a 70-150 frame arc does not
+    // spend a full console frame in per-line OSReport / float formatting.
     struct TraceBuf {
         char data[240];
         int len;
         void init() { len = 0; }
-        void flush();
+        void flush()
+        {
+            if (len > 0)
+            {
+                data[len] = '\0';
+                TM_LOG("%s", data);
+                len = 0;
+            }
+        }
+        void putNum(s32 v, bool frac3);
+        void putCoord(float v);
         void addPoint(char tag, bool plus, int frame, float x, float y);
     };
 
-    void TraceBuf::flush()
+#pragma dont_inline on
+    void TraceBuf::putNum(s32 v, bool frac3)
     {
-        if (len > 0)
+        if (v < 0)
         {
-            data[len] = '\0';
-            TM_LOG("%s", data);
-            len = 0;
+            data[len++] = '-';
+            v = -v;
         }
+        u32 a = static_cast<u32>(v);
+        char tmp[12];
+        int n = 0;
+        do
+        {
+            tmp[n++] = static_cast<char>('0' + (a % 10u));
+            a /= 10u;
+        } while (a != 0u || (frac3 && n < 4));
+        while (n > 0)
+        {
+            if (frac3 && n == 3)
+            {
+                data[len++] = '.';
+            }
+            data[len++] = tmp[--n];
+        }
+    }
+#pragma dont_inline reset
+
+    void TraceBuf::putCoord(float v)
+    {
+        data[len++] = ' ';
+        v = within(v, -100000.0f, 100000.0f) ? v : 0.0f;
+        putNum(f2i(v >= 0.0f ? (v * 1000.0f + 0.5f) : (v * 1000.0f - 0.5f)), true);
     }
 
     void TraceBuf::addPoint(char tag, bool plus, int frame, float x, float y)
@@ -664,16 +699,20 @@ namespace extra {
         {
             flush();
         }
-        int n = snprintf(data + len, sizeof(data) - static_cast<size_t>(len), "di: %c%s %d %.3f %.3f\n", tag,
-                         plus ? "+" : "", frame, x, y);
-        if (n > 0)
+        data[len++] = 'd';
+        data[len++] = 'i';
+        data[len++] = ':';
+        data[len++] = ' ';
+        data[len++] = tag;
+        if (plus)
         {
-            len += n;
-            if (len >= static_cast<int>(sizeof(data)))
-            {
-                len = static_cast<int>(sizeof(data)) - 1;
-            }
+            data[len++] = '+';
         }
+        data[len++] = ' ';
+        putNum(frame, false);
+        putCoord(x);
+        putCoord(y);
+        data[len++] = '\n';
     }
 
     // What follows a contact without a tech (rules above): the slide after

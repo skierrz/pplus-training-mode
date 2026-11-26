@@ -458,31 +458,29 @@ namespace extra {
         fighterMechanicsAttach();
     }
 
-    void characterRngPrepareSwap()
+    static void restoreOdds(bool preSwap)
     {
-        fighterMechanicsPrepareSwap();
         if (oddsResident())
         {
             const void* liveData = extraFtCommonData(Fighter_Peach);
-            TM_LOG("character rng: pre-swap restore item odds %08x (was %d, put back %d, live data %08x)\n", s_odds,
-                   *s_odds, s_oddsFile, liveData);
+            TM_LOG("character rng: %s item odds %08x (was %d, put back %d, live data %08x)\n",
+                   preSwap ? "pre-swap restore" : "detach", s_odds, *s_odds, s_oddsFile, liveData);
             *s_odds = s_oddsFile;
         }
         clearOddsCache();
+    }
+
+    void characterRngPrepareSwap()
+    {
+        fighterMechanicsPrepareSwap();
+        restoreOdds(true);
         s_smashWas = main::kSmashDefault;
     }
 
     void characterRngDetach()
     {
         fighterMechanicsDetach();
-        if (oddsResident())
-        {
-            const void* liveData = extraFtCommonData(Fighter_Peach);
-            TM_LOG("character rng: detach item odds %08x (was %d, put back %d, live data %08x)\n", s_odds, *s_odds,
-                   s_oddsFile, liveData);
-            *s_odds = s_oddsFile;
-        }
-        clearOddsCache();
+        restoreOdds(false);
         // The item files stay loaded for every later match and mode: the
         // file's weights must be back.
         if (s_draw != NULL && isDraw(s_draw, true))

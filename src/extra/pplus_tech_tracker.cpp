@@ -112,7 +112,8 @@ namespace extra {
             }
             const int ftKind = game::fighterKind(t->entryId, t->partner);
             const FighterTechDef* def = NULL;
-            if (findFighterTechDef(ftKind, def) == 0 || def == NULL)
+            const u32 techId = findFighterTechDef(ftKind, def);
+            if (techId == 0 || def == NULL)
             {
                 continue;
             }
@@ -155,7 +156,7 @@ namespace extra {
 
             const char* label = NULL;
             TechSlotStats& stats = s_net->block.slots[t->playerNo];
-            if (stepFighterTech(in, s_net->watches[i], stats, label) && postOsd && label != NULL)
+            if (stepFighterTechDef(in, techId, def, s_net->watches[i], stats, label) && postOsd && label != NULL)
             {
                 osd::post(t->playerNo, osd::kIdPPlusTech, osd::kGreen, "%s\nCount: %u", label, stats.successes);
                 stats.osdPosted++;

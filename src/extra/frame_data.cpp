@@ -19,9 +19,7 @@
 #include "main/game/tracker.h"
 #include "main/settings.h"
 #include "main/ui/osd.h"
-#ifdef __MWERKS__
 #include "extra/net_alloc.h"
-#endif
 #include "shared/game/mem.h"
 #include "shared/log.h"
 
@@ -1860,8 +1858,8 @@ namespace extra {
         TM_LOG("fd f=%d p=%d%s st=%x sub=%d clk=%d fr=%d rate=%d len=%d hl=%d in=%d how=%d sure=%d flags=%04x "
                "grp=%x act=%d body=%d win=%d bon=%d boff=%d\n",
                t->cur.frame, t->playerNo + 1, t->partner ? "b" : "", v.status, v.kind,
-               static_cast<int>(v.clock * 100.0f), static_cast<int>(v.frame * 100.0f),
-               static_cast<int>(v.rate * 100.0f), v.length, v.hitlag, a.frames, a.how, a.certain, s->rec.flags,
+               f2i(v.clock * 100.0f), f2i(v.frame * 100.0f),
+               f2i(v.rate * 100.0f), v.length, v.hitlag, a.frames, a.how, a.certain, s->rec.flags,
                v.groups, t->cur.actionable, bodyWhole(v.modules), window, on, off);
     }
 
@@ -1901,12 +1899,9 @@ namespace extra {
                 p.have = false;
             }
             predict(d, now);
-        }
-        if (g_fdTrace)
-        {
-            for (int i = 0; i < game::kMaxTracked; i++)
+            if (g_fdTrace)
             {
-                const game::Tracked* t = game::tracked(i);
+                const game::Tracked* t = game::tracked(d);
                 if (t != NULL)
                 {
                     trace(t, t->fighter);

@@ -568,7 +568,7 @@ namespace extra {
                     log->m_speed.m_y = lp.kbY;
                     log->m_angle = lp.angleDeg;
                     log->m_lr = -outward;
-                    log->m_frame = static_cast<float>(lp.hitstun);
+                    log->m_frame = i2f(lp.hitstun);
                     log->m_hitStopFrame = static_cast<u32>(lp.hitlag);
                 }
             }
@@ -1252,7 +1252,7 @@ namespace extra {
             {
                 float cx = 0.5f * (in.geom.floor.leftX + in.geom.floor.rightX);
                 warpGroundClean(hmnRef, cx, in.geom.floor.centerY, false,
-                                static_cast<float>(s.general.playerPercent), 1.0f);
+                                i2f(s.general.playerPercent), 1.0f);
             }
         }
         if (s_state.techBest > prevBest)
@@ -1333,8 +1333,8 @@ namespace extra {
         }
 
         const ScenarioSpawns& sp = act.spawns;
-        float hmnDmg = act.useExplicitHmnDmg ? act.hmnDmg : static_cast<float>(s.general.playerPercent);
-        float cpuDmg = act.useExplicitCpuDmg ? act.cpuDmg : static_cast<float>(s.cpu.percent);
+        float hmnDmg = act.useExplicitHmnDmg ? act.hmnDmg : i2f(s.general.playerPercent);
+        float cpuDmg = act.useExplicitCpuDmg ? act.cpuDmg : i2f(s.cpu.percent);
         if (act.warpHmn || act.warpCpu)
         {
             restoreRuntimeMods();
