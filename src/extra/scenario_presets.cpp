@@ -222,6 +222,7 @@ namespace extra {
         s_debug.resolvedLedgetechAtk = s_state.resolvedLedgetechAttack;
     }
 
+#pragma dont_inline reset
     static bool sawIntraFrameStatus(int playerNo, int targetStatus)
     {
         for (int i = 0; i < game::kMaxTracked; i++)
@@ -245,6 +246,7 @@ namespace extra {
         }
         return false;
     }
+#pragma dont_inline on
 
     static bool findPlayerRef(const game::FighterRef* refs, int n, int playerNo, game::FighterRef& out)
     {
@@ -458,7 +460,6 @@ namespace extra {
     }
 #pragma dont_inline reset
 
-#pragma dont_inline on
     static bool fighterHasActiveHitbox(Fighter* f)
     {
         const soModuleEnumeration* m = game::fighterModules(f);
@@ -480,9 +481,7 @@ namespace extra {
         }
         return false;
     }
-#pragma dont_inline reset
 
-#pragma dont_inline on
     static void placeOnRevivalPlatform(const game::FighterRef& ref, float x, float y, bool setNoclip, float lr,
                                        float dmg, bool spendDj)
     {
@@ -539,9 +538,7 @@ namespace extra {
             s_net->revivalPlayer = static_cast<s8>(ref.playerNo);
         }
     }
-#pragma dont_inline reset
 
-#pragma dont_inline on
     static void applyEdgeguardLaunch(const game::FighterRef& ref, const StageGeometry& geom, u8 strengthMode,
                                      int sideChoice, u32& rng, bool setNoclip, float damage)
     {
@@ -601,9 +598,7 @@ namespace extra {
         // while P1 follow-ups still get full Survival DI.
         cpu::optionsResetSlot(ref.playerNo);
     }
-#pragma dont_inline reset
 
-#pragma dont_inline on
     void finishStandingWarp(const game::FighterRef& ref, bool setNoclip, bool fallIfNoGround)
     {
         for (int i = 0; i < 2; i++)
@@ -630,6 +625,7 @@ namespace extra {
         }
     }
 
+#pragma dont_inline on
     static void setXlu(const soModuleEnumeration* m, int frames)
     {
         if (game::isRam(m->m_collisionHitModule))
@@ -645,6 +641,7 @@ namespace extra {
         finishStandingWarp(ref, noclip, fallIfNoGround);
         clearWarpIntang(ref);
     }
+#pragma dont_inline reset
 
     static void setMotionFrozen(const soModuleEnumeration* cm, bool freeze)
     {
@@ -663,7 +660,6 @@ namespace extra {
             s_net->slidePassDisabled = noPass;
         }
     }
-#pragma dont_inline reset
 
     void scenarioPresetsDetach()
     {
@@ -1015,6 +1011,7 @@ namespace extra {
     {
         return game::isRam(m->m_situationModule) && m->m_situationModule->getKind() == Situation_Air;
     }
+#pragma dont_inline reset
 
     static bool readCanAct(Fighter* f, int hitlag, int hitstun)
     {
@@ -1056,7 +1053,6 @@ namespace extra {
             }
         }
     }
-#pragma dont_inline reset
 
 #pragma dont_inline on
     static bool spawnEdgeguardCpu(const game::FighterRef& ref, const StageGeometry& geom, const ScenarioConfig& cfg,

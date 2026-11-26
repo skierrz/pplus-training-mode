@@ -686,11 +686,17 @@ namespace extra {
 
             StageDetectInput in;
             memset(&in, 0, sizeof(in));
-            in.modFod = moduleLoadedPrefix("st_dxfountain_ht");
-            in.modDreamLand = moduleLoadedPrefix("st_dreamland64_ht");
-            in.modSmashville = moduleLoadedPrefix("st_smashville_ht");
-            in.modGreenHill = moduleLoadedPrefix("st_greenhill_ht");
-            in.modCrayon = moduleLoadedPrefix("st_crayon_noshyguy_ht");
+            static const char* const kModPrefixes[5] = {
+                "st_dxfountain_ht", "st_dreamland64_ht", "st_smashville_ht",
+                "st_greenhill_ht",  "st_crayon_noshyguy_ht"
+            };
+            bool* const modFlags[5] = {
+                &in.modFod, &in.modDreamLand, &in.modSmashville, &in.modGreenHill, &in.modCrayon
+            };
+            for (int m = 0; m < 5; m++)
+            {
+                *modFlags[m] = moduleLoadedPrefix(kModPrefixes[m]);
+            }
 
             Ground* platLeftGround = NULL;
             Ground* randallGround = NULL;

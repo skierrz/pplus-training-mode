@@ -763,7 +763,7 @@ namespace extra {
         }
         out.dominantRps = patterns.dominantRps(player);
         float conf = patterns.confidence(player);
-        int cp = static_cast<int>(conf * 100.0f + 0.5f);
+        int cp = f2i(conf * 100.0f + 0.5f);
         if (cp < 0)
         {
             cp = 0;

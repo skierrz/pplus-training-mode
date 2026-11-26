@@ -286,12 +286,13 @@ namespace extra {
     }
 
     // ---- what the animation's end leads to --------------------------------
-
+#pragma dont_inline reset
     static bool freeStatus(int s)
     {
         return s == game::kStatusWait || s == game::kStatusFall || s == game::kStatusFallAerial
                || s == game::kStatusSquat || s == game::kStatusSquatWait || s == game::kStatusGuard;
     }
+#pragma dont_inline on
 
     static void applyEnd(FrameRecord& rec, int sit, int kind, int status, bool cond)
     {
@@ -485,6 +486,7 @@ namespace extra {
         }
     }
 
+#pragma dont_inline reset
     static void body(State& st, FrameRecord& rec, s32 state)
     {
         if (st.bodyOpen >= 0 && state != st.bodyState)
@@ -637,6 +639,7 @@ namespace extra {
     }
 
     // ---- structure --------------------------------------------------------
+#pragma dont_inline on
 
     static void clearRecord(FrameRecord& rec)
     {

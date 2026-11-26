@@ -684,21 +684,7 @@ namespace cpu {
         }
 
         // Writes the recording's frame; false once it has ended.
-        bool runPlay(Frame& out)
-        {
-            if (playSlot < 0)
-            {
-                return false;
-            }
-            if (s_slotFrame != NULL && s_slotFrame(playSlot, playFrame, out))
-            {
-                playFrame++;
-                return true;
-            }
-            TM_LOG("cpu: slot %d played %u frames\n", playSlot + 1, playFrame);
-            playSlot = -1;
-            return false;
-        }
+        bool runPlay(Frame& out);
 
         // Play Random Slot: a recorded slot weighted by the slot chances; -1 if none.
         int randomSlot()
@@ -737,52 +723,7 @@ namespace cpu {
         }
 
         // Writes the script's frame; false once it has ended.
-        bool runScript(Frame& out)
-        {
-            if (script == NULL)
-            {
-                return false;
-            }
-            if (scriptHeld)
-            {
-                scriptHeld = false;
-                u32 release = shieldKind ? (script[0].buttons & ~static_cast<u32>(kGuard)) : script[0].buttons;
-                out.buttons = lastButtons(slot) & ~release;
-                return true;
-            }
-            if (v.air)
-            {
-                scriptAirStarted = true;
-            }
-            const bool isShfflScript = script >= shfflBuf && script < shfflBuf + kMaxShfflSteps;
-            while (script->frames != 0)
-            {
-                const Step& s = *script;
-                // Landed: a fall, fastfall, or SHFFL/FFL air phase can no
-                // longer continue, so the action is over cleanly.
-                const bool airWait = s.until == kUntilFalling || s.until == kUntilFastfall;
-                if ((!v.air && scriptAirStarted && (isShfflScript || airWait))
-                    || (airWait && !v.air && v.status != game::kStatusJumpSquat))
-                {
-                    TM_LOG("cpu: P%d landed while waiting to fall (status %x): action over, frame %u\n",
-                           player + 1, v.status, frameOf(slot));
-                    script = NULL;
-                    pending = NULL;
-                    return false;
-                }
-                if (stepFrames < s.frames && !(s.until != kUntilNone && reached(s.until)))
-                {
-                    out.buttons = s.buttons;
-                    stick(out, s.x / 100.0f, s.y / 100.0f, s.ref);
-                    stepFrames++;
-                    return true;
-                }
-                script++;
-                stepFrames = 0;
-            }
-            script = NULL;
-            return false;
-        }
+        bool runScript(Frame& out);
 
         // Survival: the full turn (+1 counter-clockwise, -1 clockwise) whose
         // flight, followed as the DI Display does, keeps farther from the blast
@@ -966,16 +907,7 @@ namespace cpu {
             hitlagFrame++;
         }
 
-        void chooseTech(const Owner& who)
-        {
-            const CpuOptions& c = opts();
-            static const u8 kFromRandom[4] = {kTechInPlace, kTechAway, kTechTowards, kTechNone};
-            tech = c.tech == kTechRandom ? kFromRandom[weighted(c.techChance)] : c.tech;
-            preTechRoll = rnd();
-            TM_LOG("cpu: P%d tech choice %d, frame %u\n", who.playerNo + 1, tech, frameOf(slot));
-            techChosen = true;
-            techPressed = false;
-        }
+        void chooseTech(const Owner& who);
 
         // Frames until the fighter lands, if within `lead`; -1 otherwise.
         // `fallbackGround`: when false, only real ground rays count (no
@@ -1077,117 +1009,7 @@ namespace cpu {
             return lift > 0.0f && lift < 10.0f ? lift : 0.0f;
         }
 
-        void techInput(Frame& out, const Owner& who, bool allowStick = true)
-        {
-            // The air counter Wait means no tech: known from the hit on, as
-            // the press can come before the counter is chosen.
-            const Action* air = action(kListAir, opts().counterAir);
-            if (noTech || (air != NULL && (air->flags & kNoTech) != 0))
-            {
-                return;
-            }
-            if (!techChosen)
-            {
-                chooseTech(who);
-            }
-            const bool slipping = slipTechStatus(v.status);
-            const float lift = slipping ? 0.0f : ecbLift();
-            int nLand = -1;
-            bool checkedLand = false;
-            bool appliedRoll = false;
-            if (tech != kTechNone)
-            {
-                s32 now = game::trackerFrame();
-                if (techPressed && now - lastPress >= kTechGap)
-                {
-                    techPressed = false;
-                }
-                if (!techPressed)
-                {
-                    // Do not double-press if a valid tech window is already open:
-                    // a second guard press within 40 frames overwrites m_countPrev
-                    // and locks out the tech.
-                    if (techWindowActive(f))
-                    {
-                        techPressed = true;
-                    }
-                    else
-                    {
-                        // In the window and kTechGap after the press before:
-                        // docs/internals.md, "CPU tech timing". While hitlag > 1,
-                        // soControllerImpl::update (0x80764F64, 0x80765394; isStop from
-                        // 0x8085B0D8) keeps OR-ing m_trigger on every hitlag frame,
-                        // overwriting m_countPrev with 0 (self-lockout) if guard is
-                        // pressed before the last hitlag frame (v.hitlag == 1).
-                        if (v.hitlag > 1)
-                        {
-                            return;
-                        }
-                        int lead = opts().techLockout == kLockoutEarliest ? kTechLeadEarly : kTechLead;
-                        int n = -1;
-                        if (slipping)
-                        {
-                            nLand = framesToSlipTech(v.motionFrame, v.motionRate);
-                            checkedLand = true;
-                            if (nLand >= 0 && nLand <= lead - v.hitlag)
-                            {
-                                n = nLand;
-                            }
-                        }
-                        else
-                        {
-                            nLand = framesToLand(lead - v.hitlag, lift);
-                            checkedLand = true;
-                            n = nLand >= 0 ? nLand : framesToWall(lead - v.hitlag, lift);
-                        }
-                        if (n >= 0 && now - lastPress >= kTechGap && now >= techFrom)
-                        {
-                            out.buttons |= kGuard;
-                            techPressed = true;
-                            TM_LOG("cpu: P%d tech %d: guard %d frames before the predicted landing, frame %u\n",
-                                   who.playerNo + 1, tech, n + v.hitlag, frameOf(slot));
-                        }
-                    }
-                }
-                // Fighter.pac samples stickX on the landing/tech frame itself
-                // (Term_Passive_Fb 0x80FAB024, Passive_Fb entry 0x80FB563C). Wait
-                // until within kTechRollLead frames of impact so the CPU does not
-                // drift in tumble before landing unless Pre-Tech Drift is active.
-                if (techPressed && v.hitlag == 0 && (tech == kTechAway || tech == kTechTowards))
-                {
-                    if (!checkedLand)
-                    {
-                        nLand = slipping ? framesToSlipTech(v.motionFrame, v.motionRate)
-                                         : framesToLand(kTechRollLead, lift);
-                        checkedLand = true;
-                    }
-                    float rx = techRollStickX(tech, toward, nLand, techPressed, 0, allowStick,
-                                              param(kParamRollStick, 0.2f), param(kParamWiggleStick, 0.75f));
-                    if (rx != 0.0f)
-                    {
-                        out.x = rx;
-                        appliedRoll = true;
-                    }
-                }
-            }
-            if (!appliedRoll && !slipping && v.air && tumbleStatus(v.status) && v.hitlag == 0 && allowStick)
-            {
-                int driftMode = main::settings().techInvis.preTechDrift;
-                if (driftMode != main::kPreTechDriftOff)
-                {
-                    if (!checkedLand)
-                    {
-                        nLand = framesToLand(kTechRollLead, lift);
-                    }
-                    float dx = preTechDriftStickX(driftMode, tech, toward, preTechRoll, nLand, 0, true,
-                                                  param(kParamWiggleStick, 0.75f));
-                    if (dx != 0.0f)
-                    {
-                        out.x = dx;
-                    }
-                }
-            }
-        }
+        void techInput(Frame& out, const Owner& who, bool allowStick = true);
 
         bool pickMultiRev(int trigger, int entryId)
         {
@@ -1202,71 +1024,7 @@ namespace cpu {
             return true;
         }
 
-        void getupInput(Frame& out, const Owner& who)
-        {
-            // Lay_Down (0x50, e.g. Snake down throw) and Slip_Wait (0x8D, e.g.
-            // missed banana trip tech) share Down_Wait's getup inputs
-            // (Fighter.pac 0x80FB4AA4 -> 0x80FB47AC, Slip_Wait 0x80FB755C).
-            if (!isGetupWaitStatus(v.status))
-            {
-                return;
-            }
-            // Chance to stay lying down for kMissTechWait frames, re-rolled
-            // each time the wait finishes.
-            if (missWait > 0)
-            {
-                missWait--;
-                return;
-            }
-            if (downFrames == 0 && opts().missTechWait > 0 && rndBelow(100) < opts().missTechWait)
-            {
-                missWait = kMissTechWait;
-                TM_LOG("cpu: P%d waits %d frames lying down\n", who.playerNo + 1, missWait);
-                return;
-            }
-            if (downFrames == 0)
-            {
-                const CpuOptions& c = opts();
-                u8 wait = 0;
-                if (pickMultiRev(kRevOnGetup, who.entryId))
-                {
-                    getup = revAction;
-                    wait = revDelay;
-                }
-                else
-                {
-                    static const u8 kFromRandom[4] = {kGetupStand, kGetupAway, kGetupTowards, kGetupAttack};
-                    getup = c.getup == kGetupRandom ? kFromRandom[weighted(c.getupChance)] : c.getup;
-                }
-                TM_LOG("cpu: P%d get up %d\n", who.playerNo + 1, getup);
-                if (wait > 0)
-                {
-                    missWait = wait - 1;
-                    downFrames = 2;
-                    return;
-                }
-            }
-            // Pushed every other frame, so each push is a fresh input.
-            if ((downFrames++ & 1) != 0)
-            {
-                return;
-            }
-            switch (getup)
-            {
-            case kGetupStand:
-                out.y = 1.0f;
-                break;
-            case kGetupAway:
-                out.x = -toward;
-                break;
-            case kGetupTowards:
-                out.x = toward;
-                break;
-            default:
-                out.buttons = kAttack;
-                break;
-            }
-        }
+        void getupInput(Frame& out, const Owner& who);
 
         // Shield Angle: the stick pushed in over kTiltRamp frames once the
         // shield is up.
@@ -1317,111 +1075,7 @@ namespace cpu {
             return q.hold;
         }
 
-        void idle(Frame& out, const Owner& who)
-        {
-            if (held(out, who))
-            {
-                return;
-            }
-            if (!v.air && !guardStatus(v.status) && canAct(v) && opts().adaptiveMode == kAdaptiveActive
-                && main::extraLoaded())
-            {
-                int biasIdx = main::extraAdaptiveBias(who.playerNo, kListGround, false, oppDist, false);
-                if (biasIdx > 0)
-                {
-                    const Action* a = actionFor(kListGround, biasIdx, fighterKind(who.entryId));
-                    if (a != NULL)
-                    {
-                        main::extraAdaptiveBias(who.playerNo, kListGround, false, oppDist, true);
-                        start(out, a);
-                        return;
-                    }
-                }
-            }
-            switch (opts().behavior)
-            {
-            case kBehaviorShield:
-                if (!v.air)
-                {
-                    out.buttons = kGuard;
-                    shieldTilt(out);
-                }
-                break;
-            case kBehaviorCrouch:
-                if (!v.air)
-                {
-                    out.y = -1.0f;
-                }
-                break;
-            case kBehaviorJump:
-                if (runScript(out))
-                {
-                    break;
-                }
-                if (!v.air && canAct(v) && v.status != game::kStatusJumpSquat)
-                {
-                    startScript(shortHop());
-                    runScript(out);
-                }
-                break;
-            case kBehaviorPerfectShield:
-                // Guard as a hitbox is predicted to reach the shield: P+'s
-                // powershield is a press in Guard_On's first two frames
-                // (Injects/MoveDef/PowerShield.asm: IC-Basic[0] <= 1). Pressed
-                // on the hit's frame or the one before, no damage.
-                if (v.air)
-                {
-                    powershield = 0;
-                    break;
-                }
-                if (powershield > 0)
-                {
-                    // After a reflect (no Guard_Damage), move straight to the
-                    // shield counter action.
-                    if (justReflected(f))
-                    {
-                        powershield = 0;
-                        hits++;
-                        actionable = 0;
-                        revPicked = false;
-                        script = NULL;
-                        pending = NULL;
-                        state = kCounter;
-                        shieldKind = true;
-                        TM_LOG("cpu: P%d perfect shield: reflected, counter, frame %u\n", who.playerNo + 1,
-                               frameOf(slot));
-                        counter(out, who);
-                        break;
-                    }
-                    if (powershield++ < kPowershieldHold)
-                    {
-                        out.buttons = kGuard;
-                    }
-                    else if (canAct(v))
-                    {
-                        powershield = 0;
-                    }
-                    break;
-                }
-                {
-                    ShieldBubble bubble;
-                    int kind = canAct(v) ? incomingHit(f, who.entryId, v, bubble) : kHitNone;
-                    if (kind != kHitNone)
-                    {
-                        out.buttons = kGuard;
-                        powershield = 1;
-                        TM_LOG("cpu: P%d perfect shield: guard for %s predicted next frame "
-                               "(shield %.2f %.2f r %.2f%s), frame %u\n",
-                               who.playerNo + 1,
-                               kind == kHitWeapon ? "weapon" : (kind == kHitItem ? "item" : "fighter"),
-                               bubble.x, bubble.y, bubble.radius, bubble.fallback ? " fallback" : "", frameOf(slot));
-                    }
-                }
-                break;
-            default:
-                break;
-            }
-        }
+        void idle(Frame& out, const Owner& who);
 
         // Resolves the counter action and delay from the base rows or the
         // Advanced Counter hit entry; false if that hit's counter is disabled.
@@ -1485,156 +1139,7 @@ namespace cpu {
             return cpuJustOut(havePrev, prevHitstun, v.hitstun, v.hitlag, v.air, v.status);
         }
 
-        void counter(Frame& out, const Owner& who)
-        {
-            if (shieldKind && (v.air || !guardStatus(v.status)))
-            {
-                actionable = 0;
-                revPicked = false;
-                enterIdle(out, who);
-                return;
-            }
-            bool fresh = justOut();
-            if (!canAct(v) && !fresh)
-            {
-                // Reset while unactionable so pre-landing air frames do not
-                // shorten the delay after landing.
-                actionable = 0;
-                revPicked = false;
-                if (shieldKind)
-                {
-                    out.buttons = kGuard;
-                    shieldTilt(out);
-                }
-                return;
-            }
-            // Landing this frame counts as grounded.
-            const bool airNow = v.air && framesToLand() != 0;
-            if (actionable == 0)
-            {
-                counterAir = airNow;
-            }
-            int list = shieldKind ? kListShield : (counterAir && airNow ? kListAir : kListGround);
-            int index = 0, delay = 0;
-            bool comboJumpInvuln = false;
-            const main::ComboTrainerSettings& combo = main::settings().comboTrainer;
-            static const u8 kComboDelayF[main::kComboDelayCount] = {0, 15, 30, 45, 60};
-            const int comboDelayF = (combo.resetDelay < main::kComboDelayCount ? kComboDelayF[combo.resetDelay] : 30)
-                                    + static_cast<int>(combo.comboTimerAdjustment);
-            const bool comboEscapeActive = !shieldKind && combo.enabled != 0 && combo.fixPosition != 0
-                                           && combo.recoveryTrainer == 0 && comboDelayF > 0
-                                           && combo.postHitstunEscape != main::kComboEscapeCounter;
-            if (comboEscapeActive)
-            {
-                delay = 0;
-                switch (combo.postHitstunEscape)
-                {
-                case main::kComboEscapeDodge:
-                    index = 1; // Ground: Spotdodge (1), Air: Airdodge (1)
-                    break;
-                case main::kComboEscapeJumpInvuln:
-                    if (list == kListAir && !jumpLeft(f))
-                    {
-                        index = 1; // No double jump left: fall back to Airdodge without phantom intangibility
-                    }
-                    else
-                    {
-                        index = (list == kListAir) ? 2 : 18; // Air: Jump Away (2), Ground: Short Hop (18)
-                        comboJumpInvuln = true;
-                    }
-                    break;
-                case main::kComboEscapeCustomPool:
-                    index = customPoolIndex(list);
-                    break;
-                case main::kComboEscapeNone:
-                default:
-                    index = 0;
-                    break;
-                }
-            }
-            else if (!counterChoice(list, index, delay))
-            {
-                TM_LOG("cpu: P%d counter disabled for hit %d\n", who.playerNo + 1, hits);
-                revPicked = false;
-                state = kAfter;
-                return;
-            }
-            if (list == kListAir || comboEscapeActive)
-            {
-                revPicked = false;
-            }
-            else
-            {
-                if (!revPicked)
-                {
-                    revPicked = true;
-                    TM_STATIC_ASSERT((kListGround >> 1) == kRevOnHit && (kListShield >> 1) == kRevOnShield,
-                                     tm_list_to_rev_trigger);
-                    pickMultiRev(list >> 1, who.entryId);
-                }
-                if (revAction != 0)
-                {
-                    index = revAction;
-                    delay = revDelay;
-                }
-            }
-            // A held guard acts on hitstun's last frame, but delays count from
-            // the first actionable frame, the next one.
-            bool lastStun = v.hitstun == 1;
-            if (actionable < delay)
-            {
-                if (!lastStun)
-                {
-                    actionable++;
-                }
-                if (shieldKind)
-                {
-                    out.buttons = kGuard;
-                    shieldTilt(out);
-                }
-                return;
-            }
-            bool adaptiveUsed = false;
-            if (revAction == 0 && opts().adaptiveMode == kAdaptiveActive && list != kListAir && !comboEscapeActive
-                && main::extraLoaded())
-            {
-                int biasIdx = main::extraAdaptiveBias(who.playerNo, list, true, oppDist, false);
-                if (biasIdx > 0)
-                {
-                    index = biasIdx;
-                    adaptiveUsed = true;
-                }
-            }
-            int fk = fighterKind(who.entryId);
-            int chosen = resolve(list, index, fk);
-            if (actionKind(list, chosen) == kActionPlayRandomSlot)
-            {
-                int pick = randomSlot();
-                TM_LOG("cpu: P%d counter list %d: Play Random Slot picks slot %d, frame %u\n", who.playerNo + 1, list,
-                       pick + 1, frameOf(slot));
-                revPicked = false;
-                startPlay(out, pick);
-                return;
-            }
-            const Action* a = actionFor(list, chosen, fk);
-            if (!takeable(a, airNow, fresh))
-            {
-                return;
-            }
-            if (adaptiveUsed)
-            {
-                main::extraAdaptiveBias(who.playerNo, list, true, oppDist, true);
-            }
-            if (comboJumpInvuln && a != NULL && ((a->flags & kNeedsJump) == 0 || jumpLeft(f)))
-            {
-                setIntangible(f, 10);
-            }
-            TM_LOG("cpu: P%d counter list %d action %d (%d) after %d actionable frames, hit %d, frame %u, "
-                   "air %d y %d vy %d\n",
-                   who.playerNo + 1, list, chosen, index, actionable, hits, frameOf(slot), v.air ? 1 : 0,
-                   game::f2i(v.y * 100.0f), game::f2i(v.vy * 100.0f));
-            start(out, a);
-        }
+        void counter(Frame& out, const Owner& who);
 
         // Whether the game takes `a`'s first input this frame (`fresh`:
         // hitstun's last frame or the one after). On the last, only a plain
@@ -1661,49 +1166,7 @@ namespace cpu {
         // Starts a waiting cue once its frame has come and the CPU can act in
         // its list's situation (the counter actions' rules), unless busy. True
         // if so.
-        bool cueNow(Frame& out, const Owner& who, Cue& q)
-        {
-            s32 now = game::trackerFrame();
-            bool busy = v.hitlag > 0 || state == kGrabbed || state == kClatter
-                        || (state == kAfter && (script != NULL || pending != NULL || playSlot >= 0));
-            if (q.state != kCueWaiting || (q.frame != kCueAsap && now < q.frame) || busy)
-            {
-                return false;
-            }
-            bool fresh = justOut();
-            // Leaving a jump squat is airborne: an air action can start in it.
-            // The situation decides, not the predicted landing (observed,
-            // character not recorded: with it, a Jab cued three frames before
-            // an empty short hop landed came out as a neutral air).
-            const bool takeoff = q.list == kListAir && takeoffNext(v);
-            const bool airNow = v.air || takeoff;
-            if ((!canAct(v) && !fresh && !takeoff) || airNow != (q.list == kListAir))
-            {
-                return false;
-            }
-            int fk = fighterKind(who.entryId);
-            int chosen = q.custom != NULL ? 0 : resolve(q.list, q.index, fk);
-            const Action* a = q.custom != NULL ? q.custom : actionFor(q.list, chosen, fk);
-            bool randomSlotPick = q.custom == NULL && actionKind(q.list, chosen) == kActionPlayRandomSlot;
-            if (!randomSlotPick && !takeable(a, airNow, fresh))
-            {
-                return false;
-            }
-            TM_LOG("cpu: P%d cue list %d action %d, frame %d\n", who.playerNo + 1, q.list, chosen, now);
-            out.buttons = 0;
-            out.x = out.y = 0.0f;
-            if (randomSlotPick)
-            {
-                startPlay(out, randomSlot());
-            }
-            else
-            {
-                start(out, a);
-            }
-            q.state = kCueRunning;
-            q.start = now;
-            return true;
-        }
+        bool cueNow(Frame& out, const Owner& who, Cue& q);
 
         // Injects a fresh Guard press during active non-IASA AttackAir (0x33)
         // when approaching landing to trigger P+'s 7-frame L-Cancel window.
@@ -1854,96 +1317,10 @@ namespace cpu {
             }
         }
 
-        void unfreeze(const Owner& who)
-        {
-            if (!frozen)
-            {
-                return;
-            }
-            frozen = false;
-            setBodiesMotion(who.entryId, fighterOf(who.entryId, false), 1.0f);
-            TM_LOG("cpu: P%d unfrozen\n", who.playerNo + 1);
-        }
+        void unfreeze(const Owner& who);
 
         // Freeze CPU, Move CPU, Controlled By: true if one has this frame.
-        bool tools(const Owner& who, const Frame& produced, Frame& out)
-        {
-            const CpuOptions& c = opts();
-            if (c.controlledBy != 0)
-            {
-                if (!s_portChanged[who.playerNo])
-                {
-                    if (game::trainingControllerOwners() == 0)
-                    {
-                        s_origPort[who.playerNo] = static_cast<s8>(controllerOf(who.playerNo));
-                    }
-                    s_savedPort[who.playerNo] = s_origPort[who.playerNo];
-                    s_savedType[who.playerNo] = static_cast<u8>(cpuType(who.input));
-                    s_portChanged[who.playerNo] = true;
-                    TM_LOG("cpu: P%d controlled by port %d\n", who.playerNo + 1, c.controlledBy);
-                }
-                game::trainingControllerSuppress(game::kControllerOwnerControlledBy, true);
-                setControllerOf(who.playerNo, c.controlledBy);
-                setCpuType(who.input, kCpuTypeControl);
-                out = produced;
-                reset();
-                return true;
-            }
-            restorePort(who.playerNo);
-            if (who.playerNo >= 0 && who.playerNo < kMaxSlots && game::trainingControllerOwners() == 0)
-            {
-                s_origPort[who.playerNo] = static_cast<s8>(controllerOf(who.playerNo));
-            }
-            if (s_freezeRequest && !frozen && frozenStatus != v.status)
-            {
-                frozen = true;
-                frozenStatus = v.status;
-                TM_LOG("cpu: P%d frozen in status %x\n", who.playerNo + 1, v.status);
-            }
-            if (frozen && (!s_freezeRequest || v.status != frozenStatus))
-            {
-                // A hit or anything else that changes the status lets it go,
-                // as the game resets the animation speed then.
-                unfreeze(who);
-                if (s_freezeRequest)
-                {
-                    s_freezeRequest = false;
-                    g_freezeCpuLabel[0] = '\0';
-                }
-            }
-            if (!s_freezeRequest)
-            {
-                frozenStatus = -1;
-            }
-            if (frozen)
-            {
-                setBodiesMotion(who.entryId, f, 0.0f);
-                return true;
-            }
-            if (s_moving)
-            {
-                if (!placed)
-                {
-                    placed = true;
-                    moveX = v.x;
-                    moveY = v.y;
-                }
-                if (!v.air)
-                {
-                    requestStatus(f, kStatusFall);
-                }
-                moveX += s_moveX * kMoveSpeed;
-                moveY += s_moveY * kMoveSpeed;
-                placeAt(f, moveX, moveY);
-                return true;
-            }
-            if (placed)
-            {
-                placed = false;
-                reset();
-            }
-            return false;
-        }
+        bool tools(const Owner& who, const Frame& produced, Frame& out);
 
         // What the next frame compares with.
         bool stepLedge(Frame& out, const Owner& who, const CpuOptions& c, bool busy)
@@ -2055,6 +1432,649 @@ namespace cpu {
         scriptHeld = heldBtn || oosStick;
     }
 #pragma dont_inline reset
+
+    bool Brain::runPlay(Frame& out)
+    {
+        if (playSlot < 0)
+        {
+            return false;
+        }
+        if (s_slotFrame != NULL && s_slotFrame(playSlot, playFrame, out))
+        {
+            playFrame++;
+            return true;
+        }
+        TM_LOG("cpu: slot %d played %u frames\n", playSlot + 1, playFrame);
+        playSlot = -1;
+        return false;
+    }
+
+    bool Brain::runScript(Frame& out)
+    {
+        if (script == NULL)
+        {
+            return false;
+        }
+        if (scriptHeld)
+        {
+            scriptHeld = false;
+            u32 release = shieldKind ? (script[0].buttons & ~static_cast<u32>(kGuard)) : script[0].buttons;
+            out.buttons = lastButtons(slot) & ~release;
+            return true;
+        }
+        if (v.air)
+        {
+            scriptAirStarted = true;
+        }
+        const bool isShfflScript = script >= shfflBuf && script < shfflBuf + kMaxShfflSteps;
+        while (script->frames != 0)
+        {
+            const Step& s = *script;
+            // Landed: a fall, fastfall, or SHFFL/FFL air phase can no
+            // longer continue, so the action is over cleanly.
+            const bool airWait = s.until == kUntilFalling || s.until == kUntilFastfall;
+            if ((!v.air && scriptAirStarted && (isShfflScript || airWait))
+                || (airWait && !v.air && v.status != game::kStatusJumpSquat))
+            {
+                TM_LOG("cpu: P%d landed while waiting to fall (status %x): action over, frame %u\n",
+                       player + 1, v.status, frameOf(slot));
+                script = NULL;
+                pending = NULL;
+                return false;
+            }
+            if (stepFrames < s.frames && !(s.until != kUntilNone && reached(s.until)))
+            {
+                out.buttons = s.buttons;
+                stick(out, s.x / 100.0f, s.y / 100.0f, s.ref);
+                stepFrames++;
+                return true;
+            }
+            script++;
+            stepFrames = 0;
+        }
+        script = NULL;
+        return false;
+    }
+
+    void Brain::chooseTech(const Owner& who)
+    {
+        const CpuOptions& c = opts();
+        static const u8 kFromRandom[4] = {kTechInPlace, kTechAway, kTechTowards, kTechNone};
+        tech = c.tech == kTechRandom ? kFromRandom[weighted(c.techChance)] : c.tech;
+        preTechRoll = rnd();
+        TM_LOG("cpu: P%d tech choice %d, frame %u\n", who.playerNo + 1, tech, frameOf(slot));
+        techChosen = true;
+        techPressed = false;
+    }
+
+    void Brain::techInput(Frame& out, const Owner& who, bool allowStick)
+    {
+        // The air counter Wait means no tech: known from the hit on, as
+        // the press can come before the counter is chosen.
+        const Action* air = action(kListAir, opts().counterAir);
+        if (noTech || (air != NULL && (air->flags & kNoTech) != 0))
+        {
+            return;
+        }
+        if (!techChosen)
+        {
+            chooseTech(who);
+        }
+        const bool slipping = slipTechStatus(v.status);
+        const float lift = slipping ? 0.0f : ecbLift();
+        int nLand = -1;
+        bool checkedLand = false;
+        bool appliedRoll = false;
+        if (tech != kTechNone)
+        {
+            s32 now = game::trackerFrame();
+            if (techPressed && now - lastPress >= kTechGap)
+            {
+                techPressed = false;
+            }
+            if (!techPressed)
+            {
+                // Do not double-press if a valid tech window is already open:
+                // a second guard press within 40 frames overwrites m_countPrev
+                // and locks out the tech.
+                if (techWindowActive(f))
+                {
+                    techPressed = true;
+                }
+                else
+                {
+                    // In the window and kTechGap after the press before:
+                    // docs/internals.md, "CPU tech timing". While hitlag > 1,
+                    // soControllerImpl::update (0x80764F64, 0x80765394; isStop from
+                    // 0x8085B0D8) keeps OR-ing m_trigger on every hitlag frame,
+                    // overwriting m_countPrev with 0 (self-lockout) if guard is
+                    // pressed before the last hitlag frame (v.hitlag == 1).
+                    if (v.hitlag > 1)
+                    {
+                        return;
+                    }
+                    int lead = opts().techLockout == kLockoutEarliest ? kTechLeadEarly : kTechLead;
+                    int n = -1;
+                    if (slipping)
+                    {
+                        nLand = framesToSlipTech(v.motionFrame, v.motionRate);
+                        checkedLand = true;
+                        if (nLand >= 0 && nLand <= lead - v.hitlag)
+                        {
+                            n = nLand;
+                        }
+                    }
+                    else
+                    {
+                        nLand = framesToLand(lead - v.hitlag, lift);
+                        checkedLand = true;
+                        n = nLand >= 0 ? nLand : framesToWall(lead - v.hitlag, lift);
+                    }
+                    if (n >= 0 && now - lastPress >= kTechGap && now >= techFrom)
+                    {
+                        out.buttons |= kGuard;
+                        techPressed = true;
+                        TM_LOG("cpu: P%d tech %d: guard %d frames before the predicted landing, frame %u\n",
+                               who.playerNo + 1, tech, n + v.hitlag, frameOf(slot));
+                    }
+                }
+            }
+            // Fighter.pac samples stickX on the landing/tech frame itself
+            // (Term_Passive_Fb 0x80FAB024, Passive_Fb entry 0x80FB563C). Wait
+            // until within kTechRollLead frames of impact so the CPU does not
+            // drift in tumble before landing unless Pre-Tech Drift is active.
+            if (techPressed && v.hitlag == 0 && (tech == kTechAway || tech == kTechTowards))
+            {
+                if (!checkedLand)
+                {
+                    nLand = slipping ? framesToSlipTech(v.motionFrame, v.motionRate)
+                                     : framesToLand(kTechRollLead, lift);
+                    checkedLand = true;
+                }
+                float rx = techRollStickX(tech, toward, nLand, techPressed, 0, allowStick,
+                                          param(kParamRollStick, 0.2f), param(kParamWiggleStick, 0.75f));
+                if (rx != 0.0f)
+                {
+                    out.x = rx;
+                    appliedRoll = true;
+                }
+            }
+        }
+        if (!appliedRoll && !slipping && v.air && tumbleStatus(v.status) && v.hitlag == 0 && allowStick)
+        {
+            int driftMode = main::settings().techInvis.preTechDrift;
+            if (driftMode != main::kPreTechDriftOff)
+            {
+                if (!checkedLand)
+                {
+                    nLand = framesToLand(kTechRollLead, lift);
+                }
+                float dx = preTechDriftStickX(driftMode, tech, toward, preTechRoll, nLand, 0, true,
+                                              param(kParamWiggleStick, 0.75f));
+                if (dx != 0.0f)
+                {
+                    out.x = dx;
+                }
+            }
+        }
+    }
+
+    void Brain::getupInput(Frame& out, const Owner& who)
+    {
+        // Lay_Down (0x50, e.g. Snake down throw) and Slip_Wait (0x8D, e.g.
+        // missed banana trip tech) share Down_Wait's getup inputs
+        // (Fighter.pac 0x80FB4AA4 -> 0x80FB47AC, Slip_Wait 0x80FB755C).
+        if (!isGetupWaitStatus(v.status))
+        {
+            return;
+        }
+        // Chance to stay lying down for kMissTechWait frames, re-rolled
+        // each time the wait finishes.
+        if (missWait > 0)
+        {
+            missWait--;
+            return;
+        }
+        if (downFrames == 0 && opts().missTechWait > 0 && rndBelow(100) < opts().missTechWait)
+        {
+            missWait = kMissTechWait;
+            TM_LOG("cpu: P%d waits %d frames lying down\n", who.playerNo + 1, missWait);
+            return;
+        }
+        if (downFrames == 0)
+        {
+            const CpuOptions& c = opts();
+            u8 wait = 0;
+            if (pickMultiRev(kRevOnGetup, who.entryId))
+            {
+                getup = revAction;
+                wait = revDelay;
+            }
+            else
+            {
+                static const u8 kFromRandom[4] = {kGetupStand, kGetupAway, kGetupTowards, kGetupAttack};
+                getup = c.getup == kGetupRandom ? kFromRandom[weighted(c.getupChance)] : c.getup;
+            }
+            TM_LOG("cpu: P%d get up %d\n", who.playerNo + 1, getup);
+            if (wait > 0)
+            {
+                missWait = wait - 1;
+                downFrames = 2;
+                return;
+            }
+        }
+        // Pushed every other frame, so each push is a fresh input.
+        if ((downFrames++ & 1) != 0)
+        {
+            return;
+        }
+        switch (getup)
+        {
+        case kGetupStand:
+            out.y = 1.0f;
+            break;
+        case kGetupAway:
+            out.x = -toward;
+            break;
+        case kGetupTowards:
+            out.x = toward;
+            break;
+        default:
+            out.buttons = kAttack;
+            break;
+        }
+    }
+
+    void Brain::idle(Frame& out, const Owner& who)
+    {
+        if (held(out, who))
+        {
+            return;
+        }
+        if (!v.air && !guardStatus(v.status) && canAct(v) && opts().adaptiveMode == kAdaptiveActive
+            && main::extraLoaded())
+        {
+            int biasIdx = main::extraAdaptiveBias(who.playerNo, kListGround, false, oppDist, false);
+            if (biasIdx > 0)
+            {
+                const Action* a = actionFor(kListGround, biasIdx, fighterKind(who.entryId));
+                if (a != NULL)
+                {
+                    main::extraAdaptiveBias(who.playerNo, kListGround, false, oppDist, true);
+                    start(out, a);
+                    return;
+                }
+            }
+        }
+        switch (opts().behavior)
+        {
+        case kBehaviorShield:
+            if (!v.air)
+            {
+                out.buttons = kGuard;
+                shieldTilt(out);
+            }
+            break;
+        case kBehaviorCrouch:
+            if (!v.air)
+            {
+                out.y = -1.0f;
+            }
+            break;
+        case kBehaviorJump:
+            if (runScript(out))
+            {
+                break;
+            }
+            if (!v.air && canAct(v) && v.status != game::kStatusJumpSquat)
+            {
+                startScript(shortHop());
+                runScript(out);
+            }
+            break;
+        case kBehaviorPerfectShield:
+            // Guard as a hitbox is predicted to reach the shield: P+'s
+            // powershield is a press in Guard_On's first two frames
+            // (Injects/MoveDef/PowerShield.asm: IC-Basic[0] <= 1). Pressed
+            // on the hit's frame or the one before, no damage.
+            if (v.air)
+            {
+                powershield = 0;
+                break;
+            }
+            if (powershield > 0)
+            {
+                // After a reflect (no Guard_Damage), move straight to the
+                // shield counter action.
+                if (justReflected(f))
+                {
+                    powershield = 0;
+                    hits++;
+                    actionable = 0;
+                    revPicked = false;
+                    script = NULL;
+                    pending = NULL;
+                    state = kCounter;
+                    shieldKind = true;
+                    TM_LOG("cpu: P%d perfect shield: reflected, counter, frame %u\n", who.playerNo + 1,
+                           frameOf(slot));
+                    counter(out, who);
+                    break;
+                }
+                if (powershield++ < kPowershieldHold)
+                {
+                    out.buttons = kGuard;
+                }
+                else if (canAct(v))
+                {
+                    powershield = 0;
+                }
+                break;
+            }
+            {
+                ShieldBubble bubble;
+                int kind = canAct(v) ? incomingHit(f, who.entryId, v, bubble) : kHitNone;
+                if (kind != kHitNone)
+                {
+                    out.buttons = kGuard;
+                    powershield = 1;
+                    TM_LOG("cpu: P%d perfect shield: guard for %s predicted next frame "
+                           "(shield %.2f %.2f r %.2f%s), frame %u\n",
+                           who.playerNo + 1,
+                           kind == kHitWeapon ? "weapon" : (kind == kHitItem ? "item" : "fighter"),
+                           bubble.x, bubble.y, bubble.radius, bubble.fallback ? " fallback" : "", frameOf(slot));
+                }
+            }
+            break;
+        default:
+            break;
+        }
+    }
+
+    void Brain::counter(Frame& out, const Owner& who)
+    {
+        if (shieldKind && (v.air || !guardStatus(v.status)))
+        {
+            actionable = 0;
+            revPicked = false;
+            enterIdle(out, who);
+            return;
+        }
+        bool fresh = justOut();
+        if (!canAct(v) && !fresh)
+        {
+            // Reset while unactionable so pre-landing air frames do not
+            // shorten the delay after landing.
+            actionable = 0;
+            revPicked = false;
+            if (shieldKind)
+            {
+                out.buttons = kGuard;
+                shieldTilt(out);
+            }
+            return;
+        }
+        // Landing this frame counts as grounded.
+        const bool airNow = v.air && framesToLand() != 0;
+        if (actionable == 0)
+        {
+            counterAir = airNow;
+        }
+        int list = shieldKind ? kListShield : (counterAir && airNow ? kListAir : kListGround);
+        int index = 0, delay = 0;
+        bool comboJumpInvuln = false;
+        const main::ComboTrainerSettings& combo = main::settings().comboTrainer;
+        static const u8 kComboDelayF[main::kComboDelayCount] = {0, 15, 30, 45, 60};
+        const int comboDelayF = (combo.resetDelay < main::kComboDelayCount ? kComboDelayF[combo.resetDelay] : 30)
+                                + static_cast<int>(combo.comboTimerAdjustment);
+        const bool comboEscapeActive = !shieldKind && combo.enabled != 0 && combo.fixPosition != 0
+                                       && combo.recoveryTrainer == 0 && comboDelayF > 0
+                                       && combo.postHitstunEscape != main::kComboEscapeCounter;
+        if (comboEscapeActive)
+        {
+            delay = 0;
+            switch (combo.postHitstunEscape)
+            {
+            case main::kComboEscapeDodge:
+                index = 1; // Ground: Spotdodge (1), Air: Airdodge (1)
+                break;
+            case main::kComboEscapeJumpInvuln:
+                if (list == kListAir && !jumpLeft(f))
+                {
+                    index = 1; // No double jump left: fall back to Airdodge without phantom intangibility
+                }
+                else
+                {
+                    index = (list == kListAir) ? 2 : 18; // Air: Jump Away (2), Ground: Short Hop (18)
+                    comboJumpInvuln = true;
+                }
+                break;
+            case main::kComboEscapeCustomPool:
+                index = customPoolIndex(list);
+                break;
+            case main::kComboEscapeNone:
+            default:
+                index = 0;
+                break;
+            }
+        }
+        else if (!counterChoice(list, index, delay))
+        {
+            TM_LOG("cpu: P%d counter disabled for hit %d\n", who.playerNo + 1, hits);
+            revPicked = false;
+            state = kAfter;
+            return;
+        }
+        if (list == kListAir || comboEscapeActive)
+        {
+            revPicked = false;
+        }
+        else
+        {
+            if (!revPicked)
+            {
+                revPicked = true;
+                TM_STATIC_ASSERT((kListGround >> 1) == kRevOnHit && (kListShield >> 1) == kRevOnShield,
+                                 tm_list_to_rev_trigger);
+                pickMultiRev(list >> 1, who.entryId);
+            }
+            if (revAction != 0)
+            {
+                index = revAction;
+                delay = revDelay;
+            }
+        }
+        // A held guard acts on hitstun's last frame, but delays count from
+        // the first actionable frame, the next one.
+        bool lastStun = v.hitstun == 1;
+        if (actionable < delay)
+        {
+            if (!lastStun)
+            {
+                actionable++;
+            }
+            if (shieldKind)
+            {
+                out.buttons = kGuard;
+                shieldTilt(out);
+            }
+            return;
+        }
+        bool adaptiveUsed = false;
+        if (revAction == 0 && opts().adaptiveMode == kAdaptiveActive && list != kListAir && !comboEscapeActive
+            && main::extraLoaded())
+        {
+            int biasIdx = main::extraAdaptiveBias(who.playerNo, list, true, oppDist, false);
+            if (biasIdx > 0)
+            {
+                index = biasIdx;
+                adaptiveUsed = true;
+            }
+        }
+        int fk = fighterKind(who.entryId);
+        int chosen = resolve(list, index, fk);
+        if (actionKind(list, chosen) == kActionPlayRandomSlot)
+        {
+            int pick = randomSlot();
+            TM_LOG("cpu: P%d counter list %d: Play Random Slot picks slot %d, frame %u\n", who.playerNo + 1, list,
+                   pick + 1, frameOf(slot));
+            revPicked = false;
+            startPlay(out, pick);
+            return;
+        }
+        const Action* a = actionFor(list, chosen, fk);
+        if (!takeable(a, airNow, fresh))
+        {
+            return;
+        }
+        if (adaptiveUsed)
+        {
+            main::extraAdaptiveBias(who.playerNo, list, true, oppDist, true);
+        }
+        if (comboJumpInvuln && a != NULL && ((a->flags & kNeedsJump) == 0 || jumpLeft(f)))
+        {
+            setIntangible(f, 10);
+        }
+        TM_LOG("cpu: P%d counter list %d action %d (%d) after %d actionable frames, hit %d, frame %u, "
+               "air %d y %d vy %d\n",
+               who.playerNo + 1, list, chosen, index, actionable, hits, frameOf(slot), v.air ? 1 : 0,
+               game::f2i(v.y * 100.0f), game::f2i(v.vy * 100.0f));
+        start(out, a);
+    }
+
+    bool Brain::cueNow(Frame& out, const Owner& who, Cue& q)
+    {
+        s32 now = game::trackerFrame();
+        bool busy = v.hitlag > 0 || state == kGrabbed || state == kClatter
+                    || (state == kAfter && (script != NULL || pending != NULL || playSlot >= 0));
+        if (q.state != kCueWaiting || (q.frame != kCueAsap && now < q.frame) || busy)
+        {
+            return false;
+        }
+        bool fresh = justOut();
+        // Leaving a jump squat is airborne: an air action can start in it.
+        // The situation decides, not the predicted landing (observed,
+        // character not recorded: with it, a Jab cued three frames before
+        // an empty short hop landed came out as a neutral air).
+        const bool takeoff = q.list == kListAir && takeoffNext(v);
+        const bool airNow = v.air || takeoff;
+        if ((!canAct(v) && !fresh && !takeoff) || airNow != (q.list == kListAir))
+        {
+            return false;
+        }
+        int fk = fighterKind(who.entryId);
+        int chosen = q.custom != NULL ? 0 : resolve(q.list, q.index, fk);
+        const Action* a = q.custom != NULL ? q.custom : actionFor(q.list, chosen, fk);
+        bool randomSlotPick = q.custom == NULL && actionKind(q.list, chosen) == kActionPlayRandomSlot;
+        if (!randomSlotPick && !takeable(a, airNow, fresh))
+        {
+            return false;
+        }
+        TM_LOG("cpu: P%d cue list %d action %d, frame %d\n", who.playerNo + 1, q.list, chosen, now);
+        out.buttons = 0;
+        out.x = out.y = 0.0f;
+        if (randomSlotPick)
+        {
+            startPlay(out, randomSlot());
+        }
+        else
+        {
+            start(out, a);
+        }
+        q.state = kCueRunning;
+        q.start = now;
+        return true;
+    }
+
+    void Brain::unfreeze(const Owner& who)
+    {
+        if (!frozen)
+        {
+            return;
+        }
+        frozen = false;
+        setBodiesMotion(who.entryId, fighterOf(who.entryId, false), 1.0f);
+        TM_LOG("cpu: P%d unfrozen\n", who.playerNo + 1);
+    }
+
+    bool Brain::tools(const Owner& who, const Frame& produced, Frame& out)
+    {
+        const CpuOptions& c = opts();
+        if (c.controlledBy != 0)
+        {
+            if (!s_portChanged[who.playerNo])
+            {
+                if (game::trainingControllerOwners() == 0)
+                {
+                    s_origPort[who.playerNo] = static_cast<s8>(controllerOf(who.playerNo));
+                }
+                s_savedPort[who.playerNo] = s_origPort[who.playerNo];
+                s_savedType[who.playerNo] = static_cast<u8>(cpuType(who.input));
+                s_portChanged[who.playerNo] = true;
+                TM_LOG("cpu: P%d controlled by port %d\n", who.playerNo + 1, c.controlledBy);
+            }
+            game::trainingControllerSuppress(game::kControllerOwnerControlledBy, true);
+            setControllerOf(who.playerNo, c.controlledBy);
+            setCpuType(who.input, kCpuTypeControl);
+            out = produced;
+            reset();
+            return true;
+        }
+        restorePort(who.playerNo);
+        if (who.playerNo >= 0 && who.playerNo < kMaxSlots && game::trainingControllerOwners() == 0)
+        {
+            s_origPort[who.playerNo] = static_cast<s8>(controllerOf(who.playerNo));
+        }
+        if (s_freezeRequest && !frozen && frozenStatus != v.status)
+        {
+            frozen = true;
+            frozenStatus = v.status;
+            TM_LOG("cpu: P%d frozen in status %x\n", who.playerNo + 1, v.status);
+        }
+        if (frozen && (!s_freezeRequest || v.status != frozenStatus))
+        {
+            // A hit or anything else that changes the status lets it go,
+            // as the game resets the animation speed then.
+            unfreeze(who);
+            if (s_freezeRequest)
+            {
+                s_freezeRequest = false;
+                g_freezeCpuLabel[0] = '\0';
+            }
+        }
+        if (!s_freezeRequest)
+        {
+            frozenStatus = -1;
+        }
+        if (frozen)
+        {
+            setBodiesMotion(who.entryId, f, 0.0f);
+            return true;
+        }
+        if (s_moving)
+        {
+            if (!placed)
+            {
+                placed = true;
+                moveX = v.x;
+                moveY = v.y;
+            }
+            if (!v.air)
+            {
+                requestStatus(f, kStatusFall);
+            }
+            moveX += s_moveX * kMoveSpeed;
+            moveY += s_moveY * kMoveSpeed;
+            placeAt(f, moveX, moveY);
+            return true;
+        }
+        if (placed)
+        {
+            placed = false;
+            reset();
+        }
+        return false;
+    }
 
     static Brain* s_brains = NULL;
 

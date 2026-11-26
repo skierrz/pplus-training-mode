@@ -23,7 +23,6 @@
 #include "main/game/status_names.h"
 #include "main/game/tracker.h"
 #include "main/gfx/draw.h"
-#include "main/gfx/format_core.h"
 #include "main/gfx/text.h"
 #include "main/settings.h"
 #include "main/ui/hud_layout.h"
@@ -245,9 +244,6 @@ namespace ui {
         return 0.0f;
     }
 
-    // Shadows libc snprintf in this translation unit with typed overloads for
-    // hot info-panel formats (%d, %s, %[+].[0-4]f) via a single non-inline
-    // formatFast dispatch so MWCC does not inline formatFast or wrappers.
     static inline float i2f(s32 v)
     {
         return game::i2f(v);
@@ -259,82 +255,9 @@ namespace ui {
     {
         return soValueAccesser::getConstantInt(acc, id, 0);
     }
-
-    static int fastFmt(char* buf, u32 size, const char* format, const gfx::FmtArg* args, int count)
-    {
-        return gfx::formatFast(buf, size, format, args, count);
-    }
-
-    static int snprintf(char* buf, u32 size, const char* format)
-    {
-        int n = fastFmt(buf, size, format, NULL, 0);
-        return n >= 0 ? n : std::snprintf(buf, size, format);
-    }
-
-    static int snprintf(char* buf, u32 size, const char* format, int a)
-    {
-        gfx::FmtArg args[1] = {gfx::FmtArg::fromInt(a)};
-        int n = fastFmt(buf, size, format, args, 1);
-        return n >= 0 ? n : std::snprintf(buf, size, format, a);
-    }
-
-    static int snprintf(char* buf, u32 size, const char* format, int a, int b)
-    {
-        gfx::FmtArg args[2] = {gfx::FmtArg::fromInt(a), gfx::FmtArg::fromInt(b)};
-        int n = fastFmt(buf, size, format, args, 2);
-        return n >= 0 ? n : std::snprintf(buf, size, format, a, b);
-    }
-
-    static int snprintf(char* buf, u32 size, const char* format, const char* s)
-    {
-        gfx::FmtArg args[1] = {gfx::FmtArg::fromStr(s)};
-        int n = fastFmt(buf, size, format, args, 1);
-        return n >= 0 ? n : std::snprintf(buf, size, format, s);
-    }
-
-    static int snprintf(char* buf, u32 size, const char* format, float a)
-    {
-        gfx::FmtArg args[1] = {gfx::FmtArg::fromFloat(a)};
-        int n = fastFmt(buf, size, format, args, 1);
-        return n >= 0 ? n : std::snprintf(buf, size, format, a);
-    }
-
-    static int snprintf(char* buf, u32 size, const char* format, float a, float b)
-    {
-        gfx::FmtArg args[2] = {gfx::FmtArg::fromFloat(a), gfx::FmtArg::fromFloat(b)};
-        int n = fastFmt(buf, size, format, args, 2);
-        return n >= 0 ? n : std::snprintf(buf, size, format, a, b);
-    }
-
-    static int snprintf(char* buf, u32 size, const char* format, const char* s, float a, float b)
-    {
-        gfx::FmtArg args[3] = {gfx::FmtArg::fromStr(s), gfx::FmtArg::fromFloat(a), gfx::FmtArg::fromFloat(b)};
-        int n = fastFmt(buf, size, format, args, 3);
-        return n >= 0 ? n : std::snprintf(buf, size, format, s, a, b);
-    }
 #ifdef __MWERKS__
 #pragma dont_inline reset
 #endif
-
-    static int snprintf(char* buf, u32 size, const char* format, const char* s, int a, int b)
-    {
-        return std::snprintf(buf, size, format, s, a, b);
-    }
-
-    static int snprintf(char* buf, u32 size, const char* format, int a, int b, int c)
-    {
-        return std::snprintf(buf, size, format, a, b, c);
-    }
-
-    static int snprintf(char* buf, u32 size, const char* format, int a, const char* s, int b)
-    {
-        return std::snprintf(buf, size, format, a, s, b);
-    }
-
-    static int snprintf(char* buf, u32 size, const char* format, int a, int b, int c, int d)
-    {
-        return std::snprintf(buf, size, format, a, b, c, d);
-    }
 
     // Formats direct game-module values; returns false if unhandled or unreadable.
     static bool gameText(int value, const game::FighterState& st, const game::FighterRef& ref, int side, char* buf,

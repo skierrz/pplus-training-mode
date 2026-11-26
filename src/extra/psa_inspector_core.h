@@ -201,17 +201,12 @@ namespace extra {
         float f = psaClampDisplay(animFrame, 0.0f, 999.9f);
         u32 st = status >= 0 ? (static_cast<u32>(status) & 0xFFFu) : 0u;
         u32 sub = subaction >= 0 ? (static_cast<u32>(subaction) & 0xFFFu) : 0u;
-        if (secondaryKind != -1)
+        int n = snprintf(out, static_cast<size_t>(outSize), "A:%03X S:%03X f%.1f",
+                         static_cast<unsigned>(st), static_cast<unsigned>(sub), static_cast<double>(f));
+        if (secondaryKind != -1 && n > 0 && n < outSize)
         {
             float sr = psaClampDisplay(secondaryRate, 0.0f, 99.99f);
-            snprintf(out, static_cast<size_t>(outSize), "A:%03X S:%03X f%.1f 2x%.2f",
-                     static_cast<unsigned>(st), static_cast<unsigned>(sub), static_cast<double>(f),
-                     static_cast<double>(sr));
-        }
-        else
-        {
-            snprintf(out, static_cast<size_t>(outSize), "A:%03X S:%03X f%.1f",
-                     static_cast<unsigned>(st), static_cast<unsigned>(sub), static_cast<double>(f));
+            snprintf(out + n, static_cast<size_t>(outSize - n), " 2x%.2f", static_cast<double>(sr));
         }
     }
 
@@ -223,19 +218,16 @@ namespace extra {
 
     inline void psaFormatWait(u8 waitKind, float waitFrames, char* out, int outSize)
     {
-        if (waitKind == kPsaWaitSync)
+        if (waitKind == kPsaWaitSync || waitKind == kPsaWaitAsync)
         {
             float w = psaClampDisplay(waitFrames, 0.0f, 99.9f);
-            snprintf(out, static_cast<size_t>(outSize), "w%.1f", static_cast<double>(w));
+            snprintf(out, static_cast<size_t>(outSize), "%c%.1f", waitKind == kPsaWaitSync ? 'w' : 'a',
+                     static_cast<double>(w));
         }
-        else if (waitKind == kPsaWaitAsync)
+        else if (outSize >= 2)
         {
-            float w = psaClampDisplay(waitFrames, 0.0f, 99.9f);
-            snprintf(out, static_cast<size_t>(outSize), "a%.1f", static_cast<double>(w));
-        }
-        else
-        {
-            snprintf(out, static_cast<size_t>(outSize), "-");
+            out[0] = '-';
+            out[1] = '\0';
         }
     }
 
@@ -275,36 +267,41 @@ namespace extra {
             out[0] = '\0';
             return;
         }
-        char opName[20];
-        psaFormatOpcodeName(cmdHeader, opName, sizeof(opName));
+        psaFormatOpcodeName(cmdHeader, out, outSize);
         u8 totalArgs = psaDecodeCmdHeader(cmdHeader).numArgs;
         u32 show = argCount < kPsaMaxArgs ? argCount : static_cast<u32>(kPsaMaxArgs);
         if (show == 0u || args == NULL)
         {
-            snprintf(out, static_cast<size_t>(outSize), "%s", opName);
             return;
         }
-        int pos = snprintf(out, static_cast<size_t>(outSize), "%s(", opName);
-        if (pos < 0 || pos >= outSize)
+        int pos = 0;
+        while (pos < outSize && out[pos] != '\0')
+        {
+            pos++;
+        }
+        if (pos + 1 >= outSize)
         {
             out[outSize - 1] = '\0';
             return;
         }
+        out[pos++] = '(';
+        out[pos] = '\0';
         for (u32 i = 0; i < show && pos + 2 < outSize; i++)
         {
-            char argBuf[20];
-            psaFormatArg(args[i].type, args[i].content, argBuf, sizeof(argBuf));
-            int n = snprintf(out + pos, static_cast<size_t>(outSize - pos), "%s%s", i > 0u ? "," : "", argBuf);
-            if (n < 0 || pos + n >= outSize)
+            if (i > 0u)
             {
-                pos = outSize - 1;
-                break;
+                out[pos++] = ',';
             }
-            pos += n;
+            psaFormatArg(args[i].type, args[i].content, out + pos, outSize - pos);
+            while (pos < outSize && out[pos] != '\0')
+            {
+                pos++;
+            }
         }
         if (totalArgs > show && pos + 3 < outSize)
         {
-            pos += snprintf(out + pos, static_cast<size_t>(outSize - pos), "..");
+            out[pos++] = '.';
+            out[pos++] = '.';
         }
         if (pos + 1 < outSize)
         {

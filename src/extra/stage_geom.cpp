@@ -449,7 +449,6 @@ namespace extra {
         m->m_postureModule->updateRotYLr();
     }
 
-#pragma dont_inline on
     static void warpSingle(Fighter* f, float x, float y, bool falling, bool setNoclip, float lr)
     {
         const soModuleEnumeration* m = game::fighterModules(f);
@@ -511,7 +510,6 @@ namespace extra {
             gm->setCorrect(soGroundShapeImpl::Correct_None, 0);
         }
     }
-#pragma dont_inline reset
 
     namespace {
         enum {

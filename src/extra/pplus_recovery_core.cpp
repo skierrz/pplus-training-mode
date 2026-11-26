@@ -420,11 +420,13 @@ namespace extra {
         }
         return false;
     }
+#pragma dont_inline reset
 
     static bool isTetherStatus(int s)
     {
         return (s >= kStAirLasso && s <= kStAirLassoFailure) || s == kStCliffJump2;
     }
+#pragma dont_inline on
 
     static bool inRect16(int x16, int xMin, int xMax, int y16, int yMin, int yMax)
     {

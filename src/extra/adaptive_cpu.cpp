@@ -60,15 +60,8 @@ namespace extra {
 
     static u8 clampU8Float(float v)
     {
-        if (v <= 0.0f)
-        {
-            return 0;
-        }
-        if (v >= 255.0f)
-        {
-            return 255;
-        }
-        return static_cast<u8>(v);
+        int n = f2i(v);
+        return static_cast<u8>(n <= 0 ? 0 : (n >= 255 ? 255 : n));
     }
 
     static float absF(float v)
@@ -382,17 +375,14 @@ namespace extra {
                 strcpy(foot, "Learning P1...");
             }
         }
+        else if (v.rpsCount > 0)
+        {
+            snprintf(foot, sizeof(foot), "Read: %s", adaptiveRpsLabel(v.dominantRps));
+            footCol = v.confident ? 0x7CE6E0FFu : 0xB8CDD6FFu;
+        }
         else
         {
-            if (v.rpsCount > 0)
-            {
-                snprintf(foot, sizeof(foot), "Read: %s", adaptiveRpsLabel(v.dominantRps));
-                footCol = v.confident ? 0x7CE6E0FFu : 0xB8CDD6FFu;
-            }
-            else
-            {
-                strcpy(foot, "Watching P1...");
-            }
+            strcpy(foot, "Watching P1...");
         }
         float footY = ui::style::textYForCap(y + 46.0f, rowScale);
         drawShadowText(x + 5.5f * xs, footY, foot, footCol, rowScale);

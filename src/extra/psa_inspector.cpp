@@ -68,16 +68,25 @@ namespace extra {
         typedef s32 (*VSizeFn)(const void*);
         typedef const void* (*VAtFn)(const void*, s32);
 
-        PsaDebugBlock* s_debug = NULL;
+        struct PsaFocusCache {
+            u32 hdr;
+            u32 argCount;
+            PsaArgSnapshot args[kPsaMaxArgs];
+            char text[48];
+            bool valid;
+        };
 
-#ifdef __MWERKS__
-#pragma dont_inline on
-#endif
+        PsaDebugBlock* s_debug = NULL;
+        PsaFocusCache* s_focusCache = NULL;
+
         s16 s16At(const void* base, u32 offset)
         {
             return *reinterpret_cast<const s16*>(reinterpret_cast<u32>(base) + offset);
         }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
         bool alignedRam(const void* p)
         {
             return game::isRam(p) && (reinterpret_cast<u32>(p) & 3u) == 0u;
@@ -311,8 +320,36 @@ namespace extra {
                     }
                 }
                 dbg->focusArgCount = got;
-                psaFormatFocusCommand(hdr, dbg->focusArgs, got, dbg->focusText,
-                                      static_cast<int>(sizeof(dbg->focusText)));
+                PsaFocusCache* fc = s_focusCache;
+                bool hit = fc != NULL && fc->valid && fc->hdr == hdr && fc->argCount == got;
+                for (u32 k = 0; hit && k < got; k++)
+                {
+                    if (fc->args[k].type != dbg->focusArgs[k].type ||
+                        fc->args[k].content != dbg->focusArgs[k].content)
+                    {
+                        hit = false;
+                    }
+                }
+                if (hit)
+                {
+                    memcpy(dbg->focusText, fc->text, sizeof(dbg->focusText));
+                }
+                else
+                {
+                    psaFormatFocusCommand(hdr, dbg->focusArgs, got, dbg->focusText,
+                                          static_cast<int>(sizeof(dbg->focusText)));
+                    if (fc != NULL)
+                    {
+                        fc->hdr = hdr;
+                        fc->argCount = got;
+                        if (got > 0u)
+                        {
+                            memcpy(fc->args, dbg->focusArgs, got * sizeof(PsaArgSnapshot));
+                        }
+                        memcpy(fc->text, dbg->focusText, sizeof(fc->text));
+                        fc->valid = true;
+                    }
+                }
             }
             return true;
         }
@@ -422,8 +459,10 @@ namespace extra {
     void psaInspectorAttach()
     {
         psaOpcodesAttach();
+        freeNetPtr(s_focusCache);
         freeNetPtr(s_debug);
         s_debug = allocNetArray<PsaDebugBlock>(1);
+        s_focusCache = allocNetArray<PsaFocusCache>(1);
         if (s_debug == NULL)
         {
             return;
@@ -441,6 +480,7 @@ namespace extra {
     void psaInspectorDetach()
     {
         clearSnapshot();
+        freeNetPtr(s_focusCache);
         freeNetPtr(s_debug);
         psaOpcodesDetach();
     }
