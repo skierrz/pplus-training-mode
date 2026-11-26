@@ -390,8 +390,9 @@ def rec_resave_positions(emu, lab):
     lab.main_to(LT.MAIN_RECORDING)
     lab.tap(["A"])
     # Rows 3-6 (CPU Mode/Slot, Mirrored Playback, CPU Counter) are disabled
-    # when CPU Control is off and skipped by navigation, so row 11 is 7 downs.
-    lab.down(7)
+    # when CPU Control is off and skipped by navigation, so row 12
+    # (Re-Save Positions, after Start On Input) is 8 downs.
+    lab.down(8)
     lab.tap(["A"])
     lab.back_to_main(1)
     lab.close_menu()
