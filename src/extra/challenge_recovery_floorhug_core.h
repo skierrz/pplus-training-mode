@@ -27,12 +27,98 @@ namespace extra {
         kRecStCliffCatchMove = 0x73,
         kRecStCliffCatch = 0x74,
         kRecStCliffWait = 0x75,
-        kRecStDead = 0xBD
+        kRecStDead = 0xBD,
+        // Verified P+ 3.2.1 Meta Knight sticky taunt guard constants:
+        // FitMetaKnight.pac AppealHi (0x1BC/0x1BD) hides body/hurtbox frames
+        // 21..75 and uses ExitOverride 0x10C @ 0x1FE20; ft/fighter.h Appeal = 0x10C.
+        kFhFtMetaKnight = 0x16,
+        kFhStAppeal = 0x10C,
+        kFhStSmashAppeal = 0x10D,
+        kFhTauntGuardFrames = 6
     };
 
     const float kRecSweetspotMaxPeakAboveLip = 8.0f;
     const float kRecNearLedgeHorizWindow = 18.0f;
     const float kRecOffstageMargin = 2.0f;
+
+    // Pure host-testable 3D GX world-space guide bounds for one ledge:
+    //  - grabMinX..grabMaxX x grabMinY..grabMaxY: live cliff-hang snap pocket
+    //    derived from grCollStatus +0x3C..+0x48 (Ledge.asm:16-52).
+    //  - sweetMinX..sweetMaxX at sweetCeilY: horizontal sweetspot ceiling line
+    //    (lipY + kRecSweetspotMaxPeakAboveLip across kRecNearLedgeHorizWindow).
+    struct RecoveryLedgeGuide {
+        float lipX;
+        float lipY;
+        float outward;
+        float grabMinX;
+        float grabMaxX;
+        float grabMinY;
+        float grabMaxY;
+        float sweetMinX;
+        float sweetMaxX;
+        float sweetCeilY;
+    };
+
+    struct RecoveryGuideGeom {
+        u8 valid;
+        RecoveryLedgeGuide sides[2]; // 0 = left ledge, 1 = right ledge
+    };
+
+    inline bool floorhugIsTauntStatus(s16 status)
+    {
+        return status == kFhStAppeal || status == kFhStSmashAppeal;
+    }
+
+    // Returns true when a fighter should be cleanly interrupted out of Appeal
+    // across a reset window (prevents Meta Knight's AppealHi vanish / sticky
+    // taunt loop across Floorhug drill resets).
+    inline bool floorhugNeedsTauntInterrupt(int ftKind, s16 status, u8 guardFrames)
+    {
+        if (guardFrames == 0 || !floorhugIsTauntStatus(status))
+        {
+            return false;
+        }
+        return ftKind == kFhFtMetaKnight || ftKind >= 0;
+    }
+
+    inline bool computeRecoveryGuideGeom(const StageGeometry& g, float cliffOffX, float cliffOffY, float cliffW,
+                                         float cliffH, RecoveryGuideGeom& out)
+    {
+        (void)cliffOffX;
+        memset(&out, 0, sizeof(out));
+        if (!g.floor.valid || !g.hasLedges)
+        {
+            return false;
+        }
+        float w = (cliffW >= 4.0f && cliffW <= 30.0f) ? cliffW : 10.0f;
+        float offY = (cliffOffY >= 1.0f && cliffOffY <= 24.0f) ? cliffOffY : 9.0f;
+        float h = (cliffH >= 4.0f && cliffH <= 30.0f) ? cliffH : 10.0f;
+        if (w < 6.0f) w = 6.0f;
+        if (w > 22.0f) w = 22.0f;
+
+        for (int s = 0; s < 2; s++)
+        {
+            const LedgeInfo& lip = (s == 0) ? g.leftLedge : g.rightLedge;
+            RecoveryLedgeGuide& d = out.sides[s];
+            float outDir = (lip.dir >= 0.0f) ? -1.0f : 1.0f;
+            float gx0 = lip.x;
+            float gx1 = lip.x + outDir * w;
+            float sx0 = lip.x;
+            float sx1 = lip.x + outDir * kRecNearLedgeHorizWindow;
+            d.lipX = lip.x;
+            d.lipY = lip.y;
+            d.outward = outDir;
+            d.grabMinX = gx0 < gx1 ? gx0 : gx1;
+            d.grabMaxX = gx0 < gx1 ? gx1 : gx0;
+            d.grabMinY = lip.y - (offY + h);
+            d.grabMaxY = lip.y - offY;
+            d.sweetMinX = sx0 < sx1 ? sx0 : sx1;
+            d.sweetMaxX = sx0 < sx1 ? sx1 : sx0;
+            d.sweetCeilY = lip.y + kRecSweetspotMaxPeakAboveLip;
+        }
+        out.valid = 1;
+        return true;
+    }
 
     // 48-byte naturally aligned combined telemetry block mirrored into "TM4X".
     struct RecoveryFloorhugStats {

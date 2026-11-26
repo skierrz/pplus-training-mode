@@ -72,11 +72,19 @@ namespace list {
         kIdxDacus = 15,
         kIdxBReverse = 16,
         kIdxFloatHover = 17,
-        kIdxRecordings = 18
+        kIdxCancelSprint = 18,
+        kIdxFlowCourse = 19,
+        kIdxReactionLab = 20,
+        kIdxTechchaseEscape = 21,
+        kIdxRecoverySweetspot = 22,
+        kIdxFloorhug = 23,
+        kIdxSnakeRecovery = 24,
+        kIdxRecordings = 25
     };
 
     // Intuitive All Modes order: Training Lab -> Core Fundamentals ->
-    // Defensive & Situational -> P+ Advanced Tech -> Browse Recordings.
+    // Defensive & Situational -> P+ Advanced Tech -> P+ Challenges ->
+    // Character Trainers -> Browse Recordings.
     static const LauncherRow kAllRows[] = {
         {
             "Training Lab",
@@ -313,6 +321,97 @@ namespace list {
             "L+Up in-match: 10/20-Rep Set"
         },
         {
+            "Cancel Sprint",
+            kRowSkillDrill,
+            drills::kDrillCancelSprint,
+            {
+                "Chain Fighter-specific jump,",
+                "hover, float, or special cancels",
+                "with tight frame-delta scoring."
+            },
+            "Cancel Fighters",
+            "Free / Set / 60s",
+            "L+Up: Free / 10 / 20 / 60s"
+        },
+        {
+            "Movement Flow Course",
+            kRowSkillDrill,
+            drills::kDrillFlowCourse,
+            {
+                "Link dash dance, wavedash, and",
+                "platform waveland chains across",
+                "the stage without losing flow."
+            },
+            "Any Fighter",
+            "Free / Set / 60s",
+            "L+Up: Free / 10 / 20 / 60s"
+        },
+        {
+            "Situational Reaction Lab",
+            kRowSkillDrill,
+            drills::kDrillReactionLab,
+            {
+                "React to randomized visual cues",
+                "with jump, shield, spotdodge,",
+                "or attack within the frame cap."
+            },
+            "Any Fighter",
+            "Free / Set / 60s",
+            "L+Up: Free / 10 / 20 / 60s"
+        },
+        {
+            "Universal Techchase Escape",
+            kRowSkillDrill,
+            drills::kDrillTechchaseEscape,
+            {
+                "Escape knockdowns with crisp",
+                "tech-in-place, tech rolls, and",
+                "clean mixup variety tracking."
+            },
+            "Any Fighter",
+            "Free / Set / 60s",
+            "L+Up: Free / 10 / 20 / 60s"
+        },
+        {
+            "Universal Recovery Sweetspot",
+            kRowSkillDrill,
+            drills::kDrillRecoverySweetspot,
+            {
+                "Snap cleanly to the ledge inside",
+                "live 3D sweetspot boundary lines",
+                "from offstage recovery routes."
+            },
+            "Any Fighter",
+            "3D Ledge Guides",
+            "L+Up: Free / 10 / 20 / 60s"
+        },
+        {
+            "Floorhug / ASDI-Down Tech",
+            kRowSkillDrill,
+            drills::kDrillFloorhug,
+            {
+                "Hold down through grounded hits",
+                "to ASDI-down and punish fast",
+                "on P+ landing and hitstun frames."
+            },
+            "Any Fighter",
+            "Free / Set / 60s",
+            "L+Up: Free / 10 / 20 / 60s"
+        },
+        {
+            "Snake Infinite Recovery",
+            kRowSkillDrill,
+            drills::kDrillSnakeRecovery,
+            {
+                "Duelist - Cypher & C4 recovery chain",
+                "Chain Cypher lift, C4 self-hit,",
+                "and safe re-ledge recovery reps."
+            },
+            "Recommended: Snake",
+            "Free / Set / 60s",
+            "L+Up: Free / 10 / 20 / 60s"
+        },
+        {
             "Browse Recordings",
             kRowRecordings,
             0,
@@ -331,7 +430,9 @@ namespace list {
         kIdxLab,        kIdxLCancel,      kIdxWavedash,    kIdxLedgedash,  kIdxComboLab,
         kIdxTechchase,  kIdxEdgeguard,    kIdxShieldPressure, kIdxPowershield, kIdxShieldDrop,
         kIdxLedgetech,  kIdxSlideOff,     kIdxGrabDefense, kIdxMultiHitSdi, kIdxRar,
-        kIdxDacus,      kIdxBReverse,     kIdxFloatHover,  kIdxRecordings
+        kIdxDacus,      kIdxBReverse,     kIdxFloatHover,  kIdxCancelSprint, kIdxFlowCourse,
+        kIdxReactionLab, kIdxTechchaseEscape, kIdxRecoverySweetspot, kIdxFloorhug, kIdxSnakeRecovery,
+        kIdxRecordings
     };
     static const u8 kOffenseIndices[] = {
         kIdxComboLab, kIdxTechchase, kIdxEdgeguard, kIdxShieldPressure, kIdxGrabDefense
@@ -345,6 +446,15 @@ namespace list {
         kIdxLCancel, kIdxWavedash, kIdxLedgedash, kIdxPowershield,
         kIdxRar, kIdxDacus, kIdxBReverse, kIdxFloatHover
     };
+    // 6 single-page rows (zero scrolling; room for Combo-Break Rush at merge).
+    static const u8 kChallengesIndices[] = {
+        kIdxCancelSprint, kIdxFlowCourse, kIdxReactionLab,
+        kIdxTechchaseEscape, kIdxRecoverySweetspot, kIdxFloorhug
+    };
+    // Character-specific P+ trainers.
+    static const u8 kCharTrainersIndices[] = {
+        kIdxSnakeRecovery
+    };
 
     struct LauncherSection {
         const char* name;
@@ -357,7 +467,11 @@ namespace list {
         {"Offense", kOffenseIndices, static_cast<int>(sizeof(kOffenseIndices) / sizeof(kOffenseIndices[0]))},
         {"Defense", kDefenseIndices, static_cast<int>(sizeof(kDefenseIndices) / sizeof(kDefenseIndices[0]))},
         {"Tech Practice", kTechPracticeIndices,
-         static_cast<int>(sizeof(kTechPracticeIndices) / sizeof(kTechPracticeIndices[0]))}
+         static_cast<int>(sizeof(kTechPracticeIndices) / sizeof(kTechPracticeIndices[0]))},
+        {"Challenges", kChallengesIndices,
+         static_cast<int>(sizeof(kChallengesIndices) / sizeof(kChallengesIndices[0]))},
+        {"Character Trainers", kCharTrainersIndices,
+         static_cast<int>(sizeof(kCharTrainersIndices) / sizeof(kCharTrainersIndices[0]))}
     };
     enum { kSectionCount = static_cast<int>(sizeof(kSections) / sizeof(kSections[0])) };
 
@@ -394,8 +508,8 @@ namespace list {
     static const float kBannerTop = 32.0f;
     static const float kBannerBottom = 82.0f;
     static const float kBannerRuleH = 2.0f;
-    static const float kBannerRightTop = 446.0f;
-    static const float kBannerRightBot = 420.0f;
+    static const float kBannerRightTop = 498.0f;
+    static const float kBannerRightBot = 472.0f;
     static const float kBannerTitleX = 40.0f;
     static const float kBannerTitleCap = 16.0f;
     static const float kBannerPillLeftX = 250.0f;
@@ -403,9 +517,9 @@ namespace list {
     static const float kBannerPillH = 18.0f;
     static const float kBannerPillCap = 9.5f;
     static const float kBannerSecSlotL = 278.0f;
-    static const float kBannerSecSlotR = 386.0f;
+    static const float kBannerSecSlotR = 434.0f;
     static const float kBannerSecCap = 10.0f;
-    static const float kBannerPillRightX = 390.0f;
+    static const float kBannerPillRightX = 438.0f;
 
     static const float kColLeft = 36.0f;
     static const float kColBarRight = 294.0f;
@@ -1139,7 +1253,7 @@ namespace list {
         }
     }
 
-    static float drawChip(float x, float y, const char* label, float maxW)
+    static float drawChip(float x, float y, const char* label, float maxW, bool highlight = false)
     {
         float scale = scaleForCap(kCardChipCap);
         float tw = gfx::textWidth(label, scale);
@@ -1153,11 +1267,14 @@ namespace list {
             chipW = maxW;
         }
         float bx = w(1.2f);
+        gfx::Rgba topCol = highlight ? kLabGoldTop : kChipTop;
+        gfx::Rgba botCol = highlight ? kLabGoldBot : kChipBot;
+        gfx::Rgba txtCol = highlight ? kLabGoldInk : kText;
         fillStadium(x - bx, y - 1.0f, chipW + 2.0f * bx, kCardChipH + 2.0f, 0x05080CFF);
-        fillStadium(x, y, chipW, kCardChipH, kChipBot);
-        fillStadium(x + w(0.8f), y + 0.5f, chipW - w(1.6f), kCardChipH * 0.58f, kChipTop);
+        fillStadium(x, y, chipW, kCardChipH, botCol);
+        fillStadium(x + w(0.8f), y + 0.5f, chipW - w(1.6f), kCardChipH * 0.58f, topCol);
         fillStadium(x + chipW * 0.18f, y + 1.5f, chipW * 0.64f, 2.5f, 0x8EF5EA24);
-        gfx::text(x + pad, textYForCap(y + (kCardChipH - kCardChipCap) * 0.5f, scale), label, kText, sx, scale);
+        gfx::text(x + pad, textYForCap(y + (kCardChipH - kCardChipCap) * 0.5f, scale), label, txtCol, sx, scale);
         return x + chipW;
     }
 
@@ -1191,11 +1308,27 @@ namespace list {
         float contentX = cx(kCardLeft + kCardPadX);
         float contentW = w((kCardRight - kCardLeft) - 2.0f * kCardPadX);
 
-        float titleScale = displayScaleForCap(kCardTitleCap);
+        float titleCap = kCardTitleCap;
+        float titleScale = displayScaleForCap(titleCap);
         float tw = gfx::displayTextWidth(row.name, titleScale);
-        float tsx = tw > contentW && tw > 0.0f ? titleScale * contentW / tw : titleScale;
-        gfx::displayText(contentX, displayYForCap(120.0f, titleScale), row.name, kLabTitleTop, kLabTitleBot, tsx,
-                         titleScale, 1.2f, kLabTitleEdge);
+        float tsx = titleScale;
+        if (tw > contentW && tw > 0.0f)
+        {
+            float ratio = contentW / tw;
+            if (ratio < 0.88f)
+            {
+                float uniform = ratio / 0.88f;
+                titleCap *= uniform;
+                titleScale *= uniform;
+                tsx = titleScale * 0.88f;
+            }
+            else
+            {
+                tsx = titleScale * ratio;
+            }
+        }
+        gfx::displayText(contentX, displayYForCap(120.0f + (kCardTitleCap - titleCap) * 0.5f, titleScale), row.name,
+                         kLabTitleTop, kLabTitleBot, tsx, titleScale, 1.2f, kLabTitleEdge);
 
         gfx::fillRect(contentX, 148.0f, contentW, 2.0f, kRowEdge);
 
@@ -1220,14 +1353,15 @@ namespace list {
         float wB = gfx::textWidth(row.chipB, chipScale) + 2.0f * w(kCardChipPadX);
         float gap = w(kCardChipGap);
         float captionY = 302.0f;
+        bool highlightChipA = (row.kind == kRowSkillDrill && row.targetId == drills::kDrillSnakeRecovery);
         if (wA + gap + wB <= contentW)
         {
-            float chipX = drawChip(contentX, 260.0f, row.chipA, contentW);
+            float chipX = drawChip(contentX, 260.0f, row.chipA, contentW, highlightChipA);
             drawChip(chipX + gap, 260.0f, row.chipB, contentX + contentW - (chipX + gap));
         }
         else
         {
-            drawChip(contentX, 256.0f, row.chipA, contentW);
+            drawChip(contentX, 256.0f, row.chipA, contentW, highlightChipA);
             drawChip(contentX, 286.0f, row.chipB, contentW);
             captionY = 318.0f;
         }
@@ -1379,8 +1513,11 @@ namespace list {
         if (dr >= drills::kDrillLedgedash && dr < drills::kDrillIdCount)
         {
             static const char* const kDrillTags[drills::kDrillIdCount] = {
-                "TRAINING LAB", "LEDGEDASH", "WAVEDASH", "L-CANCEL", "FLOAT / HOVER",
-                "POWERSHIELD",  "RAR",       "DACUS",    "B-REVERSE"
+                "TRAINING LAB",      "LEDGEDASH",         "WAVEDASH",      "L-CANCEL",
+                "FLOAT / HOVER",     "POWERSHIELD",       "RAR",           "DACUS",
+                "B-REVERSE",         "CANCEL SPRINT",     "MOVEMENT FLOW", "REACTION LAB",
+                "TECHCHASE ESCAPE",  "RECOVERY SWEETSPOT","FLOORHUG TECH", "SNAKE RECOVERY",
+                "TRAINING LAB",      "COMBO-BREAK RUSH"
             };
             return kDrillTags[dr];
         }

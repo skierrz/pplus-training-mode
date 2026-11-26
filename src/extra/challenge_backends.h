@@ -7,6 +7,7 @@
 #include "extra/challenge_reaction_techchase_core.h"
 #include "extra/challenge_recovery_floorhug_core.h"
 #include "extra/challenge_snake_recovery_core.h"
+#include "main/game/match.h"
 
 // Live Project+ 3.2.1 runtime adapter and "TM4X" RAM debug telemetry block for
 // the five Stage 4C Track D novel P+ challenge backends. Strictly read-only
@@ -49,6 +50,16 @@ namespace extra {
     void challengeBackendsDetach();
     void challengeBackendsReset();
     void challengeBackendsFrame();
+    void challengeBackendsDraw3d(const game::MatchState& match);
+    void challengeBackendsInterruptTaunts();
+
+    const CancelSprintState* challengeCancelSprint(int trackedSlot);
+    const FlowCourseState* challengeFlowCourse(int trackedSlot);
+    const ReactionTechchaseState* challengeReactionTechchase(int trackedSlot);
+    const RecoveryFloorhugState* challengeRecoveryFloorhug(int trackedSlot);
+    const SnakeRecoveryState* challengeSnakeRecovery(int trackedSlot);
+    u32 challengeRecoveryGuideDrawCalls();
+    u32 challengeTauntInterruptCount();
 
     const ChallengeDebugBlock* challengeDebugBlock();
 }

@@ -243,6 +243,9 @@ namespace extra {
     {
         timingMeterDraw(match);
         drillPracticeDraw(match);
+#if TM_STAGE4C
+        challengeBackendsDraw3d(match);
+#endif
     }
 
     static const main::ExtraHooks kHooks = {

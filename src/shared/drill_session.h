@@ -26,7 +26,18 @@ namespace drills {
         kDrillRar = 6,
         kDrillDacus = 7,
         kDrillBReverse = 8,
-        kDrillIdCount = 9
+        // Stage 4C P+ Challenges (6) & Character Trainers (1)
+        kDrillCancelSprint = 9,
+        kDrillFlowCourse = 10,
+        kDrillReactionLab = 11,
+        kDrillTechchaseEscape = 12,
+        kDrillRecoverySweetspot = 13,
+        kDrillFloorhug = 14,
+        kDrillSnakeRecovery = 15,
+        // Slot 16 is occupied by scenario_presets_core.h (kTechBestSlot = 16).
+        // Reserved enum ID for Combo-Break Rush (attached into Challenges at merge).
+        kDrillComboBreakRush = 17,
+        kDrillIdCount = 18
     };
 
     enum {

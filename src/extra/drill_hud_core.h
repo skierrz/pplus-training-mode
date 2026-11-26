@@ -4,6 +4,11 @@
 #include <string.h>
 #include <types.h>
 
+#include "extra/challenge_cancel_sprint_core.h"
+#include "extra/challenge_flow_course_core.h"
+#include "extra/challenge_reaction_techchase_core.h"
+#include "extra/challenge_recovery_floorhug_core.h"
+#include "extra/challenge_snake_recovery_core.h"
 #include "extra/drill_breverse_core.h"
 #include "extra/drill_dacus_core.h"
 #include "extra/drill_float_djc_core.h"
@@ -14,11 +19,11 @@
 #include "extra/drill_wavedash_core.h"
 #include "shared/drill_session.h"
 
-// Pure host-testable Tech Practice HUD & optional 10/20-Rep Set state machine.
+// Pure host-testable Tech Practice & Challenge HUD state machine.
 // Defaults to infinite Free Practice (zero forced modal freeze) while exposing
-// optional scored 10-Rep and 20-Rep sets with the End-Screen Summary Modal.
-// Consumes read-only counters/results from existing Stage 4A drill engines
-// with zero game-state detection duplication.
+// optional scored 10/20-Rep Sets and 60s Timed mode with End-Screen Summary.
+// Consumes read-only counters/results from existing Stage 4A and Stage 4C
+// engines with zero game-state detection duplication.
 namespace tm {
 namespace extra {
     enum {
@@ -26,15 +31,17 @@ namespace extra {
         kDrillSetReps20 = 20,
         kDrillMaxSetReps = 20,
         kDrillFreePips = 10,
+        kDrillTimedFrames = 3600, // 60 seconds at 60 fps
         kDrillFeedbackBuf = 28,
         kDrillHighlightBuf = 24
     };
 
     enum DrillPracticeMode {
-        kDrillModeFree = 0,  // default: infinite continuous grinding
-        kDrillModeSet10 = 1, // optional scored 10-rep set
-        kDrillModeSet20 = 2, // optional scored 20-rep set
-        kDrillModeCount = 3
+        kDrillModeFree = 0,    // default: infinite continuous grinding
+        kDrillModeSet10 = 1,   // optional scored 10-rep set
+        kDrillModeSet20 = 2,   // optional scored 20-rep set
+        kDrillModeTimed60 = 3, // optional 60-second timed sprint
+        kDrillModeCount = 4
     };
 
     enum DrillGrade {
@@ -62,6 +69,11 @@ namespace extra {
         const RarState* rar;
         const DacusState* dacus;
         const BReverseState* brev;
+        const CancelSprintState* cs;
+        const FlowCourseState* fc;
+        const ReactionTechchaseState* rt;
+        const RecoveryFloorhugState* rf;
+        const SnakeRecoveryState* snk;
         bool autoLCancel;
         bool ineligibleFighter;
     };
@@ -69,13 +81,13 @@ namespace extra {
     // Prefix layout (activeDrill .. bestMetric, 14 bytes) mirrors
     // DrillHudDebugBlock offsets 0x08..0x15 for single-memcpy telemetry sync.
     struct DrillHudState {
-        u8 activeDrill;  // 0x00: drills::DrillId (0..8)
+        u8 activeDrill;  // 0x00: drills::DrillId (0..15)
         u8 repsDone;     // 0x01: clamped 0..255 (or 0..targetReps in Set mode)
         u8 repsHit;      // 0x02: clamped 0..255 (or 0..targetReps in Set mode)
         u8 streak;       // 0x03: current hit streak (clamped 0..255)
         u8 bestStreak;   // 0x04: best hit streak this run (clamped 0..255)
         u8 newBest;      // 0x05: 1 if sessionBest improved
-        u8 modalOpen;    // 0x06: 1 while End-Screen Modal is open (Set modes only)
+        u8 modalOpen;    // 0x06: 1 while End-Screen Modal is open (Set/Timed modes)
         u8 lastGrade;    // 0x07: DrillGrade
         u16 sessionBest; // 0x08: persisted best streak / score for activeDrill
         u16 retryCount;  // 0x0A
@@ -88,14 +100,20 @@ namespace extra {
         u16 totalHit;
         u16 streakFull;
         u16 bestStreakFull;
+        u16 timerFrames; // remaining frames in kDrillModeTimed60 (3600..0)
         u8 repPips[kDrillMaxSetReps];
         u32 prev[3];
         char lastFeedback[kDrillFeedbackBuf];
     };
 
+    inline bool isChallengeDrill(u8 drillId)
+    {
+        return drillId >= drills::kDrillCancelSprint && drillId <= drills::kDrillSnakeRecovery;
+    }
+
     inline bool isValidSkillDrill(u8 drillId)
     {
-        return drillId >= drills::kDrillLedgedash && drillId < drills::kDrillIdCount;
+        return drillId >= drills::kDrillLedgedash && drillId <= drills::kDrillSnakeRecovery;
     }
 
     inline u8 drillModeTargetReps(u8 mode)
@@ -113,15 +131,17 @@ namespace extra {
 
     inline const char* drillModeLabel(u8 mode)
     {
-        static const char* const kLabels[kDrillModeCount] = {"FREE", "10-REP", "20-REP"};
+        static const char* const kLabels[kDrillModeCount] = {"FREE", "10-REP", "20-REP", "60s"};
         return kLabels[mode < kDrillModeCount ? mode : 0];
     }
 
     inline const char* drillHudTitle(u8 drillId)
     {
         static const char* const kNames[drills::kDrillIdCount] = {
-            "TECH PRACTICE", "LEDGEDASH", "WAVEDASH", "L-CANCEL", "FLOAT / HOVER",
-            "POWERSHIELD",   "RAR",       "DACUS",    "B-REVERSE"
+            "TECH PRACTICE", "LEDGEDASH",     "WAVEDASH",      "L-CANCEL",      "FLOAT / HOVER",
+            "POWERSHIELD",   "RAR",           "DACUS",         "B-REVERSE",     "CANCEL SPRINT",
+            "FLOW COURSE",   "REACTION LAB",  "TECHCHASE ESC", "SWEETSPOT",     "FLOORHUG TECH",
+            "SNAKE RECOVERY", "TECHCHASE",    "COMBO-BREAK"
         };
         return kNames[drillId < drills::kDrillIdCount ? drillId : 0];
     }
@@ -131,7 +151,10 @@ namespace extra {
         static const char* const kLabels[drills::kDrillIdCount] = {
             "Highlight",          "Peak GALINT",       "Frame-1 Perfect",
             "Fastest Window",     "Best Act / Instant", "PS-Drop / Reflect",
-            "Fastest Turn",       "Gatling Cancels",    "Wavebounces"
+            "Fastest Turn",       "Gatling Cancels",    "Wavebounces",
+            "Fastest Cancel",     "Fastest Course",     "Fastest Reaction",
+            "Tightest Escape",    "Sweetspot Grabs",    "Max Hitstun Saved",
+            "Best Loop Chain",    "Highlight",          "Best Chain"
         };
         return kLabels[drillId < drills::kDrillIdCount ? drillId : 0];
     }
@@ -194,12 +217,13 @@ namespace extra {
             }
             return;
         }
-        if (d == drills::kDrillPowershield || d == drills::kDrillDacus || d == drills::kDrillBReverse)
+        if (d == drills::kDrillPowershield || d == drills::kDrillDacus || d == drills::kDrillBReverse
+            || d == drills::kDrillRecoverySweetspot)
         {
             snprintf(out, sz, "%d", static_cast<int>(st.bestMetric));
             return;
         }
-        if (d == drills::kDrillRar)
+        if (d == drills::kDrillRar || d == drills::kDrillCancelSprint)
         {
             if (st.hasBestMetric)
             {
@@ -211,6 +235,35 @@ namespace extra {
             }
             return;
         }
+        if (d == drills::kDrillFlowCourse || d == drills::kDrillReactionLab || d == drills::kDrillFloorhug)
+        {
+            if (st.hasBestMetric)
+            {
+                snprintf(out, sz, "%df", static_cast<int>(st.bestMetric));
+            }
+            else
+            {
+                snprintf(out, sz, "--");
+            }
+            return;
+        }
+        if (d == drills::kDrillTechchaseEscape)
+        {
+            if (st.hasBestMetric)
+            {
+                snprintf(out, sz, "+%df", static_cast<int>(st.bestMetric));
+            }
+            else
+            {
+                snprintf(out, sz, "--");
+            }
+            return;
+        }
+        if (d == drills::kDrillSnakeRecovery)
+        {
+            snprintf(out, sz, "%d loops", static_cast<int>(st.bestMetric));
+            return;
+        }
         snprintf(out, sz, "--");
     }
 
@@ -220,6 +273,7 @@ namespace extra {
         st.activeDrill = isValidSkillDrill(drillId) ? drillId : static_cast<u8>(drills::kDrillNone);
         st.sessionBest = priorBest;
         st.mode = mode < kDrillModeCount ? mode : static_cast<u8>(kDrillModeFree);
+        st.timerFrames = st.mode == kDrillModeTimed60 ? static_cast<u16>(kDrillTimedFrames) : 0u;
         strcpy(st.lastFeedback, "READY");
     }
 
@@ -243,7 +297,8 @@ namespace extra {
 
     inline void drillHudCycleMode(DrillHudState& st)
     {
-        u8 next = static_cast<u8>((st.mode + 1u) % kDrillModeCount);
+        u8 mod = isChallengeDrill(st.activeDrill) ? static_cast<u8>(kDrillModeCount) : static_cast<u8>(kDrillModeTimed60);
+        u8 next = static_cast<u8>((st.mode + 1u) % mod);
         drillHudSetMode(st, next);
     }
 
@@ -265,19 +320,50 @@ namespace extra {
             return;
         }
         u8 target = drillModeTargetReps(st.mode);
-        if (target == 0)
+        u16 score = st.totalHit;
+        if (st.mode == kDrillModeTimed60)
         {
-            target = kDrillSetReps10;
+            st.timerFrames = 0;
         }
-        st.repsDone = target;
+        else
+        {
+            if (target == 0)
+            {
+                target = kDrillSetReps10;
+            }
+            st.repsDone = target;
+            if (score > target)
+            {
+                score = target;
+            }
+        }
         st.modalOpen = 1;
-        u16 score = st.totalHit < target ? st.totalHit : static_cast<u16>(target);
         u16 m = drills::betterBest(st.activeDrill, st.sessionBest, score);
         if (m > st.sessionBest)
         {
             st.sessionBest = m;
             st.newBest = 1;
         }
+    }
+
+    // Advances the 60s Timed mode countdown by one live gameplay frame.
+    // Returns true on the exact frame the timer expires and opens the modal.
+    inline bool drillHudTickTimer(DrillHudState& st)
+    {
+        if (!isValidSkillDrill(st.activeDrill) || st.mode != kDrillModeTimed60 || st.modalOpen)
+        {
+            return false;
+        }
+        if (st.timerFrames > 0u)
+        {
+            st.timerFrames--;
+        }
+        if (st.timerFrames == 0u)
+        {
+            drillHudComplete(st);
+            return true;
+        }
+        return false;
     }
 
     // Shared baseline sync (syncOnly = true) and live event step (syncOnly = false).
@@ -331,7 +417,30 @@ namespace extra {
             "TURNAROUND B",          // 37
             "B-REVERSE",             // 38
             "WAVEBOUNCE",            // 39
-            "PICK PEACH/MEWTWO/DJC"  // 40
+            "PICK PEACH/MEWTWO/DJC", // 40
+            "PERFECT CANCEL f1",     // 41
+            "CANCEL f%d",            // 42
+            "CANCEL MISS",           // 43
+            "COURSE %df",            // 44
+            "GATE %d/4 CLEAR",       // 45
+            "REACT %df",             // 46
+            "PERFECT ESC f0",        // 47
+            "ESCAPE +%df",           // 48
+            "CAUGHT",                // 49
+            "SWEETSPOT +%df",        // 50
+            "HIGH OVERSHOOT",        // 51
+            "SD / MISSED LEDGE",     // 52
+            "FLOORHUG -%df",         // 53
+            "ASDI-DOWN TECH",        // 54
+            "BROKEN TUMBLE",         // 55
+            "MISSED FLOORHUG",       // 56
+            "TRUE PUNISH!",          // 57
+            "C4 REFRESH x%d",        // 58
+            "NADE REFRESH x%d",      // 59
+            "SELF-HIT x%d",          // 60
+            "RECOVERED x%d",         // 61
+            "PICK SPACIE/PK/M2/LUC", // 62
+            "PICK SNAKE"             // 63
         };
 
         int msg = -1;
@@ -580,12 +689,178 @@ namespace extra {
             }
             st.prev[0] = c;
         }
+        else if (d == drills::kDrillCancelSprint && f.cs)
+        {
+            u32 a = f.cs->out.attempts;
+            if (!syncOnly && a != st.prev[0])
+            {
+                if (f.cs->out.lastSuccess)
+                {
+                    arg = f.cs->out.lastFrames > 0 ? f.cs->out.lastFrames : 1;
+                    mop = 3; // min frames
+                    ev = arg == 1 ? 4 : 3;
+                    msg = arg == 1 ? 41 : 42;
+                }
+                else
+                {
+                    ev = 1;
+                    msg = 43;
+                }
+            }
+            st.prev[0] = a;
+        }
+        else if (d == drills::kDrillFlowCourse && f.fc)
+        {
+            u32 c = f.fc->out.coursesCompleted;
+            u32 g = f.fc->out.activeGate;
+            if (!syncOnly)
+            {
+                if (c != st.prev[0])
+                {
+                    arg = static_cast<int>(f.fc->out.currentElapsed > 0u ? f.fc->out.currentElapsed : 1u);
+                    mop = 3; // min course frames
+                    ev = 4;
+                    msg = 44;
+                }
+                else if (g != st.prev[1] && g > 0u)
+                {
+                    arg = static_cast<int>(g);
+                    ev = 7;
+                    msg = 45;
+                }
+            }
+            st.prev[0] = c;
+            st.prev[1] = g;
+        }
+        else if (d == drills::kDrillReactionLab && f.rt)
+        {
+            u32 c = f.rt->out.rlCount;
+            if (!syncOnly && c != st.prev[0])
+            {
+                arg = f.rt->out.rlLastFrames > 0 ? f.rt->out.rlLastFrames : 1;
+                mop = 3; // min reaction frames
+                ev = arg <= 18 ? 4 : (arg <= 26 ? 3 : 2);
+                msg = 46;
+            }
+            st.prev[0] = c;
+        }
+        else if (d == drills::kDrillTechchaseEscape && f.rt)
+        {
+            u32 esc = f.rt->out.tcEscapes;
+            u32 cgt = f.rt->out.tcCaughtCount;
+            if (!syncOnly)
+            {
+                if (esc != st.prev[0])
+                {
+                    arg = f.rt->out.tcLastTightness;
+                    mop = 3; // min tightness frames (0 = frame-perfect)
+                    ev = arg == 0 ? 4 : 3;
+                    msg = arg == 0 ? 47 : 48;
+                }
+                else if (cgt != st.prev[1])
+                {
+                    ev = 1;
+                    msg = 49;
+                }
+            }
+            st.prev[0] = esc;
+            st.prev[1] = cgt;
+        }
+        else if (d == drills::kDrillRecoverySweetspot && f.rf)
+        {
+            u32 a = f.rf->out.recAttempts;
+            if (!syncOnly && a != st.prev[0])
+            {
+                u8 gr = f.rf->out.recLastGrade;
+                if (gr == kRecGradeSweetspot)
+                {
+                    arg = f.rf->out.recLastXlu > 0 ? f.rf->out.recLastXlu : 1;
+                    mop = 1; // sweetspot count
+                    ev = 4;
+                    msg = 50;
+                }
+                else if (gr == kRecGradeNoInvulnLimit)
+                {
+                    arg = f.rf->out.recLastGrabs > 5 ? f.rf->out.recLastGrabs : 6;
+                    ev = 2;
+                    msg = 1;
+                }
+                else
+                {
+                    ev = 1;
+                    msg = gr == kRecGradeHighOvershoot ? 51 : 52;
+                }
+            }
+            st.prev[0] = a;
+        }
+        else if (d == drills::kDrillFloorhug && f.rf)
+        {
+            u32 reps = f.rf->out.fhReps;
+            u32 pun = f.rf->out.fhTruePunishes;
+            if (!syncOnly)
+            {
+                if (reps != st.prev[0])
+                {
+                    u8 o = f.rf->lastFhOutcome;
+                    if (o == kFhCcFloorhugCancel || o == kFhStandingFloorhugCancel)
+                    {
+                        arg = f.rf->lastHitstunSaved > 0 ? f.rf->lastHitstunSaved : 1;
+                        mop = 2; // max hitstun saved
+                        ev = 4;
+                        msg = 53;
+                    }
+                    else if (o == kFhAsdiDownGroundTech)
+                    {
+                        ev = 3;
+                        msg = 54;
+                    }
+                    else
+                    {
+                        ev = 1;
+                        msg = o == kFhBrokenTumble ? 55 : 56;
+                    }
+                }
+                else if (pun != st.prev[1])
+                {
+                    ev = 7;
+                    msg = 57;
+                }
+            }
+            st.prev[0] = reps;
+            st.prev[1] = pun;
+        }
+        else if (d == drills::kDrillSnakeRecovery && f.snk)
+        {
+            u32 ref = f.snk->out.refreshCount;
+            u32 comp = f.snk->out.completedRecoveries;
+            if (!syncOnly)
+            {
+                if (ref != st.prev[0])
+                {
+                    arg = f.snk->out.loopChain > 0 ? f.snk->out.loopChain : 1;
+                    mop = 2; // max loop chain
+                    u8 k = f.snk->out.lastSelfHitKind;
+                    ev = (k == kSnakeSelfHitC4 || k == kSnakeSelfHitGrenade) ? 4 : 3;
+                    msg = k == kSnakeSelfHitC4 ? 58 : (k == kSnakeSelfHitGrenade ? 59 : 60);
+                }
+                else if (comp != st.prev[1])
+                {
+                    arg = f.snk->out.bestLoopChain > 0 ? f.snk->out.bestLoopChain : 1;
+                    ev = 7;
+                    msg = 61;
+                }
+            }
+            st.prev[0] = ref;
+            st.prev[1] = comp;
+        }
 
-        if (d == drills::kDrillHoverFloat && f.ineligibleFighter && st.totalAtt == 0 && !syncOnly)
+        if ((d == drills::kDrillHoverFloat || d == drills::kDrillCancelSprint || d == drills::kDrillSnakeRecovery)
+            && f.ineligibleFighter && st.totalAtt == 0 && !syncOnly)
         {
             st.alcNotice = 1;
             st.lastGrade = kDrillGradeWarn;
-            snprintf(st.lastFeedback, sizeof(st.lastFeedback), "%s", kMsg[40]);
+            int wMsg = d == drills::kDrillHoverFloat ? 40 : (d == drills::kDrillCancelSprint ? 62 : 63);
+            snprintf(st.lastFeedback, sizeof(st.lastFeedback), "%s", kMsg[wMsg]);
             return false;
         }
         if (syncOnly || ev == 0 || msg < 0)
