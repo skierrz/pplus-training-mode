@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <types.h>
 
 #include "main/settings.h"
@@ -241,158 +242,99 @@ namespace extra {
                                  bool lucasPreFirstAttack = false)
     {
         plan.clear();
-        switch (ftKind)
+        struct MechRule {
+            u8 ft, fieldOff, count, kind;
+            u32 varId;
+            s16 vals[4]; // choice - 1 (value -2 means skip op for this choice)
+        };
+        enum { kSkip = -2 };
+#define MR(f, fld, cnt, knd, id, v1, v2, v3, v4) \
+    {f, static_cast<u8>(offsetof(main::FighterMechanicsSettings, fld)), cnt, knd, id, {v1, v2, v3, v4}}
+        static const MechRule kRules[] = {
+            MR(kFtGameWatch, gnwBucket, main::kGnwBucketCount, kOpFloat, kVarGnwBucketCount, 0, 1, 2, 3),
+            MR(kFtGameWatch, gnwBucket, main::kGnwBucketCount, kOpFloat, kVarGnwBucketDamage, 0, 12, 24, 36),
+            MR(kFtGameWatch, gnwBucket, main::kGnwBucketCount, kOpFlag, kVarGnwBucketFull, 0, 0, 0, 1),
+            MR(kFtSamus, samusCharge, main::kCharge3Count, kOpInt, kVarSamusCharge, 0, 4, 7, 0),
+            MR(kFtSamus, samusBeam, main::kSamusBeamCount, kOpInt, kVarSamusBeam, 0, 1, 0, 0),
+            MR(kFtSamus, samusAirBombs, main::kMechToggleCount, kOpInt, kVarSamusAirBombs, 0, 0, 0, 0),
+            MR(kFtMewtwo, mewtwoShadowBall, main::kCharge3Count, kOpInt, kVarMewtwoBallFrames, 0, 64, 127, 0),
+            MR(kFtMewtwo, mewtwoShadowBall, main::kCharge3Count, kOpInt, kVarMewtwoShadowBall, -1, 3, 6, 0),
+            MR(kFtMewtwo, mewtwoShadowBall, main::kCharge3Count, kOpInt, kVarMewtwoBallStored, -1, 3, 6, 0),
+            MR(kFtMewtwo, mewtwoShadowBall, main::kCharge3Count, kOpFlag, kVarMewtwoBallHas, 0, 1, 1, 0),
+            MR(kFtMewtwo, mewtwoShadowBall, main::kCharge3Count, kOpFlag, kVarMewtwoBallFull, 0, 0, 1, 0),
+            MR(kFtLucario, lucarioAura, main::kLucarioAuraCount, kOpFloat, kVarLucarioAura, 0, 60, 120, 0),
+            MR(kFtLucario, lucarioSphere, main::kCharge2Count, kOpInt, kVarLucarioSphereFrames, 0, 16, 0, 0),
+            MR(kFtLucario, lucarioSphere, main::kCharge2Count, kOpInt, kVarLucarioSphere, -1, 4, 0, 0),
+            MR(kFtLucario, lucarioSphere, main::kCharge2Count, kOpInt, kVarLucarioSphereStored, -1, 4, 0, 0),
+            MR(kFtLucario, lucarioSphere, main::kCharge2Count, kOpFlag, kVarLucarioSphereHas, 0, 1, 0, 0),
+            MR(kFtLucario, lucarioSphere, main::kCharge2Count, kOpFlag, kVarLucarioSphereFull, 0, 1, 0, 0),
+            MR(kFtWario, warioWaft, main::kCharge3Count, kOpInt, kVarWarioWaftFrames, 0, 1800, 3600, 0),
+            MR(kFtWario, warioWaft, main::kCharge3Count, kOpInt, kVarWarioWaftStage, 0, 2, 3, 0),
+            MR(kFtWario, warioWaft, main::kCharge3Count, kOpFlag, kVarWarioWaftFull, 0, 0, 1, 0),
+            MR(kFtDonkeyKong, dkPunch, main::kCharge2Count, kOpInt, kVarDkPunch, 0, 10, 0, 0),
+            MR(kFtIvysaur, ivysaurSolarbeam, main::kCharge3Count, kOpFloat, kVarIvysaurSolarbeam, 0, 13, 26, 0),
+            MR(kFtRob, robAirBoosts, main::kMechToggleCount, kOpInt, kVarRobAirBoosts, 3, 0, 0, 0),
+            MR(kFtRob, robAirBoosts, main::kMechToggleCount, kOpFlag, kVarRobBoostExhausted, 0, 0, 0, 0),
+            MR(kFtRob, robGyro, main::kCharge2Count, kOpFloat, kVarRobGyro, 0, 90, 0, 0),
+            MR(kFtRob, robBeam, main::kRobBeamCount, kOpFloat, kVarRobBeam, 0, 300, 900, 0),
+            MR(kFtSquirtle, squirtleWaterGun, main::kCharge2Count, kOpInt, kVarSquirtleWaterGun, 0, 60, 0, 0),
+            MR(kFtSheik, sheikNeedles, main::kSheikNeedlesCount, kOpInt, kVarSheikNeedles, 0, 6, 0, 0),
+            MR(kFtSheik, sheikNeedles, main::kSheikNeedlesCount, kOpFlag, kVarSheikNeedlesFull, 0, 1, 0, 0),
+            MR(kFtDedede, dededeWaddle, main::kDededeWaddleCount, kOpInt, kVarDededeWaddleCd, kSkip, 0, 0, 0),
+            MR(kFtSnake, snakeTranq, main::kMechToggleCount, kOpInt, kVarSnakeTranq, 0, 0, 0, 0),
+            MR(kFtSnake, snakeCypher, main::kMechToggleCount, kOpFloat, kVarSnakeCypherUses, 0, 0, 0, 0),
+            MR(kFtSnake, snakeCypher, main::kMechToggleCount, kOpFlag, kVarSnakeCypherUsed, 0, 0, 0, 0),
+            MR(kFtGanondorf, ganonFloat, main::kMechToggleCount, kOpInt, kVarGanonFloatCount, 0, 0, 0, 0)
+        };
+#undef MR
+        const u8* raw = reinterpret_cast<const u8*>(&s);
+        for (int i = 0; i < static_cast<int>(sizeof(kRules) / sizeof(kRules[0])); i++)
         {
-        case kFtPeach:
-            if (clampChoice(s.peachFloat, main::kMechToggleCount) == main::kMechAlways)
+            const MechRule& r = kRules[i];
+            if (static_cast<int>(r.ft) != ftKind)
             {
-                plan.addFlag(kVarPeachFloatUsed, false);
-                if (status == kStatusPeachFloat)
-                {
-                    plan.addInt(kVarPeachFloatFrames, kPeachFloatMaxFrames);
-                }
+                continue;
             }
-            break;
-
-        case kFtGameWatch:
-        {
-            int bucket = clampChoice(s.gnwBucket, main::kGnwBucketCount);
-            if (bucket != main::kBucketDefault)
+            int choice = clampChoice(raw[r.fieldOff], r.count);
+            if (choice == 0)
             {
-                static const float kCount[main::kGnwBucketCount] = {0.0f, 0.0f, 1.0f, 2.0f, 3.0f};
-                static const float kDamage[main::kGnwBucketCount] = {0.0f, 0.0f, 12.0f, 24.0f, 36.0f};
-                plan.addFloat(kVarGnwBucketCount, kCount[bucket]);
-                plan.addFloat(kVarGnwBucketDamage, kDamage[bucket]);
-                plan.addFlag(kVarGnwBucketFull, bucket == main::kBucketFull);
+                continue;
             }
-            break;
+            s16 v = r.vals[choice - 1];
+            if (v == kSkip)
+            {
+                continue;
+            }
+            if (r.kind == kOpInt)
+            {
+                plan.addInt(r.varId, v);
+            }
+            else if (r.kind == kOpFloat)
+            {
+                plan.addFloat(r.varId, static_cast<float>(v));
+            }
+            else
+            {
+                plan.addFlag(r.varId, v != 0);
+            }
         }
-
-        case kFtSamus:
+        if (ftKind == kFtPeach && clampChoice(s.peachFloat, main::kMechToggleCount) == main::kMechAlways)
         {
-            int charge = clampChoice(s.samusCharge, main::kCharge3Count);
-            if (charge != main::kCharge3Default)
+            plan.addFlag(kVarPeachFloatUsed, false);
+            if (status == kStatusPeachFloat)
             {
-                static const s32 kSamusLevels[main::kCharge3Count] = {0, 0, 4, 7};
-                plan.addInt(kVarSamusCharge, kSamusLevels[charge]);
+                plan.addInt(kVarPeachFloatFrames, kPeachFloatMaxFrames);
             }
-            int beam = clampChoice(s.samusBeam, main::kSamusBeamCount);
-            if (beam != main::kBeamDefault)
-            {
-                plan.addInt(kVarSamusBeam, beam == main::kBeamIce ? 1 : 0);
-            }
-            if (clampChoice(s.samusAirBombs, main::kMechToggleCount) == main::kMechAlways)
-            {
-                plan.addInt(kVarSamusAirBombs, 0);
-            }
-            break;
         }
-
-        case kFtMewtwo:
+        else if (ftKind == kFtMewtwo && clampChoice(s.mewtwoHover, main::kMechToggleCount) == main::kMechAlways)
         {
-            int ball = clampChoice(s.mewtwoShadowBall, main::kCharge3Count);
-            if (ball != main::kCharge3Default)
+            plan.addFlag(kVarMewtwoHoverUsed, false);
+            if (status == kStatusMewtwoHover && mewtwoHoverActive)
             {
-                static const s32 kBallFrames[main::kCharge3Count] = {0, 0, 64, 127};
-                static const s32 kBallLevels[main::kCharge3Count] = {-1, -1, 3, 6};
-                plan.addInt(kVarMewtwoBallFrames, kBallFrames[ball]);
-                plan.addInt(kVarMewtwoShadowBall, kBallLevels[ball]);
-                plan.addInt(kVarMewtwoBallStored, kBallLevels[ball]);
-                plan.addFlag(kVarMewtwoBallHas, ball != main::kCharge3Empty);
-                plan.addFlag(kVarMewtwoBallFull, ball == main::kCharge3Full);
+                plan.addInt(kVarMewtwoHoverFrames, kMewtwoHoverMaxFrames);
             }
-            if (clampChoice(s.mewtwoHover, main::kMechToggleCount) == main::kMechAlways)
-            {
-                plan.addFlag(kVarMewtwoHoverUsed, false);
-                if (status == kStatusMewtwoHover && mewtwoHoverActive)
-                {
-                    plan.addInt(kVarMewtwoHoverFrames, kMewtwoHoverMaxFrames);
-                }
-            }
-            break;
         }
-
-        case kFtLucario:
-        {
-            int aura = clampChoice(s.lucarioAura, main::kLucarioAuraCount);
-            if (aura != main::kAuraDefault)
-            {
-                static const float kAuraVal[main::kLucarioAuraCount] = {0.0f, 0.0f, 60.0f, 120.0f};
-                plan.addFloat(kVarLucarioAura, kAuraVal[aura]);
-            }
-            int sphere = clampChoice(s.lucarioSphere, main::kCharge2Count);
-            if (sphere != main::kCharge2Default)
-            {
-                bool full = sphere == main::kCharge2Full;
-                plan.addInt(kVarLucarioSphereFrames, full ? 16 : 0);
-                plan.addInt(kVarLucarioSphere, full ? 4 : -1);
-                plan.addInt(kVarLucarioSphereStored, full ? 4 : -1);
-                plan.addFlag(kVarLucarioSphereHas, full);
-                plan.addFlag(kVarLucarioSphereFull, full);
-            }
-            break;
-        }
-
-        case kFtWario:
-        {
-            int waft = clampChoice(s.warioWaft, main::kCharge3Count);
-            if (waft != main::kCharge3Default)
-            {
-                static const s32 kFrames[main::kCharge3Count] = {0, 0, 1800, 3600};
-                static const s32 kStage[main::kCharge3Count] = {0, 0, 2, 3};
-                plan.addInt(kVarWarioWaftFrames, kFrames[waft]);
-                plan.addInt(kVarWarioWaftStage, kStage[waft]);
-                plan.addFlag(kVarWarioWaftFull, waft == main::kCharge3Full);
-            }
-            break;
-        }
-
-        case kFtDonkeyKong:
-        {
-            int punch = clampChoice(s.dkPunch, main::kCharge2Count);
-            if (punch != main::kCharge2Default)
-            {
-                plan.addInt(kVarDkPunch, punch == main::kCharge2Full ? 10 : 0);
-            }
-            break;
-        }
-
-        case kFtIvysaur:
-        {
-            int solar = clampChoice(s.ivysaurSolarbeam, main::kCharge3Count);
-            if (solar != main::kCharge3Default)
-            {
-                static const float kSolar[main::kCharge3Count] = {0.0f, 0.0f, 13.0f, 26.0f};
-                plan.addFloat(kVarIvysaurSolarbeam, kSolar[solar]);
-            }
-            break;
-        }
-
-        case kFtRob:
-        {
-            if (clampChoice(s.robAirBoosts, main::kMechToggleCount) == main::kMechAlways)
-            {
-                plan.addInt(kVarRobAirBoosts, 3);
-                plan.addFlag(kVarRobBoostExhausted, false);
-            }
-            int gyro = clampChoice(s.robGyro, main::kCharge2Count);
-            if (gyro != main::kCharge2Default)
-            {
-                // FitRobot.pac data+0x88[0]: IC-Float[4047] = 90.0f (max Gyro charge).
-                plan.addFloat(kVarRobGyro, gyro == main::kCharge2Full ? 90.0f : 0.0f);
-            }
-            int beam = clampChoice(s.robBeam, main::kRobBeamCount);
-            if (beam != main::kRobBeamDefault)
-            {
-                // FitRobot.pac data+0x7c: IC-Float[4005] = 100.0 (Normal),
-                // IC-Float[4004] = 300.0, IC-Float[4006] = 900.0 (Super).
-                static const float kBeam[main::kRobBeamCount] = {0.0f, 0.0f, 300.0f, 900.0f};
-                plan.addFloat(kVarRobBeam, kBeam[beam]);
-            }
-            break;
-        }
-
-        case kFtLucas:
+        else if (ftKind == kFtLucas)
         {
             int off = clampChoice(s.lucasOffenseUp, main::kLucasOffenseCount);
             if (off == main::kOffenseOff)
@@ -410,69 +352,6 @@ namespace extra {
                 plan.addFlag(kVarLucasOffenseFlag, true);
                 plan.addFloat(kVarLucasOffenseProg, 120.0f);
             }
-            break;
-        }
-
-        case kFtSquirtle:
-        {
-            int gun = clampChoice(s.squirtleWaterGun, main::kCharge2Count);
-            if (gun != main::kCharge2Default)
-            {
-                plan.addInt(kVarSquirtleWaterGun, gun == main::kCharge2Full ? 60 : 0);
-            }
-            break;
-        }
-
-        case kFtSheik:
-        {
-            int needles = clampChoice(s.sheikNeedles, main::kSheikNeedlesCount);
-            if (needles == main::kNeedles0)
-            {
-                plan.addInt(kVarSheikNeedles, 0);
-                plan.addFlag(kVarSheikNeedlesFull, false);
-            }
-            else if (needles == main::kNeedles6)
-            {
-                plan.addInt(kVarSheikNeedles, 6);
-                plan.addFlag(kVarSheikNeedlesFull, true);
-            }
-            break;
-        }
-
-        case kFtDedede:
-        {
-            float dummyOrig[4] = {35.0f, 10.0f, 4.0f, 0.0f};
-            float dummyOut[4];
-            bool clearCd = false;
-            dededeWaddleWeights(s.dededeWaddle, dummyOrig, dummyOut, clearCd);
-            if (clearCd)
-            {
-                plan.addInt(kVarDededeWaddleCd, 0);
-            }
-            break;
-        }
-
-        case kFtSnake:
-            if (clampChoice(s.snakeTranq, main::kMechToggleCount) == main::kMechAlways)
-            {
-                plan.addInt(kVarSnakeTranq, 0);
-            }
-            if (clampChoice(s.snakeCypher, main::kMechToggleCount) == main::kMechAlways)
-            {
-                plan.addFloat(kVarSnakeCypherUses, 0.0f);
-                plan.addFlag(kVarSnakeCypherUsed, false);
-            }
-            break;
-
-        case kFtGanondorf:
-            if (clampChoice(s.ganonFloat, main::kMechToggleCount) == main::kMechAlways)
-            {
-                plan.addInt(kVarGanonFloatCount, 0);
-            }
-            break;
-
-        default:
-            break;
         }
     }
 }

@@ -20,6 +20,7 @@ namespace extra {
     void* allocNetZero(u32 bytes);
     void freeNetRaw(void* ptr);
     void* freeNetNull(void* ptr);
+    void freeNetSlot(void** slot);
     void logf(const char* fmt, ...);
 
     // Single-relocation sora_melee accessors (collapse mod=27 kept relocs).
@@ -64,6 +65,13 @@ namespace extra {
     {
         return NULL;
     }
+    inline void freeNetSlot(void** slot)
+    {
+        if (slot != NULL)
+        {
+            *slot = NULL;
+        }
+    }
     inline float i2f(s32 v)
     {
         return static_cast<float>(v);
@@ -107,7 +115,7 @@ namespace extra {
     template <typename T>
     inline void freeNetPtr(T*& ptr)
     {
-        ptr = static_cast<T*>(freeNetNull(ptr));
+        freeNetSlot(reinterpret_cast<void**>(&ptr));
     }
 }
 }

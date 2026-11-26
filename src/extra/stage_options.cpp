@@ -191,20 +191,6 @@ namespace extra {
             return game::isRam(reinterpret_cast<void*>(fn)) ? reinterpret_cast<void*>(fn) : NULL;
         }
 
-        static bool groundHasChrAnim(Ground* g, u32 minFrames)
-        {
-            if (!game::isRam(g) || g->m_modelAnimNum == 0 || !game::isRam(g->m_modelAnims))
-            {
-                return false;
-            }
-            gfModelAnimation* anim = g->m_modelAnims[0];
-            if (!game::isRam(anim) || !game::isRam(anim->m_anmObjChrRes))
-            {
-                return false;
-            }
-            return anim->getFrameCount() >= minFrames;
-        }
-
         static u32 groundChrFrameCount(Ground* g)
         {
             if (!game::isRam(g) || g->m_modelAnimNum == 0 || !game::isRam(g->m_modelAnims))
@@ -217,6 +203,11 @@ namespace extra {
                 return 0;
             }
             return anim->getFrameCount();
+        }
+
+        static bool groundHasChrAnim(Ground* g, u32 minFrames)
+        {
+            return groundChrFrameCount(g) >= minFrames;
         }
 
         static bool groundHasNode(Ground* g, const char* nodeName)
@@ -319,9 +310,10 @@ namespace extra {
             }
         }
 
-        static void jumpGroundToFrame(Ground* g, float frame)
+#pragma dont_inline on
+        static void jumpGround(Ground* g, float frame, u32 minFrames = 0)
         {
-            if (!game::isRam(g))
+            if (!game::isRam(g) || (minFrames != 0 && !game::isRam(g->m_modelAnims)))
             {
                 return;
             }
@@ -333,33 +325,52 @@ namespace extra {
             }
             for (u32 i = 0; i < n; i++)
             {
+                if (minFrames != 0)
+                {
+                    gfModelAnimation* anim = g->m_modelAnims[i];
+                    if (!game::isRam(anim) || !game::isRam(anim->m_anmObjChrRes) || anim->getFrameCount() < minFrames)
+                    {
+                        continue;
+                    }
+                }
                 g->setMotionFrame(frame, i);
             }
             clearCarryVelocity(g);
         }
 
-        static void jumpGroundLongAnimsToFrame(Ground* g, float frame, u32 minFrames)
+        static void applyPlatformTarget(Ground* g, Ground* aux, float target, u32 trackIdx, u32 minFrames, u8 platMode,
+                                        bool force)
         {
-            if (!game::isRam(g) || !game::isRam(g->m_modelAnims))
+            bool hasAux = game::isRam(aux);
+            if (target >= 0.0f)
             {
-                return;
-            }
-            setPauseAnim(g, true);
-            u32 n = g->m_modelAnimNum;
-            if (n > 16)
-            {
-                n = 16;
-            }
-            for (u32 i = 0; i < n; i++)
-            {
-                gfModelAnimation* anim = g->m_modelAnims[i];
-                if (game::isRam(anim) && game::isRam(anim->m_anmObjChrRes) && anim->getFrameCount() >= minFrames)
+                if (force || s_live.appliedPlatformMode != platMode
+                    || fabsf(g->getMotionFrame(trackIdx) - target) > 0.05f)
                 {
-                    g->setMotionFrame(frame, i);
+                    jumpGround(g, target, minFrames);
+                    if (hasAux) jumpGround(aux, target, 0);
+                }
+                else
+                {
+                    setPauseAnim(g, true);
+                    if (hasAux) setPauseAnim(aux, true);
                 }
             }
-            clearCarryVelocity(g);
+            else
+            {
+                bool pause = (platMode == main::kStagePlatFreeze);
+                setPauseAnim(g, pause);
+                if (hasAux)
+                {
+                    setPauseAnim(aux, pause);
+                    if (force || s_live.appliedPlatformMode != platMode)
+                    {
+                        aux->setMotionFrame(g->getMotionFrame(trackIdx), 0);
+                    }
+                }
+            }
         }
+#pragma dont_inline reset
 
         static void* fetchStageStdt(int miscIndex)
         {
@@ -567,70 +578,31 @@ namespace extra {
                 return;
             }
             u8 wantAnim = hazardOff ? 1 : 0;
-            u8 curAnim = *(reinterpret_cast<u8*>(plat) + kSvCurAnimOffset);
-            bool needAnimSwap = (curAnim != wantAnim);
-            if (game::isRam(shadow) && *(reinterpret_cast<u8*>(shadow) + kSvCurAnimOffset) != wantAnim)
-            {
-                needAnimSwap = true;
-            }
+            bool hasShad = game::isRam(shadow);
+            bool needAnimSwap = (*(reinterpret_cast<u8*>(plat) + kSvCurAnimOffset) != wantAnim)
+                                || (hasShad && *(reinterpret_cast<u8*>(shadow) + kSvCurAnimOffset) != wantAnim);
 
             if (needAnimSwap)
             {
                 float savedFrame = plat->getMotionFrame(0);
-                VSetAnim4 setAnimPlat = reinterpret_cast<VSetAnim4>(vtableSlot(plat, 0x1E0));
-                if (setAnimPlat != NULL)
+                Ground* gs[2] = {plat, hasShad ? shadow : NULL};
+                for (int i = 0; i < 2; i++)
                 {
-                    setAnimPlat(plat, wantAnim, 1, 1, 0);
-                    plat->setMotionFrame(savedFrame, 0);
-                }
-                if (game::isRam(shadow))
-                {
-                    VSetAnim4 setAnimShad = reinterpret_cast<VSetAnim4>(vtableSlot(shadow, 0x1E0));
-                    if (setAnimShad != NULL)
+                    if (gs[i] != NULL)
                     {
-                        setAnimShad(shadow, wantAnim, 1, 1, 0);
-                        shadow->setMotionFrame(savedFrame, 0);
+                        VSetAnim4 setAnim = reinterpret_cast<VSetAnim4>(vtableSlot(gs[i], 0x1E0));
+                        if (setAnim != NULL)
+                        {
+                            setAnim(gs[i], wantAnim, 1, 1, 0);
+                            gs[i]->setMotionFrame(savedFrame, 0);
+                        }
                     }
                 }
                 clearCarryVelocity(plat);
                 force = true;
             }
-
-            float target = platformTargetFrame(kPresetSmashville, platMode, hazardOff);
-            if (target >= 0.0f)
-            {
-                if (force || s_live.appliedPlatformMode != platMode
-                    || fabsf(plat->getMotionFrame(0) - target) > 0.05f)
-                {
-                    jumpGroundToFrame(plat, target);
-                    if (game::isRam(shadow))
-                    {
-                        jumpGroundToFrame(shadow, target);
-                    }
-                }
-                else
-                {
-                    setPauseAnim(plat, true);
-                    if (game::isRam(shadow))
-                    {
-                        setPauseAnim(shadow, true);
-                    }
-                }
-            }
-            else
-            {
-                bool pause = (platMode == main::kStagePlatFreeze);
-                setPauseAnim(plat, pause);
-                if (game::isRam(shadow))
-                {
-                    setPauseAnim(shadow, pause);
-                    // Keep shadow locked in phase with platform when paused/resumed.
-                    if (force || s_live.appliedPlatformMode != platMode)
-                    {
-                        shadow->setMotionFrame(plat->getMotionFrame(0), 0);
-                    }
-                }
-            }
+            applyPlatformTarget(plat, shadow, platformTargetFrame(kPresetSmashville, platMode, hazardOff), 0, 0,
+                                platMode, force);
         }
 
         static void applyGreenHillOrDeadLine(int preset, bool hazardOff, u8 platMode, bool force)
@@ -641,8 +613,7 @@ namespace extra {
                 return;
             }
             u8 wantAnim = hazardOff ? 1 : 0;
-            u8 curAnim = *(reinterpret_cast<u8*>(plat) + kGhzCurAnimOffset);
-            if (curAnim != wantAnim)
+            if (*(reinterpret_cast<u8*>(plat) + kGhzCurAnimOffset) != wantAnim)
             {
                 VSetAnim4 setAnim = reinterpret_cast<VSetAnim4>(vtableSlot(plat, 0x1E0));
                 if (setAnim != NULL)
@@ -652,24 +623,7 @@ namespace extra {
                     force = true;
                 }
             }
-
-            float target = platformTargetFrame(preset, platMode, hazardOff);
-            if (target >= 0.0f)
-            {
-                if (force || s_live.appliedPlatformMode != platMode
-                    || fabsf(plat->getMotionFrame(0) - target) > 0.05f)
-                {
-                    jumpGroundToFrame(plat, target);
-                }
-                else
-                {
-                    setPauseAnim(plat, true);
-                }
-            }
-            else
-            {
-                setPauseAnim(plat, platMode == main::kStagePlatFreeze);
-            }
+            applyPlatformTarget(plat, NULL, platformTargetFrame(preset, platMode, hazardOff), 0, 0, platMode, force);
         }
 
         // Yoshi's Island Brawl (st_crayon_noshyguy_ht.rel): ModelData[80] owns the
@@ -687,74 +641,19 @@ namespace extra {
                 return;
             }
             u32 trackIdx = clouds->m_modelAnimNum > 3 ? 3 : 0;
-            if (hazardOff)
-            {
-                clouds->setVisibility(0);
-                clouds->setEnableCollisionStatus(false);
-                if (game::isRam(ind))
-                {
-                    ind->setVisibility(0);
-                }
-                if (force || fabsf(clouds->getMotionFrame(trackIdx) - 0.0f) > 0.05f)
-                {
-                    jumpGroundLongAnimsToFrame(clouds, 0.0f, 1000);
-                    if (game::isRam(ind))
-                    {
-                        jumpGroundToFrame(ind, 0.0f);
-                    }
-                }
-                else
-                {
-                    setPauseAnim(clouds, true);
-                    if (game::isRam(ind))
-                    {
-                        setPauseAnim(ind, true);
-                    }
-                }
-                return;
-            }
-
-            clouds->setVisibility(1);
-            clouds->setEnableCollisionStatus(true);
+            clouds->setVisibility(hazardOff ? 0 : 1);
+            clouds->setEnableCollisionStatus(!hazardOff);
             if (game::isRam(ind))
             {
-                ind->setVisibility(1);
+                ind->setVisibility(hazardOff ? 0 : 1);
             }
-
-            float target = platformTargetFrame(kPresetYoshisIsland, platMode, false);
-            if (target >= 0.0f)
+            if (hazardOff)
             {
-                if (force || s_live.appliedPlatformMode != platMode
-                    || fabsf(clouds->getMotionFrame(trackIdx) - target) > 0.05f)
-                {
-                    jumpGroundLongAnimsToFrame(clouds, target, 1000);
-                    if (game::isRam(ind))
-                    {
-                        jumpGroundToFrame(ind, target);
-                    }
-                }
-                else
-                {
-                    setPauseAnim(clouds, true);
-                    if (game::isRam(ind))
-                    {
-                        setPauseAnim(ind, true);
-                    }
-                }
+                applyPlatformTarget(clouds, ind, 0.0f, trackIdx, 1000, s_live.appliedPlatformMode, force);
+                return;
             }
-            else
-            {
-                bool pause = (platMode == main::kStagePlatFreeze);
-                setPauseAnim(clouds, pause);
-                if (game::isRam(ind))
-                {
-                    setPauseAnim(ind, pause);
-                    if (force || s_live.appliedPlatformMode != platMode)
-                    {
-                        ind->setMotionFrame(clouds->getMotionFrame(trackIdx), 0);
-                    }
-                }
-            }
+            applyPlatformTarget(clouds, ind, platformTargetFrame(kPresetYoshisIsland, platMode, false), trackIdx, 1000,
+                                platMode, force);
         }
 
         static void applyGenericPlatforms(int preset, u8 platMode, bool hazardOff, bool force)
@@ -763,25 +662,9 @@ namespace extra {
             for (int i = 0; i < s_live.movingCount; i++)
             {
                 Ground* g = s_live.moving[i];
-                if (!game::isRam(g))
+                if (game::isRam(g))
                 {
-                    continue;
-                }
-                if (target >= 0.0f)
-                {
-                    if (force || s_live.appliedPlatformMode != platMode
-                        || fabsf(g->getMotionFrame(0) - target) > 0.05f)
-                    {
-                        jumpGroundToFrame(g, target);
-                    }
-                    else
-                    {
-                        setPauseAnim(g, true);
-                    }
-                }
-                else
-                {
-                    setPauseAnim(g, platMode == main::kStagePlatFreeze);
+                    applyPlatformTarget(g, NULL, target, 0, 0, platMode, force);
                 }
             }
         }

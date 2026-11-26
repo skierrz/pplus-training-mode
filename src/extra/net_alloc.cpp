@@ -140,6 +140,15 @@ namespace extra {
         return NULL;
     }
 
+    void freeNetSlot(void** slot)
+    {
+        if (slot != NULL && *slot != NULL)
+        {
+            freeNetRaw(*slot);
+            *slot = NULL;
+        }
+    }
+
     u32 decompressLz77Ascii(const u8* src, u32 srcLen, char* dst, u32 dstCap)
     {
         return decompressLz77AsciiImpl(src, srcLen, dst, dstCap);

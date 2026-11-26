@@ -197,12 +197,11 @@ namespace extra {
             {
                 continue;
             }
-            s64 strAbs = static_cast<s64>(dictOff) + static_cast<s64>(strRel);
-            if (strAbs <= 0 || strAbs >= static_cast<s64>(view.fileSize))
+            if (strRel < 0 ? static_cast<u32>(-strRel) >= dictOff : static_cast<u32>(strRel) >= view.fileSize - dictOff)
             {
                 continue;
             }
-            u32 strOff = static_cast<u32>(strAbs);
+            u32 strOff = static_cast<u32>(static_cast<s32>(dictOff) + strRel);
             if (!brresEqualsBounded(view.base + strOff, view.fileSize - strOff, name))
             {
                 continue;
@@ -211,12 +210,12 @@ namespace extra {
             {
                 return false;
             }
-            s64 dataAbs = static_cast<s64>(dictOff) + static_cast<s64>(dataRel);
-            if (dataAbs <= 0 || dataAbs >= static_cast<s64>(view.fileSize))
+            if (dataRel < 0 ? static_cast<u32>(-dataRel) >= dictOff
+                            : static_cast<u32>(dataRel) >= view.fileSize - dictOff)
             {
                 return false;
             }
-            outDataOff = static_cast<u32>(dataAbs);
+            outDataOff = static_cast<u32>(static_cast<s32>(dictOff) + dataRel);
             return true;
         }
         return false;

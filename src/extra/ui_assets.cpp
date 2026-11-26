@@ -218,30 +218,15 @@ namespace extra {
         void emitTexturedQuad(float x, float y, float w, float h, u32 rgba, const UiQuadUv& uv)
         {
             GXBegin(GX_QUADS, GX_VTXFMT1, 4);
-            WGPIPE.f = x;
-            WGPIPE.f = y;
-            WGPIPE.f = 0.0f;
-            WGPIPE.ui = rgba;
-            WGPIPE.f = uv.u[0];
-            WGPIPE.f = uv.v[0];
-            WGPIPE.f = x + w;
-            WGPIPE.f = y;
-            WGPIPE.f = 0.0f;
-            WGPIPE.ui = rgba;
-            WGPIPE.f = uv.u[1];
-            WGPIPE.f = uv.v[1];
-            WGPIPE.f = x + w;
-            WGPIPE.f = y + h;
-            WGPIPE.f = 0.0f;
-            WGPIPE.ui = rgba;
-            WGPIPE.f = uv.u[2];
-            WGPIPE.f = uv.v[2];
-            WGPIPE.f = x;
-            WGPIPE.f = y + h;
-            WGPIPE.f = 0.0f;
-            WGPIPE.ui = rgba;
-            WGPIPE.f = uv.u[3];
-            WGPIPE.f = uv.v[3];
+            for (int i = 0; i < 4; i++)
+            {
+                WGPIPE.f = (i == 1 || i == 2) ? (x + w) : x;
+                WGPIPE.f = (i >= 2) ? (y + h) : y;
+                WGPIPE.f = 0.0f;
+                WGPIPE.ui = rgba;
+                WGPIPE.f = uv.u[i];
+                WGPIPE.f = uv.v[i];
+            }
         }
 
         void drawStockCard(float x, float y, float tw, float th, gfx::Rgba accent, gfx::Rgba accentHi)

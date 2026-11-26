@@ -80,22 +80,29 @@ namespace extra {
             return game::isRam(p) && (reinterpret_cast<u32>(p) & 3u) == 0u;
         }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
         void clearSnapshot()
         {
-            if (s_debug == NULL)
+            PsaDebugBlock* dbg = s_debug;
+            if (dbg == NULL)
             {
                 return;
             }
-            u32 calls = s_debug->drawCalls;
-            memset(s_debug, 0, sizeof(*s_debug));
-            s_debug->magic = kPsaDebugMagic;
-            s_debug->drawCalls = calls;
-            s_debug->playerNo = -1;
-            s_debug->status = -1;
-            s_debug->subaction = -1;
-            s_debug->secondaryKind = -1;
-            s_debug->focusThread = -1;
+            u32 calls = dbg->drawCalls;
+            memset(dbg, 0, sizeof(*dbg));
+            dbg->magic = kPsaDebugMagic;
+            dbg->drawCalls = calls;
+            dbg->playerNo = -1;
+            dbg->status = -1;
+            dbg->subaction = -1;
+            dbg->secondaryKind = -1;
+            dbg->focusThread = -1;
         }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
         bool selectTargetFighter(u8 target, const game::FighterRef* refs, int count, game::FighterRef& out)
         {
@@ -195,30 +202,31 @@ namespace extra {
 
         bool sampleFighter(const game::FighterRef& ref)
         {
-            if (s_debug == NULL)
+            PsaDebugBlock* dbg = s_debug;
+            if (dbg == NULL)
             {
                 return false;
             }
             clearSnapshot();
-            s_debug->playerNo = ref.playerNo;
+            dbg->playerNo = ref.playerNo;
 
             const soModuleEnumeration* m = game::fighterModules(ref.fighter);
             if (m == NULL)
             {
                 return false;
             }
-            s_debug->status = game::fighterStatus(m);
+            dbg->status = game::fighterStatus(m);
 
             const void* motion = m->m_motionModule;
             if (alignedRam(motion))
             {
-                s_debug->animFrame = floatAt(motion, kMotionFrameOff);
-                s_debug->fsmRate = floatAt(motion, kMotionRateOff);
-                s_debug->subaction = static_cast<s32>(game::wordAt(motion, kMotionKindOff));
-                s_debug->secondaryKind = static_cast<s32>(game::wordAt(motion, kMotionSecKindOff));
-                if (s_debug->secondaryKind != -1)
+                dbg->animFrame = floatAt(motion, kMotionFrameOff);
+                dbg->fsmRate = floatAt(motion, kMotionRateOff);
+                dbg->subaction = static_cast<s32>(game::wordAt(motion, kMotionKindOff));
+                dbg->secondaryKind = static_cast<s32>(game::wordAt(motion, kMotionSecKindOff));
+                if (dbg->secondaryKind != -1)
                 {
-                    s_debug->secondaryRate = floatAt(motion, kMotionSecRateOff);
+                    dbg->secondaryRate = floatAt(motion, kMotionSecRateOff);
                 }
             }
 
@@ -263,23 +271,23 @@ namespace extra {
                 const u32* cmdPtr = NULL;
                 readThread(unit, i, snap, cmdPtr);
                 int slot = (snap.id < kPsaThreadCount) ? static_cast<int>(snap.id) : static_cast<int>(i);
-                s_debug->threads[slot] = snap;
+                dbg->threads[slot] = snap;
                 cmdPtrs[slot] = cmdPtr;
                 if (snap.active != 0)
                 {
                     activeCount++;
                 }
             }
-            s_debug->activeThreadCount = activeCount;
+            dbg->activeThreadCount = activeCount;
 
             // Read relocated acCmdArgConv* pointer (curCmd + 0x04; verified at
             // acAnimCmdImpl::getArg 0x8013CAB8) for the focused active thread.
-            int focus = psaSelectFocusThread(s_debug->threads);
-            s_debug->focusThread = focus;
+            int focus = psaSelectFocusThread(dbg->threads);
+            dbg->focusThread = focus;
             if (focus >= 0 && focus < kPsaThreadCount)
             {
-                u32 hdr = s_debug->threads[focus].cmdHeader;
-                s_debug->focusCmdHeader = hdr;
+                u32 hdr = dbg->threads[focus].cmdHeader;
+                dbg->focusCmdHeader = hdr;
                 u8 numArgs = psaDecodeCmdHeader(hdr).numArgs;
                 u32 want = numArgs < kPsaMaxArgs ? static_cast<u32>(numArgs) : static_cast<u32>(kPsaMaxArgs);
                 const u32* cmdPtr = cmdPtrs[focus];
@@ -296,28 +304,29 @@ namespace extra {
                             {
                                 break;
                             }
-                            s_debug->focusArgs[got].type = entry[0];
-                            s_debug->focusArgs[got].content = entry[1];
+                            dbg->focusArgs[got].type = entry[0];
+                            dbg->focusArgs[got].content = entry[1];
                             got++;
                         }
                     }
                 }
-                s_debug->focusArgCount = got;
-                psaFormatFocusCommand(hdr, s_debug->focusArgs, got, s_debug->focusText,
-                                      static_cast<int>(sizeof(s_debug->focusText)));
+                dbg->focusArgCount = got;
+                psaFormatFocusCommand(hdr, dbg->focusArgs, got, dbg->focusText,
+                                      static_cast<int>(sizeof(dbg->focusText)));
             }
             return true;
         }
 
         void drawCard(const ui::layout::Box& b, bool isCpu)
         {
+            const PsaDebugBlock* dbg = s_debug;
             float xs = gfx::xScale();
             float x = b.x0;
             float y = b.y0;
             float bw = b.x1 - b.x0;
             int shown[kPsaDisplayRows];
-            int rowCount = psaSelectDisplayThreads(s_debug->threads, shown, kPsaDisplayRows);
-            bool hasFocus = s_debug->focusText[0] != '\0';
+            int rowCount = psaSelectDisplayThreads(dbg->threads, shown, kPsaDisplayRows);
+            bool hasFocus = dbg->focusText[0] != '\0';
             int fitRows = rowCount > 0 ? rowCount : 1;
             float maxBh = b.y1 - b.y0;
             float rowsBot = 28.0f + i2fScale(fitRows, 10.0f);
@@ -335,18 +344,18 @@ namespace extra {
             // Header line 1: PSA target + FSM rate.
             char title[16];
             char fsm[20];
-            psaFormatTitle(isCpu, s_debug->playerNo, title, sizeof(title));
-            psaFormatFsm(s_debug->fsmRate, fsm, sizeof(fsm));
+            psaFormatTitle(isCpu, dbg->playerNo, title, sizeof(title));
+            psaFormatFsm(dbg->fsmRate, fsm, sizeof(fsm));
             float hdrScale = ui::style::scaleForCap(6.5f);
             float hdrY = ui::style::textYForCap(y + 6.0f, hdrScale);
             drawShadowText(x + 6.0f * xs, hdrY, title, isCpu ? 0x9AD0F8FFu : 0xFFB0B0FFu, hdrScale);
-            gfx::Rgba fsmCol = psaFsmIsModified(s_debug->fsmRate) ? 0xFFD300FFu : 0xF1F5F9FFu;
+            gfx::Rgba fsmCol = psaFsmIsModified(dbg->fsmRate) ? 0xFFD300FFu : 0xF1F5F9FFu;
             drawShadowText(x + 92.0f * xs, hdrY, fsm, fsmCol, hdrScale);
 
             // Header line 2: Action / Subaction / AnimFrame (+ secondary rate if active).
             char subLine[40];
-            psaFormatSubHeader(s_debug->status, s_debug->subaction, s_debug->animFrame, s_debug->secondaryKind,
-                               s_debug->secondaryRate, subLine, sizeof(subLine));
+            psaFormatSubHeader(dbg->status, dbg->subaction, dbg->animFrame, dbg->secondaryKind,
+                               dbg->secondaryRate, subLine, sizeof(subLine));
             float subScale = ui::style::scaleForCap(6.0f);
             float subY = ui::style::textYForCap(y + 16.0f, subScale);
             drawShadowText(x + 6.0f * xs, subY, subLine, 0xB8CDD6FFu, subScale);
@@ -369,7 +378,7 @@ namespace extra {
             for (int r = 0; r < rowCount; r++)
             {
                 int idx = shown[r];
-                const PsaThreadSnapshot& th = s_debug->threads[idx];
+                const PsaThreadSnapshot& th = dbg->threads[idx];
                 float ry = ui::style::textYForCap(y + 28.0f + i2fScale(r, 10.0f), rowScale);
 
                 char frameBuf[12];
@@ -380,17 +389,10 @@ namespace extra {
                 psaFormatOpcodeName(th.cmdHeader, opBuf, sizeof(opBuf));
                 clipTextToWidth(opBuf, rowScale, opMaxW);
 
-                gfx::Rgba nameCol = (idx == s_debug->focusThread) ? 0xFFE24AFFu
-                                                                   : ((idx <= 1) ? 0xF1F5F9FFu : 0xB8CDD6FFu);
-                gfx::Rgba waitCol = 0x6E8694FFu;
-                if (th.waitKind == kPsaWaitSync)
-                {
-                    waitCol = 0x36CFC2FFu;
-                }
-                else if (th.waitKind == kPsaWaitAsync)
-                {
-                    waitCol = 0xFFE24AFFu;
-                }
+                gfx::Rgba nameCol = (idx == dbg->focusThread) ? 0xFFE24AFFu
+                                                               : ((idx <= 1) ? 0xF1F5F9FFu : 0xB8CDD6FFu);
+                static const gfx::Rgba kWaitCols[3] = {0x6E8694FFu, 0x36CFC2FFu, 0xFFE24AFFu};
+                gfx::Rgba waitCol = kWaitCols[th.waitKind < 3u ? th.waitKind : 0u];
                 gfx::Rgba opCol = th.cmdHeader != 0u ? 0xD8E8F0FFu : 0x6E8694FFu;
 
                 drawShadowText(colName, ry, psaThreadName(idx), nameCol, rowScale);
@@ -407,8 +409,8 @@ namespace extra {
                 {
                     drawHudDivider(x, divY, bw, xs);
                     char focusLine[56];
-                    snprintf(focusLine, sizeof(focusLine), "%s:%s", psaThreadName(s_debug->focusThread),
-                             s_debug->focusText);
+                    snprintf(focusLine, sizeof(focusLine), "%s:%s", psaThreadName(dbg->focusThread),
+                             dbg->focusText);
                     clipTextToWidth(focusLine, rowScale, bw - 12.0f * xs);
                     float fy = ui::style::textYForCap(divY + 4.0f, rowScale);
                     drawShadowText(colName, fy, focusLine, 0x8EF5EAFFu, rowScale);
