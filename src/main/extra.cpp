@@ -54,7 +54,7 @@ namespace main {
         return s_hooks != NULL && s_hooks->stageOptions != NULL && s_hooks->stageOptions(call);
     }
 
-    static void scenCall(int call)
+    void extraScenarioCall(int call)
     {
         if (s_hooks != NULL && s_hooks->scenarioCall != NULL)
         {
@@ -326,32 +326,12 @@ namespace main {
 
     void extraScenarioChanged()
     {
-        scenCall(kScenarioChanged);
+        extraScenarioCall(kScenarioChanged);
     }
 
     void extraScenarioResetNow()
     {
-        scenCall(kScenarioResetNow);
-    }
-
-    void extraScenarioSavestateLoaded()
-    {
-        scenCall(kScenarioSavestateLoaded);
-    }
-
-    void extraScenarioSettingsReset()
-    {
-        scenCall(kScenarioSettingsReset);
-    }
-
-    void extraScenarioCyclePlatform()
-    {
-        scenCall(kScenarioCyclePlatform);
-    }
-
-    void extraComboReposition()
-    {
-        scenCall(kScenarioComboReposition);
+        extraScenarioCall(kScenarioResetNow);
     }
 
     bool extraScenarioCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons)

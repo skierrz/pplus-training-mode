@@ -46,5 +46,33 @@ namespace game {
     {
         return dist != kTechDistinguishableMissing && stateFrame == dist;
     }
+
+    // Flash tech invisibility mode: hides the CPU through tumble, knockdown,
+    // and ground tech / getup animations, flashing visible only on the
+    // distinguishable frame (+ delay) and once the hide window ends.
+    inline bool techFlashHidden(int status, int motionKind, int stateFrame, int subactionFrame, int dist, int delay)
+    {
+        if (motionKind >= 0xBE && motionKind <= 0xC0)
+        {
+            if (dist == kTechDistinguishableMissing || stateFrame >= kTechInvisEndFrame)
+            {
+                return false;
+            }
+            return stateFrame != dist + delay;
+        }
+        if ((motionKind >= 0xAF && motionKind <= 0xB2) || (motionKind >= 0xB8 && motionKind <= 0xBB)
+            || (motionKind >= 0xE6 && motionKind <= 0xE9))
+        {
+            if (subactionFrame >= kGetupInvisEndFrame)
+            {
+                return false;
+            }
+            return subactionFrame != kGetupInvisBaseFrame + delay;
+        }
+        return (status >= 0x45 && status <= 0x49)
+               || (status >= 0x4A && status <= 0x50)
+               || status == 0x54 || status == 0x55
+               || status == 0x60 || status == 0x61;
+    }
 }
 }

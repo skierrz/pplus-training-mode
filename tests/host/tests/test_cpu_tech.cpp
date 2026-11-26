@@ -138,3 +138,37 @@ TEST(cpu_tech, multijump_fly_counts_as_jumped_and_started)
     CHECK(!counterActionStarted(tm::game::kStatusGuard, true));
     CHECK(counterActionStarted(tm::game::kStatusGuard, false));
 }
+
+TEST(cpu_tech, pre_tech_drift_modes_and_safety_guards)
+{
+    const float wiggle = 0.75f;
+    // Off stays neutral everywhere.
+    CHECK_NEAR(0.0f, preTechDriftStickX(kDriftOff, kTechAway, 1.0f, 2, 8, 0, true, wiggle), 1e-6f);
+    // Hitlag and !allowStick (TDI hold) stay neutral.
+    CHECK_NEAR(0.0f, preTechDriftStickX(kDriftIn, kTechAway, 1.0f, 0, 8, 1, true, wiggle), 1e-6f);
+    CHECK_NEAR(0.0f, preTechDriftStickX(kDriftIn, kTechAway, 1.0f, 0, 8, 0, false, wiggle), 1e-6f);
+    // Landing window (0..kTechRollLead) defers to techRollStickX.
+    CHECK_NEAR(0.0f, preTechDriftStickX(kDriftIn, kTechAway, 1.0f, 0, 0, 0, true, wiggle), 1e-6f);
+    CHECK_NEAR(0.0f, preTechDriftStickX(kDriftIn, kTechAway, 1.0f, 0, 1, 0, true, wiggle), 1e-6f);
+
+    // In / Out drift toward or away from opponent, strictly below wiggle threshold.
+    float inX = preTechDriftStickX(kDriftIn, kTechNone, 1.0f, 0, 10, 0, true, wiggle);
+    float outX = preTechDriftStickX(kDriftOut, kTechNone, 1.0f, 0, -1, 0, true, wiggle);
+    CHECK(inX > 0.0f && inX < wiggle);
+    CHECK(outX < 0.0f && -outX < wiggle);
+    CHECK_NEAR(-inX, outX, 1e-6f);
+    CHECK_NEAR(-inX, preTechDriftStickX(kDriftIn, kTechNone, -1.0f, 0, 10, 0, true, wiggle), 1e-6f);
+
+    // Random cycles Out (0), Neutral (1), In (2).
+    CHECK_NEAR(-inX, preTechDriftStickX(kDriftRandom, kTechInPlace, 1.0f, 0, 8, 0, true, wiggle), 1e-6f);
+    CHECK_NEAR(0.0f, preTechDriftStickX(kDriftRandom, kTechInPlace, 1.0f, 1, 8, 0, true, wiggle), 1e-6f);
+    CHECK_NEAR(inX, preTechDriftStickX(kDriftRandom, kTechInPlace, 1.0f, 2, 8, 0, true, wiggle), 1e-6f);
+
+    // Toward Tech / Away From Tech follow roll direction; neutral for In Place / Miss.
+    CHECK_NEAR(-inX, preTechDriftStickX(kDriftTowardTech, kTechAway, 1.0f, 0, 8, 0, true, wiggle), 1e-6f);
+    CHECK_NEAR(inX, preTechDriftStickX(kDriftAwayTech, kTechAway, 1.0f, 0, 8, 0, true, wiggle), 1e-6f);
+    CHECK_NEAR(inX, preTechDriftStickX(kDriftTowardTech, kTechTowards, 1.0f, 0, 8, 0, true, wiggle), 1e-6f);
+    CHECK_NEAR(-inX, preTechDriftStickX(kDriftAwayTech, kTechTowards, 1.0f, 0, 8, 0, true, wiggle), 1e-6f);
+    CHECK_NEAR(0.0f, preTechDriftStickX(kDriftTowardTech, kTechInPlace, 1.0f, 0, 8, 0, true, wiggle), 1e-6f);
+    CHECK_NEAR(0.0f, preTechDriftStickX(kDriftAwayTech, kTechNone, 1.0f, 0, 8, 0, true, wiggle), 1e-6f);
+}

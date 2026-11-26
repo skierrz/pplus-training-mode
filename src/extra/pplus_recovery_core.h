@@ -77,24 +77,18 @@ namespace extra {
 
     // Compact per-fighter ROM recovery spec (indexed by ftKind).
     struct FighterRecoverySpec {
+        u32 flags;        // RecoveryFlag bitmask
+        u16 floatStatus;  // Peach 0x11E, Mewtwo 0x120, else 0
         u8 valid;
-        u8 family; // RecoveryFamily
-        u8 ncxOffs;
-        u8 ncxOffsNear;
-        u32 flags; // RecoveryFlag bitmask
-        s16 upBX;  // horizontal Up-B reach (or radius for kRf360Aim)
-        s16 upBY;  // vertical Up-B reach
-        s16 sideBX;
-        s16 sideBY;
-        s16 altX;  // Down-B / Glide / Float / Neutral-B / Tether range
-        s16 altY;
-        u16 floatStatus; // Peach 0x11E, Mewtwo 0x120, else 0
-        u8 shortenFrame; // Fox 18, Falco 14, Wolf 17, Diddy max charge 45
-        u8 pktStartDist; // Ness 60, Lucas 40
-        u8 pktEndDist;   // Ness 6, Lucas 6
-        u8 pktTime;      // Ness 20, Lucas 30
+        u8 family;        // RecoveryFamily
+        u8 upBX;          // horizontal Up-B reach (or radius for kRf360Aim)
+        u8 upBY;          // vertical Up-B reach
+        u8 sideBX;
+        s8 sideBY;
+        u8 altX;          // Down-B / Glide / Float / Neutral-B / Tether range
+        u8 altY;
+        u8 shortenFrame;  // Fox 18, Falco 14, Wolf 17, Diddy max charge 45
         u8 laResourceIdx;
-        u8 djHeight;
     };
 
     // Stack-only weighted die adapted from fudgepop01's WeightedDie (zero heap).
@@ -161,6 +155,7 @@ namespace extra {
         float pktX, pktY;
         float pktVx, pktVy;
         u32 lastButtons;
+        u8 recoveryMixup; // main::RecoveryMixup (0 Mixed, 1 Low, 2 High, 3 Direct)
     };
 
     struct RecoveryOutput {

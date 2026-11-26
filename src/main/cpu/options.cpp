@@ -506,6 +506,10 @@ namespace cpu {
         static void operator delete(void*, void*) {}
 
         int slot;
+        int player; // the player driven last
+        bool noReaction; // set on the CPU: undone when the option goes off (not by reset)
+        u8 revAction;
+        u8 revDelay;
         int state;
         bool shieldKind; // the counter follows a hit on shield
         int hits;        // hits taken since the CPU was last idle
@@ -523,6 +527,7 @@ namespace cpu {
         // teching
         int tech;
         bool techChosen, techPressed;
+        u32 preTechRoll;
         float groundY, gravity;
         bool groundKnown;
         s32 lastPress;    // the frame of the CPU's last guard press (any)
@@ -554,70 +559,16 @@ namespace cpu {
         bool mashFlip;
         // Freeze CPU
         bool frozen;
-        u8 revAction;
-        u8 revDelay;
         int frozenStatus;
         // Move CPU
         bool placed;
         bool revPicked;
         float moveX, moveY;
-        int player; // the player driven last
         bool techSounded;
         bool recovering;
-        bool noReaction; // set on the CPU: undone when the option goes off (not by reset)
         LedgeState ledgeState;
 
-        void reset()
-        {
-            state = kIdle;
-            shieldKind = false;
-            hits = 0;
-            havePrev = false;
-            prevHitlag = prevHitstun = 0;
-            prevDamageHitlag = false;
-            prevStatus = -1;
-            prevVy = 0.0f;
-            prevAir = false;
-            tdiX = tdiY = sdiX = sdiY = asdiX = asdiY = 0.0f;
-            haveAsdi = false;
-            diKind = kTdiNone;
-            diRoll = 0;
-            sdiDone = hitlagFrame = afterHitlag = 0;
-            tech = kTechNone;
-            techChosen = techPressed = false;
-            groundY = 0.0f;
-            gravity = 0.1f;
-            groundKnown = false;
-            lastPress = techFrom = -1000;
-            trapPress = false;
-            noTech = false;
-            getup = kGetupStand;
-            downFrames = 0;
-            missWait = 0;
-            actionable = 0;
-            counterAir = false;
-            script = NULL;
-            pending = NULL;
-            playSlot = -1;
-            playFrame = 0;
-            tries = 0;
-            stepFrames = 0;
-            scriptHeld = false;
-            scriptAirStarted = false;
-            randomSide = 1.0f;
-            tiltFrames = 0;
-            powershield = 0;
-            mashFlip = false;
-            frozen = false;
-            frozenStatus = -1;
-            placed = false;
-            moveX = moveY = 0.0f;
-            techSounded = false;
-            recovering = false;
-            ledgeStateReset(ledgeState);
-            revPicked = false;
-            main::extraPPlusRecoveryReset(slot);
-        }
+        void reset();
 
         virtual bool wants(const Owner& who)
         {
@@ -674,28 +625,7 @@ namespace cpu {
             out.x = x;
             out.y = y;
         }
-
-        // `again`: the same press is being made again, guard included (except
-        // out of shield, where guard stays held and only other buttons or the
-        // stick reset).
-        void startScript(const Step* steps, bool again = false)
-        {
-            script = steps;
-            stepFrames = 0;
-            scriptAirStarted = false;
-            if (!again)
-            {
-                randomSide = rndBelow(2) == 0 ? toward : -toward;
-            }
-            // A held button needs a frame released to register again; guard is
-            // kept the first time (shield options continue a held guard) and on
-            // out-of-shield retries so shield does not drop into Guard_Off.
-            u32 mask = (!again || shieldKind) ? ~static_cast<u32>(kGuard) : ~0u;
-            bool heldBtn = (lastButtons(slot) & steps[0].buttons & mask) != 0;
-            bool oosStick = again && shieldKind && (steps[0].buttons & kGuard) != 0
-                            && (steps[0].x != 0 || steps[0].y != 0);
-            scriptHeld = heldBtn || oosStick;
-        }
+        void startScript(const Step* steps, bool again = false);
 
         bool reached(int until) const
         {
@@ -1032,6 +962,7 @@ namespace cpu {
             const CpuOptions& c = opts();
             static const u8 kFromRandom[4] = {kTechInPlace, kTechAway, kTechTowards, kTechNone};
             tech = c.tech == kTechRandom ? kFromRandom[weighted(c.techChance)] : c.tech;
+            preTechRoll = rnd();
             TM_LOG("cpu: P%d tech choice %d, frame %u\n", who.playerNo + 1, tech, frameOf(slot));
             techChosen = true;
             techPressed = false;
@@ -1158,82 +1089,101 @@ namespace cpu {
             {
                 chooseTech(who);
             }
-            if (tech == kTechNone)
-            {
-                return;
-            }
-            s32 now = game::trackerFrame();
-            if (techPressed && now - lastPress >= kTechGap)
-            {
-                techPressed = false;
-            }
             const bool slipping = slipTechStatus(v.status);
             const float lift = slipping ? 0.0f : ecbLift();
             int nLand = -1;
             bool checkedLand = false;
-            if (!techPressed)
+            bool appliedRoll = false;
+            if (tech != kTechNone)
             {
-                // Do not double-press if a valid tech window is already open:
-                // a second guard press within 40 frames overwrites m_countPrev
-                // and locks out the tech.
-                if (techWindowActive(f))
+                s32 now = game::trackerFrame();
+                if (techPressed && now - lastPress >= kTechGap)
                 {
-                    techPressed = true;
+                    techPressed = false;
                 }
-                else
+                if (!techPressed)
                 {
-                    // In the window and kTechGap after the press before:
-                    // docs/internals.md, "CPU tech timing". While hitlag > 1,
-                    // soControllerImpl::update (0x80764F64, 0x80765394; isStop from
-                    // 0x8085B0D8) keeps OR-ing m_trigger on every hitlag frame,
-                    // overwriting m_countPrev with 0 (self-lockout) if guard is
-                    // pressed before the last hitlag frame (v.hitlag == 1).
-                    if (v.hitlag > 1)
+                    // Do not double-press if a valid tech window is already open:
+                    // a second guard press within 40 frames overwrites m_countPrev
+                    // and locks out the tech.
+                    if (techWindowActive(f))
                     {
-                        return;
-                    }
-                    int lead = opts().techLockout == kLockoutEarliest ? kTechLeadEarly : kTechLead;
-                    int n = -1;
-                    if (slipping)
-                    {
-                        nLand = framesToSlipTech(v.motionFrame, v.motionRate);
-                        checkedLand = true;
-                        if (nLand >= 0 && nLand <= lead - v.hitlag)
-                        {
-                            n = nLand;
-                        }
+                        techPressed = true;
                     }
                     else
                     {
-                        nLand = framesToLand(lead - v.hitlag, lift);
-                        checkedLand = true;
-                        n = nLand >= 0 ? nLand : framesToWall(lead - v.hitlag, lift);
+                        // In the window and kTechGap after the press before:
+                        // docs/internals.md, "CPU tech timing". While hitlag > 1,
+                        // soControllerImpl::update (0x80764F64, 0x80765394; isStop from
+                        // 0x8085B0D8) keeps OR-ing m_trigger on every hitlag frame,
+                        // overwriting m_countPrev with 0 (self-lockout) if guard is
+                        // pressed before the last hitlag frame (v.hitlag == 1).
+                        if (v.hitlag > 1)
+                        {
+                            return;
+                        }
+                        int lead = opts().techLockout == kLockoutEarliest ? kTechLeadEarly : kTechLead;
+                        int n = -1;
+                        if (slipping)
+                        {
+                            nLand = framesToSlipTech(v.motionFrame, v.motionRate);
+                            checkedLand = true;
+                            if (nLand >= 0 && nLand <= lead - v.hitlag)
+                            {
+                                n = nLand;
+                            }
+                        }
+                        else
+                        {
+                            nLand = framesToLand(lead - v.hitlag, lift);
+                            checkedLand = true;
+                            n = nLand >= 0 ? nLand : framesToWall(lead - v.hitlag, lift);
+                        }
+                        if (n >= 0 && now - lastPress >= kTechGap && now >= techFrom)
+                        {
+                            out.buttons |= kGuard;
+                            techPressed = true;
+                            TM_LOG("cpu: P%d tech %d: guard %d frames before the predicted landing, frame %u\n",
+                                   who.playerNo + 1, tech, n + v.hitlag, frameOf(slot));
+                        }
                     }
-                    if (n >= 0 && now - lastPress >= kTechGap && now >= techFrom)
+                }
+                // Fighter.pac samples stickX on the landing/tech frame itself
+                // (Term_Passive_Fb 0x80FAB024, Passive_Fb entry 0x80FB563C). Wait
+                // until within kTechRollLead frames of impact so the CPU does not
+                // drift in tumble before landing unless Pre-Tech Drift is active.
+                if (techPressed && v.hitlag == 0 && (tech == kTechAway || tech == kTechTowards))
+                {
+                    if (!checkedLand)
                     {
-                        out.buttons |= kGuard;
-                        techPressed = true;
-                        TM_LOG("cpu: P%d tech %d: guard %d frames before the predicted landing, frame %u\n",
-                               who.playerNo + 1, tech, n + v.hitlag, frameOf(slot));
+                        nLand = slipping ? framesToSlipTech(v.motionFrame, v.motionRate)
+                                         : framesToLand(kTechRollLead, lift);
+                        checkedLand = true;
+                    }
+                    float rx = techRollStickX(tech, toward, nLand, techPressed, 0, allowStick,
+                                              param(kParamRollStick, 0.2f), param(kParamWiggleStick, 0.75f));
+                    if (rx != 0.0f)
+                    {
+                        out.x = rx;
+                        appliedRoll = true;
                     }
                 }
             }
-            // Fighter.pac samples stickX on the landing/tech frame itself
-            // (Term_Passive_Fb 0x80FAB024, Passive_Fb entry 0x80FB563C). Wait
-            // until within kTechRollLead frames of impact so the CPU does not
-            // drift in tumble before landing.
-            if (techPressed && v.hitlag == 0 && (tech == kTechAway || tech == kTechTowards))
+            if (!appliedRoll && !slipping && v.air && tumbleStatus(v.status) && v.hitlag == 0 && allowStick)
             {
-                if (!checkedLand)
+                int driftMode = main::settings().techInvis.preTechDrift;
+                if (driftMode != main::kPreTechDriftOff)
                 {
-                    nLand = slipping ? framesToSlipTech(v.motionFrame, v.motionRate)
-                                     : framesToLand(kTechRollLead, lift);
-                }
-                float rx = techRollStickX(tech, toward, nLand, techPressed, v.hitlag, allowStick,
-                                          param(kParamRollStick, 0.2f), param(kParamWiggleStick, 0.75f));
-                if (rx != 0.0f)
-                {
-                    out.x = rx;
+                    if (!checkedLand)
+                    {
+                        nLand = framesToLand(kTechRollLead, lift);
+                    }
+                    float dx = preTechDriftStickX(driftMode, tech, toward, preTechRoll, nLand, 0, true,
+                                                  param(kParamWiggleStick, 0.75f));
+                    if (dx != 0.0f)
+                    {
+                        out.x = dx;
+                    }
                 }
             }
         }
@@ -2091,6 +2041,37 @@ namespace cpu {
         }
     };
 
+#pragma dont_inline on
+    void Brain::reset()
+    {
+        memset(&state, 0, reinterpret_cast<u8*>(&ledgeState) - reinterpret_cast<u8*>(&state));
+        prevStatus = -1;
+        gravity = 0.1f;
+        lastPress = techFrom = -1000;
+        playSlot = -1;
+        randomSide = 1.0f;
+        frozenStatus = -1;
+        ledgeStateReset(ledgeState);
+        main::extraPPlusRecoveryReset(slot);
+    }
+
+    void Brain::startScript(const Step* steps, bool again)
+    {
+        script = steps;
+        stepFrames = 0;
+        scriptAirStarted = false;
+        if (!again)
+        {
+            randomSide = rndBelow(2) == 0 ? toward : -toward;
+        }
+        u32 mask = (!again || shieldKind) ? ~static_cast<u32>(kGuard) : ~0u;
+        bool heldBtn = (lastButtons(slot) & steps[0].buttons & mask) != 0;
+        bool oosStick = again && shieldKind && (steps[0].buttons & kGuard) != 0
+                        && (steps[0].x != 0 || steps[0].y != 0);
+        scriptHeld = heldBtn || oosStick;
+    }
+#pragma dont_inline reset
+
     static Brain* s_brains = NULL;
 
     bool cue(int playerNo, int list, int index, s32 frame)
@@ -2819,6 +2800,15 @@ namespace cpu {
     static OptionsHeap* s_heap = NULL;
     static Saved* s_saved = NULL;
 
+#pragma dont_inline on
+    static void copyBrainState(Brain& dst, const Brain& src)
+    {
+        const u8* s = reinterpret_cast<const u8*>(&src.slot);
+        u32 bytes = sizeof(Brain) - static_cast<u32>(s - reinterpret_cast<const u8*>(&src));
+        memcpy(&dst.slot, s, bytes);
+    }
+#pragma dont_inline reset
+
     void optionsSaved(int which)
     {
         if (s_brains == NULL || s_saved == NULL)
@@ -2828,11 +2818,11 @@ namespace cpu {
         Saved& c = s_saved[which & 1];
         for (int i = 0; i < kMaxSlots; i++)
         {
-            c.brains[i] = s_brains[i];
-            c.portChanged[i] = s_portChanged[i];
-            c.savedPort[i] = s_savedPort[i];
-            c.savedType[i] = s_savedType[i];
+            copyBrainState(c.brains[i], s_brains[i]);
         }
+        memcpy(c.portChanged, s_portChanged, sizeof(s_portChanged));
+        memcpy(c.savedPort, s_savedPort, sizeof(s_savedPort));
+        memcpy(c.savedType, s_savedType, sizeof(s_savedType));
         c.rng = s_rng;
         c.moving = s_moving;
         c.moverPlayer = s_mover.playerNo;
@@ -2851,7 +2841,7 @@ namespace cpu {
         const Saved& c = s_saved[which & 1];
         for (int i = 0; i < kMaxSlots; i++)
         {
-            s_brains[i] = c.brains[i];
+            copyBrainState(s_brains[i], c.brains[i]);
         }
         s_rng = c.rng;
         s_moving = c.moving;

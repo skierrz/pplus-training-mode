@@ -90,6 +90,8 @@ namespace main {
             TM_CLAMP(comboTrainer.resetDelay, 0, kComboDelayCount - 1),
             TM_CLAMP(comboTrainer.postHitstunEscape, 0, kComboEscapeCount - 1),
             TM_CLAMP(comboTrainer.recoveryMixup, 0, kRecMixupCount - 1),
+            TM_CLAMP(techInvis.mode, 0, kTechInvisCount - 1),
+            TM_CLAMP(techInvis.preTechDrift, 0, kPreTechDriftCount - 1),
         };
 #undef TM_CLAMP
         u8* raw = reinterpret_cast<u8*>(&s);

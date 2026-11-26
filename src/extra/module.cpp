@@ -115,7 +115,8 @@ namespace extra {
         bool drawAdap = !s_vsReadOnly && !modalUp && !match.paused && !lab::menuOpen()
                         && main::settings().cpu.options.control == cpu::kControlLab
                         && main::settings().cpu.options.adaptiveMode != cpu::kAdaptiveOff;
-        if (drawDrill || drawAdap)
+        bool drawScen = !s_vsReadOnly && !modalUp && !match.paused && !lab::menuOpen() && scenarioPresetsWantsDraw(match);
+        if (drawDrill || drawAdap || drawScen)
         {
             gfx::begin();
             if (drawDrill)
@@ -125,6 +126,10 @@ namespace extra {
             if (drawAdap)
             {
                 adaptiveCpuDraw(match);
+            }
+            if (drawScen)
+            {
+                scenarioPresetsDraw(match);
             }
             gfx::end();
         }
@@ -214,8 +219,17 @@ namespace extra {
             int vSlots = training ? inputViewerSlotCount(s.display.inputViewer) : 0;
             bool hasComp = training && s.general.diDisplay != 0 && s.display.diVectorMode != main::kDiVectorLive;
             bool hasPsa = s.display.psaInspector != main::kPsaOff;
-            bool hasAdaptive = training && s.cpu.options.adaptiveMode != cpu::kAdaptiveOff;
+            bool hasAdaptive = training && s.cpu.options.control == cpu::kControlLab
+                               && s.cpu.options.adaptiveMode != cpu::kAdaptiveOff;
             rightBot = rightColumnBottom(band, vSlots, hasComp, hasPsa, wide, hasAdaptive);
+            if (!s_vsReadOnly && scenarioPresetsWantsDraw(game::matchState()))
+            {
+                Box tc = techchaseHudBox(band, vSlots, hasComp, hasPsa, wide, hasAdaptive);
+                if (tc.y1 > rightBot)
+                {
+                    rightBot = tc.y1;
+                }
+            }
         }
         return osdTopStartY(isTopRight, band, infoBot, rightBot);
     }

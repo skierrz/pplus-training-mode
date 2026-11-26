@@ -4,9 +4,12 @@
 namespace tm {
 namespace ui {
 namespace pages {
+    extern const char* const kTechInvisLabels[4] = {"Off", "CPU", "All", "Flash"};
+    extern const char* const kPreTechDriftLabels[6] = {
+        "Off", "Random", "In", "Out", "Toward Tech", "Away From Tech"
+    };
     static const char* const kTech[] = {"Random", "In Place", "Away", "Toward", "Miss"};
     static const char* const kGetUp[] = {"Random", "Stand", "Roll Away", "Roll Toward", "Attack"};
-    static const char* const kInvisibility[] = {"Off", "CPU", "All"};
     static const char* const kTechTrap[] = {"Off", "Early", "Late"};
     static const char* const kLockout[] = {"Early", "Late"};
 
@@ -76,7 +79,7 @@ namespace pages {
     static const Option kRows[] = {
         TM_CPU_CHOICE("Tech", cpu.options.tech, kTech, 0),
         TM_CPU_CHOICE("Getup", cpu.options.getup, kGetUp, 0),
-        TM_CHOICE("Tech Invisibility", techInvis.mode, kInvisibility, 0, NULL),
+        TM_CHOICE("Tech Invisibility", techInvis.mode, kTechInvisLabels, 0, NULL),
         TM_ROW(::tm::ui::kKindInt, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(techInvis.delay), 0, 15, 0,
                "Invis Delay", "%df", NULL, techInvisActive),
         TM_ROW(::tm::ui::kKindToggle, 0, TM_FIELD(cpu.options.techSound), 0, 1, 0, "Tech Sound Cue", NULL, NULL,
@@ -85,6 +88,7 @@ namespace pages {
                kTechTrap, NULL, techNotMiss),
         TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(cpu.options.techLockout), 0, TM_COUNT(kLockout) - 1, 0,
                "Tech Timing", kLockout, NULL, techNotMiss),
+        TM_CPU_CHOICE("Pre-Tech Drift", techInvis.preTechDrift, kPreTechDriftLabels, 0),
         TM_CHANCE("Tech In Place %", cpu.options.techChance[0], tech0, techRandom),
         TM_CHANCE("Tech Away %", cpu.options.techChance[1], tech1, techRandom),
         TM_CHANCE("Tech Toward %", cpu.options.techChance[2], tech2, techRandom),

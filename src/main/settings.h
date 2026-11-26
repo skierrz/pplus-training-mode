@@ -319,12 +319,26 @@ namespace main {
         kTechInvisOff = 0,
         kTechInvisCpu,
         kTechInvisAll,
+        kTechInvisFlash,
         kTechInvisCount
     };
+
+    // CPU pre-tech aerial drift while tumbling before landing.
+    enum PreTechDrift {
+        kPreTechDriftOff = 0,
+        kPreTechDriftRandom,
+        kPreTechDriftIn,
+        kPreTechDriftOut,
+        kPreTechDriftTowardTech,
+        kPreTechDriftAwayTech,
+        kPreTechDriftCount
+    };
+
     struct TechInvisSettings {
-        u8 mode;  // TechInvisibility
-        u8 delay; // delay in frames after the distinguishable frame, 0-15
-        u8 reserved[2];
+        u8 mode;         // TechInvisibility
+        u8 delay;        // delay in frames after the distinguishable frame, 0-15
+        u8 preTechDrift; // PreTechDrift
+        u8 reserved;
     };
 
     // Character RNG page: what a character's random move gives. 0 is the

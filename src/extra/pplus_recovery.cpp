@@ -13,6 +13,7 @@
 #include "main/game/body.h"
 #include "main/game/fighters.h"
 #include "main/game/motion.h"
+#include "main/settings.h"
 #include "shared/game/frame.h"
 #include "shared/game/mem.h"
 #include "shared/log.h"
@@ -52,56 +53,22 @@ namespace extra {
         return *reinterpret_cast<const float*>(reinterpret_cast<u32>(base) + offset);
     }
 
-    static bool safeReadLaBit(const soModuleEnumeration* m, u32 idx)
+#pragma dont_inline on
+    static const void* laArray(const soModuleEnumeration* m, u32 countOff, u32 ptrOff, u32 idx)
     {
         if (m == NULL || !game::isRam(m->m_workManageModule))
         {
-            return false;
+            return NULL;
         }
         const void* w = reinterpret_cast<const void*>(game::wordAt(m->m_workManageModule, kWorkInstance));
-        if (!game::isRam(w))
+        if (!game::isRam(w) || idx >= game::wordAt(w, countOff))
         {
-            return false;
+            return NULL;
         }
-        u32 wordIdx = idx >> 5;
-        u32 bitIdx = idx & 31u;
-        if (wordIdx >= game::wordAt(w, kWorkFlagCount))
-        {
-            return false;
-        }
-        const u32* flags = reinterpret_cast<const u32*>(game::wordAt(w, kWorkFlags));
-        return game::isRam(flags) && ((flags[wordIdx] >> bitIdx) & 1u) != 0;
+        const void* arr = reinterpret_cast<const void*>(game::wordAt(w, ptrOff));
+        return game::isRam(arr) ? arr : NULL;
     }
-
-    static int safeReadLaInt(const soModuleEnumeration* m, u32 idx)
-    {
-        if (m == NULL || !game::isRam(m->m_workManageModule))
-        {
-            return 0;
-        }
-        const void* w = reinterpret_cast<const void*>(game::wordAt(m->m_workManageModule, kWorkInstance));
-        if (!game::isRam(w) || idx >= game::wordAt(w, kWorkIntCount))
-        {
-            return 0;
-        }
-        const s32* ints = reinterpret_cast<const s32*>(game::wordAt(w, kWorkInts));
-        return game::isRam(ints) ? ints[idx] : 0;
-    }
-
-    static float safeReadLaFloat(const soModuleEnumeration* m, u32 idx)
-    {
-        if (m == NULL || !game::isRam(m->m_workManageModule))
-        {
-            return 0.0f;
-        }
-        const void* w = reinterpret_cast<const void*>(game::wordAt(m->m_workManageModule, kWorkInstance));
-        if (!game::isRam(w) || idx >= game::wordAt(w, kWorkFloatCount))
-        {
-            return 0.0f;
-        }
-        const float* floats = reinterpret_cast<const float*>(game::wordAt(w, kWorkFloats));
-        return game::isRam(floats) ? floats[idx] : 0.0f;
-    }
+#pragma dont_inline reset
 
     static int remainingJumps(Fighter* f, const soModuleEnumeration* m)
     {
@@ -240,6 +207,7 @@ namespace extra {
         const FighterRecoverySpec& spec = recoverySpec(ftKind);
 
         RecoveryInput in;
+        memset(&in, 0, sizeof(in));
         in.ftKind = ftKind;
         in.status = v.status;
         in.subaction = -1;
@@ -278,39 +246,36 @@ namespace extra {
         in.yDistFloor = in.floorBelow ? (v.y - floorY) : -1.0f;
 
         // Fighter-specific LA resource reads (bounds-checked).
-        in.laFlag = false;
-        in.laInt = 0;
-        in.laFloat = 0.0f;
         if (spec.laResourceIdx != 0)
         {
             if (ftKind == 0x21) // Lucario: Aura float 0x1B, DownB bit 0x42
             {
-                in.laFloat = safeReadLaFloat(m, spec.laResourceIdx);
-                in.laFlag = safeReadLaBit(m, 0x42);
-            }
-            else if (ftKind == 0x26) // Mewtwo: hover-used bit 0x73 (active hover is LA-Bit[97] / status 0x120)
-            {
-                in.laFlag = safeReadLaBit(m, 0x73);
+                const float* lf = reinterpret_cast<const float*>(laArray(m, kWorkFloatCount, kWorkFloats, spec.laResourceIdx));
+                if (lf != NULL) in.laFloat = lf[spec.laResourceIdx];
+                const u32* lb = reinterpret_cast<const u32*>(laArray(m, kWorkFlagCount, kWorkFlags, 0x42u >> 5));
+                in.laFlag = lb != NULL && ((lb[0x42u >> 5] >> (0x42u & 31u)) & 1u) != 0;
             }
             else if (ftKind == 0x22 || ftKind == 0x15 || ftKind == 0x14 || ftKind == 0x2D)
             {
-                in.laInt = safeReadLaInt(m, spec.laResourceIdx);
+                const s32* li = reinterpret_cast<const s32*>(laArray(m, kWorkIntCount, kWorkInts, spec.laResourceIdx));
+                if (li != NULL) in.laInt = li[spec.laResourceIdx];
             }
             else
             {
-                in.laFlag = safeReadLaBit(m, spec.laResourceIdx);
+                u32 wi = static_cast<u32>(spec.laResourceIdx) >> 5;
+                const u32* lb = reinterpret_cast<const u32*>(laArray(m, kWorkFlagCount, kWorkFlags, wi));
+                in.laFlag = lb != NULL && ((lb[wi] >> (spec.laResourceIdx & 31u)) & 1u) != 0;
             }
         }
 
         // PK Thunder weapon search for Ness (0x0A) and Lucas (0x1A).
-        in.hasPkt = false;
-        in.pktX = in.pktY = in.pktVx = in.pktVy = 0.0f;
         if ((spec.flags & kRfPkThunder) != 0 && v.status >= 0x114 && v.status <= 0x11C)
         {
             int founderTaskId = reinterpret_cast<const gfTask*>(f)->getTaskId();
             in.hasPkt = findPkThunderWeapon(founderTaskId, in.pktX, in.pktY, in.pktVx, in.pktVy);
         }
         in.lastButtons = lastButtons;
+        in.recoveryMixup = main::settings().comboTrainer.recoveryMixup;
 
         s_rng ^= game::frameCounter() * 0x9E3779B9u;
         RecoveryOutput recOut;

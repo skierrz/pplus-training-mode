@@ -1,5 +1,7 @@
 #include "extra/pplus_recovery_core.h"
 
+#include <string.h>
+
 #include "extra/stage_geom_math.h"
 
 namespace tm {
@@ -31,7 +33,12 @@ namespace extra {
         kStSpecialN = 0x112,
         kStSpecialS = 0x113,
         kStSpecialHi = 0x114,
-        kStSpecialLw = 0x115
+        kStSpecialLw = 0x115,
+        kStDamageFall = 0x49,
+        kMixupMixed = 0,
+        kMixupLow = 1,
+        kMixupHigh = 2,
+        kMixupDirect = 3
     };
 
     // Portable fast square root (zero libm dependency for MWCC and MSVC).
@@ -51,19 +58,36 @@ namespace extra {
     }
 #pragma dont_inline reset
 
-    static float recAbs(float v)
+    static inline float recAbs(float v)
     {
         return v < 0.0f ? -v : v;
     }
 
-    static float recSign(float v)
+    static inline float recSign(float v)
     {
         return v < 0.0f ? -1.0f : 1.0f;
+    }
+
+#pragma dont_inline on
+    static void pressBtn(RecoveryOutput& out, u32 btn, u32 lastButtons)
+    {
+        out.buttons = (lastButtons & btn) != 0 ? 0u : btn;
     }
 
     static float recClamp(float v, float lo, float hi)
     {
         return v < lo ? lo : (v > hi ? hi : v);
+    }
+
+    static float i2f(int v)
+    {
+        return static_cast<float>(v);
+    }
+#pragma dont_inline reset
+
+    static inline float recRand01(u32& rng)
+    {
+        return geomRand01(rng);
     }
 
     // ---- WeightedDie -----------------------------------------------------------
@@ -108,23 +132,13 @@ namespace extra {
 
     int WeightedDie::roll(float u01, int defaultOpt) const
     {
-        if (m_count <= 0)
-        {
-            return defaultOpt;
-        }
         float total = totalWeight();
-        if (total <= 0.0f)
-        {
-            return defaultOpt;
-        }
+        if (total <= 0.0f) return defaultOpt;
         float u = recClamp(u01, 0.0f, 0.999999f) * total;
         for (int i = 0; i < m_count; i++)
         {
             u -= m_entries[i].weight;
-            if (u < 0.0f)
-            {
-                return m_entries[i].option;
-            }
+            if (u < 0.0f) return m_entries[i].option;
         }
         return m_entries[m_count - 1].option;
     }
@@ -132,8 +146,8 @@ namespace extra {
     // ---- 44-Fighter ROM Table (indexed by ftKind 0x00..0x31) -------------------
     // Constants sourced from fudgepop01/PPlusAI Chars/*/ai_*/103_recoveryHub.as.
 #define SPEC(fam, flg, ux, uy, sx, sy, ax, ay, nco, ncn, fs, sf, ps, pe, pt, la, dj) \
-    {1, fam, nco, ncn, flg, ux, uy, sx, sy, ax, ay, fs, sf, ps, pe, pt, la, dj}
-#define UNUSED_SPEC {0, kFamArc, 6, 4, kRfNone, 40, 45, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32}
+    {flg, fs, 1, fam, ux, uy, sx, sy, ax, ay, sf, la}
+#define UNUSED_SPEC {kRfNone, 0, 0, kFamArc, 40, 45, 0, 0, 0, 0, 0, 0}
 
     static const FighterRecoverySpec kSpecs[kFtKindMax] = {
         // 0x00 Mario
@@ -241,7 +255,7 @@ namespace extra {
 #undef UNUSED_SPEC
 
     static const FighterRecoverySpec kFallbackSpec = {
-        1, kFamArc, 6, 4, kRfNone, 45, 50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32
+        kRfNone, 0, 1, kFamArc, 45, 50, 0, 0, 0, 0, 0, 0
     };
 
     const FighterRecoverySpec& recoverySpec(int ftKind)
@@ -255,80 +269,69 @@ namespace extra {
 
     void clampAimNotches(float& x, float& y)
     {
-        if (x > 0.1f && x < 0.25f)
-        {
-            x = 0.3f;
-        }
-        else if (x < -0.1f && x > -0.25f)
-        {
-            x = -0.3f;
-        }
-        if (y > 0.0f && y < 0.3f)
-        {
-            y = 0.3f;
-        }
+        float ax = recAbs(x);
+        if (ax > 0.1f && ax < 0.25f) x = x < 0.0f ? -0.3f : 0.3f;
+        if (y > 0.0f && y < 0.3f) y = 0.3f;
     }
 
     void recoveryStateReset(RecoveryState& st)
     {
-        st.initialized = 0;
-        st.option = kOptNone;
-        st.highMixup = 0;
-        st.timer = 0;
-        st.mashPhase = 0;
-        st.holdFrames = 0;
-        st.usedFloat = 0;
-        st.ledgeWaitFrames = 0;
+        memset(&st, 0, sizeof(st));
         st.prevStatus = -1;
-        st.cliffChoice = 0;
-        st.reserved = 0;
     }
 
-    // Helper: emit a fresh press of `btn`, inserting a 1-frame release if it
-    // was held on the previous frame so Brawl sees an edge.
-    static u32 freshButton(u32 btn, u32 lastButtons)
+#pragma dont_inline on
+    static float dist2D(float dx, float dy)
     {
-        return (lastButtons & btn) != 0 ? 0u : btn;
+        return recSqrt(dx * dx + dy * dy);
     }
 
-    // Aim normalized vector from fighter toward (dx, dy) with PPlusAI notch clamp.
-    static void aim360(float dx, float dy, float& outX, float& outY)
+    // Aim normalized vector from fighter toward (dx, dy) with optional PPlusAI notch clamp.
+    static void aim360(float dx, float dy, float& outX, float& outY, bool clampNotch = true)
     {
-        float len = recSqrt(dx * dx + dy * dy);
+        float len = dist2D(dx, dy);
         if (len < 0.001f)
         {
-            outX = 0.0f;
-            outY = 1.0f;
+            if (clampNotch)
+            {
+                outX = 0.0f;
+                outY = 1.0f;
+            }
             return;
         }
         float nx = dx / len;
         float ny = dy / len;
-        clampAimNotches(nx, ny);
+        if (clampNotch)
+        {
+            clampAimNotches(nx, ny);
+        }
         outX = recClamp(nx, -1.0f, 1.0f);
         outY = recClamp(ny, -1.0f, 1.0f);
     }
+#pragma dont_inline reset
+
+    static inline u8 pktOrbitTime(int ftKind)
+    {
+        return ftKind == 0x0A ? 20 : 30;
+    }
 
     // Active PK Thunder orbit steering (Ness/Lucas 103_recoveryHub.as).
-    static void steerPkThunder(const FighterRecoverySpec& spec, const RecoveryInput& in, RecoveryState& st,
-                               float toLedgeX, float toLedgeY, float towardGoal, float stageCenterDir,
-                               RecoveryOutput& out)
+    static void steerPkThunder(const RecoveryInput& in, RecoveryState& st, float toLedgeX, float toLedgeY,
+                               float towardGoal, float stageCenterDir, RecoveryOutput& out)
     {
+        u8 pktTime = pktOrbitTime(in.ftKind);
         bool spawningOrHolding = in.status == kStSpecialHi || in.status == 0x11A;
         bool wasPkt = st.prevStatus == kStSpecialHi || st.prevStatus == 0x11A;
         if (!wasPkt && spawningOrHolding)
         {
-            st.timer = spec.pktTime;
+            st.timer = pktTime;
         }
         float outwardDir = -towardGoal;
-        // Post-launch PKT2 flight / end lag (0x11B / 0x11C with no PKT article):
-        // always drift cleanly inward onto the stage (never outward).
         if (!spawningOrHolding && !in.hasPkt)
         {
             out.stickX = in.ceilingAbove ? -stageCenterDir : towardGoal;
-            out.stickY = 0.0f;
             return;
         }
-        // While starting PKT near a wall, pull away slightly.
         if (in.animFrame < 5.0f && in.wallAhead && in.wallDist < 22.0f)
         {
             out.stickX = outwardDir;
@@ -337,15 +340,10 @@ namespace extra {
         }
         if (!in.hasPkt)
         {
-            // Startup before PKT spawns: bias outward so PKT arcs away from stage on spawn.
             out.stickX = outwardDir;
-            out.stickY = 0.0f;
             return;
         }
 
-        // Commit PKT onto the outward (away-from-stage) side while it is still above
-        // Ness/Lucas so the orbit wraps clockwise on the right side and counterclockwise
-        // on the left side instead of looping from stage-side.
         float bodyCenterY = in.y + 7.0f;
         float relX = in.pktX - in.x;
         float relY = in.pktY - bodyCenterY;
@@ -356,151 +354,67 @@ namespace extra {
             return;
         }
 
-        // Aim cleanly at the ledge lip when below stage (never into the solid underside hull),
-        // and slightly inward + upward when above the ledge so PKT2 never fires downward.
-        float launchX = toLedgeY > 0.0f ? toLedgeX : (toLedgeX + towardGoal * 6.0f);
-        float minLaunchX = toLedgeY > 0.0f ? 8.0f : 12.0f;
-        if (launchX * towardGoal < minLaunchX)
-        {
-            launchX = towardGoal * minLaunchX;
-        }
+        bool belowL = toLedgeY > 0.0f;
+        float launchX = belowL ? toLedgeX : (toLedgeX + towardGoal * 6.0f);
+        float minLaunchX = belowL ? 8.0f : 12.0f;
+        if (launchX * towardGoal < minLaunchX) launchX = towardGoal * minLaunchX;
         float launchY = toLedgeY + (in.ledgeOccupied && !in.ceilingAbove ? 22.0f : 10.0f);
         float minLaunchY = recAbs(launchX) * 0.75f;
-        if (minLaunchY < 24.0f)
-        {
-            minLaunchY = 24.0f;
-        }
-        if (launchY < minLaunchY)
-        {
-            launchY = minLaunchY;
-        }
-        float len = recSqrt(launchX * launchX + launchY * launchY);
-        if (len < 0.001f)
-        {
-            len = 1.0f;
-        }
-        float tFrac = spec.pktTime > 0 ? static_cast<float>(st.timer) / static_cast<float>(spec.pktTime) : 0.0f;
-        float startDist = spec.pktStartDist > 38 ? 38.0f : static_cast<float>(spec.pktStartDist);
-        float orbitDist = static_cast<float>(spec.pktEndDist) + tFrac * (startDist - static_cast<float>(spec.pktEndDist));
-        // Aim behind the fighter relative to the desired upward-inward launch direction.
+        if (minLaunchY < 24.0f) minLaunchY = 24.0f;
+        if (launchY < minLaunchY) launchY = minLaunchY;
+        float len = dist2D(launchX, launchY);
+        if (len < 0.001f) len = 1.0f;
+        float orbitDist = 6.0f + (i2f(st.timer) / i2f(pktTime)) * 32.0f;
         float behindX = -(launchX / len) * orbitDist;
-        float behindY = -(launchY / len) * orbitDist * 1.25f;
-        float absBx = recAbs(behindX);
-        float padX = absBx < 3.0f ? 5.0f : 3.0f;
+        float behindY = -(launchY / len) * orbitDist * 1.25f - 2.0f;
+        float padX = recAbs(behindX) < 3.0f ? 5.0f : 3.0f;
         behindX += behindX >= 0.0f ? padX : -padX;
-        behindY -= 2.0f;
 
-        float targetX = in.x + behindX;
-        float targetY = bodyCenterY + behindY;
-
-        // Predict PKT 5 frames forward along its current velocity.
-        float predX = in.pktX + in.pktVx * 5.0f;
-        float predY = in.pktY + in.pktVy * 5.0f;
-        float errX = targetX - predX;
-        float errY = targetY - predY;
-        float errLen = recSqrt(errX * errX + errY * errY);
-        if (st.timer > 0 && (errLen <= 28.0f || relY <= -12.0f))
-        {
-            st.timer--;
-        }
-        if (errLen > 0.001f)
-        {
-            out.stickX = recClamp(errX / errLen, -1.0f, 1.0f);
-            out.stickY = recClamp(errY / errLen, -1.0f, 1.0f);
-        }
+        float errX = (in.x + behindX) - (in.pktX + in.pktVx * 5.0f);
+        float errY = (bodyCenterY + behindY) - (in.pktY + in.pktVy * 5.0f);
+        if (st.timer > 0 && (dist2D(errX, errY) <= 28.0f || relY <= -12.0f)) st.timer--;
+        aim360(errX, errY, out.stickX, out.stickY, false);
     }
 
-    static bool isUpBStatus(int ftKind, int s)
-    {
-        if (s == kStSpecialHi)
-        {
-            return true;
-        }
-        // Fighter-specific Up-B continuation statuses (PPlusAI $genActions).
-        switch (ftKind)
-        {
-        case 0x06: // Fox
-        case 0x13: // Falco
-        case 0x2C: // Wolf
-            return s == 0x117;
-        case 0x0A: // Ness
-        case 0x1A: // Lucas
-            return s >= 0x11A && s <= 0x11C;
-        case 0x1B: // Diddy
-            return s == 0x125 || s == 0x127;
-        case 0x21: // Lucario
-        case 0x26: // Mewtwo
-            return s == 0x11B || s == 0x11C;
-        case 0x22: // Ike
-            return s >= 0x11E && s <= 0x120;
-        case 0x0C: // Peach
-            return s >= 0x11A && s <= 0x11C;
-        case 0x16: // Meta Knight
-            return s == 0x11D;
-        default:
-            return false;
-        }
-    }
+#pragma dont_inline on
+    enum {
+        kMatchUpB = 0,
+        kMatchSideB = 1,
+        kMatchDownB = 2,
+        kMatchSpecFall = 3
+    };
 
-    static bool isSideBStatus(int ftKind, int s)
+    static bool matchFtStatus(u8 kind, int ftKind, int s)
     {
-        if (s == kStSpecialS)
+        static const u16 kBase[4] = {kStSpecialHi, kStSpecialS, kStSpecialLw, kStFallSpecial};
+        if (s == kBase[kind]) return true;
+        int off = s - 0x110;
+        if (off < 0 || off > 255) return false;
+        struct FtStRange { u8 kind, ft, lo, hi; };
+        static const FtStRange kRanges[] = {
+            // Up-B continuations
+            {kMatchUpB, 0x06, 0x07, 0x07}, {kMatchUpB, 0x13, 0x07, 0x07}, {kMatchUpB, 0x2C, 0x07, 0x07},
+            {kMatchUpB, 0x0A, 0x0A, 0x0C}, {kMatchUpB, 0x1A, 0x0A, 0x0C}, {kMatchUpB, 0x1B, 0x15, 0x15},
+            {kMatchUpB, 0x1B, 0x17, 0x17}, {kMatchUpB, 0x21, 0x0B, 0x0C}, {kMatchUpB, 0x26, 0x0B, 0x0C},
+            {kMatchUpB, 0x22, 0x0E, 0x10}, {kMatchUpB, 0x0C, 0x0A, 0x0C}, {kMatchUpB, 0x16, 0x0D, 0x0D},
+            // Side-B continuations
+            {kMatchSideB, 0x06, 0x19, 0x19}, {kMatchSideB, 0x1B, 0x0B, 0x0C}, {kMatchSideB, 0x1B, 0x14, 0x14},
+            {kMatchSideB, 0x1E, 0x09, 0x09}, {kMatchSideB, 0x22, 0x0A, 0x0C}, {kMatchSideB, 0x16, 0x09, 0x0A},
+            // Down-B continuations
+            {kMatchDownB, 0x03, 0x0D, 0x0E}, {kMatchDownB, 0x03, 0x10, 0x11}, {kMatchDownB, 0x16, 0x0B, 0x0C},
+            // Special fall continuations
+            {kMatchSpecFall, 0x06, 0x08, 0x08}, {kMatchSpecFall, 0x13, 0x08, 0x08},
+            {kMatchSpecFall, 0x2C, 0x08, 0x08}, {kMatchSpecFall, 0x22, 0x0D, 0x0D},
+            {kMatchSpecFall, 0x2E, 0x08, 0x08}
+        };
+        for (int i = 0; i < static_cast<int>(sizeof(kRanges) / sizeof(kRanges[0])); i++)
         {
-            return true;
+            if (kRanges[i].kind == kind && kRanges[i].ft == ftKind && off >= kRanges[i].lo && off <= kRanges[i].hi)
+            {
+                return true;
+            }
         }
-        switch (ftKind)
-        {
-        case 0x06: // Fox
-            return s == 0x129;
-        case 0x1B: // Diddy
-            return s == 0x11B || s == 0x11C || s == 0x124;
-        case 0x1E: // Squirtle
-            return s == 0x119;
-        case 0x22: // Ike
-            return s >= 0x11A && s <= 0x11C;
-        case 0x16: // Meta Knight
-            return s == 0x119 || s == 0x11A;
-        default:
-            return false;
-        }
-    }
-
-    static bool isDownBStatus(int ftKind, int s)
-    {
-        if (s == kStSpecialLw)
-        {
-            return true;
-        }
-        switch (ftKind)
-        {
-        case 0x03: // Samus
-            return s == 0x11D || s == 0x11E || s == 0x120 || s == 0x121;
-        case 0x16: // Meta Knight
-            return s == 0x11B || s == 0x11C;
-        default:
-            return false;
-        }
-    }
-
-    static bool isSpecialFallStatus(int ftKind, int s)
-    {
-        if (s == kStFallSpecial)
-        {
-            return true;
-        }
-        switch (ftKind)
-        {
-        case 0x06: // Fox
-        case 0x13: // Falco
-        case 0x2C: // Wolf (Fire Fox/Bird/Wolf end fall 0x118)
-            return s == 0x118;
-        case 0x22: // Ike Quick Draw special fall
-            return s == 0x11D;
-        case 0x2E: // Snake Cypher special fall
-            return s == 0x118;
-        default:
-            return false;
-        }
+        return false;
     }
 
     static bool isTetherStatus(int s)
@@ -508,149 +422,84 @@ namespace extra {
         return (s >= kStAirLasso && s <= kStAirLassoFailure) || s == kStCliffJump2;
     }
 
-    // Recovery rectangle helper matching PPlusAI $if_recoveryRect:
-    // absX in [xMin, xMax] and yBelowLedge in [yMin, yMax].
-    static bool inRect(float absX, float xMin, float xMax, float yVal, float yMin, float yMax)
+    static bool inRect16(int x16, int xMin, int xMax, int y16, int yMin, int yMax)
     {
-        return absX >= xMin && absX <= xMax && yVal >= yMin && yVal <= yMax;
+        return x16 >= xMin * 16 && x16 <= xMax * 16 && y16 >= yMin * 16 && y16 <= yMax * 16;
     }
 
-    void stepRecovery(const RecoveryInput& in, RecoveryState& st, u32& rng, RecoveryOutput& out)
+    static void addDieI(WeightedDie& die, int opt, int weight)
     {
-        out.buttons = 0;
-        out.stickX = 0.0f;
-        out.stickY = 0.0f;
-        out.active = false;
+        die.add(opt, i2f(weight));
+    }
+#pragma dont_inline reset
 
-        const FighterRecoverySpec& spec = recoverySpec(in.ftKind);
+#define R16(n) ((n) * 16)
 
-        // 1. Ledge hanging (CliffCatch / CliffWait / Cliff*): cleanly getup.
-        if (in.status >= kStCliffCatchMove && in.status <= kStCliffLast && in.status != kStCliffJump2)
-        {
-            out.active = true;
-            if (in.status == kStCliffWait)
-            {
-                if (st.ledgeWaitFrames == 0)
-                {
-                    st.cliffChoice = static_cast<u8>(geomNextRng(rng) % 4u);
-                }
-                st.ledgeWaitFrames++;
-                // Wait 2 frames in CliffWait so Brawl registers the getup input cleanly.
-                if (st.ledgeWaitFrames >= 2)
-                {
-                    float towardStage = in.ledgeDir != 0.0f ? in.ledgeDir : -recSign(in.x);
-                    switch (st.cliffChoice)
-                    {
-                    case 0: // Regular getup toward stage
-                        out.stickX = towardStage;
-                        break;
-                    case 1: // Ledge roll
-                        out.buttons = freshButton(kRecBtnGuard, in.lastButtons);
-                        break;
-                    case 2: // Ledge jump
-                        out.buttons = freshButton(kRecBtnJump, in.lastButtons);
-                        out.stickX = towardStage;
-                        break;
-                    default: // Ledge attack
-                        out.buttons = freshButton(kRecBtnAttack, in.lastButtons);
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                st.ledgeWaitFrames = 0;
-            }
-            st.prevStatus = static_cast<s16>(in.status);
-            return;
-        }
-        st.ledgeWaitFrames = 0;
-
-        // If grounded safely on stage and not in a recovery special, stop recovering.
-        bool onStageFloor = !in.air && in.x >= in.stageLeftX - 2.0f && in.x <= in.stageRightX + 2.0f;
-        if (onStageFloor)
-        {
-            recoveryStateReset(st);
-            return;
-        }
-
-        // Airborne over the stage floor with nothing urgent: stop once safely back.
-        bool overStage = in.x >= in.stageLeftX + 2.0f && in.x <= in.stageRightX - 2.0f && in.y >= in.stageY - 6.0f;
-        bool safeLandingStatus =
-            (in.status <= kStLandingFallSpecial && in.status != kStFallSpecial) || (in.ftKind == 0x26 && in.status == 0x11E);
-        if (overStage && in.floorBelow && !in.ceilingAbove && safeLandingStatus)
-        {
-            recoveryStateReset(st);
-            return;
-        }
-
+    static void stepRecoveryBody(const FighterRecoverySpec& spec, const RecoveryInput& in, RecoveryState& st, u32& rng,
+                                 bool overStage, RecoveryOutput& out)
+    {
         out.active = true;
+        const int ft = in.ftKind;
+        const u8 mix = in.recoveryMixup;
+        const u32 flg = spec.flags;
+        const u32 lastB = in.lastButtons;
 
-        // First frame of a new recovery: roll high-recovery mixup (PPlusAI:
-        // ledgeOccupied && rnd < 0.80, else rnd < 0.25).
+        // First frame of a new recovery: apply Recovery Mixup profile (Mixed,
+        // Low sweetspot, High, or Direct).
         if (!st.initialized)
         {
             st.initialized = 1;
-            st.option = kOptNone;
-            st.usedFloat = 0;
-            st.holdFrames = 0;
-            st.mashPhase = 0;
-            float r = geomRand01(rng);
-            bool goHigh = (in.ledgeOccupied && r < 0.80f) || (!in.ledgeOccupied && r < 0.25f);
-            st.highMixup = goHigh ? static_cast<u8>(15.0f + 40.0f * geomRand01(rng)) : 0;
+            st.option = st.usedFloat = st.holdFrames = st.mashPhase = st.highMixup = 0;
+            if (mix == kMixupHigh)
+            {
+                st.highMixup = static_cast<u8>(28.0f + 27.0f * recRand01(rng));
+            }
+            else if (mix == kMixupMixed)
+            {
+                float r = recRand01(rng);
+                if ((in.ledgeOccupied && r < 0.80f) || (!in.ledgeOccupied && r < 0.25f))
+                {
+                    st.highMixup = static_cast<u8>(15.0f + 40.0f * recRand01(rng));
+                }
+            }
         }
 
         // Vector from fighter to nearest ledge.
-        // nearCliffX: horizontal vector to ledge (+ right, - left)
-        // belowLedgeY: positive when fighter is BELOW the ledge, negative when ABOVE.
         float toLedgeX = in.ledgeX - in.x;
         float toLedgeY = in.ledgeY - in.y;
         float absNCX = recAbs(toLedgeX);
         float belowLedgeY = toLedgeY; // > 0 below ledge, < 0 above ledge
-        float highBelowY = belowLedgeY + (!in.ceilingAbove ? static_cast<float>(st.highMixup) : 0.0f);
+        float highBelowY = belowLedgeY + (!in.ceilingAbove ? i2f(st.highMixup) : 0.0f);
+        const int ix = static_cast<int>(absNCX * 16.0f);
+        const int iy = static_cast<int>(belowLedgeY * 16.0f);
+        const int iyH = static_cast<int>(highBelowY * 16.0f);
+        const int iAnim = static_cast<int>(in.animFrame * 16.0f);
+        const int iWall = static_cast<int>(in.wallDist * 16.0f);
         float stageCenterX = 0.5f * (in.stageLeftX + in.stageRightX);
         float stageCenterDir = in.x > stageCenterX ? -1.0f : 1.0f;
         float towardLedge = toLedgeX == 0.0f ? stageCenterDir : recSign(toLedgeX);
         bool insideStageX = in.x >= in.stageLeftX && in.x <= in.stageRightX;
         bool overStageSurface = insideStageX && !in.ceilingAbove && in.y >= in.stageY - 8.0f;
-        // Once horizontally over the stage surface, steer inward toward stage center
-        // rather than back outward toward the ledge lip.
         float towardGoal = overStageSurface ? stageCenterDir : towardLedge;
-
-        // 2. Active recovery state handlers (specials, glide, float, tether, special fall).
+        float driftX = in.ceilingAbove ? -stageCenterDir : towardGoal;
 
         // 2a. Special Fall (0x10, Spacie 0x118, Ike 0x11D, Snake 0x118): drift directly toward stage center.
-        if (isSpecialFallStatus(in.ftKind, in.status))
+        if (matchFtStatus(kMatchSpecFall, ft, in.status))
         {
             out.stickX = in.ceilingAbove ? -stageCenterDir : stageCenterDir;
-            st.prevStatus = static_cast<s16>(in.status);
             return;
         }
 
         // 2b. Glide (0x84 GlideStart / 0x85 Glide): {GLIDE} pitch + cancel.
-        if (in.status == kStGlideStart || in.status == kStGlide)
+        if (in.status == kStGlideStart) { out.stickX = towardGoal; return; }
+        if (in.status == kStGlide)
         {
-            if (in.status == kStGlideStart)
+            if (iy > R16(2)) out.stickX = -towardGoal;
+            else if (iy < R16(-15) && in.vy > -1.25f) out.stickX = towardGoal;
+            if ((ix < R16(10) && iy < 0) || overStage || overStageSurface)
             {
-                out.stickX = towardGoal;
+                pressBtn(out, kRecBtnJump, lastB);
             }
-            else
-            {
-                // Pitch up when below ledge, level/down when well above, cancel near stage.
-                if (belowLedgeY > 2.0f)
-                {
-                    out.stickX = -towardGoal; // pull back to pitch up in Brawl glide
-                }
-                else if (belowLedgeY < -15.0f && in.vy > -1.25f)
-                {
-                    out.stickX = towardGoal;
-                }
-                if ((absNCX < 10.0f && belowLedgeY < 0.0f) || overStage || overStageSurface)
-                {
-                    out.buttons = freshButton(kRecBtnJump, in.lastButtons);
-                }
-            }
-            st.prevStatus = static_cast<s16>(in.status);
             return;
         }
 
@@ -661,11 +510,9 @@ namespace extra {
             out.stickX = towardGoal;
             if (in.status == kStAirLassoHang || in.status == kStCliffJump2)
             {
-                // Reel in with Jump or Up.
-                out.buttons = (st.mashPhase & 1u) != 0 ? freshButton(kRecBtnJump, in.lastButtons) : 0u;
+                if ((st.mashPhase & 1u) != 0) pressBtn(out, kRecBtnJump, lastB);
                 out.stickY = 1.0f;
             }
-            st.prevStatus = static_cast<s16>(in.status);
             return;
         }
 
@@ -673,31 +520,22 @@ namespace extra {
         if (spec.floatStatus != 0 && in.status == static_cast<int>(spec.floatStatus))
         {
             st.usedFloat = 1;
-            if (in.ftKind == 0x26) // Mewtwo 8-way hover
+            if (overStage || overStageSurface) return;
+            if (ft == 0x26)
             {
-                bool safeOverFloor = in.floorBelow && in.y >= in.stageY - 2.0f;
-                float dist = recSqrt(toLedgeX * toLedgeX + toLedgeY * toLedgeY);
-                if (dist > 8.0f && !overStage && !overStageSurface && !safeOverFloor)
+                if (dist2D(toLedgeX, toLedgeY) > 8.0f && !(in.floorBelow && in.y >= in.stageY - 2.0f))
                 {
                     out.buttons = kRecBtnJump;
-                    // Aim cleanly above the ledge lip so hover never dives underneath the stage.
-                    float aimY = belowLedgeY >= -8.0f ? (toLedgeY + 14.0f) : 0.0f;
-                    if (in.ledgeOccupied && !in.ceilingAbove)
-                    {
-                        aimY += 25.0f;
-                    }
+                    float aimY = iy >= R16(-8) ? (toLedgeY + 14.0f) : 0.0f;
+                    if (in.ledgeOccupied && !in.ceilingAbove) aimY += 25.0f;
                     aim360(toLedgeX, aimY, out.stickX, out.stickY);
                 }
             }
-            else // Peach horizontal float
+            else if (ix > R16(16))
             {
-                if (absNCX > 16.0f && !overStage && !overStageSurface)
-                {
-                    out.buttons = kRecBtnJump;
-                    out.stickX = towardGoal;
-                }
+                out.buttons = kRecBtnJump;
+                out.stickX = towardGoal;
             }
-            st.prevStatus = static_cast<s16>(in.status);
             return;
         }
 
@@ -705,683 +543,464 @@ namespace extra {
         if (in.status == kStAttachWall || in.status == kStAttachWallWait)
         {
             out.stickX = -towardLedge;
-            out.buttons = freshButton(kRecBtnJump, in.lastButtons);
-            st.prevStatus = static_cast<s16>(in.status);
+            pressBtn(out, kRecBtnJump, lastB);
             return;
         }
 
         // 2f. Active Up-B handlers.
-        if (isUpBStatus(in.ftKind, in.status))
+        if (matchFtStatus(kMatchUpB, ft, in.status))
         {
-            // Article-guided PK Thunder (Ness / Lucas).
-            if ((spec.flags & kRfPkThunder) != 0)
+            if ((flg & kRfPkThunder) != 0)
             {
-                steerPkThunder(spec, in, st, toLedgeX, toLedgeY, towardGoal, stageCenterDir, out);
-                st.prevStatus = static_cast<s16>(in.status);
+                steerPkThunder(in, st, toLedgeX, toLedgeY, towardGoal, stageCenterDir, out);
                 return;
             }
-            // 360-Aim Up-B (Fox, Falco, Wolf, Sheik, Zelda, Mewtwo, Pikachu, Lucario).
-            if ((spec.flags & kRf360Aim) != 0)
+            if ((flg & kRf360Aim) != 0)
             {
+                const bool isLow = mix == kMixupLow;
+                const bool isHigh = mix == kMixupHigh;
+                const bool aboveStage = !in.ceilingAbove && in.y >= in.stageY - 4.0f;
                 float targetDx = toLedgeX;
-                float targetDy = belowLedgeY >= 0.0f ? (toLedgeY + 8.0f) : 4.0f;
-                if (insideStageX && !in.ceilingAbove && in.y >= in.stageY - 4.0f)
+                float targetDy = iy >= 0 ? (toLedgeY + (isLow ? 4.0f : 8.0f)) : (isLow ? 2.0f : 4.0f);
+                if (insideStageX && aboveStage)
                 {
-                    // Already horizontally over the stage: aim inward onto stage, never outward offstage.
                     targetDx = stageCenterX - in.x;
-                    if (recAbs(targetDx) < 8.0f)
-                    {
-                        targetDx = stageCenterDir * 8.0f;
-                    }
+                    if (recAbs(targetDx) < 8.0f) targetDx = stageCenterDir * 8.0f;
                     targetDy = (in.stageY + 8.0f) - in.y;
                 }
-                else if (in.ceilingAbove)
+                else if (in.ceilingAbove) { targetDx = -stageCenterDir * 35.0f; targetDy = 12.0f; }
+                else if (in.wallAhead && iWall < R16(20) && iy > R16(6))
                 {
-                    targetDx += -stageCenterDir * 12.0f;
+                    targetDx = towardGoal * 4.0f;
+                    targetDy = belowLedgeY + 18.0f;
                 }
-                else if (in.ledgeOccupied || st.option == kOptUpBHigh)
+                else if (isHigh || (mix != kMixupDirect && (in.ledgeOccupied || (!isLow && st.option == kOptUpBHigh))))
+                {
+                    float off = isHigh ? 3.0f : 0.0f;
+                    targetDy += 25.0f + off;
+                    targetDx += towardGoal * (15.0f + off);
+                }
+                if (aboveStage && targetDx * stageCenterDir < 0.0f) targetDx = stageCenterDir * recAbs(targetDx);
+                if ((flg & kRfQuickAttack) != 0 && in.subaction == 0x1DB && dist2D(targetDx, targetDy) > 45.0f)
                 {
                     targetDy += 25.0f;
-                    targetDx += towardGoal * 15.0f;
                 }
-                if (!in.ceilingAbove && in.y >= in.stageY - 4.0f && targetDx * stageCenterDir < 0.0f)
+                if ((flg & kRfAuraCancel) != 0 && st.option == kOptUpBCancel && in.status == 0x11B && iAnim >= R16(15))
                 {
-                    targetDx = stageCenterDir * recAbs(targetDx);
-                }
-                // Pikachu 2-angle Quick Attack (subactions 0x1DB first zip, 0x1DC second zip).
-                if ((spec.flags & kRfQuickAttack) != 0 && in.subaction == 0x1DB)
-                {
-                    float dist = recSqrt(targetDx * targetDx + targetDy * targetDy);
-                    if (dist > 45.0f)
-                    {
-                        targetDy += 25.0f;
-                    }
-                }
-                // Lucario Aura cancel on frame >= 15 when opting for cancel.
-                if ((spec.flags & kRfAuraCancel) != 0 && st.option == kOptUpBCancel && in.status == 0x11B
-                    && in.animFrame >= 15.0f)
-                {
-                    out.buttons = freshButton(kRecBtnAttack, in.lastButtons);
+                    pressBtn(out, kRecBtnAttack, lastB);
                     out.stickX = towardGoal;
-                    st.prevStatus = static_cast<s16>(in.status);
                     return;
                 }
                 aim360(targetDx, targetDy, out.stickX, out.stickY);
-                st.prevStatus = static_cast<s16>(in.status);
                 return;
             }
-            // Diddy Kong charged barrel jetpack (Up-B 0x114 / 0x125).
-            if ((spec.flags & kRfChargeUpB) != 0 && (in.status == kStSpecialHi || in.status == 0x125))
+            if ((flg & kRfChargeUpB) != 0 && (in.status == kStSpecialHi || in.status == 0x125))
             {
-                float dist = recSqrt(toLedgeX * toLedgeX + toLedgeY * toLedgeY);
-                float wantCharge = recClamp((dist - 30.0f) * 0.6f, 8.0f, static_cast<float>(spec.shortenFrame));
-                if (in.animFrame <= wantCharge)
-                {
-                    out.buttons = kRecBtnSpecial;
-                }
-                if (in.animFrame > wantCharge * 0.45f)
-                {
-                    out.stickX = towardGoal;
-                }
-                st.prevStatus = static_cast<s16>(in.status);
+                float wantCharge = recClamp((dist2D(toLedgeX, toLedgeY) - 30.0f) * 0.6f, 8.0f, i2f(spec.shortenFrame));
+                if (in.animFrame <= wantCharge) out.buttons = kRecBtnSpecial;
+                if (in.animFrame > wantCharge * 0.45f) out.stickX = towardGoal;
                 return;
             }
-            // ROB / Snake boost Up-B.
-            if ((spec.flags & kRfBoostUpB) != 0)
+            if ((flg & kRfBoostUpB) != 0)
             {
                 st.mashPhase++;
-                out.stickX = in.ceilingAbove ? -stageCenterDir : towardGoal;
-                if (in.ftKind == 0x23) // ROB pulses B while below ledge
-                {
-                    if (belowLedgeY > -10.0f && (st.mashPhase & 1u) != 0)
-                    {
-                        out.buttons = kRecBtnSpecial;
-                    }
-                }
-                else if (in.ftKind == 0x2E && belowLedgeY < -15.0f && absNCX < 20.0f) // Snake jump-cancel Cypher
-                {
-                    out.buttons = freshButton(kRecBtnJump, in.lastButtons);
-                }
-                st.prevStatus = static_cast<s16>(in.status);
+                out.stickX = driftX;
+                if (ft == 0x23) { if (iy > R16(-10) && (st.mashPhase & 1u) != 0) out.buttons = kRecBtnSpecial; }
+                else if (ft == 0x2E && iy < R16(-15) && ix < R16(20)) pressBtn(out, kRecBtnJump, lastB);
                 return;
             }
-            // Meta Knight glide entry via Up-B.
-            if (in.ftKind == 0x16 && st.option == kOptGlide)
-            {
-                if (in.animFrame < 5.0f)
-                {
-                    out.stickX = towardGoal;
-                }
-                st.prevStatus = static_cast<s16>(in.status);
-                return;
-            }
-            // Standard Arc Up-B: {BREVERSE} early check + drift toward stage.
-            if (in.animFrame <= 12.0f && in.vx * towardGoal < 0.0f)
-            {
-                out.stickX = towardGoal;
-            }
-            else if (in.ceilingAbove)
-            {
-                out.stickX = -stageCenterDir;
-            }
-            else if (absNCX > 5.0f || overStageSurface)
-            {
-                out.stickX = towardGoal;
-            }
-            st.prevStatus = static_cast<s16>(in.status);
+            if (ft == 0x16 && st.option == kOptGlide) { if (iAnim < R16(5)) out.stickX = towardGoal; return; }
+            if (iAnim <= R16(12) && in.vx * towardGoal < 0.0f) out.stickX = towardGoal;
+            else if (in.ceilingAbove || ix > R16(5) || overStageSurface) out.stickX = driftX;
             return;
         }
 
         // 2g. Active Side-B handlers.
-        if (isSideBStatus(in.ftKind, in.status))
+        if (matchFtStatus(kMatchSideB, ft, in.status))
         {
-            // Spacie Side-B shorten (Fox 18f, Falco 14f, Wolf 17f).
-            // Never midair-shorten a full Illusion while still offstage with no floor below.
-            if ((spec.flags & kRfSideBShorten) != 0)
+            out.stickX = ((flg & kRfSideBShorten) != 0 || ft == 0x25) ? towardGoal : towardLedge;
+            if ((flg & kRfSideBShorten) != 0)
             {
-                if ((st.option == kOptSideBShort || (in.floorBelow && absNCX < 12.0f))
-                    && in.animFrame >= static_cast<float>(spec.shortenFrame))
+                if ((st.option == kOptSideBShort || (in.floorBelow && ix < R16(12)))
+                    && iAnim >= (static_cast<int>(spec.shortenFrame) << 4))
                 {
-                    out.buttons = freshButton(kRecBtnSpecial, in.lastButtons);
+                    pressBtn(out, kRecBtnSpecial, lastB);
                 }
-                out.stickX = towardGoal;
-                st.prevStatus = static_cast<s16>(in.status);
-                return;
             }
-            // Ike charged Quick Draw (0x113 / 0x11A / 0x11B).
-            if (in.ftKind == 0x22)
+            else if (ft == 0x22)
             {
-                out.stickX = towardLedge;
-                if (in.status == kStSpecialS && in.animFrame < 5.0f)
+                if (in.status == 0x11B)
                 {
-                    // Ensure Ike turns toward the stage during Quick Draw startup.
-                    out.buttons = kRecBtnSpecial;
-                }
-                else if (in.status == 0x11B && in.floorBelow && in.y >= in.stageY - 4.0f)
-                {
-                    // Stop cleanly once over the stage floor instead of flying off the far side.
-                    out.buttons = freshButton(kRecBtnAttack, in.lastButtons);
-                }
-                else if (in.status == 0x11B && st.option == kOptSideBWallJump && in.wallAhead && in.wallDist < 18.0f)
-                {
-                    out.stickX = -towardLedge;
-                    out.buttons = freshButton(kRecBtnJump, in.lastButtons);
-                }
-                else if (in.status != 0x11B)
-                {
-                    float travelDist = 45.0f + (in.animFrame * 0.125f - 3.0f) * 9.0f;
-                    // Never keep charging once Ike drops to ledge height (otherwise Quick Draw flies under the stage).
-                    if (belowLedgeY < -2.0f && travelDist < absNCX - 8.0f && in.animFrame < 32.0f)
+                    if (in.floorBelow && in.y >= in.stageY - 4.0f) pressBtn(out, kRecBtnAttack, lastB);
+                    else if (st.option == kOptSideBWallJump && in.wallAhead && iWall < R16(18))
                     {
-                        out.buttons = kRecBtnSpecial;
+                        out.stickX = -towardLedge;
+                        pressBtn(out, kRecBtnJump, lastB);
+                    }
+                    else if (ix <= R16(15) && iy > R16(-10) && iy < R16(10))
+                    {
+                        pressBtn(out, kRecBtnSpecial, lastB);
                     }
                 }
-                else if (absNCX <= 15.0f && belowLedgeY > -10.0f && belowLedgeY < 10.0f)
-                {
-                    out.buttons = freshButton(kRecBtnSpecial, in.lastButtons);
-                }
-                st.prevStatus = static_cast<s16>(in.status);
-                return;
-            }
-            // Luigi Green Missile charge.
-            if (in.ftKind == 0x08 && (spec.flags & kRfChargeSideB) != 0)
-            {
-                out.stickX = towardLedge;
-                if (in.animFrame < 22.0f && absNCX > 40.0f)
+                else if ((in.status == kStSpecialS && iAnim < R16(5))
+                         || (iy < R16(-2) && (in.animFrame * 1.125f) < absNCX - 26.0f && iAnim < R16(32)))
                 {
                     out.buttons = kRecBtnSpecial;
                 }
-                st.prevStatus = static_cast<s16>(in.status);
-                return;
             }
-            // Diddy Monkey Flip jump cancel (0x124 -> X).
-            if (in.ftKind == 0x1B && in.status == 0x124)
+            else if (ft == 0x08 && (flg & kRfChargeSideB) != 0)
             {
-                out.buttons = freshButton(kRecBtnJump, in.lastButtons);
-                out.stickX = towardLedge;
-                st.prevStatus = static_cast<s16>(in.status);
-                return;
+                if (iAnim < R16(22) && ix > R16(40)) out.buttons = kRecBtnSpecial;
             }
-            // Squirtle Withdraw cancel (0x119 -> B).
-            if ((spec.flags & kRfSideBCancel) != 0 && in.status == 0x119)
-            {
-                out.buttons = freshButton(kRecBtnSpecial, in.lastButtons);
-                out.stickX = towardLedge;
-                st.prevStatus = static_cast<s16>(in.status);
-                return;
-            }
-            // Meta Knight Drill Rush pitch.
-            if (in.ftKind == 0x16)
-            {
-                out.stickX = towardLedge;
-                out.stickY = belowLedgeY > 0.0f ? 1.0f : (belowLedgeY < -10.0f ? -1.0f : 0.0f);
-                st.prevStatus = static_cast<s16>(in.status);
-                return;
-            }
-            // Jigglypuff Pound angled upward while drifting toward ledge (fudgepop01 PPlusAI purin).
-            if (in.ftKind == 0x25)
-            {
-                out.stickX = towardGoal;
-                out.stickY = 1.0f;
-                st.prevStatus = static_cast<s16>(in.status);
-                return;
-            }
-            // Default Side-B drift + B-reverse check.
-            out.stickX = towardGoal;
-            st.prevStatus = static_cast<s16>(in.status);
+            else if (ft == 0x1B && in.status == 0x124) pressBtn(out, kRecBtnJump, lastB);
+            else if ((flg & kRfSideBCancel) != 0 && in.status == 0x119) pressBtn(out, kRecBtnSpecial, lastB);
+            else if (ft == 0x16) out.stickY = iy > 0 ? 1.0f : (iy < R16(-10) ? -1.0f : 0.0f);
+            else if (ft == 0x25) out.stickY = 1.0f;
             return;
         }
 
-        // 2h. Active Down-B handlers (Luigi/Mario mash, Samus bomb, Meta Knight cape, Lucario cancel).
-        if (isDownBStatus(in.ftKind, in.status))
+        // 2h. Active Down-B handlers.
+        if (matchFtStatus(kMatchDownB, ft, in.status))
         {
             st.mashPhase++;
             out.stickX = towardGoal;
-            if ((spec.flags & kRfMashDownB) != 0)
+            if ((flg & kRfMashDownB) != 0)
             {
                 if ((st.mashPhase & 1u) != 0)
                 {
-                    out.buttons = freshButton(kRecBtnSpecial, in.lastButtons);
+                    pressBtn(out, kRecBtnSpecial, lastB);
                 }
             }
-            else if ((spec.flags & kRfBombStall) != 0 && in.status == 0x11E && in.animFrame > 51.0f
-                     && absNCX > 25.0f && belowLedgeY > -15.0f)
+            else if ((flg & kRfBombStall) != 0 && in.status == 0x11E && iAnim > R16(51) && ix > R16(25)
+                     && iy > R16(-15))
             {
                 out.stickY = -1.0f;
-                out.buttons = freshButton(kRecBtnSpecial, in.lastButtons);
+                pressBtn(out, kRecBtnSpecial, lastB);
             }
-            else if (in.ftKind == 0x16) // Meta Knight Dimensional Cape aim
+            else if (ft == 0x16)
             {
                 float capeDx = overStageSurface ? (stageCenterX - in.x) : toLedgeX;
                 float capeDy = overStageSurface ? ((in.stageY + 8.0f) - in.y) : toLedgeY;
                 aim360(capeDx, capeDy, out.stickX, out.stickY);
             }
-            else if ((spec.flags & kRfAuraCancel) != 0 && st.option == kOptDownBCancel)
+            else if ((flg & kRfAuraCancel) != 0 && st.option == kOptDownBCancel)
             {
-                out.buttons = freshButton(kRecBtnAttack, in.lastButtons);
+                pressBtn(out, kRecBtnAttack, lastB);
                 out.stickY = -1.0f;
             }
-            st.prevStatus = static_cast<s16>(in.status);
             return;
         }
 
         // 2i. Meta Knight Neutral-B (Mach Tornado mash).
-        if (in.ftKind == 0x16 && (in.status == kStSpecialN || in.status == 0x117 || in.status == 0x118))
+        if (ft == 0x16 && (in.status == kStSpecialN || in.status == 0x117 || in.status == 0x118))
         {
             st.mashPhase++;
             if ((st.mashPhase % 3u) != 2u)
             {
-                out.buttons = freshButton(kRecBtnSpecial, in.lastButtons);
+                pressBtn(out, kRecBtnSpecial, lastB);
             }
             out.stickX = towardGoal;
-            st.prevStatus = static_cast<s16>(in.status);
             return;
         }
 
-        // 2j. Active aerial jump rising (Jump, JumpAerial, multi-jump Fly):
-        // steer cleanly toward stage/ledge (or out from under stage).
+        // 2j. Active aerial jump rising.
         if ((in.status == kStJump || in.status == kStJumpAerial || in.status == kStFly)
-            && (in.vy > 0.0f || in.animFrame < 4.0f))
+            && (in.vy > 0.0f || iAnim < R16(4)))
         {
-            out.stickX = in.ceilingAbove ? -stageCenterDir : ((absNCX > 5.0f || overStageSurface) ? towardGoal : 0.0f);
-            // If we picked Float (Peach/Mewtwo), hold jump + down to enter float on takeoff.
-            if (st.option == kOptFloat && (spec.flags & kRfFloat) != 0)
+            out.stickX = (in.ceilingAbove || ix > R16(5) || overStageSurface) ? driftX : 0.0f;
+            if (st.option == kOptFloat && (flg & kRfFloat) != 0)
             {
                 out.buttons = kRecBtnJump;
                 out.stickY = -1.0f;
             }
-            st.prevStatus = static_cast<s16>(in.status);
             return;
         }
 
         // 3. Free offstage airborne decision: drift + WeightedDie roll.
-        // Default drift: move out from under stage if ceiling is directly above,
-        // otherwise drift inward toward the stage / nearest ledge.
-        out.stickX = in.ceilingAbove ? -stageCenterDir : towardGoal;
-
-        // Already horizontally over the stage surface: drift inward to land cleanly
-        // instead of triggering a recovery special over the stage.
-        if (overStageSurface)
+        out.stickX = driftX;
+        if (overStageSurface || !in.canAct)
         {
-            st.prevStatus = static_cast<s16>(in.status);
             return;
         }
 
-        if (!in.canAct)
+        if (in.wallAhead && iWall < R16(16) && iy > 0 && in.laInt > 0)
         {
-            st.prevStatus = static_cast<s16>(in.status);
-            return;
-        }
-
-        // Wall-jump / wall-climb check when touching or right beside a stage wall.
-        if (in.wallAhead && in.wallDist < 16.0f && belowLedgeY > 0.0f)
-        {
-            if ((spec.flags & kRfWallClimb) != 0 && in.laInt > 0)
+            if ((flg & kRfWallClimb) != 0)
             {
                 out.stickX = towardLedge;
                 out.stickY = 1.0f;
-                st.prevStatus = static_cast<s16>(in.status);
                 return;
             }
-            if ((spec.flags & kRfWallJump) != 0 && in.laInt > 0 && in.vy < 0.5f)
+            if ((flg & kRfWallJump) != 0 && in.vy < 0.5f)
             {
                 out.stickX = -towardLedge;
-                out.buttons = freshButton(kRecBtnJump, in.lastButtons);
-                st.prevStatus = static_cast<s16>(in.status);
+                pressBtn(out, kRecBtnJump, lastB);
                 return;
             }
         }
 
-        // If directly underneath the stage, steer outward first unless dangerously close
-        // to the bottom blastzone (where emergency recovery must trigger).
-        bool emergency = (in.y - in.blastBottom) <= 25.0f || belowLedgeY >= static_cast<float>(spec.upBY) + 40.0f;
-        if (in.ceilingAbove && !emergency)
+        float upBX = i2f(spec.upBX);
+        float upBY = i2f(spec.upBY);
+        bool emergency = (in.y - in.blastBottom) <= 25.0f || iy >= ((static_cast<int>(spec.upBY) + 40) << 4);
+        if (in.ceilingAbove)
         {
             out.stickX = -stageCenterDir;
-            st.prevStatus = static_cast<s16>(in.status);
+            if (emergency && in.jumpsLeft)
+            {
+                pressBtn(out, kRecBtnJump, lastB);
+            }
             return;
         }
 
-        // Populate stack-only WeightedDie based on fighter family & recovery rects.
         WeightedDie die;
-        die.add(kOptNone, 3.0f);
+        die.add(kOptNone, mix == kMixupDirect ? 0.5f : 3.0f);
+        float d2 = dist2D(toLedgeX, toLedgeY);
+        const bool hasAura = in.laFloat >= 65.0f;
 
-        float dist2D = recSqrt(toLedgeX * toLedgeX + toLedgeY * toLedgeY);
-
-        // Double jump option (all fighters).
         if (in.jumpsLeft)
         {
-            if (inRect(absNCX, 0.0f, 300.0f, highBelowY, -15.0f, 150.0f))
+            bool preserveDj = in.vy > 0.2f
+                              || (iy < R16(-10) && ix < R16(65) && mix != kMixupHigh)
+                              || (mix == kMixupLow && iy <= R16(2) && absNCX <= upBX * 0.85f);
+            if (!preserveDj && inRect16(ix, 0, 300, iyH, -15, 150))
             {
-                float jumpW = spec.family == kFamMultiJump
-                                  ? static_cast<float>(in.numJumps > 0 ? in.numJumps * 8 : 10)
-                                  : (in.ftKind == 0x04 ? 25.0f : 8.0f);
-                // Prefer jumping sooner when falling below ledge height.
-                if (belowLedgeY > 5.0f && in.vy <= 0.0f)
-                {
-                    jumpW += 12.0f;
-                }
-                die.add(kOptJump, jumpW);
+                int jumpW = spec.family == kFamMultiJump ? (in.numJumps > 0 ? in.numJumps * 8 : 10)
+                                                         : (ft == 0x04 ? 25 : 8);
+                if (mix == kMixupHigh && iy < R16(10)) jumpW += 16;
+                if (iy > R16(5) && in.vy <= 0.0f) jumpW += 12;
+                addDieI(die, kOptJump, jumpW);
             }
         }
 
-        // Family-specific recovery options when outside stage (not under ceiling).
-        if (!in.ceilingAbove)
+        bool mkSaveSpecials = ft == 0x16 && in.numJumps >= 2 && iy < R16(20);
+
+        // Table-driven rect scoring for Float, Glide, Down-B, MK Neutral-B, DairStall, and Tether.
+        // Compact u8/s8 encoding: xMax 248..255 = kLim[0..7]; yMax 120..127 = kLim[0..7]; yMin -128 = -999.
+        enum {
+            kLimAltX = 248, kLimUpBX = 252, kXInf = 255,
+            kYLimAltY25 = 121, kYLimUpBYm1 = 122, kYLimUpBY14 = 123, kYLimUpBY = 125, kYLimUpBY10 = 126,
+            kYInf = 127, kYNegInf = -128
+        };
+        struct DieRule {
+            u8 optHi, w, xMin, xMax;
+            s8 yMin, yMax;
+        };
+        static const DieRule kRules[14] = {
+            {kOptFloat | 0x80, 30, 15, kLimAltX, -25, 30},           // 0: Peach Float
+            {kOptFloat | 0x80, 28, 10, kLimAltX, -20, 65},           // 1: Mewtwo Hover
+            {kOptNeutralB, 14, 26, kXInf, kYNegInf, 19},             // 2: Ganon Float
+            {kOptGlide, 14, 15, kLimAltX, -35, kYLimAltY25},         // 3: Glide
+            {kOptDownB, 14, 26, kXInf, -19, kYLimUpBYm1},            // 4: Samus Bomb
+            {kOptDownB, 16, 15, 75, -20, 35},                        // 5: ZSS Flip
+            {kOptDownB, 14, 16, kXInf, -9, kYLimUpBY14},             // 6: Mario/Luigi Mash
+            {kOptDownB, 14, 0, 90, kYNegInf, 19},                    // 7: Lucario Down-B / Cancel
+            {kOptDownB, 16, 0, 44, 16, kYInf},                       // 8: Wario Waft
+            {kOptNeutralB, 10, 10, 80, -10, 45},                     // 9: MK Mach Tornado
+            {kOptDairStall, 8, 46, kXInf, kYNegInf, -11},            // 10: Ivysaur DairStall
+            {kOptUpB, 24, 0, 30, 2, kYLimUpBY},                      // 11: Ivysaur Tether Up-B
+            {kOptUpB, 24, 0, kLimUpBX, -15, kYLimUpBY10},            // 12: Olimar Tether Up-B
+            {kOptTether, 18, 8, kLimUpBX, -15, kYLimUpBY10}          // 13: Standard Tether
+        };
+        u32 rMask = 0;
+        if ((flg & kRfFloat) != 0 && st.usedFloat == 0)
         {
-            // Tether grab (Z / Guard in air when facing ledge within tether box).
-            if ((spec.flags & kRfTether) != 0 && absNCX <= static_cast<float>(spec.upBX)
-                && belowLedgeY >= -15.0f && belowLedgeY <= static_cast<float>(spec.upBY) + 10.0f)
+            if (ft == 0x0C && !in.laFlag) rMask |= 1u << 0;
+            else if (ft == 0x26 && in.jumpsLeft && !in.laFlag) rMask |= 1u << 1;
+            else if (ft == 0x14 && in.laInt < 2) rMask |= 1u << 2;
+        }
+        if ((flg & kRfGlide) != 0 && !mkSaveSpecials) rMask |= 1u << 3;
+        if ((flg & kRfBombStall) != 0 && mix != kMixupDirect && in.vy < -1.0f) rMask |= 1u << 4;
+        if ((flg & kRfFlipDownB) != 0) rMask |= 1u << 5;
+        if ((flg & kRfMashDownB) != 0 && !in.laFlag) rMask |= 1u << 6;
+        if ((flg & kRfAuraCancel) != 0 && !in.laFlag) rMask |= 1u << 7;
+        if ((flg & kRfWaft) != 0 && in.laInt >= 2) rMask |= 1u << 8;
+        if (ft == 0x16 && !mkSaveSpecials) rMask |= 1u << 9;
+        if ((flg & kRfDairStall) != 0 && mix != kMixupDirect && in.vy < -0.5f) rMask |= 1u << 10;
+        if ((flg & kRfTether) != 0)
+        {
+            if (ft == 0x1F || ft == 0x19) { if (!in.jumpsLeft || iy > R16(20)) rMask |= 1u << (ft == 0x1F ? 11 : 12); }
+            else if (in.lr * towardLedge > 0.0f) rMask |= 1u << 13;
+        }
+        const int kLim[8] = {
+            spec.altX, spec.altY + 25, spec.upBY - 1, spec.upBY + 14, spec.upBX, spec.upBY, spec.upBY + 10, 999
+        };
+        for (int i = 0; i < 14; i++)
+        {
+            if (((rMask >> i) & 1u) == 0) continue;
+            const DieRule& r = kRules[i];
+            int xMax = r.xMax >= kLimAltX ? kLim[r.xMax - kLimAltX] : static_cast<int>(r.xMax);
+            int yMin = r.yMin == kYNegInf ? -999 : static_cast<int>(r.yMin);
+            int yMax = r.yMax >= 120 ? kLim[r.yMax - 120] : static_cast<int>(r.yMax);
+            if (inRect16(ix, r.xMin, xMax, (r.optHi & 0x80) != 0 ? iyH : iy, yMin, yMax))
             {
-                // Ivysaur Vine Whip shoots diagonally upward and enters freefall on miss:
-                // require being below ledge, within whip reach, and not wasting an unused jump.
-                if (in.ftKind == 0x1F)
-                {
-                    if ((!in.jumpsLeft || belowLedgeY > 20.0f) && absNCX <= 30.0f && belowLedgeY >= 2.0f
-                        && belowLedgeY <= static_cast<float>(spec.upBY))
-                    {
-                        die.add(kOptUpB, 24.0f);
-                    }
-                }
-                else if (in.ftKind == 0x19) // Olimar Up-B tether
-                {
-                    if (!in.jumpsLeft || belowLedgeY > 20.0f)
-                    {
-                        die.add(kOptUpB, 24.0f);
-                    }
-                }
-                else if (in.lr * towardLedge > 0.0f && absNCX >= 8.0f)
-                {
-                    die.add(kOptTether, 18.0f);
-                }
-            }
-
-            // Float / Hover (Peach, Mewtwo, Ganondorf).
-            if ((spec.flags & kRfFloat) != 0 && st.usedFloat == 0)
-            {
-                if (in.ftKind == 0x0C && !in.laFlag
-                    && inRect(absNCX, 15.0f, static_cast<float>(spec.altX), highBelowY, -25.0f, 30.0f))
-                {
-                    die.add(kOptFloat, 30.0f);
-                }
-                else if (in.ftKind == 0x26 && in.jumpsLeft && !in.laFlag
-                         && inRect(absNCX, 10.0f, static_cast<float>(spec.altX), highBelowY, -20.0f, 65.0f))
-                {
-                    die.add(kOptFloat, 28.0f);
-                }
-                else if (in.ftKind == 0x14 && in.laInt < 2 && absNCX > 25.0f && belowLedgeY < 20.0f)
-                {
-                    die.add(kOptNeutralB, 14.0f);
-                }
-            }
-
-            // Glide (Meta Knight, Pit, Charizard).
-            if ((spec.flags & kRfGlide) != 0
-                && inRect(absNCX, 15.0f, static_cast<float>(spec.altX), belowLedgeY, -35.0f,
-                          static_cast<float>(spec.altY) + 25.0f))
-            {
-                die.add(kOptGlide, 14.0f);
-            }
-
-            // Side-B recovery (Spacies, Marth, Roy, Falcon, Ike, Diddy, Luigi, Mario, MK, Wario, etc.).
-            if (spec.sideBX > 0)
-            {
-                float sbMinY = static_cast<float>(spec.sideBY) - 25.0f;
-                float sbMaxY = static_cast<float>(spec.sideBY) + 35.0f;
-                bool allowSideB = inRect(absNCX, 12.0f, static_cast<float>(spec.sideBX), highBelowY, sbMinY, sbMaxY);
-                // Horizontal freefall Side-B (Spacies Illusion/Flash, Falcon/Ganon Raptor Boost/Flame Choke):
-                // only fire near or above ledge height and within real travel reach, never deep below ledge.
-                if (in.ftKind == 0x06 || in.ftKind == 0x13 || in.ftKind == 0x2C)
-                {
-                    float maxBelow = in.ftKind == 0x2C ? 8.0f : 4.0f;
-                    allowSideB = inRect(absNCX, 12.0f, 62.0f, belowLedgeY, -35.0f, maxBelow);
-                    if (in.jumpsLeft && absNCX > 45.0f)
-                    {
-                        allowSideB = false;
-                    }
-                }
-                else if (in.ftKind == 0x09 || in.ftKind == 0x14)
-                {
-                    allowSideB = inRect(absNCX, 12.0f, static_cast<float>(spec.sideBX), belowLedgeY, -40.0f, 2.0f);
-                }
-                // Jigglypuff Pound (fudgepop01 PPlusAI purin): y_rangeAbove(100, 250) covers [-150, 100].
-                if (in.ftKind == 0x25)
-                {
-                    allowSideB = inRect(absNCX, 0.0f, static_cast<float>(spec.sideBX), belowLedgeY, -150.0f,
-                                        static_cast<float>(spec.sideBY));
-                }
-                // Mewtwo Side-B (Confusion) only stalls horizontal momentum once; skip when falling vertically.
-                if (in.ftKind == 0x26 && (recAbs(in.vx) <= 1.2f || belowLedgeY >= 0.0f))
-                {
-                    allowSideB = false;
-                }
-                // Ike Quick Draw drops vertically during charge; only start Side-B above ledge height.
-                if (in.ftKind == 0x22 && belowLedgeY > 2.0f)
-                {
-                    allowSideB = false;
-                }
-                // Diddy Kong Side-B (Monkey Flip) is available once per airtime (LA-Bit[0x71] == false).
-                if (in.ftKind == 0x1B && in.laFlag)
-                {
-                    allowSideB = false;
-                }
-                if (allowSideB)
-                {
-                    if ((spec.flags & kRfSideBShorten) != 0)
-                    {
-                        die.add(kOptSideB, 4.0f);
-                        if (absNCX <= 16.0f)
-                        {
-                            die.add(kOptSideBShort, 12.0f);
-                        }
-                    }
-                    else if (in.ftKind == 0x22 && in.wallAhead && in.laInt > 0)
-                    {
-                        die.add(kOptSideBWallJump, 25.0f);
-                        die.add(kOptSideB, 15.0f);
-                    }
-                    else
-                    {
-                        die.add(kOptSideB, 12.0f);
-                    }
-                }
-            }
-
-            // Down-B stall/recovery (Samus bomb, ZSS flip, Lucario Double Team, Luigi/Mario tornado, MK cape, Wario waft).
-            if ((spec.flags & kRfBombStall) != 0 && in.vy < -1.0f && absNCX > 25.0f && belowLedgeY > -20.0f
-                && belowLedgeY < spec.upBY)
-            {
-                die.add(kOptDownB, 14.0f);
-            }
-            else if ((spec.flags & kRfFlipDownB) != 0 && inRect(absNCX, 15.0f, 75.0f, belowLedgeY, -20.0f, 35.0f))
-            {
-                die.add(kOptDownB, 16.0f);
-            }
-            else if ((spec.flags & kRfMashDownB) != 0 && !in.laFlag && absNCX > 15.0f && belowLedgeY > -10.0f
-                     && belowLedgeY < spec.upBY + 15.0f)
-            {
-                die.add(kOptDownB, 14.0f);
-            }
-            else if ((spec.flags & kRfAuraCancel) != 0 && !in.laFlag && absNCX <= 90.0f && belowLedgeY < 20.0f)
-            {
-                die.add(in.laFloat >= 65.0f ? kOptDownBCancel : kOptDownB, 14.0f);
-            }
-            else if ((spec.flags & kRfWaft) != 0 && in.laInt >= 2 && belowLedgeY > 15.0f && absNCX < 45.0f)
-            {
-                die.add(kOptDownB, 16.0f);
-            }
-
-            // Meta Knight Neutral-B Mach Tornado recovery.
-            if (in.ftKind == 0x16 && inRect(absNCX, 10.0f, 80.0f, belowLedgeY, -10.0f, 45.0f))
-            {
-                die.add(kOptNeutralB, 10.0f);
-            }
-
-            // Ivysaur Dair stall when high and far.
-            if ((spec.flags & kRfDairStall) != 0 && in.vy < -0.5f && absNCX > 45.0f && belowLedgeY < -10.0f)
-            {
-                die.add(kOptDairStall, 8.0f);
-            }
-
-            // Up-B recovery window (360-aim radius vs rectangular Up-B reach).
-            bool inUpB = false;
-            if (spec.upBY > 0)
-            {
-                if ((spec.flags & kRf360Aim) != 0)
-                {
-                    inUpB = dist2D <= static_cast<float>(spec.upBX) + 8.0f
-                            && (belowLedgeY >= -15.0f || absNCX > 25.0f);
-                }
-                else
-                {
-                    inUpB = inRect(absNCX, 0.0f, static_cast<float>(spec.upBX) + 8.0f, belowLedgeY, -15.0f,
-                                   static_cast<float>(spec.upBY) + 15.0f);
-                }
-            }
-            // Snake Cypher (LA-Bit[0x3D] == true once used): prefer remaining jump before repeating Up-B.
-            if (in.ftKind == 0x2E && in.laFlag && in.jumpsLeft)
-            {
-                inUpB = false;
-            }
-            // Ivysaur Up-B (Vine Whip) cannot tether from above the ledge or far out.
-            if (in.ftKind == 0x1F && (belowLedgeY < 2.0f || absNCX > 32.0f))
-            {
-                inUpB = false;
-            }
-            // PK Thunder (Ness / Lucas): skip when already above ledge and close enough to drift onto stage.
-            if ((spec.flags & kRfPkThunder) != 0 && absNCX < 22.0f && belowLedgeY < -4.0f)
-            {
-                inUpB = false;
-            }
-            // Multi-jumpers and PK Thunder fighters use remaining midair jumps before Up-B;
-            // other fighters only commit to Up-B with a jump left when within vertical Up-B reach.
-            bool allowUpBWithJump = spec.family != kFamMultiJump && spec.family != kFamPkThunder
-                                    && belowLedgeY > static_cast<float>(spec.upBY) * 0.45f
-                                    && belowLedgeY <= static_cast<float>(spec.upBY);
-            if (inUpB && (!in.jumpsLeft || allowUpBWithJump))
-            {
-                if ((spec.flags & kRfAuraCancel) != 0 && in.laFloat >= 65.0f)
-                {
-                    die.add(kOptUpBCancel, 25.0f);
-                }
-                die.add(kOptUpB, 40.0f);
-                if (spec.family == kFamSpacie)
-                {
-                    die.add(kOptUpBHigh, 15.0f);
-                }
+                addDieI(die, (i == 7 && hasAura) ? kOptDownBCancel : static_cast<int>(r.optHi & 0x7F), r.w);
             }
         }
 
-        // Emergency blastzone fallback (PPlusAI: below <= 20 || nearCliffY >= UpBY + 40).
+        if (spec.sideBX > 0 && !mkSaveSpecials)
+        {
+            bool allowSideB = inRect16(ix, 12, spec.sideBX, iyH, spec.sideBY - 25, spec.sideBY + 35);
+            const bool wallLow = in.wallAhead && iWall < R16(24) && iy > R16(4);
+            struct SbRect { u8 ft, mode, x0, x1; s8 y0, y1; };
+            // mode: 0=spacie, 1=falcon, 2=ganon, 3=mario, 4=marth, 5=puff
+            // x1: 254=sideBX, 255=999; y0: -127=-150, -128=-999; y1: 127=sideBY
+            static const SbRect kSb[8] = {
+                {0x06, 0, 12, 62, -35, 4},   {0x13, 0, 12, 62, -35, 4},   {0x2C, 0, 12, 62, -35, 8},
+                {0x09, 1, 12, 48, -40, -4},  {0x14, 2, 12, 254, -40, 2},  {0x00, 3, 26, 255, -128, 12},
+                {0x11, 4, 25, 255, -128, 25},{0x25, 5, 0, 254, -127, 127}
+            };
+            bool matchedSb = false;
+            for (int si = 0; si < 8; si++)
+            {
+                if (kSb[si].ft != ft) continue;
+                matchedSb = true;
+                int x1 = kSb[si].x1 >= 254 ? (kSb[si].x1 == 254 ? static_cast<int>(spec.sideBX) : 999) : static_cast<int>(kSb[si].x1);
+                int y0 = kSb[si].y0 <= -127 ? (kSb[si].y0 == -127 ? -150 : -999) : static_cast<int>(kSb[si].y0);
+                int y1 = kSb[si].y1 == 127 ? static_cast<int>(spec.sideBY) : static_cast<int>(kSb[si].y1);
+                bool ok = inRect16(ix, kSb[si].x0, x1, iy, y0, y1);
+                u8 md = kSb[si].mode;
+                if (md == 0) allowSideB = ok && !(in.jumpsLeft && ix > R16(45)) && !wallLow && !(mix == kMixupLow && iy < R16(-8));
+                else if (md == 1) allowSideB = ok && !in.wallAhead;
+                else if (md == 2) allowSideB = ok && !wallLow;
+                else if (md == 3 || md == 4) allowSideB = allowSideB && ok && mix != kMixupDirect && in.vy < (md == 4 ? -0.2f : 0.0f);
+                else allowSideB = ok;
+                break;
+            }
+            if (!matchedSb && ((ft == 0x26 && (recAbs(in.vx) <= 1.2f || iy >= 0)) || (ft == 0x22 && iy > R16(2))
+                               || (ft == 0x1B && in.laFlag)))
+            {
+                allowSideB = false;
+            }
+            if (allowSideB)
+            {
+                if ((flg & kRfSideBShorten) != 0)
+                {
+                    addDieI(die, kOptSideB, mix == kMixupHigh ? 14 : 4);
+                    if (ix <= R16(16) && mix != kMixupHigh) addDieI(die, kOptSideBShort, 12);
+                }
+                else if (ft == 0x22 && in.wallAhead && in.laInt > 0)
+                {
+                    addDieI(die, kOptSideBWallJump, 25);
+                    addDieI(die, kOptSideB, 15);
+                }
+                else addDieI(die, kOptSideB, 12);
+            }
+        }
+
+        bool inUpB = false;
+        if (spec.upBY > 0 && !mkSaveSpecials)
+        {
+            inUpB = (flg & kRf360Aim) != 0 ? (d2 <= upBX + 8.0f && (iy >= R16(-15) || ix > R16(25)))
+                                           : inRect16(ix, 0, spec.upBX + 8, iy, -15, spec.upBY + 15);
+        }
+        if ((ft == 0x2E && in.laFlag && in.jumpsLeft) || (ft == 0x1F && (iy < R16(2) || ix > R16(32)))
+            || ((flg & kRfPkThunder) != 0 && ix < R16(22) && iy < R16(-4)))
+        {
+            inUpB = false;
+        }
+        bool allowUpBWithJump = spec.family != kFamMultiJump && spec.family != kFamPkThunder
+                                && belowLedgeY > upBY * 0.45f && iy <= (static_cast<int>(spec.upBY) << 4);
+        if (inUpB && (!in.jumpsLeft || allowUpBWithJump))
+        {
+            if ((flg & kRfAuraCancel) != 0 && hasAura) addDieI(die, kOptUpBCancel, 25);
+            addDieI(die, kOptUpB, mix == kMixupHigh && spec.family == kFamSpacie ? 12 : 40);
+            if (spec.family == kFamSpacie && mix != kMixupLow && mix != kMixupDirect)
+            {
+                addDieI(die, kOptUpBHigh, mix == kMixupHigh ? 40 : 15);
+            }
+        }
+
         if (emergency)
         {
             die.clear();
+            int emOpt = kOptUpB;
             if (in.jumpsLeft)
             {
-                if ((spec.flags & kRfFloat) != 0 && in.ftKind == 0x26 && st.usedFloat == 0 && !in.laFlag)
-                {
-                    die.add(kOptFloat, 100.0f);
-                }
-                else
-                {
-                    die.add(kOptJump, 100.0f);
-                }
+                emOpt = ((flg & kRfFloat) != 0 && ft == 0x26 && st.usedFloat == 0 && !in.laFlag) ? kOptFloat : kOptJump;
             }
-            else if (in.ftKind == 0x16) // Meta Knight emergency glide/Up-B
-            {
-                die.add(kOptGlide, 100.0f);
-            }
-            else if (in.ftKind == 0x04 || in.ftKind == 0x25) // Yoshi / Jigglypuff have no vertical Up-B
-            {
-                die.add(kOptSideB, 100.0f);
-            }
-            else
-            {
-                die.add(kOptUpB, 100.0f);
-            }
+            else if (ft == 0x16) emOpt = kOptGlide;
+            else if (ft == 0x04 || ft == 0x25) emOpt = kOptSideB;
+            addDieI(die, emOpt, 100);
         }
 
-        int pick = die.roll(geomRand01(rng), kOptNone);
-        if (pick != kOptNone)
+        int pick = die.roll(recRand01(rng), kOptNone);
+        if (pick != kOptNone) st.option = static_cast<u8>(pick);
+
+        if (pick == kOptNone)
         {
-            st.option = static_cast<u8>(pick);
+            if (in.status == kStDamageFall)
+            {
+                out.stickX = (st.mashPhase & 1u) != 0 ? -towardGoal * 0.95f : towardGoal * 0.95f;
+                st.mashPhase++;
+            }
+            return;
         }
-
-        // Execute chosen recovery option on this frame.
-        switch (pick)
+        // Table-driven option execution: btn, sxKind (0=0, 1=towardLedge, 2=ceil?away:toward), sy (-1/0/+1).
+        struct OptExec { u8 btn; u8 sxKind; s8 sy; };
+        static const OptExec kExec[15] = {
+            {0, 0, 0}, {kRecBtnJump, 2, 0}, {kRecBtnJump, 0, -1},
+            {kRecBtnSpecial, 0, 1}, {kRecBtnSpecial, 0, 1}, {kRecBtnSpecial, 0, 1}, {kRecBtnSpecial, 0, 1},
+            {kRecBtnSpecial, 1, 0}, {kRecBtnSpecial, 1, 0}, {kRecBtnSpecial, 1, 0},
+            {kRecBtnSpecial, 0, -1}, {kRecBtnSpecial, 0, -1}, {kRecBtnSpecial, 0, 0},
+            {kRecBtnGuard | kRecBtnAttack, 1, 0}, {kRecBtnAttack, 0, -1}
+        };
+        static const float kSy[3] = {-1.0f, 0.0f, 1.0f};
+        if (pick > 0 && pick < 15)
         {
-        case kOptJump:
-            out.buttons = freshButton(kRecBtnJump, in.lastButtons);
-            out.stickX = in.ceilingAbove ? -stageCenterDir : towardLedge;
-            break;
-        case kOptFloat:
-            out.buttons = freshButton(kRecBtnJump, in.lastButtons);
-            out.stickX = 0.0f;
-            out.stickY = -1.0f;
-            break;
-        case kOptUpB:
-        case kOptUpBHigh:
-        case kOptUpBCancel:
-            out.buttons = freshButton(kRecBtnSpecial, in.lastButtons);
-            out.stickX = 0.0f;
-            out.stickY = 1.0f;
-            if (in.ftKind == 0x0A || in.ftKind == 0x1A)
+            const OptExec& e = kExec[pick];
+            pressBtn(out, e.btn, lastB);
+            out.stickX = e.sxKind == 1 ? towardLedge
+                         : (e.sxKind == 2 ? (in.ceilingAbove ? -stageCenterDir : towardLedge) : 0.0f);
+            out.stickY = kSy[e.sy + 1];
+            if (pick == kOptGlide)
             {
-                st.timer = spec.pktTime;
+                if (ft == 0x17) { out.stickX = towardLedge; out.stickY = 0.0f; }
+                else if (ft == 0x1D) out.stickY = -1.0f;
             }
-            break;
-        case kOptGlide:
-            // Fighter-specific glide entry (fudgepop01 PPlusAI 103_recoveryHub.as):
-            // Meta Knight (0x16) Up-B, Pit (0x17) Side-B toward ledge, Charizard (0x1D) Down-B.
-            out.buttons = freshButton(kRecBtnSpecial, in.lastButtons);
-            if (in.ftKind == 0x17)
+            else if ((pick >= kOptUpB && pick <= kOptUpBCancel) && (ft == 0x0A || ft == 0x1A))
             {
-                out.stickX = towardLedge;
-                out.stickY = 0.0f;
+                st.timer = pktOrbitTime(ft);
             }
-            else if (in.ftKind == 0x1D)
+        }
+    }
+#undef R16
+
+    void stepRecovery(const RecoveryInput& in, RecoveryState& st, u32& rng, RecoveryOutput& out)
+    {
+        memset(&out, 0, sizeof(out));
+        const FighterRecoverySpec& spec = recoverySpec(in.ftKind);
+
+        if (in.status >= kStCliffCatchMove && in.status <= kStCliffLast && in.status != kStCliffJump2)
+        {
+            out.active = true;
+            if (in.status == kStCliffWait)
             {
-                out.stickX = 0.0f;
-                out.stickY = -1.0f;
+                if (st.ledgeWaitFrames == 0) st.cliffChoice = static_cast<u8>(geomNextRng(rng) & 3u);
+                if (++st.ledgeWaitFrames >= 2)
+                {
+                    static const u8 kCliffBtn[4] = {0, kRecBtnGuard, kRecBtnJump, kRecBtnAttack};
+                    u8 ch = st.cliffChoice & 3u;
+                    if (kCliffBtn[ch] != 0) pressBtn(out, kCliffBtn[ch], in.lastButtons);
+                    if (ch == 0 || ch == 2) out.stickX = in.ledgeDir != 0.0f ? in.ledgeDir : -recSign(in.x);
+                }
             }
-            else
-            {
-                out.stickX = 0.0f;
-                out.stickY = 1.0f;
-            }
-            break;
-        case kOptSideB:
-        case kOptSideBShort:
-        case kOptSideBWallJump:
-            out.buttons = freshButton(kRecBtnSpecial, in.lastButtons);
-            out.stickX = towardLedge;
-            out.stickY = 0.0f;
-            break;
-        case kOptDownB:
-        case kOptDownBCancel:
-            out.buttons = freshButton(kRecBtnSpecial, in.lastButtons);
-            out.stickX = 0.0f;
-            out.stickY = -1.0f;
-            break;
-        case kOptNeutralB:
-            out.buttons = freshButton(kRecBtnSpecial, in.lastButtons);
-            out.stickX = 0.0f;
-            out.stickY = 0.0f;
-            break;
-        case kOptTether:
-            // Air tether (Z = Guard + Attack in Brawl/P+ aiInput).
-            out.buttons = freshButton(kRecBtnGuard | kRecBtnAttack, in.lastButtons);
-            out.stickX = towardLedge;
-            out.stickY = 0.0f;
-            break;
-        case kOptDairStall:
-            out.buttons = freshButton(kRecBtnAttack, in.lastButtons);
-            out.stickX = 0.0f;
-            out.stickY = -1.0f;
-            break;
-        default:
-            break;
+            else st.ledgeWaitFrames = 0;
+            st.prevStatus = static_cast<s16>(in.status);
+            return;
+        }
+        st.ledgeWaitFrames = 0;
+
+        bool onStageFloor = !in.air && in.x >= in.stageLeftX - 2.0f && in.x <= in.stageRightX + 2.0f;
+        bool overStage = in.x >= in.stageLeftX + 2.0f && in.x <= in.stageRightX - 2.0f && in.y >= in.stageY - 6.0f;
+        bool safeLandingStatus =
+            (in.status <= kStLandingFallSpecial && in.status != kStFallSpecial) || (in.ftKind == 0x26 && in.status == 0x11E);
+        if (onStageFloor || (overStage && in.floorBelow && !in.ceilingAbove && safeLandingStatus))
+        {
+            recoveryStateReset(st);
+            return;
         }
 
+        stepRecoveryBody(spec, in, st, rng, overStage, out);
         st.prevStatus = static_cast<s16>(in.status);
     }
 }

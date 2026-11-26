@@ -925,3 +925,70 @@ TEST(hud_layout, notices_and_rec_messages_stay_above_395_and_clear)
         }
     }
 }
+
+TEST(hud_layout, techchase_hud_clears_all_right_column_combos)
+{
+    // Verify Techchase HUD card stays inside CRT safe bounds, above Brawl's
+    // damage HUD (y <= 395), and clear of topBand + every active right-column
+    // overlay across all 288 combinations (4:3 & 16:9, timer/ledge/none,
+    // 0..2 input viewer slots, DI compass, PSA inspector, Adaptive HUD).
+    struct Overlap {
+        static bool check(const Box& a, const Box& b)
+        {
+            return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+        }
+    };
+    int combos = 0;
+    for (int a = 0; a < 2; a++)
+    {
+        bool wide = a == 1;
+        Box safe = layout::safeArea(wide);
+        Box dmg0 = brawlDamage(0, wide);
+        for (int timer = 0; timer <= 1; timer++)
+        {
+            static const int kLedge[3] = {0, 30, 64};
+            for (int li = 0; li < 3; li++)
+            {
+                Box band = layout::labBand(timer != 0, kLedge[li], wide);
+                for (int vSlots = 0; vSlots <= 2; vSlots++)
+                {
+                    for (int comp = 0; comp <= 1; comp++)
+                    {
+                        for (int psa = 0; psa <= 1; psa++)
+                        {
+                            for (int adap = 0; adap <= 1; adap++)
+                            {
+                                combos++;
+                                Box tc = layout::techchaseHudBox(band, vSlots, comp != 0, psa != 0, wide, adap != 0);
+                                CHECK(inside(tc, safe));
+                                CHECK(tc.y1 <= dmg0.y0 - 2.0f);
+                                if (!layout::empty(band))
+                                {
+                                    CHECK(!Overlap::check(tc, band));
+                                }
+                                for (int s = 0; s < vSlots; s++)
+                                {
+                                    CHECK(!Overlap::check(tc, layout::inputViewerCardBox(s, band, wide)));
+                                }
+                                if (comp != 0)
+                                {
+                                    CHECK(!Overlap::check(tc, layout::diCompassBox(band, vSlots, wide)));
+                                }
+                                if (psa != 0)
+                                {
+                                    CHECK(!Overlap::check(tc, layout::psaInspectorBox(band, vSlots, comp != 0, wide)));
+                                }
+                                if (adap != 0)
+                                {
+                                    CHECK(!Overlap::check(
+                                        tc, layout::adaptiveHudBox(band, vSlots, comp != 0, psa != 0, wide)));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    CHECK_EQ(combos, 288);
+}

@@ -14,6 +14,10 @@ DESC_INFINITE_SHIELD = "Off (normal), Until Hit (full until struck), or On (alwa
 DESC_REV_ACTION = "Secondary reversal action mixed with the primary trigger option."
 DESC_REV_DELAY = "Actionable frame delay before the Slot 2 reversal fires."
 DESC_REV_CHANCE = "Probability weight for Slot 2 versus primary Slot 1."
+DESC_TECH_INVIS = "Hide models during techs, or Flash only on the tell frame."
+DESC_TECH_DELAY = "Frames after the distinguishable tech frame before hiding model."
+DESC_TECH_SOUND = "Play a sound cue when the CPU commits to a tech option."
+DESC_TECH_DRIFT = "Drift horizontally in tumble before landing to mix up spacing."
 
 TABLES = {
     "kGeneralDesc": [
@@ -32,21 +36,41 @@ TABLES = {
         DESC_EXIT_CSS,
     ],
     "kScenariosDesc": [
-        "Load a preconfigured P+ practice setup with auto-warping.",
-        "Automatically reset fighters when the current drill completes.",
-        "Choose Right, Left, or Random side for scenario spawns.",
-        "Pick the CPU out-of-shield punish for Shield Pressure / OoS.",
-        "Choose offstage distance and height for Ledgetech spawns.",
-        "Start P1 with double jump available or already spent.",
-        "Pick which ledge-poke attack the CPU uses on Ledgetech.",
-        "Choose Left, Right, Top, or Random platform (D-Pad Up cycles).",
-        "Set where the CPU stands below your Shield Drop platform.",
-        "Choose whether the Shield Drop CPU faces toward or away.",
-        "Pick Hold (Mash Out), Throw DI direction, or Stand for Grab Defense.",
-        "Start P1 at Random 0-79% or Current P1 % on Grab Defense resets.",
-        "Pick Auto (best for CPU fighter) or a specific multi-hit move.",
-        "Immediately warp fighters back to the active scenario start.",
-        "Configure hitstun auto-reset, recovery looping, and 3D meters.",
+        "Load a P+ practice scenario with auto-warping.",
+        "Auto-reset fighters when the drill completes.",
+        "Right, Left, or Random spawn side.",
+        "Start Techchase via Tumble Drop or Free Hit.",
+        "Ground or Platform 1-4 (D-Pad Up/Down steps).",
+        "CPU escape action on wakeup, or Intangible Flash.",
+        "Show reaction frames past tell frame on HUD.",
+        DESC_TECH_INVIS,
+        DESC_TECH_DELAY,
+        DESC_TECH_SOUND,
+        DESC_TECH_DRIFT,
+        "CPU launch and throw DI for Techchase.",
+        "Start Edgeguard via Launch or Offstage Spawn.",
+        "Knockback launch strength for Edgeguard.",
+        "Offstage spawn distance for Edgeguard.",
+        "Offstage CPU double jump available or spent.",
+        "PPlusAI recovery profile (Mixed/Low/High/Direct).",
+        "CPU shield Offense or OoS Defense role.",
+        "CPU OoS punish (including Custom Pool).",
+        "CPU attack to block and punish OoS.",
+        "Start P1 on Revival Platform or Instant Drop.",
+        "Hold Active freezes hitbox at ledge, or Timed.",
+        "Offstage spawn position for Ledgetech.",
+        "P1 double jump available or spent.",
+        "CPU ledge-poke attack for Ledgetech.",
+        "Left, Right, Top, or Random platform (Up cycles).",
+        "Active CPU shield pressure below platform, or Off.",
+        "CPU spacing below Shield Drop platform.",
+        "Shield Drop CPU facing toward or away.",
+        "Under-platform aerial or on-platform ftilt.",
+        "Hold (Mash Out), Throw DI, or Stand for Grab Defense.",
+        "Random 0-79% or Current P1 % on Grab resets.",
+        "Auto (best for CPU fighter) or specific multi-hit move.",
+        "Warp fighters back to the active scenario start.",
+        "Hitstun auto-reset, recovery looping, and 3D meters.",
     ],
     "kCpuDesc": [
         "Set the CPU fighter's current damage percentage.",
@@ -220,11 +244,12 @@ TABLES = {
     "kTechDesc": [
         "Choose how the CPU techs knockdowns (or Random weights).",
         "Choose the CPU wakeup action after a missed tech.",
-        "Hide fighter models briefly during tech roll animations.",
-        "Frames after the distinguishable tech frame before hiding model.",
-        "Play a sound cue when the CPU commits to a tech option.",
+        DESC_TECH_INVIS,
+        DESC_TECH_DELAY,
+        DESC_TECH_SOUND,
         "Simulate a bad mid-air press to test early/late tech lockouts.",
         "Choose early or late timing inside the valid CPU tech window.",
+        DESC_TECH_DRIFT,
         "Weight for neutral tech in place when Tech is set to Random.",
         "Weight for tech roll away when Tech is set to Random.",
         "Weight for tech roll toward when Tech is set to Random.",

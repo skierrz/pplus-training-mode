@@ -122,10 +122,15 @@ namespace main {
     enum ScenarioCall {
         kScenarioChanged = 0,
         kScenarioResetNow,
+        kScenarioSavestateSaving,
         kScenarioSavestateLoaded,
         kScenarioSettingsReset,
         kScenarioCyclePlatform,
-        kScenarioComboReposition
+        kScenarioComboReposition,
+        kScenarioStepPosUp,
+        kScenarioStepPosDown,
+        kScenarioSpacingCloser,
+        kScenarioSpacingFarther
     };
 
     // What the match module asks of the Character RNG / Fighter Mechanics code.
@@ -250,12 +255,9 @@ namespace main {
     int extraAdaptiveBias(int cpuPlayerNo, int list, bool inCounter, float opponentDist, bool commit);
     void extraAdaptiveReset();
     // Unified P+ Lab Scenario Presets (extra/scenario_presets.h).
+    void extraScenarioCall(int call);
     void extraScenarioChanged();
     void extraScenarioResetNow();
-    void extraScenarioSavestateLoaded();
-    void extraScenarioSettingsReset();
-    void extraScenarioCyclePlatform();
-    void extraComboReposition();
     bool extraScenarioCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons);
     void extraScenarioSavedView(Settings& out);
     // Mid-session Fighter Swap (extra/fighter_swap.h).

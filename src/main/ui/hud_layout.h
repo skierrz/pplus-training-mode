@@ -387,6 +387,38 @@ namespace layout {
         return bottom;
     }
 
+    // ---- Techchase Scenario HUD card (extra/scenario_presets.cpp) ----
+    // Right-aligned inside CRT safe bounds (x1 = 608), stepping cleanly below
+    // both topBand() and the full active right-column stack (Input Viewer,
+    // DI Compass, PSA Inspector, Adaptive CPU HUD).
+    static const float kTechchaseHudWidth = 168.0f;
+    static const float kTechchaseHudHeight = 52.0f;
+
+    inline Box techchaseHudBox(const Box& band, int viewerSlots, bool hasCompass, bool hasPsa, bool wide,
+                               bool hasAdaptive = false)
+    {
+        float xs = xsOf(wide);
+        float bw = kTechchaseHudWidth * xs;
+        float x1 = kViewerRight;
+        float x0 = x1 - bw;
+        float y0 = kViewerTop;
+        Box probe = {x0, y0, x1, y0 + 1.0f};
+        if (meetsX(probe, band) && band.y1 > y0)
+        {
+            y0 = band.y1 + kStepGap;
+        }
+        float colBot = rightColumnBottom(band, viewerSlots, hasCompass, hasPsa, wide, hasAdaptive);
+        if (colBot > 0.0f && colBot + kViewerGap > y0)
+        {
+            y0 = colBot + kViewerGap;
+        }
+        if (y0 > 343.0f)
+        {
+            y0 = 343.0f;
+        }
+        return box(x0, y0, bw, kTechchaseHudHeight);
+    }
+
     // Starting top y for TopLeft / TopRight OSD stacks so they step cleanly
     // below the active top band and any same-side overlay column while keeping
     // P1's row inside the 5% CRT safe area above Brawl's damage HUD (y >= 397).
