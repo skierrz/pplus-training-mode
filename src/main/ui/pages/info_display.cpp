@@ -2,50 +2,33 @@
 #include "main/ui/info_display.h"
 #include "main/ui/pages/pages.h"
 
+#include <string.h>
+
 namespace tm {
 namespace ui {
 namespace pages {
     // In InfoValue order. Entries prefixed with NA are reserved placeholders.
 #define NA TM_UNAVAILABLE_LABEL
+#ifdef __MWERKS__
+    static const char kValues[] =
+        TM_L("None") TM_L("Position") TM_L("State Name") TM_L("State Frame") TM_L("Velocity - Self")
+        TM_L("Velocity - KB") TM_L("Velocity - Total") TM_L("Engine LStick") TM_L("System LStick")
+        TM_L(NA "Engine CStick") TM_L("System CStick") TM_L("Engine Trigger") TM_L("System Trigger")
+        TM_L("Ledgegrab Timer") TM_L("Intangibility") TM_L("Hitlag") TM_L("Hitstun") TM_L("Shield Health")
+        TM_L("Shield Stun") TM_L("Grip Strength") TM_L("ECB Lock") TM_L("ECB Bottom") TM_L("Jumps")
+        TM_L("Walljumps") TM_L("Can Walljump") TM_L(NA "Jab Counter") TM_L("Line Info") TM_L("Blastzone X")
+        TM_L("Blastzone Y") TM_L("Damage") TM_L("Subaction") TM_L("Cancel Flags") TM_L("Actionable")
+        TM_L("Airborne") TM_L("Last Hit") TM_L("Actionable In") TM_L("Wall Cling");
+#else
     static const char* const kValues[kInfoValueCount] = {
-        "None",
-        "Position",
-        "State Name",
-        "State Frame",
-        "Velocity - Self",
-        "Velocity - KB",
-        "Velocity - Total",
-        "Engine LStick",
-        "System LStick",
-        NA "Engine CStick",
-        "System CStick",
-        "Engine Trigger",
-        "System Trigger",
-        "Ledgegrab Timer",
-        "Intangibility",
-        "Hitlag",
-        "Hitstun",
-        "Shield Health",
-        "Shield Stun",
-        "Grip Strength",
-        "ECB Lock",
-        "ECB Bottom",
-        "Jumps",
-        "Walljumps",
-        "Can Walljump",
-        NA "Jab Counter",
-        "Line Info",
-        "Blastzone X",
-        "Blastzone Y",
-        "Damage",
-        "Subaction",
-        "Cancel Flags",
-        "Actionable",
-        "Airborne",
-        "Last Hit",
-        "Actionable In",
-        "Wall Cling"
+        "None", "Position", "State Name", "State Frame", "Velocity - Self", "Velocity - KB", "Velocity - Total",
+        "Engine LStick", "System LStick", NA "Engine CStick", "System CStick", "Engine Trigger", "System Trigger",
+        "Ledgegrab Timer", "Intangibility", "Hitlag", "Hitstun", "Shield Health", "Shield Stun", "Grip Strength",
+        "ECB Lock", "ECB Bottom", "Jumps", "Walljumps", "Can Walljump", NA "Jab Counter", "Line Info",
+        "Blastzone X", "Blastzone Y", "Damage", "Subaction", "Cancel Flags", "Actionable", "Airborne", "Last Hit",
+        "Actionable In", "Wall Cling"
     };
+#endif
 #undef NA
 
     TM_LABELS_BEGIN(kPresets) TM_L("None") TM_L("Basic") TM_L("Ledge") TM_L("Combat") TM_L("Frame Data") TM_LABELS_END
@@ -96,7 +79,7 @@ namespace pages {
         return infoHasRows(main::kSideCpu);
     }
 
-#define TM_INFO_ROW(side, n, name, onEdit) TM_CHOICE(name, info[side].rows[n], kValues, kInfoNone, onEdit)
+#define TM_INFO_ROW(side, n, name, onEdit) TM_CHOICE_P(name, info[side].rows[n], kValues, kInfoValueCount, kInfoNone, onEdit)
 #define TM_INFO_PAGE(side, onPreset, onEdit, hasRows)                                                         \
     TM_CHOICE_P("Preset", info[side].preset, kPresets, kInfoPresetCount, kInfoPresetNone, onPreset),          \
         TM_ROW_CHOICE_P(0, TM_FIELD(info[side].size), main::kInfoSizeCount, main::kInfoMedium,                \
@@ -107,12 +90,35 @@ namespace pages {
         TM_INFO_ROW(side, 6, "Row 7", onEdit), TM_INFO_ROW(side, 7, "Row 8", onEdit)
 
     static const Option kHmnRows[] = {TM_INFO_PAGE(0, hmnPreset, hmnRowEdited, hmnHasRows)};
+#ifdef __MWERKS__
+    void initCpuInfoPage(Option* buf)
+    {
+        const u8 n = static_cast<u8>(TM_COUNT(kHmnRows));
+        memcpy(buf, kHmnRows, sizeof(kHmnRows));
+        const u16 delta = static_cast<u16>(TM_FIELD(info[1]) - TM_FIELD(info[0]));
+        for (int i = 0; i < n; i++)
+        {
+            buf[i].offset = static_cast<u16>(buf[i].offset + delta);
+            buf[i].onChange = i == 0 ? cpuPreset : (i >= 2 ? cpuRowEdited : NULL);
+            if (i == 1)
+            {
+                buf[i].enabled = cpuHasRows;
+            }
+        }
+        kCpuInfo.options = buf;
+        kCpuInfo.count = n;
+    }
+
+    extern const Page kHmnInfo = TM_PAGE("P1 Info Display", kHmnRows);
+    extern Page kCpuInfo = {"CPU Info Display", NULL, 0, {0, 0, 0}};
+#else
     static const Option kCpuRows[] = {TM_INFO_PAGE(1, cpuPreset, cpuRowEdited, cpuHasRows)};
-#undef TM_INFO_PAGE
-#undef TM_INFO_ROW
 
     extern const Page kHmnInfo = TM_PAGE("P1 Info Display", kHmnRows);
     extern const Page kCpuInfo = TM_PAGE("CPU Info Display", kCpuRows);
+#endif
+#undef TM_INFO_PAGE
+#undef TM_INFO_ROW
 }
 
     // Linked in extra (main/ui/info_display.cpp); keep exported from match.
@@ -125,13 +131,14 @@ namespace pages {
         {
             return "?";
         }
-        const char* s = pages::kValues[value];
+        const char* s = pages::packedLabelAt(pages::kValues, value);
         return s[0] == TM_UNAVAILABLE_LABEL[0] ? s + 1 : s;
     }
 
     bool infoValueAvailable(int value)
     {
-        return value >= 0 && value < kInfoValueCount && pages::kValues[value][0] != TM_UNAVAILABLE_LABEL[0];
+        return value >= 0 && value < kInfoValueCount
+               && pages::packedLabelAt(pages::kValues, value)[0] != TM_UNAVAILABLE_LABEL[0];
     }
 #ifdef TM_MODULE_MAIN
 #pragma force_active reset

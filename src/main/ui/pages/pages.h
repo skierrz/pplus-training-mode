@@ -45,6 +45,12 @@ namespace pages {
     enum { kCategoryCount = 7 };
     TM_STATIC_ASSERT(P_COUNT <= kMaxPages, tm_pages_fit_menu_state);
 
+#ifdef __MWERKS__
+#define TM_PAGE_QUAL
+#else
+#define TM_PAGE_QUAL const
+#endif
+
     extern const Page kGeneral;
     extern const Page kScenarios;
     extern const Page kCpuOptions;
@@ -63,9 +69,9 @@ namespace pages {
     extern const Page kHmnChances;
     extern const Page kCpuChances;
     extern const Page kHmnOverlays;
-    extern const Page kCpuOverlays;
+    extern TM_PAGE_QUAL Page kCpuOverlays;
     extern const Page kHmnInfo;
-    extern const Page kCpuInfo;
+    extern TM_PAGE_QUAL Page kCpuInfo;
     extern const Page kLedgedashHud;
     extern const Page kFighterSwap;
     extern const Page kTheme;
@@ -73,7 +79,15 @@ namespace pages {
     extern const Page kCpuDi;
     extern const Page kCpuCounters;
     extern const Page kCpuDefense;
-    extern const Page kCounterPool;
+    extern TM_PAGE_QUAL Page kCounterPool;
+
+#ifdef __MWERKS__
+    void pagesAttach();
+    void pagesDetach();
+    void initPoolPage(Option* buf);
+    void initCpuOverlaysPage(Option* buf);
+    void initCpuInfoPage(Option* buf);
+#endif
 
     // Indexed by PageId (registry.cpp).
     extern const Page* const kPages[P_COUNT];

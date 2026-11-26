@@ -494,6 +494,66 @@ namespace pages {
     static bool poolCat1() { return poolCatIs(cpu::kListAir); }
     static bool poolCat2() { return poolCatIs(cpu::kListShield); }
 
+#ifdef __MWERKS__
+    static const Option kPoolHead[3] = {
+        TM_ROW_CHOICE_P(::tm::ui::kFlagScratch, kPoolCatScratchOffset, 3, 0,
+                        "Category", kPoolCats, NULL, cpuLabControl),
+        TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Reset Pool", NULL, resetActivePool, cpuLabControl),
+        TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Clear Pool", NULL, clearActivePool, cpuLabControl)
+    };
+
+    void initPoolPage(Option* buf)
+    {
+#define PBIT(idx, def) static_cast<u8>((idx) | ((def) << 7))
+        static const u8 kSpec[62] = {
+            // Ground (28)
+            PBIT(1, 1), PBIT(2, 1), PBIT(3, 1), PBIT(4, 0), PBIT(5, 0), PBIT(32, 0), PBIT(6, 0),
+            PBIT(7, 0), PBIT(8, 0), PBIT(9, 0), PBIT(10, 0), PBIT(11, 1), PBIT(12, 1), PBIT(13, 1),
+            PBIT(14, 1), PBIT(15, 1), PBIT(16, 1), PBIT(17, 0), PBIT(18, 1), PBIT(19, 0), PBIT(20, 1),
+            PBIT(21, 0), PBIT(23, 1), PBIT(34, 0), PBIT(35, 0), PBIT(36, 0), PBIT(37, 0), PBIT(38, 0),
+            // Air (17)
+            PBIT(1, 1), PBIT(2, 1), PBIT(3, 1), PBIT(4, 0), PBIT(5, 0), PBIT(6, 0), PBIT(7, 0),
+            PBIT(8, 0), PBIT(9, 0), PBIT(10, 0), PBIT(11, 1), PBIT(12, 1), PBIT(13, 1), PBIT(14, 1),
+            PBIT(15, 1), PBIT(16, 0), PBIT(17, 0),
+            // Shield (17)
+            PBIT(1, 1), PBIT(2, 1), PBIT(3, 0), PBIT(4, 1), PBIT(5, 1), PBIT(6, 1), PBIT(7, 1),
+            PBIT(10, 0), PBIT(12, 1), PBIT(15, 1), PBIT(16, 1), PBIT(17, 0), PBIT(18, 0), PBIT(19, 0),
+            PBIT(20, 1), PBIT(29, 0), PBIT(30, 0)
+        };
+#undef PBIT
+        static const u8 kEnds[3] = {28, 45, 62};
+        static const char* const kLists[3] = {kCounterGround, kCounterAir, kCounterShield};
+        typedef bool (*GateFn)();
+        static const GateFn kGates[3] = {poolCat0, poolCat1, poolCat2};
+
+        memcpy(buf, kPoolHead, sizeof(kPoolHead));
+        int cat = 0;
+        for (int i = 0; i < 62; i++)
+        {
+            while (i >= kEnds[cat])
+            {
+                cat++;
+            }
+            u8 idx = static_cast<u8>(kSpec[i] & 0x7Fu);
+            s8 def = static_cast<s8>(kSpec[i] >> 7);
+            Option& o = buf[3 + i];
+            o.kind = ::tm::ui::kKindToggle;
+            o.flags = ::tm::ui::kFlagBit | ::tm::ui::kFlagHideWhenDisabled;
+            o.offset = static_cast<u16>(TM_FIELD(cpuTables.poolBits) + cat * 8 + (idx >> 3));
+            o.min = static_cast<u8>(1u << (idx & 7));
+            o.def = def;
+            o.max = 1;
+            o.name = packedLabelAt(kLists[cat], idx);
+            o.data = NULL;
+            o.onChange = NULL;
+            o.enabled = kGates[cat];
+        }
+        kCounterPool.options = buf;
+        kCounterPool.count = 65;
+    }
+
+    extern Page kCounterPool = {"Custom Pools", NULL, 0, {0, 0, 0}};
+#else
 #define TM_POOL_BIT(cat, idx, def, name, gate)                                                                    \
     TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagBit | ::tm::ui::kFlagHideWhenDisabled,                           \
            TM_FIELD(cpuTables.poolBits[cat][(idx) >> 3]), (1 << ((idx) & 7)), 1, def, name, NULL, NULL, gate)
@@ -572,6 +632,7 @@ namespace pages {
 #undef TM_POOL_BIT
 
     extern const Page kCounterPool = TM_PAGE("Custom Pools", kPoolRows);
+#endif
 }
 }
 }

@@ -22,6 +22,7 @@
 #include "main/settings.h"
 #include "main/storage/storage.h"
 #include "main/ui/match_hud.h"
+#include "main/ui/pages/pages.h"
 #include "main/ui/settings_modal.h"
 #include "shared/drill_session.h"
 #include "shared/game/code_menu.h"
@@ -284,6 +285,9 @@ namespace main {
         perf::attach();
         perf::announce("main", perf::kMainNames, perf::kMainSections);
 #endif
+#ifdef __MWERKS__
+        ui::pages::pagesAttach();
+#endif
         bool reset = loadSettings(block);
         if (s_vsReadOnly)
         {
@@ -340,6 +344,9 @@ namespace main {
         if (s_vsReadOnly)
         {
             lab::detach();
+#ifdef __MWERKS__
+            ui::pages::pagesDetach();
+#endif
             TM_LOG("main: detaching\n");
 #ifdef TM_PERF
             perf::detach();
@@ -354,6 +361,9 @@ namespace main {
         savestate::detach();
         cpu::moduleDetach();
         lab::detach();
+#ifdef __MWERKS__
+        ui::pages::pagesDetach();
+#endif
         game::codeMenuMatchDetach();
         game::trainingDamageRestore();
         game::trainingControllerRestore();

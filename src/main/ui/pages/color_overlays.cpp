@@ -1,6 +1,8 @@
 #include "main/game/overlays.h"
 #include "main/ui/pages/pages.h"
 
+#include <string.h>
+
 namespace tm {
 namespace ui {
 namespace pages {
@@ -68,12 +70,31 @@ namespace pages {
         TM_GROUP(side, 16, "Shield Stun", onGroup)
 
     static const Option kHmnRows[] = {TM_OVERLAY_PAGE(0, hmnPreset, hmnGroup)};
+#ifdef __MWERKS__
+    void initCpuOverlaysPage(Option* buf)
+    {
+        const u8 n = static_cast<u8>(TM_COUNT(kHmnRows));
+        memcpy(buf, kHmnRows, sizeof(kHmnRows));
+        const u16 delta = static_cast<u16>(TM_FIELD(overlay[1]) - TM_FIELD(overlay[0]));
+        for (int i = 0; i < n; i++)
+        {
+            buf[i].offset = static_cast<u16>(buf[i].offset + delta);
+            buf[i].onChange = i == 0 ? cpuPreset : cpuGroup;
+        }
+        kCpuOverlays.options = buf;
+        kCpuOverlays.count = n;
+    }
+
+    extern const Page kHmnOverlays = TM_PAGE("P1 Overlays", kHmnRows);
+    extern Page kCpuOverlays = {"CPU Overlays", NULL, 0, {0, 0, 0}};
+#else
     static const Option kCpuRows[] = {TM_OVERLAY_PAGE(1, cpuPreset, cpuGroup)};
-#undef TM_OVERLAY_PAGE
-#undef TM_GROUP
 
     extern const Page kHmnOverlays = TM_PAGE("P1 Overlays", kHmnRows);
     extern const Page kCpuOverlays = TM_PAGE("CPU Overlays", kCpuRows);
+#endif
+#undef TM_OVERLAY_PAGE
+#undef TM_GROUP
 }
 }
 }
