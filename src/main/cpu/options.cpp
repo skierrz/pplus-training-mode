@@ -860,8 +860,8 @@ namespace cpu {
             float st = diKind == kTdiSurvival ? survivalTurn(kx, ky, len) : 1.0f;
             const CpuTables& t = main::settings().cpuTables;
             computeTdiStick(diKind, ux, uy, toward, st, diRoll,
-                            static_cast<float>(t.customDiX) / 100.0f,
-                            static_cast<float>(t.customDiY) / 100.0f, tdiX, tdiY);
+                            game::i2fScale(t.customDiX, 0.01f),
+                            game::i2fScale(t.customDiY, 0.01f), tdiX, tdiY);
         }
 
 #pragma dont_inline on
@@ -874,8 +874,8 @@ namespace cpu {
             }
             static const s8 kVec[6][2] = {{2, 0}, {-2, 0}, {-1, 0}, {1, 0}, {0, 1}, {0, -1}};
             int vx = kVec[code][0];
-            x = vx == 2 ? away : (vx == -2 ? -away : static_cast<float>(vx));
-            y = static_cast<float>(kVec[code][1]);
+            x = vx == 2 ? away : (vx == -2 ? -away : game::i2f(vx));
+            y = game::i2f(kVec[code][1]);
             return true;
         }
 
@@ -1300,7 +1300,7 @@ namespace cpu {
             {
                 tiltFrames++;
             }
-            float k = static_cast<float>(tiltFrames) / kTiltRamp;
+            float k = game::i2fScale(tiltFrames, 1.0f / kTiltRamp);
             switch (angle)
             {
             case kAngleUp:
@@ -1645,7 +1645,7 @@ namespace cpu {
             TM_LOG("cpu: P%d counter list %d action %d (%d) after %d actionable frames, hit %d, frame %u, "
                    "air %d y %d vy %d\n",
                    who.playerNo + 1, list, chosen, index, actionable, hits, frameOf(slot), v.air ? 1 : 0,
-                   static_cast<int>(v.y * 100), static_cast<int>(v.vy * 100));
+                   game::f2i(v.y * 100.0f), game::f2i(v.vy * 100.0f));
             start(out, a);
         }
 
@@ -2239,7 +2239,7 @@ namespace cpu {
             // v.motionFrame is the 0-indexed frame the previous step ended on;
             // the coming step plays motionFrame + 1 (0-indexed), i.e.
             // motionFrame + 2 in 1-indexed animation frames.
-            int stateFrame = static_cast<int>(v.motionFrame) + 2;
+            int stateFrame = game::f2i(v.motionFrame) + 2;
             if (!techSounded && game::techSoundFrame(stateFrame, dist))
             {
                 techSounded = true;
@@ -2356,9 +2356,9 @@ namespace cpu {
                 sdiDone = hitlagFrame = afterHitlag = 0;
                 techChosen = false;
                 TM_LOG("cpu: P%d hit %d: hitlag %d hitstun %d, di %d,%d sdi %d,%d asdi %d,%d, frame %u\n",
-                       who.playerNo + 1, hits, v.hitlag, v.hitstun, static_cast<int>(tdiX * 100),
-                       static_cast<int>(tdiY * 100), static_cast<int>(sdiX * 100), static_cast<int>(sdiY * 100),
-                       haveAsdi ? static_cast<int>(asdiX * 100) : 0, haveAsdi ? static_cast<int>(asdiY * 100) : 0,
+                       who.playerNo + 1, hits, v.hitlag, v.hitstun, game::f2i(tdiX * 100.0f),
+                       game::f2i(tdiY * 100.0f), game::f2i(sdiX * 100.0f), game::f2i(sdiY * 100.0f),
+                       haveAsdi ? game::f2i(asdiX * 100.0f) : 0, haveAsdi ? game::f2i(asdiY * 100.0f) : 0,
                        frameOf(slot));
                 TM_LOG("cpu: P%d hit %d: di kind %d, status %x after %x\n", who.playerNo + 1, hits, diKind, v.status,
                        prevStatus);

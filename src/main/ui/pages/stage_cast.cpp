@@ -72,6 +72,107 @@ namespace pages {
     TM_LABELS_ASSERT(kNanaThrow, main::kNanaThrowCount, tm_nana_throw_labels_match_the_setting);
     TM_LABELS_ASSERT(kOlimarPikmin, main::kOlimarPikminCount, tm_olimar_pikmin_labels_match_the_setting);
 
+#ifdef __MWERKS__
+    enum { kStageCastRows = 34 };
+    static Option* s_stageCastRows = NULL;
+
+    static const char* const kCastLabels[] = {
+        kHazards, kPlatDefault, kFodHeight, kTurnip, kPeachSmash, kUnlimited, kMisfire, kHammer,
+        kGnwBucket, kCharge3, kSamusBeam, kLucarioAura, kCharge2, kRobBeam, kLucasOffense,
+        kSheikNeedles, kDededeWaddle, kNanaThrow, kOlimarPikmin
+    };
+    static bool (*const kCastGates[])() = {
+        main::extraStageHazardsRow, main::extraStagePlatformsRow, main::extraStageFodRow,
+        main::extraPeachRows, main::extraLuigiRows, main::extraGameWatchRows, main::extraSamusRows,
+        main::extraMewtwoRows, main::extraLucarioRows, main::extraWarioRows, main::extraDonkeyKongRows,
+        main::extraIvysaurRows, main::extraRobRows, main::extraLucasRows, main::extraSquirtleRows,
+        main::extraSheikRows, main::extraDededeRows, main::extraSnakeRows, main::extraGanondorfRows,
+        main::extraIceClimbersRows, main::extraOlimarRows
+    };
+    struct CastRowSpec {
+        u16 offset;
+        u8 count;
+        u8 labelIdx;
+        u8 gateIdx;
+        u8 isStage;
+    };
+    static const CastRowSpec kCastSpecs[32] = {
+        {TM_FIELD(stageOptions.hazards), main::kStageHazardCount, 0, 0, 1},
+        {TM_FIELD(stageOptions.platformMode), main::kStagePlatMaxChoices, 1, 1, 1},
+        {TM_FIELD(stageOptions.fodLeft), main::kFodHeightCount, 2, 2, 1},
+        {TM_FIELD(stageOptions.fodRight), main::kFodHeightCount, 2, 2, 1},
+        {TM_FIELD(characterRng.peachTurnip), main::kPeachTurnipCount, 3, 3, 0},
+        {TM_FIELD(characterRng.peachSmash), main::kPeachSmashCount, 4, 3, 0},
+        {TM_FIELD(fighterMechanics.peachFloat), main::kMechToggleCount, 5, 3, 0},
+        {TM_FIELD(characterRng.luigiMisfire), main::kLuigiMisfireCount, 6, 4, 0},
+        {TM_FIELD(characterRng.gnwHammer), main::kGnwHammerCount, 7, 5, 0},
+        {TM_FIELD(fighterMechanics.gnwBucket), main::kGnwBucketCount, 8, 5, 0},
+        {TM_FIELD(fighterMechanics.samusCharge), main::kCharge3Count, 9, 6, 0},
+        {TM_FIELD(fighterMechanics.samusBeam), main::kSamusBeamCount, 10, 6, 0},
+        {TM_FIELD(fighterMechanics.samusAirBombs), main::kMechToggleCount, 5, 6, 0},
+        {TM_FIELD(fighterMechanics.mewtwoShadowBall), main::kCharge3Count, 9, 7, 0},
+        {TM_FIELD(fighterMechanics.mewtwoHover), main::kMechToggleCount, 5, 7, 0},
+        {TM_FIELD(fighterMechanics.lucarioAura), main::kLucarioAuraCount, 11, 8, 0},
+        {TM_FIELD(fighterMechanics.lucarioSphere), main::kCharge2Count, 12, 8, 0},
+        {TM_FIELD(fighterMechanics.warioWaft), main::kCharge3Count, 9, 9, 0},
+        {TM_FIELD(fighterMechanics.dkPunch), main::kCharge2Count, 12, 10, 0},
+        {TM_FIELD(fighterMechanics.ivysaurSolarbeam), main::kCharge3Count, 9, 11, 0},
+        {TM_FIELD(fighterMechanics.robAirBoosts), main::kMechToggleCount, 5, 12, 0},
+        {TM_FIELD(fighterMechanics.robGyro), main::kCharge2Count, 12, 12, 0},
+        {TM_FIELD(fighterMechanics.robBeam), main::kRobBeamCount, 13, 12, 0},
+        {TM_FIELD(fighterMechanics.lucasOffenseUp), main::kLucasOffenseCount, 14, 13, 0},
+        {TM_FIELD(fighterMechanics.squirtleWaterGun), main::kCharge2Count, 12, 14, 0},
+        {TM_FIELD(fighterMechanics.sheikNeedles), main::kSheikNeedlesCount, 15, 15, 0},
+        {TM_FIELD(fighterMechanics.dededeWaddle), main::kDededeWaddleCount, 16, 16, 0},
+        {TM_FIELD(fighterMechanics.snakeTranq), main::kMechToggleCount, 5, 17, 0},
+        {TM_FIELD(fighterMechanics.snakeCypher), main::kMechToggleCount, 5, 17, 0},
+        {TM_FIELD(fighterMechanics.ganonFloat), main::kMechToggleCount, 5, 18, 0},
+        {TM_FIELD(fighterMechanics.nanaThrow), main::kNanaThrowCount, 17, 19, 0},
+        {TM_FIELD(fighterMechanics.olimarPikmin), main::kOlimarPikminCount, 18, 20, 0}
+    };
+    static const char kCastNames[] =
+        TM_L("Hazards") TM_L("Platforms") TM_L("Left Platform") TM_L("Right Platform")
+        TM_L("Peach Turnip") TM_L("Peach F-Smash") TM_L("Peach Float") TM_L("Luigi Misfire")
+        TM_L("G&W Judge") TM_L("G&W Oil Panic") TM_L("Samus Charge") TM_L("Samus Beam")
+        TM_L("Samus Air Bombs") TM_L("Mewtwo Shadow Ball") TM_L("Mewtwo Hover") TM_L("Lucario Aura")
+        TM_L("Lucario Sphere") TM_L("Wario Waft") TM_L("DK Giant Punch") TM_L("Ivysaur Solarbeam")
+        TM_L("ROB Air Boosts") TM_L("ROB Gyro Charge") TM_L("ROB Beam") TM_L("Lucas Offense Up")
+        TM_L("Squirtle Water Gun") TM_L("Sheik Needles") TM_L("Dedede Waddle") TM_L("Snake Tranq Ammo")
+        TM_L("Snake Cypher") TM_L("Ganon Float") TM_L("Nana Throw") TM_L("Olimar Pikmin");
+
+    extern Page kStageCast = {"Stage & Cast", NULL, 0, {0, 0, 0}};
+
+    void initStageCastPage(Option* buf)
+    {
+        s_stageCastRows = buf;
+        static const Option kHead[2] = {
+            TM_MENU_IF("Fighter Swap", P_FIGHTER_SWAP, main::extraFighterSwapRow),
+            TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagScratch, kShowInactiveScratchOffset, 0, 1, 0, "Show Inactive",
+                   NULL, showInactiveChanged, NULL)
+        };
+        buf[0] = kHead[0];
+        buf[1] = kHead[1];
+        const char* nm = kCastNames;
+        for (int i = 0; i < 32; i++)
+        {
+            const CastRowSpec& sp = kCastSpecs[i];
+            Option& o = buf[2 + i];
+            o.kind = ::tm::ui::kKindChoice;
+            o.flags = ::tm::ui::kFlagHideWhenDisabled;
+            o.offset = sp.offset;
+            o.min = TM_CHOICE_LO;
+            o.def = 0;
+            o.max = static_cast<s16>(sp.count - 1);
+            o.name = nm;
+            o.data = kCastLabels[sp.labelIdx];
+            o.onChange = sp.isStage ? main::extraStageOptionsChanged : main::extraCharacterRng;
+            o.enabled = kCastGates[sp.gateIdx];
+            while (*nm++ != '\0') {}
+        }
+        kStageCast.options = buf;
+        kStageCast.count = kStageCastRows;
+    }
+#else
 #define TM_SROW_P(field, labels, count, name, gate)                                                            \
     TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(field), count, 0,                                \
                     name, labels, main::extraStageOptionsChanged, gate)
@@ -122,6 +223,7 @@ namespace pages {
 #undef TM_FROW
 
     extern const Page kStageCast = TM_PAGE("Stage & Cast", kRows);
+#endif
 }
 }
 
@@ -131,7 +233,15 @@ namespace main {
     void setStagePlatformRowPreset(int preset)
     {
         using namespace ui::pages;
+#ifdef __MWERKS__
+        if (s_stageCastRows == NULL)
+        {
+            return;
+        }
+        ui::Option& row = s_stageCastRows[3];
+#else
         ui::Option& row = kRows[3];
+#endif
         switch (preset)
         {
         case extra::kPresetGenericMoving:

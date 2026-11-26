@@ -322,7 +322,7 @@ namespace game {
             return -1;
         }
         float a = static_cast<float>(atan2(y, x) * 57.29577951308232) + 360.0f + 22.5f;
-        return static_cast<int>(a / 45.0f) % 8;
+        return game::f2i(a * (1.0f / 45.0f)) % 8;
     }
 
     static u8 cellOf(int s)
@@ -815,13 +815,13 @@ namespace game {
                 bool escaped = t.cur.status == 0x40 || t.cur.status == 0x41 || t.cur.status == 0x10A;
                 if (escaped && w.grabFrames > 0 && w.grabStart > 0.0f)
                 {
-                    int optimal = static_cast<int>((w.grabStart + 16.999f) / 17.0f);
+                    int optimal = game::f2i((w.grabStart + 16.999f) * (1.0f / 17.0f));
                     if (optimal < 1)
                     {
                         optimal = 1;
                     }
                     emit(kTechGrabBreakout, t, i, static_cast<int>(w.grabFrames), 1, optimal, 0,
-                         w.grabStart / static_cast<float>(w.grabFrames));
+                         w.grabStart / game::i2f(static_cast<int>(w.grabFrames)));
                 }
             }
             w.grabbed = false;
@@ -834,8 +834,8 @@ namespace game {
             w.grabStart = b.clatter;
         }
         w.grabFrames++;
-        emit(kTechGrabBreakout, t, i, kNoValue, 0, static_cast<int>(b.clatter + 0.5f), 0,
-             (w.grabStart - b.clatter) / w.grabFrames);
+        emit(kTechGrabBreakout, t, i, kNoValue, 0, game::f2i(b.clatter + 0.5f), 0,
+             (w.grabStart - b.clatter) / game::i2f(static_cast<int>(w.grabFrames)));
     }
 
     static void combo(Watch& w, const Tracked& t, int i)
@@ -860,7 +860,7 @@ namespace game {
         const Tracked* a = tracked(attacker);
         if (w.comboHits >= 2 && a != NULL)
         {
-            int dealt = static_cast<int>(w.damage) - static_cast<int>(w.comboStart);
+            int dealt = game::f2i(w.damage) - game::f2i(w.comboStart);
             emit(kTechCombo, *a, attacker, kNoValue, 0, w.comboHits, dealt, 0.0f);
         }
     }

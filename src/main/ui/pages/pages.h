@@ -57,7 +57,7 @@ namespace pages {
     extern const Page kRecording;
     extern const Page kDisplayOptions;
     extern const Page kOsdMenu;
-    extern const Page kStageCast;
+    extern TM_PAGE_QUAL Page kStageCast;
     extern const Page kControls;
     extern const Page kDebug;
     extern const Page kComboTrainer;
@@ -87,6 +87,7 @@ namespace pages {
     void initPoolPage(Option* buf);
     void initCpuOverlaysPage(Option* buf);
     void initCpuInfoPage(Option* buf);
+    void initStageCastPage(Option* buf);
 #endif
 
     // Indexed by PageId (registry.cpp).

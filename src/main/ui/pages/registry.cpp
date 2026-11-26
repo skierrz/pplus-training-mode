@@ -16,7 +16,8 @@ namespace pages {
         kPoolRowCount = 65,
         kCpuOverlayRowCount = 17,
         kCpuInfoRowCount = 10,
-        kDynRowTotal = kPoolRowCount + kCpuOverlayRowCount + kCpuInfoRowCount
+        kStageCastRowCount = 34,
+        kDynRowTotal = kPoolRowCount + kCpuOverlayRowCount + kCpuInfoRowCount + kStageCastRowCount
     };
 
     static Option* s_dynRows = NULL;
@@ -32,6 +33,7 @@ namespace pages {
             initPoolPage(s_dynRows);
             initCpuOverlaysPage(s_dynRows + kPoolRowCount);
             initCpuInfoPage(s_dynRows + kPoolRowCount + kCpuOverlayRowCount);
+            initStageCastPage(s_dynRows + kPoolRowCount + kCpuOverlayRowCount + kCpuInfoRowCount);
         }
     }
 
@@ -43,6 +45,8 @@ namespace pages {
         kCpuOverlays.count = 0;
         kCpuInfo.options = NULL;
         kCpuInfo.count = 0;
+        kStageCast.options = NULL;
+        kStageCast.count = 0;
         game::freeNetworkSlot(reinterpret_cast<void**>(&s_dynRows));
     }
 #endif

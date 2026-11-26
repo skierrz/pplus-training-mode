@@ -44,6 +44,7 @@
 #include "main/ui/settings_modal.h"
 #include "main/ui/style.h"
 #include "main/ui/watermark.h"
+#include "shared/game/heap.h"
 #include "shared/game/mem.h"
 #include "shared/game/menu_sound.h"
 #include "shared/game/pad_bits.h"
@@ -672,8 +673,8 @@ namespace lab {
                 {
                     sx = sy = 0.0f;
                 }
-                int ix = static_cast<int>(sx >= 0.0f ? (sx * 100.0f + 0.5f) : (sx * 100.0f - 0.5f));
-                int iy = static_cast<int>(sy >= 0.0f ? (sy * 100.0f + 0.5f) : (sy * 100.0f - 0.5f));
+                int ix = game::f2i(sx >= 0.0f ? (sx * 100.0f + 0.5f) : (sx * 100.0f - 0.5f));
+                int iy = game::f2i(sy >= 0.0f ? (sy * 100.0f + 0.5f) : (sy * 100.0f - 0.5f));
                 if (ix < -100) ix = -100;
                 else if (ix > 100) ix = 100;
                 if (iy < -100) iy = -100;
@@ -943,7 +944,7 @@ namespace lab {
         {
             int side = refs[i].cpu ? main::kSideCpu : main::kSideHuman;
             u16 percent = main::percentSetting(side);
-            if (main::lockSetting(side) && game::damage(refs[i]) != static_cast<float>(percent))
+            if (main::lockSetting(side) && game::damage(refs[i]) != game::i2f(percent))
             {
                 game::setDamage(refs[i], percent);
             }
@@ -1434,7 +1435,7 @@ namespace lab {
         case game::kTechWavedash:
             if (o.wavedash)
             {
-                float angle = static_cast<int>(t.angle * 10.0f) / 10.0f;
+                float angle = game::i2fScale(game::f2i(t.angle * 10.0f), 0.1f);
                 m = osd::post(t.player, osd::kIdWavedash, osd::kWhite, "Wavedash: f%d\nAngle: %2.1f\n%s (%df)",
                               t.frame, angle, t.flag ? "SH" : "FH", t.a);
                 osd::lineColor(m, 0, first ? osd::kGreen : osd::kWhite);
