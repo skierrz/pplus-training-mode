@@ -4,8 +4,10 @@
 #include <ip/ip_padconfig.h>
 #include <string.h>
 
+#include "extra/combo_break_rush.h"
 #include "extra/di_cstick_core.h"
 #include "extra/drill_hud.h"
+#include "extra/drill_practice_driver.h"
 #include "extra/net_alloc.h"
 #include "extra/scenario_presets.h"
 #include "main/cpu/cpu_settings.h"
@@ -172,6 +174,11 @@ namespace extra {
         return out;
     }
 
+    static bool hudTrainingSidebarShown()
+    {
+        return game::trainingGameMode() && main::settings().display.hud != 0 && ui::matchHudCounterShown();
+    }
+
     void drawStatPlate(const StatPlateRow* rows, int count, float aboveBottom, bool wide)
     {
         if (rows == NULL || count <= 0)
@@ -180,11 +187,11 @@ namespace extra {
         }
         using namespace ui::layout;
         float xs = xsOf(wide);
-        Box b = drillStatPlateBox(count, aboveBottom, wide);
+        Box b = drillStatPlateBox(count, aboveBottom, wide, hudTrainingSidebarShown());
         float bw = b.x1 - b.x0;
         float bh = b.y1 - b.y0;
         float cx = (b.x0 + b.x1) * 0.5f;
-        float maxW = bw - 10.0f * xs;
+        float maxW = bw - 2.0f * ui::style::kFibTight * xs;
 
         drawSmokedPlate(b.x0, b.y0, bw, bh);
         for (int i = 0; i < count; i++)
@@ -196,12 +203,12 @@ namespace extra {
             }
             if (rows[i].label != NULL && rows[i].label[0] != '\0')
             {
-                drawShadowCapCenter(cx, ry + 3.0f, rows[i].label, 0xC6D4E0FFu, 8.2f, maxW);
+                drawShadowCapCenter(cx, ry + 3.0f, rows[i].label, 0xC6D4E0FFu, ui::style::kTypeMeta, maxW);
             }
             if (rows[i].value != NULL && rows[i].value[0] != '\0')
             {
                 gfx::Rgba vc = rows[i].valueColor != 0u ? rows[i].valueColor : 0xF4F8FCFFu;
-                drawShadowCapCenter(cx, ry + 15.0f, rows[i].value, vc, 11.5f, maxW);
+                drawShadowCapCenter(cx, ry + 16.0f, rows[i].value, vc, ui::style::kTypeHeading, maxW);
             }
         }
     }
@@ -266,7 +273,8 @@ namespace extra {
     void drawCpuStatusTag(const game::MatchState& match, bool menuOpen)
     {
         if (!match.running || !match.training || match.paused || menuOpen || !display::hudShown()
-            || drillHudActiveId() != 0 || gfx::lineHeight(0.5f) <= 0.0f)
+            || drillHudActiveId() != 0 || comboBreakRushActive() || drillPracticeCpuInStandby()
+            || gfx::lineHeight(0.5f) <= 0.0f)
         {
             return;
         }
@@ -323,9 +331,9 @@ namespace extra {
     void drawHudBannerTitle(float ox, float oy, float bw, float bh, float xs, gfx::Rgba accent, const char* title)
     {
         drawHudBanner(ox, oy, bw, bh, xs, accent);
-        float sc = 8.5f / 24.0f;
-        gfx::displayText(ox + 10.0f * xs, oy + 7.0f - 2.5f * sc, title, 0xFFFFFFFFu, 0xB8E0EEFFu, sc, sc, 1.2f,
-                         0x050C12FFu);
+        float sc = ui::style::displayScaleForCap(ui::style::kTypeMeta);
+        gfx::displayText(ox + 10.0f * xs, ui::style::displayYForCap(oy + 7.0f, sc), title, 0xFFFFFFFFu, 0xB8E0EEFFu,
+                         sc, sc, 1.2f, 0x050C12FFu);
     }
 
     void drawHudPill(float x, float y, float w, float xs, bool gold)
@@ -454,13 +462,14 @@ namespace extra {
         }
     }
 
-    static float viewerColumnBottomFor(int vSlots, const ui::layout::Box& band, bool wide)
+    static float viewerColumnBottomFor(int vSlots, const ui::layout::Box& band, bool wide, bool sidebar)
     {
-        float bottom = 0.0f;
+        float bottom = sidebar ? ui::layout::trainingSidebarRoom(wide).y1 : 0.0f;
+        float sbLeft = sidebar ? ui::layout::trainingSidebarRoom(wide).x0 : 0.0f;
         for (int s = 0; s < vSlots; s++)
         {
-            ui::layout::Box vb = ui::layout::inputViewerCardBox(s, band, wide);
-            if (vb.y1 > bottom)
+            ui::layout::Box vb = ui::layout::inputViewerCardBox(s, band, wide, sidebar);
+            if ((!sidebar || vb.x1 > sbLeft) && vb.y1 > bottom)
             {
                 bottom = vb.y1;
             }
@@ -523,7 +532,7 @@ namespace extra {
         }
         const main::Settings& s = main::settings();
         int vSlots = ui::layout::inputViewerSlotCount(s.display.inputViewer);
-        return viewerColumnBottomFor(vSlots, ui::layout::topBand(), wide);
+        return viewerColumnBottomFor(vSlots, ui::layout::topBand(), wide, hudTrainingSidebarShown());
     }
 
     ui::layout::Box hudRightCardBox(int kind, bool wide, int viewerSlotsOverride, int hasCompOverride)
@@ -533,11 +542,12 @@ namespace extra {
         const main::Settings& s = main::settings();
         Box band = topBand();
         int vSlots = viewerSlotsOverride >= 0 ? viewerSlotsOverride : inputViewerSlotCount(s.display.inputViewer);
+        bool sidebar = hudTrainingSidebarShown();
         if (kind == kHudCardPsa)
         {
             float infoBot = hudInfoStackBottom(wide);
             Box b = psaInspectorBox(band, vSlots, false, wide, infoBot);
-            if (infoBot <= 0.0f && game::trainingGameMode() && s.display.hud != 0 && ui::matchHudCounterShown())
+            if (infoBot <= 0.0f && sidebar)
             {
                 float cX0 = wide ? 106.0f : 31.0f;
                 float cX1 = wide ? 183.0f : 130.0f;
@@ -553,14 +563,14 @@ namespace extra {
         }
         if (kind == kHudCardAdaptive)
         {
-            return adaptiveHudBox(band, vSlots, false, false, wide);
+            return adaptiveHudBox(band, vSlots, false, false, wide, 0.0f, sidebar);
         }
         return drillHudBox(wide);
     }
 
     ui::layout::Box hudViewerCardBox(int slot, bool wide)
     {
-        return ui::layout::inputViewerCardBox(slot, ui::layout::topBand(), wide);
+        return ui::layout::inputViewerCardBox(slot, ui::layout::topBand(), wide, hudTrainingSidebarShown());
     }
 
     float hudOsdTopStartY(bool isTopRight, bool vsReadOnly)
@@ -593,7 +603,8 @@ namespace extra {
             {
                 plateRows = drillHudActiveId() != 0 ? 3 : scenarioPresetsPlateRows(game::matchState());
             }
-            sideBot = rightColumnBottom(band, vSlots, false, false, wide, hasAdaptive, plateRows);
+            sideBot = rightColumnBottom(band, vSlots, false, false, wide, hasAdaptive, plateRows,
+                                        hudTrainingSidebarShown());
             if (s.display.psaInspector != main::kPsaOff)
             {
                 Box psa = hudRightCardBox(kHudCardPsa, wide);
