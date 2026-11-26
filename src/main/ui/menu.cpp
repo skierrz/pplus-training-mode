@@ -876,11 +876,19 @@ namespace ui {
         float x1Bot = cx(x143 - slant);
         if (edgeCol != 0)
         {
-            float padX = w(1.5f);
-            drawSlantGradV(x0Top - padX, x0Bot - padX, x1Top + padX, x1Bot + padX, y - 1.0f, y + h + 1.0f, edgeCol,
-                           edgeCol);
+            drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + h, edgeCol, edgeCol);
+            float padX = w(2.0f);
+            float dySlant = w(2.0f * kSlantTan);
+            float ix0Top = flushLeft ? x0Top : (x0Top - dySlant + padX);
+            float ix0Bot = flushLeft ? x0Bot : (x0Bot + dySlant + padX);
+            float ix1Top = x1Top - dySlant - padX;
+            float ix1Bot = x1Bot + dySlant - padX;
+            drawSlantGradV(ix0Top, ix0Bot, ix1Top, ix1Bot, y + 2.0f, y + h - 2.0f, topCol, botCol);
         }
-        drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + h, topCol, botCol);
+        else
+        {
+            drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + h, topCol, botCol);
+        }
     }
 
     static void drawGoldBar(float x43, float w43, float y, float h, float cursorSize, bool flushLeft = false,
@@ -891,7 +899,9 @@ namespace ui {
         drawSlantRow(x43, x143, y, h, flushLeft, kLabGoldTop, kLabGoldBot, kLabGoldEdge);
         if (stripeRight43 > 0.0f)
         {
-            drawDiagStripes(cx(stripeRight43), y, y + h, w(slant), w(4.0f), w(3.0f), kLabStripeCol);
+            float inH = h - 4.0f;
+            drawDiagStripes(cx(stripeRight43), y + 2.0f, y + h - 2.0f, w(inH * kSlantTan), w(4.0f), w(3.0f),
+                            kLabStripeCol);
         }
         float midY = y + h * 0.5f;
         float iconH = cursorSize + 2.0f;
@@ -1017,10 +1027,10 @@ namespace ui {
         float x0Bot = 320.0f + (left43 - 320.0f) * xs;
         float x1Top = 320.0f + (right43 - 320.0f) * xs;
         float x1Bot = 320.0f + (right43 - slant - 320.0f) * xs;
-        float pad = 1.8f * xs;
+        float pad = 2.0f * xs;
         if (selected || isOn)
         {
-            drawSlantGradV(x0Top - pad, x0Bot - pad, x1Top + pad, x1Bot + pad, py - 1.5f, py + ph + 1.5f,
+            drawSlantGradV(x0Top - pad, x0Bot - pad, x1Top + pad, x1Bot + pad, py - 2.0f, py + ph + 2.0f,
                            kLabPillBorder, kLabPillBorder);
         }
         drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, py, py + ph, topCol, botCol);

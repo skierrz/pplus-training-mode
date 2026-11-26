@@ -102,6 +102,15 @@ namespace lab {
         return true;
     }
 
+    // True when openMenu() may sync unlocked P1/CPU percent fields to live match
+    // damage. Skips whenever a reset-owning mode (Combo Lab / Combo Trainer,
+    // active Scenario preset, or active Skill Drill) owns those fields as
+    // starting/reset damage.
+    static inline bool shouldSyncUnlockedPercentsOnOpen(u8 comboTrainerEnabled, u8 scenarioPreset, u8 activeDrill)
+    {
+        return comboTrainerEnabled == 0 && scenarioPreset == 0 && activeDrill == 0;
+    }
+
     // Converts a normalized 2D stick vector into Custom DI [-100, +100] coordinates.
     // When `allowNeutral` is false (non-modal C-Stick), neutral stick preserves the
     // existing aimed angle and returns false.

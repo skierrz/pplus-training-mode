@@ -1672,7 +1672,7 @@ TEST(drill_list, challenges_and_character_trainers_tabs_arm_all_seven_and_show_s
         {
             host::canvas::clear();
             menu::list::onRender(0);
-            CHECK(canvasDrew("3D Target Orbs"));
+            CHECK(canvasDrew("Brawl Targets"));
             CHECK(canvasDrew("Best Score"));
             CHECK(canvasDrew("1250"));
         }

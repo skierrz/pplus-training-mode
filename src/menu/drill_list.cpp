@@ -419,12 +419,12 @@ namespace list {
             kRowSkillDrill,
             drills::kDrillComboBreakRush,
             {
-                "Break 3D stage target orbs to",
-                "build x1-x8 combo chains in",
-                "Timed Rush or Free Practice."
+                "Break Brawl targets across the",
+                "stage for x1-x8 chains in Timed",
+                "or Free mode."
             },
             "Any Fighter",
-            "3D Target Orbs",
+            "Brawl Targets",
             "In-match L + D-Up: Free / 30s / 60s"
         },
         {
@@ -1250,7 +1250,13 @@ namespace list {
         float x0Bot = cx(kColLeft);
         float x1Top = cx(kColBarRight);
         float x1Bot = cx(kColBarRight - slant);
-        float padX = w(1.5f);
+        float padX = w(2.0f);
+        float dySlant = w(2.0f * kSlantTan);
+        float ix0Top = x0Top - dySlant + padX;
+        float ix0Bot = x0Bot + dySlant + padX;
+        float ix1Top = x1Top - dySlant - padX;
+        float ix1Bot = x1Bot + dySlant - padX;
+        float inSlantPx = w((kColRowH - 4.0f) * kSlantTan);
         float textX = cx(kColTextX);
         float textMaxW = cx(kColBarRight - 24.0f) - textX;
 
@@ -1261,17 +1267,18 @@ namespace list {
             float y = kColTop + r * kColPitch;
             if (selected)
             {
-                drawSlantGradV(x0Top - padX, x0Bot - padX, x1Top + padX, x1Bot + padX, y - 1.0f, y + kColRowH + 1.0f,
-                               kLabGoldEdge, kLabGoldEdge);
-                drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + kColRowH, kLabGoldTop, kLabGoldBot);
-                drawDiagStripes(x1Top - w(10.0f), y, y + kColRowH, w(slant), w(4.5f), w(3.5f), kLabStripeCol);
+                drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + kColRowH, kLabGoldEdge, kLabGoldEdge);
+                drawSlantGradV(ix0Top, ix0Bot, ix1Top, ix1Bot, y + 2.0f, y + kColRowH - 2.0f, kLabGoldTop,
+                               kLabGoldBot);
+                drawDiagStripes(ix1Top - w(8.0f), y + 2.0f, y + kColRowH - 2.0f, inSlantPx, w(4.5f), w(3.5f),
+                                kLabStripeCol);
                 drawCursorTri(cx(kColLeft + slant * 0.55f + 2.0f), y + kColRowH * 0.5f, 8.5f);
             }
             else
             {
-                drawSlantGradV(x0Top - padX, x0Bot - padX, x1Top + padX, x1Bot + padX, y - 1.0f, y + kColRowH + 1.0f,
-                               kLabBorderColor, kLabBorderColor);
-                drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + kColRowH, kRowFillTop, kRowFillBot);
+                drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + kColRowH, kLabBorderColor, kLabBorderColor);
+                drawSlantGradV(ix0Top, ix0Bot, ix1Top, ix1Bot, y + 2.0f, y + kColRowH - 2.0f, kRowFillTop,
+                               kRowFillBot);
             }
 
             const char* name = rowAt(sec, idx).name;

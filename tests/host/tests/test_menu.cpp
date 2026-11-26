@@ -1798,6 +1798,15 @@ TEST(lab_menu, stream1_damage_sync_and_one_tap_a_zero_reset)
     ui::MenuState st;
     ui::menuReset(menu, st);
 
+    // Unlocked damage syncs live match % only in free Training (never when a
+    // reset-owning mode like Combo Lab, Scenario preset, or Skill Drill is active).
+    CHECK(lab::shouldSyncUnlockedPercentsOnOpen(0, ui::pages::kPresetOff, 0));
+    CHECK(!lab::shouldSyncUnlockedPercentsOnOpen(1, ui::pages::kPresetOff, 0));
+    CHECK(!lab::shouldSyncUnlockedPercentsOnOpen(0, ui::pages::kPresetComboLab, 0));
+    CHECK(!lab::shouldSyncUnlockedPercentsOnOpen(0, ui::pages::kPresetTechchase, 0));
+    CHECK(!lab::shouldSyncUnlockedPercentsOnOpen(0, ui::pages::kPresetOff, 1));
+    CHECK(!lab::shouldSyncUnlockedPercentsOnOpen(1, ui::pages::kPresetComboLab, 1));
+
     // Unlocked damage syncs live match % into menu setting without mutating locked sides.
     u16 p1Pct = 10;
     u16 cpuPct = 20;
