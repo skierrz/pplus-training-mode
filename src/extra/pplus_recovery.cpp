@@ -271,6 +271,11 @@ namespace extra {
                 u32 wi = static_cast<u32>(spec.laResourceIdx) >> 5;
                 const u32* lb = reinterpret_cast<const u32*>(laArray(m, kWorkFlagCount, kWorkFlags, wi));
                 in.laFlag = lb != NULL && ((lb[wi] >> (spec.laResourceIdx & 31u)) & 1u) != 0;
+                if (ftKind == 0x00) // Mario: also read Cape stall LA-Bit 0x3D into laInt
+                {
+                    const u32* cb = reinterpret_cast<const u32*>(laArray(m, kWorkFlagCount, kWorkFlags, 0x3Du >> 5));
+                    in.laInt = (cb != NULL && ((cb[0x3Du >> 5] >> (0x3Du & 31u)) & 1u) != 0) ? 1 : 0;
+                }
             }
         }
 

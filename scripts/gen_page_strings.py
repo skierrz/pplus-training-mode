@@ -222,10 +222,10 @@ def collect_entries() -> list[tuple[str, bytes]]:
         "scen",
         [
             "kPresets", "kSides", "kTechSetups", "kTechPositions", "kTechEscapes", "kTechTdis",
-            "kEdgeSetups", "kEdgeStrengths", "kEdgeDists", "kEdgeDjs", "kEdgeMixups", "kShieldRoles",
+            "kEdgeSetups", "kEdgeStrengths", "kEdgeDists", "kEdgeDjs", "kEdgeMixups", "kEdgeResets", "kShieldRoles",
             "kOosActions", "kShieldDefAttacks", "kLtStarts", "kLtTimings", "kLedgetechSpawns",
             "kLedgetechAttacks", "kShieldDropPlats", "kShieldDropAttacks", "kShieldDropSpacing",
-            "kShieldDropFacing", "kSlideOffAttacks", "kGrabActions", "kGrabPctModes", "kMultiHitMoves",
+            "kShieldDropFacing", "kSlideOffStarts", "kSlideOffAttacks", "kGrabActions", "kGrabPctModes", "kMultiHitMoves",
             "kPracticeModes", "kPsAtkModes", "kPsHeights", "kPsCadences", "kLedgeSides", "kLedgeInvulns",
             "kPracticeTargets",
         ],

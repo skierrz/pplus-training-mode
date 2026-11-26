@@ -249,7 +249,7 @@ namespace extra {
         // 0x2E Snake
         SPEC(kFamCharged, kRfBoostUpB, 90, 69, 0, 0, 0, 0, 6, 4, 0, 0, 0, 0, 0, 0x3D, 32),
         // 0x2F Sonic
-        SPEC(kFamArc, kRfNone, 25, 69, 0, 0, 0, 0, 6, 4, 0, 0, 0, 0, 0, 0, 36),
+        SPEC(kFamArc, kRfNone, 25, 69, 0, 0, 0, 0, 6, 4, 0, 0, 0, 0, 0, 0x3D, 36),
         // 0x30 Giga Bowser
         SPEC(kFamArc, kRfNone, 65, 45, 0, 0, 0, 0, 6, 4, 0, 0, 0, 0, 0, 0, 34),
         // 0x31 Wario-Man
@@ -362,7 +362,10 @@ namespace extra {
         float launchX = belowL ? toLedgeX : (toLedgeX + towardGoal * 6.0f);
         float minLaunchX = belowL ? 8.0f : 12.0f;
         if (launchX * towardGoal < minLaunchX) launchX = towardGoal * minLaunchX;
-        float launchY = toLedgeY + (in.ledgeOccupied && !in.ceilingAbove ? 22.0f : 10.0f);
+        float heightOff = (in.ledgeOccupied || in.recoveryMixup == kMixupHigh) && !in.ceilingAbove
+                              ? 26.0f
+                              : (in.recoveryMixup == kMixupLow ? 4.0f : 10.0f);
+        float launchY = toLedgeY + heightOff;
         float minLaunchY = recAbs(launchX) * 0.75f;
         if (minLaunchY < 24.0f) minLaunchY = 24.0f;
         if (launchY < minLaunchY) launchY = minLaunchY;
@@ -398,18 +401,24 @@ namespace extra {
         static const FtStRange kRanges[] = {
             // Up-B continuations
             {kMatchUpB, 0x06, 0x07, 0x07}, {kMatchUpB, 0x13, 0x07, 0x07}, {kMatchUpB, 0x2C, 0x07, 0x07},
-            {kMatchUpB, 0x0A, 0x0A, 0x0C}, {kMatchUpB, 0x1A, 0x0A, 0x0C}, {kMatchUpB, 0x1B, 0x15, 0x15},
-            {kMatchUpB, 0x1B, 0x17, 0x17}, {kMatchUpB, 0x21, 0x0B, 0x0C}, {kMatchUpB, 0x26, 0x0B, 0x0C},
-            {kMatchUpB, 0x22, 0x0E, 0x10}, {kMatchUpB, 0x0C, 0x0A, 0x0C}, {kMatchUpB, 0x16, 0x0D, 0x0D},
+            {kMatchUpB, 0x09, 0x09, 0x0A}, {kMatchUpB, 0x14, 0x09, 0x0A},
+            {kMatchUpB, 0x0A, 0x0A, 0x0C}, {kMatchUpB, 0x1A, 0x0A, 0x0C},
+            {kMatchUpB, 0x0D, 0x07, 0x0C}, {kMatchUpB, 0x0E, 0x07, 0x0C},
+            {kMatchUpB, 0x0F, 0x08, 0x0F}, {kMatchUpB, 0x10, 0x08, 0x0F},
+            {kMatchUpB, 0x1B, 0x15, 0x15}, {kMatchUpB, 0x1B, 0x17, 0x17},
+            {kMatchUpB, 0x21, 0x0B, 0x0C}, {kMatchUpB, 0x26, 0x0B, 0x0C},
+            {kMatchUpB, 0x22, 0x0E, 0x10}, {kMatchUpB, 0x0C, 0x0A, 0x0C},
+            {kMatchUpB, 0x16, 0x0D, 0x0D}, {kMatchUpB, 0x2E, 0x07, 0x07},
             // Side-B continuations
-            {kMatchSideB, 0x06, 0x19, 0x19}, {kMatchSideB, 0x1B, 0x0B, 0x0C}, {kMatchSideB, 0x1B, 0x14, 0x14},
+            {kMatchSideB, 0x06, 0x19, 0x19}, {kMatchSideB, 0x07, 0x07, 0x07}, {kMatchSideB, 0x08, 0x07, 0x09},
+            {kMatchSideB, 0x1B, 0x0B, 0x0C}, {kMatchSideB, 0x1B, 0x14, 0x14},
             {kMatchSideB, 0x1E, 0x09, 0x09}, {kMatchSideB, 0x22, 0x0A, 0x0C}, {kMatchSideB, 0x16, 0x09, 0x0A},
             // Down-B continuations
             {kMatchDownB, 0x03, 0x0D, 0x0E}, {kMatchDownB, 0x03, 0x10, 0x11}, {kMatchDownB, 0x16, 0x0B, 0x0C},
             // Special fall continuations
-            {kMatchSpecFall, 0x06, 0x08, 0x08}, {kMatchSpecFall, 0x13, 0x08, 0x08},
-            {kMatchSpecFall, 0x2C, 0x08, 0x08}, {kMatchSpecFall, 0x22, 0x0D, 0x0D},
-            {kMatchSpecFall, 0x2E, 0x08, 0x08}
+            {kMatchSpecFall, 0x06, 0x08, 0x08}, {kMatchSpecFall, 0x08, 0x0B, 0x0B},
+            {kMatchSpecFall, 0x13, 0x08, 0x08}, {kMatchSpecFall, 0x2C, 0x08, 0x08},
+            {kMatchSpecFall, 0x22, 0x0D, 0x0D}, {kMatchSpecFall, 0x2E, 0x08, 0x08}
         };
         for (int i = 0; i < static_cast<int>(sizeof(kRanges) / sizeof(kRanges[0])); i++)
         {
@@ -451,7 +460,7 @@ namespace extra {
         const u32 lastB = in.lastButtons;
 
         // First frame of a new recovery: apply Recovery Mixup profile (Mixed,
-        // Low sweetspot, High, or Direct).
+        // Low sweetspot, High, or Direct) and per-rep 360-aim offset.
         if (!st.initialized)
         {
             st.initialized = 1;
@@ -459,6 +468,7 @@ namespace extra {
             if (mix == kMixupHigh)
             {
                 st.highMixup = static_cast<u8>(f2i(28.0f + 27.0f * recRand01(rng)));
+                st.holdFrames = static_cast<u8>(14u + (geomNextRng(rng) % 25u));
             }
             else if (mix == kMixupMixed)
             {
@@ -467,6 +477,7 @@ namespace extra {
                 {
                     st.highMixup = static_cast<u8>(f2i(15.0f + 40.0f * recRand01(rng)));
                 }
+                st.holdFrames = static_cast<u8>(geomNextRng(rng) % 39u);
             }
         }
 
@@ -563,6 +574,13 @@ namespace extra {
             }
             if ((flg & kRf360Aim) != 0)
             {
+                if (((ft == 0x06 || ft == 0x13 || ft == 0x2C) && in.status == 0x117)
+                    || ((ft == 0x0E || ft == 0x26) && in.subaction == 0x1DF)
+                    || (ft == 0x0D && in.status == 0x119))
+                {
+                    out.stickX = driftX;
+                    return;
+                }
                 const bool isLow = mix == kMixupLow;
                 const bool isHigh = mix == kMixupHigh;
                 const bool aboveStage = !in.ceilingAbove && in.y >= in.stageY - 4.0f;
@@ -582,14 +600,26 @@ namespace extra {
                 }
                 else if (isHigh || (mix != kMixupDirect && (in.ledgeOccupied || (!isLow && st.option == kOptUpBHigh))))
                 {
-                    float off = isHigh ? 3.0f : 0.0f;
-                    targetDy += 25.0f + off;
-                    targetDx += towardGoal * (15.0f + off);
+                    float aimOff = i2f(st.holdFrames);
+                    targetDy += 16.0f + aimOff * 0.7f;
+                    targetDx += towardGoal * (8.0f + aimOff * 0.4f);
+                }
+                else if (mix == kMixupMixed && st.holdFrames > 0)
+                {
+                    targetDy += i2f(st.holdFrames) * 0.6f;
                 }
                 if (aboveStage && targetDx * stageCenterDir < 0.0f) targetDx = stageCenterDir * recAbs(targetDx);
-                if ((flg & kRfQuickAttack) != 0 && in.subaction == 0x1DB && dist2D(targetDx, targetDy) > 45.0f)
+                if ((flg & kRfQuickAttack) != 0)
                 {
-                    targetDy += 25.0f;
+                    if (in.subaction == 0x1DB)
+                    {
+                        targetDy += dist2D(targetDx, targetDy) > 45.0f ? 28.0f : 22.0f;
+                    }
+                    else if (in.subaction == 0x1DC)
+                    {
+                        targetDx += towardGoal * 18.0f;
+                        targetDy -= 10.0f;
+                    }
                 }
                 if ((flg & kRfAuraCancel) != 0 && st.option == kOptUpBCancel && in.status == 0x11B && iAnim >= R16(15))
                 {
@@ -604,7 +634,8 @@ namespace extra {
             {
                 float wantCharge = recClamp((dist2D(toLedgeX, toLedgeY) - 30.0f) * 0.6f, 8.0f, i2f(spec.shortenFrame));
                 if (in.animFrame <= wantCharge) out.buttons = kRecBtnSpecial;
-                if (in.animFrame > wantCharge * 0.45f) out.stickX = towardGoal;
+                float leanFrac = absNCX < belowLedgeY ? 0.75f : 0.30f;
+                if (in.animFrame > wantCharge * leanFrac) out.stickX = towardGoal;
                 return;
             }
             if ((flg & kRfBoostUpB) != 0)
@@ -616,7 +647,14 @@ namespace extra {
                 return;
             }
             if (ft == 0x16 && st.option == kOptGlide) { if (iAnim < R16(5)) out.stickX = towardGoal; return; }
-            if (iAnim <= R16(12) && in.vx * towardGoal < 0.0f) out.stickX = towardGoal;
+            if (ft == 0x0C && in.status >= 0x11A && ix < R16(10) && iy < R16(4)) { out.stickY = -1.0f; return; }
+            if ((ft == 0x09 || ft == 0x14) && mix == kMixupLow && ix < R16(6) && iy > R16(-4)) return;
+            if ((ft == 0x11 || ft == 0x27) && !in.ceilingAbove && !overStageSurface && mix != kMixupHigh
+                && !in.ledgeOccupied)
+            {
+                out.stickX = recClamp(toLedgeX * (ft == 0x27 ? 0.035f : 0.05f), -1.0f, 1.0f);
+            }
+            else if (iAnim <= R16(12) && in.vx * towardGoal < 0.0f) out.stickX = towardGoal;
             else if (in.ceilingAbove || ix > R16(5) || overStageSurface) out.stickX = driftX;
             return;
         }
@@ -654,9 +692,15 @@ namespace extra {
                     out.buttons = kRecBtnSpecial;
                 }
             }
-            else if (ft == 0x08 && (flg & kRfChargeSideB) != 0)
+            else if ((ft == 0x08 && (flg & kRfChargeSideB) != 0 && iAnim < R16(22) && ix > R16(40))
+                     || (ft == 0x07 && iAnim < R16(20) && ix > R16(35)))
             {
-                if (iAnim < R16(22) && ix > R16(40)) out.buttons = kRecBtnSpecial;
+                out.buttons = kRecBtnSpecial;
+            }
+            else if (ft == 0x0F || ft == 0x10)
+            {
+                st.mashPhase++;
+                if ((st.mashPhase & 1u) != 0) pressBtn(out, kRecBtnSpecial, lastB);
             }
             else if (ft == 0x1B && in.status == 0x124) pressBtn(out, kRecBtnJump, lastB);
             else if ((flg & kRfSideBCancel) != 0 && in.status == 0x119) pressBtn(out, kRecBtnSpecial, lastB);
@@ -791,21 +835,22 @@ namespace extra {
             u8 optHi, w, xMin, xMax;
             s8 yMin, yMax;
         };
-        static const DieRule kRules[14] = {
+        static const DieRule kRules[15] = {
             {kOptFloat | 0x80, 30, 15, kLimAltX, -25, 30},           // 0: Peach Float
             {kOptFloat | 0x80, 28, 10, kLimAltX, -20, 65},           // 1: Mewtwo Hover
             {kOptNeutralB, 14, 26, kXInf, kYNegInf, 19},             // 2: Ganon Float
             {kOptGlide, 14, 15, kLimAltX, -35, kYLimAltY25},         // 3: Glide
             {kOptDownB, 14, 26, kXInf, -19, kYLimUpBYm1},            // 4: Samus Bomb
             {kOptDownB, 16, 15, 75, -20, 35},                        // 5: ZSS Flip
-            {kOptDownB, 14, 16, kXInf, -9, kYLimUpBY14},             // 6: Mario/Luigi Mash
+            {kOptDownB, 14, 0, kXInf, -9, kYLimUpBY14},              // 6: Mario/Luigi Mash
             {kOptDownB, 14, 0, 90, kYNegInf, 19},                    // 7: Lucario Down-B / Cancel
             {kOptDownB, 16, 0, 44, 16, kYInf},                       // 8: Wario Waft
             {kOptNeutralB, 10, 10, 80, -10, 45},                     // 9: MK Mach Tornado
             {kOptDairStall, 8, 46, kXInf, kYNegInf, -11},            // 10: Ivysaur DairStall
             {kOptUpB, 24, 0, 30, 2, kYLimUpBY},                      // 11: Ivysaur Tether Up-B
             {kOptUpB, 24, 0, kLimUpBX, -15, kYLimUpBY10},            // 12: Olimar Tether Up-B
-            {kOptTether, 18, 8, kLimUpBX, -15, kYLimUpBY10}          // 13: Standard Tether
+            {kOptTether, 18, 8, kLimUpBX, -15, kYLimUpBY10},         // 13: Standard Tether
+            {kOptDownB, 10, 0, 35, -35, 35}                          // 14: MK Dimensional Cape
         };
         u32 rMask = 0;
         if ((flg & kRfFloat) != 0 && st.usedFloat == 0)
@@ -820,7 +865,7 @@ namespace extra {
         if ((flg & kRfMashDownB) != 0 && !in.laFlag) rMask |= 1u << 6;
         if ((flg & kRfAuraCancel) != 0 && !in.laFlag) rMask |= 1u << 7;
         if ((flg & kRfWaft) != 0 && in.laInt >= 2) rMask |= 1u << 8;
-        if (ft == 0x16 && !mkSaveSpecials) rMask |= 1u << 9;
+        if (ft == 0x16 && !mkSaveSpecials) rMask |= (1u << 9) | (1u << 14);
         if ((flg & kRfDairStall) != 0 && mix != kMixupDirect && in.vy < -0.5f) rMask |= 1u << 10;
         if ((flg & kRfTether) != 0)
         {
@@ -830,7 +875,7 @@ namespace extra {
         const int kLim[8] = {
             spec.altX, spec.altY + 25, spec.upBY - 1, spec.upBY + 14, spec.upBX, spec.upBY, spec.upBY + 10, 999
         };
-        for (int i = 0; i < 14; i++)
+        for (int i = 0; i < 15; i++)
         {
             if (((rMask >> i) & 1u) == 0) continue;
             const DieRule& r = kRules[i];
@@ -848,15 +893,15 @@ namespace extra {
             bool allowSideB = inRect16(ix, 12, spec.sideBX, iyH, spec.sideBY - 25, spec.sideBY + 35);
             const bool wallLow = in.wallAhead && iWall < R16(24) && iy > R16(4);
             struct SbRect { u8 ft, mode, x0, x1; s8 y0, y1; };
-            // mode: 0=spacie, 1=falcon, 2=ganon, 3=mario, 4=marth, 5=puff
+            // mode: 0=spacie, 1=falcon, 2=ganon, 3=mario, 4=marth/roy, 5=puff
             // x1: 254=sideBX, 255=999; y0: -127=-150, -128=-999; y1: 127=sideBY
-            static const SbRect kSb[8] = {
+            static const SbRect kSb[9] = {
                 {0x06, 0, 12, 62, -35, 4},   {0x13, 0, 12, 62, -35, 4},   {0x2C, 0, 12, 62, -35, 8},
                 {0x09, 1, 12, 48, -40, -4},  {0x14, 2, 12, 254, -40, 2},  {0x00, 3, 26, 255, -128, 12},
-                {0x11, 4, 25, 255, -128, 25},{0x25, 5, 0, 254, -127, 127}
+                {0x11, 4, 25, 255, -128, 25},{0x27, 4, 25, 255, -128, 25},{0x25, 5, 0, 254, -127, 127}
             };
             bool matchedSb = false;
-            for (int si = 0; si < 8; si++)
+            for (int si = 0; si < 9; si++)
             {
                 if (kSb[si].ft != ft) continue;
                 matchedSb = true;
@@ -868,7 +913,7 @@ namespace extra {
                 if (md == 0) allowSideB = ok && !(in.jumpsLeft && ix > R16(45)) && !wallLow && !(mix == kMixupLow && iy < R16(-8));
                 else if (md == 1) allowSideB = ok && !in.wallAhead;
                 else if (md == 2) allowSideB = ok && !wallLow;
-                else if (md == 3 || md == 4) allowSideB = allowSideB && ok && mix != kMixupDirect && in.vy < (md == 4 ? -0.2f : 0.0f);
+                else if (md == 3 || md == 4) allowSideB = ok && (md != 3 || in.laInt == 0) && mix != kMixupDirect && in.vy < (md == 4 ? -0.2f : 0.0f);
                 else allowSideB = ok;
                 break;
             }
@@ -882,7 +927,7 @@ namespace extra {
                 if ((flg & kRfSideBShorten) != 0)
                 {
                     addDieI(die, kOptSideB, mix == kMixupHigh ? 14 : 4);
-                    if (ix <= R16(16) && mix != kMixupHigh) addDieI(die, kOptSideBShort, 12);
+                    if (ix <= R16(32) && mix != kMixupHigh) addDieI(die, kOptSideBShort, 12);
                 }
                 else if (ft == 0x22 && in.wallAhead && in.laInt > 0)
                 {
@@ -899,20 +944,23 @@ namespace extra {
             inUpB = (flg & kRf360Aim) != 0 ? (d2 <= upBX + 8.0f && (iy >= R16(-15) || ix > R16(25)))
                                            : inRect16(ix, 0, spec.upBX + 8, iy, -15, spec.upBY + 15);
         }
-        if ((ft == 0x2E && in.laFlag && in.jumpsLeft) || (ft == 0x1F && (iy < R16(2) || ix > R16(32)))
+        if (((ft == 0x2E || ft == 0x2F) && in.laFlag && in.jumpsLeft) || (ft == 0x1F && (iy < R16(2) || ix > R16(32)))
             || ((flg & kRfPkThunder) != 0 && ix < R16(22) && iy < R16(-4)))
         {
             inUpB = false;
         }
         bool allowUpBWithJump = spec.family != kFamMultiJump && spec.family != kFamPkThunder
-                                && belowLedgeY > upBY * 0.45f && iy <= (static_cast<int>(spec.upBY) << 4);
+                                && belowLedgeY > upBY * (spec.family == kFamSpacie ? 0.55f : 0.45f)
+                                && iy <= (static_cast<int>(spec.upBY) << 4);
         if (inUpB && (!in.jumpsLeft || allowUpBWithJump))
         {
-            if ((flg & kRfAuraCancel) != 0 && hasAura) addDieI(die, kOptUpBCancel, 25);
-            addDieI(die, kOptUpB, mix == kMixupHigh && spec.family == kFamSpacie ? 12 : 40);
-            if (spec.family == kFamSpacie && mix != kMixupLow && mix != kMixupDirect)
+            if ((flg & kRfAuraCancel) != 0 && hasAura) addDieI(die, kOptUpBCancel, in.jumpsLeft ? 4 : 25);
+            int upBW = in.jumpsLeft ? 4 : (mix == kMixupHigh && spec.family == kFamSpacie ? 12 : 40);
+            addDieI(die, kOptUpB, upBW);
+            if ((spec.family == kFamSpacie || spec.family == kFamTeleport) && mix != kMixupLow && mix != kMixupDirect)
             {
-                addDieI(die, kOptUpBHigh, mix == kMixupHigh ? 40 : 15);
+                int highW = in.jumpsLeft ? 2 : (mix == kMixupHigh ? 40 : 15);
+                addDieI(die, kOptUpBHigh, highW);
             }
         }
 
@@ -981,13 +1029,39 @@ namespace extra {
             out.active = true;
             if (in.status == kStCliffWait)
             {
-                if (st.ledgeWaitFrames == 0) st.cliffChoice = static_cast<u8>(geomNextRng(rng) & 3u);
-                if (++st.ledgeWaitFrames >= 2)
+                if (st.ledgeWaitFrames == 0)
                 {
-                    static const u8 kCliffBtn[4] = {0, kRecBtnGuard, kRecBtnJump, kRecBtnAttack};
-                    u8 ch = st.cliffChoice & 3u;
-                    if (kCliffBtn[ch] != 0) pressBtn(out, kCliffBtn[ch], in.lastButtons);
-                    if (ch == 0 || ch == 2) out.stickX = in.ledgeDir != 0.0f ? in.ledgeDir : -recSign(in.x);
+                    st.ledgeWaitTarget = (in.recoveryMixup == kMixupDirect)
+                                             ? 2u
+                                             : static_cast<u8>(2u + (geomNextRng(rng) % 23u));
+                    u32 r = geomNextRng(rng) % 9u;
+                    u8 ch = static_cast<u8>(r >> 1);
+                    if (ch == 4
+                        && ((st.cliffChoice & 0x80u) != 0 || in.recoveryMixup == kMixupDirect || spec.upBY == 0))
+                    {
+                        ch = static_cast<u8>(geomNextRng(rng) & 3u);
+                    }
+                    st.cliffChoice = static_cast<u8>((st.cliffChoice & 0x80u) | ch);
+                }
+                if (st.ledgeWaitFrames < 255) st.ledgeWaitFrames++;
+                if (st.ledgeWaitFrames >= st.ledgeWaitTarget)
+                {
+                    u8 ch = st.cliffChoice & 7u;
+                    float stageDir = in.ledgeDir != 0.0f ? in.ledgeDir : -recSign(in.x);
+                    if (ch == 4)
+                    {
+                        st.cliffChoice |= 0x80u;
+                        st.initialized = 0;
+                        out.stickX = -stageDir;
+                        out.stickY = 0.0f;
+                        out.buttons = 0;
+                    }
+                    else
+                    {
+                        static const u8 kCliffBtn[4] = {0, kRecBtnGuard, kRecBtnJump, kRecBtnAttack};
+                        if (kCliffBtn[ch] != 0) pressBtn(out, kCliffBtn[ch], in.lastButtons);
+                        if (ch == 0 || ch == 2) out.stickX = stageDir;
+                    }
                 }
             }
             else st.ledgeWaitFrames = 0;

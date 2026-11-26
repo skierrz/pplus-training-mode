@@ -140,7 +140,7 @@ namespace pages {
     static bool practicePsProjActive() { return practiceDrillIs(5) && practiceMenuState()->psAttackMode == 0; }
 
 #ifdef __MWERKS__
-    static const u16 kScenLblOffs[40] = {
+    static const u16 kScenLblOffs[42] = {
         kPs_scen_kPresets, kPs_scen_kSides, kPs_scen_kTechSetups, kPs_scen_kTechPositions, kPs_scen_kTechEscapes,
         kPs_tech_kTechInvisLabels, kPs_tech_kPreTechDriftLabels, kPs_scen_kTechTdis, kPs_scen_kEdgeSetups,
         kPs_scen_kEdgeStrengths, kPs_scen_kEdgeDists, kPs_scen_kEdgeDjs, kPs_scen_kEdgeMixups, kPs_scen_kShieldRoles,
@@ -150,7 +150,8 @@ namespace pages {
         kPs_scen_kGrabPctModes, kPs_scen_kMultiHitMoves, kPs_scen_kPracticeModes, kPs_scen_kPsAtkModes,
         kPs_scen_kPsHeights, kPs_scen_kPsCadences, kPs_scen_kLedgeSides, kPs_scen_kLedgeInvulns,
         kPs_scen_kPracticeTargets, kPs_fmt_df,
-        kPs_ct_kPostEscapes, kPs_ct_kResetDelays, kPs_cpu_kTdiLabels, kPs_tech_kTech
+        kPs_ct_kPostEscapes, kPs_ct_kResetDelays, kPs_cpu_kTdiLabels, kPs_tech_kTech,
+        kPs_scen_kEdgeResets, kPs_scen_kSlideOffStarts
     };
     static bool (*const kScenGates[])() = {
         NULL, presetRowVisible, scenarioActive, scenarioSideActive, scenarioTechchaseActive,
@@ -165,7 +166,7 @@ namespace pages {
         NULL, main::extraScenarioChanged, main::extraScenarioResetNow, practiceChanged
     };
     enum {
-        kScenRows = 53,
+        kScenRows = 55,
         kScenFlagHide = ::tm::ui::kFlagHideWhenDisabled,
         kScenFlagSH = ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled
     };
@@ -199,6 +200,7 @@ namespace pages {
         {kKindChoice, kScenFlagSH, SC_OFF(edgeguardDist), TM_CHOICE_LO, 0, 3, 10, 1, 8, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(edgeguardDj), TM_CHOICE_LO, 0, 2, 11, 1, 8, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(edgeguardMixup), TM_CHOICE_LO, 0, 3, 12, 1, 6, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(edgeguardReset), TM_CHOICE_LO, 0, 1, 40, 1, 6, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(shieldRole), TM_CHOICE_LO, 0, 1, 13, 1, 9, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(oosAction), TM_CHOICE_LO, 0, 7, 14, 1, 10, 0},
         {kKindMenu,   kScenFlagHide, 0, 0, 0, P_COUNTER_POOL, 0xFF, 0, 27, 0},
@@ -212,6 +214,7 @@ namespace pages {
         {kKindChoice, kScenFlagSH, SC_OFF(shieldDropAttack), TM_CHOICE_LO, 0, 3, 21, 1, 13, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(shieldDropSpacing), TM_CHOICE_LO, 0, 3, 22, 1, 13, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(shieldDropFacing), TM_CHOICE_LO, 0, 2, 23, 1, 13, 0},
+        {kKindChoice, kScenFlagSH, SC_OFF(slideOffStart), TM_CHOICE_LO, 0, 2, 41, 1, 14, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(slideOffAttack), TM_CHOICE_LO, 0, 3, 24, 1, 14, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(grabAction), TM_CHOICE_LO, 0, 6, 25, 1, 15, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(grabPctMode), TM_CHOICE_LO, 0, 1, 26, 1, 15, 0},
@@ -253,6 +256,7 @@ namespace pages {
     TM_LABELS_BEGIN(kEdgeDists) TM_L("Mid") TM_L("Deep") TM_L("High") TM_L("Random") TM_LABELS_END
     TM_LABELS_BEGIN(kEdgeDjs) TM_L("Available") TM_L("Spent") TM_L("Random") TM_LABELS_END
     TM_LABELS_BEGIN(kEdgeMixups) TM_L("Mixed") TM_L("Low (Sweetspot)") TM_L("High") TM_L("Direct") TM_LABELS_END
+    TM_LABELS_BEGIN(kEdgeResets) TM_L("Stage Safe") TM_L("Ledge Grab") TM_LABELS_END
     TM_LABELS_BEGIN(kShieldRoles) TM_L("Offense") TM_L("Defense") TM_LABELS_END
     TM_LABELS_BEGIN(kOosActions)
         TM_L("Grab") TM_L("Up B") TM_L("Spotdodge") TM_L("Roll Away") TM_L("SH Nair") TM_L("Wavedash") TM_L("Random") TM_L("Custom Pool")
@@ -272,6 +276,7 @@ namespace pages {
     TM_LABELS_BEGIN(kShieldDropAttacks) TM_L("SH Aerial") TM_L("Tilt") TM_L("Down Smash") TM_L("Off") TM_LABELS_END
     TM_LABELS_BEGIN(kShieldDropSpacing) TM_L("Random") TM_L("Close") TM_L("Under") TM_L("Far") TM_LABELS_END
     TM_LABELS_BEGIN(kShieldDropFacing) TM_L("Toward") TM_L("Away") TM_L("Random") TM_LABELS_END
+    TM_LABELS_BEGIN(kSlideOffStarts) TM_L("Knockdown") TM_L("Tumble") TM_L("Standing") TM_LABELS_END
     TM_LABELS_BEGIN(kSlideOffAttacks) TM_L("Under Up Air") TM_L("Under Fair") TM_L("Under Nair") TM_L("On-Plat Ftilt") TM_LABELS_END
     TM_LABELS_BEGIN(kGrabActions)
         TM_L("Hold (Mash Out)") TM_L("Random Throw") TM_L("F-Throw") TM_L("B-Throw") TM_L("U-Throw") TM_L("D-Throw") TM_L("Stand (P1 Grabs)")
@@ -347,6 +352,7 @@ namespace pages {
         TM_SCEN_CHOICE("Distance", edgeguardDist, kEdgeDists, 4, 0, scenarioEdgeguardSpawnActive),
         TM_SCEN_CHOICE("CPU Double Jump", edgeguardDj, kEdgeDjs, 3, 0, scenarioEdgeguardSpawnActive),
         TM_SCEN_CHOICE("Recovery Mixup", edgeguardMixup, kEdgeMixups, 4, 0, scenarioEdgeguardActive),
+        TM_SCEN_CHOICE("Reset On", edgeguardReset, kEdgeResets, 2, 0, scenarioEdgeguardActive),
         // Shield Pressure / OoS rows
         TM_SCEN_CHOICE("Role", shieldRole, kShieldRoles, 2, 0, scenarioShieldPressureActive),
         TM_SCEN_CHOICE("CPU OoS", oosAction, kOosActions, 8, 0, scenarioShieldOffenseActive),
@@ -367,6 +373,7 @@ namespace pages {
         TM_SCEN_CHOICE("CPU Spacing", shieldDropSpacing, kShieldDropSpacing, 4, 0, scenarioShieldDropActive),
         TM_SCEN_CHOICE("CPU Facing", shieldDropFacing, kShieldDropFacing, 3, 0, scenarioShieldDropActive),
         // Slide-Off rows
+        TM_SCEN_CHOICE("P1 Start", slideOffStart, kSlideOffStarts, 3, 0, scenarioSlideOffActive),
         TM_SCEN_CHOICE("CPU Attack", slideOffAttack, kSlideOffAttacks, 4, 0, scenarioSlideOffActive),
         // Grab Defense rows
         TM_SCEN_CHOICE("CPU Action", grabAction, kGrabActions, 7, 0, scenarioGrabActive),

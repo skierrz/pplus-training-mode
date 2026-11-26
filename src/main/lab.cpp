@@ -364,7 +364,7 @@ namespace lab {
 
     static bool spacingShortcutActive(u8 p)
     {
-        return p == ui::pages::kPresetShieldDrop
+        return p == ui::pages::kPresetShieldDrop || p == ui::pages::kPresetLedgetech
                || (p == ui::pages::kPresetShieldPressure && ui::pages::scenarioMenuState()->shieldRole == 1);
     }
 

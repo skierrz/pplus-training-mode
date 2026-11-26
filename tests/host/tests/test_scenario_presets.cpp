@@ -686,6 +686,8 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK_EQ(static_cast<int>(kSdPlatLeft), static_cast<int>(clean.shieldDropPlat));
     CHECK_EQ(static_cast<int>(kSdSpaceRandom), static_cast<int>(clean.shieldDropSpacing));
     CHECK_EQ(static_cast<int>(kSdFaceToward), static_cast<int>(clean.shieldDropFacing));
+    CHECK_EQ(static_cast<int>(kSlideStartKnockdown), static_cast<int>(clean.slideOffStart));
+    CHECK_EQ(static_cast<int>(kEgResetStageSafe), static_cast<int>(clean.edgeguardReset));
 
     // Lab (kGeneral) places Offline VS Displays at row 8 and Controls at row 9;
     // Display exposes Frame Meter at row 0, Floating Meters at row 14, and Lab Debug at row 17.
@@ -701,7 +703,7 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK(strcmp(disp.options[17].name, "Lab Debug") == 0);
     CHECK_EQ(ui::pages::P_DEBUG, disp.options[17].max);
     const ui::Page& scen = ui::pages::kScenarios;
-    REQUIRE(scen.count == 53);
+    REQUIRE(scen.count == 55);
     CHECK(strcmp(scen.options[0].name, "Preset") == 0);
     CHECK_EQ(kScenarioCount - 1, scen.options[0].max);
     CHECK(strcmp(scen.options[3].name, "Post-Hitstun") == 0);
@@ -715,30 +717,32 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK(strcmp(scen.options[10].name, "Setup") == 0);
     CHECK(strcmp(scen.options[11].name, "Position") == 0);
     CHECK(strcmp(scen.options[12].name, "Escape") == 0);
-    CHECK(strcmp(scen.options[24].name, "Role") == 0);
-    CHECK(strcmp(scen.options[25].name, "CPU OoS") == 0);
-    CHECK_EQ(kOosCount - 1, scen.options[25].max);
-    CHECK(strcmp(scen.options[26].name, "Edit Shield Pool") == 0);
-    CHECK_EQ(ui::pages::P_COUNTER_POOL, scen.options[26].max);
-    CHECK(strcmp(scen.options[27].name, "CPU Attack") == 0);
-    CHECK(strcmp(scen.options[28].name, "Start") == 0);
-    CHECK(strcmp(scen.options[29].name, "Timing") == 0);
-    CHECK(strcmp(scen.options[30].name, "Spawn Position") == 0);
-    CHECK(strcmp(scen.options[31].name, "P1 Double Jump") == 0);
-    CHECK(strcmp(scen.options[32].name, "CPU Edgeguard") == 0);
-    CHECK_EQ(static_cast<int>(kLtAtkDsmash), static_cast<int>(scen.options[32].def));
-    CHECK(strcmp(scen.options[33].name, "Platform") == 0);
-    CHECK(strcmp(scen.options[34].name, "CPU Attack") == 0);
-    CHECK(strcmp(scen.options[35].name, "CPU Spacing") == 0);
-    CHECK(strcmp(scen.options[36].name, "CPU Facing") == 0);
-    CHECK(strcmp(scen.options[37].name, "CPU Attack") == 0);
-    CHECK(strcmp(scen.options[38].name, "CPU Action") == 0);
-    CHECK(strcmp(scen.options[39].name, "P1 Damage") == 0);
-    CHECK(strcmp(scen.options[40].name, "Multi-Hit Move") == 0);
-    CHECK(strcmp(scen.options[42].name, "Practice Mode") == 0);
-    CHECK(strcmp(scen.options[51].name, "Target Zone") == 0);
-    CHECK(strcmp(scen.options[52].name, "More Combo Options") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[52].max);
+    CHECK(strcmp(scen.options[24].name, "Reset On") == 0);
+    CHECK(strcmp(scen.options[25].name, "Role") == 0);
+    CHECK(strcmp(scen.options[26].name, "CPU OoS") == 0);
+    CHECK_EQ(kOosCount - 1, scen.options[26].max);
+    CHECK(strcmp(scen.options[27].name, "Edit Shield Pool") == 0);
+    CHECK_EQ(ui::pages::P_COUNTER_POOL, scen.options[27].max);
+    CHECK(strcmp(scen.options[28].name, "CPU Attack") == 0);
+    CHECK(strcmp(scen.options[29].name, "Start") == 0);
+    CHECK(strcmp(scen.options[30].name, "Timing") == 0);
+    CHECK(strcmp(scen.options[31].name, "Spawn Position") == 0);
+    CHECK(strcmp(scen.options[32].name, "P1 Double Jump") == 0);
+    CHECK(strcmp(scen.options[33].name, "CPU Edgeguard") == 0);
+    CHECK_EQ(static_cast<int>(kLtAtkDsmash), static_cast<int>(scen.options[33].def));
+    CHECK(strcmp(scen.options[34].name, "Platform") == 0);
+    CHECK(strcmp(scen.options[35].name, "CPU Attack") == 0);
+    CHECK(strcmp(scen.options[36].name, "CPU Spacing") == 0);
+    CHECK(strcmp(scen.options[37].name, "CPU Facing") == 0);
+    CHECK(strcmp(scen.options[38].name, "P1 Start") == 0);
+    CHECK(strcmp(scen.options[39].name, "CPU Attack") == 0);
+    CHECK(strcmp(scen.options[40].name, "CPU Action") == 0);
+    CHECK(strcmp(scen.options[41].name, "P1 Damage") == 0);
+    CHECK(strcmp(scen.options[42].name, "Multi-Hit Move") == 0);
+    CHECK(strcmp(scen.options[44].name, "Practice Mode") == 0);
+    CHECK(strcmp(scen.options[53].name, "Target Zone") == 0);
+    CHECK(strcmp(scen.options[54].name, "More Combo Options") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[54].max);
 }
 
 TEST(scenario_presets, multi_hit_sdi_ignores_attacker_hitlag)
@@ -1962,4 +1966,192 @@ TEST(scenario_presets, panel_b_stat_plates_cover_all_seven_remaining_scenarios)
     CHECK_EQ(kScenarioPlateGreen, plate.rows[0].valueColor);
     CHECK(strcmp(plate.rows[1].value, "99.9 u") == 0);
     CHECK(strcmp(plate.rows[2].value, "1 / 1") == 0);
+}
+
+TEST(scenario_presets, slideoff_start_modes_attack_tuning_and_layout_flags)
+{
+    StageGeometry bf = makeBattlefieldGeometry();
+    u32 rng = 0x1234u;
+    ScenarioSpawns sp;
+
+    // 1. Knockdown [default] sets hmnDownWait && !hmnFalling on platform.
+    ScenarioConfig cfg = makeCfg(kScenarioSlideOff, 1, kScenarioSideRight);
+    cfg.slideOffStart = kSlideStartKnockdown;
+    computeScenarioSpawnsEx(cfg, -1, rng, bf, sp);
+    CHECK(sp.valid && sp.hasPlatform);
+    CHECK(sp.hmnDownWait && !sp.hmnFalling && !sp.hmnTumbleDrop);
+    CHECK(fabsf(sp.hmnY - 27.2f) < 0.1f);
+
+    // 2. Tumble sets hmnTumbleDrop && hmnFalling && hmnY == plat.y + 12.0f.
+    cfg.slideOffStart = kSlideStartTumble;
+    computeScenarioSpawnsEx(cfg, -1, rng, bf, sp);
+    CHECK(sp.valid && sp.hasPlatform);
+    CHECK(sp.hmnTumbleDrop && sp.hmnFalling && !sp.hmnDownWait);
+    CHECK(fabsf(sp.hmnY - (27.2f + 12.0f)) < 0.1f);
+
+    // 3. Standing sets neither hmnDownWait nor hmnTumbleDrop / hmnFalling.
+    cfg.slideOffStart = kSlideStartStanding;
+    computeScenarioSpawnsEx(cfg, -1, rng, bf, sp);
+    CHECK(sp.valid && sp.hasPlatform);
+    CHECK(!sp.hmnDownWait && !sp.hmnTumbleDrop && !sp.hmnFalling);
+    CHECK(fabsf(sp.hmnY - 27.2f) < 0.1f);
+
+    // 4. Under Fair / Under Nair wait until cpuY >= hmnY - 9.0f before swinging.
+    for (int m = 0; m < 2; m++)
+    {
+        ScenarioCpuState cs;
+        ScenarioCpuInput ci;
+        ScenarioCpuOutput co;
+        scenarioCpuStateReset(cs);
+        memset(&ci, 0, sizeof(ci));
+        ci.preset = kScenarioSlideOff;
+        ci.slideOffAttack = m == 0 ? kSlideAtkUnderFair : kSlideAtkUnderNair;
+        ci.hasPlatform = true;
+        ci.cpuCanAct = true;
+        ci.cpuLr = -1.0f;
+        ci.cpuX = 28.0f;
+        ci.cpuY = 0.0f;
+        ci.cpuVy = 2.0f;
+        ci.hmnX = 24.0f;
+        ci.hmnY = 27.2f;
+        stepScenarioCpu(ci, cs, co);
+        CHECK_EQ(static_cast<u32>(cpu::button::kJump), co.buttons);
+
+        ci.cpuAir = true;
+        ci.cpuCanAct = false;
+        bool swungTooLow = false;
+        bool swungInRange = false;
+        for (int f = 0; f < 14; f++)
+        {
+            ci.cpuY += 2.2f;
+            stepScenarioCpu(ci, cs, co);
+            bool didAtk = (co.buttons & (cpu::button::kAttack | cpu::button::kCStick)) != 0;
+            if (didAtk)
+            {
+                if (ci.cpuY < ci.hmnY - 9.0f) swungTooLow = true;
+                else swungInRange = true;
+                break;
+            }
+        }
+        CHECK(!swungTooLow);
+        CHECK(swungInRange);
+    }
+
+    // 5. On-Plat Ftilt approaches when absDx > 9.5f and emits down-angled stick when in range.
+    {
+        ScenarioCpuState cs;
+        ScenarioCpuInput ci;
+        ScenarioCpuOutput co;
+        scenarioCpuStateReset(cs);
+        memset(&ci, 0, sizeof(ci));
+        ci.preset = kScenarioSlideOff;
+        ci.slideOffAttack = kSlideAtkOnPlatFtilt;
+        ci.hasPlatform = true;
+        ci.cpuCanAct = true;
+        ci.cpuLr = -1.0f;
+        ci.cpuX = 36.0f;
+        ci.cpuY = 27.2f;
+        ci.hmnX = 24.0f;
+        ci.hmnY = 27.2f;
+        stepScenarioCpu(ci, cs, co);
+        CHECK(co.active);
+        CHECK_EQ(0u, co.buttons);
+        CHECK(co.stickX < -0.4f);
+
+        ci.cpuX = 32.0f; // absDx = 8.0 <= 9.5
+        stepScenarioCpu(ci, cs, co);
+        CHECK(co.active);
+        CHECK_EQ(static_cast<u32>(cpu::button::kAttack), co.buttons);
+        CHECK(co.stickX < -0.5f);
+        CHECK(co.stickY < -0.15f);
+    }
+
+    // 6. Changing slideOffStart (byte 33) sets pendingReset = true, while
+    //    changing edgeguardReset (byte 34) is live non-layout and does NOT.
+    ScenarioState st;
+    scenarioStateInit(st);
+    main::Settings s;
+    memset(&s, 0, sizeof(s));
+    ScenarioConfig slideCfg = makeCfg(kScenarioSlideOff);
+    applyScenarioConfig(st, slideCfg, s);
+    st.pendingReset = false;
+    slideCfg.slideOffStart = kSlideStartTumble;
+    applyScenarioConfig(st, slideCfg, s);
+    CHECK(st.pendingReset);
+
+    ScenarioConfig egCfg = makeCfg(kScenarioEdgeguard);
+    applyScenarioConfig(st, egCfg, s);
+    st.pendingReset = false;
+    egCfg.edgeguardReset = kEgResetLedgeGrab;
+    applyScenarioConfig(st, egCfg, s);
+    CHECK(!st.pendingReset);
+}
+
+TEST(scenario_presets, ledgetech_spacing_offset_clamps_to_stage_floor_and_widens_timed_swing)
+{
+    StageGeometry bf = makeBattlefieldGeometry();
+    StageGeometry ps2 = makeFdGeometry();
+    ps2.floor.leftX = -87.75f;
+    ps2.floor.rightX = 87.75f;
+    ps2.leftLedge.x = -87.75f;
+    ps2.rightLedge.x = 87.75f;
+    StageGeometry ys = makeFdGeometry();
+    ys.floor.leftX = -56.0f;
+    ys.floor.rightX = 56.0f;
+    ys.leftLedge.x = -56.0f;
+    ys.rightLedge.x = 56.0f;
+
+    const StageGeometry* stages[3] = {&bf, &ps2, &ys};
+    u32 rng = 0x9999u;
+    for (int si = 0; si < 3; si++)
+    {
+        const StageGeometry& g = *stages[si];
+        float halfW = 0.5f * (g.floor.rightX - g.floor.leftX);
+        float maxInward = 22.0f < halfW * 0.45f ? 22.0f : halfW * 0.45f;
+
+        for (int off = -8; off <= 12; off += 2)
+        {
+            ScenarioConfig cfg = makeCfg(kScenarioLedgetech, 1, kScenarioSideRight);
+            cfg.ledgetechAttack = kLtAtkDair; // base 3.8u -> hits lower clamp 1.8 at -8
+            cfg.spacingOffset = static_cast<s8>(off);
+            ScenarioSpawns sp;
+            computeScenarioSpawnsEx(cfg, -1, rng, g, sp);
+            CHECK(sp.valid);
+            float inward = g.rightLedge.x - sp.cpuX;
+            CHECK(inward >= 1.79f && inward <= maxInward + 0.01f);
+            CHECK(sp.cpuX >= g.floor.leftX + 1.79f && sp.cpuX <= g.floor.rightX - 1.79f);
+
+            // Farther inward offset shifts CPU strictly more inward until clamped.
+            cfg.ledgetechAttack = kLtAtkFsmash; // base 6.0u
+            computeScenarioSpawnsEx(cfg, -1, rng, g, sp);
+            float expected = 6.0f + static_cast<float>(off);
+            if (expected < 1.8f) expected = 1.8f;
+            if (expected > maxInward) expected = maxInward;
+            CHECK(fabsf((g.rightLedge.x - sp.cpuX) - expected) < 0.05f);
+        }
+    }
+
+    // Timed Swing proximity maxX widens by max(0, spacingOffset) so spaced CPU still swings.
+    ScenarioCpuState cs;
+    ScenarioCpuInput ci;
+    ScenarioCpuOutput co;
+    scenarioCpuStateReset(cs);
+    memset(&ci, 0, sizeof(ci));
+    ci.preset = kScenarioLedgetech;
+    ci.ledgetechAttack = kLtAtkDsmash;
+    ci.ledgetechTiming = kLtTimeTimed;
+    ci.cpuCanAct = true;
+    ci.cpuLr = 1.0f;
+    ci.cpuX = 56.0f;
+    ci.cpuY = 0.0f;
+    ci.hmnX = 71.0f; // absDx = 15.0 > 12.4 default maxX
+    ci.hmnY = -2.0f;
+    ci.spacingOffset = 0;
+    stepScenarioCpu(ci, cs, co);
+    CHECK(!co.active);
+
+    ci.spacingOffset = 4; // maxX = 12.4 + 4.0 = 16.4 >= 15.0
+    stepScenarioCpu(ci, cs, co);
+    CHECK(co.active);
+    CHECK((co.buttons & cpu::button::kCStick) != 0);
 }

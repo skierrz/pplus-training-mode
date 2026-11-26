@@ -519,22 +519,22 @@ namespace extra {
         return multiHitMove;
     }
 
-    TM_STATIC_ASSERT(sizeof(ScenarioConfig) == 34, tm_scenario_cfg_size);
+    TM_STATIC_ASSERT(sizeof(ScenarioConfig) == 36, tm_scenario_cfg_size);
 
     void sanitizeScenarioConfigInto(const ScenarioConfig& raw, ScenarioConfig& c)
     {
-        static const u8 kLim[33] = {
+        static const u8 kLim[35] = {
             kScenarioCount, kScenarioSideCount, kScenarioSideCount, kMultiHitMoveCount, kOosCount,
             kLtSpawnCount, kLtDjCount, kLtAtkCount, kSdPlatCount, kSdSpaceCount,
             kSdFaceCount, kGrabActCount, kGrabPctCount, kTechSetupCount, kTechPosMax + 1,
             kTechEscCount, main::kTechInvisCount, 16, 2, main::kPreTechDriftCount,
             kTechTdiCount, 2, kEgSetupCount, kEgStrCount, kEgDistCount,
             kEgDjCount, main::kRecMixupCount, kLtStartCount, kLtTimeCount, kShieldRoleCount,
-            kShieldDefCount, kSdAtkCount, kSlideAtkCount
+            kShieldDefCount, kSdAtkCount, kSlideAtkCount, kSlideStartCount, kEgResetCount
         };
         const u8* src = reinterpret_cast<const u8*>(&raw);
         u8* dst = reinterpret_cast<u8*>(&c);
-        for (int i = 0; i < 33; i++)
+        for (int i = 0; i < 35; i++)
         {
             dst[i] = src[i] < kLim[i] ? src[i] : 0;
         }
@@ -599,19 +599,21 @@ namespace extra {
 
         if (cfg.preset == st.activePreset)
         {
-            if (cfg.preset == kScenarioOff || !bytesDiffer(&prev, &cfg, 33))
+            if (cfg.preset == kScenarioOff || !bytesDiffer(&prev, &cfg, 35))
             {
                 return false;
             }
             bool techOptsChanged = bytesDiffer(&prev.techEscape, &cfg.techEscape, 6);
-            // Non-layout fields: preset(0), autoReset(1), techEscape..techShowReaction(15..21), edgeguardMixup(26).
+            // Non-layout fields: preset(0), autoReset(1), techEscape..techShowReaction(15..21),
+            // edgeguardMixup(26), edgeguardReset(34).
             const u8* pb = reinterpret_cast<const u8*>(&prev);
             const u8* cb = reinterpret_cast<const u8*>(&cfg);
             static const u32 kNonLayoutBits = (1u << 0) | (1u << 1) | (0x7Fu << 15) | (1u << 26);
             bool layoutChanged = false;
-            for (int i = 2; i < 33; i++)
+            for (int i = 2; i < 35; i++)
             {
-                if (((kNonLayoutBits >> i) & 1u) == 0 && pb[i] != cb[i]) { layoutChanged = true; break; }
+                bool isLayout = i < 32 ? (((kNonLayoutBits >> i) & 1u) == 0) : (i != 34);
+                if (isLayout && pb[i] != cb[i]) { layoutChanged = true; break; }
             }
             bool edgeMixupChanged = cfg.edgeguardMixup != prev.edgeguardMixup;
             bool needReapply =
@@ -874,9 +876,12 @@ namespace extra {
                                                                 : cfg.ledgetechSpawn;
             float outDist = clampf(i2f(kLtPos[spawnMode][0]), 6.0f, maxf(8.0f, ledgeMaxOut(geom, leftSide, 24.0f)));
             u8 atk = cfg.ledgetechAttack < 7 ? cfg.ledgetechAttack : static_cast<u8>(kLtAtkDsmash);
+            float maxInward = minf(22.0f, halfW * 0.45f);
+            float inwardOff = clampf(ledgetechCpuInwardOffset(atk) + i2f(cfg.spacingOffset), 1.8f, maxInward);
+            float cx = clampFloorX(geom, ledge.x - outward * inwardOff, 1.8f);
             setSpawnPair(out, ledge.x + outward * outDist,
                          clampBlastY(geom, ledge.y + i2f(kLtPos[spawnMode][1]), 36.0f, ledge.y - 44.0f), -outward,
-                         ledge.x - outward * minf(ledgetechCpuInwardOffset(atk), halfW * 0.25f), ledge.y, outward);
+                         cx, ledge.y, outward);
             out.hmnFalling = true;
             out.hmnRevivalPlat = cfg.ledgetechStart == kLtStartRevival;
             break;
@@ -905,6 +910,16 @@ namespace extra {
                 float inward = ledge.dir;
                 setSpawnPair(out, ledge.x + inward * 4.5f, ledge.y, inward,
                              ledge.x + inward * minf(13.5f, halfW * 0.45f), ledge.y, -inward);
+            }
+            if (cfg.slideOffStart == kSlideStartKnockdown)
+            {
+                out.hmnDownWait = true;
+            }
+            else if (cfg.slideOffStart == kSlideStartTumble)
+            {
+                out.hmnY += 12.0f;
+                out.hmnFalling = true;
+                out.hmnTumbleDrop = true;
             }
             break;
         }
@@ -1281,7 +1296,9 @@ namespace extra {
                 st.graceFrames = 0;
             }
             else if (st.slideOffDone
-                     && ((!in.hmnAir && hmnFree && (in.hmnActionable || isDownOrTechStatus(in.hmnStatus)))
+                     && (((!in.hmnAir || (in.geom.floor.valid && in.hmnY > in.geom.floor.centerY + 80.0f))
+                          && hmnFree
+                          && (in.hmnActionable || isDownOrTechStatus(in.hmnStatus) || isTumbleStatus(in.hmnStatus)))
                          || st.graceFrames > 0))
             {
                 graceLim = kSlideOffGraceFrames;
@@ -1690,7 +1707,7 @@ namespace extra {
                 return;
             }
             if (tickCooldown(st)) return;
-            float maxX = atk >= kLtAtkNeutralB ? 16.0f : 12.4f;
+            float maxX = (atk >= kLtAtkNeutralB ? 16.0f : 12.4f) + maxf(0.0f, i2f(in.spacingOffset));
             bool inLedgeWindow = in.ledgetechTiming == kLtTimeHoldActive
                                  || (absDx <= maxX && in.hmnY >= in.cpuY - 18.0f && in.hmnY <= in.cpuY + 20.0f);
             if (cpuGndAct && inLedgeWindow && in.hmnHitstun == 0)
@@ -1767,7 +1784,11 @@ namespace extra {
                         if (st.timer >= 12) cpuResetPhase(st, 0, false);
                     }
                     else if (st.timer < 5) cpuEmit(out, cpu::button::kJump, airX, 0.0f);
-                    else if (in.cpuY >= in.hmnY - 16.0f || st.timer >= 10)
+                    else if (in.cpuY >= in.hmnY
+                                            - (in.slideOffAttack == kSlideAtkUnderUair
+                                                   ? (in.cpuVy > 2.2f ? 24.0f : 13.0f)
+                                                   : 9.0f)
+                             || (st.timer >= 16 && in.cpuVy <= 0.4f))
                     {
                         emitAirAtk(out, in.slideOffAttack == kSlideAtkUnderFair ? 1
                                             : (in.slideOffAttack == kSlideAtkUnderNair ? 0 : 2),
@@ -1783,7 +1804,8 @@ namespace extra {
             if (repeatS3 || (!tickCooldown(st) && cpuGndAct && !in.hmnAir && absDx < 22.0f && in.hmnHitstun == 0))
             {
                 out.active = true;
-                emitScaled(out, kBtnAtk, toward, 11, 0);
+                if (!repeatS3 && cpuApproachOrFace(in, absDx, toward, 9.5f, 0.60f, true, out)) return;
+                emitScaled(out, kBtnAtk, toward, 13, -5);
                 if (!repeatS3) st.cooldown = 38;
             }
             break;

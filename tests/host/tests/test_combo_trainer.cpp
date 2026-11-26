@@ -395,3 +395,113 @@ TEST(combo_trainer, edgeguard_landed_safe_rejects_landing_lag_accepts_teeter_and
     CHECK(act.doWarp);
     CHECK_EQ(3u, st.recoveryResets);
 }
+
+TEST(combo_trainer, edgeguard_ledge_trap_continuity_waits_for_stage_safe)
+{
+    main::ComboTrainerSettings cfg = defaultCfg();
+    cfg.recoveryTrainer = 1;
+    ComboSlotState st;
+    comboSlotReset(st);
+    ComboStepAction act;
+    ComboStepInput in = baseInput();
+    in.ignoreLedgeReset = true;
+
+    // Rep 0 still warps offstage immediately even when ignoreLedgeReset is true.
+    in.landedSafeOnStage = true;
+    stepComboTrainer(cfg, in, st, act);
+    CHECK(act.doWarp);
+    CHECK_EQ(1u, st.recoveryResets);
+
+    // Spend 15 frames airborne offstage.
+    in.landedSafeOnStage = false;
+    in.air = true;
+    for (int f = 0; f < 15; f++)
+    {
+        stepComboTrainer(cfg, in, st, act);
+        CHECK(!act.doWarp);
+    }
+
+    // Grabbing ledge and hanging for 60 frames must NOT trigger a reset.
+    in.air = false;
+    in.onLedge = true;
+    in.status = 0x75; // CliffWait
+    for (int f = 0; f < 60; f++)
+    {
+        stepComboTrainer(cfg, in, st, act);
+        CHECK(!act.doWarp);
+        CHECK_EQ(0, static_cast<int>(st.recoveryGraceFrames));
+    }
+
+    // Executing Cliff_Climb (0x77) or LandingFallSpecial (0x19) must NOT trigger reset.
+    in.status = 0x77;
+    for (int f = 0; f < 10; f++)
+    {
+        stepComboTrainer(cfg, in, st, act);
+        CHECK(!act.doWarp);
+    }
+    in.onLedge = false;
+    in.status = 0x19; // LandingFallSpecial
+    for (int f = 0; f < 10; f++)
+    {
+        stepComboTrainer(cfg, in, st, act);
+        CHECK(!act.doWarp);
+    }
+
+    // Becoming actionable onstage (Wait 0x00, landedSafeOnStage) ticks grace,
+    // hitstun cancels grace, and full grace completes the reset cleanly.
+    in.status = 0x00;
+    in.landedSafeOnStage = true;
+    for (int f = 0; f < 10; f++)
+    {
+        stepComboTrainer(cfg, in, st, act);
+        CHECK(!act.doWarp);
+    }
+    in.hitstun = 6;
+    in.landedSafeOnStage = false;
+    stepComboTrainer(cfg, in, st, act);
+    CHECK(!act.doWarp);
+    CHECK_EQ(0, static_cast<int>(st.recoveryGraceFrames));
+
+    in.hitstun = 0;
+    in.landedSafeOnStage = true;
+    for (int f = 0; f < kRecoveryGraceFrames; f++)
+    {
+        stepComboTrainer(cfg, in, st, act);
+        CHECK(!act.doWarp);
+    }
+    stepComboTrainer(cfg, in, st, act);
+    CHECK(act.doWarp);
+    CHECK_EQ(2u, st.recoveryResets);
+
+    // Rep 1 placed directly offstage by Edgeguard scenario (recoveryResets == 0 after
+    // comboTrainerReset, recoveryAirFrames >= 12): ledge grab with ignoreLedgeReset must
+    // NOT fire initialPlace or reset on ledge, and must wait for onstage safe + grace.
+    comboSlotReset(st);
+    in = baseInput();
+    in.ignoreLedgeReset = true;
+    in.air = true;
+    for (int f = 0; f < 15; f++)
+    {
+        stepComboTrainer(cfg, in, st, act);
+        CHECK(!act.doWarp);
+    }
+    in.air = false;
+    in.onLedge = true;
+    in.status = 0x74;
+    for (int f = 0; f < 40; f++)
+    {
+        stepComboTrainer(cfg, in, st, act);
+        CHECK(!act.doWarp);
+    }
+    in.onLedge = false;
+    in.status = 0x00;
+    in.landedSafeOnStage = true;
+    for (int f = 0; f < kRecoveryGraceFrames; f++)
+    {
+        stepComboTrainer(cfg, in, st, act);
+        CHECK(!act.doWarp);
+    }
+    stepComboTrainer(cfg, in, st, act);
+    CHECK(act.doWarp);
+    CHECK_EQ(1u, st.recoveryResets);
+}

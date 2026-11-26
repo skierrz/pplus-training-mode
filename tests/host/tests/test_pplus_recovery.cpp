@@ -276,13 +276,33 @@ TEST(pplus_recovery, family_behaviors_glide_float_tether_pkt_and_cliffwait)
     CHECK(out.stickX > 0.1f);
     CHECK(out.stickY < -0.1f);
 
-    // CliffWait (0x75) exits ledge cleanly after 2 frames.
+    // CliffWait (0x75) exits ledge cleanly on st.ledgeWaitTarget in [2..24] for Mixed,
+    // and strictly on frame 2 for Direct.
     recoveryStateReset(st);
     RecoveryInput cliff = offstageInput(0x06, 68.0f, 0.0f, false);
     cliff.status = 0x75;
+    cliff.recoveryMixup = 0; // Mixed
+    int firedFrame = 0;
+    for (int f = 1; f <= 25; f++)
+    {
+        stepRecovery(cliff, st, rng, out);
+        CHECK(out.active);
+        if (out.buttons != 0 || out.stickX != 0.0f)
+        {
+            firedFrame = f;
+            break;
+        }
+    }
+    CHECK(st.ledgeWaitTarget >= 2 && st.ledgeWaitTarget <= 24);
+    CHECK_EQ(static_cast<int>(st.ledgeWaitTarget), firedFrame);
+
+    recoveryStateReset(st);
+    cliff.recoveryMixup = 3; // Direct
     stepRecovery(cliff, st, rng, out); // frame 1: wait
-    stepRecovery(cliff, st, rng, out); // frame 2: getup input
+    CHECK(out.buttons == 0 && out.stickX == 0.0f);
+    stepRecovery(cliff, st, rng, out); // frame 2: immediate getup
     CHECK(out.active);
+    CHECK_EQ(2, static_cast<int>(st.ledgeWaitTarget));
     CHECK(out.buttons != 0 || out.stickX != 0.0f);
 }
 
@@ -916,4 +936,218 @@ TEST(pplus_recovery, recovery_mixup_profiles_and_tumble_dj_wall_underside_guards
     stepRecovery(underEmerg, st, rng, out);
     CHECK(out.stickX > 0.5f); // drifts outward from under right half
     CHECK_EQ(0u, out.buttons & kRecBtnSpecial);
+}
+
+TEST(pplus_recovery, varied_ledge_hang_timing_getups_and_non_repeating_ledge_drop)
+{
+    u8 minTarget = 255;
+    u8 maxTarget = 0;
+    u32 optionMask = 0;
+    bool sawDrop = false;
+    for (u32 trial = 0; trial < 200; trial++)
+    {
+        RecoveryState st;
+        recoveryStateReset(st);
+        u32 rng = 0xA1000u + trial * 131u;
+        RecoveryInput cliff = offstageInput(0x06, 68.4f, 0.0f, false);
+        cliff.status = 0x75;
+        cliff.ledgeDir = -1.0f;
+        cliff.recoveryMixup = 0; // Mixed
+        RecoveryOutput out;
+        int firedAt = 0;
+        for (int f = 1; f <= 26; f++)
+        {
+            stepRecovery(cliff, st, rng, out);
+            if (out.buttons != 0 || out.stickX != 0.0f)
+            {
+                firedAt = f;
+                break;
+            }
+        }
+        CHECK(st.ledgeWaitTarget >= 2 && st.ledgeWaitTarget <= 24);
+        CHECK_EQ(static_cast<int>(st.ledgeWaitTarget), firedAt);
+        if (st.ledgeWaitTarget < minTarget) minTarget = st.ledgeWaitTarget;
+        if (st.ledgeWaitTarget > maxTarget) maxTarget = st.ledgeWaitTarget;
+        u8 ch = st.cliffChoice & 7u;
+        optionMask |= 1u << ch;
+        if (ch == 4)
+        {
+            sawDrop = true;
+            // Safe ledge-drop: stickX away from stage (+1 on right ledge), stickY == 0, buttons == 0.
+            CHECK(out.stickX > 0.5f);
+            CHECK(fabsf(out.stickY) < 0.01f);
+            CHECK_EQ(0u, out.buttons);
+            CHECK((st.cliffChoice & 0x80u) != 0);
+            CHECK_EQ(0, static_cast<int>(st.initialized));
+            // Re-entering CliffWait within the same rep must NEVER pick ledge-drop a second time.
+            cliff.status = 0x74; // CliffCatch resets ledgeWaitFrames
+            stepRecovery(cliff, st, rng, out);
+            cliff.status = 0x75;
+            for (int f = 1; f <= 26; f++)
+            {
+                stepRecovery(cliff, st, rng, out);
+                if (out.buttons != 0 || out.stickX != 0.0f) break;
+            }
+            CHECK((st.cliffChoice & 7u) != 4u);
+        }
+    }
+    CHECK(minTarget <= 5);
+    CHECK(maxTarget >= 18);
+    CHECK_EQ(0x1Fu, optionMask); // all 4 getups (0..3) + safe ledge-drop (4)
+    CHECK(sawDrop);
+}
+
+TEST(pplus_recovery, pplusai_tier1_and_tier2_character_upgrades)
+{
+    RecoveryState st;
+    RecoveryOutput out;
+    u32 rng = 0xB2000u;
+
+    // 1. Luigi (0x08) Green Missile charge (0x117) holds kRecBtnSpecial far offstage.
+    recoveryStateReset(st);
+    RecoveryInput luigi = offstageInput(0x08, 130.0f, 0.0f, false);
+    luigi.status = 0x117;
+    luigi.animFrame = 8.0f;
+    stepRecovery(luigi, st, rng, out);
+    CHECK(out.active);
+    CHECK_EQ(static_cast<u32>(kRecBtnSpecial), out.buttons & kRecBtnSpecial);
+
+    // 2. Roy (0x27) Side-B stall eligible high offstage and blocked deep below ledge.
+    bool roySawSideBHigh = false;
+    for (u32 trial = 0; trial < 64; trial++)
+    {
+        recoveryStateReset(st);
+        u32 trng = 0xB2100u + trial * 43u;
+        RecoveryInput royHigh = offstageInput(0x27, 115.0f, 10.0f, false);
+        royHigh.vy = -0.6f;
+        stepRecovery(royHigh, st, trng, out);
+        if (st.option == kOptSideB) roySawSideBHigh = true;
+
+        recoveryStateReset(st);
+        RecoveryInput royDeep = offstageInput(0x27, 115.0f, -40.0f, false);
+        royDeep.vy = -0.6f;
+        stepRecovery(royDeep, st, trng, out);
+        CHECK(st.option != kOptSideB);
+    }
+    CHECK(roySawSideBHigh);
+
+    // 3. Ice Climbers (0x0F) mash B during Squall Hammer (0x113).
+    recoveryStateReset(st);
+    RecoveryInput popo = offstageInput(0x0F, 110.0f, -15.0f, false);
+    popo.status = 0x113;
+    bool popoMashed = false;
+    for (int f = 0; f < 4; f++)
+    {
+        stepRecovery(popo, st, rng, out);
+        if ((out.buttons & kRecBtnSpecial) != 0) popoMashed = true;
+        popo.lastButtons = out.buttons;
+    }
+    CHECK(popoMashed);
+
+    // 4. Fox/Falco/Wolf Up-B varies angle across seeds and favors DJ over Up-B when jumpsLeft == true.
+    static const int kSpacies[3] = {0x06, 0x13, 0x2C};
+    for (int si = 0; si < 3; si++)
+    {
+        float minY = 2.0f;
+        float maxY = -2.0f;
+        int jumpCount = 0;
+        int upBCount = 0;
+        for (u32 trial = 0; trial < 80; trial++)
+        {
+            recoveryStateReset(st);
+            u32 trng = 0xB2200u + static_cast<u32>(si) * 997u + trial * 53u;
+            RecoveryInput aimIn = offstageInput(kSpacies[si], 108.0f, -25.0f, false);
+            aimIn.status = 0x114;
+            aimIn.recoveryMixup = 0; // Mixed
+            stepRecovery(aimIn, st, trng, out);
+            if (out.stickY < minY) minY = out.stickY;
+            if (out.stickY > maxY) maxY = out.stickY;
+
+            recoveryStateReset(st);
+            RecoveryInput djIn = offstageInput(kSpacies[si], 102.0f, -32.0f, true);
+            djIn.vy = -0.8f;
+            stepRecovery(djIn, st, trng, out);
+            if (st.option == kOptJump) jumpCount++;
+            else if (st.option == kOptUpB || st.option == kOptUpBHigh) upBCount++;
+        }
+        CHECK(maxY - minY > 0.12f);
+        CHECK(jumpCount > upBCount * 2);
+    }
+
+    // 5. Pikachu Quick Attack zip 1 (0x1DB) vs zip 2 (0x1DC) emits distinct angles (dot < 0.85).
+    recoveryStateReset(st);
+    RecoveryInput pika = offstageInput(0x07, 100.0f, -25.0f, false);
+    pika.status = 0x114;
+    pika.recoveryMixup = 3; // Direct (deterministic)
+    pika.subaction = 0x1DB;
+    stepRecovery(pika, st, rng, out);
+    float x1 = out.stickX;
+    float y1 = out.stickY;
+    pika.subaction = 0x1DC;
+    stepRecovery(pika, st, rng, out);
+    float x2 = out.stickX;
+    float y2 = out.stickY;
+    float dot = x1 * x2 + y1 * y2;
+    CHECK(dot < 0.85f);
+
+    // 6. Marth (0x11) & Roy (0x27) scale Up-B drift in Low mode instead of full +-1.0.
+    recoveryStateReset(st);
+    RecoveryInput marthUpB = offstageInput(0x11, 74.4f, -20.0f, false); // toLedgeX = -6.0
+    marthUpB.status = 0x114;
+    marthUpB.recoveryMixup = 1; // Low
+    stepRecovery(marthUpB, st, rng, out);
+    CHECK(out.stickX < -0.1f && out.stickX > -0.5f);
+
+    recoveryStateReset(st);
+    RecoveryInput royUpB = marthUpB;
+    royUpB.ftKind = 0x27;
+    stepRecovery(royUpB, st, rng, out);
+    CHECK(out.stickX < -0.1f && out.stickX > -0.4f);
+
+    // 7. Zelda (0x0D) 0x118 and Sheik (0x0E) 0x11B hold 360-aim during vanish lock.
+    recoveryStateReset(st);
+    RecoveryInput zelda = offstageInput(0x0D, 105.0f, -25.0f, false);
+    zelda.status = 0x118;
+    stepRecovery(zelda, st, rng, out);
+    CHECK(out.stickX < -0.2f && out.stickY > 0.2f);
+
+    recoveryStateReset(st);
+    RecoveryInput sheik = offstageInput(0x0E, 105.0f, -25.0f, false);
+    sheik.status = 0x11B;
+    stepRecovery(sheik, st, rng, out);
+    CHECK(out.stickX < -0.2f && out.stickY > 0.2f);
+
+    // 8. Mario (0x00) Cape blocked when laInt != 0 (LA-Bit 0x3D used), allowed when laInt == 0.
+    bool marioSawCape = false;
+    for (u32 trial = 0; trial < 64; trial++)
+    {
+        recoveryStateReset(st);
+        u32 trng = 0xB2300u + trial * 37u;
+        RecoveryInput mUsed = offstageInput(0x00, 110.0f, 5.0f, false);
+        mUsed.vy = -0.5f;
+        mUsed.laInt = 1;
+        stepRecovery(mUsed, st, trng, out);
+        CHECK(st.option != kOptSideB);
+
+        recoveryStateReset(st);
+        RecoveryInput mFresh = mUsed;
+        mFresh.laInt = 0;
+        stepRecovery(mFresh, st, trng, out);
+        if (st.option == kOptSideB) marioSawCape = true;
+    }
+    CHECK(marioSawCape);
+
+    // 9. Snake (0x2E) active Cypher flight (0x117) cancels with Jump above stage.
+    recoveryStateReset(st);
+    RecoveryInput snake = offstageInput(0x2E, 80.0f, 20.0f, false); // ix=11.6<20, iy=-20<-15
+    snake.status = 0x117;
+    stepRecovery(snake, st, rng, out);
+    CHECK_EQ(static_cast<u32>(kRecBtnJump), out.buttons & kRecBtnJump);
+
+    // 10. Peach (0x0C) closes Parasol (stickY < -0.5) near ledge in 0x11A+.
+    recoveryStateReset(st);
+    RecoveryInput peach = offstageInput(0x0C, 74.0f, 0.0f, false); // ix=5.6<10, iy=0<4
+    peach.status = 0x11A;
+    stepRecovery(peach, st, rng, out);
+    CHECK(out.stickY < -0.5f);
 }

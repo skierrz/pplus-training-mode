@@ -652,10 +652,10 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK(strcmp(osdP.options[10].name, "Shield Advantage") == 0);
 
     const ui::Page& scen = ui::pages::kScenarios;
-    REQUIRE(scen.count == 53);
-    CHECK(strcmp(scen.options[42].name, "Practice Mode") == 0);
-    CHECK(strcmp(scen.options[52].name, "More Combo Options") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[52].max);
+    REQUIRE(scen.count == 55);
+    CHECK(strcmp(scen.options[44].name, "Practice Mode") == 0);
+    CHECK(strcmp(scen.options[54].name, "More Combo Options") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[54].max);
 
     const ui::Page& sc = ui::pages::kStageCast;
     REQUIRE(sc.count == 34);
@@ -1168,29 +1168,29 @@ TEST(lab_menu, show_inactive_fighters_scoped_to_stage_cast_only)
     }
     CHECK(static_cast<int>(st.cursor[ui::pages::P_STAGE_CAST]) > 8);
 
-    // Scenarios MUST still compact hidden preset/drill rows (only Preset [0] and More Combo Options [52] visible).
+    // Scenarios MUST still compact hidden preset/drill rows (only Preset [0] and More Combo Options [54] visible).
     const u8 scenPath[] = {ui::pages::P_SCENARIOS};
     REQUIRE(ui::menuJump(menu, st, scenPath, 1));
     CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(52, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    CHECK_EQ(54, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(52, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    CHECK_EQ(54, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
 
     // Context-scoped Tab 1: when a Tech Practice drill is active, Preset and More Combo Options hide,
-    // leaving only the active drill's rows (Ledgedash: Practice Mode [42], Reset Ledge [46],
-    // Ledge Auto-Reset [47], Ledge Invuln [48]).
+    // leaving only the active drill's rows (Ledgedash: Practice Mode [44], Reset Ledge [48],
+    // Ledge Auto-Reset [49], Ledge Invuln [50]).
     ui::pages::practiceMenuState()->activeDrill = 1;
     REQUIRE(ui::menuJump(menu, st, scenPath, 1));
-    CHECK_EQ(42, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
-    ui::menuStep(menu, st, inDown);
-    CHECK_EQ(46, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
-    ui::menuStep(menu, st, inDown);
-    CHECK_EQ(47, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    CHECK_EQ(44, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::menuStep(menu, st, inDown);
     CHECK_EQ(48, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(48, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    CHECK_EQ(49, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(50, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(50, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::pages::practiceMenuState()->activeDrill = 0;
 
     // CPU > Counters & Reversals: Counter Mode starts at Single Action (1), keeping Ground/Air/Shield
@@ -1776,31 +1776,31 @@ TEST(menu, tech_practice_lab_rows_gate_by_active_drill)
     ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
     memset(pm, 0, sizeof(*pm));
     const ui::Page& scen = ui::pages::kScenarios;
-    // Rows 42..51 are the 10 conditional Tech Practice rows.
-    for (int r = 42; r <= 51; r++)
+    // Rows 44..53 are the 10 conditional Tech Practice rows.
+    for (int r = 44; r <= 53; r++)
     {
         CHECK((scen.options[r].flags & (ui::kFlagScratch | ui::kFlagHideWhenDisabled))
               == (ui::kFlagScratch | ui::kFlagHideWhenDisabled));
         CHECK(!scen.options[r].enabled());
     }
-    // Powershield (5): Mode (42), Attack Mode (43), Shot Height (44, proj only), Cadence (45).
+    // Powershield (5): Mode (44), Attack Mode (45), Shot Height (46, proj only), Cadence (47).
     pm->activeDrill = 5;
     pm->psAttackMode = 0;
-    CHECK(scen.options[42].enabled() && scen.options[43].enabled() && scen.options[44].enabled()
-          && scen.options[45].enabled() && !scen.options[46].enabled());
+    CHECK(scen.options[44].enabled() && scen.options[45].enabled() && scen.options[46].enabled()
+          && scen.options[47].enabled() && !scen.options[48].enabled());
     pm->psAttackMode = 1;
-    CHECK(scen.options[43].enabled() && !scen.options[44].enabled() && scen.options[45].enabled());
-    // Ledgedash (1): Mode (42), Reset Ledge (46), Ledge Auto-Reset (47), Ledge Invuln (48).
+    CHECK(scen.options[45].enabled() && !scen.options[46].enabled() && scen.options[47].enabled());
+    // Ledgedash (1): Mode (44), Reset Ledge (48), Ledge Auto-Reset (49), Ledge Invuln (50).
     pm->activeDrill = 1;
-    CHECK(scen.options[42].enabled() && !scen.options[43].enabled() && scen.options[46].enabled()
-          && scen.options[47].enabled() && scen.options[48].enabled() && !scen.options[49].enabled());
-    // L-Cancel (3) -> row 49; Float/Hover (4) -> row 50; Wavedash (2) -> row 51.
+    CHECK(scen.options[44].enabled() && !scen.options[45].enabled() && scen.options[48].enabled()
+          && scen.options[49].enabled() && scen.options[50].enabled() && !scen.options[51].enabled());
+    // L-Cancel (3) -> row 51; Float/Hover (4) -> row 52; Wavedash (2) -> row 53.
     pm->activeDrill = 3;
-    CHECK(scen.options[42].enabled() && scen.options[49].enabled() && !scen.options[50].enabled());
+    CHECK(scen.options[44].enabled() && scen.options[51].enabled() && !scen.options[52].enabled());
     pm->activeDrill = 4;
-    CHECK(scen.options[42].enabled() && !scen.options[49].enabled() && scen.options[50].enabled());
+    CHECK(scen.options[44].enabled() && !scen.options[51].enabled() && scen.options[52].enabled());
     pm->activeDrill = 2;
-    CHECK(scen.options[42].enabled() && scen.options[51].enabled() && !scen.options[49].enabled());
+    CHECK(scen.options[44].enabled() && scen.options[53].enabled() && !scen.options[51].enabled());
     memset(pm, 0, sizeof(*pm));
     main::setExtraHooks(NULL);
 }
