@@ -619,6 +619,7 @@ namespace lab {
         }
         net.menu.openStart = start;
         net.menu.controllerType = st.sys[port].controllerType;
+        net.menu.resetConfirmPage = 0;
         memset(st.repeat, 0, sizeof(st.repeat));
         int shown = ui::currentPage(net.menu);
         TM_LOG("lab: menu opened by port %d (%s) on page %d (%s) row %d, depth %d, main row %d, rail %d\n", port + 1,
@@ -659,6 +660,7 @@ namespace lab {
         }
         MatchPadState& st = s_net->st;
         st.open = false;
+        s_net->menu.resetConfirmPage = 0;
         g_resetLabel[0] = 0;
         if (st.diPickActive)
         {
@@ -822,6 +824,8 @@ namespace lab {
         mi.b = (in.pressed & kButtonB) != 0;
         mi.prevCat = (in.pressed & map.prevCat) != 0;
         mi.nextCat = false;
+        mi.resetOpt = (in.pressed & map.resetOpt) != 0;
+        mi.resetPage = (in.pressed & map.resetPage) != 0;
         if (map.nextCat != 0)
         {
             if ((map.nextCat & map.fastRepeat) == 0)

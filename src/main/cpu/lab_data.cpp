@@ -47,13 +47,18 @@ namespace cpu {
         t.poolReady = 1;
     }
 
-    void tablesDefaults(CpuTables& t)
+    void advancedHitsDefaults(CpuTables& t)
     {
         for (int i = 0; i < kAdvancedHits; i++)
         {
             defaultHit(t.hits[i]);
         }
         t.ready = 1;
+    }
+
+    void tablesDefaults(CpuTables& t)
+    {
+        advancedHitsDefaults(t);
         poolTablesDefaults(t);
     }
 

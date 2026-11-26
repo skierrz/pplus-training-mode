@@ -853,7 +853,7 @@ TEST(drill_list, per_controller_footer_and_browser_labels)
     CHECK(canvasDrew("A"));
     CHECK(canvasDrew("-/+"));
 
-    // Open recordings browser on Sideways -> Sideways header, page line, delete confirm.
+    // Open recordings browser on Sideways -> Sideways badges, page pills, delete confirm.
     setPadInput(pads[4], game::kPadWiiA);
     stepFrame(pads);
     setPadInput(pads[4], 0);
@@ -864,19 +864,29 @@ TEST(drill_list, per_controller_footer_and_browser_labels)
     }
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK(canvasDrew("2: Load   A: Delete   1: Back"));
-    CHECK(canvasDrew("< -   Page 1/1   + >"));
+    CHECK(canvasDrew("2"));
+    CHECK(canvasDrew("Load"));
+    CHECK(canvasDrew("A"));
+    CHECK(canvasDrew("Delete"));
+    CHECK(canvasDrew("1"));
+    CHECK(canvasDrew("Back"));
+    CHECK(canvasDrew("-"));
+    CHECK(canvasDrew("Page 1/1"));
+    CHECK(canvasDrew("+"));
 
-    // Press Sideways A to ask delete -> confirm line shows "2: Delete   1: Cancel".
+    // Press Sideways A to ask delete -> confirm footer shows [2] Delete  [1] Cancel.
     setPadInput(pads[4], game::kPadWiiA);
     stepFrame(pads);
     setPadInput(pads[4], 0);
     stepFrame(pads);
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK(canvasDrew("2: Delete   1: Cancel"));
+    CHECK(canvasDrew("2"));
+    CHECK(canvasDrew("Delete"));
+    CHECK(canvasDrew("1"));
+    CHECK(canvasDrew("Cancel"));
 
-    // Cancel delete and switch to Nunchuk -> Nunchuk browser labels & confirm.
+    // Cancel delete and switch to Nunchuk -> Nunchuk browser badges & page pills.
     setPadInput(pads[4], game::kPadB | game::kPadWii1);
     stepFrame(pads);
     setPadInput(pads[4], 0);
@@ -885,8 +895,15 @@ TEST(drill_list, per_controller_footer_and_browser_labels)
     stepFrame(pads);
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK(canvasDrew("A: Load   C: Delete   B: Back"));
-    CHECK(canvasDrew("< -   Page 1/1   + >"));
+    CHECK(canvasDrew("A"));
+    CHECK(canvasDrew("Load"));
+    CHECK(canvasDrew("C"));
+    CHECK(canvasDrew("Delete"));
+    CHECK(canvasDrew("B"));
+    CHECK(canvasDrew("Back"));
+    CHECK(canvasDrew("-"));
+    CHECK(canvasDrew("Page 1/1"));
+    CHECK(canvasDrew("+"));
 
     // Leave browser with Nunchuk B -> boot menu shows Nunchuk footer & -/+ pills.
     setPadInput(pads[4], game::kPadB | game::kPadWiiB);

@@ -650,12 +650,20 @@ namespace browser {
         snprintf(out, size, "%s vs %s", characterName(e.info.hmnKind), characterName(e.info.cpuKind));
     }
 
-    static void descLine(int line, const char* text, gfx::Rgba color)
+    static const float kBrowserBottom = 452.0f;
+    static const float kBrowserFootTop = 420.0f;
+
+    static void descLineAt(float capTop, const char* text, gfx::Rgba color)
     {
-        float scale = rowScale();
+        float scale = scaleForCap(10.5f);
         float width = boldWidth(text, scale);
         float sx = width > w(kFooterMaxW) ? scale * w(kFooterMaxW) / width : scale;
-        boldText(cx(kFooterX), textYForCap(kFooterCapTop + line * kFooterPitch, scale), text, color, sx, scale);
+        boldText(cx(kFooterX), textYForCap(capTop, scale), text, color, sx, scale);
+    }
+
+    static void descLine(int line, const char* text, gfx::Rgba color)
+    {
+        descLineAt(kFooterCapTop + line * 14.0f, text, color);
     }
 
     static void drawDescription()
@@ -664,11 +672,21 @@ namespace browser {
         char line[80];
         if (s_confirm)
         {
+            // High-contrast delete confirmation alert banner inside the description strip.
+            float bx = cx(kPanelLeft + 12.0f);
+            float bw = w(kPanelRight - kPanelLeft - 24.0f);
+            float by = kRowsBandBottom + 5.0f;
+            float bh = kBrowserFootTop - kRowsBandBottom - 10.0f;
+            gfx::fillRect(bx, by, bw, 2.0f, kLabBtnBTop);
+            gfx::fillRect(bx, by + bh - 2.0f, bw, 2.0f, kLabBtnBTop);
+            gfx::fillRect(bx, by + 2.0f, w(2.0f), bh - 4.0f, kLabBtnBTop);
+            gfx::fillRect(bx + bw - w(2.0f), by + 2.0f, w(2.0f), bh - 4.0f, kLabBtnBTop);
+            gfx::fillGradV(bx + w(2.0f), by + 2.0f, bw - w(4.0f), bh - 4.0f, 0x341016F0u, 0x20080DF0u);
+            float linePitch = 16.0f;
+            float line0Top = by + (bh - (linePitch + 10.5f)) * 0.5f;
             snprintf(line, sizeof(line), "Delete %s?", s_entries[s_row].file);
-            descLine(0, line, kText);
-            descLine(1, "This cannot be undone.", kText);
-            descLine(2, s_controllerType == gfPadType::WIIMOTE ? "2: Delete   1: Cancel" : "A: Delete   B: Cancel",
-                     kText);
+            descLineAt(line0Top, line, kLabFocusGold);
+            descLineAt(line0Top + linePitch, "This cannot be undone.", kText);
             return;
         }
         if (s_phase == kDelete)
@@ -684,8 +702,8 @@ namespace browser {
         if (s_count == 0)
         {
             descLine(0, "No recordings found on the SD card.", kText);
-            descLine(1, "Export one in a Training match: lab menu,", kText);
-            descLine(2, "Recording > Export.", kText);
+            descLine(1, "Export one in a Training match: lab menu,", kLabDescText);
+            descLine(2, "Recording > Export.", kLabDescText);
             return;
         }
         const Entry& e = s_entries[s_row];
@@ -713,52 +731,83 @@ namespace browser {
             lengthText(length, sizeof(length), i.frames);
             snprintf(line, sizeof(line), "%s, %u-%02u-%02u %02u:%02u, %s", stageName(i.stage), i.year, i.month,
                      i.day, i.hour, i.minute, length);
-            descLine(1, line, kText);
+            descLine(1, line, kLabDescText);
             char hmn[16];
             char cpu[16];
             slotsText(hmn, sizeof(hmn), i.hmnSlots);
             slotsText(cpu, sizeof(cpu), i.cpuSlots);
             snprintf(line, sizeof(line), "Slots: HMN %s  CPU %s", hmn, cpu);
-            descLine(2, line, kText);
+            descLine(2, line, kLabDescText);
             break;
         }
         }
         snprintf(line, sizeof(line), "File %s", e.file);
-        descLine(3, line, kTextDisabled);
+        descLine(3, line, kLabMutedText);
+    }
+
+    static float drawFootBadge(float x, float cy, const char* glyph, bool round, gfx::Rgba topCol, gfx::Rgba botCol,
+                               gfx::Rgba fg, const char* label)
+    {
+        float gScale = scaleForCap(8.5f);
+        float lScale = scaleForCap(9.0f);
+        float gw = gfx::textWidth(glyph, gScale);
+        float bh = 16.0f;
+        float bw = round ? w(bh) : (gw + w(10.0f));
+        if (bw < w(bh))
+        {
+            bw = w(bh);
+        }
+        if (round)
+        {
+            drawGlossyRoundBadge(x + bw * 0.5f, cy, bh * 0.5f, topCol, botCol);
+        }
+        else
+        {
+            drawGlossyPillBadge(x, cy - bh * 0.5f, bw, bh, topCol, botCol);
+        }
+        gfx::text(x + (bw - gw) * 0.5f, textYForCap(cy - 4.25f, gScale), glyph, fg, gScale);
+        float lx = x + bw + 6.0f;
+        float endX = gfx::text(lx, textYForCap(cy - 4.5f, lScale), label, kLabMutedText, lScale);
+        return endX + 16.0f;
     }
 
     static void drawBrowserPanel()
     {
-        static const gfx::Rgba kBackdropDim = 0x050C10A8;
+        static const gfx::Rgba kBackdropDim = 0x070B12B8u;
+        const float b = kLabBorder;
+        const float inL43 = kPanelLeft + b;
+        const float inR43 = kPanelRight - b;
+        const float inTop = kPanelTop + b;
+        const float inBot = kBrowserBottom - b;
 
         gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, kBackdropDim);
 
         float left = cx(kPanelLeft);
-        float right = cx(kPanelRight);
-        float bx = w(kBorderX);
-        float width = right - left;
-        float height = kPanelBottom - kPanelTop;
-        // Brawl double-framed metallic border (black outer + P+ teal inner).
-        gfx::fillRect(left - bx, kPanelTop - kBorderY, width + 2.0f * bx, kBorderY, kLabBorderColor);
-        gfx::fillRect(left - bx, kPanelBottom, width + 2.0f * bx, kBorderY, kLabBorderColor);
-        gfx::fillRect(left - bx, kPanelTop, bx, height, kLabBorderColor);
-        gfx::fillRect(right, kPanelTop, bx, height, kLabBorderColor);
+        float width = w(kPanelRight - kPanelLeft);
+        float bx = w(b);
+        gfx::fillRect(left, kPanelTop, width, b, kLabBorderColor);
+        gfx::fillRect(left, kBrowserBottom - b, width, b, kLabBorderColor);
+        gfx::fillRect(left, inTop, bx, inBot - inTop, kLabBorderColor);
+        gfx::fillRect(cx(inR43), inTop, bx, inBot - inTop, kLabBorderColor);
 
-        float innerH = height - 2.0f * kBorderY;
-        gfx::fillRect(left, kPanelTop, width, kBorderY, kLabAccent);
-        gfx::fillRect(left, kPanelBottom - kBorderY, width, kBorderY, kLabAccent);
-        gfx::fillRect(left, kPanelTop + kBorderY, bx, innerH, kLabAccent);
-        gfx::fillRect(right - bx, kPanelTop + kBorderY, bx, innerH, kLabAccent);
+        float x0 = cx(inL43);
+        float iw = w(inR43 - inL43);
+        float hdrBot = kTitleBandBottom - 2.0f;
+        float rowsBot = kRowsBandBottom - 2.0f;
+        gfx::fillGradV(x0, inTop, iw, hdrBot - inTop, kLabHeaderTop, kLabHeaderBot);
+        gfx::fillRect(x0, hdrBot, iw, 2.0f, kLabDivider);
+        gfx::fillGradV(x0, kTitleBandBottom, iw, rowsBot - kTitleBandBottom, kLabBaseTop, kLabBaseBot);
+        gfx::fillRect(x0, rowsBot, iw, 2.0f, kLabDivider);
+        gfx::fillGradV(x0, kRowsBandBottom, iw, kBrowserFootTop - kRowsBandBottom, kLabDescTopCol, kLabDescBotCol);
+        gfx::fillRect(x0, kBrowserFootTop, iw, 2.0f, kLabDivider);
+        gfx::fillGradV(x0, kBrowserFootTop + 2.0f, iw, inBot - (kBrowserFootTop + 2.0f), kLabFooterTopCol,
+                       kLabFooterBotCol);
 
-        float x0 = left + bx;
-        float iw = width - 2.0f * bx;
-        float top = kPanelTop + kBorderY;
-        float bottom = kPanelBottom - kBorderY;
-        gfx::fillGradV(x0, top, iw, kTitleBandBottom - top, kLabHeaderTop, kLabHeaderBot);
-        gfx::fillGradV(x0, kTitleBandBottom, iw, kRowsBandBottom - kTitleBandBottom, kLabBaseTop, kLabBaseBot);
-        gfx::fillGradV(x0, kRowsBandBottom, iw, bottom - kRowsBandBottom, kLabFooterTopCol, kLabFooterBotCol);
-        gfx::fillRect(x0, kTitleBandBottom, iw, 2.0f, kLabDivider);
-        gfx::fillRect(x0, kRowsBandBottom, iw, 2.0f, kLabDivider);
+        // Flush-left emerald-teal slanted header ribbon + // diagonal stripes.
+        float hdrH = hdrBot - inTop;
+        float ribbonRight43 = 278.0f;
+        drawSlantBar(inL43, ribbonRight43, inTop, hdrH, true, kLabTealTop, kLabTealBot, 0);
+        drawDiagStripes(cx(ribbonRight43 - 6.0f), inTop, hdrBot, w(hdrH * 0.445f), w(4.5f), w(3.5f), kLabStripeCol);
     }
 
     void draw()
@@ -769,33 +818,63 @@ namespace browser {
             return;
         }
         drawBrowserPanel();
+        const float b = kLabBorder;
+        const float inL43 = kPanelLeft + b;
+        const float inR43 = kPanelRight - b;
+        const float inTop = kPanelTop + b;
+        const float inBot = kBrowserBottom - b;
+        const float hdrBot = kTitleBandBottom - 2.0f;
+        const float hdrMid = (inTop + hdrBot) * 0.5f;
+
         int first = s_row / kPageRows * kPageRows;
-        if (s_count > 0)
+        const float hlLeft43 = 58.0f;
+        const float hlRight43 = 558.0f;
+        const float slantTan = 0.445f;
+        for (int r = 0; r < kPageRows && first + r < s_count; r++)
         {
-            float y = kRowTop + (s_row - first) * kRowPitch;
-            float hlLeft = cx(kHighlightLeft - 4.0f);
-            float hlW = w(kHighlightRight - (kHighlightLeft - 4.0f));
-            drawBevelBar(hlLeft, y, hlW, kRowBoxH, kLabGoldTop, kLabGoldBot, kLabGoldSheen, kLabGoldEdge);
-            drawCursorTri(cx(kHighlightLeft - 2.0f), y + kRowBoxH * 0.5f, 8.0f);
+            float y = kRowTop + r * kRowPitch;
+            bool selected = first + r == s_row;
+            if (selected)
+            {
+                drawSlantBar(hlLeft43, hlRight43, y, kRowBoxH, false, kLabGoldTop, kLabGoldBot, kLabGoldEdge);
+                drawCursorTri(cx(hlLeft43 + kRowBoxH * slantTan * 0.55f + 3.0f), y + kRowBoxH * 0.5f, 8.0f);
+            }
+            else
+            {
+                drawSlantBar(hlLeft43, hlRight43, y, kRowBoxH, false, kLabRowSlateTop, kLabRowSlateBot,
+                             kLabRowSlateEdge);
+            }
         }
         drawScrollBar(s_count, first > s_count - kVisibleRows ? (s_count > kVisibleRows ? s_count - kVisibleRows : 0)
                                                                : first);
-        float titleScale = displayScaleForCap(16.0f);
-        gfx::displayText(cx(kTitleX), displayYForCap(kTitleCapTop + 2.0f, titleScale), "Recordings", kLabTitleTop,
-                         kLabTitleBot, titleScale, titleScale, 1.2f, kLabTitleEdge);
-        static const gfx::Rgba kHelp = 0x9FB4BDFF;
-        char page[24];
+        float titleCap = 14.5f;
+        float titleScale = displayScaleForCap(titleCap);
+        gfx::displayText(cx(inL43 + 14.0f), displayYForCap(hdrMid - titleCap * 0.5f, titleScale), "Recordings",
+                         kLabActiveTabText, kLabActiveTabText, titleScale, titleScale, 0.0f, 0);
+
+        // Glossy shoulder pills + page readout in the header's right half.
+        bool wiiPage = (s_controllerType == gfPadType::WIIMOTE || s_controllerType == gfPadType::NUNCHUK);
+        const char* prevG = wiiPage ? "-" : "L";
+        const char* nextG = wiiPage ? "+" : "R";
+        float pScale = scaleForCap(9.0f);
+        float pillH = 18.0f;
+        float pillW = w(22.0f);
+        float pillY = hdrMid - pillH * 0.5f;
+        float pTextY = textYForCap(hdrMid - 4.5f, pScale);
+        float lPillX = cx(412.0f);
+        float rPillX = cx(552.0f);
+        drawGlossyPillBadge(lPillX, pillY, pillW, pillH, kLabBtnLightTop, kLabBtnLightBot);
+        drawGlossyPillBadge(rPillX, pillY, pillW, pillH, kLabBtnLightTop, kLabBtnLightBot);
+        gfx::text(lPillX + (pillW - gfx::textWidth(prevG, pScale)) * 0.5f, pTextY, prevG, kLabBtnDarkText, pScale);
+        gfx::text(rPillX + (pillW - gfx::textWidth(nextG, pScale)) * 0.5f, pTextY, nextG, kLabBtnDarkText, pScale);
+
+        char page[20];
         int pages = (s_count + kPageRows - 1) / kPageRows;
-        const char* pageFmt = (s_controllerType == gfPadType::WIIMOTE || s_controllerType == gfPadType::NUNCHUK)
-                                  ? "< -   Page %d/%d   + >"
-                                  : "< L   Page %d/%d   R >";
-        snprintf(page, sizeof(page), pageFmt, s_count > 0 ? s_row / kPageRows + 1 : 1, pages > 0 ? pages : 1);
-        gfx::textRight(kSlotPage, cx(kRowBoxRight), kTitleCapTop + 14.0f, page, kHelp, 0.52f);
-        const char* actions = s_controllerType == gfPadType::WIIMOTE
-                                  ? "2: Load   A: Delete   1: Back"
-                                  : (s_controllerType == gfPadType::NUNCHUK ? "A: Load   C: Delete   B: Back"
-                                                                            : "A: Load   X: Delete   B: Back");
-        gfx::textRight(kSlotHelp, cx(kRowBoxRight), kTitleCapTop - 2.0f, actions, kHelp, 0.52f);
+        snprintf(page, sizeof(page), "Page %d/%d", s_count > 0 ? s_row / kPageRows + 1 : 1, pages > 0 ? pages : 1);
+        float pgW = gfx::textWidth(page, pScale);
+        float slotCenter = (lPillX + pillW + rPillX) * 0.5f;
+        gfx::text(slotCenter - pgW * 0.5f, pTextY, page, kLabDescText, pScale);
+
         float capOffset = (kRowBoxH - kRowCap) * 0.5f;
         char text[48];
         for (int r = 0; r < kPageRows && first + r < s_count; r++)
@@ -807,7 +886,7 @@ namespace browser {
             float nameWidth = boldWidth(text, scale);
             gfx::Rgba nameColor = selected ? (e.status == kReady ? kLabGoldInk : kLabGoldInkMuted)
                                            : (e.status == kReady ? kText : kTextDisabled);
-            gfx::Rgba rightColor = selected ? kLabGoldInkMuted : kTextDisabled;
+            gfx::Rgba rightColor = selected ? kLabGoldInkMuted : kLabMutedText;
             char name[sizeof(text)];
             snprintf(name, sizeof(name), "%s", text);
             const char* right = text;
@@ -824,13 +903,42 @@ namespace browser {
                 right = e.status == kUnread ? "" : (e.status == kNewer ? "Newer version"
                                                                        : (e.status == kOlder ? "Older version" : "Damaged"));
             }
-            gfx::textRight(kSlotRows + r, cx(kRowBoxRight) - 6.0f, y, right, rightColor, scale);
+            gfx::textRight(kSlotRows + r, cx(kRowBoxRight) - 4.0f, y, right, rightColor, scale);
             // Keep the matchup name clear of the date/duration column.
-            float room = cx(kRowBoxRight) - 6.0f - gfx::textWidth(right, scale) - 8.5f - cx(kNameX);
+            float nameX = cx(kNameX + 6.0f);
+            float room = cx(kRowBoxRight) - 4.0f - gfx::textWidth(right, scale) - 9.0f - nameX;
             float sx = nameWidth > room && nameWidth > 0.0f && room > 0.0f ? scale * room / nameWidth : scale;
-            boldText(cx(kNameX), y, name, nameColor, sx, scale);
+            boldText(nameX, y, name, nameColor, sx, scale);
         }
         drawDescription();
+
+        // Glossy Brawl footer control badges matching drill_list.cpp & osd_quick.cpp.
+        float fy = kBrowserFootTop + 2.0f + (inBot - (kBrowserFootTop + 2.0f)) * 0.5f;
+        float fx = cx(inL43 + 14.0f);
+        const char* okG = s_controllerType == gfPadType::WIIMOTE ? "2" : "A";
+        const char* backG = s_controllerType == gfPadType::WIIMOTE ? "1" : "B";
+        if (s_confirm)
+        {
+            fx = drawFootBadge(fx, fy, okG, true, kLabBtnBTop, kLabBtnBBot, kLabWhiteText, "Delete");
+            drawFootBadge(fx, fy, backG, true, kLabBtnLightTop, kLabBtnLightBot, kLabBtnDarkText, "Cancel");
+        }
+        else
+        {
+            const char* delG = s_controllerType == gfPadType::WIIMOTE ? "A"
+                                                                      : (s_controllerType == gfPadType::NUNCHUK ? "C" : "X");
+            const char* pgG = wiiPage ? "-/+" : "L/R";
+            fx = drawFootBadge(fx, fy, okG, true, kLabBtnATop, kLabBtnABot, kLabActiveTabText, "Load");
+            fx = drawFootBadge(fx, fy, delG, s_controllerType == gfPadType::WIIMOTE, kLabBtnLightTop, kLabBtnLightBot,
+                               kLabBtnDarkText, "Delete");
+            fx = drawFootBadge(fx, fy, backG, true, kLabBtnBTop, kLabBtnBBot, kLabWhiteText, "Back");
+            drawFootBadge(fx, fy, pgG, false, kLabBtnLightTop, kLabBtnLightBot, kLabBtnDarkText, "Page");
+        }
+
+        // Subtle 2px dark inner top/bottom bevel matching menu.cpp.
+        float x0 = cx(inL43);
+        float iw = w(inR43 - inL43);
+        gfx::fillRect(x0, inTop, iw, 2.0f, kLabDivider);
+        gfx::fillRect(x0, inBot - 2.0f, iw, 2.0f, kLabBevelDark);
     }
 
     // ---- open / close ----

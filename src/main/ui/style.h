@@ -268,6 +268,9 @@ namespace style {
     // Watermark capital height (placed in hud_layout.h).
     static const float kWatermarkCap = 9.0f;
 
+    // 4-strip opaque outer frame border around a translucent 4:3-proportioned panel.
+    void drawFrameBorder(float left43, float right43, float topY, float botY, float border, gfx::Rgba color);
+
     // Draws the legacy panel layout (recordings browser). When `withFooter` is
     // false, the rows band fills the full height down to the bottom border.
     void drawMenuPanel(bool withFooter = false);
@@ -280,6 +283,13 @@ namespace style {
     // Stock P+ ~24 deg slanted vertical-gradient quad in 2D screen coordinates.
     void drawSlantGradV(float x0Top, float x0Bot, float x1Top, float x1Bot, float y0, float y1, gfx::Rgba topCol,
                         gfx::Rgba botCol);
+
+    // Slanted v1 Direction A bar in 4:3 coordinates with optional 2px border frame.
+    void drawSlantBar(float x043, float x143, float y, float height, bool flushLeft, gfx::Rgba topCol,
+                      gfx::Rgba botCol, gfx::Rgba edgeCol);
+
+    // Slanted v1 Direction A value pill (On green, focused light, or dark slate).
+    void drawValuePill(float left43, float right43, float y, float rowH, bool isOn, bool on, bool selected);
 
     // Twin P+ "//" diagonal stripes inside a slanted bar ending at `rightTopX`.
     void drawDiagStripes(float rightTopX, float y0, float y1, float slantPx, float stripeW, float gap,
