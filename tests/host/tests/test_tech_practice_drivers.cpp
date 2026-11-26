@@ -90,7 +90,7 @@ TEST(tech_practice, powershield_projectile_profiles_and_fallback)
     CHECK(psShortHopPressDelay(*falco, kPsHeightMid) < psShortHopPressDelay(*falco, kPsHeightLow));
     CHECK_EQ(static_cast<u8>(0), psShortHopPressDelay(*falco, kPsHeightGround));
 
-    // Additional verified P+ projectile fighters exist; melee-only fighters fall back to Physical.
+    // Additional verified P+ projectile fighters exist.
     CHECK(hasNeutralBProjectile(0x00)); // Mario
     CHECK(hasNeutralBProjectile(0x08)); // Luigi
     CHECK(hasNeutralBProjectile(0x03)); // Samus
@@ -103,15 +103,42 @@ TEST(tech_practice, powershield_projectile_profiles_and_fallback)
     CHECK(hasNeutralBProjectile(0x23)); // R.O.B.
     CHECK(hasNeutralBProjectile(0x0E)); // Sheik
 
+    // Melee-only fighters, Ivysaur (Synthesis/Solarbeam), and Snake (timed grenade)
+    // cleanly fall back to Physical (Jab).
     CHECK(!hasNeutralBProjectile(0x11)); // Marth
     CHECK(!hasNeutralBProjectile(0x09)); // Captain Falcon
     CHECK(!hasNeutralBProjectile(0x14)); // Ganondorf
+    CHECK(!hasNeutralBProjectile(0x1F)); // Ivysaur
+    CHECK(!hasNeutralBProjectile(0x2E)); // Snake
 
     CHECK_EQ(static_cast<u8>(kPsAtkProjectile), resolvePsAttackMode(kPsAtkProjectile, 0x13));
     CHECK_EQ(static_cast<u8>(kPsAtkPhysical), resolvePsAttackMode(kPsAtkPhysical, 0x13));
     CHECK_EQ(static_cast<u8>(kPsAtkPhysical), resolvePsAttackMode(kPsAtkProjectile, 0x11));
+    CHECK_EQ(static_cast<u8>(kPsAtkPhysical), resolvePsAttackMode(kPsAtkProjectile, 0x1F));
+    CHECK_EQ(static_cast<u8>(kPsAtkPhysical), resolvePsAttackMode(kPsAtkProjectile, 0x2E));
 
-    // Ground-only projectile (Popo Ice Shot) always resolves to Ground height.
+    // Charge-tap fighters (Samus/Lucario/Mewtwo/Sheik), Popo, and long-hold bows
+    // (Link/Toon Link) force Ground fire so they never land mid-charge or mid-hold.
+    CHECK(psMustGroundFire(*findProjectileProfile(0x03))); // Samus
+    CHECK(psMustGroundFire(*findProjectileProfile(0x21))); // Lucario
+    CHECK(psMustGroundFire(*findProjectileProfile(0x26))); // Mewtwo
+    CHECK(psMustGroundFire(*findProjectileProfile(0x0E))); // Sheik
+    CHECK(psMustGroundFire(*findProjectileProfile(0x0F))); // Popo
+    CHECK(psMustGroundFire(*findProjectileProfile(0x02))); // Link (10f hold)
+    CHECK(psMustGroundFire(*findProjectileProfile(0x29))); // Toon Link (10f hold)
+
+    // Aerial hold-release fighters (Pit, Diddy, ZSS) always release BEFORE landing.
+    const int aerialHoldKinds[3] = {0x17, 0x1B, 0x18};
+    for (int i = 0; i < 3; i++)
+    {
+        const ProjectileProfile* p = findProjectileProfile(aerialHoldKinds[i]);
+        CHECK(p != NULL && !psMustGroundFire(*p));
+        u8 delay = psShortHopPressDelay(*p, kPsHeightLow);
+        CHECK(static_cast<int>(delay) + static_cast<int>(p->holdBFrames) + static_cast<int>(p->shStartup)
+              <= static_cast<int>(p->shAirFrames));
+    }
+
+    // Ground-only resolves to Ground height regardless of selected height.
     u32 rng = 0x12345678u;
     CHECK_EQ(static_cast<u8>(kPsHeightGround), psResolveHeight(kPsHeightLow, true, rng));
     CHECK_EQ(static_cast<u8>(kPsHeightGround), psResolveHeight(kPsHeightRandom, true, rng));
@@ -180,15 +207,17 @@ TEST(tech_practice, powershield_cpu_driver_shl_charge_hold_and_physical)
     CHECK_EQ(static_cast<u8>(kPsCpuIdle), st.phase);
     CHECK_EQ(static_cast<u16>(38), st.cooldown);
 
-    // Charge-tap fighter (Samus Ground shot): tap B -> charge wait -> second B tap.
+    // Charge-tap fighter (Samus): even when Low height is requested, forces Ground
+    // fire so she never lands mid-charge and cancels the shot.
     psCpuStateReset(st);
     st.cooldown = 0u;
-    cfg.psHeight = kPsHeightGround;
+    cfg.psHeight = kPsHeightLow;
     in.cpuFtKind = 0x03; // Samus
     in.cpuAir = false;
     in.cpuX = 22.0f;
     in.hmnX = -16.0f;
     stepPsPracticeCpu(in, cfg, st, out);
+    CHECK_EQ(static_cast<u8>(kPsHeightGround), st.resolvedHeight);
     CHECK_EQ(static_cast<u32>(kPrBtnSpecial), out.buttons);
     CHECK_EQ(static_cast<u8>(kPsCpuChargeWait), st.phase);
     bool released = false;
@@ -224,34 +253,37 @@ TEST(tech_practice, powershield_cpu_driver_shl_charge_hold_and_physical)
 
 TEST(tech_practice, ledgedash_cliff_box_snap_camera_and_driver)
 {
-    // Verify Wolf / Fox / Bowser cliff-hang boxes place the ledge directly inside
-    // each fighter's own scaled cliff-hang box and keep body outside the lip.
-    const CliffHangBox boxes[3] = {
-        {0.0f, 8.5f, 9.5f, 11.0f},  // Wolf-like compact box
-        {0.5f, 9.0f, 10.5f, 10.5f}, // Fox-like box
-        {1.0f, 12.0f, 13.0f, 12.0f} // Bowser-like large box
+    // Verified real P+ 3.2.1 scaled cliff-hang boxes (all have negative offsetX = -4.0 * scale;
+    // Ledge.asm:16-52 cancels negative offsetX on front reach -> [posX + lr*offsetX, posX + lr*width]).
+    const CliffHangBox boxes[6] = {
+        {-4.18f,  8.88f, 11.49f,  9.40f}, // Fox
+        {-4.90f, 10.41f, 13.48f, 11.03f}, // Wolf
+        {-3.90f, 11.21f,  9.75f, 10.73f}, // Marth
+        {-3.94f,  5.91f,  8.87f,  9.85f}, // Pikachu
+        {-4.08f, 13.26f,  8.67f, 11.22f}, // Snake
+        {-3.76f,  5.64f, 12.37f, 12.81f}  // Bowser
     };
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 6; i++)
     {
         float sx = 0.0f, sy = 0.0f;
         // Left ledge at (-68.4, 0.0), facing +1 (right).
         computeCliffSnapSpawn(-68.4f, 0.0f, 1.0f, boxes[i], sx, sy);
-        CHECK(sx <= -68.4f - 2.0f); // strictly outside left stage lip
-        CHECK(sx + boxes[i].offsetX <= -68.4f && sx + boxes[i].offsetX + boxes[i].width >= -68.4f);
+        CHECK(sx <= -68.4f - 4.5f); // strictly outside left stage wall lip (no wall overlap)
+        CHECK(sx + boxes[i].offsetX <= -68.4f && sx + boxes[i].width >= -68.4f);
         CHECK(sy + boxes[i].offsetY <= 0.0f && sy + boxes[i].offsetY + boxes[i].height >= 0.0f);
 
         // Right ledge at (+68.4, 0.0), facing -1 (left).
         computeCliffSnapSpawn(68.4f, 0.0f, -1.0f, boxes[i], sx, sy);
-        CHECK(sx >= 68.4f + 2.0f); // strictly outside right stage lip
-        CHECK(sx - boxes[i].offsetX >= 68.4f && sx - (boxes[i].offsetX + boxes[i].width) <= 68.4f);
+        CHECK(sx >= 68.4f + 4.5f); // strictly outside right stage wall lip
+        CHECK(sx - boxes[i].offsetX >= 68.4f && sx - boxes[i].width <= 68.4f);
         CHECK(sy + boxes[i].offsetY <= 0.0f && sy + boxes[i].offsetY + boxes[i].height >= 0.0f);
     }
 
-    // Invalid cliff box gracefully falls back to defaultCliffHangBox().
+    // Invalid cliff box gracefully falls back to safe default.
     CliffHangBox bad = {-99.0f, 99.0f, 0.0f, -5.0f};
     float fx = 0.0f, fy = 0.0f;
     computeCliffSnapSpawn(-68.4f, 0.0f, 1.0f, bad, fx, fy);
-    CHECK(fx < -70.0f && fx > -85.0f);
+    CHECK(fx <= -68.4f - 4.5f && fx > -85.0f);
     CHECK(fy < -5.0f && fy > -25.0f);
 
     // Side selection policy.
@@ -267,7 +299,7 @@ TEST(tech_practice, ledgedash_cliff_box_snap_camera_and_driver)
     CHECK(cl < -68.4f && cr > -40.0f && cb < 0.0f && ct > 20.0f);
 
     // Ledgedash driver state machine: initial snap, RA-Basic[0] hold, D-Pad switch,
-    // Opposite Auto-Reset, Unlimited LA-Basic[79] clear, and Dead deferral.
+    // Opposite Auto-Reset, Unlimited LA-Basic[79] clear, Dead deferral, and retry cap.
     PracticeConfig cfg;
     practiceConfigDefaults(cfg);
     cfg.ledgeAutoReset = 1;
@@ -280,7 +312,7 @@ TEST(tech_practice, ledgedash_cliff_box_snap_camera_and_driver)
 
     LedgeDriverInput in;
     memset(&in, 0, sizeof(in));
-    in.hmnStatus = 0x00; // Wait
+    in.hmnStatus = 0x00;
     in.ledgeSeq = 0;
 
     // First frame triggers initial snap to Left ledge (0).
@@ -372,6 +404,13 @@ TEST(tech_practice, lcancel_and_float_target_driver_modes)
     CHECK_EQ(static_cast<u8>(kTargetStationary), activeTargetMode(kPracticeDrillHoverFloat, cfg));
     CHECK_EQ(static_cast<u8>(kTargetOff), activeTargetMode(kPracticeDrillWavedash, cfg));
 
+    // Stationary CPU uses NoReaction (full P+ attacker hitlag, 0 knockback, 0 damage);
+    // Shielding / Moving / Off do NOT enable NoReaction.
+    CHECK(targetWantsNoReaction(kTargetStationary));
+    CHECK(!targetWantsNoReaction(kTargetShielding));
+    CHECK(!targetWantsNoReaction(kTargetMoving));
+    CHECK(!targetWantsNoReaction(kTargetOff));
+
     // Target anchor places CPU in front of P1 and flips inward near stage edge.
     float ax = 0.0f, ay = 0.0f, alr = 0.0f;
     computeTargetAnchor(0.0f, 1.0f, 12.0f, geom, ax, ay, alr);
@@ -380,10 +419,11 @@ TEST(tech_practice, lcancel_and_float_target_driver_modes)
 
     computeTargetAnchor(62.0f, 1.0f, 12.0f, geom, ax, ay, alr);
     CHECK(ax <= geom.floor.rightX - 10.0f);
-    CHECK(ax < 62.0f); // flipped inward away from right ledge
+    CHECK(ax < 62.0f);
 
     TargetCpuState st;
     targetCpuReset(st);
+    CHECK(!st.anchorValid);
     TargetCpuInput in;
     memset(&in, 0, sizeof(in));
     in.cpuCanAct = true;
@@ -428,35 +468,46 @@ TEST(tech_practice, wavedash_gx_target_zone_physics_and_scoring)
 {
     StageGeometry geom = mkBattlefieldGeom();
 
-    // Real P+ 3.2.1 Ground_Brake traction ordering:
-    // Luigi (0.025) > Marth (0.055) > Fox (0.080) > Peach (0.100).
-    const float dLuigi = computeWavedashMaxDist(0.025f);
-    const float dMarth = computeWavedashMaxDist(0.055f);
-    const float dFox = computeWavedashMaxDist(0.080f);
-    const float dPeach = computeWavedashMaxDist(0.100f);
+    // Real P+ 3.2.1 Ground_Brake & Walk_Speed_Max ordering with AirDodge.asm 0.9x decay:
+    // Luigi (0.025, 1.1) > Marth (0.055, 1.5) > Fox (0.080, 1.6) > Peach (0.100, 0.96).
+    const float dLuigi = computeWavedashMaxDist(0.025f, 1.10f);
+    const float dMarth = computeWavedashMaxDist(0.055f, 1.50f);
+    const float dFox = computeWavedashMaxDist(0.080f, 1.60f);
+    const float dPeach = computeWavedashMaxDist(0.100f, 0.96f);
     CHECK(dLuigi > dMarth);
     CHECK(dMarth > dFox);
     CHECK(dFox > dPeach);
-    CHECK(dPeach > 10.0f && dLuigi < 35.0f);
+    CHECK(dPeach > 8.0f && dLuigi < 30.0f);
 
-    // Zone spans 55% - 80% of fighter's wavedash distance on walkable floor.
+    // Zone spans 55% - 80% of fighter's calibrated wavedash distance on walkable floor.
     WdZoneState z;
     wdZoneReset(z);
-    CHECK(spawnWavedashZone(z, 0.0f, 0.0f, 1.0f, 0.080f, geom));
+    CHECK(spawnWavedashZone(z, 0.0f, 0.0f, 1.0f, 0.080f, geom, 1.60f));
     CHECK_EQ(static_cast<u8>(1), z.active);
     CHECK(fabsf(z.minX - dFox * 0.55f) < 0.05f);
     CHECK(fabsf(z.maxX - dFox * 0.80f) < 0.05f);
     CHECK(z.minX >= geom.floor.leftX + 4.0f && z.maxX <= geom.floor.rightX - 4.0f);
 
     // Near right edge facing right: zone flips cleanly inward onto walkable floor.
-    CHECK(spawnWavedashZone(z, 62.0f, 0.0f, 1.0f, 0.025f, geom));
+    CHECK(spawnWavedashZone(z, 62.0f, 0.0f, 1.0f, 0.025f, geom, 1.10f));
     CHECK(z.dir < 0.0f);
     CHECK(z.minX >= geom.floor.leftX + 4.0f && z.maxX <= geom.floor.rightX - 4.0f);
 
-    // Scoring: Hit increments hits & streak; Short & Overshoot reset streak.
-    CHECK(spawnWavedashZone(z, 0.0f, 0.0f, 1.0f, 0.080f, geom));
+    // Scoring keeps the attempted zone flashing for 18f before respawn triggers!
+    CHECK(spawnWavedashZone(z, 0.0f, 0.0f, 1.0f, 0.080f, geom, 1.60f));
+    float origMin = z.minX;
     float mid = 0.5f * (z.minX + z.maxX);
     CHECK_EQ(static_cast<u8>(kWdZoneHit), scoreWavedashZone(z, mid, true));
+    CHECK_EQ(static_cast<u8>(18), z.flashFrames);
+    CHECK_EQ(static_cast<u8>(1), z.respawnPending);
+    for (int f = 0; f < 18; f++)
+    {
+        CHECK(!wdZoneTickFlash(z));
+        CHECK(fabsf(z.minX - origMin) < 0.001f); // zone stays put while flashing
+    }
+    CHECK(wdZoneTickFlash(z)); // frame 19: ready to spawn next zone
+    CHECK(!wdZoneTickFlash(z));
+
     CHECK_EQ(static_cast<u8>(kWdZoneHit), scoreWavedashZone(z, mid, true));
     CHECK_EQ(2u, z.hits);
     CHECK_EQ(2u, z.streak);

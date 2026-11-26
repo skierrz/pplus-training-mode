@@ -310,7 +310,43 @@ TEST(tech_sparkle, isolation_across_multiframe_wavedashes_and_modes)
     CHECK_EQ(static_cast<u8>(extra::kSparkleShorthop), extra::stepTechSparkle(slot, in));
     CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, mkInput(407, main::kTechSparkleBoth)));
 
-    // 5. Savestate rewind clears pendingShorthop cleanly.
+    // 5. Both mode: instant SH DJC (JumpAerial) and SH Zair (AirLasso) emit Shorthop immediately.
+    extra::techSparkleResetSlot(slot);
+    in = mkInput(420, main::kTechSparkleBoth);
+    addEv(in, game::kStatusJumpSquat, game::kStatusWait);
+    extra::stepTechSparkle(slot, in);
+    in = mkInput(423, main::kTechSparkleBoth);
+    addEv(in, game::kStatusJump, game::kStatusJumpSquat, extra::kTsShortHopFlag);
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+    in = mkInput(424, main::kTechSparkleBoth);
+    addEv(in, game::kStatusJumpAerial, game::kStatusJump);
+    CHECK_EQ(static_cast<u8>(extra::kSparkleShorthop), extra::stepTechSparkle(slot, in));
+
+    extra::techSparkleResetSlot(slot);
+    in = mkInput(440, main::kTechSparkleBoth);
+    addEv(in, game::kStatusJumpSquat, game::kStatusWait);
+    extra::stepTechSparkle(slot, in);
+    in = mkInput(443, main::kTechSparkleBoth);
+    addEv(in, game::kStatusJump, game::kStatusJumpSquat, extra::kTsShortHopFlag);
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+    in = mkInput(444, main::kTechSparkleBoth);
+    addEv(in, extra::kTsStatusAirLasso, game::kStatusJump);
+    CHECK_EQ(static_cast<u8>(extra::kSparkleShorthop), extra::stepTechSparkle(slot, in));
+
+    // 6. Repeated frame (pause / frame-advance freeze) keeps state intact; rewind clears pendingShorthop.
+    extra::techSparkleResetSlot(slot);
+    in = mkInput(480, main::kTechSparkleBoth);
+    addEv(in, game::kStatusJumpSquat, game::kStatusWait);
+    extra::stepTechSparkle(slot, in);
+    in = mkInput(483, main::kTechSparkleBoth);
+    addEv(in, game::kStatusJump, game::kStatusJumpSquat, extra::kTsShortHopFlag);
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, in));
+    // Frozen frame 483 repeated does not lose pendingShorthop.
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, mkInput(483, main::kTechSparkleBoth)));
+    CHECK_EQ(static_cast<u8>(extra::kSparkleNone), extra::stepTechSparkle(slot, mkInput(485, main::kTechSparkleBoth)));
+    CHECK_EQ(static_cast<u8>(extra::kSparkleShorthop), extra::stepTechSparkle(slot, mkInput(486, main::kTechSparkleBoth)));
+
+    // 7. Savestate rewind clears pendingShorthop cleanly.
     extra::techSparkleResetSlot(slot);
     in = mkInput(500, main::kTechSparkleBoth);
     addEv(in, game::kStatusJumpSquat, game::kStatusWait);

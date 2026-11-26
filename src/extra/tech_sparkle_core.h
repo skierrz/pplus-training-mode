@@ -12,7 +12,8 @@ namespace extra {
         kTsMaxEvents = 8,
         kTsWavedashMaxAir = 30,
         kTsShorthopDeferFrames = 3,
-        kTsShortHopFlag = 1 << 6
+        kTsShortHopFlag = 1 << 6,
+        kTsStatusAirLasso = 0x7F
     };
 
     enum TechSparkleCue {
@@ -51,7 +52,8 @@ namespace extra {
 
     inline bool techSparkleIsImmediateShAction(int s)
     {
-        return s == game::kStatusAttackAirFirst || (s >= game::kStatusSpecialN && s < game::kStatusFinal);
+        return s == game::kStatusAttackAirFirst || s == game::kStatusJumpAerial || s == kTsStatusAirLasso
+               || (s >= game::kStatusSpecialN && s < game::kStatusFinal);
     }
 
     // Steps one tracked human fighter for the finished frame and returns which

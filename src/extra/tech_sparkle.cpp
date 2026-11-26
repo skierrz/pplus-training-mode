@@ -118,22 +118,31 @@ namespace extra {
         const game::MatchState& match = game::matchState();
         u8 mode = main::settings().osd.techSparkle;
         s32 f = game::trackerFrame();
-        if (s_prevFrame != kTsNoFrame && f <= s_prevFrame)
-        {
-            resetAllSlots();
-        }
-        s_prevFrame = f;
         s_debug.frame = static_cast<u32>(f >= 0 ? f : 0);
         s_debug.mode = mode;
 
-        if (!match.running || match.paused || mode == main::kTechSparkleOff)
+        if (!match.running || mode == main::kTechSparkleOff)
         {
-            if (mode == main::kTechSparkleOff)
+            s_prevFrame = kTsNoFrame;
+            resetAllSlots();
+            return;
+        }
+        if (match.paused)
+        {
+            return;
+        }
+        if (s_prevFrame != kTsNoFrame)
+        {
+            if (f < s_prevFrame)
             {
                 resetAllSlots();
             }
-            return;
+            else if (f == s_prevFrame)
+            {
+                return;
+            }
         }
+        s_prevFrame = f;
 
         for (int i = 0; i < game::kMaxTracked; i++)
         {

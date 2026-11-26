@@ -1,5 +1,6 @@
 #include "extra/drill_practice_driver.h"
 
+#include <GX/GXGeometry.h>
 #include <GX/GXTypes.h>
 #include <GX/GXVert.h>
 #include <ft/fighter.h>
@@ -9,7 +10,6 @@
 #include <so/collision/so_collision_hit_module_impl.h>
 #include <so/ground/so_ground_module_impl.h>
 #include <so/ground/so_ground_shape_impl.h>
-#include <so/kinetic/so_kinetic_module_impl.h>
 #include <so/posture/so_posture_module_impl.h>
 #include <so/situation/so_situation_module_impl.h>
 #include <so/so_module_accesser.h>
@@ -43,377 +43,295 @@ namespace extra {
         enum {
             kPorts = iface::kPadCount,
             // P+ 3.2.1 verified work variables and structure offsets:
-            //  - LA-Basic[2]  (0x10000002): Int_Cliff_No_Catch_Frame (ft/fighter.h:1178)
             //  - LA-Basic[79] (0x1000004F): 5-ledge-grab invuln counter (Ledge.asm:495-513)
             //  - LA-Bit[34]   (0x12000022): Flag_Disable_Cliff_Catch (ft/fighter.h:1297)
             //  - RA-Basic[0]  (0x20000000): Cliff_Wait auto-fall timer (0x8087ABC4-AC48)
             //  - RA-Bit[18]   (0x22000012): Cliff_Wait auto-fall trigger (0x8087AC30)
-            //  - Customize_Param_Float_Ground_Brake = 3004 (ft_value_accesser.h:15)
+            //  - Customize_Param_Float_Walk_Speed_Max = 3003, Ground_Brake = 3004
             //  - grCollStatus cliff-hang box floats at +0x3C..+0x48 (0x801357F0)
-            //  - Fighter cursor flags byte at +0x138: bit 0x04 cursor, 0x02 nameCursor
-            kLaCliffNoCatch = 0x10000002,
             kLaLedgeGrabs = 0x1000004F,
             kLaDisableCliffCatch = 0x12000022,
             kRaCliffFallTimer = 0x20000000,
             kRaCliffAutoFallBit = 0x22000012,
+            kParamWalkSpeedMax = 3003,
             kParamGroundBrake = 3004,
             kCollCliffBoxOffset = 0x3C,
-            kFighterCursorFlags = 0x138,
-            kCursorBit = 0x04,
-            kNameCursorBit = 0x02
+            kFlagStandby = 1 << 0,
+            kFlagCamOverride = 1 << 1,
+            kFlagPsIntang = 1 << 2,
+            kFlagNoReact = 1 << 3,
+            kFlagFrameSnap = 1 << 4
         };
 
-        struct StandbySlot {
-            bool active;
-            u8 savedWhole;
-            u8 savedCursor;
-            u8 savedNameCursor;
+        struct SubState {
+            PsCpuState psCpu[game::kMaxFighters];
+            LedgeDriverState ledge;
+            TargetCpuState target[game::kMaxFighters];
+            WdZoneState wdZone;
         };
 
         struct PracticeNet {
             PracticeConfig cfg;
-            u8 activeDrill;
-            bool cpuInStandby;
-            bool cameraOverrideActive;
-            bool psCpuIntangible;
-            u8 pendingDpadLeft;
-            u8 pendingDpadRight;
-            u8 pendingDpadDown;
+            u8 flags;
+            u8 pendingDpad;
             u8 padFresh;
+            u8 pad;
             u32 prevHeld[kPorts];
             u32 suppressMask[kPorts];
-            StandbySlot standby[game::kMaxFighters];
-            PsCpuState psCpu;
-            LedgeDriverState ledge;
-            TargetCpuState target;
-            WdZoneState wdZone;
+            SubState sub;
+            StageGeometry cachedGeom;
+            game::FighterState cachedHmn;
             DrillPracticeDebugBlock debug;
         };
 
         static PracticeNet* s_net = NULL;
 
-#pragma dont_inline on
-        static bool ramOk(const void* p)
+        static u8 getTargetMode(const PracticeNet& net)
         {
-            return game::isRam(p);
+            u8 d = net.debug.activeDrill;
+            return (d == kPracticeDrillLCancel)
+                       ? net.cfg.lcancelTarget
+                       : (d == kPracticeDrillHoverFloat ? net.cfg.floatDjcTarget : static_cast<u8>(kTargetOff));
         }
 
-        static const soModuleEnumeration* modsOf(Fighter* f)
+        static float hmnFacing(const soModuleEnumeration* m)
         {
-            return ramOk(f) ? game::fighterModules(f) : NULL;
+            return (game::isRam(m->m_postureModule) && m->m_postureModule->getLr() < 0.0f) ? -1.0f : 1.0f;
         }
 
-        static bool findPrimaryHuman(const game::FighterRef* refs, int n, game::FighterRef& out)
+        static void placeCpu(const game::FighterRef& r, float x, float y, float lr, bool resetSlot)
         {
+            placeStanding(r, x, y, false, static_cast<float>(main::settings().cpu.percent), lr);
+            setFighterCorrect(r, soGroundShapeImpl::Correct_Ground_Cliff_Stop);
+            if (resetSlot && r.playerNo >= 0 && r.playerNo < game::kMaxFighters)
+            {
+                cpu::optionsResetSlot(r.playerNo);
+            }
+        }
+
+        static void setNoReactPair(const game::FighterRef& r, bool on)
+        {
+            Fighter* p[2] = {r.fighter, (r.partner != r.fighter) ? r.partner : NULL};
+            for (int k = 0; k < 2; k++)
+            {
+                if (game::isRam(p[k]))
+                {
+                    cpu::setNoReaction(p[k], on);
+                }
+            }
+        }
+
+        static void applyCameraRect(Fighter* f, float l, float r, float t, float b)
+        {
+            const soModuleEnumeration* m = game::fighterModules(f);
+            if (m != NULL && game::isRam(m->m_cameraModule) && game::isRam(f->m_moduleAccesser))
+            {
+                Rect2D rc = {l, r, t, b};
+                m->m_cameraModule->setCameraRangeGlobalRect(&rc, f->m_moduleAccesser, 0);
+                s_net->flags |= kFlagCamOverride;
+            }
+        }
+
+        static void clearTransient(PracticeNet& net, const game::FighterRef* refs, int n, u8 mask)
+        {
+            u8 todo = static_cast<u8>(net.flags & mask);
+            if (todo == 0u)
+            {
+                return;
+            }
             for (int i = 0; i < n; i++)
             {
+                const soModuleEnumeration* m = game::fighterModules(refs[i].fighter);
                 if (!refs[i].cpu)
                 {
-                    out = refs[i];
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        static int findHumanTrackedSlot(int entryId)
-        {
-            for (int i = 0; i < game::kMaxTracked; i++)
-            {
-                const game::Tracked* t = game::tracked(i);
-                if (t != NULL && t->used && !t->partner && t->entryId == entryId)
-                {
-                    return i;
-                }
-            }
-            return -1;
-        }
-
-        static float readLr(const soModuleEnumeration* m)
-        {
-            return (m != NULL && ramOk(m->m_postureModule) && m->m_postureModule->getLr() < 0.0f) ? -1.0f : 1.0f;
-        }
-
-        static void applyCameraRect(Fighter* f, float left, float right, float top, float bottom)
-        {
-            const soModuleEnumeration* m = modsOf(f);
-            if (m == NULL || !ramOk(m->m_cameraModule) || !ramOk(f->m_moduleAccesser))
-            {
-                return;
-            }
-            Rect2D r;
-            r.m_left = left;
-            r.m_right = right;
-            r.m_up = top;
-            r.m_down = bottom;
-            m->m_cameraModule->setCameraRangeGlobalRect(&r, f->m_moduleAccesser, 0);
-            s_net->cameraOverrideActive = true;
-        }
-
-        static void clearTransientState(const game::FighterRef* refs, int n, bool clearCam, bool clearIntang)
-        {
-            bool doCam = clearCam && s_net->cameraOverrideActive;
-            bool doIntang = clearIntang && s_net->psCpuIntangible;
-            if (!doCam && !doIntang)
-            {
-                return;
-            }
-            for (int i = 0; i < n; i++)
-            {
-                const soModuleEnumeration* m = modsOf(refs[i].fighter);
-                if (m == NULL)
-                {
+                    if ((todo & kFlagCamOverride) != 0u && m != NULL && game::isRam(m->m_cameraModule))
+                    {
+                        m->m_cameraModule->resetCameraRange(0);
+                    }
                     continue;
                 }
-                if (doCam && !refs[i].cpu && ramOk(m->m_cameraModule))
-                {
-                    m->m_cameraModule->resetCameraRange(0);
-                }
-                if (doIntang && refs[i].cpu && ramOk(m->m_collisionHitModule))
+                if ((todo & kFlagPsIntang) != 0u && m != NULL && game::isRam(m->m_collisionHitModule))
                 {
                     m->m_collisionHitModule->setXluFrameGlobal(0, 0);
                     m->m_collisionHitModule->resetStatusGlobal(0);
                 }
+                if ((todo & kFlagNoReact) != 0u)
+                {
+                    setNoReactPair(refs[i], false);
+                }
             }
-            if (doCam)
-            {
-                s_net->cameraOverrideActive = false;
-            }
-            if (doIntang)
-            {
-                s_net->psCpuIntangible = false;
-            }
+            net.flags &= static_cast<u8>(~todo);
         }
 
-        static void standbyApplySingle(Fighter* f, StandbySlot* slot, bool hide, bool firstEnter, float parkX, float parkY)
+        static void updateStandby(PracticeNet& net, bool want, const game::FighterRef* refs, int n,
+                                  const StageGeometry& geom)
         {
-            const soModuleEnumeration* m = modsOf(f);
-            if (m == NULL)
+            if (!want && (net.flags & kFlagStandby) == 0u)
             {
                 return;
             }
-            if (hide)
-            {
-                if (firstEnter && slot != NULL)
-                {
-                    u8 whole = ramOk(m->m_visibilityModule) ? m->m_visibilityModule->getWhole() : 1;
-                    u8 cf = game::byteAt(f, kFighterCursorFlags);
-                    slot->active = true;
-                    slot->savedWhole = whole != 0 ? whole : 1;
-                    slot->savedCursor = (cf & kCursorBit) != 0 ? 1 : 0;
-                    slot->savedNameCursor = (cf & kNameCursorBit) != 0 ? 1 : 0;
-                }
-                if (ramOk(m->m_visibilityModule))
-                {
-                    m->m_visibilityModule->setWhole(0);
-                }
-                f->setCursor(false);
-                f->setNameCursor(false);
-                if (ramOk(m->m_collisionHitModule))
-                {
-                    m->m_collisionHitModule->setXluGlobal(0);
-                    m->m_collisionHitModule->setXluFrameGlobal(999, 0);
-                    m->m_collisionHitModule->setCheckCatch(false, 0);
-                }
-                if (ramOk(m->m_cameraModule))
-                {
-                    m->m_cameraModule->setEnableCamera(false, -1);
-                }
-                if (ramOk(m->m_groundModule))
-                {
-                    m->m_groundModule->setCorrect(soGroundShapeImpl::Correct_None, 0);
-                }
-                if (ramOk(m->m_kineticModule))
-                {
-                    m->m_kineticModule->clearSpeedAll();
-                }
-                cpu::clearKnockback(f);
-                cpu::placeAt(f, parkX, parkY);
-                return;
-            }
+            net.flags = want ? static_cast<u8>(net.flags | kFlagStandby) : static_cast<u8>(net.flags & ~kFlagStandby);
+            float cx = geom.floor.valid ? 0.5f * (geom.floor.leftX + geom.floor.rightX) : 0.0f;
+            float fy = geom.floor.valid ? geom.floor.centerY : 0.0f;
+            // Park strictly above camera frustum (below top blastzone) so
+            // Fighter::processFixCamera never re-enables cursors; setWhole(0)
+            // suppresses the off-screen magnifying loupe at 0x8083AA88.
+            float py = geom.blast.valid ? (geom.blast.top - 12.0f) : (fy + 140.0f);
 
-            if (ramOk(m->m_cameraModule))
-            {
-                m->m_cameraModule->setEnableCamera(true, -1);
-            }
-            if (ramOk(m->m_collisionHitModule))
-            {
-                m->m_collisionHitModule->cancelXluGlobal(0);
-                m->m_collisionHitModule->setXluFrameGlobal(0, 0);
-                m->m_collisionHitModule->setCheckCatch(true, 0);
-                m->m_collisionHitModule->resetStatusGlobal(0);
-            }
-            if (ramOk(m->m_visibilityModule))
-            {
-                u8 whole = (slot != NULL && slot->active) ? slot->savedWhole : 1;
-                m->m_visibilityModule->setWhole(whole != 0 ? whole : 1);
-            }
-            f->setCursor(slot == NULL || !slot->active || slot->savedCursor != 0);
-            f->setNameCursor(slot == NULL || !slot->active || slot->savedNameCursor != 0);
-        }
-
-        static void applyStandbyTransition(u8 trans, const game::FighterRef* refs, int n, const StageGeometry& geom)
-        {
-            if (trans == kStandbyNoop)
-            {
-                return;
-            }
-            float centerX = geom.floor.valid ? 0.5f * (geom.floor.leftX + geom.floor.rightX) : 0.0f;
-            float floorY = geom.floor.valid ? geom.floor.centerY : 0.0f;
-            float parkY = floorY + 80.0f;
-            if (geom.blast.valid && parkY > geom.blast.top - 28.0f)
-            {
-                parkY = geom.blast.top - 28.0f;
-            }
-
-            bool hiding = (trans == kStandbyEnter || trans == kStandbyHold);
-            float cpuPct = static_cast<float>(main::settings().cpu.percent);
             for (int i = 0; i < n; i++)
             {
                 if (!refs[i].cpu)
                 {
                     continue;
                 }
-                int p = refs[i].playerNo;
-                StandbySlot* slot = (p >= 0 && p < game::kMaxFighters) ? &s_net->standby[p] : NULL;
-                bool first = (trans == kStandbyEnter) || (slot != NULL && !slot->active);
-                standbyApplySingle(refs[i].fighter, slot, hiding, first, centerX, parkY);
-                if (refs[i].partner != NULL && refs[i].partner != refs[i].fighter)
+                Fighter* pair[2] = {refs[i].fighter, (refs[i].partner != refs[i].fighter) ? refs[i].partner : NULL};
+                for (int k = 0; k < 2; k++)
                 {
-                    standbyApplySingle(refs[i].partner, NULL, hiding, false, centerX, parkY);
+                    const soModuleEnumeration* m = game::fighterModules(pair[k]);
+                    if (m == NULL)
+                    {
+                        continue;
+                    }
+                    if (game::isRam(m->m_cameraModule))
+                    {
+                        m->m_cameraModule->setEnableCamera(!want, -1);
+                    }
+                    if (game::isRam(m->m_visibilityModule))
+                    {
+                        m->m_visibilityModule->setWhole(want ? 0 : 1);
+                    }
+                    // Never turn cursors on for Nana partner (k == 1 on restore).
+                    if (want || k == 0)
+                    {
+                        pair[k]->setCursor(!want);
+                        pair[k]->setNameCursor(!want);
+                    }
+                    if (game::isRam(m->m_collisionHitModule))
+                    {
+                        if (want)
+                        {
+                            m->m_collisionHitModule->setXluGlobal(0);
+                        }
+                        else
+                        {
+                            m->m_collisionHitModule->cancelXluGlobal(0);
+                            m->m_collisionHitModule->resetStatusGlobal(0);
+                        }
+                        m->m_collisionHitModule->setCheckCatch(!want, 0);
+                    }
+                    if (want)
+                    {
+                        if (game::isRam(m->m_groundModule))
+                        {
+                            m->m_groundModule->setCorrect(soGroundShapeImpl::Correct_None, 0);
+                        }
+                        cpu::clearKnockback(pair[k]);
+                        cpu::placeAt(pair[k], cx, py);
+                    }
                 }
-                if (!hiding)
+                if (!want)
                 {
-                    if (slot != NULL)
-                    {
-                        slot->active = false;
-                    }
-                    float sx = geom.floor.valid ? geomClamp(centerX + 16.0f + static_cast<float>(i) * 4.0f,
-                                                            geom.floor.leftX + 10.0f, geom.floor.rightX - 10.0f)
-                                                : 16.0f;
-                    placeStanding(refs[i], sx, floorY, false, cpuPct, -1.0f);
-                    setFighterCorrect(refs[i], soGroundShapeImpl::Correct_Ground_Cliff_Stop);
-                    if (p >= 0 && p < game::kMaxFighters)
-                    {
-                        cpu::optionsResetSlot(p);
-                    }
+                    placeCpu(refs[i], cx + 16.0f, fy, -1.0f, true);
                 }
             }
         }
 
         static void snapHumanToLedge(const game::FighterRef& hmn, const LedgeInfo& ledge, bool zeroGrabs)
         {
-            const soModuleEnumeration* m = modsOf(hmn.fighter);
-            if (m == NULL)
+            const soModuleEnumeration* ms[2] = {
+                game::fighterModules(hmn.fighter),
+                (hmn.partner != hmn.fighter) ? game::fighterModules(hmn.partner) : NULL
+            };
+            if (ms[0] == NULL)
             {
                 return;
             }
-            CliffHangBox box = defaultCliffHangBox();
-            if (ramOk(m->m_groundModule))
+            CliffHangBox box = {-4.0f, 9.0f, 10.0f, 10.0f};
+            if (game::isRam(ms[0]->m_groundModule))
             {
-                m->m_groundModule->selectCliffHangData(0, 0);
-                grCollStatus* cs = m->m_groundModule->getCollStatus(0);
-                if (ramOk(cs))
+                ms[0]->m_groundModule->selectCliffHangData(0, 0);
+                grCollStatus* cs = ms[0]->m_groundModule->getCollStatus(0);
+                if (game::isRam(cs))
                 {
-                    const float* fbox = reinterpret_cast<const float*>(reinterpret_cast<u32>(cs) + kCollCliffBoxOffset);
-                    box.offsetX = fbox[0];
-                    box.offsetY = fbox[1];
-                    box.width = fbox[2];
-                    box.height = fbox[3];
+                    const float* f = reinterpret_cast<const float*>(reinterpret_cast<u32>(cs) + kCollCliffBoxOffset);
+                    box.offsetX = f[0];
+                    box.offsetY = f[1];
+                    box.width = f[2];
+                    box.height = f[3];
                 }
             }
 
-            float sx = 0.0f;
-            float sy = 0.0f;
+            // Preserve LA-Basic[79] across refreshAirResources when P+ 5-Grab limit is active.
+            int savedGrabs[2] = {0, 0};
+            if (!zeroGrabs)
+            {
+                for (int k = 0; k < 2; k++)
+                {
+                    if (ms[k] != NULL && game::isRam(ms[k]->m_workManageModule))
+                    {
+                        savedGrabs[k] = ms[k]->m_workManageModule->getInt(kLaLedgeGrabs);
+                    }
+                }
+            }
+
+            float sx, sy;
             computeCliffSnapSpawn(ledge.x, ledge.y, ledge.dir, box, sx, sy);
             placeFalling(hmn, sx, sy, false, static_cast<float>(main::settings().general.playerPercent), ledge.dir);
-            refreshAirResources(hmn, false);
+            refreshAirResources(hmn, false); // clears LA-Basic[2] and zeroes LA-Basic[79]
 
-            Fighter* pair[2] = {hmn.fighter, (hmn.partner != NULL && hmn.partner != hmn.fighter) ? hmn.partner : NULL};
             for (int k = 0; k < 2; k++)
             {
-                const soModuleEnumeration* fm = modsOf(pair[k]);
+                const soModuleEnumeration* fm = ms[k];
                 if (fm == NULL)
                 {
                     continue;
                 }
-                if (ramOk(fm->m_workManageModule))
+                if (game::isRam(fm->m_workManageModule))
                 {
-                    fm->m_workManageModule->setInt(0, kLaCliffNoCatch);
                     fm->m_workManageModule->offFlag(kLaDisableCliffCatch);
-                    if (zeroGrabs)
+                    if (!zeroGrabs)
                     {
-                        fm->m_workManageModule->setInt(0, kLaLedgeGrabs);
+                        fm->m_workManageModule->setInt(savedGrabs[k], kLaLedgeGrabs);
                     }
                 }
-                if (ramOk(fm->m_groundModule))
+                if (game::isRam(fm->m_groundModule))
                 {
                     fm->m_groundModule->setCorrect(soGroundShapeImpl::Correct_Air, 0);
                     fm->m_groundModule->setCliffCheck(soGroundShapeImpl::Cliff_Check_Always, 0);
-                    fm->m_groundModule->selectCliffHangData(0, 0);
-                }
-                if (ramOk(fm->m_collisionHitModule))
-                {
-                    fm->m_collisionHitModule->setXluFrameGlobal(0, 0);
-                    fm->m_collisionHitModule->setInvincibleFrameGlobal(0, true, 0);
-                    fm->m_collisionHitModule->resetStatusGlobal(0);
                 }
             }
         }
 
         static void resetSubsystems(bool exitStandby)
         {
+            if (s_net == NULL)
+            {
+                return;
+            }
+            PracticeNet& net = *s_net;
             game::FighterRef refs[game::kMaxFighters];
             int n = game::listFighters(refs, game::kMaxFighters);
-            if (exitStandby && s_net->cpuInStandby)
+            if (exitStandby && (net.flags & kFlagStandby) != 0u)
             {
                 StageGeometry geom;
                 liveGeometry(geom, false, false);
-                s_net->cpuInStandby = false;
-                applyStandbyTransition(kStandbyExit, refs, n, geom);
+                updateStandby(net, false, refs, n, geom);
             }
-            clearTransientState(refs, n, true, true);
-            psCpuStateReset(s_net->psCpu);
-            ledgeDriverReset(s_net->ledge);
-            targetCpuReset(s_net->target);
-            wdZoneReset(s_net->wdZone);
-            s_net->pendingDpadLeft = 0u;
-            s_net->pendingDpadRight = 0u;
-            s_net->pendingDpadDown = 0u;
-            s_net->padFresh = 1u;
-        }
-
-        static void syncDebugBlock(u8 psMode, u8 targetMode)
-        {
-            DrillPracticeDebugBlock& d = s_net->debug;
-            d.magic = kPracticeDebugMagic;
-            d.version = kPracticeDebugVersion;
-            d.activeDrill = s_net->activeDrill;
-            d.cpuInStandby = s_net->cpuInStandby ? 1u : 0u;
-            d.psResolvedMode = psMode;
-            d.psResolvedHeight = s_net->psCpu.resolvedHeight;
-            d.ledgeActiveSide = s_net->ledge.activeSide;
-            d.wdZoneActive = s_net->wdZone.active;
-            d.wdZoneLastOutcome = s_net->wdZone.lastOutcome;
-            d.targetModeActive = targetMode;
-            d.ledgeSnapCount = s_net->ledge.snapCount;
-            d.wdZoneAttempts = s_net->wdZone.attempts;
-            d.wdZoneHits = s_net->wdZone.hits;
-            d.wdZoneStreak = s_net->wdZone.streak;
-            d.wdZoneBestStreak = s_net->wdZone.bestStreak;
-            d.wdZoneMinX = s_net->wdZone.minX;
-            d.wdZoneMaxX = s_net->wdZone.maxX;
-            d.wdZoneY = s_net->wdZone.y;
-        }
-
-        static void emitVerts(const float (*pts)[2], int count, gfx::Rgba col)
-        {
-            for (int i = 0; i < count; i++)
+            clearTransient(net, refs, n, kFlagCamOverride | kFlagPsIntang | kFlagNoReact);
+            memset(&net.sub, 0, sizeof(net.sub));
+            for (int i = 0; i < game::kMaxFighters; i++)
             {
-                gfx::vertex(pts[i][0], pts[i][1], col);
+                net.sub.psCpu[i].rng = 0x6A09E667u + static_cast<u32>(i);
+                net.sub.psCpu[i].cooldown = 20u;
+                net.sub.target[i].patrolDir = 1.0f;
             }
+            net.sub.ledge.rng = 0xBB67AE85u;
+            net.sub.ledge.snapPending = 1u;
+            net.sub.wdZone.dir = 1.0f;
+            net.pendingDpad = 0u;
+            net.padFresh = 1u;
+            net.flags &= static_cast<u8>(~kFlagFrameSnap);
         }
-#pragma dont_inline reset
     }
 
     void drillPracticeAttach()
@@ -426,34 +344,19 @@ namespace extra {
         }
         memset(s_net, 0, sizeof(*s_net));
         practiceConfigDefaults(s_net->cfg);
-        s_net->padFresh = 1u;
-        psCpuStateReset(s_net->psCpu);
-        ledgeDriverReset(s_net->ledge);
-        targetCpuReset(s_net->target);
-        wdZoneReset(s_net->wdZone);
-        syncDebugBlock(kPsAtkPhysical, kTargetOff);
+        s_net->debug.magic = kPracticeDebugMagic;
+        s_net->debug.version = kPracticeDebugVersion;
+        resetSubsystems(false);
         TM_LOG("drill_practice: debug block at %08x\n", &s_net->debug);
     }
 
     void drillPracticeDetach()
     {
-        if (s_net == NULL)
-        {
-            return;
-        }
         resetSubsystems(true);
         freeNetPtr(s_net);
     }
 
-    void drillPracticeReset()
-    {
-        if (s_net == NULL)
-        {
-            return;
-        }
-        resetSubsystems(true);
-        syncDebugBlock(kPsAtkPhysical, kTargetOff);
-    }
+    void drillPracticeReset() { resetSubsystems(true); }
 
     void drillPracticeSetActiveDrill(u8 drillId)
     {
@@ -462,46 +365,48 @@ namespace extra {
             return;
         }
         u8 clean = drillId < kPracticeDrillCount ? drillId : static_cast<u8>(kPracticeDrillNone);
-        if (clean == s_net->activeDrill)
+        if (clean != s_net->debug.activeDrill)
         {
-            return;
+            s_net->debug.activeDrill = clean;
+            resetSubsystems(false);
         }
-        s_net->activeDrill = clean;
-        resetSubsystems(false);
     }
 
     PracticeConfig& drillPracticeConfig()
     {
         static PracticeConfig s_fallback;
+        static bool s_fallbackInit = false;
         if (s_net == NULL)
         {
-            practiceConfigDefaults(s_fallback);
+            if (!s_fallbackInit)
+            {
+                practiceConfigDefaults(s_fallback);
+                s_fallbackInit = true;
+            }
             return s_fallback;
         }
         return s_net->cfg;
     }
 
-    const WdZoneState* drillPracticeWdZone()
-    {
-        return s_net != NULL ? &s_net->wdZone : NULL;
-    }
-
-    const DrillPracticeDebugBlock* drillPracticeDebugBlock()
-    {
-        return s_net != NULL ? &s_net->debug : NULL;
-    }
+    bool drillPracticeClaimsDpadLR() { return s_net != NULL && s_net->debug.activeDrill == kPracticeDrillLedgedash; }
+    const WdZoneState* drillPracticeWdZone() { return s_net != NULL ? &s_net->sub.wdZone : NULL; }
+    const DrillPracticeDebugBlock* drillPracticeDebugBlock() { return s_net != NULL ? &s_net->debug : NULL; }
 
     bool drillPracticeOnPad(u32 phase, gfPadStatus* pads)
     {
-        if (s_net == NULL || pads == NULL || s_net->activeDrill == kPracticeDrillNone || lab::menuOpen())
+        if (s_net == NULL || pads == NULL || lab::menuOpen())
         {
             return false;
         }
-        const u8 d = s_net->activeDrill;
-        const bool wantLedge = (d == kPracticeDrillLedgedash);
-        const u8 tMode = activeTargetMode(d, s_net->cfg);
-        const bool wantRepos = (tMode == kTargetStationary || tMode == kTargetShielding);
-        if (!wantLedge && !wantRepos)
+        PracticeNet& net = *s_net;
+        const u8 tMode = getTargetMode(net);
+        u32 mask = (net.debug.activeDrill == kPracticeDrillLedgedash) ? (game::kPadDLeft | game::kPadDRight) : 0u;
+        if ((tMode == kTargetStationary || tMode == kTargetShielding)
+            && main::settings().controls.dpadDown != main::kDownFrameAdvance)
+        {
+            mask |= game::kPadDDown;
+        }
+        if (mask == 0u)
         {
             return false;
         }
@@ -513,40 +418,26 @@ namespace extra {
             {
                 bool conn = game::padConnectedInMatch(i, pads[i]);
                 u32 held = conn ? pads[i].m_buttonsCurrentFrame.bits : 0u;
-                u32 pressed = (s_net->padFresh || !conn) ? 0u : (held & ~s_net->prevHeld[i]);
-                s_net->prevHeld[i] = held;
-                s_net->suppressMask[i] &= held;
-
-                if (wantLedge && (pressed & (game::kPadDLeft | game::kPadDRight)) != 0u)
+                u32 pressed = (net.padFresh || !conn) ? 0u : (held & ~net.prevHeld[i]);
+                net.prevHeld[i] = held;
+                net.suppressMask[i] &= held;
+                if ((held & (game::kPadL | game::kPadR)) == 0u
+                    && (pads[i].m_controllerType != gfPadType::WIIMOTE || (held & game::kPadWiiMinus) != 0u))
                 {
-                    bool isLeft = (pressed & game::kPadDLeft) != 0u;
-                    if (isLeft)
-                    {
-                        s_net->pendingDpadLeft = 1u;
-                    }
-                    else
-                    {
-                        s_net->pendingDpadRight = 1u;
-                    }
-                    s_net->suppressMask[i] |= isLeft ? game::kPadDLeft : game::kPadDRight;
-                    consumed = true;
-                }
-                if (wantRepos && (pressed & game::kPadDDown) != 0u)
-                {
-                    s_net->pendingDpadDown = 1u;
-                    s_net->suppressMask[i] |= game::kPadDDown;
-                    consumed = true;
+                    u32 hit = pressed & mask;
+                    net.pendingDpad |= static_cast<u8>(hit & 7u);
+                    net.suppressMask[i] |= hit;
                 }
             }
-            if (s_net->suppressMask[i] != 0u)
+            if (net.suppressMask[i] != 0u)
             {
-                game::clearPadBits(pads[i], s_net->suppressMask[i]);
+                game::clearPadBits(pads[i], net.suppressMask[i]);
                 consumed = true;
             }
         }
         if (phase == iface::kPadsSystem)
         {
-            s_net->padFresh = 0u;
+            net.padFresh = 0u;
         }
         return consumed;
     }
@@ -557,88 +448,97 @@ namespace extra {
         {
             return;
         }
-        sanitizePracticeConfig(s_net->cfg);
+        PracticeNet& net = *s_net;
+        DrillPracticeDebugBlock& dbg = net.debug;
+        sanitizePracticeConfig(net.cfg);
 
         game::FighterRef refs[game::kMaxFighters];
         int n = game::listFighters(refs, game::kMaxFighters);
-        const u8 d = s_net->activeDrill;
-        StageGeometry geom;
+        const u8 d = dbg.activeDrill;
+        const u8 tMode = getTargetMode(net);
+        StageGeometry& geom = net.cachedGeom;
         liveGeometry(geom, d == kPracticeDrillLedgedash, false);
 
-        u8 standbyTrans = stepStandbyState(shouldCpuStandby(d, s_net->cfg), s_net->cpuInStandby);
-        applyStandbyTransition(standbyTrans, refs, n, geom);
+        bool wantStandby = (d == kPracticeDrillLCancel || d == kPracticeDrillHoverFloat)
+                               ? (tMode == kTargetOff)
+                               : (d != kPracticeDrillNone && d != kPracticeDrillPowershield);
+        updateStandby(net, wantStandby, refs, n, geom);
 
-        game::FighterRef hmn;
-        game::FighterState hmnFs;
-        if (d == kPracticeDrillNone || !findPrimaryHuman(refs, n, hmn) || !game::readState(hmn, hmnFs))
+        const game::FighterRef* hmn = NULL;
+        bool anyProj = false;
+        for (int i = 0; i < n; i++)
+        {
+            if (!refs[i].cpu)
+            {
+                if (hmn == NULL)
+                {
+                    hmn = &refs[i];
+                }
+            }
+            else if (d == kPracticeDrillPowershield && net.cfg.psAttackMode == kPsAtkProjectile
+                     && findProjectileProfile(game::fighterKind(refs[i].entryId, false)) != NULL)
+            {
+                anyProj = true;
+                const soModuleEnumeration* cm = game::fighterModules(refs[i].fighter);
+                if (cm != NULL && game::isRam(cm->m_collisionHitModule))
+                {
+                    cm->m_collisionHitModule->setXluFrameGlobal(4, 0);
+                }
+                net.flags |= kFlagPsIntang;
+            }
+        }
+
+        bool snapOk = (hmn != NULL) && game::readState(*hmn, net.cachedHmn);
+        net.flags = snapOk ? static_cast<u8>(net.flags | kFlagFrameSnap) : static_cast<u8>(net.flags & ~kFlagFrameSnap);
+        const soModuleEnumeration* hm = snapOk ? game::fighterModules(hmn->fighter) : NULL;
+        dbg.cpuInStandby = (net.flags & kFlagStandby) != 0u ? 1u : 0u;
+        dbg.targetModeActive = tMode;
+        dbg.psResolvedMode = anyProj ? static_cast<u8>(kPsAtkProjectile) : static_cast<u8>(kPsAtkPhysical);
+        dbg.psResolvedHeight = net.sub.psCpu[0].resolvedHeight;
+        if (d == kPracticeDrillNone || hm == NULL)
         {
             if (d == kPracticeDrillNone)
             {
-                clearTransientState(refs, n, true, true);
+                clearTransient(net, refs, n, kFlagCamOverride | kFlagPsIntang | kFlagNoReact);
             }
-            syncDebugBlock(kPsAtkPhysical, kTargetOff);
-            return;
-        }
-        const soModuleEnumeration* hm = modsOf(hmn.fighter);
-        if (hm == NULL)
-        {
             return;
         }
 
-        u8 resolvedPsMode = kPsAtkPhysical;
-        const u8 tMode = activeTargetMode(d, s_net->cfg);
-
-        // Full P1 shield upkeep in Powershield, L-Cancel, and Float / Hover & DJC.
-        if (d == kPracticeDrillPowershield || d == kPracticeDrillLCancel || d == kPracticeDrillHoverFloat)
+        const game::FighterState& hmnFs = net.cachedHmn;
+        if (static_cast<u32>(d - kPracticeDrillLCancel) <= 2u)
         {
-            cpu::setShieldHealth(hmn.fighter, static_cast<float>(cpu::kShieldFull));
+            cpu::setShieldHealth(hmn->fighter, static_cast<float>(cpu::kShieldFull));
         }
+        clearTransient(net, refs, n,
+                       static_cast<u8>(((d != kPracticeDrillLedgedash
+                                         && !(d == kPracticeDrillWavedash && net.cfg.wdTargetZone != 0u))
+                                            ? kFlagCamOverride
+                                            : 0u)
+                                       | (!anyProj ? kFlagPsIntang : 0u)
+                                       | (tMode != kTargetStationary ? kFlagNoReact : 0u)));
 
-        // ---- 1. Powershield: CPU intangibility in Projectile mode -----------
-        if (d == kPracticeDrillPowershield)
+        int p1Slot = -1;
+        if (d == kPracticeDrillLedgedash || d == kPracticeDrillWavedash)
         {
-            bool anyProj = false;
-            for (int i = 0; i < n; i++)
+            for (int i = 0; i < game::kMaxTracked; i++)
             {
-                if (!refs[i].cpu)
+                const game::Tracked* t = game::tracked(i);
+                if (t != NULL && t->used && !t->partner && t->entryId == hmn->entryId)
                 {
-                    continue;
-                }
-                const soModuleEnumeration* cm = modsOf(refs[i].fighter);
-                if (cm == NULL)
-                {
-                    continue;
-                }
-                u8 rMode = resolvePsAttackMode(s_net->cfg.psAttackMode, game::fighterKind(refs[i].entryId, false));
-                if (resolvedPsMode == kPsAtkPhysical)
-                {
-                    resolvedPsMode = rMode;
-                }
-                if (rMode == kPsAtkProjectile)
-                {
-                    anyProj = true;
-                    if (ramOk(cm->m_collisionHitModule))
-                    {
-                        cm->m_collisionHitModule->setXluFrameGlobal(4, 0);
-                    }
-                    s_net->psCpuIntangible = true;
+                    p1Slot = i;
+                    break;
                 }
             }
-            clearTransientState(refs, n, true, !anyProj);
-        }
-        else
-        {
-            clearTransientState(refs, n, d != kPracticeDrillLedgedash && d != kPracticeDrillWavedash, true);
         }
 
         // ---- 2. Ledgedash: Active Cliff-Hang Box Snap & Camera Framing ------
         if (d == kPracticeDrillLedgedash)
         {
-            const int p1Slot = findHumanTrackedSlot(hmn.entryId);
+            LedgeDriverState& ldg = net.sub.ledge;
             const LedgeCoreState* ls = p1Slot >= 0 ? coreDrillLedgeState(p1Slot) : NULL;
-            const LedgeInfo& curLedge = (s_net->ledge.activeSide == 0u) ? geom.leftLedge : geom.rightLedge;
+            const LedgeInfo& curLedge = (ldg.activeSide == 0u) ? geom.leftLedge : geom.rightLedge;
+            ldg.rng ^= game::frameCounter() * 0x9E3779B9u;
 
-            s_net->ledge.rng ^= game::frameCounter() * 0x9E3779B9u;
             LedgeDriverInput lin;
             lin.hmnStatus = hmnFs.status;
             lin.hmnOutOfPlay = game::outOfPlay(hmnFs.status, true);
@@ -646,15 +546,16 @@ namespace extra {
             lin.ledgeY = geom.hasLedges ? curLedge.y : 0.0f;
             lin.ledgeSeq = ls != NULL ? ls->seq : 0u;
             lin.lastLedgeOutcome = ls != NULL ? ls->last.outcome : 0u;
-            lin.dpadLeftEdge = s_net->pendingDpadLeft != 0u;
-            lin.dpadRightEdge = s_net->pendingDpadRight != 0u;
-            s_net->pendingDpadLeft = 0u;
-            s_net->pendingDpadRight = 0u;
+            lin.dpadLeftEdge = (net.pendingDpad & 1u) != 0u;
+            lin.dpadRightEdge = (net.pendingDpad & 2u) != 0u;
+            net.pendingDpad &= static_cast<u8>(~3u);
 
             LedgeDriverAction lact;
-            stepLedgeDriver(lin, s_net->cfg, s_net->ledge, lact);
+            stepLedgeDriver(lin, net.cfg, ldg, lact);
+            dbg.ledgeActiveSide = ldg.activeSide;
+            dbg.ledgeSnapCount = ldg.snapCount;
 
-            if (ramOk(hm->m_workManageModule))
+            if (game::isRam(hm->m_workManageModule))
             {
                 if (lact.holdCliffTimer)
                 {
@@ -671,89 +572,106 @@ namespace extra {
             }
             if (geom.hasLedges)
             {
+                const LedgeInfo& clg = (ldg.activeSide == 0u) ? geom.leftLedge : geom.rightLedge;
                 if (lact.doSnap)
                 {
-                    const LedgeInfo& targetLedge = (lact.snapSide == 0u) ? geom.leftLedge : geom.rightLedge;
-                    snapHumanToLedge(hmn, targetLedge, s_net->cfg.ledgeInvulnLimit == kLedgeInvulnUnlimited);
+                    snapHumanToLedge(*hmn, clg, net.cfg.ledgeInvulnLimit == kLedgeInvulnUnlimited);
                 }
                 if (lact.applyCamera)
                 {
-                    const LedgeInfo& camLedge = (s_net->ledge.activeSide == 0u) ? geom.leftLedge : geom.rightLedge;
-                    float cl, cr, ct, cb;
-                    computeLedgeCameraRect(camLedge.x, camLedge.y, camLedge.dir, cl, cr, ct, cb);
-                    applyCameraRect(hmn.fighter, cl, cr, ct, cb);
+                    float cx = clg.x + (clg.dir >= 0.0f ? 12.0f : -12.0f);
+                    applyCameraRect(hmn->fighter, cx - 34.0f, cx + 34.0f, clg.y + 36.0f, clg.y - 14.0f);
                 }
             }
         }
         // ---- 3. Wavedash / Waveland: GX Target Zone & Steady Framing --------
         else if (d == kPracticeDrillWavedash)
         {
-            WdZoneState& z = s_net->wdZone;
-            if (z.flashFrames > 0u)
-            {
-                z.flashFrames--;
-            }
-            if (s_net->cfg.wdTargetZone == 0u)
+            WdZoneState& z = net.sub.wdZone;
+            if (net.cfg.wdTargetZone == 0u)
             {
                 z.active = 0u;
-                clearTransientState(refs, n, true, false);
             }
             else
             {
-                const int p1Slot = findHumanTrackedSlot(hmn.entryId);
                 const WdCoreState* ws = p1Slot >= 0 ? coreDrillWavedashState(p1Slot) : NULL;
-                float brake = ramOk(hmn.fighter->m_moduleAccesser)
-                                  ? soValueAccesser::getConstantFloat(hmn.fighter->m_moduleAccesser, kParamGroundBrake, 0)
-                                  : 0.08f;
-                const float hmnLr = readLr(hm);
                 if (ws != NULL && !z.syncedSeq)
                 {
                     z.lastSeenWdSeq = ws->seq;
                     z.syncedSeq = 1u;
                 }
-                if (!z.active)
+                bool respawn = false;
+                if (z.flashFrames > 0u)
                 {
-                    spawnWavedashZone(z, hmnFs.x, hmnFs.y, hmnLr, brake, geom);
+                    z.flashFrames--;
+                }
+                else if (z.respawnPending != 0u)
+                {
+                    z.respawnPending = 0u;
+                    respawn = true;
+                }
+                if (!z.active || respawn)
+                {
+                    float brake = 0.08f, walkMax = 1.5f;
+                    if (game::isRam(hmn->fighter->m_moduleAccesser))
+                    {
+                        brake = soValueAccesser::getConstantFloat(hmn->fighter->m_moduleAccesser, kParamGroundBrake, 0);
+                        walkMax = soValueAccesser::getConstantFloat(hmn->fighter->m_moduleAccesser, kParamWalkSpeedMax, 0);
+                    }
+                    spawnWavedashZone(z, hmnFs.x, hmnFs.y, hmnFacing(hm), brake, geom, walkMax);
                 }
                 if (ws != NULL && ws->seq != z.lastSeenWdSeq)
                 {
                     z.lastSeenWdSeq = ws->seq;
                     scoreWavedashZone(z, hmnFs.x, ws->last.outcome == kWdOutcomeSuccess);
-                    spawnWavedashZone(z, hmnFs.x, hmnFs.y, hmnLr, brake, geom);
                 }
                 if (z.active)
                 {
-                    float cl, cr, ct, cb;
-                    computeWavedashCameraRect(hmnFs.x, hmnFs.y, z, cl, cr, ct, cb);
-                    applyCameraRect(hmn.fighter, cl, cr, ct, cb);
+                    float by = z.y < hmnFs.y ? z.y : hmnFs.y;
+                    applyCameraRect(hmn->fighter, (hmnFs.x < z.minX ? hmnFs.x : z.minX) - 18.0f,
+                                    (hmnFs.x > z.maxX ? hmnFs.x : z.maxX) + 18.0f, by + 36.0f, by - 12.0f);
                 }
             }
+            dbg.wdZoneActive = z.active;
+            dbg.wdZoneLastOutcome = z.lastOutcome;
+            dbg.wdZoneAttempts = z.attempts;
+            dbg.wdZoneHits = z.hits;
+            dbg.wdZoneStreak = z.streak;
+            dbg.wdZoneBestStreak = z.bestStreak;
+            dbg.wdZoneMinX = z.minX;
+            dbg.wdZoneMaxX = z.maxX;
+            dbg.wdZoneY = z.y;
         }
         // ---- 4. L-Cancel & Float/Hover/DJC: Target Management ---------------
-        else if ((d == kPracticeDrillLCancel || d == kPracticeDrillHoverFloat) && tMode != kTargetOff)
+        else if (tMode != kTargetOff)
         {
-            bool hmnAir = ramOk(hm->m_situationModule) && hm->m_situationModule->getKind() == Situation_Air;
-            bool doRepos = (s_net->pendingDpadDown != 0u) && !hmnAir
+            bool hmnAir = game::isRam(hm->m_situationModule) && hm->m_situationModule->getKind() == Situation_Air;
+            bool doRepos = ((net.pendingDpad & 4u) != 0u) && !hmnAir
                            && (tMode == kTargetStationary || tMode == kTargetShielding);
-            s_net->pendingDpadDown = 0u;
+            net.pendingDpad &= static_cast<u8>(~4u);
 
-            float cpuPct = static_cast<float>(main::settings().cpu.percent);
             for (int i = 0; i < n; i++)
             {
-                if (!refs[i].cpu || !ramOk(refs[i].fighter))
+                if (!refs[i].cpu || !game::isRam(refs[i].fighter))
                 {
                     continue;
                 }
+                int p = refs[i].playerNo;
+                TargetCpuState& ts = net.sub.target[(p >= 0 && p < game::kMaxFighters) ? p : 0];
                 if (tMode == kTargetShielding)
                 {
                     cpu::setShieldHealth(refs[i].fighter, static_cast<float>(cpu::kShieldFull));
                 }
-                bool needPlace = doRepos;
-                if (doRepos)
+                else if (tMode == kTargetStationary)
                 {
-                    computeTargetAnchor(hmnFs.x, readLr(hm), 12.0f, geom, s_net->target.anchorX, s_net->target.anchorY,
-                                        s_net->target.anchorLr);
-                    s_net->target.anchorValid = true;
+                    setNoReactPair(refs[i], true);
+                    net.flags |= kFlagNoReact;
+                }
+                bool needPlace = doRepos || (tMode == kTargetStationary && !ts.anchorValid);
+                if (needPlace)
+                {
+                    computeTargetAnchor(hmnFs.x, hmnFacing(hm), 12.0f, geom, ts.anchorX, ts.anchorY, ts.anchorLr);
+                    ts.anchorValid = true;
                 }
                 else if (tMode == kTargetStationary || tMode == kTargetShielding)
                 {
@@ -763,179 +681,155 @@ namespace extra {
                 }
                 if (needPlace)
                 {
-                    float ax = s_net->target.anchorValid ? s_net->target.anchorX : 14.0f;
-                    float ay = s_net->target.anchorValid ? s_net->target.anchorY : (geom.floor.valid ? geom.floor.centerY : 0.0f);
-                    float alr = s_net->target.anchorValid ? s_net->target.anchorLr : -1.0f;
-                    placeStanding(refs[i], ax, ay, false, cpuPct, alr);
-                    setFighterCorrect(refs[i], soGroundShapeImpl::Correct_Ground_Cliff_Stop);
-                    if (doRepos && refs[i].playerNo >= 0 && refs[i].playerNo < game::kMaxFighters)
-                    {
-                        cpu::optionsResetSlot(refs[i].playerNo);
-                    }
+                    placeCpu(refs[i], ts.anchorX, ts.anchorY, ts.anchorLr, doRepos);
                 }
             }
         }
-
-        syncDebugBlock(resolvedPsMode, tMode);
     }
 
     bool drillPracticeCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons)
     {
         (void)lastButtons;
-        if (s_net == NULL || !who.cpu || f == NULL || s_net->activeDrill == kPracticeDrillNone)
+        if (s_net == NULL || !who.cpu || f == NULL)
         {
             return false;
         }
-        if (s_net->cpuInStandby)
+        PracticeNet& net = *s_net;
+        const u8 d = net.debug.activeDrill;
+        if (d == kPracticeDrillNone)
+        {
+            return false;
+        }
+        if ((net.flags & kFlagStandby) != 0u)
         {
             out.buttons = 0u;
-            out.x = 0.0f;
-            out.y = 0.0f;
+            out.x = out.y = 0.0f;
             return true;
         }
-
-        const u8 d = s_net->activeDrill;
-        if (d != kPracticeDrillPowershield && d != kPracticeDrillLCancel && d != kPracticeDrillHoverFloat)
+        if ((net.flags & kFlagFrameSnap) == 0u)
         {
             return false;
         }
 
-        game::FighterRef refs[game::kMaxFighters];
-        int n = game::listFighters(refs, game::kMaxFighters);
-        game::FighterRef hmn;
-        game::FighterState hmnFs;
-        if (!findPrimaryHuman(refs, n, hmn) || !game::readState(hmn, hmnFs))
-        {
-            return false;
-        }
-        StageGeometry geom;
-        liveGeometry(geom, false, false);
-        const float floorL = geom.floor.valid ? geom.floor.leftX : -68.0f;
-        const float floorR = geom.floor.valid ? geom.floor.rightX : 68.0f;
+        const int slot = (who.playerNo >= 0 && who.playerNo < game::kMaxFighters) ? who.playerNo : 0;
+        const float floorL = net.cachedGeom.floor.valid ? net.cachedGeom.floor.leftX : -68.0f;
+        const float floorR = net.cachedGeom.floor.valid ? net.cachedGeom.floor.rightX : 68.0f;
+        const bool canAct = cpu::canAct(v);
+        const bool cpuOop = game::outOfPlay(v.status, true);
+        bool act = false;
+        u32 btn = 0u;
+        float sx = 0.0f;
 
         if (d == kPracticeDrillPowershield)
         {
-            s_net->psCpu.rng ^= game::frameCounter() * 0x9E3779B9u;
+            PsCpuState& ps = net.sub.psCpu[slot];
+            ps.rng ^= game::frameCounter() * 0x9E3779B9u + static_cast<u32>(slot);
             PsCpuInput in;
             in.cpuFtKind = game::fighterKind(who.entryId, who.sub);
             in.cpuStatus = v.status;
             in.cpuAir = v.air;
-            in.cpuCanAct = cpu::canAct(v);
-            in.cpuOutOfPlay = game::outOfPlay(v.status, true);
-            in.hmnOutOfPlay = game::outOfPlay(hmnFs.status, true);
+            in.cpuCanAct = canAct;
+            in.cpuOutOfPlay = cpuOop;
+            in.hmnOutOfPlay = game::outOfPlay(net.cachedHmn.status, true);
             in.cpuX = v.x;
             in.cpuLr = v.lr;
-            in.hmnX = hmnFs.x;
+            in.hmnX = net.cachedHmn.x;
             in.floorLeft = floorL;
             in.floorRight = floorR;
-
             PsCpuOutput po;
-            stepPsPracticeCpu(in, s_net->cfg, s_net->psCpu, po);
-            if (!po.active)
+            stepPsPracticeCpu(in, net.cfg, ps, po);
+            act = po.active;
+            btn = po.buttons;
+            sx = po.stickX;
+        }
+        else
+        {
+            const u8 tMode = getTargetMode(net);
+            if (tMode != kTargetOff)
             {
-                return false;
+                TargetCpuInput tin;
+                tin.targetMode = tMode;
+                tin.cpuAir = v.air;
+                tin.cpuCanAct = canAct;
+                tin.cpuOutOfPlay = cpuOop;
+                tin.cpuX = v.x;
+                tin.cpuLr = v.lr;
+                tin.hmnX = net.cachedHmn.x;
+                tin.floorLeft = floorL;
+                tin.floorRight = floorR;
+                TargetCpuOutput to;
+                stepTargetCpu(tin, net.sub.target[slot], to);
+                act = to.active;
+                btn = to.buttons;
+                sx = to.stickX;
             }
-            out.buttons = po.buttons;
-            out.x = po.stickX;
-            out.y = po.stickY;
-            return true;
         }
-
-        const u8 tMode = activeTargetMode(d, s_net->cfg);
-        if (tMode == kTargetOff)
+        if (act)
         {
-            return false;
+            out.buttons = btn;
+            out.x = sx;
+            out.y = 0.0f;
         }
-        TargetCpuInput tin;
-        tin.targetMode = tMode;
-        tin.cpuAir = v.air;
-        tin.cpuCanAct = cpu::canAct(v);
-        tin.cpuOutOfPlay = game::outOfPlay(v.status, true);
-        tin.cpuX = v.x;
-        tin.cpuLr = v.lr;
-        tin.hmnX = hmnFs.x;
-        tin.floorLeft = floorL;
-        tin.floorRight = floorR;
-
-        TargetCpuOutput to;
-        stepTargetCpu(tin, s_net->target, to);
-        if (!to.active)
-        {
-            return false;
-        }
-        out.buttons = to.buttons;
-        out.x = to.stickX;
-        out.y = to.stickY;
-        return true;
+        return act;
     }
 
-    // Draws the Wavedash / Waveland GX floor target zone in the 3D world camera.
+    // Draws the sleek low Wavedash / Waveland GX floor ribbon in the 3D main
+    // world camera pass (call only when s_camera == kMainCamera).
     void drillPracticeDraw(const game::MatchState& match)
     {
-        if (s_net == NULL || !match.running || match.paused || lab::menuOpen()
-            || s_net->activeDrill != kPracticeDrillWavedash || s_net->cfg.wdTargetZone == 0u || !s_net->wdZone.active)
+        if (s_net == NULL || !match.running || match.paused || lab::menuOpen())
+        {
+            return;
+        }
+        PracticeNet& net = *s_net;
+        const WdZoneState& z = net.sub.wdZone;
+        if (net.debug.activeDrill != kPracticeDrillWavedash || net.cfg.wdTargetZone == 0u || !z.active)
         {
             return;
         }
         gfCameraManager* camMgr = gfCameraManager::getManager();
-        if (!ramOk(camMgr))
+        if (!game::isRam(camMgr))
         {
             return;
         }
 
-        const WdZoneState& z = s_net->wdZone;
+        static const gfx::Rgba kPal[3][3] = {
+            {0x22B8CC48u, 0x0C4858A8u, 0xFFD300F0u}, // Idle Brawl/P+ teal + gold
+            {0x4CE68888u, 0x1E8048D0u, 0xFFE866FFu}, // Hit flash
+            {0xFF665878u, 0x902820C0u, 0xFF8878F0u}  // Short / Overshoot flash
+        };
+        const gfx::Rgba* pal = kPal[z.flashFrames > 0u ? (z.lastOutcome == kWdZoneHit ? 1 : 2) : 0];
+        const gfx::Rgba bc = pal[2];
+        const float x0 = z.minX, x1 = z.maxX, y0 = z.y + 0.12f, y1 = y0 + 0.65f, yt = y0 + 1.2f;
+        const float xm = 0.5f * (x0 + x1);
+
         camMgr->m_cameras[0].setGX();
         gfx::forgetState();
-
-        gfx::Rgba fillTop = 0x22B8CC48u;
-        gfx::Rgba fillBot = 0x0C4858A8u;
-        gfx::Rgba borderCol = 0xFFD300F0u;
-        if (z.flashFrames > 0u)
-        {
-            if (z.lastOutcome == kWdZoneHit)
-            {
-                fillTop = 0x4CE68888u;
-                fillBot = 0x1E8048D0u;
-                borderCol = 0xFFE866FFu;
-            }
-            else if (z.lastOutcome == kWdZoneShort || z.lastOutcome == kWdZoneOvershoot)
-            {
-                fillTop = 0xFF665878u;
-                fillBot = 0x902820C0u;
-                borderCol = 0xFF8878F0u;
-            }
-        }
-
-        const float y0 = z.y + 0.15f;
-        const float y1 = y0 + 2.2f;
-        const float midX = 0.5f * (z.minX + z.maxX);
-        const float box[5][2] = {
-            {z.minX, y0}, {z.maxX, y0}, {z.maxX, y1}, {z.minX, y1}, {z.minX, y0}
-        };
-        const float posts[6][2] = {
-            {z.minX, y1}, {z.minX, y1 + 2.4f},
-            {z.maxX, y1}, {z.maxX, y1 + 2.4f},
-            {midX, y0},   {midX, y1 + 1.2f}
-        };
-
         gfx::prepare();
         GXBegin(GX_QUADS, GX_VTXFMT1, 4);
-        gfx::vertex(z.minX, y1, fillTop);
-        gfx::vertex(z.maxX, y1, fillTop);
-        gfx::vertex(z.maxX, y0, fillBot);
-        gfx::vertex(z.minX, y0, fillBot);
+        gfx::vertex(x0, y1, pal[0]);
+        gfx::vertex(x1, y1, pal[0]);
+        gfx::vertex(x1, y0, pal[1]);
+        gfx::vertex(x0, y0, pal[1]);
         GXEnd();
 
-        gfx::lineBegin(GX_LINESTRIP, 5, 18);
-        emitVerts(box, 5, borderCol);
+        // Sleek top/bottom gold rails + left/right/center vertical ticks in one batch.
+        gfx::lineBegin(GX_LINES, 10, 14);
+        gfx::vertex(x0, y0, bc);
+        gfx::vertex(x1, y0, bc);
+        gfx::vertex(x0, y1, bc);
+        gfx::vertex(x1, y1, bc);
+        gfx::vertex(x0, y0, bc);
+        gfx::vertex(x0, yt, bc);
+        gfx::vertex(x1, y0, bc);
+        gfx::vertex(x1, yt, bc);
+        gfx::vertex(xm, y0, bc);
+        gfx::vertex(xm, yt, bc);
         GXEnd();
 
-        gfx::lineBegin(GX_LINES, 6, 16);
-        emitVerts(posts, 6, borderCol);
-        GXEnd();
-
+        GXSetLineWidth(6, 0);
         gfx::forgetState();
-        s_net->debug.drawCalls++;
+        net.debug.drawCalls++;
     }
 }
 }
