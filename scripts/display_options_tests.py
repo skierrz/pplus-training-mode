@@ -561,12 +561,8 @@ def overlay_wait(r, value, shot, load=True):
     # where the Start menu's held game keeps applying them while the value
     # steps through the colours.
     nav.pause_training(e)
-    lab.open_menu()
-    lab.main_to(LT.MAIN_DISPLAY)
-    lab.tap(["A"])  # Display
-    lab.down(DISPLAY_HMN_OVERLAYS)
-    lab.tap(["A"])  # P1 Overlays
-    lab.down(1 + GROUP_WAIT)
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("Display > P1 Overlays > Wait")
     lab.set_choice(S_OVERLAY_HMN + 1 + GROUP_WAIT, value)
     r.shot(shot)
     lab.close_menu()
@@ -693,12 +689,8 @@ DEAD, REBIRTH, STANDBY = 0xBD, 0xBE, 0x10B
 def set_models_menu(r, value):
     """Set Display > Lab Debug > Fighter Models through the lab menu (controller path)."""
     lab = r.lab
-    lab.open_menu()
-    lab.main_to(LT.MAIN_DISPLAY)
-    lab.tap(["A"])
-    lab.down(DISPLAY_DEBUG)
-    lab.tap(["A"])
-    lab.down(DEBUG_MODELS)  # Fighter Models (Lab Debug row 5)
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("Display > Lab Debug > Fighter Models")
     lab.set_choice(S_MODELS, value)
     lab.close_menu()
 
@@ -944,9 +936,8 @@ def sc_camera(r):
     # Camera row 5 of Lab (LT.GEN_CAMERA). The row stops at Fixed.
     lab = r.lab
     r.pause()
-    lab.open_menu()
-    lab.tap(["A"])
-    lab.down(LT.GEN_CAMERA)
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("Lab > Camera")
     lab.set_choice(S_CAMERA, 2)
     lab.tap(stick=LT.RIGHT)
     stops = lab.setting(S_CAMERA)
@@ -956,9 +947,8 @@ def sc_camera(r):
     r.check(stops == 2 and r.kind() == 0xC, "Camera Mode row: Fixed chosen in the menu, Advanced skipped",
             f"setting {stops}, kind {r.kind():#x}")
     r.pause()
-    lab.open_menu()
-    lab.tap(["A"])
-    lab.down(LT.GEN_CAMERA)
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("Lab > Camera")
     lab.set_choice(S_CAMERA, 0)
     lab.close_menu()
     r.resume()
@@ -1121,9 +1111,8 @@ def sc_together(r):
     # Positions, for the recording HUD.
     pos = lab.log_pos()
     r.pause()
-    lab.open_menu()
-    lab.main_to(LT.MAIN_RECORDING)
-    lab.tap(["A"])
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("Recording > Save Positions")
     lab.tap(["A"])
     lab.close_menu()
     r.resume()

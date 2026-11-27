@@ -62,14 +62,20 @@ FOX_DISTINGUISHABLE = 4  # src/main/game/tech_frames.cpp
 GROUP_WAIT, GROUP_DASH, GROUP_RUN, GROUP_IASA = 8, 10, 11, 15
 COLOR_NONE, COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_CYAN, COLOR_ORANGE, COLOR_INVISIBLE = 0, 1, 2, 3, 7, 8, 11
 
-# Lab menu rows (src/main/ui/pages/display_options.cpp, osd_menu.cpp; visible indices at default).
+# Lab menu row count constants for screenshot box assertions + live RAM labels.
 DISPLAY_HMN_OVERLAYS, DISPLAY_LEDGE_HUD, DISPLAY_THEME = 7, 10, 11
 OSD_ROWS = {"wavedash": 6, "lcancel": 7, "ledgedash": 8, "actoos": 9,
             "dashback": 13, "powershield": 14, "actoolag": 15, "actooairborne": 16,
             "actoohitstun": 17, "jumpcancel": 18, "fastfall": 19, "boostgrab": 20,
             "sdi": 21, "lockout": 22, "combo": 23, "grabbreakout": 24, "itemthrow": 25}
-# Rows not built yet: the cursor skips them.
-OSD_UNBUILT = ()
+OSD_LABELS = {
+    "wavedash": "Wavedash", "lcancel": "L-Cancel", "ledgedash": "Ledgedash Info",
+    "actoos": "Act OoS Frame", "dashback": "Dashback", "powershield": "Powershield",
+    "actoolag": "Act OoLag", "actooairborne": "Act OoAirborne", "actoohitstun": "Act OoHitstun",
+    "jumpcancel": "Jump Cancel", "fastfall": "Fastfall Timing", "boostgrab": "Boost Grab / DACUS",
+    "sdi": "SDI Inputs", "lockout": "Tech Lockout", "combo": "Combo Counter",
+    "grabbreakout": "Grab Escape", "itemthrow": "Item Throw",
+}
 
 # Sequential osd::Id values (src/main/ui/osd.h).
 ID_WAVEDASH, ID_LCANCEL, ID_ACTOOS, ID_DASHBACK, ID_POWERSHIELD, ID_SDI = 0, 1, 2, 3, 4, 5
@@ -1169,16 +1175,14 @@ def sc_wavedash_angle(r, stick, name):
 
 
 def sc_osd_position(r, position, name):
-    """OSD Position set through the lab menu (OSD Menu's first row), then
+    """OSD Position set through the lab menu (OSD Menu), then
     wavedash-1's wavedash: its message must be drawn at that position's
     spot. The position is the plugin's, set by the row's callback, so the
     scenario saves its own state after the menu."""
     lab, emu = r.lab, r.emu
     emu.h.call("load_state", path=r.states["control"])
-    lab.open_menu()
-    lab.main_to(LT.MAIN_OSD)
-    lab.tap(["A"])
-    lab.down(1)  # OSD Position (row 1; row 0 is OSD Preset)
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("OSDs > OSD Position")
     lab.set_choice(S_OSD_POSITION, position)
     r.shots.append(emu.screenshot("osds-menu-" + name))
     lab.close_menu()
@@ -1315,17 +1319,14 @@ def sc_osd_theme(r, name):
     0% (drop-shadow), Brawl Navy 50%, and Crimson 60%."""
     lab, emu = r.lab, r.emu
     emu.h.call("load_state", path=r.states["control"])
-    lab.open_menu()
-    lab.main_to(LT.MAIN_DISPLAY)
-    lab.tap(["A"])
-    lab.down(DISPLAY_THEME)
-    lab.tap(["A"])
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("Display > Theme > OSD Background")
     if lab.setting(S_OSD_BG_COLOR) != 0 or lab.setting(S_OSD_BG_ALPHA) != 8:
         raise OsdError(f"{name}: Theme defaults ({lab.setting(S_OSD_BG_COLOR)}, {lab.setting(S_OSD_BG_ALPHA)}), "
                        f"wanted (0, 8)")
     r.shots.append(emu.screenshot("osds-menu-theme"))
     lab.set_choice(S_OSD_BG_COLOR, 2)
-    lab.down(1)
+    lab.menu_select_row("OSD Opacity")
     lab.set_choice(S_OSD_BG_ALPHA, 0)
     if lab.setting(S_OSD_BG_COLOR) != 2 or lab.setting(S_OSD_BG_ALPHA) != 0:
         raise OsdError(f"{name}: Theme menu change gave ({lab.setting(S_OSD_BG_COLOR)}, "
@@ -2396,28 +2397,19 @@ def menu_setup(r):
     """Lab menu: OSD Menu rows on, Ledgedash HUD on, HMN Color Overlays
     preset ProjectPunch (screenshots of each page)."""
     lab, emu = r.lab, r.emu
-    lab.open_menu()
-    lab.main_to(LT.MAIN_OSD)
-    lab.tap(["A"])
-    row = 0
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("OSDs > Wavedash")
     for key in sorted(OSD_ROWS, key=OSD_ROWS.get):
-        lab.down(sum(1 for k in range(row + 1, OSD_ROWS[key] + 1) if k not in OSD_UNBUILT))
-        row = OSD_ROWS[key]
+        lab.menu_select_row(OSD_LABELS[key])
         lab.toggle_on(S_OSD[key])
     r.shots.append(emu.screenshot("osds-menu-osd"))
-    lab.tap(["B"])  # Draft C rail, on OSDs
-    lab.up(LT.MAIN_OSD - LT.MAIN_DISPLAY)  # Display
-    lab.tap(["A"])  # Display
-    lab.down(DISPLAY_LEDGE_HUD)
-    lab.tap(["A"])  # Ledgedash HUD
+    lab.menu_nav_to("Display > Ledgedash HUD > Enable")
     lab.toggle_on(S_LEDGE_HUD)
     for offset, want in ((S_LEDGE_MAX, 50), (S_LEDGE_GALINT, 1), (S_LEDGE_PANEL, 1)):
         if lab.setting(offset) != want:
             raise OsdError(f"Ledgedash HUD default at +{offset}: {lab.setting(offset)}, wanted {want}")
     r.shots.append(emu.screenshot("osds-menu-ledgedash-hud"))
-    lab.tap(["B"])  # back to Display (on Ledgedash HUD)
-    lab.up(DISPLAY_LEDGE_HUD - DISPLAY_HMN_OVERLAYS)
-    lab.tap(["A"])  # P1 Overlays
+    lab.menu_nav_to("Display > P1 Overlays > Preset")
     lab.set_choice(S_OVERLAY[0], 1)
     groups = [lab.setting(S_OVERLAY[0] + 1 + g) for g in range(17)]
     want = [0] * 17

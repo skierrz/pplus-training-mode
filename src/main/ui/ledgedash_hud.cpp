@@ -129,7 +129,8 @@ namespace ui {
             float curX = lx0;
             for (int i = 0; i < 6; i++)
             {
-                gfx::fillRect(curX - 1.0f * xs, swY - 1.0f, swW + 2.0f * xs, layout::kKeySwatch + 2.0f, 0x05090FF2u);
+                gfx::fillRect(curX - 1.0f * xs, swY - 1.0f, swW + 2.0f * xs, layout::kKeySwatch + 2.0f,
+                              style::kHudTroughBg);
                 gfx::fillRect(curX, swY, swW, layout::kKeySwatch, kCellColors[kLegCells[i]] | 0xFFu);
                 curX += (swW + swGap + lWidths[i] + itemGap) * ratio;
             }
@@ -138,18 +139,18 @@ namespace ui {
             for (int i = 0; i < 6; i++)
             {
                 float tx = curX + (swW + swGap) * ratio;
-                gfx::text(tx - xs, ly, kLegNames[i], 0x04070CE8u, sx, lScale);
-                gfx::text(tx + xs, ly, kLegNames[i], 0x04070CE8u, sx, lScale);
-                gfx::text(tx, ly - 1.0f, kLegNames[i], 0x04070CE8u, sx, lScale);
-                gfx::text(tx, ly + 1.0f, kLegNames[i], 0x04070CE8u, sx, lScale);
-                gfx::text(tx, ly, kLegNames[i], 0xF8FCFFFFu, sx, lScale);
+                gfx::text(tx - xs, ly, kLegNames[i], style::kHudOutlineEdge, sx, lScale);
+                gfx::text(tx + xs, ly, kLegNames[i], style::kHudOutlineEdge, sx, lScale);
+                gfx::text(tx, ly - 1.0f, kLegNames[i], style::kHudOutlineEdge, sx, lScale);
+                gfx::text(tx, ly + 1.0f, kLegNames[i], style::kHudOutlineEdge, sx, lScale);
+                gfx::text(tx, ly, kLegNames[i], style::kHudTextPrimary, sx, lScale);
                 curX += (swW + swGap + lWidths[i] + itemGap) * ratio;
             }
         }
 
         // Chunky individually dark-outlined chronological frame cells (09-calm-ledgedash).
         float barScale = wide ? 0.90f : 1.0f;
-        gfx::fillRect(bar.x0, bar.y0, barW, barH, 0x05090FF4u);
+        gfx::fillRect(bar.x0, bar.y0, barW, barH, style::kHudTroughBg);
         float gap = layout::kCellGap * barScale;
         float innerPadX = 2.0f * barScale;
         float cellW = (barW - 2.0f * innerPadX - (n - 1) * gap) / n;
@@ -165,7 +166,7 @@ namespace ui {
             gfx::Rgba col = (type < game::kCellTypes ? kCellColors[type] : kCellColors[game::kCellOther]) | 0xFFu;
             float cx = bar.x0 + innerPadX + k * (cellW + gap);
             gfx::fillRect(cx, bar.y0 + 2.0f, cellW, cellH, col);
-            gfx::fillRect(cx, bar.y0 + 2.0f, cellW, 2.0f, 0xFFFFFF34u);
+            gfx::fillRect(cx, bar.y0 + 2.0f, cellW, 2.0f, style::kHudCellSheen);
         }
 
         // Bold black-outlined white upward pointer arrow (^) at first actionable frame.
@@ -185,8 +186,8 @@ namespace ui {
             float tipY = bar.y1 + 1.5f;
             float baseY = bar.y1 + 7.5f;
             gfx::fillTri(px, tipY - 0.5f, px - halfBase - outPad, baseY + 1.0f, px + halfBase + outPad,
-                         baseY + 1.0f, 0x04070CF8u);
-            gfx::fillTri(px, tipY, px - halfBase, baseY, px + halfBase, baseY, 0xFFFFFFFFu);
+                         baseY + 1.0f, style::kHudOutlineHeavy);
+            gfx::fillTri(px, tipY, px - halfBase, baseY, px + halfBase, baseY, style::kLabWhiteText);
         }
 
         // Zone 2: Panel B single quiet smoked plate on right margin under Option A GC controller.
@@ -195,10 +196,10 @@ namespace ui {
             char galintBuf[20];
             char ledgeBuf[16];
             char angleBuf[20];
-            gfx::Rgba galintCol = 0xFF6658FFu;
+            gfx::Rgba galintCol = style::kHudRed;
             if (l.noXlu)
             {
-                galintCol = 0xFFB848FFu;
+                galintCol = style::kHudWarn;
                 if (l.grabCount > 5)
                 {
                     snprintf(galintBuf, sizeof(galintBuf), "None (%d/5)", l.grabCount);
@@ -210,7 +211,7 @@ namespace ui {
             }
             else
             {
-                galintCol = l.galint > 0 ? 0x4CE688FFu : 0xFF6658FFu;
+                galintCol = l.galint > 0 ? style::kHudGreen : style::kHudRed;
                 snprintf(galintBuf, sizeof(galintBuf), l.galint > 0 ? "+%df" : "%df", l.galint);
             }
             snprintf(ledgeBuf, sizeof(ledgeBuf), "%df", l.ledgeFrames);
@@ -244,31 +245,34 @@ namespace ui {
             float ph = plate.y1 - plate.y0;
             float pcx = (plate.x0 + plate.x1) * 0.5f;
             float maxW = pw - 2.0f * style::kFibTight * xs;
-            gfx::fillRect(plate.x0, plate.y0, pw, ph, 0x111720A8u);
+            // Pass 1: plate + dividers batched before text pass (zero GX quad<->text flushes).
+            gfx::fillRect(plate.x0, plate.y0, pw, ph, style::kHudPlateAlphaBg);
+            for (int r = 1; r < 3; r++)
+            {
+                float ry = plate.y0 + 4.0f + r * layout::kDrillPlateRowH;
+                gfx::fillRect(plate.x0 + 8.0f * xs, ry - 1.0f, pw - 16.0f * xs, 2.0f, style::kSmokedDivider);
+            }
 
+            // Pass 2: labels and values.
             static const char* const kRowLabels[3] = {"GALINT", "On Ledge", "Angle"};
             const char* rowVals[3] = {galintBuf, ledgeBuf, angleBuf};
-            const gfx::Rgba rowCols[3] = {galintCol, 0xF4F8FCFFu, 0xF4F8FCFFu};
+            const gfx::Rgba rowCols[3] = {galintCol, style::kHudTextValue, style::kHudTextValue};
             float lblSc = style::scaleForCap(style::kTypeMeta);
             float valSc = style::scaleForCap(style::kTypeHeading);
             for (int r = 0; r < 3; r++)
             {
                 float ry = plate.y0 + 4.0f + r * layout::kDrillPlateRowH;
-                if (r > 0)
-                {
-                    gfx::fillRect(plate.x0 + 8.0f * xs, ry - 1.0f, pw - 16.0f * xs, 2.0f, 0xFFFFFF38u);
-                }
                 float lw = gfx::textWidth(kRowLabels[r], lblSc);
                 float lx = pcx - lw * 0.5f;
                 float ly = style::textYForCap(ry + 3.0f, lblSc);
-                gfx::text(lx + xs, ly + 1.0f, kRowLabels[r], 0x000000C8u, lblSc);
-                gfx::text(lx, ly, kRowLabels[r], 0xC6D4E0FFu, lblSc);
+                gfx::text(lx + xs, ly + 1.0f, kRowLabels[r], style::kHudShadow, lblSc);
+                gfx::text(lx, ly, kRowLabels[r], style::kHudTextLabel, lblSc);
 
                 float vw = gfx::textWidth(rowVals[r], valSc);
                 float sx = (vw > maxW && vw > 0.0f) ? (valSc * maxW / vw) : valSc;
                 float vx = pcx - (vw > maxW ? maxW : vw) * 0.5f;
                 float vy = style::textYForCap(ry + 16.0f, valSc);
-                gfx::text(vx + xs, vy + 1.0f, rowVals[r], 0x000000D0u, sx, valSc);
+                gfx::text(vx + xs, vy + 1.0f, rowVals[r], style::kHudShadow, sx, valSc);
                 gfx::text(vx, vy, rowVals[r], rowCols[r], sx, valSc);
             }
         }

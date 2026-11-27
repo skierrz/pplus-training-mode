@@ -6,6 +6,7 @@
 #include "main/game/match.h"
 #include "main/gfx/draw.h"
 #include "main/ui/hud_layout.h"
+#include "main/ui/style.h"
 
 // Shared 2D HUD chrome and circle-math helpers for the extra module, avoiding
 // duplicated GX call sites and kept match-module relocations across overlays.
@@ -45,21 +46,29 @@ namespace extra {
 
     // Shared semantic HUD scrim and feedback tokens for live extra/ overlays
     // (~77% dark smoked slate for >= 4.5:1 text contrast over bright stages).
-    static const gfx::Rgba kSmokedPlateBg = 0x0D131CC4u;
-    static const gfx::Rgba kSmokedPlateEdge = 0x05080DE8u;
-    static const gfx::Rgba kSmokedPlateSheen = 0xFFFFFF22u;
-    static const gfx::Rgba kSmokedDivider = 0xFFFFFF38u;
-    static const gfx::Rgba kHudOutlineEdge = 0x04070CE8u;
-    static const gfx::Rgba kHudTextPrimary = 0xF8FCFFFFu;
-    static const gfx::Rgba kHudTextLabel = 0xC6D4E0FFu;
-    static const gfx::Rgba kHudTextValue = 0xF4F8FCFFu;
-    static const gfx::Rgba kHudTroughBg = 0x05090FF4u;
-    static const gfx::Rgba kHudCellEmpty = 0x1E2C38C8u;
-    static const gfx::Rgba kHudCellSheen = 0xFFFFFF34u;
-    static const gfx::Rgba kHudGold = 0xFFD300FFu;
-    static const gfx::Rgba kHudGreen = 0x4CE688FFu;
-    static const gfx::Rgba kHudWarn = 0xFFB848FFu;
-    static const gfx::Rgba kHudRed = 0xFF6658FFu;
+    static const gfx::Rgba kSmokedPlateBg = ui::style::kSmokedPlateBg;
+    static const gfx::Rgba kSmokedPlateEdge = ui::style::kSmokedPlateEdge;
+    static const gfx::Rgba kSmokedPlateSheen = ui::style::kSmokedPlateSheen;
+    static const gfx::Rgba kSmokedDivider = ui::style::kSmokedDivider;
+    static const gfx::Rgba kHudOutlineEdge = ui::style::kHudOutlineEdge;
+    static const gfx::Rgba kHudShadow = ui::style::kHudShadow;
+    static const gfx::Rgba kHudTextPrimary = ui::style::kHudTextPrimary;
+    static const gfx::Rgba kHudTextLabel = ui::style::kHudTextLabel;
+    static const gfx::Rgba kHudTextValue = ui::style::kHudTextValue;
+    static const gfx::Rgba kHudTroughBg = ui::style::kHudTroughBg;
+    static const gfx::Rgba kHudCellEmpty = ui::style::kHudCellEmpty;
+    static const gfx::Rgba kHudCellSheen = ui::style::kHudCellSheen;
+    static const gfx::Rgba kHudGold = ui::style::kHudGold;
+    static const gfx::Rgba kHudYellow = ui::style::kHudYellow;
+    static const gfx::Rgba kHudGreen = ui::style::kHudGreen;
+    static const gfx::Rgba kHudGreenHi = 0x3CE890FFu;
+    static const gfx::Rgba kHudWarn = ui::style::kHudWarn;
+    static const gfx::Rgba kHudRed = ui::style::kHudRed;
+    static const gfx::Rgba kHudSteelBorder = 0x3A4656FFu;
+    static const gfx::Rgba kHudCardGlassTop = 0x121822F4u;
+    static const gfx::Rgba kHudCardGlassBot = 0x0A0E15F4u;
+    static const gfx::Rgba kHudDialBg = 0x080C12E8u;
+    static const gfx::Rgba kHudAxisLine = 0x3E4958C0u;
 
     void drawSmokedPlate(float x, float y, float w, float h, gfx::Rgba bg = kSmokedPlateBg);
     // Smoked glass scrim card strictly within [x..x+w, y..y+h] with crisp 2px dark edge and subtle top sheen.

@@ -1309,24 +1309,24 @@ namespace extra {
 
         // Pass 1: smoked-charcoal card + octagonal gate + dial ray (all shapes before text).
         float bx = ui::style::w(2.0f);
-        gfx::Rgba borderCol = picking ? 0xF4C830FFu : 0x3A4656FFu;
-        gfx::fillRect(cardX - bx, topY - 2.0f, cardW + 2.0f * bx, cardH + 4.0f, 0x06080DFFu);
+        gfx::Rgba borderCol = picking ? ui::style::kLabFocusGold : kHudSteelBorder;
+        gfx::fillRect(cardX - bx, topY - 2.0f, cardW + 2.0f * bx, cardH + 4.0f, ui::style::kLabBorderColor);
         gfx::fillRect(cardX, topY, cardW, cardH, borderCol);
-        gfx::fillGradV(cardX + bx, topY + 2.0f, cardW - 2.0f * bx, cardH - 4.0f, 0x121822F4u, 0x0A0E15F4u);
+        gfx::fillGradV(cardX + bx, topY + 2.0f, cardW - 2.0f * bx, cardH - 4.0f, kHudCardGlassTop, kHudCardGlassBot);
 
         float ry = compact ? 31.0f : 35.0f;
         float rx = ry * xs;
         float cx = cardX + ui::style::w(50.0f);
         float cy = topY + cardH * 0.5f;
 
-        gfx::fillEllipse(cx, cy, rx * 0.94f, ry * 0.94f, 0x080C12E8u);
+        gfx::fillEllipse(cx, cy, rx * 0.94f, ry * 0.94f, kHudDialBg);
         gfx::lineBegin(GX_LINES, 4, 8);
-        gfx::vertex(cx - rx * 0.92f, cy, 0x3E4958C0u);
-        gfx::vertex(cx + rx * 0.92f, cy, 0x3E4958C0u);
-        gfx::vertex(cx, cy - ry * 0.92f, 0x3E4958C0u);
-        gfx::vertex(cx, cy + ry * 0.92f, 0x3E4958C0u);
+        gfx::vertex(cx - rx * 0.92f, cy, kHudAxisLine);
+        gfx::vertex(cx + rx * 0.92f, cy, kHudAxisLine);
+        gfx::vertex(cx, cy - ry * 0.92f, kHudAxisLine);
+        gfx::vertex(cx, cy + ry * 0.92f, kHudAxisLine);
 
-        gfx::Rgba rimCol = picking ? 0xF4C830FFu : 0xDCE5EEFFu;
+        gfx::Rgba rimCol = picking ? ui::style::kLabFocusGold : 0xDCE5EEFFu;
         gfx::lineBegin(GX_LINESTRIP, 9, 12);
         for (int k = 0; k <= 16; k += 2)
         {
@@ -1339,14 +1339,15 @@ namespace extra {
         float vy = i2fScale(set.cpuTables.customDiY, 0.01f);
         clampLength(vx, vy, 1.0f);
         bool hasVec = (vx * vx + vy * vy > 0.0004f);
-        drawDialRayDot(cx, cy, rx, ry, vx, vy, 0.90f, 3.0f, xs, 0x2DB3A1FFu, 0xF4C830FFu, 16, hasVec);
+        drawDialRayDot(cx, cy, rx, ry, vx, vy, 0.90f, 3.0f, xs, ui::style::kLabTealTop, ui::style::kLabFocusGold, 16,
+                       hasVec);
 
         // Pass 2: batched text (>= 8.0 px 480i cap floor on every row, controller-accurate glyphs).
         float tx = cardX + ui::style::w(98.0f);
         float textMaxW = (cardX + cardW - ui::style::w(8.0f)) - tx;
         float rowStep = compact ? 21.5f : 24.0f;
         float row0 = topY + (compact ? 13.0f : 14.0f);
-        drawPickerFitLine(tx, row0, picking ? "AIMING DI ANGLE" : "CUSTOM DI ANGLE", 0xF4C830FFu,
+        drawPickerFitLine(tx, row0, picking ? "AIMING DI ANGLE" : "CUSTOM DI ANGLE", ui::style::kLabFocusGold,
                           ui::style::kTypeMeta, textMaxW);
         char line[40];
         if (hasVec)
@@ -1363,11 +1364,11 @@ namespace extra {
         {
             snprintf(line, sizeof(line), "0 deg  (Neutral)");
         }
-        drawPickerFitLine(tx, row0 + rowStep, line, 0xEEF4F8FFu, 8.5f, textMaxW);
-        drawPickerFitLine(tx, row0 + rowStep * 2.0f, "Orientation: Screen X / Y", 0x9AA7B4FFu,
+        drawPickerFitLine(tx, row0 + rowStep, line, kHudTextValue, 8.5f, textMaxW);
+        drawPickerFitLine(tx, row0 + rowStep * 2.0f, "Orientation: Screen X / Y", ui::style::kLabMutedText,
                           ui::style::kTypeMicro, textMaxW);
         drawPickerFitLine(tx, row0 + rowStep * 3.0f, diPickerPromptText(padType, picking),
-                          picking ? 0xF4C830FFu : 0xB8C6D4FFu, ui::style::kTypeMicro, textMaxW);
+                          picking ? ui::style::kLabFocusGold : kHudTextLabel, ui::style::kTypeMicro, textMaxW);
     }
 
     void diReset()

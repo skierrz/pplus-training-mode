@@ -333,7 +333,7 @@ namespace extra {
         gfx::fillRect(midX - diaRx - wingGap - wingW, midY - 1.0f, wingW, 2.0f, 0x3A5868CC);
         gfx::fillRect(midX + diaRx + wingGap, midY - 1.0f, wingW, 2.0f, 0x3A5868CC);
         static const float kDiaR[2] = {6.0f, 3.5f};
-        static const gfx::Rgba kDiaCol[2][2] = {{0x2A4656FF, 0x162A36FF}, {0xFFD300FF, 0xC89E00FF}};
+        static const gfx::Rgba kDiaCol[2][2] = {{0x2A4656FF, 0x162A36FF}, {ui::style::kHudGold, 0xC89E00FF}};
         for (int d = 0; d < 2; d++)
         {
             float rx = ui::style::w(kDiaR[d]);

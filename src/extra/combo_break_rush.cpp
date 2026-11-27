@@ -822,7 +822,7 @@ namespace extra {
 
         const float rowY = ui::style::textYForCap(oy + 23.0f, txtSc);
         float curX = lx;
-        drawShadowText(curX, rowY, "Score ", 0xD8E2ECFFu, txtSc);
+        drawShadowText(curX, rowY, "Score ", kHudTextLabel, txtSc);
         curX += gfx::textWidth("Score ", txtSc);
 
         snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(st.score));
@@ -832,7 +832,7 @@ namespace extra {
         snprintf(buf, sizeof(buf), "x%u", static_cast<unsigned>(st.multiplier));
         gfx::Rgba multCol = st.multiplier >= 7 ? kHudRed
                                                : (st.multiplier >= 4 ? kHudGold
-                                                                     : (st.multiplier >= 2 ? kHudGreen : 0xC8D6E0FFu));
+                                                                     : (st.multiplier >= 2 ? kHudGreen : kHudTextLabel));
         drawShadowText(curX, rowY, buf, multCol, txtSc);
 
         if (st.bestScore > 0u)
@@ -844,14 +844,14 @@ namespace extra {
             strcpy(buf, "Best --");
         }
         float bestW = gfx::textWidth(buf, txtSc);
-        drawShadowText(rx - bestW, rowY, buf, 0xD8E2ECFFu, txtSc);
+        drawShadowText(rx - bestW, rowY, buf, kHudTextLabel, txtSc);
 
         snprintf(buf, sizeof(buf), "Chain %u", static_cast<unsigned>(st.streak));
         float stkW = gfx::textWidth(buf, txtSc);
         float stkX = rx - bestW - ui::style::kFibGap * xs - stkW;
         if (stkX > curX + ui::style::kFibPad * xs)
         {
-            drawShadowText(stkX, rowY, buf, st.streak > 0 ? kHudGreen : 0xB8C6D2FFu, txtSc);
+            drawShadowText(stkX, rowY, buf, st.streak > 0 ? kHudGreen : ui::style::kLabMutedText, txtSc);
         }
         s_net->debug.draw2dCalls++;
     }

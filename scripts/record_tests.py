@@ -112,9 +112,6 @@ MT_RAND_SEED = 0x805A00BC
 RESETTI_KIND, RESETTI_SEED = 0xA1, 0x1E6C6E03
 MODE_ASSIST_SWITCH, ASSIST_MR_RESETTI = 0x3C, 1 << 18
 HEAP_INFOS, HEAP_FTQ, HEAP_ASSIST, HEAP_POKEMON = 0x80494958, 31, 35, 38
-# Recording page rows (src/main/ui/pages/recording.cpp): Save/Restore
-# Positions, HMN Mode, ...
-ROW_HMN_MODE = 1
 # record::Slot (src/main/record/slots.h): a 20-byte header, four 256-entry
 # float tables (stick x, y, C-stick x, y), a 256-entry (L, R) table, 3600
 # 8-byte frames (buttons, x, y, cx, cy, lr, press).
@@ -1530,9 +1527,8 @@ def s_fallback(r):
     emu.h.call("resume")
     lab = LT.Lab(emu, [])
     lab.find_settings()
-    lab.open_menu()
-    lab.go_controls()
-    lab.down(2)
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("Lab > Controls > Rewind Button")
     res.note(f"Controls page, Frame Decrement Button's description: {emu.screenshot('record-decrement-lite')[0]}")
     lab.close_menu()
     rec.set(hmnMode=0)
@@ -1614,42 +1610,9 @@ def s_advance(r):
 
 # ---- Alter Inputs and Frame Decrement ---------------------------------------------
 
-# Alter Inputs rows (src/main/ui/pages/alter_inputs.cpp): Frame, Stick X, ...,
-# Attack 7, Special 8, Jump 9.
-ALTER_STICK_X_ROW, ALTER_JUMP_ROW = 1, 9
 # Steps of the HMN recording (SEQUENCE) edited: 3 is in the first 6 frames
 # of standing still, 12 in the walk to the right (stick x 0.5, shown 40).
 EDIT_JUMP_T, EDIT_STICK_T, EDIT_STICK = 3, 12, -40
-
-
-# Recording page row indices (src/main/ui/pages/recording.cpp).
-ROW_RESAVE, ROW_SLOT_MANAGE = 12, 15
-# CPU page row index for Port Control (src/main/ui/pages/cpu_options.cpp).
-CPU_CONTROLLED_BY_ROW = 13
-
-
-def rec_down_to(lab, rec, target_row):
-    """From row 0 on Recording (positions saved), move down to `target_row`,
-    accounting for rows skipped by the cursor when disabled."""
-    mirrored = rec.get("mirrored")
-    hmn = rec.get("hmnMode")
-    cpu = rec.get("cpuMode")
-    cpu_lab = lab.setting(SET_CPU_CONTROL) == 1
-    recording = hmn in (1, 3) or cpu in (2, 4)
-    playing = hmn in (2, 3) or cpu in (3, 4)
-
-    def enabled(row):
-        if row in (1, 2):
-            return mirrored == 0
-        if row in (3, 4, 6):
-            return cpu_lab and mirrored == 0
-        if row == 5:
-            return (not recording) and playing
-        if row in (7, 8):
-            return not recording
-        return True
-
-    lab.down(sum(1 for row in range(1, target_row + 1) if enabled(row)))
 
 
 def alter_stick(r, lab, slot, t, target, limit=60):
@@ -1687,20 +1650,17 @@ def s_edit(r):
     lab.find_settings()
     emu.h.call("resume")
     rec_menu_open(lab)
-    rec_down_to(lab, rec, ROW_SLOT_MANAGE)
-    lab.tap(["A"])  # Slot Management
-    lab.down(2)
-    lab.tap(["A"])  # Modify Inputs: Alter Inputs, on Frame 1
+    lab.menu_nav_to("Recording > Slot Management > Alter Inputs > Frame")
     pos = len(emu.log_text())
     for _ in range(EDIT_JUMP_T):
         lab.tap(stick=LT.RIGHT)
-    lab.down(ALTER_JUMP_ROW)
+    lab.menu_select_row("Jump")
     lab.tap(stick=LT.RIGHT)
     shot = emu.screenshot("record-alter-inputs")[0]
-    lab.up(ALTER_JUMP_ROW)
+    lab.menu_select_row("Frame")
     for _ in range(EDIT_STICK_T - EDIT_JUMP_T):
         lab.tap(stick=LT.RIGHT)
-    lab.down(ALTER_STICK_X_ROW)
+    lab.menu_select_row("Stick X")
     alter_stick(r, lab, 4, EDIT_STICK_T, EDIT_STICK)
     shot2 = emu.screenshot("record-alter-inputs-stick")[0]
     lab.close_menu()
@@ -1862,18 +1822,16 @@ def s_menu(r):
     emu.h.call("resume")
     r.run_request("delete")
     emu.h.call("resume")
-    lab.open_menu()
-    lab.main_to(LT.MAIN_RECORDING)
-    lab.tap(["A"])
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("Recording > Save Positions")
     before = emu.screenshot("record-menu-before-save")[0]
     pos = len(emu.log_text())
     lab.tap(["A"])
     lab.wait_log("Save Positions", r"record: positions to save", pos)
-    lab.down(ROW_HMN_MODE)
+    lab.menu_select_row("P1 Mode")
     lab.tap(stick=LT.RIGHT)
     mode = rec.get("hmnMode")
     after = emu.screenshot("record-menu-after-save")[0]
-    lab.back_to_main(1)
     lab.close_menu()
     emu.advance(30)
     st = rec.status()
@@ -1905,9 +1863,8 @@ def s_menu(r):
     emu.neutral(0)
     emu.advance(10)
     moved_x = fl(r.tr.row(P1)["x"])
-    lab.open_menu()
-    lab.main_to(LT.MAIN_RECORDING)
-    lab.tap(["A"])
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("Recording > Restore Positions")
     pos = len(emu.log_text())
     lab.tap(["A"])  # Restore Positions
     emu.advance(30)
@@ -1923,14 +1880,14 @@ def s_menu(r):
             not all_ref and abs(moved_x - saved_x) > 5.0 and abs(open_x - saved_x) > 5.0
             and abs(close_x - saved_x) < 1.0)
     lab.open_menu(keep=True)
-    lab.down(ROW_HMN_MODE)
+    lab.menu_nav_to("Recording > P1 Mode")
     pos = len(emu.log_text())
     lab.tap(stick=LT.RIGHT)  # Record
     lab.tap(stick=LT.RIGHT)  # Playback (requests restore)
     emu.advance(30)
     lab.tap(stick=LT.LEFT)
     lab.tap(stick=LT.LEFT)   # back to Off
-    lab.up(ROW_HMN_MODE)
+    lab.menu_select_row("Restore Positions")
     lab.close_menu()
     emu.advance(10)
     mode_ref = re.findall(r"savestate: recording state load refused: [^\r\n]+", log_since(emu, pos))
@@ -2007,30 +1964,26 @@ def player_controllers(emu):
 
 def rec_menu_open(lab):
     """Open the lab menu to Recording, row 0 (Save/Restore Positions)."""
-    lab.open_menu()
-    lab.main_to(LT.MAIN_RECORDING)
-    lab.tap(["A"])
-    lab.up(18)
+    lab.open_menu(keep=True)
+    info = lab.menu_nav_to("Recording")
+    if info.get("rail_focus"):
+        lab.tap(["A"])
+    page = lab.read_page(info["page_id"])
+    lab.menu_select_row(page["options"][0]["name"])
 
 
 def set_cpu_control_menu(lab, target):
     """Set CPU Options > CPU Control (0 Training, 1 Lab) through the lab menu."""
-    lab.open_menu()
-    lab.main_to(LT.MAIN_CPU)
-    lab.tap(["A"])
-    lab.up(25)
-    lab.down(C.CPU_CONTROL_ROW)
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("CPU > CPU Control")
     lab.set_choice(SET_CPU_CONTROL, target)
     lab.close_menu()
 
 
 def set_controlled_by_menu(lab, target, before_close=None):
-    """Set CPU Options > Controlled By (0 None, 1..4 Port 1..4) through the lab menu."""
-    lab.open_menu()
-    lab.main_to(LT.MAIN_CPU)
-    lab.tap(["A"])
-    lab.emu.press(getattr(lab, "port", 0), [], frames=50, after=4, stick=LT.UP)
-    lab.down(CPU_CONTROLLED_BY_ROW)
+    """Set CPU Options > Port Control (0 None, 1..4 Port 1..4) through the lab menu."""
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("CPU > Port Control")
     lab.set_choice(SET_CONTROLLED_BY, target)
     if before_close is not None:
         before_close()
@@ -2038,8 +1991,8 @@ def set_controlled_by_menu(lab, target, before_close=None):
 
 
 def resave_positions_menu(lab, rec):
-    """From row 0 on Recording (positions saved), select Re-Save Positions."""
-    rec_down_to(lab, rec, ROW_RESAVE)
+    """From Recording, select Re-Save Positions."""
+    lab.menu_select_row("Re-Save Positions")
     lab.tap(["A"])
 
 
@@ -2068,7 +2021,7 @@ def s_cpu_controller_leak(r):
         pos = lab.log_pos()
         lab.tap(["A"])  # Save Positions
         lab.wait_log("Save Positions queued", r"record: positions to save", pos)
-    lab.down(3)  # CPU Mode
+    lab.menu_select_row("CPU Mode")
     lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Control"])
     pos = lab.log_pos()
     lab.close_menu()
@@ -2102,7 +2055,7 @@ def s_cpu_controller_leak(r):
 
     # Set CPU Mode = Off through the Recording page.
     rec_menu_open(lab)
-    lab.down(3)
+    lab.menu_select_row("CPU Mode")
     lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Off"])
     pos = lab.log_pos()
     lab.close_menu()
@@ -2225,12 +2178,12 @@ def s_quick_load_after_end(r):
         pos = lab.log_pos()
         lab.tap(["A"])  # Save Positions
         lab.wait_log("Save Positions queued", r"record: positions to save", pos)
-    lab.down(3)  # CPU Mode
+    lab.menu_select_row("CPU Mode")
     lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Record"])
-    lab.down(1)  # CPU Record Slot
+    lab.menu_select_row("CPU Record Slot")
     lab.set_choice(SET_REC + REC["cpuSlot"], 1)
     if already_saved:
-        lab.up(4)  # Restore Positions so the slot records cleanly from frame 0
+        lab.menu_select_row("Restore Positions")
         pos = lab.log_pos()
         lab.tap(["A"])
         lab.close_menu()
@@ -2248,7 +2201,7 @@ def s_quick_load_after_end(r):
     # Switch to Playback on the Recording page (CPU Counter defaults to After
     # Playback Ends = 1, Takeover defaults to HMN = 0).
     rec_menu_open(lab)
-    lab.down(3)  # CPU Mode
+    lab.menu_select_row("CPU Mode")
     lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Playback"])
     start_f, end_f = rec.slot_end(1, 0)
     res.note(f"recorded CPU slot 1: start={start_f}, end={end_f}, cpuCounter={rec.get('cpuCounter')}, "
@@ -2356,9 +2309,9 @@ def s_quick_load_after_end(r):
     # Second variant: quick save mid-playback, take over CPU playback, then D-pad left.
     emu.h.call("resume")
     rec_menu_open(lab)
-    lab.down(10)  # Playback Takeover (all rows 0..10 enabled in Playback)
+    lab.menu_select_row("Playback Takeover")
     lab.set_choice(SET_REC + REC["takeover"], TAKEOVER["CPU"])
-    lab.up(10)    # Restore Positions
+    lab.menu_select_row("Restore Positions")
     pos_tk = lab.log_pos()
     lab.tap(["A"])
     lab.close_menu()
@@ -2400,9 +2353,9 @@ def s_quick_load_after_end(r):
     # Clean up Recording settings.
     emu.h.call("resume")
     rec_menu_open(lab)
-    lab.down(10)
+    lab.menu_select_row("Playback Takeover")
     lab.set_choice(SET_REC + REC["takeover"], TAKEOVER["HMN"])
-    lab.up(7)  # CPU Mode
+    lab.menu_select_row("CPU Mode")
     lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Off"])
     lab.close_menu()
     emu.advance(10)
@@ -2433,12 +2386,12 @@ def s_quick_load_holding(r):
         pos = lab.log_pos()
         lab.tap(["A"])  # Save Positions
         lab.wait_log("Save Positions queued", r"record: positions to save", pos)
-    lab.down(3)  # CPU Mode
+    lab.menu_select_row("CPU Mode")
     lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Record"])
-    lab.down(1)  # CPU Record Slot
+    lab.menu_select_row("CPU Record Slot")
     lab.set_choice(SET_REC + REC["cpuSlot"], 1)
     if already_saved:
-        lab.up(4)
+        lab.menu_select_row("Restore Positions")
         pos = lab.log_pos()
         lab.tap(["A"])  # Restore Positions
         lab.close_menu()
@@ -2454,11 +2407,11 @@ def s_quick_load_holding(r):
 
     # Set CPU Mode = Playback, Start Paused = On, Takeover = None.
     rec_menu_open(lab)
-    lab.down(3)  # CPU Mode
+    lab.menu_select_row("CPU Mode")
     lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Playback"])
-    lab.down(6)  # Start Paused (row 9)
+    lab.menu_select_row("Start Paused")
     lab.set_choice(SET_REC + REC["startPaused"], 1)
-    lab.down(1)  # Playback Takeover (row 10)
+    lab.menu_select_row("Playback Takeover")
     lab.set_choice(SET_REC + REC["takeover"], TAKEOVER["None"])
     pos_play = lab.log_pos()
     lab.close_menu()
@@ -2549,11 +2502,11 @@ def s_quick_load_holding(r):
     emu.h.call("resume")
     emu.press(0, ["X"], frames=3, after=5)
     rec_menu_open(lab)
-    lab.down(9)  # Start Paused
+    lab.menu_select_row("Start Paused")
     lab.set_choice(SET_REC + REC["startPaused"], 0)
-    lab.down(1)  # Playback Takeover
+    lab.menu_select_row("Playback Takeover")
     lab.set_choice(SET_REC + REC["takeover"], TAKEOVER["HMN"])
-    lab.up(7)  # CPU Mode
+    lab.menu_select_row("CPU Mode")
     lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Off"])
     lab.close_menu()
     emu.advance(10)
@@ -2608,7 +2561,7 @@ def s_ctrl_orig_persist(r):
     pos = lab.log_pos()
     lab.tap(["A"])  # Save Positions
     lab.wait_log("Save Positions queued", r"record: positions to save", pos)
-    lab.down(3)  # CPU Mode
+    lab.menu_select_row("CPU Mode")
     lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Control"])
     lab.close_menu()
     lab.wait_log("positions saved", r"record: positions saved \(savestate\)", pos, frames=180)
@@ -2617,7 +2570,7 @@ def s_ctrl_orig_persist(r):
     res.note(f"in CPU Mode=Control: controllers={ctrl_control}")
 
     rec_menu_open(lab)
-    lab.down(3)  # CPU Mode
+    lab.menu_select_row("CPU Mode")
     lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Off"])
     lab.close_menu()
     emu.advance(15)
@@ -2669,39 +2622,27 @@ def _set_rec_cpu_state(lab, rec, cpu_mode, takeover, slot, cpu_counter=None, res
     optionally CPU Counter) through the lab menu; if `restore` is True, also
     trigger Restore Positions before closing."""
     rec_menu_open(lab)
-    # Row 0: Restore Positions, 1: HMN Mode, 2: HMN Slot, 3: CPU Mode, 4: CPU Slot.
-    # Force CPU Mode = Off first so Mirrored Playback (row 5) is disabled and
-    # Loop / Auto Restore (rows 7, 8) are enabled, making row offsets fixed.
-    lab.down(3)
+    lab.menu_select_row("CPU Mode")
     if rec.get("cpuMode") != CPU_MODE["Off"]:
         lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Off"])
-    need_slot = rec.get("cpuSlot") != slot
-    need_counter = cpu_counter is not None and rec.get("cpuCounter") != cpu_counter
-    need_take = rec.get("takeover") != takeover
-    row = 3
-    if need_slot:
-        lab.down(1)
-        row = 4
+    if rec.get("cpuSlot") != slot:
+        lab.menu_select_row("CPU Record Slot")
         lab.set_choice(SET_REC + REC["cpuSlot"], slot)
-    if need_counter:
-        lab.down(5 - row)  # Row 6 (index 5 with Mirrored skipped)
-        row = 5
+    if cpu_counter is not None and rec.get("cpuCounter") != cpu_counter:
+        lab.menu_select_row("CPU Counter")
         lab.set_choice(SET_REC + REC["cpuCounter"], cpu_counter)
-    if need_take:
-        lab.down(9 - row)  # Row 10 (index 9 with Mirrored skipped)
-        row = 9
+    if rec.get("takeover") != takeover:
+        lab.menu_select_row("Playback Takeover")
         lab.set_choice(SET_REC + REC["takeover"], takeover)
-    if row != 3:
-        lab.up(row - 3)
-        row = 3
+    lab.menu_select_row("CPU Mode")
     pos = lab.log_pos()
     if cpu_mode != CPU_MODE["Off"]:
         lab.set_choice(SET_REC + REC["cpuMode"], cpu_mode)
     if restore:
-        lab.up(3)  # Row 0: Restore Positions
+        lab.menu_select_row("Restore Positions")
         lab.tap(["A"])
     lab.close_menu()
-    if restore or need_slot or cpu_mode in (CPU_MODE["Playback"], CPU_MODE["Re-Record"]):
+    if restore or rec.get("cpuSlot") != slot or cpu_mode in (CPU_MODE["Playback"], CPU_MODE["Re-Record"]):
         lab.wait_log("recording state load", r"savestate: recording state loaded frame \d+", pos, frames=180)
 
 
@@ -3166,8 +3107,8 @@ def s_controlled_by_record(r):
     # active: port, CPU type and 0x80962d0c must reconcile immediately (menu open).
     set_controlled_by_menu(lab, 2)
     emu.advance(10)
-    lab.open_menu()
-    lab.main_to(LT.MAIN_RESET)
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("Reset Settings")
     lab.tap(["A"])  # "A: Confirm"
     lab.tap(["A"])  # resetLabSettings()
     emu.advance(4)
@@ -3314,18 +3255,10 @@ def s_ctrl_one_pad_leak(r):
     lab.wait_log("positions saved (fresh)", r"record: positions saved \(savestate\)", pos_sp, frames=180)
     emu.advance(10)
 
-    lab.open_menu()
-    lab.main_to(LT.MAIN_CPU)
-    lab.tap(["A"])
-    lab.up(25)
-    lab.down(C.CPU_CONTROL_ROW)
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("CPU > CPU Control")
     lab.set_choice(SET_CPU_CONTROL, 1)
-    lab.tap(["B"])
-    lab.up(12)
-    lab.main_to(LT.MAIN_RECORDING)
-    lab.tap(["A"])
-    lab.up(18)
-    lab.down(3)
+    lab.menu_nav_to("Recording > CPU Mode")
     lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Control"])
     lab.close_menu()
     emu.advance(15)
@@ -3339,18 +3272,11 @@ def s_ctrl_one_pad_leak(r):
     lab.wait_log("Re-Save done (tools never ran)", r"record: positions saved again \(savestate\)", pos_rs2, frames=180)
     emu.advance(10)
 
-    # In ONE menu visit: set Controlled By = Port 2, then Restore Positions.
-    lab.open_menu()
-    lab.main_to(LT.MAIN_CPU)
-    lab.tap(["A"])
-    lab.emu.press(0, [], frames=50, after=4, stick=LT.UP)
-    lab.down(CPU_CONTROLLED_BY_ROW)
+    # In ONE menu visit: set Port Control = Port 2, then Restore Positions.
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("CPU > Port Control")
     lab.set_choice(SET_CONTROLLED_BY, 2)
-    lab.tap(["B"])
-    lab.up(12)
-    lab.main_to(LT.MAIN_RECORDING)
-    lab.tap(["A"])
-    lab.up(18)
+    lab.menu_nav_to("Recording > Restore Positions")
     pos_rst2 = lab.log_pos()
     lab.tap(["A"])
     lab.close_menu()
@@ -3380,8 +3306,8 @@ def s_ctrl_one_pad_leak(r):
     # 3) Reset All Settings on 1 pad while Controlled By = Port 2 is active.
     set_controlled_by_menu(lab, 2)
     emu.advance(10)
-    lab.open_menu()
-    lab.main_to(LT.MAIN_RESET)
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("Reset Settings")
     lab.tap(["A"])
     lab.tap(["A"])
     emu.advance(4)
@@ -3530,8 +3456,8 @@ def s_ctrl_port2_only(r):
             and set(p1_sr) == {"Wait"} and abs(cpu_r) > 10.0)
 
     # Exit match via Main Menu > Exit while patch is active -> CSS reads 0x8B1BFFFF.
-    lab.open_menu()
-    lab.main_to(LT.MAIN_EXIT)
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("Return to CSS")
     lab.tap(["A"])
     emu.wait_for("CSS after Exit (P2)", lambda: nav.scene(emu)[0] == "scSelctCharacter", 60 * 20, every=5)
     emu.advance(30)

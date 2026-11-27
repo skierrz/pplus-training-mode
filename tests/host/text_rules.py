@@ -632,7 +632,7 @@ def info_display(c, src):
         c.take(lit)
 
 
-guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "8e6bd92b")
+guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "6d82b651")
 
 
 def ledgedash_hud(c, src):

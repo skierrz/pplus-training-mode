@@ -1290,8 +1290,11 @@ TEST(areas, the_table_and_the_bounds)
     memset(&into, 0x55, sizeof(into));
     Settings untouched = into;
     storage::AreaStats stats;
+    CHECK_EQ(31, storage::kMaxAreas);
+    CHECK_EQ(48, ui::kMaxPages);
     CHECK(!storage::readAreas(file, 40 + n, 40 + n, 16, reinterpret_cast<u8*>(&into), storage::kAllAreas, stats));
-    CHECK(!storage::readAreas(file, 40 + n, 40, 18, reinterpret_cast<u8*>(&into), storage::kAllAreas, stats));
+    CHECK(!storage::readAreas(file, 40 + n, 40, storage::kMaxAreas + 1, reinterpret_cast<u8*>(&into),
+                              storage::kAllAreas, stats));
     // One byte short of the last area's fields (the padding after them is
     // not part of the area).
     const storage::AreaEntry& last = reinterpret_cast<const storage::AreaEntry*>(file + 40)[15];
@@ -1302,6 +1305,46 @@ TEST(areas, the_table_and_the_bounds)
     CHECK_EQ(16, stats.copied);
     CHECK_EQ(0, stats.grown + stats.reset + stats.skipped);
     CHECK(memcmp(&into.osd, &main::settings().osd, offsetof(main::OsdSettings, reserved)) == 0);
+
+    // 31-area future table (all 16 real areas + 15 future unknown areas) loads
+    // all 16 real areas identically and safely skips the 15 unknown entries, while
+    // preserving MenuState cursor/scroll ceilings at ui::kMaxPages == 48.
+    u8 wide[1024];
+    memset(wide, 0, sizeof(wide));
+    storage::AreaEntry* wideTbl = reinterpret_cast<storage::AreaEntry*>(wide + 40);
+    memcpy(wideTbl, file + 40, 16 * sizeof(storage::AreaEntry));
+    u32 wideData = 40 + 31 * sizeof(storage::AreaEntry);
+    for (u16 i = 0; i < 16; i++)
+    {
+        wideTbl[i].offset = wideData;
+        u32 room = (wideTbl[i].used + 3u) & ~3u;
+        memcpy(wide + wideData, file + reinterpret_cast<const storage::AreaEntry*>(file + 40)[i].offset, room);
+        wideData += room;
+    }
+    for (u16 i = 16; i < 31; i++)
+    {
+        wideTbl[i].id = static_cast<u8>(i + 1);
+        wideTbl[i].generation = 1;
+        wideTbl[i].used = 4;
+        wideTbl[i].offset = wideData;
+        wideData += 4;
+    }
+    Settings wideInto;
+    memset(&wideInto, 0x55, sizeof(wideInto));
+    CHECK(storage::readAreas(wide, wideData, 40, 31, reinterpret_cast<u8*>(&wideInto), storage::kAllAreas, stats));
+    CHECK_EQ(16, stats.copied);
+    CHECK_EQ(15, stats.skipped);
+    CHECK_EQ(0, stats.reset);
+    CHECK(memcmp(&wideInto.osd, &main::settings().osd, offsetof(main::OsdSettings, reserved)) == 0);
+
+    ui::MenuState menuState;
+    menuState.category = 5;
+    menuState.railCursor = 3;
+    menuState.cursor[ui::kMaxPages - 1] = 12;
+    menuState.scroll[ui::kMaxPages - 1] = 4;
+    ui::menuReset(ui::labMenu(), menuState);
+    CHECK_EQ(0, menuState.cursor[ui::kMaxPages - 1]);
+    CHECK_EQ(0, menuState.scroll[ui::kMaxPages - 1]);
 
     // An area longer than this version knows (a later version added
     // fields): only the bytes this version has fields for are taken.

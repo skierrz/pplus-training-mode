@@ -454,26 +454,26 @@ namespace extra {
                 psaFormatOpcodeName(th.cmdHeader, opBuf, sizeof(opBuf));
                 clipTextToWidth(opBuf, rowScale, opMaxW);
 
-                gfx::Rgba nameCol = (idx == dbg->focusThread) ? 0xFFE24AFFu
+                gfx::Rgba nameCol = (idx == dbg->focusThread) ? kHudYellow
                                                                : ((idx <= 1) ? kHudTextValue : kHudTextLabel);
-                static const gfx::Rgba kWaitCols[3] = {0x8094A4FFu, 0x36CFC2FFu, 0xFFE24AFFu};
+                static const gfx::Rgba kWaitCols[3] = {ui::style::kTextDisabled, ui::style::kLabTealTop, kHudYellow};
                 gfx::Rgba waitCol = kWaitCols[th.waitKind < 3u ? th.waitKind : 0u];
-                gfx::Rgba opCol = th.cmdHeader != 0u ? 0xE2EEF6FFu : 0x8094A4FFu;
+                gfx::Rgba opCol = th.cmdHeader != 0u ? kHudTextValue : ui::style::kTextDisabled;
 
                 const char* nm = psaThreadName(idx);
                 float nW = gfx::textWidth(nm, rowScale);
                 float nSx = (nW > nameMaxW && nW > 0.0f) ? (rowScale * nameMaxW / nW) : rowScale;
-                gfx::text(colName + xs, ry + 1.0f, nm, 0x000000C8u, nSx, rowScale);
+                gfx::text(colName + xs, ry + 1.0f, nm, kHudShadow, nSx, rowScale);
                 gfx::text(colName, ry, nm, nameCol, nSx, rowScale);
 
                 float fW = gfx::textWidth(frameBuf, rowScale);
                 float fSx = (fW > frameMaxW && fW > 0.0f) ? (rowScale * frameMaxW / fW) : rowScale;
-                gfx::text(colFrame + xs, ry + 1.0f, frameBuf, 0x000000C8u, fSx, rowScale);
-                gfx::text(colFrame, ry, frameBuf, 0xC6D8E0FFu, fSx, rowScale);
+                gfx::text(colFrame + xs, ry + 1.0f, frameBuf, kHudShadow, fSx, rowScale);
+                gfx::text(colFrame, ry, frameBuf, kHudTextLabel, fSx, rowScale);
 
                 float wW = gfx::textWidth(waitBuf, rowScale);
                 float wSx = (wW > waitMaxW && wW > 0.0f) ? (rowScale * waitMaxW / wW) : rowScale;
-                gfx::text(colWait + xs, ry + 1.0f, waitBuf, 0x000000C8u, wSx, rowScale);
+                gfx::text(colWait + xs, ry + 1.0f, waitBuf, kHudShadow, wSx, rowScale);
                 gfx::text(colWait, ry, waitBuf, waitCol, wSx, rowScale);
 
                 drawShadowText(colOp, ry, opBuf, opCol, rowScale);

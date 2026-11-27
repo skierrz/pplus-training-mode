@@ -329,8 +329,8 @@ namespace extra {
 
         // Bold Brawl Display Font (0x80497DA4, 21 scanlines) frame advantage readout on right.
         char advBuf[12];
-        gfx::Rgba topCol = 0xE2EEF6FFu;
-        gfx::Rgba botCol = 0x9CB2C4FFu;
+        gfx::Rgba topCol = kHudTextValue;
+        gfx::Rgba botCol = kHudTextLabel;
         if (sf.hasAdvantage)
         {
             int adv = static_cast<int>(sf.advantage);
@@ -366,7 +366,7 @@ namespace extra {
         float advX = advAreaX + (advAreaW - drawW) * 0.5f;
         float stripMidY = (rowY[0] + rowY[1] + rowH) * 0.5f;
         float advY = stripMidY - 10.5f - 2.0f * advSc;
-        gfx::displayText(advX, advY, advBuf, topCol, botCol, advSx, advSc, 1.6f, 0x04080EFFu);
+        gfx::displayText(advX, advY, advBuf, topCol, botCol, advSx, advSc, 1.6f, kHudOutlineEdge);
 
         s_net->debug.sf6VisibleCells = static_cast<u8>(visibleCells);
         s_net->debug.sf6RelocatedTop = players > 2 ? 1u : 0u;

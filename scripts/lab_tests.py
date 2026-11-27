@@ -250,20 +250,25 @@ class Lab:
 
     def read_menu_state(self):
         """Read ui::MenuState live from Dolphin RAM (src/main/ui/menu.h MWCC layout)."""
+        k_max_pages = 48
+        k_depth = 6
+        c0 = 1 + k_depth
+        c1 = c0 + k_max_pages
+        s1 = c1 + k_max_pages
         if self.menu_state is None:
             self.find_menu_ptrs()
-        raw = self.emu.read(self.menu_state, 77)
+        raw = self.emu.read(self.menu_state, s1 + 6)
         return {
             "depth": raw[0],
-            "stack": list(raw[1:7]),
-            "cursor": list(raw[7:39]),
-            "scroll": list(raw[39:71]),
-            "category": raw[71],
-            "rail_cursor": raw[72],
-            "rail_focus": bool(raw[73]),
-            "open_start": bool(raw[74]),
-            "controller_type": raw[75],
-            "reset_confirm_page": raw[76],
+            "stack": list(raw[1:c0]),
+            "cursor": list(raw[c0:c1]),
+            "scroll": list(raw[c1:s1]),
+            "category": raw[s1],
+            "rail_cursor": raw[s1 + 1],
+            "rail_focus": bool(raw[s1 + 2]),
+            "open_start": bool(raw[s1 + 3]),
+            "controller_type": raw[s1 + 4],
+            "reset_confirm_page": raw[s1 + 5],
         }
 
     def read_menu_def(self):
@@ -587,9 +592,8 @@ class Lab:
         self.up(int(m.group("main")))
 
     def go_controls(self):
-        """From rail index 0 (Lab), enter Lab > Controls."""
-        self.tap(["A"])
-        self.down(GEN_CONTROLS)
+        """Enter Lab > Controls via live RAM label lookup."""
+        self.menu_nav_to("Lab > Controls")
         self.tap(["A"])
 
     def close_menu(self):
@@ -867,9 +871,8 @@ def pause_keeps_damage(emu, lab, human, cpu, note):
     Training's CPU Damage as it found it."""
     def cpu_page():
         nav.pause_training(emu)
-        lab.open_menu()
-        lab.main_to(MAIN_CPU)
-        lab.tap(["A"])  # CPU Options, on CPU Percent
+        lab.open_menu(keep=True)
+        lab.menu_nav_to("CPU > CPU Damage")
 
     def leave_page():
         lab.back_to_main()
@@ -883,9 +886,9 @@ def pause_keeps_damage(emu, lab, human, cpu, note):
     wait_standing(emu, lab, human, "P1")
     trained = training_cpu_damage(emu)
     cpu_page()
-    lab.down(CPU_LOCK_ROW - CPU_PERCENT_ROW)
+    lab.menu_select_row("Lock CPU Damage")
     lab.toggle_off(SET_LOCK_CPU)
-    lab.up(CPU_LOCK_ROW - CPU_PERCENT_ROW)
+    lab.menu_select_row("CPU Damage")
     pos = lab.log_pos()
     lab.set_int(SET_CPU_PERCENT, KEEP_PERCENT)
     lab.wait_log("the CPU percent to apply", rf"lab: CPU percent {KEEP_PERCENT} applied to entry {cpu['entry']:x}",
@@ -959,7 +962,7 @@ def pause_keeps_damage(emu, lab, human, cpu, note):
     lab.set_int(SET_CPU_PERCENT, CPU_PERCENT)
     lab.wait_log("the CPU percent to apply", rf"lab: CPU percent {CPU_PERCENT} applied to entry {cpu['entry']:x}",
                  pos)
-    lab.down(CPU_LOCK_ROW - CPU_PERCENT_ROW)
+    lab.menu_select_row("Lock CPU Damage")
     lab.toggle_on(SET_LOCK_CPU)
     leave_page()
     if lab.f.damage(cpu) != CPU_PERCENT:
@@ -1111,11 +1114,10 @@ def facing(lab, f):
 def set_dpad(emu, lab, up, down):
     """DPad Up and DPad Down through the Controls page, from the match."""
     nav.pause_training(emu)
-    lab.open_menu()
-    lab.go_controls()
-    lab.down(CONTROLS_DPAD_UP)
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("Lab > Controls > D-Pad Up")
     lab.set_choice(SET_DPAD_UP, up)
-    lab.down(CONTROLS_DPAD_DOWN - CONTROLS_DPAD_UP)
+    lab.menu_select_row("D-Pad Down")
     lab.set_choice(SET_DPAD_DOWN, down)
     lab.close_menu()
     nav.resume_training(emu)
@@ -1183,19 +1185,14 @@ def infinite_shields(emu, lab, cpu, note, shot):
     write_u8(emu, lab, SET_CPU_CONTROL, 1)      # Lab: the CPU rows count
     write_u8(emu, lab, SET_INFINITE_SHIELDS, 2)  # On
     nav.pause_training(emu)
-    lab.open_menu()
-    lab.main_to(MAIN_CPU)
-    lab.tap(["A"])
-    lab.down(CPU_DEFENSE_ROW)
-    lab.tap(["A"])  # Shield & Grab
-    lab.down(CPU_SHIELD_HEALTH_ROW)
+    lab.open_menu(keep=True)
+    lab.menu_nav_to("CPU > Shield & Grab > Shield Health")
     emu.advance(4)
     shot("lab-cpu-shields-60")
     lab.tap(stick=RIGHT)
     top = lab.setting(SET_SHIELD_HEALTH)
     lab.tap(stick=LEFT)
     one_less = lab.setting(SET_SHIELD_HEALTH)
-    lab.back_to_main(2)
     lab.close_menu()
     nav.resume_training(emu)
     try:
@@ -1229,11 +1226,9 @@ def player_infinite_shields(emu, lab, human, cpu, note, shot):
 
     def set_player_shields_menu(mode):
         nav.pause_training(emu)
-        lab.open_menu()
-        lab.tap(["A"])  # Main Menu -> General
-        lab.down(GEN_PLAYER_SHIELDS)
+        lab.open_menu(keep=True)
+        lab.menu_nav_to("Lab > P1 Infinite Shield")
         lab.set_choice(SET_PLAYER_SHIELDS, mode)
-        lab.back_to_main()
         lab.close_menu()
         nav.resume_training(emu)
 
@@ -1462,9 +1457,8 @@ def start_menu_to_exit(emu, lab, then_exit=True):
     m = lab.wait_log("the lab menu to open with Start", MENU_OPENED, pos)
     if nav.training_paused(emu):
         raise LabError("Start opened Training's pause as well as the lab menu")
-    lab.to_main_top(m)
     if then_exit:
-        lab.main_to(MAIN_EXIT)
+        lab.menu_nav_to("Return to CSS")
     return m
 
 
@@ -2013,7 +2007,7 @@ def cmd_test_lab(rest):
                 # Button: Start" run with Z in Pause, chosen on its row.
                 m = start_menu_to_exit(emu, lab, then_exit=False)
                 lab.go_controls()
-                lab.down(CONTROLS_MENU_BUTTON)
+                lab.menu_select_row("Menu Open")
                 lab.set_choice(SET_START_OPENS, 0)
                 lab.close_menu()
                 emu.advance(10)
@@ -2027,32 +2021,23 @@ def cmd_test_lab(rest):
                 cursor0 = nav.menu_cursor(emu)
                 behaviour0 = emu.u32(emu.ptr(emu.ptr(nav.IF_MANAGER) + nav.IF_TRAINING_MENU) + CPU_BEHAVIOUR)
                 shot("lab-pause-hint")
-                lab.open_menu()
+                lab.open_menu(keep=True)
                 emu.advance(10)
                 shot("lab-menu-top")
 
                 step = "General: Player Percent"
-                lab.tap(["A"])  # Main Menu -> General
-                lab.down(GEN_PLAYER_PERCENT)
+                lab.menu_nav_to("Lab > P1 Damage")
                 pos = lab.log_pos()
                 lab.set_int(SET_PLAYER_PERCENT, PLAYER_PERCENT)
                 lab.wait_log("the player percent to apply",
                              rf"lab: Player percent {PLAYER_PERCENT} applied to entry {human['entry']:x} \(P1\), damage now {PLAYER_PERCENT}\.0",
                              pos)
                 shot("lab-menu-general")
-                lab.back_to_main(1)
-                lab.main_to(MAIN_DISPLAY)
-                lab.tap(["A"])  # Display
-                lab.down(DISPLAY_DEBUG)
-                lab.tap(["A"])  # Advanced / Debug
-                lab.down(DEBUG_OVERLAY_ROW)
+                lab.menu_nav_to("Display > Lab Debug > Debug Overlay")
                 lab.toggle_on(SET_OVERLAY)
-                lab.back_to_main(2)
-                lab.up(MAIN_DISPLAY)
 
                 step = "CPU Options: CPU Percent, key repeat, lock"
-                lab.main_to(MAIN_CPU)
-                lab.tap(["A"])
+                lab.menu_nav_to("CPU > CPU Damage")
                 # Opening the menu with Lock CPU Damage off syncs CPU Damage to live match %;
                 # 1-tap A resets it cleanly to 0% before checking clamp at 0.
                 synced_cpu = lab.setting(SET_CPU_PERCENT, half=True)
@@ -2074,7 +2059,7 @@ def cmd_test_lab(rest):
                 lab.wait_log("the CPU percent to apply",
                              rf"lab: CPU percent {CPU_PERCENT} applied to entry {cpu['entry']:x} \(P2\), damage now {CPU_PERCENT}\.0",
                              pos)
-                lab.down(CPU_LOCK_ROW - CPU_PERCENT_ROW)
+                lab.menu_select_row("Lock CPU Damage")
                 # A toggle row: its value box is green while On and
                 # follows the value at once, with the cursor on it or not.
                 emu.advance(3)
@@ -2082,11 +2067,9 @@ def cmd_test_lab(rest):
                 lab.toggle_on(SET_LOCK_CPU)
                 emu.advance(3)
                 toggle_box(note, shot("lab-menu-cpu-lock-on-cursor"), xscale, CPU_LOCK_ROW, True)
-                lab.up(1)
+                lab.menu_select_row("CPU Damage")
                 emu.advance(3)
                 toggle_box(note, shot("lab-menu-cpu-lock-on-cursor-above"), xscale, CPU_LOCK_ROW, True)
-                lab.down(1)
-                lab.back_to_main()
                 lab.close_menu()
                 emu.advance(10)
 
@@ -2114,28 +2097,24 @@ def cmd_test_lab(rest):
 
                 step = "Info displays: presets and sizes"
                 nav.pause_training(emu)
-                lab.open_menu()
-                lab.main_to(MAIN_DISPLAY)
-                lab.tap(["A"])
-                lab.down(DISPLAY_DEBUG)
-                lab.tap(["A"])  # Lab Debug
-                lab.down(DEBUG_HMN_INFO)
-                lab.tap(["A"])
+                lab.open_menu(keep=True)
+                lab.menu_nav_to("Display > Lab Debug > P1 Info Display > Preset")
                 lab.set_choice(SET_HMN_INFO, PRESETS["state"])
-                lab.down(INFO_SIZE - INFO_PRESET)
+                lab.menu_select_row("Size")
                 lab.set_choice(SET_HMN_INFO + 1, SIZES["small"])
                 rows = list(emu.read(lab.settings + SET_HMN_INFO + 2, 8))
                 if rows[:4] != [2, 3, 32, 35]:
                     raise LabError(f"Basic preset set the rows to {rows}")
                 shot("lab-menu-player-info")
-                lab.tap(["B"])  # back to Lab Debug (row DEBUG_HMN_INFO)
-                lab.down(DEBUG_CPU_INFO - DEBUG_HMN_INFO)
+                lab.tap(["B"])  # back to Lab Debug
+                lab.menu_select_row("CPU Info Display")
                 lab.tap(["A"])
+                lab.menu_select_row("Preset")
                 lab.set_choice(SET_CPU_INFO, PRESETS["damage"])
-                lab.down(INFO_SIZE - INFO_PRESET)
+                lab.menu_select_row("Size")
                 lab.set_choice(SET_CPU_INFO + 1, SIZES["large"])
                 # Row 1: unavailable choices (Engine CStick = 9) are skipped.
-                lab.down(1)
+                lab.menu_select_row("Row 1")
                 row1 = lab.setting(SET_CPU_INFO + 2)
                 lab.set_choice(SET_CPU_INFO + 2, IV_SYS_L)
                 lab.tap(stick=RIGHT)
@@ -2145,8 +2124,8 @@ def cmd_test_lab(rest):
                 lab.set_choice(SET_CPU_INFO + 2, row1)
                 note(f"CPU Info Display row 1: right from {IV_SYS_L} skipped unavailable {IV_ENG_C} to {IV_SYS_C}; back to {row1}")
                 note(f"info presets: HMN rows {rows}, CPU rows {list(emu.read(lab.settings + SET_CPU_INFO + 2, 8))}")
-                lab.tap(["B"])  # back to Lab Debug (row DEBUG_CPU_INFO)
-                lab.down(DEBUG_OVERLAY_ROW - DEBUG_CPU_INFO)
+                lab.tap(["B"])  # back to Lab Debug
+                lab.menu_select_row("Debug Overlay")
                 lab.toggle_off(SET_OVERLAY)
                 lab.close_menu()
                 nav.resume_training(emu)
@@ -2316,9 +2295,8 @@ def cmd_test_lab(rest):
                      f"{sim_clock(lab, human)[1] - cs} frames on the way")
 
                 step = "Lab Menu Button: Start"
-                lab.open_menu()
-                lab.go_controls()
-                lab.down(CONTROLS_MENU_BUTTON)
+                lab.open_menu(keep=True)
+                lab.menu_nav_to("Lab > Controls > Menu Open")
                 lab.set_choice(SET_START_OPENS, 1)
                 lab.close_menu()
                 nav.resume_training(emu)
@@ -2406,22 +2384,18 @@ def cmd_test_lab(rest):
                 lab.open_menu()  # reopens with Draft C left rail still focused
 
                 step = "Start mode: OSD Menu scroll and toggle"
-                lab.main_to(MAIN_OSD)
-                lab.tap(["A"])
+                ps_row = lab.menu_nav_to("OSDs > Powershield")["row"]
                 shot("restyle-osd-menu")
-                # Eleven downs from OSD Position land on Powershield (visible row 11,
-                # Advantage Tolerance hidden at default), which A turns on (and back off).
-                lab.down(OSD_POWERSHIELD)
                 lab.tap(["A"])
                 shot("restyle-unavailable-skipped")
                 on = lab.setting(SET_OSD_POWERSHIELD)
                 lab.tap(["A"])
                 if on != 1 or lab.setting(SET_OSD_POWERSHIELD) != 0:
-                    raise LabError(f"{OSD_POWERSHIELD} downs on OSDs did not land on Powershield (A set it to {on})")
-                note(f"OSDs: {OSD_POWERSHIELD} downs landed on Powershield")
+                    raise LabError(f"menu_nav_to OSDs > Powershield landed on row {ps_row}, A set Powershield to {on}")
+                note(f"OSDs: live RAM nav landed on Powershield (row {ps_row})")
                 # Scroll to the last row of OSDs (OSD_ROWS > VISIBLE_ROWS).
                 # Visible row 0 (Act OoAirborne) has no descenders for glyph measurement.
-                lab.down(OSD_ROWS - 1 - OSD_POWERSHIELD)
+                lab.down(OSD_ROWS - 1 - ps_row)
                 opened = shot("restyle-scrolled")
                 menu_check(note, closed, opened, xscale, "OSDs scrolled to bottom",
                            cursor_row=shots.VISIBLE_ROWS - 1, count=OSD_ROWS,
@@ -2463,7 +2437,7 @@ def cmd_test_lab(rest):
 
                 step = "Start mode: the Training Menu row opens Training's pause, Start closes it"
                 start_menu_to_exit(emu, lab, then_exit=False)
-                lab.main_to(MAIN_TRAINING)
+                lab.menu_nav_to("Brawl Training")
                 lab.tap(["A"])
                 emu.wait_for("the Training Menu row to open Training's pause", lambda: nav.training_paused(emu), 60)
                 nav.resume_training(emu)
@@ -2513,10 +2487,8 @@ def cmd_test_lab(rest):
                     raise LabError("holding D-pad right did not save a state")
                 exit_pos = lab.log_pos()
                 m = start_menu_to_exit(emu, lab, then_exit=False)
-                lab.main_to(MAIN_GENERAL)
-                lab.tap(["A"])
+                lab.menu_nav_to("Lab > Frame Advance")
                 lab.tap(["A"])  # Frame Advance On
-                lab.tap(["B"])
                 if lab.setting(SET_FRAME_ADVANCE) != 1:
                     raise LabError("General > Frame Advance did not turn frame advance on")
                 step = "second match: Z in the menu with frame advance on"
@@ -2527,7 +2499,7 @@ def cmd_test_lab(rest):
                 emu.advance(10)
                 z_to_training(emu, lab, cpu2, note, "frame advance on", advancing=True)
                 m = start_menu_to_exit(emu, lab, then_exit=False)
-                lab.main_to(MAIN_EXIT)
+                lab.menu_nav_to("Return to CSS")
                 exit_to_css(emu, lab, note, "second match, Start mode, frame advance on", EXIT_NO_PAUSE)
                 freed = re.findall(r"savestate: \d+ saves, \d+ loads, \d+ refused; slot (\w+[\w ]*)",
                                    emu.synced_log_text()[exit_pos:])
@@ -2539,8 +2511,7 @@ def cmd_test_lab(rest):
                 nav.start_training_match(emu, "mario", "fox")
                 emu.advance(60)
                 m = start_menu_to_exit(emu, lab, then_exit=False)
-                lab.go_controls()
-                lab.down(CONTROLS_MENU_BUTTON)
+                lab.menu_nav_to("Lab > Controls > Menu Open")
                 lab.set_choice(SET_START_OPENS, 0)
                 pos = lab.log_pos()
                 emu.press(0, ["START"], frames=3, after=10)
@@ -2549,8 +2520,8 @@ def cmd_test_lab(rest):
                 # Frame advance is still on: Start goes to Training's pause
                 # by the lab's own Start hand-over.
                 nav.pause_training(emu)
-                lab.open_menu()
-                lab.main_to(MAIN_EXIT)
+                lab.open_menu(keep=True)
+                lab.menu_nav_to("Return to CSS")
                 exit_to_css(emu, lab, note, "third match, Z over Training's pause", EXIT_FROM_PAUSE)
 
                 step = "fourth match: Training's own Finish"

@@ -362,28 +362,22 @@ class Runner:
     # ---- setup ----------------------------------------------------------------
 
     def menu_osds(self):
-        """Pause, lab menu > OSD Menu: Frame Advantage and Frame Advantage
-        On Hit on (tolerance left at its default, 1); General > Debug >
-        Debug Overlay on; close and resume."""
+        """Pause, lab menu > OSDs: Shield Advantage and Hit Advantage on
+        (tolerance left at its default, 1); Display > Lab Debug > Debug Overlay
+        on; close and resume."""
         lab, emu = self.lab, self.emu
-        lab.open_menu()
-        lab.main_to(MAIN_OSD)
-        lab.tap(["A"])
+        lab.open_menu(keep=True)
+        lab.menu_nav_to("OSDs > OSD Position")
         if lab.setting(SET_OSD_POSITION) != 1:
             raise DisplayError(f"OSD Position is {lab.setting(SET_OSD_POSITION)}, wanted the default Sides")
-        lab.down(OSD_ADVANTAGE)
+        lab.menu_select_row("Shield Advantage")
         lab.toggle_on(SET_ON_SHIELD)
-        lab.down(OSD_ADVANTAGE_HIT - OSD_ADVANTAGE)
+        lab.menu_select_row("Hit Advantage")
         lab.toggle_on(SET_ON_HIT)
         if lab.setting(SET_TOLERANCE) != 1:
             raise DisplayError(f"Advantage Tolerance is {lab.setting(SET_TOLERANCE)}, wanted the default 1")
         self.shots.append(emu.screenshot("displays-menu-osds"))
-        lab.tap(["B"])  # back to rail, on OSDs
-        lab.up(MAIN_OSD - MAIN_DISPLAY)
-        lab.tap(["A"])  # Display
-        lab.down(LT.DISPLAY_DEBUG)
-        lab.tap(["A"])  # Advanced / Debug
-        lab.down(LT.DEBUG_OVERLAY_ROW)
+        lab.menu_nav_to("Display > Lab Debug > Debug Overlay")
         lab.toggle_on(LT.SET_OVERLAY)
         lab.close_menu()
 

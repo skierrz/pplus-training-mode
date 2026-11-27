@@ -16,7 +16,7 @@ namespace storage {
         kRecordingMagic = 0x544D5246, // "TMRF"
         kRecordingFormat = 1,
         kChecksumFrom = 16,
-        kMaxAreas = 16,
+        kMaxAreas = 31, // ids 1..31 (matches u32 areaBit mask)
         // The largest settings file read or written, and the size of the
         // buffers it is built and read in (settings_file.cpp). areas.cpp
         // checks at build time that the largest file it can write fits.

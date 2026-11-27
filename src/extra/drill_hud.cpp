@@ -380,12 +380,12 @@ namespace extra {
                         if (f == 1)
                         {
                             snprintf(val0, sizeof(val0), "Perfect f1");
-                            col0 = 0x4CE688FFu;
+                            col0 = kHudGreen;
                         }
                         else
                         {
                             snprintf(val0, sizeof(val0), "%df Late", f - 1);
-                            col0 = f <= 3 ? 0xFFE24AFFu : 0xFFB848FFu;
+                            col0 = f <= 3 ? kHudYellow : kHudWarn;
                         }
                     }
                     else if (r.outcome == kWdMissNoAirdodge)
@@ -402,27 +402,27 @@ namespace extra {
                         {
                             snprintf(val0, sizeof(val0), "No Dodge");
                         }
-                        col0 = 0xFF6658FFu;
+                        col0 = kHudRed;
                     }
                     else if (r.outcome == kWdMissLateAirdodge)
                     {
                         snprintf(val0, sizeof(val0), "Late Dodge");
-                        col0 = 0xFF6658FFu;
+                        col0 = kHudRed;
                     }
                     else if (r.outcome == kWdMissUpwardAirdodge)
                     {
                         snprintf(val0, sizeof(val0), "Air Dodge");
-                        col0 = 0xFF6658FFu;
+                        col0 = kHudRed;
                     }
                     else if (r.outcome == kWdMissZairTether)
                     {
                         snprintf(val0, sizeof(val0), "Zair (L/R)");
-                        col0 = 0xFFB848FFu;
+                        col0 = kHudWarn;
                     }
                     else
                     {
                         snprintf(val0, sizeof(val0), "Miss");
-                        col0 = 0xFF6658FFu;
+                        col0 = kHudRed;
                     }
                     if (r.angleDeg > 0.0f)
                     {
@@ -481,7 +481,7 @@ namespace extra {
                         ptrCell = 4 - ef;
                         if (ptrCell < 0) ptrCell = 0;
                         snprintf(val0, sizeof(val0), "Early -%df", ef);
-                        col0 = 0xFF6658FFu;
+                        col0 = kHudRed;
                     }
                     else if (r.outcome == kLcMissLate)
                     {
@@ -489,24 +489,24 @@ namespace extra {
                         ptrCell = 11 + hitlagExt + (lf - 1);
                         if (ptrCell >= cellCount) ptrCell = cellCount - 1;
                         snprintf(val0, sizeof(val0), "Late +%df", lf);
-                        col0 = 0xFF6658FFu;
+                        col0 = kHudRed;
                     }
                     else if (r.outcome == kLcSuccessAuto)
                     {
                         ptrCell = 4 + hitlagExt + 3;
                         snprintf(val0, sizeof(val0), "Auto ON");
-                        col0 = 0xFFB848FFu;
+                        col0 = kHudWarn;
                     }
                     else if (r.outcome == kLcAutoCanceled)
                     {
                         snprintf(val0, sizeof(val0), "Autocancel");
-                        col0 = 0xFFE24AFFu;
+                        col0 = kHudYellow;
                     }
                     else
                     {
                         ptrCell = cellCount - 1;
                         snprintf(val0, sizeof(val0), "Missed");
-                        col0 = 0xFF6658FFu;
+                        col0 = kHudRed;
                     }
                     if (r.hitlagFrames > 0)
                     {
@@ -549,7 +549,7 @@ namespace extra {
                         // wf=2/3 is earlier inside the PS window (next to Early -1f); wf=1 is latest (next to Late +1f).
                         ptrCell = (wf <= 1) ? 7 : 6;
                         snprintf(val0, sizeof(val0), "PS f%d", wf);
-                        col0 = 0x4CE688FFu;
+                        col0 = kHudGreen;
                         const char* typeStr = r.psDropUsed ? "PS-Drop"
                                                            : (r.outcome == kPsReflect ? "Reflect"
                                                                                       : (r.lightToHard ? "Light-Hard"
@@ -560,7 +560,7 @@ namespace extra {
                     {
                         ptrCell = 5;
                         snprintf(val0, sizeof(val0), "Buffered");
-                        col0 = 0xFFB848FFu;
+                        col0 = kHudWarn;
                         snprintf(val1, sizeof(val1), "No Hard");
                     }
                     else if (r.outcome == kPsMissEarly)
@@ -569,7 +569,7 @@ namespace extra {
                         ptrCell = 6 - (off < 1 ? 1 : off);
                         if (ptrCell < 0) ptrCell = 0;
                         snprintf(val0, sizeof(val0), "Early -%df", off);
-                        col0 = 0xFFB848FFu;
+                        col0 = kHudWarn;
                         snprintf(val1, sizeof(val1), "Shield");
                     }
                     else
@@ -578,7 +578,7 @@ namespace extra {
                         ptrCell = 8 + (off - 1);
                         if (ptrCell >= cellCount) ptrCell = cellCount - 1;
                         snprintf(val0, sizeof(val0), "Late +%df", off);
-                        col0 = 0xFF6658FFu;
+                        col0 = kHudRed;
                         snprintf(val1, sizeof(val1), "Hit");
                     }
                 }
@@ -630,12 +630,12 @@ namespace extra {
                     if (r.noXlu)
                     {
                         snprintf(val0, sizeof(val0), "None");
-                        col0 = 0xFFB848FFu;
+                        col0 = kHudWarn;
                     }
                     else
                     {
                         snprintf(val0, sizeof(val0), r.galint > 0 ? "+%df" : "%df", static_cast<int>(r.galint));
-                        col0 = r.galint > 0 ? 0x4CE688FFu : 0xFF6658FFu;
+                        col0 = r.galint > 0 ? kHudGreen : kHudRed;
                     }
                     snprintf(val1, sizeof(val1), "%df", static_cast<int>(r.cliffWaitFrames));
                     if (r.airdodgeAngle > 0.0f)

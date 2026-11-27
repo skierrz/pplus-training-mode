@@ -135,7 +135,7 @@ namespace ui {
         const MenuAction* utilities;
     };
 
-    enum { kMaxDepth = 6, kMaxPages = 32 };
+    enum { kMaxDepth = 6, kMaxPages = 48 };
 
     struct MenuState {
         u8 depth;
