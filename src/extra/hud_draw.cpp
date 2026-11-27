@@ -571,7 +571,7 @@ namespace extra {
             return "CPU: Custom DI";
         }
         if ((o.counterGround != 0 && o.counterGround != 13) || (o.counterAir != 0 && o.counterAir != 1)
-            || o.multiReversal != 0)
+            || (o.counterShield != 0 && o.counterShield != 1) || o.multiReversal != 0)
         {
             return "CPU: Counter";
         }

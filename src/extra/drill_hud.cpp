@@ -79,6 +79,7 @@ namespace extra {
         struct Runtime {
             DrillHudDebugBlock debug;
             DrillHudState st;
+            DrillHudState modalSnap; // Last completed summary kept for 4f Retry fade-out after st resets.
             drills::Session* sess;
             u32 prevHeld[kPorts];
             u32 releaseMask[kPorts];
@@ -128,6 +129,7 @@ namespace extra {
             {
                 s_rt.modalAnim = 0u;
                 s_rt.modalNewBestPop = 0u;
+                s_rt.modalSnap.activeDrill = 0u;
             }
         }
 
@@ -196,7 +198,7 @@ namespace extra {
             }
         }
 
-        void drawPips(float x, float y, float totalW, float h, int count, float alpha = 1.0f)
+        void drawPips(float x, float y, float totalW, float h, int count, const u8* pips, float alpha = 1.0f)
         {
             Runtime& s_rt = *s_rtPtr;
             if (count <= 0)
@@ -212,7 +214,7 @@ namespace extra {
             }
             for (int k = 0; k < count && k < kDrillMaxSetReps; k++, x += step)
             {
-                u8 p = s_rt.st.repPips[k];
+                u8 p = pips[k];
                 gfx::fillRect(x, y, pw, h, scaleAlpha(kPipCols[p < 5 ? p : 0], alpha));
             }
         }
@@ -758,11 +760,10 @@ namespace extra {
             }
         }
 
-        void drawEndModal(float animT)
+        void drawEndModal(float animT, const DrillHudState& st)
         {
             using namespace ui::style;
             Runtime& s_rt = *s_rtPtr;
-            DrillHudState& st = s_rt.st;
             float xs = s_rt.xs;
             float eased = easeOutCubic(animT);
             float alpha = (animT >= 0.99f) ? 1.0f : (0.15f + 0.85f * eased);
@@ -797,7 +798,7 @@ namespace extra {
             if (st.newBest)
             {
                 float pop = 0.0f;
-                if (st.modalOpen && s_rt.modalNewBestPop > 0u)
+                if (s_rt.st.modalOpen && s_rt.modalNewBestPop > 0u)
                 {
                     float u = i2f(s_rt.modalNewBestPop) * 0.2f;
                     pop = 4.0f * u * (1.0f - u);
@@ -812,7 +813,7 @@ namespace extra {
             {
                 float pw = 220.0f * xs;
                 drawPips(320.0f - pw * 0.5f, badgeY + 7.0f, pw, 6.0f, timed ? kDrillFreePips : static_cast<int>(target),
-                         alpha);
+                         st.repPips, alpha);
             }
 
             float rowPad = kFibPad + kLabBorder;
@@ -1270,6 +1271,7 @@ namespace extra {
                     unpauseIfNeeded(s_rt);
                     if (act == 1)
                     {
+                        s_rt.modalSnap = st;
                         drillHudRetry(st);
                         drillPracticeReset();
 #if TM_STAGE4C
@@ -1367,7 +1369,7 @@ namespace extra {
             {
                 s_rt.modalAnim++;
             }
-            drawEndModal(i2f(s_rt.modalAnim) * 0.125f);
+            drawEndModal(i2f(s_rt.modalAnim) * 0.125f, s_rt.st);
         }
         else
         {
@@ -1376,9 +1378,13 @@ namespace extra {
             if (s_rt.modalAnim > 0u)
             {
                 s_rt.modalAnim = s_rt.modalAnim > 2u ? static_cast<u8>(s_rt.modalAnim - 2u) : 0u;
-                if (s_rt.modalAnim > 0u)
+                if (s_rt.modalAnim > 0u && s_rt.modalSnap.activeDrill != 0u)
                 {
-                    drawEndModal(i2f(s_rt.modalAnim) * 0.125f);
+                    drawEndModal(i2f(s_rt.modalAnim) * 0.125f, s_rt.modalSnap);
+                }
+                else if (s_rt.modalAnim == 0u)
+                {
+                    s_rt.modalSnap.activeDrill = 0u;
                 }
             }
         }
