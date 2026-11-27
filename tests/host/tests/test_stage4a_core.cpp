@@ -768,8 +768,89 @@ TEST(stage4a_core, wavedash_all_four_miss_classifications)
         CHECK(wdCoreStep(st, in));
     }
     CHECK_EQ(static_cast<int>(kWdMissNoAirdodge), static_cast<int>(st.last.outcome));
+    CHECK_EQ(0, static_cast<int>(st.last.earlyGuardInSquat));
+    CHECK_EQ(0, static_cast<int>(st.last.earlyGuardFrames));
     CHECK_EQ(4u, static_cast<unsigned>(st.stats.wdAttempts));
     CHECK_EQ(0u, static_cast<unsigned>(st.stats.wdSuccesses));
+}
+
+TEST(stage4a_core, wavedash_early_guard_in_squat_measures_exact_frames_before_takeoff)
+{
+    WdCoreState st;
+    wdCoreResetAll(st);
+
+    // 1. Guard pressed 1f before takeoff (frame 3 of 3f Jump_Squat, takeoff on frame 4).
+    for (s32 f = 1; f <= 3; f++)
+    {
+        WdFrameInput in = makeWdIn(f, kWdStJumpSquat, f == 1 ? 0x00 : kWdStJumpSquat, 0.0f, 0.0f);
+        if (f == 1)
+        {
+            addWdEv(in, 0x00, kWdStJumpSquat);
+        }
+        if (f == 3)
+        {
+            in.guardEdge = 1;
+        }
+        CHECK(!wdCoreStep(st, in));
+    }
+    {
+        WdFrameInput in = makeWdIn(4, kWdStJump, kWdStJumpSquat, 0.0f, 2.0f);
+        in.airborne = 1;
+        addWdEv(in, kWdStJumpSquat, kWdStJump, kWdCoreShortHopFlag, 1);
+        CHECK(!wdCoreStep(st, in));
+    }
+    {
+        WdFrameInput in = makeWdIn(16, kWdStLanding, kWdStJump, 0.0f, 0.0f);
+        addWdEv(in, kWdStJump, kWdStLanding, 0, 0);
+        CHECK(!wdCoreStep(st, in));
+    }
+    for (s32 f = 17; f <= 21; f++)
+    {
+        WdFrameInput in = makeWdIn(f, 0x00, kWdStLanding, 0.0f, 0.0f);
+        CHECK(!wdCoreStep(st, in));
+    }
+    {
+        WdFrameInput in = makeWdIn(22, 0x00, 0x00, 0.0f, 0.0f);
+        CHECK(wdCoreStep(st, in));
+    }
+    CHECK_EQ(static_cast<int>(kWdMissNoAirdodge), static_cast<int>(st.last.outcome));
+    CHECK_EQ(1, static_cast<int>(st.last.earlyGuardInSquat));
+    CHECK_EQ(1, static_cast<int>(st.last.earlyGuardFrames));
+
+    // 2. Guard pressed 3f before takeoff (frame 30 of 3f Jump_Squat, takeoff on frame 33).
+    for (s32 f = 30; f <= 32; f++)
+    {
+        WdFrameInput in = makeWdIn(f, kWdStJumpSquat, f == 30 ? 0x00 : kWdStJumpSquat, 0.0f, 0.0f);
+        if (f == 30)
+        {
+            addWdEv(in, 0x00, kWdStJumpSquat);
+            in.guardEdge = 1;
+        }
+        CHECK(!wdCoreStep(st, in));
+    }
+    {
+        WdFrameInput in = makeWdIn(33, kWdStJump, kWdStJumpSquat, 0.0f, 2.0f);
+        in.airborne = 1;
+        addWdEv(in, kWdStJumpSquat, kWdStJump, kWdCoreShortHopFlag, 1);
+        CHECK(!wdCoreStep(st, in));
+    }
+    {
+        WdFrameInput in = makeWdIn(45, kWdStLanding, kWdStJump, 0.0f, 0.0f);
+        addWdEv(in, kWdStJump, kWdStLanding, 0, 0);
+        CHECK(!wdCoreStep(st, in));
+    }
+    for (s32 f = 46; f <= 50; f++)
+    {
+        WdFrameInput in = makeWdIn(f, 0x00, kWdStLanding, 0.0f, 0.0f);
+        CHECK(!wdCoreStep(st, in));
+    }
+    {
+        WdFrameInput in = makeWdIn(51, 0x00, 0x00, 0.0f, 0.0f);
+        CHECK(wdCoreStep(st, in));
+    }
+    CHECK_EQ(static_cast<int>(kWdMissNoAirdodge), static_cast<int>(st.last.outcome));
+    CHECK_EQ(1, static_cast<int>(st.last.earlyGuardInSquat));
+    CHECK_EQ(3, static_cast<int>(st.last.earlyGuardFrames));
 }
 
 // ---- Engine 3: L-Cancel ----------------------------------------------------

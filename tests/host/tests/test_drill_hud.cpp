@@ -680,3 +680,49 @@ TEST(drill_hud, stage4c_all_seven_challenges_modes_timed60_and_bests)
         CHECK_EQ(1u, static_cast<unsigned>(hud.totalHit));
     }
 }
+
+TEST(drill_hud, wavedash_timing_bar_pointer_mapping)
+{
+    WdResult r;
+    memset(&r, 0, sizeof(r));
+
+    // Success: Perfect f1 -> center cell 7; 3f (2f late) -> cell 9; clamped at 14.
+    r.kind = kWdKindWavedash;
+    r.outcome = kWdOutcomeSuccess;
+    r.jumpsquatToDodge = 1;
+    CHECK_EQ(7, wdTimingBarPointerCell(r));
+    r.jumpsquatToDodge = 3;
+    CHECK_EQ(9, wdTimingBarPointerCell(r));
+    r.jumpsquatToDodge = 12;
+    CHECK_EQ(14, wdTimingBarPointerCell(r));
+
+    // Early guard in Jump_Squat: -1f -> 6, -3f -> 4, -9f -> clamped 0.
+    memset(&r, 0, sizeof(r));
+    r.kind = kWdKindWavedash;
+    r.outcome = kWdMissNoAirdodge;
+    r.earlyGuardInSquat = 1;
+    r.earlyGuardFrames = 1;
+    CHECK_EQ(6, wdTimingBarPointerCell(r));
+    r.earlyGuardFrames = 3;
+    CHECK_EQ(4, wdTimingBarPointerCell(r));
+    r.earlyGuardFrames = 9;
+    CHECK_EQ(0, wdTimingBarPointerCell(r));
+
+    // Unknown early offset (earlyGuardInSquat = 1, earlyGuardFrames = 0) omits pointer (-1).
+    r.earlyGuardFrames = 0;
+    CHECK_EQ(-1, wdTimingBarPointerCell(r));
+
+    // Plain No Dodge omits pointer (-1).
+    r.earlyGuardInSquat = 0;
+    CHECK_EQ(-1, wdTimingBarPointerCell(r));
+
+    // Upward airdodge is an angle error, not frame-lateness -> omits pointer (-1).
+    r.outcome = kWdMissUpwardAirdodge;
+    CHECK_EQ(-1, wdTimingBarPointerCell(r));
+
+    // Late airdodge maps to rightmost cell 14; zair/tether omits pointer (-1).
+    r.outcome = kWdMissLateAirdodge;
+    CHECK_EQ(14, wdTimingBarPointerCell(r));
+    r.outcome = kWdMissZairTether;
+    CHECK_EQ(-1, wdTimingBarPointerCell(r));
+}

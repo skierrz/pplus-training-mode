@@ -951,5 +951,39 @@ namespace extra {
     {
         return drillHudPoll(st, f, false);
     }
+
+    // Maps a completed Wavedash / Waveland result onto the 15-cell timing bar
+    // (0..6 = Early -7f..-1f, 7 = Perfect f1, 8..14 = 1f..7f Late; -1 = omit).
+    inline int wdTimingBarPointerCell(const WdResult& r, int cellCount = 15)
+    {
+        if (r.outcome == kWdOutcomeSuccess)
+        {
+            int f = (r.kind == kWdKindWaveland) ? r.airdodgeAirFrames : r.jumpsquatToDodge;
+            if (f < 1)
+            {
+                f = 1;
+            }
+            int c = 7 + (f - 1);
+            return c >= cellCount ? (cellCount - 1) : c;
+        }
+        if (r.outcome == kWdMissNoAirdodge)
+        {
+            if (r.earlyGuardFrames > 0)
+            {
+                int c = 7 - static_cast<int>(r.earlyGuardFrames);
+                return c < 0 ? 0 : c;
+            }
+            return -1;
+        }
+        if (r.outcome == kWdMissLateAirdodge)
+        {
+            return cellCount - 1;
+        }
+        if (r.outcome == kWdMissUpwardAirdodge || r.outcome == kWdMissZairTether)
+        {
+            return -1;
+        }
+        return cellCount - 1;
+    }
 }
 }

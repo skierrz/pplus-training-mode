@@ -321,12 +321,11 @@ namespace extra {
                 if (wd != NULL && wd->seq > 0u)
                 {
                     const WdResult& r = wd->last;
+                    ptrCell = wdTimingBarPointerCell(r, cellCount);
                     if (r.outcome == kWdOutcomeSuccess)
                     {
                         int f = (r.kind == kWdKindWaveland) ? r.airdodgeAirFrames : r.jumpsquatToDodge;
                         if (f < 1) f = 1;
-                        ptrCell = 7 + (f - 1);
-                        if (ptrCell >= cellCount) ptrCell = cellCount - 1;
                         if (f == 1)
                         {
                             snprintf(val0, sizeof(val0), "Perfect f1");
@@ -340,39 +339,37 @@ namespace extra {
                     }
                     else if (r.outcome == kWdMissNoAirdodge)
                     {
-                        if (r.earlyGuardInSquat != 0)
+                        if (r.earlyGuardFrames > 0)
                         {
-                            ptrCell = 4;
+                            snprintf(val0, sizeof(val0), "Early -%df", static_cast<int>(r.earlyGuardFrames));
+                        }
+                        else if (r.earlyGuardInSquat != 0)
+                        {
                             snprintf(val0, sizeof(val0), "Early");
                         }
                         else
                         {
-                            ptrCell = -1;
                             snprintf(val0, sizeof(val0), "No Dodge");
                         }
                         col0 = 0xFF6658FFu;
                     }
                     else if (r.outcome == kWdMissLateAirdodge)
                     {
-                        ptrCell = cellCount - 1;
                         snprintf(val0, sizeof(val0), "Late Dodge");
                         col0 = 0xFF6658FFu;
                     }
                     else if (r.outcome == kWdMissUpwardAirdodge)
                     {
-                        ptrCell = cellCount - 1;
                         snprintf(val0, sizeof(val0), "Air Dodge");
                         col0 = 0xFF6658FFu;
                     }
                     else if (r.outcome == kWdMissZairTether)
                     {
-                        ptrCell = -1;
                         snprintf(val0, sizeof(val0), "Zair (L/R)");
                         col0 = 0xFFB848FFu;
                     }
                     else
                     {
-                        ptrCell = cellCount - 1;
                         snprintf(val0, sizeof(val0), "Miss");
                         col0 = 0xFF6658FFu;
                     }

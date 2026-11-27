@@ -134,6 +134,7 @@ namespace extra {
         float slideDistance;     // |xAtActionable - xAtLand|
         float signedSlideDx;     // xAtActionable - xAtLand
         u8 earlyGuardInSquat;    // 1 if guard was pressed too early during Jump_Squat
+        u8 earlyGuardFrames;     // frames guard was pressed before jump takeoff (0 if none/unknown)
     };
 
     struct WdStats {
@@ -159,6 +160,7 @@ namespace extra {
         u8 onPlatform;
         u8 earlyGuardInSquat;
         s32 jumpSquatFrame;
+        s32 earlyGuardFrame;
         s32 airFrame;
         s32 airdodgeFrame;
         s32 landFrame;
@@ -251,6 +253,7 @@ namespace extra {
     {
         memset(&st, 0, reinterpret_cast<char*>(&st.seq) - reinterpret_cast<char*>(&st));
         st.jumpSquatFrame = kWdCoreNoFrame;
+        st.earlyGuardFrame = kWdCoreNoFrame;
         st.airFrame = kWdCoreNoFrame;
         st.airdodgeFrame = kWdCoreNoFrame;
         st.landFrame = kWdCoreNoFrame;
@@ -281,6 +284,16 @@ namespace extra {
         r.signedSlideDx = slideDx;
         r.slideDistance = slideDx < 0.0f ? -slideDx : slideDx;
         r.earlyGuardInSquat = st.earlyGuardInSquat;
+        if (st.earlyGuardInSquat != 0 && st.airFrame != kWdCoreNoFrame && st.earlyGuardFrame != kWdCoreNoFrame
+            && st.airFrame > st.earlyGuardFrame)
+        {
+            s32 ef = st.airFrame - st.earlyGuardFrame;
+            r.earlyGuardFrames = static_cast<u8>(ef > 255 ? 255 : ef);
+        }
+        else
+        {
+            r.earlyGuardFrames = 0;
+        }
 
         if (kind == kWdKindWavedash || kind == kWdKindWaveland)
         {
@@ -554,6 +567,7 @@ namespace extra {
             if (in.guardEdge != 0)
             {
                 st.earlyGuardInSquat = 1;
+                st.earlyGuardFrame = in.frame;
             }
             if ((in.buttons & kWdCoreButtonJump) != 0 && st.jumpHoldFrames == in.frame - st.jumpSquatFrame)
             {
