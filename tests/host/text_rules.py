@@ -565,7 +565,7 @@ guard("main/ui/info_display.cpp", "drawSide", "eee94189")
 
 def info_display(c, src):
     # drawSide(): a row is squeezed to the Panel B smoked plate's width less its two
-    # insets, (214 - 2 x 8.0) = 198 px at capitals kCap = 10.5 (Medium), normal weight
+    # insets, (214 - 2 * 7.0) = 200 px at capitals kCap = 10.5 (Medium), normal weight
     # with 1px drop shadow. Small/Medium/Large widths are 206/214/218 px on 4:3
     # (<= 218 px clears 4:3 timer). A row's buffer has 64 bytes.
     def row(lit, text):

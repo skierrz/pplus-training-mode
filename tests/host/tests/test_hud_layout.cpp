@@ -1413,3 +1413,23 @@ TEST(hud_layout, hide_player_damage_hud_sets_and_restores_optid_disable_gather)
     }
     host::mem::clear();
 }
+
+TEST(hud_layout, drill_ledgedash_band_matches_bar_header_and_legend_union)
+{
+    static const int kCells[3] = {10, 30, 64};
+    for (int a = 0; a < 2; a++)
+    {
+        bool wide = (a == 1);
+        for (int i = 0; i < 3; i++)
+        {
+            int cells = kCells[i];
+            Box actual = layout::drillLedgedashBand(cells, wide);
+            Box expected = layout::unite(layout::frameBarBox(cells, wide),
+                                         layout::unite(layout::ledgeHeaderBox(wide), layout::ledgeLegendBox(wide)));
+            CHECK_NEAR(expected.x0, actual.x0, 0.001f);
+            CHECK_NEAR(expected.y0, actual.y0, 0.001f);
+            CHECK_NEAR(expected.x1, actual.x1, 0.001f);
+            CHECK_NEAR(expected.y1, actual.y1, 0.001f);
+        }
+    }
+}

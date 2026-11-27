@@ -263,34 +263,13 @@ namespace layout {
     // Plates, and Adaptive CPU (118 px on 4:3, 88.5 ~ F11 = 89 px on 16:9).
     static const float kRightColWidth = 118.0f;
 
-    // Dynamic top-band box for Ledgedash Practice Drill, spanning both the
-    // dynamic-width timing bar (`frameBarBox`) and its calm white swatch legend
-    // (`half = 196 * xs`, matching `ledgeHeaderBox`) so Info Display steps below
-    // it cleanly on both 16:9 and 4:3.
+    // Dynamic top-band box for Ledgedash Practice Drill, spanning the
+    // dynamic-width timing bar (`frameBarBox`), its calm white swatch legend
+    // (`206 * barScale` via `ledgeHeaderBox`), and pointer zone (`ledgeLegendBox`)
+    // so Info Display steps below it cleanly on both 16:9 and 4:3.
     inline Box drillLedgedashBand(int cells, bool wide)
     {
-        float xs = xsOf(wide);
-        Box bar = frameBarBox(cells, wide);
-        float maxRight = 608.0f - kRightColWidth * xs - kStepGap;
-        float half = 196.0f * xs;
-        float hx0 = 320.0f - half;
-        float hx1 = 320.0f + half;
-        if (hx1 > maxRight)
-        {
-            float shift = hx1 - maxRight;
-            hx0 -= shift;
-            hx1 -= shift;
-        }
-        if (hx0 < kSafeMarginX)
-        {
-            hx0 = kSafeMarginX;
-        }
-        Box out;
-        out.x0 = bar.x0 < hx0 ? bar.x0 : hx0;
-        out.y0 = kKeyY;
-        out.x1 = bar.x1 > hx1 ? bar.x1 : hx1;
-        out.y1 = kBarBottom + 9.0f;
-        return out;
+        return unite(frameBarBox(cells, wide), unite(ledgeHeaderBox(wide), ledgeLegendBox(wide)));
     }
 
     // ---- Combo-Break Rush top HUD (extra/combo_break_rush.cpp) ----
@@ -405,7 +384,7 @@ namespace layout {
     // ---- Panel B Right-Margin Drill Stat Plate (extra/hud_draw.cpp, ui/ledgedash_hud.cpp) ----
     // Quiet smoked-dark borderless plate flush on the unified 118 px right column
     // (row pitch F9 = 34 px, gap F6 = 8 px). Anchored vertically in middle-right
-    // eye-gravitation real estate (y = 152..262 for 3 rows, centered ~207), staying
+    // eye-gravitation real estate (y = 124..234 for 3 rows, centered ~179), staying
     // rock-steady whether 0, 1, or 2 Option A GC controllers are visible above it.
     static const float kDrillPlateWidth = kRightColWidth;
     static const float kDrillPlateGap = kStepGap;
