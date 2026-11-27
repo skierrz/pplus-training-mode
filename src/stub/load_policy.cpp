@@ -16,9 +16,8 @@ namespace policy {
 
     // Extra module: AssistFigureResource (MEM2, 410 KiB) in Training (1P-4P)
     // and opted-in local offline Versus when Assist Trophies are off (2P-4P).
-    // When Assist Trophies are on in local offline Versus, <= 3P falls back to
-    // OverlayFighter4 (gracefully skipped if extra exceeds it) and 4P loads
-    // match only so Brawl keeps both AssistFigureResource and OverlayFighter4.
+    // When Assist Trophies are on in local offline Versus, load match only so
+    // Brawl keeps AssistFigureResource free for Assist Trophy preloads.
 #ifdef TM_EXTRA_HEAP
     static const Heaps::HeapType kExtraHeap = static_cast<Heaps::HeapType>(TM_EXTRA_HEAP);
 #else
@@ -36,7 +35,6 @@ namespace policy {
     //      +0x08 (>>2): m_meleeInitData.m_gameMode
     //      +0x16:       m_meleeInitData.m_itemFrequency (0 = Frequency_None)
     //      +0x37 bit 1: m_meleeInitData.m_itSwitch.m_item.m_assistTrophy
-    //      +0x98 + i*0x5C, byte +1 != 3 for active players i = 0..3.
     enum {
         kMultiGctPtr = 0x80550000,
         kNetplayVsyncAddr = 0x80023B88,
@@ -45,10 +43,7 @@ namespace policy {
         kModeMeleeGameMode = 0x8,
         kItemFrequencyOffset = 0x16,
         kItemSwitchLowByte = 0x37,
-        kAssistTrophyMask = 0x02,
-        kPlayersOffset = 0x98,
-        kPlayerStride = 0x5C,
-        kPlayerAbsent = 3
+        kAssistTrophyMask = 0x02
     };
 
     u32 forSceneStart(const gfScene* scene, Placement out[kMaxPlacements])
@@ -86,23 +81,7 @@ namespace policy {
             }
             bool assistEnabled =
                 mode[kItemFrequencyOffset] != 0 && (mode[kItemSwitchLowByte] & kAssistTrophyMask) != 0;
-            if (!assistEnabled)
-            {
-                return kPlanMatchAndExtra;
-            }
-            u32 active = 0;
-            for (u32 i = 0; i < 4; i++)
-            {
-                active += (mode[kPlayersOffset + i * kPlayerStride + 1] != kPlayerAbsent);
-            }
-            if (active <= kMaxVsPlayersForOverlay4Fallback)
-            {
-#ifndef TM_EXTRA_HEAP
-                out[1].heap = Heaps::OverlayFighter4;
-#endif
-                return kPlanMatchAndExtra;
-            }
-            return kPlanMatchOnly;
+            return assistEnabled ? kPlanMatchOnly : kPlanMatchAndExtra;
         }
         if (game::sceneIs(scene, "scSelctCharacter") && game::sequenceIs("sqTraining"))
         {

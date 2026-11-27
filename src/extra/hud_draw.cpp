@@ -370,51 +370,6 @@ namespace extra {
                          label, 0xF8FCFFFFu, sx, sc);
     }
 
-    void drawHudCard(float x, float y, float w, float h, float xs, gfx::Rgba accent, gfx::Rgba sheen)
-    {
-        float px = 2.0f * xs;
-        float innerW = w - 2.0f * px;
-        gfx::fillRect(x, y, w, h, 0x050C12E4u);
-        gfx::fillRect(x + px, y + 2.0f, innerW, h - 4.0f, 0x3A5868D8u);
-        gfx::fillGradV(x + 2.0f * px, y + 4.0f, w - 4.0f * px, h - 8.0f, 0x132632DCu, 0x09141CE0u);
-        gfx::fillRect(x + px, y + 2.0f, innerW, 2.0f, accent);
-        if (sheen != 0u)
-        {
-            gfx::fillRect(x + px, y + 2.0f, innerW, 2.0f, sheen);
-        }
-    }
-
-    void drawHudBanner(float ox, float oy, float bw, float bh, float xs, gfx::Rgba accent)
-    {
-        float ix = ox + 4.0f * xs;
-        float iw = bw - 8.0f * xs;
-        gfx::fillRect(ox, oy, bw, bh, 0x060D12F2u);
-        gfx::fillRect(ox + 2.0f * xs, oy + 2.0f, bw - 4.0f * xs, bh - 4.0f, accent);
-        gfx::fillGradV(ix, oy + 4.0f, iw, bh - 8.0f, 0x0D1E26ECu, 0x071117ECu);
-        gfx::fillGradV(ix, oy + 4.0f, iw, 15.0f, 0x226874F0u, 0x123C46F0u);
-        gfx::fillRect(ix, oy + 19.0f, iw, 2.0f, 0x2A5866E0u);
-    }
-
-    void drawHudBannerTitle(float ox, float oy, float bw, float bh, float xs, gfx::Rgba accent, const char* title)
-    {
-        drawHudBanner(ox, oy, bw, bh, xs, accent);
-        float sc = ui::style::displayScaleForCap(ui::style::kTypeMeta);
-        gfx::displayText(ox + 10.0f * xs, ui::style::displayYForCap(oy + 7.0f, sc), title, 0xFFFFFFFFu, 0xB8E0EEFFu,
-                         sc, sc, 1.2f, 0x050C12FFu);
-    }
-
-    void drawHudPill(float x, float y, float w, float xs, bool gold)
-    {
-        gfx::fillRect(x, y, w, 13.0f, 0x07141AE8u);
-        gfx::fillGradV(x + 2.0f * xs, y + 2.0f, w - 4.0f * xs, 9.0f,
-                       gold ? 0xB88200FFu : 0x1B6B76FFu, gold ? 0x7A5000FFu : 0x0E3D45FFu);
-    }
-
-    void drawHudDivider(float x, float y, float bw, float xs)
-    {
-        gfx::fillRect(x + 4.0f * xs, y, bw - 8.0f * xs, 2.0f, 0x2A4C58C0u);
-    }
-
     void drawUnitDial(float cx, float cy, float rx, float ry, gfx::Rgba fillCol, gfx::Rgba rimCol)
     {
         gfx::fillEllipse(cx, cy, rx, ry, fillCol);

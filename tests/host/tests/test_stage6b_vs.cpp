@@ -191,16 +191,11 @@ TEST(stage6b_vs, allowed_offline_versus_respects_assist_and_4p_safety)
         CHECK_EQ(static_cast<int>(policy::kExtraHeapAssist), static_cast<int>(policy::decideExtraHeap(in)));
     }
 
-    // Assist Trophies ON: 2P and 3P fall back to OverlayFighter4 so Brawl keeps
-    // AssistFigureResource free for Assist Trophy preloads; 4P loads match ONLY.
-    for (u32 players = 2; players <= 3; players++)
+    // Assist Trophies ON: 2P, 3P, and 4P all load match ONLY so Brawl keeps
+    // AssistFigureResource free for Assist Trophy preloads (extra exceeds OverlayFighter4).
+    for (u32 players = 2; players <= 4; players++)
     {
         policy::SceneGateInput in = localOfflineVs(players, true, true);
-        CHECK_EQ(static_cast<int>(policy::kPlanMatchAndExtra), static_cast<int>(policy::decideMeleeLoad(in)));
-        CHECK_EQ(static_cast<int>(policy::kExtraHeapOverlay4), static_cast<int>(policy::decideExtraHeap(in)));
-    }
-    {
-        policy::SceneGateInput in = localOfflineVs(4, true, true);
         CHECK_EQ(static_cast<int>(policy::kPlanMatchOnly), static_cast<int>(policy::decideMeleeLoad(in)));
         CHECK_EQ(static_cast<int>(policy::kExtraHeapNone), static_cast<int>(policy::decideExtraHeap(in)));
     }

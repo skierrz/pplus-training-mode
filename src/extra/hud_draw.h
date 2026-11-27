@@ -17,22 +17,6 @@ namespace extra {
     // is the right edge.
     void drawShadowCapText(float x, float capY, const char* text, gfx::Rgba color, float cap, bool rightAlign = false);
 
-    // Double-framed dark-teal P+ overlay card. If `sheen != 0`, draws a 2px top
-    // highlight across the accent stripe.
-    void drawHudCard(float x, float y, float w, float h, float xs, gfx::Rgba accent, gfx::Rgba sheen);
-
-    // Unified top-center Brawl/P+ double-framed banner with header band and divider.
-    void drawHudBanner(float ox, float oy, float bw, float bh, float xs, gfx::Rgba accent);
-
-    // Draws drawHudBanner plus the standard 8.5pt Brawl Display title on the left.
-    void drawHudBannerTitle(float ox, float oy, float bw, float bh, float xs, gfx::Rgba accent, const char* title);
-
-    // Compact Brawl-styled mode/status pill inside a top HUD banner.
-    void drawHudPill(float x, float y, float w, float xs, bool gold);
-
-    // Crisp 2.0px integer CRT-safe horizontal divider inside a HUD card.
-    void drawHudDivider(float x, float y, float bw, float xs);
-
     // Filled unit-circle dial with axes and 16-segment rim (shared by DI
     // compass, custom DI picker, and stick gates).
     void drawUnitDial(float cx, float cy, float rx, float ry, gfx::Rgba fillCol, gfx::Rgba rimCol);

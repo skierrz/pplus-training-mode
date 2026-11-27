@@ -6,15 +6,14 @@
 
 // Pure module-load policy logic for scMelee (host-testable without Brawl or
 // Syriinge headers). Decides whether Training or opted-in local offline Versus
-// loads match (+ extra in AssistFigureResource, or OverlayFighter4 fallback in
-// <= 3P Versus when Assist Trophies are enabled), while hard-blocking Netplay,
-// Replays, and non-sqVsMelee modes.
+// loads match (+ extra in AssistFigureResource when Assist Trophies are off, or
+// match only when Assist Trophies are on so Brawl keeps AssistFigureResource
+// free), while hard-blocking Netplay, Replays, and non-sqVsMelee modes.
 namespace tm {
 namespace policy {
     enum {
         kMeleeGameMode = 0x0,
-        kTrainingGameMode = 0xD,
-        kMaxVsPlayersForOverlay4Fallback = 3
+        kTrainingGameMode = 0xD
     };
 
     struct SceneGateInput {
@@ -33,13 +32,12 @@ namespace policy {
     enum MatchPlan {
         kPlanNone = 0,          // load no modules
         kPlanMatchOnly = 1,     // load match in OverlayMenu (leave fighter/assist heaps untouched)
-        kPlanMatchAndExtra = 2  // load match in OverlayMenu + extra in selected heap
+        kPlanMatchAndExtra = 2  // load match in OverlayMenu + extra in AssistFigureResource
     };
 
     enum ExtraHeapChoice {
         kExtraHeapNone = 0,
-        kExtraHeapAssist = 1,   // Heaps::AssistFigureResource (MEM2, 410 KiB)
-        kExtraHeapOverlay4 = 2  // Heaps::OverlayFighter4 (MEM1 fallback when VS Assist Trophies ON)
+        kExtraHeapAssist = 1    // Heaps::AssistFigureResource (MEM2, 410 KiB)
     };
 
     // True when the stub's resident settings block holds an initialized
@@ -66,11 +64,7 @@ namespace policy {
         {
             return kExtraHeapNone;
         }
-        if (!in.assistTrophiesEnabled)
-        {
-            return kExtraHeapAssist;
-        }
-        return in.activePlayers <= kMaxVsPlayersForOverlay4Fallback ? kExtraHeapOverlay4 : kExtraHeapNone;
+        return in.assistTrophiesEnabled ? kExtraHeapNone : kExtraHeapAssist;
     }
 
     // Pure scMelee load decision.
