@@ -5,6 +5,7 @@
 #include "main/game/advantage.h"
 #include "main/gfx/draw.h"
 #include "main/gfx/text.h"
+#include "main/ui/style.h"
 #include "shared/game/frame.h"
 #include "shared/game/scene.h"
 #include "shared/log.h"
@@ -15,7 +16,7 @@ namespace ui {
     static const float kLeft = 36.0f;
     static const float kTop = 28.0f;
     static const float kPadding = 4.0f;
-    static const float kScale = 0.5f;
+    static const float kScale = style::kTypeMicro / style::kCapHeight;
     static const gfx::Rgba kBackground = 0x000000A0;
     static const gfx::Rgba kTextColor = 0xFFFFFFFF;
 

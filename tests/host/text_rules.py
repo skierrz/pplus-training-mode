@@ -660,7 +660,7 @@ guard("main/ui/debug_overlay.cpp", "drawDebugOverlay", "38b42bd4")
 
 def debug_overlay(c, src):
     # drawDebugOverlay() (Display Options > Debug Overlay): up to four lines
-    # from x 20 at scale 0.5 in a box that follows the widest; the frame line
+    # from x 36 at kTypeMicro (8.0 px cap) in a box that follows the widest; the frame line
     # has 24 bytes, the scene line 80, the advantage line 96. The scene and
     # sequence names are the game's: the longest the sources and the
     # decompilation name stand for them.
@@ -679,7 +679,7 @@ def debug_overlay(c, src):
             continue
         c.take(lit)
     for lit, text, size in texts:
-        c.item("box", lit, text, 0.5, 36.0, 0.0)
+        c.item("box", lit, text, scale_for_cap(8.0), 36.0, 0.0)
         c.buffer(lit, text, float(size))
 
 
@@ -740,11 +740,11 @@ def savestate(c, src):
 
 
 def pad_inmatch_cpp(c, src):
-    # Pause-menu hint texts drawn by lab.cpp (gfx::textBox at x 520, scale 0.5).
+    # Pause-menu hint texts drawn by lab.cpp (gfx::textBox right-aligned at kHintRight = 602, kTypeMicro 8.0 px cap).
     for lit in src.literals:
         if c.taken(lit):
             continue
-        c.item("box", lit, lit.text, 0.5, 520.0, 0.0)
+        c.item("box", lit, lit.text, scale_for_cap(8.0), 520.0, 0.0)
         c.take(lit)
 
 
@@ -753,8 +753,8 @@ def lab_cpp(c, src):
         if c.taken(lit):
             continue
         if lit.name == "gfx::textBox":
-            # The hint beside the pause menu: a box from x 520, scale 0.5.
-            c.item("box", lit, lit.text, 0.5, 520.0, 0.0)
+            # The hint beside the pause menu: right-aligned at kHintRight = 602, kTypeMicro 8.0 px cap.
+            c.item("box", lit, lit.text, scale_for_cap(8.0), 520.0, 0.0)
         elif lit.var in ("kFrom", "kText"):
             pass  # words of the messages above
         elif lit.name == "strcpy" and "g_resetLabel" in lit.first:

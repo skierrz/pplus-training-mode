@@ -973,7 +973,7 @@ namespace osdQuick {
 
         // Smoked-charcoal v1 Direction A modal panel (5% CRT safe, >= 2px scanlines).
         static const ModalFrame kFrame = {
-            56.0f, 584.0f, 34.0f, 446.0f, 71.0f, 379.0f, 407.0f, 326.0f, 0x070B12B8u
+            56.0f, 584.0f, 34.0f, 446.0f, 71.0f, 379.0f, 407.0f, 326.0f, kLabModalBackdrop
         };
         const float inL43 = kFrame.left43 + kLabBorder;
         const float inR43 = kFrame.right43 - kLabBorder;

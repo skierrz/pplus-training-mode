@@ -612,7 +612,7 @@ TEST(wii_lab, sideways_a_cycles_tabs_and_draws_badges)
     CHECK_EQ(0, static_cast<int>(lab_uut::s_menu.category));
 
     // Draft A Start mode at depth 0 draws [A] Tab, [+] Close, [-] Brawl Pause,
-    // and omits the no-op [1] Back pill.
+    // omits the no-op [1] Back pill, and suppresses the bottom-right watermark while open.
     host::canvas::clear();
     lab_uut::onRender(0, host::fakes::match());
     CHECK(canvasDrew("A"));
@@ -621,6 +621,15 @@ TEST(wii_lab, sideways_a_cycles_tabs_and_draws_badges)
     CHECK(canvasDrew("+"));
     CHECK(canvasDrew("Brawl Pause"));
     CHECK(!canvasDrew("1"));
+    bool sawBottomWatermark = false;
+    for (int i = 0; i < host::canvas::runs(); i++)
+    {
+        if (strcmp(host::canvas::run(i).text, TM_VERSION_MARK) == 0 && host::canvas::run(i).y >= 435.0f)
+        {
+            sawBottomWatermark = true;
+        }
+    }
+    CHECK(!sawBottomWatermark);
 
     // Sideways A (kPadWiiA) cycles through all 7 tabs and wraps back to Lab without
     // toggling Frame Advance (row 0).

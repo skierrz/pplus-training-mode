@@ -511,25 +511,25 @@ namespace list {
 
     using namespace ui::style;
 
-    // ---- Boot menu palette (v1 Direction A smoked charcoal + P+ emerald-teal & Solo-Gold) ----
-    static const gfx::Rgba kBackdropDim = 0x070B12B0;
-    static const gfx::Rgba kBannerTopCol = 0x2DB3A1FF;
-    static const gfx::Rgba kBannerBotCol = 0x209485FF;
-    static const gfx::Rgba kBannerSheen = 0x7CE4D660;
-    static const gfx::Rgba kBannerInk = 0x061413FF;
-    static const gfx::Rgba kRowFillTop = 0x28303CE8;
-    static const gfx::Rgba kRowFillBot = 0x1F2630E8;
-    static const gfx::Rgba kRowEdge = 0x26303EFF;
-    static const gfx::Rgba kCardFillTop = 0x111720E8;
-    static const gfx::Rgba kCardFillBot = 0x0A0E15E8;
-    static const gfx::Rgba kCardBorderIn = 0x2A3544FF;
-    static const gfx::Rgba kCardTitle = 0xFFFFFFFF;
-    static const gfx::Rgba kCardBody = 0xDCE5EEFF;
-    static const gfx::Rgba kCardMuted = 0x9AA7B4FF;
-    static const gfx::Rgba kBadgeImportTop = 0xD6E0E6FF;
-    static const gfx::Rgba kBadgeImportBot = 0x8E9EA8FF;
-    static const gfx::Rgba kBadgeOsdTop = 0x3AC8B8FF;
-    static const gfx::Rgba kBadgeOsdBot = 0x1C8B7EFF;
+    // ---- Boot menu palette (shared Direction A smoked charcoal tokens from style.h) ----
+    static const gfx::Rgba kBackdropDim = kLabBackdropDim;
+    static const gfx::Rgba kBannerTopCol = kLabTealTop;
+    static const gfx::Rgba kBannerBotCol = kLabTealBot;
+    static const gfx::Rgba kBannerSheen = kLabTealSheen;
+    static const gfx::Rgba kBannerInk = kLabActiveTabText;
+    static const gfx::Rgba kRowFillTop = kLabRowSlateTop;
+    static const gfx::Rgba kRowFillBot = kLabRowSlateBot;
+    static const gfx::Rgba kRowEdge = kLabRowEdge;
+    static const gfx::Rgba kCardFillTop = kLabCardTop;
+    static const gfx::Rgba kCardFillBot = kLabCardBot;
+    static const gfx::Rgba kCardBorderIn = kLabCardBorderIn;
+    static const gfx::Rgba kCardTitle = kLabWhiteText;
+    static const gfx::Rgba kCardBody = kLabDescText;
+    static const gfx::Rgba kCardMuted = kLabMutedText;
+    static const gfx::Rgba kBadgeImportTop = kLabBadgeImportTop;
+    static const gfx::Rgba kBadgeImportBot = kLabBadgeImportBot;
+    static const gfx::Rgba kBadgeOsdTop = kLabBadgeOsdTop;
+    static const gfx::Rgba kBadgeOsdBot = kLabBadgeOsdBot;
 
     // ---- Boot menu geometry (640x480 2D space; Golden Ratio Option G1: 220:324 in 36..604) ----
     static const float kSlantTan = 0.445f; // ~24 deg stock P+ slant
@@ -1348,13 +1348,10 @@ namespace list {
                 tsx = titleScale * ratio;
             }
         }
-        gfx::displayText(contentX, displayYForCap(110.0f + (kCardTitleCap - titleCap) * 0.5f, titleScale), row.name,
+        gfx::displayText(contentX, displayYForCap(114.0f + (kCardTitleCap - titleCap) * 0.5f, titleScale), row.name,
                          kLabTitleTop, kLabTitleBot, tsx, titleScale, 1.2f, kLabTitleEdge);
 
-        float subScale = scaleForCap(kTypeMeta);
-        gfx::text(contentX, textYForCap(131.0f, subScale), currentSection().name, kBannerTopCol, subScale);
-
-        gfx::fillRect(contentX, 148.0f, contentW, kFibHair, kRowEdge);
+        gfx::fillRect(contentX, 138.0f, contentW, kFibHair, kRowEdge);
 
         float bodyScale = scaleForCap(kCardBodyCap);
         for (int i = 0; i < 3; i++)
@@ -1366,7 +1363,7 @@ namespace list {
             }
             float lw = gfx::textWidth(line, bodyScale);
             float lsx = lw > contentW && lw > 0.0f ? bodyScale * contentW / lw : bodyScale;
-            gfx::text(contentX, textYForCap(163.0f + i * 18.0f, bodyScale), line, kCardBody, lsx, bodyScale);
+            gfx::text(contentX, textYForCap(154.0f + i * 20.0f, bodyScale), line, kCardBody, lsx, bodyScale);
         }
 
         // Clean flat SETUP metadata text (zero clickable-looking pill boxes).
@@ -1482,7 +1479,7 @@ namespace list {
         bool osdRound = (type != gfPadType::WIIMOTE);
 
         float x = cx(kColLeft);
-        x = drawControlBadge(x, confirmGlyph, true, kLabBtnATop, kLabBtnABot, kCardTitle, "Select");
+        x = drawControlBadge(x, confirmGlyph, true, kLabBtnATop, kLabBtnABot, kLabBtnDarkText, "Select");
         x = drawControlBadge(x, backGlyph, true, kLabBtnBTop, kLabBtnBBot, kCardTitle, "Back");
         x = drawControlBadge(x, recGlyph, recRound, kBadgeImportTop, kBadgeImportBot, kLabBtnDarkText, "Recordings");
         x = drawControlBadge(x, osdGlyph, osdRound, kBadgeOsdTop, kBadgeOsdBot, kLabBtnDarkText, "Overlays");
@@ -1563,9 +1560,9 @@ namespace list {
         return "TRAINING LAB";
     }
 
-    // CRT-safe Brawl/P+ metallic CSS mode pill in the dark teal band (y 58..82)
-    // above the character grid (y >= 89): double-framed dark chrome, metallic
-    // bevel, crisp button badges, and vertical divider.
+    // Direction A smoked-charcoal CSS mode pill in the dark teal band (y 58..82)
+    // above the character grid (y >= 89): crisp 2px frame border, flat smoked
+    // gradient, kTypeMicro (8.0 px CRT floor) badges, clamped inside 5% safe.
     static void drawPending()
     {
         float scale = scaleForCap(8.5f);
@@ -1575,14 +1572,14 @@ namespace list {
         }
         const game::PadMap& map = game::padMap(preferredPadType());
         const char* mode = activeModeTag();
-        float bScale = scaleForCap(7.5f);
+        float bScale = scaleForCap(kTypeMicro);
 
         float modeW = boldWidth(mode, scale);
         float backGw = gfx::textWidth(map.backName, bScale);
         float backBw = backGw + w(8.0f);
-        if (backBw < w(14.0f))
+        if (backBw < w(15.0f))
         {
-            backBw = w(14.0f);
+            backBw = w(15.0f);
         }
         float slashW = gfx::textWidth("/", bScale);
         float reopGw = gfx::textWidth(map.reopenName, bScale);
@@ -1593,31 +1590,36 @@ namespace list {
         float divGap = w(7.0f);
         float divW = w(2.0f);
         float smGap = w(4.0f);
-        float pillW = padX + modeW + divGap + divW + divGap + backBw + smGap + slashW + smGap + reopBw + smGap
-                      + modesW + padX;
+        float fixedW = padX + divGap + divW + divGap + backBw + smGap + slashW + smGap + reopBw + smGap + modesW
+                       + padX;
+        float rightX = 604.0f;
+        float minLeftX = 172.0f; // clear of CSS BACK & TRAINING chrome and inside 5% CRT safe
+        float maxModeW = (rightX - minLeftX) - fixedW;
+        float modeDrawW = modeW > maxModeW && maxModeW > 1.0f ? maxModeW : modeW;
+        float modeSx = modeW > modeDrawW && modeW > 0.0f ? scale * modeDrawW / modeW : scale;
+        float pillW = fixedW + modeDrawW;
         float pillH = 22.0f;
         float topY = 58.0f;
-        float rightX = 604.0f;
         float leftX = rightX - pillW;
-        float bx = w(2.0f);
+        float bx = w(kFibHair);
 
-        // Double-framed dark chrome + P+ teal inner frame + metallic bevel fill.
+        // Flat Direction A smoked plate with crisp 2px border (matching panel borders).
         gfx::fillRect(leftX, topY, pillW, pillH, kLabBorderColor);
-        gfx::fillRect(leftX + bx, topY + 2.0f, pillW - 2.0f * bx, pillH - 4.0f, kLabAccent);
-        drawBevelBar(leftX + 2.0f * bx, topY + 4.0f, pillW - 4.0f * bx, pillH - 8.0f, kLabHeaderTop, kLabHeaderBot,
-                     kLabBevelLight, kLabBevelDark);
+        gfx::fillGradV(leftX + bx, topY + kFibHair, pillW - 2.0f * bx, pillH - 2.0f * kFibHair, kLabHeaderTop,
+                       kLabHeaderBot);
+        gfx::fillRect(leftX + bx, topY + kFibHair, pillW - 2.0f * bx, kFibHair, kLabBevelLight);
 
         float midY = topY + pillH * 0.5f;
         float ty = textYForCap(midY - 4.25f, scale);
-        float bty = textYForCap(midY - 3.75f, bScale);
+        float bty = textYForCap(midY - kTypeMicro * 0.5f, bScale);
         float badgeH = 14.0f;
         float badgeY = midY - badgeH * 0.5f;
 
         float x = leftX + padX;
-        boldText(x, ty, mode, kLabFocusGold, scale, scale);
-        x += modeW + divGap;
+        boldText(x, ty, mode, kLabFocusGold, modeSx, scale);
+        x += modeDrawW + divGap;
 
-        gfx::fillRect(x, topY + 5.0f, divW, pillH - 10.0f, kLabAccent);
+        gfx::fillRect(x, topY + 5.0f, divW, pillH - 10.0f, kLabDivider);
         x += divW + divGap;
 
         drawGlossyPillBadge(x, badgeY, backBw, badgeH, kLabBtnBTop, kLabBtnBBot);

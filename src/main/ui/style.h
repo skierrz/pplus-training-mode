@@ -162,8 +162,23 @@ namespace style {
     static const gfx::Rgba kLabBtnZBot = 0x3D3598FF;
     static const gfx::Rgba kLabBtnLightTop = 0xF4F7FAFF;
     static const gfx::Rgba kLabBtnLightBot = 0xB6C2CCFF;
-    static const gfx::Rgba kLabBtnDarkText = 0x081217FF;
+    static const gfx::Rgba kLabBtnDarkText = 0x051411FF;
     static const gfx::Rgba kLabWhiteText = 0xFFFFFFFF;
+    static const gfx::Rgba kLabBackdropDim = 0x070B12B0;
+    static const gfx::Rgba kLabModalBackdrop = 0x070B12B8;
+    static const gfx::Rgba kLabModalBackdropHeavy = 0x070B12C8;
+    static const gfx::Rgba kLabCardTop = 0x111720E8;
+    static const gfx::Rgba kLabCardBot = 0x0A0E15E8;
+    static const gfx::Rgba kLabCardBorderIn = 0x2A3544FF;
+    static const gfx::Rgba kLabRowEdge = 0x26303EFF;
+    static const gfx::Rgba kLabConfirmInkOnGold = 0x7A0C00FF;
+    static const gfx::Rgba kLabErrorText = 0xFF8C8CFF;
+    static const gfx::Rgba kLabAlertFillTop = 0x341016F0;
+    static const gfx::Rgba kLabAlertFillBot = 0x20080DF0;
+    static const gfx::Rgba kLabBadgeImportTop = 0xD6E0E6FF;
+    static const gfx::Rgba kLabBadgeImportBot = 0x8E9EA8FF;
+    static const gfx::Rgba kLabBadgeOsdTop = 0x3AC8B8FF;
+    static const gfx::Rgba kLabBadgeOsdBot = 0x1C8B7EFF;
 
     // ---- Shared Fibonacci spacing ladder (F3..F11; 480i anti-twitter floor >= 2 px) ----
     static const float kFibHair = 2.0f;    // F3: horizontal divider rules, anti-twitter floor

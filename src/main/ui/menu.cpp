@@ -1630,7 +1630,7 @@ namespace ui {
             bool confirming = def.utilities[u].label != NULL && def.utilities[u].label[0] != '\0';
             bool focused = state.railFocus && state.railCursor == def.categoryCount + u;
             const char* label = confirming ? def.utilities[u].label : def.utilities[u].name;
-            gfx::Rgba col = focused ? (confirming ? 0x7A0C00FF : kLabGoldInk)
+            gfx::Rgba col = focused ? (confirming ? kLabConfirmInkOnGold : kLabGoldInk)
                                     : (confirming ? kLabFocusGold : pal.mutedText);
             fitText(kRailTextX, textYForCap(kRailUtilTop + u * kRailItemPitch + capOff, railScale), label, col,
                     railScale, kRailTextMaxW, false);
@@ -1802,34 +1802,37 @@ namespace ui {
         bool diPicking = diPickerActiveFor(pageId, state);
         if (utilFocused)
         {
+            // Flat right-pane action prompt (no nested bordered card, no repeated title/description).
             int u = state.railCursor - def.categoryCount;
             const MenuAction& act = def.utilities[u];
             bool confirming = act.label != NULL && act.label[0] != '\0';
-            float cardX = kRailPaneLeft + 26.0f;
-            float cardW = (kLabInnerRight - kRailPaneLeft) - 52.0f;
-            float cardY = 152.0f;
-            float cardH = 116.0f;
-            float cardCenter = cardX + cardW * 0.5f;
-            fillBox(cardX, cardY, cardW, cardH, pal.divider);
-            gradBox(cardX + kFibHair, cardY + kFibHair, cardW - 2.0f * kFibHair, kFibBandH, pal.headerTop,
-                    pal.headerBot);
-            gradBox(cardX + kFibHair, cardY + kFibHair + kFibBandH, cardW - 2.0f * kFibHair,
-                    cardH - kFibBandH - 2.0f * kFibHair, pal.descTop, pal.descBot);
-            fillBox(cardX + kFibHair, cardY + kFibHair + kFibBandH, cardW - 2.0f * kFibHair, kFibHair, pal.divider);
+            const CtrlSpec& cs = ctrlSpec(state.controllerType);
+            float paneCenter = (kRailPaneLeft + kLabInnerRight) * 0.5f;
+            float paneMaxW = (kLabInnerRight - kRailPaneLeft) - 2.0f * kFibPad;
+            float midY = (kRailBodyTop + kLabDescTop) * 0.5f;
 
-            fitDisplay(cardCenter, cardY + kFibHair + (kFibBandH - kTypeHeading) * 0.5f, act.name, 0, kTypeHeading,
-                       cardW - 2.0f * kFibPad, 3);
-            const char* uDesc = main::extraOptionDesc(def.pageCount, state.railCursor);
-            if (uDesc != NULL && uDesc[0] != '\0')
-            {
-                float dScale = scaleForCap(kTypeMeta);
-                fitText(cardCenter, textYForCap(cardY + kFibBandH + 18.0f, dScale), uDesc, pal.descText, dScale,
-                        cardW - 2.0f * kFibPad, true);
-            }
-            const char* prompt = confirming ? "Press A again to confirm." : "Press A to run this action.";
-            float pScale = scaleForCap(kTypeMeta);
-            fitText(cardCenter, textYForCap(cardY + kFibBandH + 46.0f, pScale), prompt,
-                    confirming ? kLabFocusGold : pal.mutedText, pScale, cardW - 2.0f * kFibPad, true);
+            fillBox(paneCenter - 48.0f, midY - 26.0f, 96.0f, kFibHair, confirming ? kLabFocusGold : pal.divider);
+
+            char prompt[64];
+            snprintf(prompt, sizeof(prompt),
+                     confirming ? "Press %s again to confirm." : "Press %s to run this action.", cs.txtA);
+            float pScale = scaleForCap(kTypeBody);
+            float badgeH = 18.0f;
+            float bw = gw(badgeH);
+            float gap = gw(kFibGap);
+            float pw = gfx::textWidth(prompt, pScale);
+            float avail = w(paneMaxW) - bw - gap;
+            float drawW = pw > avail ? avail : pw;
+            float startX = cx(paneCenter) - (bw + gap + drawW) * 0.5f;
+            drawGlossyRoundBadge(startX + bw * 0.5f, midY, badgeH * 0.5f, kLabBtnATop, kLabBtnABot);
+            float gScale = scaleForCap(kTypeMeta);
+            float gW = gfx::textWidth(cs.txtA, gScale);
+            gfx::text(startX + (bw - gW) * 0.5f, textYForCap(midY - kTypeMeta * 0.5f, gScale), cs.txtA,
+                      kLabBtnDarkText, gScale);
+            drawFitText(startX + bw + gap, textYForCap(midY - kTypeBody * 0.5f, pScale), prompt,
+                        confirming ? kLabFocusGold : kText, pScale, avail);
+
+            fillBox(paneCenter - 48.0f, midY + 24.0f, 96.0f, kFibHair, confirming ? kLabFocusGold : pal.divider);
         }
         else
         {

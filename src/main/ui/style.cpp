@@ -9,7 +9,7 @@ namespace tm {
 namespace ui {
 namespace style {
     const gfx::Rgba kBtnTheme[4][3] = {
-        {kLabBtnATop, kLabBtnABot, kLabActiveTabText},
+        {kLabBtnATop, kLabBtnABot, kLabBtnDarkText},
         {kLabBtnBTop, kLabBtnBBot, kLabWhiteText},
         {kLabBtnLightTop, kLabBtnLightBot, kLabBtnDarkText},
         {kLabBtnZTop, kLabBtnZBot, kLabWhiteText}

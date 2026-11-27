@@ -1958,8 +1958,9 @@ namespace lab {
                         gfx::forgetWidths();
                         st.lastHint = text;
                     }
-                    float hx = ui::layout::kHintRight - gfx::textWidth(text, 0.5f);
-                    gfx::textBox(kSlotHint, hx, ui::layout::kHintY, text, kYellow, kBox, 0.5f, false);
+                    const float hintScale = ui::style::scaleForCap(ui::style::kTypeMicro);
+                    float hx = ui::layout::kHintRight - gfx::textWidth(text, hintScale);
+                    gfx::textBox(kSlotHint, hx, ui::layout::kHintY, text, kYellow, kBox, hintScale, false);
                 }
                 if (!ro)
                 {
@@ -1986,7 +1987,7 @@ namespace lab {
                 {
                     main::extraPsaInspectorDraw(m, st.open);
                 }
-                if (hud && !ro && !modal && !(st.open && storage::noticeActive()))
+                if (hud && !ro && !modal && !st.open)
                 {
                     TM_PERF_SCOPE(kWatermark);
                     ui::drawWatermark();

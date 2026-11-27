@@ -666,7 +666,7 @@ namespace browser {
 
     static void drawDescription()
     {
-        static const gfx::Rgba kError = 0xFF8C8CFF;
+        static const gfx::Rgba kError = kLabErrorText;
         char line[80];
         if (s_confirm)
         {
@@ -680,7 +680,7 @@ namespace browser {
             gfx::fillRect(bx, by + kFibHair, w(kFibHair), bh - 2.0f * kFibHair, kLabBtnBTop);
             gfx::fillRect(bx + bw - w(kFibHair), by + kFibHair, w(kFibHair), bh - 2.0f * kFibHair, kLabBtnBTop);
             gfx::fillGradV(bx + w(kFibHair), by + kFibHair, bw - w(2.0f * kFibHair), bh - 2.0f * kFibHair,
-                           0x341016F0u, 0x20080DF0u);
+                           kLabAlertFillTop, kLabAlertFillBot);
             float linePitch = kFibPad + 2.0f;
             float line0Top = by + (bh - (linePitch + kTypeMeta)) * 0.5f;
             snprintf(line, sizeof(line), "Delete %s?", s_entries[s_row].file);
@@ -749,7 +749,7 @@ namespace browser {
         static const ModalFrame kFrame = {
             kPanelLeft, kPanelRight, kPanelTop, kBrowserBottom,
             kTitleBandBottom - kFibHair, kRowsBandBottom - kFibHair, kBrowserFootTop,
-            278.0f, 0x070B12B8u
+            278.0f, kLabModalBackdrop
         };
         drawModalFrame(kFrame, "Recordings");
     }

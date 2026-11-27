@@ -99,7 +99,7 @@ namespace ui {
 
         // Smoked-charcoal v1 Direction A upgrade modal (5% CRT safe, >= 2px scanlines).
         static const ModalFrame kFrame = {
-            96.0f, 544.0f, 92.0f, 388.0f, 129.0f, 0.0f, 349.0f, 446.0f, 0x070B12C8u
+            96.0f, 544.0f, 92.0f, 388.0f, 129.0f, 0.0f, 349.0f, 446.0f, kLabModalBackdropHeavy
         };
         const float inL43 = kFrame.left43 + kLabBorder;
         const float inR43 = kFrame.right43 - kLabBorder;

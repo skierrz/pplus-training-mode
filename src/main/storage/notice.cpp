@@ -48,11 +48,28 @@ namespace storage {
             return;
         }
         s_timer--;
-        float lineH = gfx::lineHeight(0.5f);
+        const float scale = ui::style::scaleForCap(ui::style::kTypeMicro);
+        float lineH = gfx::lineHeight(scale);
         if (lineH > 0.0f)
         {
             float y = menuOpen ? ui::layout::menuNoticeY(ui::style::kLabBottom, lineH) : ui::layout::kNoticeY;
-            gfx::textBox(kSlot, 320.0f, y, s_text, s_color, kBox, 0.5f, true);
+            float cx = 320.0f;
+            if (menuOpen)
+            {
+                float halfBox = gfx::textWidth(s_text, scale) * 0.5f + 6.0f * gfx::xScale();
+                // Keep long menu-strip notices clear of the bottom-right watermark slot on 4:3.
+                const float kMaxRight = 476.0f;
+                if (cx + halfBox > kMaxRight)
+                {
+                    cx = kMaxRight - halfBox;
+                    float minCx = ui::layout::kSafeMarginX + halfBox;
+                    if (cx < minCx)
+                    {
+                        cx = minCx;
+                    }
+                }
+            }
+            gfx::textBox(kSlot, cx, y, s_text, s_color, kBox, scale, true);
         }
     }
 }
