@@ -252,23 +252,27 @@ namespace ui {
     {
         u8* manager = trainingManager();
         u8* anyCentre = trainingCentre();
-        if (anyCentre != NULL && anyCentre != s_centre)
-        {
-            s_centre = anyCentre;
-            s_firstFlags = game::byteAt(anyCentre, kFlags);
-            s_loggedReadySuppress = false;
-            s_hiddenMask = 0;
-            TM_LOG("match hud: centre %08x, flags %02x%s\n", anyCentre, s_firstFlags,
-                   (s_firstFlags & kTimerOn) ? ": the game's own timer is on, left alone" : "");
-        }
 #ifdef __MWERKS__
         if (anyCentre != NULL && shouldSuppressReadyGo())
         {
             suppressReadyGo(anyCentre);
         }
-        if (m.running && anyCentre != NULL)
+#endif
+        u8* centre = m.running ? anyCentre : NULL;
+        // Latch the game's timer flags once the match actually runs (after countdown/setup),
+        // matching pre-ReadyGo-suppression behaviour so game-owned timers are never misread.
+        if (centre != NULL && centre != s_centre)
         {
-            applyTimer(anyCentre);
+            s_centre = centre;
+            s_firstFlags = game::byteAt(centre, kFlags);
+            s_hiddenMask = 0;
+            TM_LOG("match hud: centre %08x, flags %02x%s\n", centre, s_firstFlags,
+                   (s_firstFlags & kTimerOn) ? ": the game's own timer is on, left alone" : "");
+        }
+#ifdef __MWERKS__
+        if (centre != NULL)
+        {
+            applyTimer(centre);
         }
 #else
         (void)m;

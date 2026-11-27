@@ -1325,7 +1325,7 @@ def sc_wave3_viz(r):
             "wave3-viz: Hitbox Colors Priority assigns distinct colors per priority ID",
             f"parts={hc_parts_r}, colors={[hex(c) for c in hc_cols_r]}, diff={prio_diff} px")
 
-    # 3. Live DI Vector Picker: pure-GX 2D unit-circle DI compass + predicted trajectory during hitlag.
+    # 3. Live DI Display + retired corner compass + in-menu DI Vector Picker octagon.
     r.set(S_HITBOXES, 0)
     r.set(S_HITBOX_COLORS, 0)
     di_off = r.snap("display-wave3-di-off")
@@ -1337,8 +1337,7 @@ def sc_wave3_viz(r):
     e.advance(4)
     di_surv = r.snap("display-wave3-di-picker")
     dp_raw = e.read(dp_addr, 32)
-    dp_magic, dp_drawn, _, dp_mode, dp_lx, dp_ly, dp_dx, dp_dy = struct.unpack_from(">IIIIffff", dp_raw, 0)
-    dot = abs(dp_lx * dp_dx + dp_ly * dp_dy)
+    dp_magic, dp_drawn = struct.unpack_from(">II", dp_raw, 0)
     compass_box = (518, 20, 612, 112)
     compass_px, _ = changed(di_off, di_surv, rect=compass_box)
     arc_px, _ = changed(di_none, di_surv, rect=(160, 40, 500, 360))
@@ -1346,11 +1345,29 @@ def sc_wave3_viz(r):
     r.set(S_DI, 0)
     r.set(S_DI_VECTOR, 0)
     r.unhold()
-    r.check(dp_magic == 0x544D4450 and dp_drawn == 1 and dp_mode == 8 and dot < 0.05 and compass_px > 250
-            and arc_px > 40,
-            "wave3-viz: DI Vector Picker compass and Survival trajectory active",
-            f"drawn={dp_drawn}, mode={dp_mode}, launch=({dp_lx:.2f},{dp_ly:.2f}), di=({dp_dx:.2f},{dp_dy:.2f}), "
-            f"dot={dot:.3f}, compass_px={compass_px}, arc_px={arc_px}")
+
+    r.load(running=True)
+    r.pause()
+    r.lab.open_menu()
+    r.lab.menu_nav_to("CPU > DI & SDI > Trajectory DI")
+    for _ in range(9):
+        r.lab.tap(stick=LT.RIGHT)
+    r.lab.menu_nav_to("CPU > DI & SDI > Pick DI Angle")
+    di_menu_idle = r.snap("display-wave3-di-menu-idle")
+    r.lab.tap(["A"])
+    e.hold(0, stick=(215, 200))
+    e.advance(6)
+    di_menu_pick = r.snap("display-wave3-di-picker-menu")
+    e.neutral(0)
+    r.lab.tap(["B"])
+    r.lab.back_to_main(r.lab.read_menu_state()["depth"])
+    r.lab.close_menu()
+    r.resume()
+    picker_px, _ = changed(di_menu_idle, di_menu_pick, rect=(160, 210, 480, 355))
+
+    r.check(dp_magic == 0x544D4450 and dp_drawn == 0 and compass_px < 10 and arc_px > 40 and picker_px > 100,
+            "wave3-viz: DI Survival trajectory active, corner compass retired, and menu DI picker aims live",
+            f"drawn={dp_drawn}, compass_px={compass_px}, arc_px={arc_px}, picker_px={picker_px}")
 
 
 SCENARIOS = ["layers", "effects", "hitboxes", "overlay-collision", "overlay-sound", "collision", "models",

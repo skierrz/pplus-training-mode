@@ -104,8 +104,14 @@ SIDES_X, SIDES_Y = (96.0, 245.0, 395.0, 544.0), 360.0
 TOP_Y = (94.0, 150.0, 206.0, 262.0)
 
 
+_SCREEN_SQUEEZE = None
+
+
 def squeeze_of(shot):
-    """The 2D pass's x scale: boxes are narrowed on 16:9."""
+    """The 2D pass's x scale: prefer live `lab: screen` aspect over PNG pixel width
+    (Dolphin --render captures 828x480 in both 4:3 and 16:9)."""
+    if _SCREEN_SQUEEZE is not None:
+        return _SCREEN_SQUEEZE
     _, w, h = shot
     return 0.75 if w * 3 > h * 4 + 8 else 1.0
 
@@ -318,7 +324,7 @@ class Runner:
         path, w, h = shot
         im = Image.open(path).convert("RGB")
         sx, sy = w / 640.0, h / 480.0
-        half = 124.0 * squeeze_of(shot) / 2
+        half = 124.0 * osd_width_scale(squeeze_of(shot)) / 2
         n = 0
         for y in range(int((cy - 23) * sy), int((cy + 23) * sy)):
             for x in range(int((cx - half + 4) * sx), int((cx + half - 4) * sx)):
@@ -2457,6 +2463,9 @@ def cmd_test_osds(rest):
                 else:
                     nav.enter_training_match(emu, "mario", "fox")
                 emu.advance(60)
+                global _SCREEN_SQUEEZE
+                m_scr = re.findall(r"lab: screen (16:9|4:3)", emu.synced_log_text())
+                _SCREEN_SQUEEZE = (0.75 if m_scr[-1] == "16:9" else 1.0) if m_scr else None
                 r.lab.find_settings()
                 r.ft = {"m": r.f.by_player(0), "c": r.f.by_player(1)}
                 r.inp = PI.PluginInput(emu)
