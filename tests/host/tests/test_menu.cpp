@@ -2374,3 +2374,118 @@ TEST(lab_menu, reset_page_on_advanced_counter_and_cpu_counters_resets_all_modes)
     main::setExtraHooks(NULL);
     storage::detach();
 }
+
+TEST(menu, a_cycles_and_wraps_choices_skipping_unavailable_and_dropped_while_lr_clamps)
+{
+    open();
+    down(2);
+    CHECK_EQ(kRowChoice, cursor());
+    CHECK_EQ(0, value(kRowChoice));
+
+    // A steps forward past unavailable choices (Medium, Fast) and wraps back to 0.
+    host::log::clear();
+    press(0, 0, 0, 0, true, false);
+    CHECK_EQ(3, value(kRowChoice)); // Slow -> Full
+    CHECK_EQ(1, s_changes);
+    CHECK_EQ(1, sounds(game::kSoundMove));
+
+    press(0, 0, 0, 0, true, false);
+    CHECK_EQ(0, value(kRowChoice)); // Full -> Slow (wraps)
+    CHECK_EQ(2, s_changes);
+    CHECK_EQ(2, sounds(game::kSoundMove));
+
+    // Left/Right still clamp without wrapping.
+    left();
+    CHECK_EQ(0, value(kRowChoice));
+    right();
+    CHECK_EQ(3, value(kRowChoice));
+    right();
+    CHECK_EQ(3, value(kRowChoice));
+    CHECK_EQ(3, s_changes);
+
+    // Choice where every other value is unavailable: A is a silent no-op.
+    down();
+    CHECK_EQ(kRowEnds, cursor());
+    host::log::clear();
+    int beforeChanges = s_changes;
+    press(0, 0, 0, 0, true, false);
+    CHECK_EQ(1, value(kRowEnds));
+    CHECK_EQ(beforeChanges, s_changes);
+    CHECK_EQ(0, sounds(game::kSoundMove));
+
+    // Dropped choices: A skips retired entries and wraps back to 0 while Right clamps.
+    ui::MenuState dState;
+    ui::g_menuQuiet = false;
+    s_dropValues[0] = 0;
+    ui::menuReset(kDrop, dState);
+    ui::MenuInput inA = {0, 0, 0, 0, true, false};
+    ui::MenuInput inRight = {0, 0, 0, 1, false, false};
+    host::log::clear();
+    ui::menuStep(kDrop, dState, inA);
+    CHECK_EQ(2, static_cast<int>(s_dropValues[0])); // A -> C, skipping dropped B
+    ui::menuStep(kDrop, dState, inA);
+    CHECK_EQ(0, static_cast<int>(s_dropValues[0])); // C -> A, skipping dropped D and wrapping
+    CHECK_EQ(2, sounds(game::kSoundMove));
+    ui::menuStep(kDrop, dState, inRight);
+    CHECK_EQ(2, static_cast<int>(s_dropValues[0]));
+    ui::menuStep(kDrop, dState, inRight);
+    CHECK_EQ(2, static_cast<int>(s_dropValues[0])); // Right clamps at C
+}
+
+TEST(lab_menu, footer_honesty_for_rail_close_choice_cycle_and_noop_rows)
+{
+    bootLab();
+    main::setExtraHooks(&kNoHooks);
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+    main::settings().controls.menuStyle = main::kMenuStyleRail;
+    st.openStart = true;
+
+    // 1. Left-rail B shows "Close" even in Start-open mode (matching lab.cpp close rule).
+    st.railFocus = true;
+    st.railCursor = 0;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(menuCanvasDrew("B"));
+    CHECK(menuCanvasDrew("Close"));
+
+    // 2. kKindChoice (Game Speed on Lab) advertises [A] Cycle.
+    st.railFocus = false;
+    st.stack[0] = ui::pages::P_GENERAL;
+    st.cursor[ui::pages::P_GENERAL] = 5; // Game Speed (kKindChoice)
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(menuCanvasDrew("A"));
+    CHECK(menuCanvasDrew("Cycle"));
+    CHECK(!menuCanvasDrew("Select"));
+
+    // 3. Non-damage kKindInt (P1 Load Random %) hides [A].
+    st.cursor[ui::pages::P_GENERAL] = 3; // P1 Load Random % (kKindInt, non-damage)
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(!menuCanvasDrew("A"));
+    CHECK(!menuCanvasDrew("Select"));
+    CHECK(!menuCanvasDrew("Cycle"));
+
+    // 4. Damage kKindInt (P1 Damage) advertises [A] Reset 0%.
+    st.cursor[ui::pages::P_GENERAL] = 1; // P1 Damage
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(menuCanvasDrew("A"));
+    CHECK(menuCanvasDrew("Reset 0%"));
+
+    // 5. kKindInfo (Reversal Slots > Slot 1 (Primary)) hides [A].
+    main::settings().cpu.options.control = cpu::kControlLab;
+    main::settings().cpu.options.multiReversal = 1;
+    const u8 revPath[] = {ui::pages::P_CPU, ui::pages::P_CPU_COUNTERS, ui::pages::P_REVERSALS};
+    REQUIRE(ui::menuJump(menu, st, revPath, 3));
+    st.cursor[ui::pages::P_REVERSALS] = 2; // Slot 1 (Primary) (kKindInfo)
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(!menuCanvasDrew("A"));
+    CHECK(!menuCanvasDrew("Select"));
+
+    main::setExtraHooks(NULL);
+    storage::detach();
+}

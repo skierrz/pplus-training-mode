@@ -638,26 +638,57 @@ namespace ui {
                    || (pageId == pages::P_CPU && o.offset == offsetof(main::Settings, cpu.percent)));
     }
 
-    // True if the value changed.
-    static bool change(const MenuDef& def, const Option& o, int delta)
+    static bool unavailableLabel(const char* s)
+    {
+        if (s == NULL)
+        {
+            return false;
+        }
+#ifdef __MWERKS__
+        if (s[0] == TM_DJC_LABEL[0]) return (g_counterAvailMask & 1) == 0;
+        if (s[0] == TM_FLOAT_LABEL[0]) return (g_counterAvailMask & 2) == 0;
+#endif
+        return s[0] == TM_UNAVAILABLE_LABEL[0];
+    }
+
+    // True if the value changed. When `wrap` is true on kKindChoice, cycles
+    // forward wrapping back to 0 while skipping dropped/unavailable choices.
+    static bool change(const MenuDef& def, const Option& o, int delta, bool wrap = false)
     {
         int v = optionValue(def, o);
         int next = o.kind == kKindToggle ? !v : clampTo(o, v + delta);
         if (o.kind == kKindChoice && delta != 0)
         {
-            // Step over retired or unavailable choices.
-            int step = delta > 0 ? 1 : -1;
-            const char* lbl;
-            while (next != v && (lbl = choiceLabel(o, next)) != NULL
-                   && (droppedLabel(lbl) || lbl[0] == TM_UNAVAILABLE_LABEL[0]
-#ifdef __MWERKS__
-                       || (lbl[0] == TM_DJC_LABEL[0] && (g_counterAvailMask & 1) == 0)
-                       || (lbl[0] == TM_FLOAT_LABEL[0] && (g_counterAvailMask & 2) == 0)
-#endif
-                       ))
+            if (wrap)
             {
-                int further = clampTo(o, next + step);
-                next = further == next ? v : further;
+                int count = o.max + 1;
+                next = v;
+                if (count > 1)
+                {
+                    int base = (v >= 0 && v < count) ? v : 0;
+                    for (int s = 1; s < count; s++)
+                    {
+                        int cand = (base + s) % count;
+                        const char* lbl = choiceLabel(o, cand);
+                        if (!droppedLabel(lbl) && !unavailableLabel(lbl))
+                        {
+                            next = cand;
+                            break;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Step over retired or unavailable choices.
+                int step = delta > 0 ? 1 : -1;
+                const char* lbl;
+                while (next != v && (lbl = choiceLabel(o, next)) != NULL
+                       && (droppedLabel(lbl) || unavailableLabel(lbl)))
+                {
+                    int further = clampTo(o, next + step);
+                    next = further == next ? v : further;
+                }
             }
         }
         if (next != v)
@@ -846,7 +877,7 @@ namespace ui {
                     o.onChange();
                     sound = game::kSoundConfirm;
                 }
-                else if (o.kind == kKindToggle && change(def, o, 1))
+                else if ((o.kind == kKindToggle || o.kind == kKindChoice) && change(def, o, 1, o.kind == kKindChoice))
                 {
                     sound = game::kSoundMove;
                 }
@@ -998,19 +1029,6 @@ namespace ui {
     }
 
     // ---- drawing ----------------------------------------------------------
-
-    static bool unavailableLabel(const char* s)
-    {
-        if (s == NULL)
-        {
-            return false;
-        }
-#ifdef __MWERKS__
-        if (s[0] == TM_DJC_LABEL[0]) return (g_counterAvailMask & 1) == 0;
-        if (s[0] == TM_FLOAT_LABEL[0]) return (g_counterAvailMask & 2) == 0;
-#endif
-        return s[0] == TM_UNAVAILABLE_LABEL[0];
-    }
 
     static const char* labelText(const char* s)
     {
@@ -1443,22 +1461,34 @@ namespace ui {
         {
             bool showA = state.railFocus || (p.count > 0 && cur < p.count && active(p.options[cur]));
             const char* aLabel = "Select";
-            if (!state.railFocus && p.count > 0 && cur < p.count)
+            if (showA && !state.railFocus)
             {
-                u8 k = p.options[cur].kind;
-                if (isDamageOption(pageId, p.options[cur]))
+                const Option& o = p.options[cur];
+                if (isDamageOption(pageId, o))
                 {
                     aLabel = "Reset 0%";
                 }
-                else
+                else if (o.kind == kKindToggle)
                 {
-                    aLabel = k == kKindToggle ? "Toggle" : (k == kKindMenu ? "Open" : "Select");
+                    aLabel = "Toggle";
+                }
+                else if (o.kind == kKindChoice)
+                {
+                    aLabel = "Cycle";
+                }
+                else if (o.kind == kKindMenu)
+                {
+                    aLabel = "Open";
+                }
+                else if (o.kind == kKindInfo || o.kind == kKindInt)
+                {
+                    showA = false;
                 }
             }
             const char* bLabel =
                 state.depth > 0
                     ? "Back"
-                    : (railMode ? (state.railFocus ? (!state.openStart ? "Close" : NULL) : "Categories")
+                    : (railMode ? (state.railFocus ? "Close" : "Categories")
                                 : (!state.openStart ? "Close" : NULL));
 
             if (showA)
