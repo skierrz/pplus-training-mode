@@ -370,7 +370,7 @@ namespace extra {
             float rowPitch = 12.0f;
             float rowsTop = 34.0f;
             float rowsBot = rowsTop + i2fScale(fitRows, rowPitch);
-            float bh = rowsBot + (hasFocus ? 20.0f : 9.0f);
+            float bh = rowsBot + (hasFocus ? 24.0f : 9.0f);
             if (bh > maxBh)
             {
                 bh = maxBh;
@@ -429,7 +429,7 @@ namespace extra {
             float frameMaxW = colWait - colFrame - 3.0f * xs;
             float waitMaxW = colOp - colWait - 3.0f * xs;
 
-            int maxRows = static_cast<int>((bh - rowsTop - (hasFocus ? 16.0f : 4.0f)) / rowPitch);
+            int maxRows = static_cast<int>((bh - rowsTop - (hasFocus ? 24.0f : 6.0f)) / rowPitch);
             if (maxRows < 1)
             {
                 maxRows = 1;
@@ -476,15 +476,15 @@ namespace extra {
 
             if (hasFocus)
             {
-                float divY = y + rowsTop + i2fScale(drawRows, rowPitch) + 1.0f;
-                if (divY + 13.0f <= y + bh)
+                float divY = y + rowsTop + i2fScale(drawRows, rowPitch) + 2.0f;
+                if (divY + 18.0f <= y + bh)
                 {
                     drawPlateDivider(x, divY, bw, xs);
                     char focusLine[56];
                     snprintf(focusLine, sizeof(focusLine), "%s:%s", psaThreadName(dbg->focusThread),
                              dbg->focusText);
                     clipTextToWidth(focusLine, rowScale, innerW);
-                    drawShadowText(colName, ui::style::textYForCap(divY + 3.0f, rowScale), focusLine, 0x8EF5EAFFu,
+                    drawShadowText(colName, ui::style::textYForCap(divY + 5.0f, rowScale), focusLine, 0x8EF5EAFFu,
                                    rowScale);
                 }
             }

@@ -110,12 +110,16 @@ namespace extra {
 
     inline u8 actionLogClassify(int status, bool airborne);
 
-    // True only when this fighter is a DEFENDER in hitstun, shieldstun, or victim
-    // hitlag (never attacker hitlag from landing an attack on a 3rd/4th player).
+    // True only when this fighter is a DEFENDER in hitstun, shieldstun, grab
+    // capture, or victim hitlag (never actionable DamageFall 0x49, grounded
+    // Down* 0x4A..0x55 with hitstun == 0, or attacker hitlag on a 3rd/4th player).
     inline bool sf6IsDefenderStun(int status, s16 hitstun, s16 shieldStun, u8 hitReceived, u8 shieldReceived)
     {
-        return hitstun > 0 || shieldStun > 0 || hitReceived != 0 || shieldReceived != 0
-               || status == game::kStatusGuardDamage || actionLogClassify(status, false) == kStateHitstun;
+        bool stunStatus = status == game::kStatusGuardDamage
+                          || (status >= 0x3D && status <= 0x48)
+                          || (status >= 0x56 && status <= 0x5F)
+                          || (status >= 0x6E && status <= 0x70);
+        return hitstun > 0 || shieldStun > 0 || hitReceived != 0 || shieldReceived != 0 || stunStatus;
     }
 
     inline u8 sf6ClassifyCell(int status, bool actionable, bool activeHitbox, bool inStun, bool sawActive)
@@ -131,10 +135,6 @@ namespace extra {
         if (!actionable)
         {
             u8 cls = actionLogClassify(status, false);
-            if (cls == kStateHitstun)
-            {
-                return kSf6Stun;
-            }
             if ((cls == kStateAttack && !sawActive) || status == game::kStatusJumpSquat
                 || status == game::kStatusGuardOn)
             {

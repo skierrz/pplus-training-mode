@@ -234,7 +234,7 @@ TEST(tech_practice, powershield_cpu_driver_shl_charge_hold_and_physical)
     CHECK(released);
     CHECK_EQ(static_cast<u8>(kPsCpuIdle), st.phase);
 
-    // Physical mode: walks in if far, jabs once in range, no intangibility.
+    // Physical mode: runs in if far, walks closer past 10.5u, jabs once <= 8u, no intangibility.
     psCpuStateReset(st);
     st.cooldown = 0u;
     cfg.psAttackMode = kPsAtkPhysical;
@@ -244,10 +244,23 @@ TEST(tech_practice, powershield_cpu_driver_shl_charge_hold_and_physical)
     stepPsPracticeCpu(in, cfg, st, out);
     CHECK(out.active);
     CHECK(!out.wantIntangible);
-    CHECK(out.stickX < 0.0f);
+    CHECK(out.stickX <= -0.95f);
     CHECK_EQ(0u, out.buttons);
 
-    in.cpuX = -2.0f; // within jab range (absDx = 8 <= 11)
+    in.cpuX = 0.5f; // absDx = 10.5 > 8 -> still walks in instead of whiffing out of reach
+    stepPsPracticeCpu(in, cfg, st, out);
+    CHECK(out.stickX < -0.5f);
+    CHECK_EQ(0u, out.buttons);
+
+    in.cpuX = -2.0f; // within jab range (absDx = 8 <= 8)
+    stepPsPracticeCpu(in, cfg, st, out);
+    CHECK_EQ(static_cast<u32>(kPrBtnAttack), out.buttons);
+
+    // Wide heavy fighter (Bowser 0x0B): jabs cleanly at 12.0u without pushing P1 offstage.
+    psCpuStateReset(st);
+    st.cooldown = 0u;
+    in.cpuFtKind = 0x0B;
+    in.cpuX = 2.0f; // absDx = 12.0 <= 13.0
     stepPsPracticeCpu(in, cfg, st, out);
     CHECK_EQ(static_cast<u32>(kPrBtnAttack), out.buttons);
 }

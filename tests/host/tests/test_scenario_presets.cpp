@@ -1289,7 +1289,7 @@ TEST(scenario_presets, edgeguard_side_control_ledgetech_options_shield_drop_and_
     CHECK_EQ(static_cast<u8>(kMultiHitDownAir), bestMultiHitMoveForFighter(0x06)); // Fox -> Dair
     CHECK_EQ(static_cast<u8>(kMultiHitNair), bestMultiHitMoveForFighter(0x1A));  // Lucas -> Nair
     CHECK_EQ(static_cast<u8>(kMultiHitFair), bestMultiHitMoveForFighter(0x07));  // Pikachu -> Fair
-    CHECK_EQ(static_cast<u8>(kMultiHitUpAir), bestMultiHitMoveForFighter(0x03)); // Samus -> Uair
+    CHECK_EQ(static_cast<u8>(kMultiHitUpB), bestMultiHitMoveForFighter(0x03));  // Samus -> Up B (Screw Attack)
     CHECK_EQ(static_cast<u8>(kMultiHitDownAir), bestMultiHitMoveForFighter(0x0C)); // Peach -> Dair
     CHECK_EQ(static_cast<u8>(kMultiHitNair), bestMultiHitMoveForFighter(0x26));  // Mewtwo -> Nair
     CHECK_EQ(static_cast<u8>(kMultiHitDownB), bestMultiHitMoveForFighter(0x08)); // Luigi -> Down B
@@ -1558,6 +1558,43 @@ TEST(scenario_presets, techchase_platforms_tumble_drop_timing_streak_and_inline_
     CHECK_EQ(3, static_cast<int>(st.techDeltaFrames));
     CHECK_EQ(0, static_cast<int>(st.techStreak));
     CHECK_EQ(2, static_cast<int>(st.techBest)); // best preserved!
+
+    // Missed-tech Down_Wait (25f) -> Down_Roll with 7 live intangible frames left:
+    // P1 swings while cpuIntangible is true -> exact delta is 7f Early (NOT clamped 21-26 = 1!).
+    requestScenarioManualReset(st);
+    in.cpuAir = false;
+    in.cpuHitstun = 0;
+    in.cpuStatus = 0x00;
+    in.hmnStatus = 0x00;
+    in.cpuIntangible = false;
+    stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis); // warp
+    in.cpuStatus = 0x4D; // Down_Wait for 25 frames
+    for (int f = 0; f < 25; f++)
+    {
+        stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis);
+    }
+    in.cpuStatus = 0x51; // Down_Roll (intangible for 7 frames, then 3 vulnerable)
+    in.cpuIntangible = true;
+    in.hmnStatus = 0x24; // P1 swings on frame 1 of Down_Roll!
+    stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis);
+    for (int f = 1; f < 7; f++)
+    {
+        stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis);
+    }
+    in.cpuIntangible = false;
+    for (int f = 0; f < 3; f++)
+    {
+        stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis);
+    }
+    in.cpuStatus = 0x00; // Wait -> grace expires -> records kTechResEarly = 7f!
+    in.hmnStatus = 0x00;
+    for (int f = 0; f < 50 && !act.warpCpu; f++)
+    {
+        stepScenario(st, tc, in, cpuOpts, comboCfg, act, NULL, NULL, NULL, &invis);
+    }
+    CHECK(act.warpCpu);
+    CHECK_EQ(static_cast<int>(kTechResEarly), static_cast<int>(st.techResult));
+    CHECK_EQ(7, static_cast<int>(st.techDeltaFrames));
 
     // Restore snapshot restores TechInvisSettings byte-for-byte.
     restoreScenarioSnapshot(st, cpuOpts, comboCfg, NULL, NULL, NULL, &invis);
@@ -2035,6 +2072,40 @@ TEST(scenario_presets, slideoff_start_modes_attack_tuning_and_layout_flags)
         }
         CHECK(!swungTooLow);
         CHECK(swungInRange);
+    }
+
+    // 4b. Low-platform Slide-Off (e.g. Yoshi's Story dh = 13.1 < 20): CPU latches short-hop
+    //     phase (4), releases Jump during jumpsquat, and fires aerial cleanly without overshooting.
+    {
+        ScenarioCpuState cs;
+        ScenarioCpuInput ci;
+        ScenarioCpuOutput co;
+        scenarioCpuStateReset(cs);
+        memset(&ci, 0, sizeof(ci));
+        ci.preset = kScenarioSlideOff;
+        ci.slideOffAttack = kSlideAtkUnderUair;
+        ci.hasPlatform = true;
+        ci.cpuCanAct = true;
+        ci.cpuLr = -1.0f;
+        ci.cpuX = 34.4f;
+        ci.cpuY = 5.4f;
+        ci.hmnX = 32.1f;
+        ci.hmnY = 18.5f;
+        stepScenarioCpu(ci, cs, co);
+        CHECK_EQ(static_cast<u32>(cpu::button::kJump), co.buttons);
+        CHECK_EQ(4, static_cast<int>(cs.phase));
+
+        // Jumpsquat frame: Jump button MUST be released for a short hop!
+        ci.cpuCanAct = false;
+        ci.cpuAir = false;
+        stepScenarioCpu(ci, cs, co);
+        CHECK_EQ(0u, co.buttons);
+
+        // Airborne rise: fires Up Air smoothly under platform height.
+        ci.cpuAir = true;
+        ci.cpuY = 8.5f;
+        stepScenarioCpu(ci, cs, co);
+        CHECK((co.buttons & cpu::button::kCStick) != 0 && co.stickY > 0.9f);
     }
 
     // 5. On-Plat Ftilt approaches when absDx > 9.5f and emits down-angled stick when in range.

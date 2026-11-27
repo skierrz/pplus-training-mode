@@ -672,7 +672,7 @@ namespace extra {
             {
                 outcome = kLedgeOutcomeOtherGetup;
             }
-            else if (st.noInvulnLimit || !st.hangXlu)
+            else if (st.noInvulnLimit)
             {
                 outcome = kLedgeOutcomeNoInvulnLimit;
                 st.failFlags |= kLedgeFailNoInvulnLimit;

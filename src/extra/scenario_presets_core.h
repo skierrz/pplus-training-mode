@@ -469,6 +469,7 @@ namespace extra {
         u16 techFrames;
         u16 techActFrames;
         u8 techEarlyFrames;
+        bool techEarlyCounting;
         bool techWasPassive;
         bool techCoveredThisRep;
         bool techLateRecorded;

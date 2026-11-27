@@ -1163,6 +1163,109 @@ TEST(stage4a_core, edge_cases_special_xlu_strip_alc_manual_priority_and_platform
     }
     CHECK_EQ(static_cast<int>(kWdKindWaveland), static_cast<int>(ws.last.kind));
     CHECK_EQ(static_cast<int>(kWdMissZairTether), static_cast<int>(ws.last.outcome));
+
+    // 4. Ledgedash grab #1 with xluFrames == 0 (!hangXlu, grabCount <= 5) must NOT
+    //    misclassify as kLedgeOutcomeNoInvulnLimit (no fabricated "GRAB 6/5").
+    ledgeCoreResetAll(ls);
+    {
+        LedgeFrameInput in = makeLedgeIn(1, kLedgeStCliffWait, kLedgeStCliffCatch);
+        in.xluFrames = 0;
+        in.ledgeGrabCount = 1;
+        addLedgeEv(in, kLedgeStCliffCatch, kLedgeStCliffWait);
+        ledgeCoreStep(ls, in);
+        CHECK_EQ(0, static_cast<int>(ls.noInvulnLimit));
+    }
+    {
+        LedgeFrameInput in = makeLedgeIn(3, kLedgeStFall, kLedgeStCliffWait);
+        in.airborne = 1;
+        addLedgeEv(in, kLedgeStCliffWait, kLedgeStFall, -1, 1);
+        ledgeCoreStep(ls, in);
+    }
+    {
+        LedgeFrameInput in = makeLedgeIn(4, kLedgeStJumpAerial, kLedgeStFall);
+        in.airborne = 1;
+        addLedgeEv(in, kLedgeStFall, kLedgeStJumpAerial, -1, 1);
+        ledgeCoreStep(ls, in);
+    }
+    {
+        LedgeFrameInput in = makeLedgeIn(5, kLedgeStLandingFallSpecial, kLedgeStJumpAerial);
+        addLedgeEv(in, kLedgeStJumpAerial, kLedgeStEscapeAir, -1, 1);
+        addLedgeEv(in, kLedgeStEscapeAir, kLedgeStLandingFallSpecial, -1, 0);
+        ledgeCoreStep(ls, in);
+    }
+    {
+        LedgeFrameInput in = makeLedgeIn(15, 0x00, kLedgeStLandingFallSpecial);
+        in.actionable = 1;
+        addLedgeEv(in, kLedgeStLandingFallSpecial, 0x00, -1, 0);
+        CHECK(ledgeCoreStep(ls, in));
+    }
+    CHECK_EQ(static_cast<int>(kLedgeOutcomeLedgedash), static_cast<int>(ls.last.outcome));
+    CHECK_EQ(1, static_cast<int>(ls.last.noXlu));
+    CHECK_EQ(0, static_cast<int>(ls.last.galint));
+    CHECK_EQ(0u, static_cast<unsigned>(ls.stats.noInvulnGrabs));
+
+    // 5. Wavedash: empty hop from main floor (y=0) up onto a platform (y=27.2) without
+    //    pressing L/R must abort quietly instead of recording kWdMissNoAirdodge;
+    //    premature guard press during JumpSquat on same floor sets earlyGuardInSquat=1.
+    wdCoreResetAll(ws);
+    {
+        WdFrameInput in = makeWdIn(1, kWdStJumpSquat, 0x00, -38.0f, 0.0f);
+        addWdEv(in, 0x00, kWdStJumpSquat);
+        wdCoreStep(ws, in);
+    }
+    {
+        WdFrameInput in = makeWdIn(4, kWdStJump, kWdStJumpSquat, -38.0f, 2.0f);
+        in.airborne = 1;
+        addWdEv(in, kWdStJumpSquat, kWdStJump, 0, 1);
+        wdCoreStep(ws, in);
+    }
+    {
+        WdFrameInput in = makeWdIn(18, kWdStLanding, kWdStJump, -38.0f, 27.2f);
+        in.onPlatform = 1;
+        addWdEv(in, kWdStJump, kWdStLanding, 0, 0);
+        CHECK(!wdCoreStep(ws, in));
+    }
+    for (s32 f = 19; f <= 26; f++)
+    {
+        WdFrameInput in = makeWdIn(f, 0x00, 0x00, -38.0f, 27.2f);
+        CHECK(!wdCoreStep(ws, in));
+    }
+    CHECK_EQ(0u, ws.seq);
+    CHECK_EQ(0u, static_cast<unsigned>(ws.stats.wdAttempts));
+
+    // Premature guard edge during JumpSquat on same floor -> earlyGuardInSquat == 1.
+    {
+        WdFrameInput in = makeWdIn(40, kWdStJumpSquat, 0x00, 0.0f, 0.0f);
+        addWdEv(in, 0x00, kWdStJumpSquat);
+        wdCoreStep(ws, in);
+    }
+    {
+        WdFrameInput in = makeWdIn(41, kWdStJumpSquat, kWdStJumpSquat, 0.0f, 0.0f);
+        in.guardEdge = 1;
+        wdCoreStep(ws, in);
+    }
+    {
+        WdFrameInput in = makeWdIn(43, kWdStJump, kWdStJumpSquat, 0.0f, 2.0f);
+        in.airborne = 1;
+        addWdEv(in, kWdStJumpSquat, kWdStJump, kWdCoreShortHopFlag, 1);
+        wdCoreStep(ws, in);
+    }
+    {
+        WdFrameInput in = makeWdIn(55, kWdStLanding, kWdStJump, 0.0f, 0.0f);
+        addWdEv(in, kWdStJump, kWdStLanding, 0, 0);
+        wdCoreStep(ws, in);
+    }
+    for (s32 f = 56; f <= 60; f++)
+    {
+        WdFrameInput in = makeWdIn(f, 0x00, kWdStLanding, 0.0f, 0.0f);
+        CHECK(!wdCoreStep(ws, in));
+    }
+    {
+        WdFrameInput in = makeWdIn(61, 0x00, 0x00, 0.0f, 0.0f);
+        CHECK(wdCoreStep(ws, in));
+    }
+    CHECK_EQ(static_cast<int>(kWdMissNoAirdodge), static_cast<int>(ws.last.outcome));
+    CHECK_EQ(1, static_cast<int>(ws.last.earlyGuardInSquat));
 }
 
 TEST(stage4a_core, lcancel_landing_frame_late_press_with_alc_off_and_on)

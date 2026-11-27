@@ -133,6 +133,7 @@ namespace extra {
         float expectedSpeed;     // P+ AirDodge.asm initial speed
         float slideDistance;     // |xAtActionable - xAtLand|
         float signedSlideDx;     // xAtActionable - xAtLand
+        u8 earlyGuardInSquat;    // 1 if guard was pressed too early during Jump_Squat
     };
 
     struct WdStats {
@@ -156,6 +157,7 @@ namespace extra {
         u8 fromJumpSquat;
         u8 shortHop;
         u8 onPlatform;
+        u8 earlyGuardInSquat;
         s32 jumpSquatFrame;
         s32 airFrame;
         s32 airdodgeFrame;
@@ -278,6 +280,7 @@ namespace extra {
         r.expectedSpeed = st.expectedSpeed;
         r.signedSlideDx = slideDx;
         r.slideDistance = slideDx < 0.0f ? -slideDx : slideDx;
+        r.earlyGuardInSquat = st.earlyGuardInSquat;
 
         if (kind == kWdKindWavedash || kind == kWdKindWaveland)
         {
@@ -516,6 +519,17 @@ namespace extra {
                 }
                 if (s == kWdStLanding || s == kWdStLandingLight)
                 {
+                    float dy = in.y - st.jumpTakeoffY;
+                    if (dy < 0.0f)
+                    {
+                        dy = -dy;
+                    }
+                    if (dy >= kWdPlatformDeltaY)
+                    {
+                        // Normal empty hop onto a platform or drop to lower floor without airdodge.
+                        wdCoreResetTransient(st);
+                        continue;
+                    }
                     st.landFrame = in.frame;
                     st.onPlatform = in.onPlatform;
                     st.phase = kWdPhaseMissedLandWait;
@@ -533,9 +547,14 @@ namespace extra {
             }
         }
 
-        // Count Jump_Squat button hold frames (matches techniques.cpp:329-333).
+        // Count Jump_Squat button hold frames (matches techniques.cpp:329-333)
+        // and flag premature shield presses during Jump_Squat.
         if (st.phase == kWdPhaseSquat && in.status == kWdStJumpSquat && st.jumpSquatFrame != kWdCoreNoFrame)
         {
+            if (in.guardEdge != 0)
+            {
+                st.earlyGuardInSquat = 1;
+            }
             if ((in.buttons & kWdCoreButtonJump) != 0 && st.jumpHoldFrames == in.frame - st.jumpSquatFrame)
             {
                 st.jumpHoldFrames++;

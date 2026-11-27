@@ -282,6 +282,8 @@ namespace extra {
         u8 resolvedHeight;
         u8 airWaitTarget;
         u8 holdRemaining;
+        u8 placed;
+        u8 pad;
         u16 timer;
         u16 cooldown;
         u32 rng;
@@ -308,6 +310,26 @@ namespace extra {
         float stickX;
         float stickY;
     };
+
+    inline float psPhysicalJabRange(int ftKind)
+    {
+        // Wide/heavy pushbox fighters (DK, Bowser, Ganondorf, Charizard, Dedede,
+        // Ike, ROB, Giga Bowser) have pushbox contact around 10..13u and long jabs.
+        switch (ftKind)
+        {
+        case 0x01:
+        case 0x0B:
+        case 0x14:
+        case 0x1D:
+        case 0x20:
+        case 0x22:
+        case 0x23:
+        case 0x30:
+            return 13.0f;
+        default:
+            return 8.0f;
+        }
+    }
 
     inline void psCpuStateReset(PsCpuState& st)
     {
@@ -395,13 +417,20 @@ namespace extra {
         {
             float dx = in.hmnX - in.cpuX;
             float toward = dx >= 0.0f ? 1.0f : -1.0f;
-            float d = (dx < 0.0f ? -dx : dx) - (prof != NULL ? static_cast<float>(prof->spacing) : -5.0f);
+            float absDx = dx < 0.0f ? -dx : dx;
+            float physRange = psPhysicalJabRange(in.cpuFtKind);
+            float d = absDx - (prof != NULL ? static_cast<float>(prof->spacing) : (physRange - 16.0f));
             float move = 0.0f;
-            if (d > 16.0f)
+            bool stallJab = (prof == NULL && absDx <= 15.0f && st.timer >= 14u);
+            if (!stallJab && d > 26.0f)
             {
-                move = 0.55f;
+                move = 1.0f;
             }
-            else if (d < -12.0f
+            else if (!stallJab && d > 16.0f)
+            {
+                move = 0.65f;
+            }
+            else if (prof != NULL && d < -12.0f
                      && ((toward > 0.0f) ? (in.cpuX > in.floorLeft + 10.0f) : (in.cpuX < in.floorRight - 10.0f)))
             {
                 move = -0.55f;
@@ -413,9 +442,14 @@ namespace extra {
             if (move != 0.0f)
             {
                 sx = toward * move;
+                if (prof == NULL && absDx <= 15.0f && st.timer < 30u)
+                {
+                    st.timer++;
+                }
             }
             else if (prof == NULL)
             {
+                st.timer = 0u;
                 btn = kPrBtnAttack;
                 setCd = true;
             }

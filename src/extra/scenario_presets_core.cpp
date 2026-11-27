@@ -455,7 +455,7 @@ namespace extra {
             kMultiHitDownAir,  // 0x00 Mario
             kMultiHitUpB,      // 0x01 DK
             kMultiHitUpB,      // 0x02 Link
-            kMultiHitUpAir,    // 0x03 Samus
+            kMultiHitUpB,      // 0x03 Samus (Screw Attack; Uair whiffs grounded short cast)
             kMultiHitDownAir,  // 0x04 Yoshi
             kMultiHitDownAir,  // 0x05 Kirby
             kMultiHitDownAir,  // 0x06 Fox
@@ -1023,6 +1023,7 @@ namespace extra {
         st.techWasPassive = false;
         st.techActFrames = 0;
         st.techEarlyFrames = 0;
+        st.techEarlyCounting = false;
         st.graceFrames = 0;
         if (clearFlags)
         {
@@ -1142,10 +1143,21 @@ namespace extra {
                     st.techWasPassive = false;
                 }
                 if (st.techFrames < 600) st.techFrames++;
-                if (in.cpuIntangible && hmnSwungNow && st.techEarlyFrames == 0)
+                if (st.techEarlyCounting)
                 {
-                    int rem = 21 - static_cast<int>(st.techFrames);
-                    st.techEarlyFrames = static_cast<u8>(rem > 1 ? rem : 1);
+                    if (in.cpuIntangible)
+                    {
+                        if (st.techEarlyFrames < 99) st.techEarlyFrames++;
+                    }
+                    else
+                    {
+                        st.techEarlyCounting = false;
+                    }
+                }
+                else if (in.cpuIntangible && hmnSwungNow && st.techEarlyFrames == 0)
+                {
+                    st.techEarlyCounting = true;
+                    st.techEarlyFrames = 1;
                 }
             }
             else if (inTumble)
@@ -1157,6 +1169,7 @@ namespace extra {
             }
             else if (st.techEngaged)
             {
+                st.techEarlyCounting = false;
                 bool groundedSettled = isNeutralGrounded(in.cpuStatus, in.cpuAir, in.cpuHitstun, in.cpuHitlag)
                                        || (!in.cpuAir && in.cpuActionable);
                 bool airEscaped = in.cpuAir && !isTumbleStatus(in.cpuStatus) && !isDownOrTechStatus(in.cpuStatus)
@@ -1771,24 +1784,31 @@ namespace extra {
                         bool isFair = in.slideOffAttack == kSlideAtkUnderFair;
                         if (cpuApproachOrFace(in, absDx, toward, isFair ? 8.5f : 5.5f, 0.60f, isFair, out)) return;
                         cpuEmit(out, cpu::button::kJump, hopX, 0.0f);
-                        cpuSetPhase(st, 1, 1);
+                        // Low platforms (e.g. Yoshi's Story dh ~ 23.5u) use short-hop (phase 4);
+                        // standard platforms (BF 27.2u, PS2 26.3u) use full-hop (phase 1).
+                        cpuSetPhase(st, (in.hmnY - in.cpuY) < 24.5f ? 4 : 1, 1);
                     }
                 }
-                else if (st.phase == 1)
+                else if (st.phase == 1 || st.phase == 4)
                 {
+                    bool lowPlat = (st.phase == 4);
                     st.timer++;
-                    float airX = stickDivClamp(dx, 12.0f, 0.5f);
+                    float airX = stickDivClamp(dx, 10.0f, 0.85f);
                     if (!in.cpuAir)
                     {
-                        cpuEmit(out, cpu::button::kJump, hopX, 0.0f);
+                        if (!lowPlat) cpuEmit(out, cpu::button::kJump, hopX, 0.0f);
+                        else out.stickX = hopX;
                         if (st.timer >= 12) cpuResetPhase(st, 0, false);
                     }
-                    else if (st.timer < 5) cpuEmit(out, cpu::button::kJump, airX, 0.0f);
-                    else if (in.cpuY >= in.hmnY
-                                            - (in.slideOffAttack == kSlideAtkUnderUair
-                                                   ? (in.cpuVy > 2.2f ? 24.0f : 13.0f)
-                                                   : 9.0f)
-                             || (st.timer >= 16 && in.cpuVy <= 0.4f))
+                    else if (!lowPlat && st.timer < 5) cpuEmit(out, cpu::button::kJump, airX, 0.0f);
+                    else if (lowPlat
+                                 ? (in.cpuY >= in.hmnY - (in.slideOffAttack == kSlideAtkUnderUair ? 15.0f : 12.0f)
+                                    || st.timer >= 6)
+                                 : (in.cpuY >= in.hmnY
+                                                   - (in.slideOffAttack == kSlideAtkUnderUair
+                                                          ? (in.cpuVy > 2.2f ? 24.0f : 13.0f)
+                                                          : 9.0f)
+                                    || (st.timer >= 16 && in.cpuVy <= 0.4f)))
                     {
                         emitAirAtk(out, in.slideOffAttack == kSlideAtkUnderFair ? 1
                                             : (in.slideOffAttack == kSlideAtkUnderNair ? 0 : 2),
@@ -1797,7 +1817,10 @@ namespace extra {
                     }
                     else out.stickX = airX;
                 }
-                else cpuAirWaitEnd(st, in.cpuAir, 30, 34, false);
+                else if (!cpuAirWaitEnd(st, in.cpuAir, 30, 34, false))
+                {
+                    out.stickX = stickDivClamp(dx, 8.0f, 1.0f);
+                }
                 return;
             }
             bool repeatS3 = !in.cpuAir && in.cpuStatus == kStAttackS3 && (in.lastButtons & cpu::button::kAttack) == 0;

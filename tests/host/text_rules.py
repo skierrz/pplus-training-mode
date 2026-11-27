@@ -168,10 +168,11 @@ NUMBERS = {
     ("drill_hud.cpp", "Late +%df"): ["10"],
     ("drill_hud.cpp", "+%df"): ["31"],
     ("drill_hud.cpp", "%df"): ["99"],
-    ("drill_hud.cpp", "PS f%d"): ["2"],
+    ("drill_hud.cpp", "PS f%d"): ["3"],
     ("drill_hud.cpp", "%s  -  %s"): ["CANCEL ENDURANCE", "10-REP"],
-    ("drill_hud.cpp", "%s"): ["PERFECT f1"],
-    ("drill_hud.cpp", "%.12s"): ["SWEETSPOT +3"],
+    ("drill_hud.cpp", "%s%s"): ["Perfect ", "f10"],
+    ("drill_hud.cpp", "Gate %.3s"): ["4/4"],
+    ("drill_hud.cpp", "%s"): ["Perfect f1"],
     ("action_log_core.h", "0x%02X"): ["FFFF"],
     ("action_log_core.h", "%s %uf"): [None, "999"],
     ("action_log.cpp", "+%df"): ["59"],
@@ -1124,6 +1125,16 @@ def drill_hud_cpp(c, src):
                 or "kPromptLabels" in lit.stmt or "kPromptGlyphs" in lit.stmt):
             for part in lit.text.split("\0"):
                 c.item("fit", lit, part, scale_for_cap(9.5), 0, 110.0, 0.0)
+        elif lit.func == "formatPanelBFeedback":
+            if lit.name == "strncmp" or (lit.var == "kMap" and lit.text.isupper()):
+                c.take(lit)
+                continue
+            if lit.name == "snprintf" and lit.arg == 2:
+                for t in c.expand(lit, 2):
+                    c.item("squeeze", lit, t, scale_for_cap(13.0), 0, 108.0, 0.0)
+                    c.buffer(lit, t, 28.0)
+            else:
+                c.item("squeeze", lit, lit.text, scale_for_cap(13.0), 0, 108.0, 0.0)
         elif lit.func == "drawLiveHud":
             if lit.name == "snprintf" and lit.arg == 2:
                 is_cap = "caption" in lit.stmt

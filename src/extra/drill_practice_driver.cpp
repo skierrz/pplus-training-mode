@@ -755,7 +755,32 @@ namespace extra {
             dbg.wdZoneMaxX = z.maxX;
             dbg.wdZoneY = z.y;
         }
-        // ---- 4. L-Cancel & Float/Hover/DJC: Target Management ---------------
+        // ---- 4. Powershield: Instant Initial Rep Spacing --------------------
+        else if (d == kPracticeDrillPowershield)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                if (!refs[i].cpu || !game::isRam(refs[i].fighter))
+                {
+                    continue;
+                }
+                int p = refs[i].playerNo;
+                PsCpuState& ps = net.sub.psCpu[(p >= 0 && p < game::kMaxFighters) ? p : 0];
+                if (!ps.placed)
+                {
+                    int cKind = game::fighterKind(refs[i].entryId, false);
+                    const ProjectileProfile* prof = (net.cfg.psAttackMode == kPsAtkProjectile)
+                                                        ? findProjectileProfile(cKind)
+                                                        : NULL;
+                    float dist = prof != NULL ? static_cast<float>(prof->spacing) : psPhysicalJabRange(cKind);
+                    float ax = 0.0f, ay = 0.0f, alr = -1.0f;
+                    computeTargetAnchor(hmnFs.x, hmnFacing(hm), dist, geom, ax, ay, alr);
+                    placeCpu(refs[i], ax, ay, alr, false);
+                    ps.placed = 1u;
+                }
+            }
+        }
+        // ---- 5. L-Cancel & Float/Hover/DJC: Target Management ---------------
         else if (tMode != kTargetOff)
         {
             bool hmnAir = game::isRam(hm->m_situationModule) && hm->m_situationModule->getKind() == Situation_Air;

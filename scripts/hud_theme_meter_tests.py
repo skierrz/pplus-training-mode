@@ -165,18 +165,18 @@ def open_theme_page(emu, lab):
     # Category Rail starts on Lab (0) -> press R four times to reach Display (4).
     for _ in range(4):
         tap(emu, ["R"], hold=3, settle=10)
-    # Row 2 on Display is Theme.
-    for _ in range(2):
-        tap(emu, ["DDOWN"], hold=2, settle=5)
+    # On Display, Theme is visible row 11 (below Ledgedash HUD).
+    for _ in range(11):
+        tap(emu, ["DDOWN"], hold=2, settle=4)
     tap(emu, ["A"], hold=3, settle=12)
 
 
 def sample_header_rgb(png_path):
-    """Average RGB of the Lab Menu header band (top-center inside the frame)."""
+    """Average RGB of the Lab Menu slanted accent header ribbon."""
     im = shots.Shot(png_path, 1.0)
     r_sum = g_sum = b_sum = n = 0
-    for x in range(int(im.w * 0.35), int(im.w * 0.65), 4):
-        for y in range(int(im.h * 0.075), int(im.h * 0.105), 2):
+    for x in range(int(im.w * 0.16), int(im.w * 0.40), 4):
+        for y in range(int(im.h * 0.075), int(im.h * 0.115), 2):
             r, g, b = im.px(x, y)
             r_sum += r
             g_sum += g

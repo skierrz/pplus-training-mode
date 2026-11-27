@@ -192,6 +192,43 @@ namespace extra {
             return slot;
         }
 
+        void formatPanelBFeedback(const char* fb, char* out, size_t outSize)
+        {
+            static const struct {
+                const char* from;
+                const char* to;
+            } kMap[] = {
+                {"CC / ASDI-DN ", "CC "},      {"PERFECT CANCEL ", "Perfect "},
+                {"GATLING DACUS ", "Gatling "}, {"SWEETSPOT ", "Sweet "},
+                {"INSTANT DJC ", "DJC "},       {"C4 REFRESH ", "C4 "},
+                {"NADE REFRESH ", "Nade "},     {"PERFECT ESC ", "Perfect "},
+                {"RECOVERED ", "Clear "},       {"COURSE ", "Clear "},
+                {"HIGH OVERSHOOT", "Overshoot"}, {"MISSED ASDI-DN", "Missed"},
+                {"BROKEN TUMBLE", "Tumble"},    {"SD / MISSED LEDGE", "SD / Miss"},
+                {"ASDI-DOWN TECH", "ASDI Tech"}, {"TRUE PUNISH!", "Punish!"},
+                {"DROPPED FLOAT", "Dropped"},   {"FLOAT CANCEL", "Float Ok"},
+                {"HOVER CANCEL", "Hover Ok"},   {"TURNAROUND B", "Turn-B"},
+                {"CANCEL MISS", "Missed"},      {"DACUS MISS", "Missed"},
+                {"RAR MISS", "Missed"},         {"INTO TARGET", "Target"},
+                {"READY", "Ready"}
+            };
+            for (u32 i = 0; i < sizeof(kMap) / sizeof(kMap[0]); i++)
+            {
+                size_t len = strlen(kMap[i].from);
+                if (strncmp(fb, kMap[i].from, len) == 0)
+                {
+                    snprintf(out, outSize, "%s%s", kMap[i].to, fb + len);
+                    return;
+                }
+            }
+            if (strncmp(fb, "GATE ", 5) == 0)
+            {
+                snprintf(out, outSize, "Gate %.3s", fb + 5);
+                return;
+            }
+            snprintf(out, outSize, "%s", fb);
+        }
+
         void drawLiveHud()
         {
             Runtime& s_rt = *s_rtPtr;
@@ -222,13 +259,9 @@ namespace extra {
             {
                 snprintf(val0, sizeof(val0), d == drills::kDrillLCancel ? "Auto LC On" : "Check Cast");
             }
-            else if (strlen(fb) <= 13)
-            {
-                snprintf(val0, sizeof(val0), "%s", fb);
-            }
             else
             {
-                snprintf(val0, sizeof(val0), "%.12s", fb);
+                formatPanelBFeedback(fb, val0, sizeof(val0));
             }
             if (st.sessionBest)
             {
@@ -307,9 +340,35 @@ namespace extra {
                     }
                     else if (r.outcome == kWdMissNoAirdodge)
                     {
-                        ptrCell = 4;
-                        snprintf(val0, sizeof(val0), "Early");
+                        if (r.earlyGuardInSquat != 0)
+                        {
+                            ptrCell = 4;
+                            snprintf(val0, sizeof(val0), "Early");
+                        }
+                        else
+                        {
+                            ptrCell = -1;
+                            snprintf(val0, sizeof(val0), "No Dodge");
+                        }
                         col0 = 0xFF6658FFu;
+                    }
+                    else if (r.outcome == kWdMissLateAirdodge)
+                    {
+                        ptrCell = cellCount - 1;
+                        snprintf(val0, sizeof(val0), "Late Dodge");
+                        col0 = 0xFF6658FFu;
+                    }
+                    else if (r.outcome == kWdMissUpwardAirdodge)
+                    {
+                        ptrCell = cellCount - 1;
+                        snprintf(val0, sizeof(val0), "Air Dodge");
+                        col0 = 0xFF6658FFu;
+                    }
+                    else if (r.outcome == kWdMissZairTether)
+                    {
+                        ptrCell = -1;
+                        snprintf(val0, sizeof(val0), "Zair (L/R)");
+                        col0 = 0xFFB848FFu;
                     }
                     else
                     {
@@ -319,7 +378,8 @@ namespace extra {
                     }
                     if (r.angleDeg > 0.0f)
                     {
-                        snprintf(val1, sizeof(val1), "%.1f deg", static_cast<double>(r.angleDeg));
+                        float ang = static_cast<int>(r.angleDeg * 10.0f) * 0.1f;
+                        snprintf(val1, sizeof(val1), "%.1f deg", static_cast<double>(ang));
                     }
                     else
                     {
@@ -334,7 +394,7 @@ namespace extra {
             }
             else if (d == drills::kDrillLCancel)
             {
-                // Symmetric L-Cancel bar: 4 Early (red) | centered 7f P+ window (green) + cyan hitlag ext | 4 Late (red).
+                // Chronological L-Cancel bar: 4 Early (red) | cyan hitlag freeze ext | 7f P+ window (green, 7f->1f) | 4 Late (red).
                 const LcCoreState* lc = slot >= 0 ? coreDrillLCancelState(slot) : NULL;
                 int hitlagExt = (lc != NULL && lc->seq > 0u && lc->last.hitlagFrames > 0) ? lc->last.hitlagFrames : 0;
                 if (hitlagExt > 6) hitlagExt = 6;
@@ -342,8 +402,8 @@ namespace extra {
                 for (int i = 0; i < cellCount; i++)
                 {
                     if (i < 4) cells[i] = 0xDC4444FFu;
-                    else if (i < 11) cells[i] = 0x3CE890FFu;
-                    else if (i < 11 + hitlagExt) cells[i] = 0x36DCE8FFu;
+                    else if (i < 4 + hitlagExt) cells[i] = 0x36DCE8FFu;
+                    else if (i < 11 + hitlagExt) cells[i] = 0x3CE890FFu;
                     else cells[i] = 0xDC4444FFu;
                 }
                 leftLbl = "Early";
@@ -357,7 +417,9 @@ namespace extra {
                     if (r.outcome == kLcSuccessManual)
                     {
                         int pf = r.pressFrame < 1 ? 1 : (r.pressFrame > 7 ? 7 : r.pressFrame);
-                        ptrCell = 4 + (pf - 1);
+                        // pf=7 is 7f before landing (earliest valid, leftmost green);
+                        // pf=1 is 1f before landing (latest valid, rightmost green next to Late +1f).
+                        ptrCell = 4 + hitlagExt + (7 - pf);
                         snprintf(val0, sizeof(val0), "%df / 7f", pf);
                         col0 = 0x4CE688FFu;
                     }
@@ -379,7 +441,7 @@ namespace extra {
                     }
                     else if (r.outcome == kLcSuccessAuto)
                     {
-                        ptrCell = 7;
+                        ptrCell = 4 + hitlagExt + 3;
                         snprintf(val0, sizeof(val0), "Auto ON");
                         col0 = 0xFFB848FFu;
                     }
@@ -411,12 +473,12 @@ namespace extra {
             }
             else if (d == drills::kDrillPowershield)
             {
-                // Symmetric 14-cell Powershield bar: 6 Early (red) | centered 2f P+ PS (cyan-emerald) | 4 Shield (gold) | 2 Hit (red).
+                // Chronological 14-cell Powershield bar:
+                // 6 Early Shield (amber/gold) | centered 2f P+ PS (cyan-emerald, f2/f3 left, f1 right) | 6 Late Hit (crimson).
                 static const gfx::Rgba kPsCells[14] = {
-                    0xDC4444FFu, 0xDC4444FFu, 0xDC4444FFu, 0xE0563CFFu, 0xE66C3AFFu, 0xEC8438FFu,
+                    0xD88228FFu, 0xDF8E2CFFu, 0xE59B30FFu, 0xEAA834FFu, 0xEEB436FFu, 0xF0BE38FFu,
                     0x2EE8C8FFu, 0x2EE8C8FFu,
-                    0xF0BE38FFu, 0xF0BE38FFu, 0xEC9E38FFu, 0xE88238FFu,
-                    0xDC4444FFu, 0xD43E44FFu
+                    0xEC624CFFu, 0xE85446FFu, 0xE24A42FFu, 0xDC4444FFu, 0xD43E44FFu, 0xC83640FFu
                 };
                 memcpy(cells, kPsCells, sizeof(kPsCells));
                 cellCount = 14;
@@ -431,11 +493,23 @@ namespace extra {
                     const PsResult& r = ps->last;
                     if (r.outcome == kPsPhysical || r.outcome == kPsReflect)
                     {
-                        int wf = r.windowFrame < 1 ? 1 : (r.windowFrame > 2 ? 2 : r.windowFrame);
-                        ptrCell = 6 + (wf - 1);
+                        int wf = r.windowFrame < 1 ? 1 : (r.windowFrame > 3 ? 3 : r.windowFrame);
+                        // wf=2/3 is earlier inside the PS window (next to Early -1f); wf=1 is latest (next to Late +1f).
+                        ptrCell = (wf <= 1) ? 7 : 6;
                         snprintf(val0, sizeof(val0), "PS f%d", wf);
                         col0 = 0x4CE688FFu;
-                        snprintf(val1, sizeof(val1), r.psDropUsed ? "PS-Drop" : (r.outcome == kPsReflect ? "Reflect" : "Physical"));
+                        const char* typeStr = r.psDropUsed ? "PS-Drop"
+                                                           : (r.outcome == kPsReflect ? "Reflect"
+                                                                                      : (r.lightToHard ? "Light-Hard"
+                                                                                                       : "Physical"));
+                        snprintf(val1, sizeof(val1), "%s", typeStr);
+                    }
+                    else if (r.outcome == kPsMissBuffered)
+                    {
+                        ptrCell = 5;
+                        snprintf(val0, sizeof(val0), "Buffered");
+                        col0 = 0xFFB848FFu;
+                        snprintf(val1, sizeof(val1), "No Hard");
                     }
                     else if (r.outcome == kPsMissEarly)
                     {
@@ -443,7 +517,7 @@ namespace extra {
                         ptrCell = 6 - (off < 1 ? 1 : off);
                         if (ptrCell < 0) ptrCell = 0;
                         snprintf(val0, sizeof(val0), "Early -%df", off);
-                        col0 = 0xFF6658FFu;
+                        col0 = 0xFFB848FFu;
                         snprintf(val1, sizeof(val1), "Shield");
                     }
                     else
@@ -452,8 +526,8 @@ namespace extra {
                         ptrCell = 8 + (off - 1);
                         if (ptrCell >= cellCount) ptrCell = cellCount - 1;
                         snprintf(val0, sizeof(val0), "Late +%df", off);
-                        col0 = 0xFFB848FFu;
-                        snprintf(val1, sizeof(val1), "Shield");
+                        col0 = 0xFF6658FFu;
+                        snprintf(val1, sizeof(val1), "Hit");
                     }
                 }
                 else
@@ -514,7 +588,8 @@ namespace extra {
                     snprintf(val1, sizeof(val1), "%df", static_cast<int>(r.cliffWaitFrames));
                     if (r.airdodgeAngle > 0.0f)
                     {
-                        snprintf(val2, sizeof(val2), "%.1f deg", static_cast<double>(r.airdodgeAngle));
+                        float ang = static_cast<int>(r.airdodgeAngle * 10.0f) * 0.1f;
+                        snprintf(val2, sizeof(val2), "%.1f deg", static_cast<double>(ang));
                     }
                     else
                     {

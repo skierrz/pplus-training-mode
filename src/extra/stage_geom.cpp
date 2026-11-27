@@ -258,11 +258,11 @@ namespace extra {
         }
         float centerX = 0.5f * (g.floor.leftX + g.floor.rightX);
         float halfW = 0.5f * (g.floor.rightX - g.floor.leftX);
-        static const float kFracs[] = {-0.55f, 0.55f, -0.35f, 0.35f, 0.0f, -0.75f, 0.75f};
+        static const float kFracs[] = {-0.55f, 0.55f, -0.35f, 0.35f, 0.0f, -0.75f, 0.75f, -0.95f, 0.95f};
         float limitL = g.blast.valid ? geomMax(g.blast.left + 12.0f, g.floor.leftX - 30.0f) : (g.floor.leftX - 30.0f);
         float limitR = g.blast.valid ? geomMin(g.blast.right - 12.0f, g.floor.rightX + 30.0f) : (g.floor.rightX + 30.0f);
 
-        for (int i = 0; i < 7 && g.platformCount < kMaxStagePlatforms; i++)
+        for (int i = 0; i < 9 && g.platformCount < kMaxStagePlatforms; i++)
         {
             float sx = centerX + kFracs[i] * halfW;
             float solidY = g.floor.centerY;

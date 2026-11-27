@@ -245,4 +245,36 @@ TEST(action_log, sf6_dual_strip_phase_classification_advantage_and_ring_wrap)
     sf6PushDualFrame(sf4p, f4++, kStatusWait, true, false, false, kStatusWait, true, false, false);
     CHECK_EQ(0, static_cast<int>(sf4p.hasAdvantage));
     CHECK_EQ(0, static_cast<int>(sf4p.activeExchange));
+
+    // Actionable DamageFall (0x49) and grounded Down* (0x4A..0x55) with hitstun == 0
+    // (e.g. Techchase Tumble Drop spawn) must NEVER register as defender stun or
+    // emit a bogus 0f advantage or gold stun cells.
+    CHECK(!sf6IsDefenderStun(0x49, 0, 0, 0, 0));
+    CHECK(!sf6IsDefenderStun(0x4D, 0, 0, 0, 0));
+    CHECK(!sf6IsDefenderStun(0x4F, 0, 0, 0, 0));
+    CHECK(sf6IsDefenderStun(0x49, 12, 0, 0, 0)); // genuine hitstun still counts
+    CHECK(sf6IsDefenderStun(0x43, 0, 0, 0, 0));  // DamageHi1..DamageFly still count
+    CHECK(sf6IsDefenderStun(0x3E, 0, 0, 0, 0));  // CaptureWait (grabbed) still counts
+    CHECK_EQ(static_cast<int>(kSf6Recovery), static_cast<int>(sf6ClassifyCell(0x4F, false, false, false, false)));
+
+    Sf6StripState sfTc;
+    sf6ResetState(sfTc);
+    s32 ft = 700;
+    for (int i = 0; i < 8; i++)
+    {
+        bool stun1 = sf6IsDefenderStun(0x49, 0, 0, 0, 0);
+        sf6PushDualFrame(sfTc, ft++, kStatusWait, true, false, false, 0x49, true, false, stun1);
+    }
+    for (int i = 0; i < 6; i++)
+    {
+        bool stun1 = sf6IsDefenderStun(0x4D, 0, 0, 0, 0);
+        sf6PushDualFrame(sfTc, ft++, kStatusWait, true, false, false, 0x4D, false, false, stun1);
+    }
+    sf6PushDualFrame(sfTc, ft++, kStatusWait, true, false, false, kStatusWait, true, false, false);
+    CHECK_EQ(0, static_cast<int>(sfTc.hasAdvantage));
+    CHECK_EQ(0, static_cast<int>(sfTc.activeExchange));
+    for (int i = 0; i < static_cast<int>(sfTc.filled); i++)
+    {
+        CHECK(sf6CellAt(sfTc, 1, i) != kSf6Stun);
+    }
 }

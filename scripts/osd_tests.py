@@ -110,26 +110,27 @@ def squeeze_of(shot):
     return 0.75 if w * 3 > h * 4 + 8 else 1.0
 
 
+def osd_width_scale(squeeze):
+    return 0.86 if squeeze < 1.0 else 1.0
+
+
 def osd_spot(position, player, squeeze, player_count=2):
-    half_w = 124.0 * squeeze / 2
+    half_w = 124.0 * osd_width_scale(squeeze) / 2
     if position == POS_SIDES:
         if player_count <= 2 and player <= 2:
-            margin = 32.0 if squeeze >= 1.0 else 12.0
+            margin = 46.0 if squeeze < 1.0 else 32.0
             x = (margin + half_w) if player == 1 else (640.0 - margin - half_w)
         else:
             x = SIDES_X[player - 1]
         y = SIDES_Y
     elif position == POS_TOP_LEFT:
-        margin = 32.0 if squeeze >= 1.0 else 12.0
-        x, y = margin + half_w, TOP_Y[player - 1]
+        x, y = 32.0 + half_w, TOP_Y[player - 1]
     elif position == POS_TOP_RIGHT:
-        margin = 32.0 if squeeze >= 1.0 else 12.0
-        x, y = 640.0 - margin - half_w, TOP_Y[player - 1]
+        x, y = 640.0 - 32.0 - half_w, TOP_Y[player - 1]
     else:
         hud_right = [144.0, 290.0, 436.0, 575.0] if squeeze < 1.0 else [155.0, 301.0, 448.0, 595.0]
-        x, y = hud_right[player - 1] - half_w, 360.0
-    if squeeze >= 1.0:
-        x = max(32.0 + half_w, min(640.0 - 32.0 - half_w, x))
+        x, y = hud_right[player - 1] - half_w, 353.0
+    x = max(32.0 + half_w, min(640.0 - 32.0 - half_w, x))
     return x, y
 
 
@@ -1204,7 +1205,7 @@ def osd_body_mean_rgb(shot, player, position=POS_SIDES):
     im = Image.open(path).convert("RGB")
     sx, sy = w / 640.0, h / 480.0
     cx, cy = osd_spot(position, player, squeeze_of(shot))
-    half = 124.0 * squeeze_of(shot) / 2
+    half = 124.0 * osd_width_scale(squeeze_of(shot)) / 2
     x0, x1 = int((cx - half + 3) * sx), int((cx - half + 14) * sx)
     y0, y1 = int((cy - 22) * sy), int((cy - 14) * sy)
     rs, gs, bs, n = 0, 0, 0, 0
