@@ -1597,20 +1597,16 @@ def o_tech_invis(r, name=None, check_getup=True):
         r.load("near", opts, percent=50)
         emu.h.call("resume")
         lab.open_menu()
-        lab.main_to(LT.MAIN_CPU)
-        lab.tap(["A"])
-        lab.down(CPU_TECH_ROW)
-        lab.tap(["A"])
-        lab.down(TECH_INVIS_ROW)
+        lab.menu_nav_to("CPU > Tech & Getup > Tech Invisibility")
         lab.set_choice(SET_TECH_INVIS, 1)  # CPU
-        lab.down(TECH_DELAY_ROW - TECH_INVIS_ROW)
+        lab.menu_select_row("Invis Delay")
         if delay > 0:
             lab.set_choice(SET_TECH_DELAY, delay)
         got_mode = lab.setting(SET_TECH_INVIS)
         got_delay = lab.setting(SET_TECH_DELAY)
         if not miss_tech:
             # Tech Sound Cue is gated off by techNotMiss() when Tech is Miss.
-            lab.down(TECH_SOUND_ROW - TECH_DELAY_ROW)
+            lab.menu_select_row("Tech Sound Cue")
             lab.toggle_on(SET_CPU + CPU_FIELDS["techSound"])
         lab.back_to_main(2)
         lab.close_menu()
@@ -2320,18 +2316,14 @@ def o_menu(r):
     # scenario before left on the CPU the frames to end.
     nav.pause_training(emu)
     lab.open_menu()
-    lab.main_to(LT.MAIN_CPU)
-    lab.tap(["A"])
-    lab.down(CPU_CONTROL_ROW)
+    lab.menu_nav_to("CPU > CPU Control")
     lab.tap(stick=LT.RIGHT)
     control = r.opt.get("control")
-    lab.down(CPU_BEHAVIOR_ROW - CPU_CONTROL_ROW)
+    lab.menu_select_row("Idle Behavior")
     lab.tap(stick=LT.RIGHT)
     behavior = r.opt.get("behavior")
     shot = emu.screenshot("cpu-menu-options")[0]
-    lab.down(CPU_TECH_ROW - CPU_BEHAVIOR_ROW)
-    lab.tap(["A"])
-    lab.down(TECH_IN_PLACE_ROW)
+    lab.menu_nav_to("CPU > Tech & Getup > Tech In Place %")
     lab.tap(stick=LT.RIGHT)
     chances = [r.opt.emu.u8(r.opt.base + SET_CPU + CPU_FIELDS["techChance"] + k) for k in range(4)]
     shot2 = emu.screenshot("cpu-menu-tech")[0]
@@ -2965,11 +2957,7 @@ def o_oos_techniques(r):
     r.opt.set(control=LAB, counterShield=33)
     r.drv.stop()
     lab.open_menu()
-    lab.main_to(LT.MAIN_CPU)
-    lab.tap(["A"])
-    lab.down(CPU_COUNTERS_ROW)
-    lab.tap(["A"])
-    lab.down(3)  # Shield Counter (row 3 of CPU > Counters & Reversals)
+    lab.menu_nav_to("CPU > Counters & Reversals > Shield Counter")
     lab.tap(stick=LT.RIGHT)
     got = r.opt.get("counterShield")
     lab.back_to_main(2)
@@ -4099,23 +4087,24 @@ def o_tdi_angles(r):
 
 # ---- lab menu helpers -----------------------------------------------------------------
 
-CPU_ROWS = {"counters": 6, "move": 11, "freeze": 12, "controlled by": 13}
-COUNTERS_ADVANCED_ROW = 4
+CPU_ROWS = {
+    "counters": "Counters & Reversals",
+    "move": "Move CPU",
+    "freeze": "Freeze CPU",
+    "controlled by": "Port Control",
+}
 
 
 def cpu_page(r, row, then=None):
-    """Open the lab menu, CPU Options, cursor to `row`, then `then(lab)`
-    (default: A), back out and resume."""
+    """Open the lab menu, navigate to `row` on CPU by live label lookup,
+    run `then(lab)` (default: A), back out and close."""
     emu, lab = r.emu, LT.Lab(r.emu, [])
     lab.find_settings()
     r.drv.stop()
     lab.open_menu()
-    lab.main_to(LT.MAIN_CPU)
-    lab.tap(["A"])
-    emu.press(0, [], frames=50, after=4, stick=LT.UP)
-    lab.down(row)
+    lab.menu_nav_to(["CPU", row] if isinstance(row, str) else row)
     (then or (lambda lab_: lab_.tap(["A"])))(lab)
-    lab.back_to_main(1)
+    lab.back_to_main(lab.read_menu_state()["depth"])
     lab.close_menu()
     return lab
 
@@ -4567,15 +4556,16 @@ def o_advanced(r):
     emu.h.call("resume")
 
     def to_custom_usmash(lab):
-        lab.tap(["A"])  # open Counters & Reversals
-        lab.down(COUNTERS_ADVANCED_ROW)
-        lab.tap(["A"])  # open Per-Hit Counters
-        emu.press(0, [], frames=30, after=4, stick=LT.UP)
-        lab.down(ADV_ROW_LOGIC)
+        lab.menu_nav_to("CPU > Counters & Reversals > Counter Mode")
+        # Counter Mode starts at Single Action (1); step right to Per-Hit (4).
+        for _ in range(3):
+            lab.tap(stick=LT.RIGHT)
+        lab.menu_select_row("Per-Hit Counters")
+        lab.tap(["A"])
+        lab.menu_select_row("Hit Rule")
         lab.set_choice(SET_CPU + CPU_FIELDS["advLogic"], 2)
-        lab.down(ADV_ROW_GROUND - ADV_ROW_LOGIC)
+        lab.menu_select_row("Ground Action")
         lab.set_choice(SET_CPU + CPU_FIELDS["advGround"], 8)
-        lab.back_to_main(2)
     cpu_page(r, CPU_ROWS["counters"], then=to_custom_usmash)
     res.row("page fields: hit 1, Custom, Up Smash", "1 / 2 / 8",
             f"{r.opt.get('advHit')} / {r.opt.get('advLogic')} / {r.opt.get('advGround')}",
@@ -4602,13 +4592,9 @@ def o_advanced(r):
             s0 is not None and rows[s0][CPU]["status"] == STATUS["Attack_Hi4_Start"])
 
     def to_disable(lab):
-        lab.tap(["A"])  # open Counters & Reversals
-        lab.down(COUNTERS_ADVANCED_ROW)
-        lab.tap(["A"])  # open Per-Hit Counters
-        emu.press(0, [], frames=30, after=4, stick=LT.UP)
-        lab.down(ADV_ROW_LOGIC)
+        # adv-near already has hit 1 Custom, so Counter Mode derives Per-Hit (4).
+        lab.menu_nav_to("CPU > Counters & Reversals > Per-Hit Counters > Hit Rule")
         lab.set_choice(SET_CPU + CPU_FIELDS["advLogic"], 1)
-        lab.back_to_main(2)
     r.load("adv-near", {"control": LAB})
     emu.h.call("resume")
     cpu_page(r, CPU_ROWS["counters"], then=to_disable)
@@ -6209,7 +6195,8 @@ def run_scenario(name, fn, r):
     only (with the traceback), so the others still run."""
     try:
         res = fn(r)
-    except (KeyError, IndexError, TypeError, ValueError, AttributeError, ZeroDivisionError, NameError, CpuError) as e:
+    except (KeyError, IndexError, TypeError, ValueError, AttributeError, ZeroDivisionError, NameError,
+            CpuError, LT.LabError, nav.NavError, HarnessError) as e:
         import traceback
         res = Result(name)
         res.check(f"{name} stopped: {e!r}", False)

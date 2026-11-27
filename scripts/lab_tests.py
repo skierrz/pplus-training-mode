@@ -100,7 +100,7 @@ PRESETS = {"none": 0, "state": 1, "ledge": 2, "damage": 3, "debug": 4}
 SIZES = {"small": 0, "medium": 1, "large": 2}
 # main::Settings offsets (src/main/settings.h; the module checks them at build time).
 SET_PLAYER_PERCENT, SET_LOCK_PLAYER, SET_FRAME_ADVANCE, SET_PLAYER_SHIELDS = 8, 10, 11, 20
-SET_ADVANCE_BUTTON, SET_ADVANCE_DELAY, SET_START_OPENS = 24, 25, 26
+SET_ADVANCE_BUTTON, SET_ADVANCE_DELAY, SET_START_OPENS, SET_MENU_STYLE = 24, 25, 26, 33
 SET_OVERLAY = 40
 SET_HMN_INFO, SET_CPU_INFO = 56, 72  # preset, size, rows[8]
 SET_OSD_POSITION, SET_ADVANTAGE, SET_ADVANTAGE_HIT, SET_TOLERANCE = 88, 89, 90, 91
@@ -125,6 +125,8 @@ UP, DOWN, LEFT, RIGHT = (128, 228), (128, 28), (28, 128), (228, 128)
 MENU_OPENED = (r"lab: menu opened by port 1 \((?P<how>Start|Z in pause)\) on page (?P<page>\d+) "
                r"\((?P<title>[^)\r\n]*)\) row (?P<row>\d+), depth (?P<depth>\d+), main row (?P<main>\d+)"
                r"(?:, rail (?P<rail>\d+))?")
+MENU_PTRS = r"lab: menu pointers def ([0-9a-f]{8}) state ([0-9a-f]{8})"
+KIND_MENU, KIND_CHOICE, KIND_INT, KIND_TOGGLE, KIND_FUNC, KIND_INFO = range(6)
 
 
 class LabError(RuntimeError):
@@ -220,6 +222,8 @@ class Lab:
         self.emu = emu
         self.f = Fighters(emu)
         self.settings = None
+        self.menu_def = None
+        self.menu_state = None
         self.log_steps = log_steps
 
     # ---- plugin state ----------------------------------------------------
@@ -233,6 +237,297 @@ class Lab:
             raise LabError("no attach line with the settings address")
         self.settings = int(m.group(1), 16)
         return self.settings
+
+    def find_menu_ptrs(self):
+        m = None
+        for m in re.finditer(MENU_PTRS, self.emu.synced_log_text()):
+            pass
+        if m is None:
+            raise LabError("no attach line with the menu pointers")
+        self.menu_def = int(m.group(1), 16)
+        self.menu_state = int(m.group(2), 16)
+        return self.menu_def, self.menu_state
+
+    def read_menu_state(self):
+        """Read ui::MenuState live from Dolphin RAM (src/main/ui/menu.h MWCC layout)."""
+        if self.menu_state is None:
+            self.find_menu_ptrs()
+        raw = self.emu.read(self.menu_state, 77)
+        return {
+            "depth": raw[0],
+            "stack": list(raw[1:7]),
+            "cursor": list(raw[7:39]),
+            "scroll": list(raw[39:71]),
+            "category": raw[71],
+            "rail_cursor": raw[72],
+            "rail_focus": bool(raw[73]),
+            "open_start": bool(raw[74]),
+            "controller_type": raw[75],
+            "reset_confirm_page": raw[76],
+        }
+
+    def read_menu_def(self):
+        """Read ui::MenuDef tables live from Dolphin RAM (src/main/ui/menu.h MWCC layout)."""
+        if self.menu_def is None:
+            self.find_menu_ptrs()
+        e = self.emu
+        raw = e.read(self.menu_def, 32)
+        pages_ptr = u32(raw, 0x00)
+        page_count = raw[0x04]
+        cat_count = raw[0x0C]
+        cat_pages_ptr = u32(raw, 0x10)
+        tab_labels_ptr = u32(raw, 0x14)
+        util_count = raw[0x18]
+        utils_ptr = u32(raw, 0x1C)
+
+        page_ptrs = []
+        if page_count and e.is_ram(pages_ptr):
+            pb = e.read(pages_ptr, page_count * 4)
+            page_ptrs = [u32(pb, i * 4) for i in range(page_count)]
+
+        cat_pages = list(e.read(cat_pages_ptr, cat_count)) if (cat_count and e.is_ram(cat_pages_ptr)) else []
+
+        tab_labels = []
+        if cat_count and e.is_ram(tab_labels_ptr):
+            tb = e.read(tab_labels_ptr, cat_count * 4)
+            for i in range(cat_count):
+                p = u32(tb, i * 4)
+                tab_labels.append(e.cstr(p, 64) if e.is_ram(p) else None)
+
+        utilities = []
+        if util_count and e.is_ram(utils_ptr):
+            ub = e.read(utils_ptr, util_count * 12)
+            for i in range(util_count):
+                np = u32(ub, i * 12)
+                utilities.append({"name": e.cstr(np, 64) if e.is_ram(np) else None})
+
+        return {
+            "page_count": page_count,
+            "page_ptrs": page_ptrs,
+            "cat_count": cat_count,
+            "cat_pages": cat_pages,
+            "tab_labels": tab_labels,
+            "util_count": util_count,
+            "utilities": utilities,
+        }
+
+    def read_page(self, page_id, menu_def=None):
+        """Read ui::Page and its 24-byte MWCC ui::Option array live from RAM."""
+        mdef = menu_def or self.read_menu_def()
+        if not (0 <= page_id < len(mdef["page_ptrs"])):
+            raise LabError(f"page_id {page_id} out of range (pageCount={mdef['page_count']})")
+        e = self.emu
+        pptr = mdef["page_ptrs"][page_id]
+        praw = e.read(pptr, 12)
+        title_ptr = u32(praw, 0)
+        opts_ptr = u32(praw, 4)
+        count = praw[8]
+        title = (e.cstr(title_ptr, 64) if e.is_ram(title_ptr) else None) or ""
+        options = []
+        if count and e.is_ram(opts_ptr):
+            oraw = e.read(opts_ptr, count * 24)
+            for i in range(count):
+                o = i * 24
+                name_ptr = u32(oraw, o + 8)
+                options.append({
+                    "idx": i,
+                    "kind": oraw[o],
+                    "flags": oraw[o + 1],
+                    "offset": struct.unpack_from(">H", oraw, o + 2)[0],
+                    "min": oraw[o + 4],
+                    "def": struct.unpack_from(">b", oraw, o + 5)[0],
+                    "max": struct.unpack_from(">h", oraw, o + 6)[0],
+                    "name": e.cstr(name_ptr, 64) if e.is_ram(name_ptr) else None,
+                })
+        return {"id": page_id, "title": title, "count": count, "options": options}
+
+    def menu_select_row(self, label, menu_def=None):
+        """Move the cursor on the current live page to the option named `label`,
+        verifying MenuState.cursor[pageId] after each step."""
+        want = label.strip()
+        mdef = menu_def or self.read_menu_def()
+        st = self.read_menu_state()
+        page_id = st["stack"][st["depth"]]
+        page = self.read_page(page_id, mdef)
+        targets = [o["idx"] for o in page["options"] if o["name"] == want]
+        if not targets:
+            wl = want.lower()
+            targets = [o["idx"] for o in page["options"] if o["name"] and o["name"].lower() == wl]
+        if not targets:
+            avail = [o["name"] for o in page["options"] if o["name"]]
+            raise LabError(f"row {want!r} not found on page {page['title']!r} (page {page_id}); rows: {avail}")
+
+        cur = st["cursor"][page_id]
+        if cur in targets:
+            return {"page_id": page_id, "row": cur, "option": page["options"][cur], "state": st}
+
+        if len(targets) == 1:
+            t = targets[0]
+            step_dir = 1 if t > cur else -1
+            stick = DOWN if step_dir > 0 else UP
+            for _ in range(page["count"] + 2):
+                self.tap(stick=stick)
+                st = self.read_menu_state()
+                new_cur = st["cursor"][page_id]
+                if new_cur == t:
+                    return {"page_id": page_id, "row": new_cur, "option": page["options"][new_cur], "state": st}
+                if new_cur == cur:
+                    cur_name = page["options"][cur]["name"] if cur < page["count"] else None
+                    raise LabError(f"row {want!r} (index {t}) on page {page['title']!r} is disabled, hidden, or "
+                                   f"unreachable (cursor stopped at index {cur} {cur_name!r})")
+                if (step_dir > 0 and new_cur > t) or (step_dir < 0 and new_cur < t):
+                    raise LabError(f"row {want!r} (index {t}) on page {page['title']!r} was skipped by cursor "
+                                   f"({cur} -> {new_cur}), likely disabled or hidden")
+                cur = new_cur
+            raise LabError(f"row {want!r} (index {t}) on page {page['title']!r} not reached after {page['count']} steps")
+
+        # Multiple rows share the same name (e.g. gated trigger groups): scan downward then upward.
+        for stick in (DOWN, UP):
+            for _ in range(page["count"] + 2):
+                self.tap(stick=stick)
+                st = self.read_menu_state()
+                new_cur = st["cursor"][page_id]
+                if new_cur in targets:
+                    return {"page_id": page_id, "row": new_cur, "option": page["options"][new_cur], "state": st}
+                if new_cur == cur:
+                    break
+                cur = new_cur
+        raise LabError(f"no enabled row named {want!r} (indices {targets}) reachable on page {page['title']!r}")
+
+    def menu_nav_to(self, path):
+        """Navigate the open lab menu by live RAM labels (e.g. 'CPU > Counters & Reversals > Counter Mode'
+        or a sequence of labels). Handles both Category Rail and Top Tabs layouts."""
+        parts = [p.strip() for p in path.split(">")] if isinstance(path, str) else [str(p).strip() for p in path]
+        parts = [p for p in parts if p]
+        if not parts:
+            raise LabError("menu_nav_to: empty path")
+        if self.settings is None:
+            self.find_settings()
+        mdef = self.read_menu_def()
+        st = self.read_menu_state()
+
+        if st["reset_confirm_page"] != 0:
+            self.tap(["B"])
+            st = self.read_menu_state()
+
+        # Rewind any open subpages back to depth 0.
+        for _ in range(8):
+            if st["depth"] == 0:
+                break
+            prev = st["depth"]
+            self.tap(["B"])
+            st = self.read_menu_state()
+            if st["depth"] >= prev:
+                raise LabError(f"menu_nav_to({path!r}): B did not leave subpage (depth stayed {st['depth']})")
+        if st["depth"] != 0:
+            raise LabError(f"menu_nav_to({path!r}): could not rewind to depth 0 (depth={st['depth']})")
+
+        # Resolve top-level category or left-rail utility.
+        top = parts[0]
+        top_l = top.lower()
+        cat_titles = [self.read_page(pid, mdef)["title"] for pid in mdef["cat_pages"]]
+        cat_idx = None
+        for i in range(mdef["cat_count"]):
+            tl = mdef["tab_labels"][i] if i < len(mdef["tab_labels"]) else None
+            if top == tl or top == cat_titles[i]:
+                cat_idx = i
+                break
+        if cat_idx is None:
+            for i in range(mdef["cat_count"]):
+                tl = mdef["tab_labels"][i] if i < len(mdef["tab_labels"]) else None
+                if (tl and tl.lower() == top_l) or cat_titles[i].lower() == top_l:
+                    cat_idx = i
+                    break
+
+        util_idx = None
+        if cat_idx is None:
+            for u, info in enumerate(mdef["utilities"]):
+                if info["name"] and (info["name"] == top or info["name"].lower() == top_l):
+                    util_idx = u
+                    break
+
+        if cat_idx is None and util_idx is None:
+            avail_cats = [f"{cat_titles[i]} ({mdef['tab_labels'][i]})" for i in range(mdef["cat_count"])]
+            avail_utils = [u["name"] for u in mdef["utilities"] if u["name"]]
+            raise LabError(f"menu_nav_to({path!r}): unknown top category/utility {top!r}; "
+                           f"categories={avail_cats}, utilities={avail_utils}")
+
+        tabs_mode = mdef["cat_count"] > 0 and self.setting(SET_MENU_STYLE) == 1
+        if util_idx is not None:
+            if len(parts) > 1:
+                raise LabError(f"menu_nav_to({path!r}): rail utility {top!r} cannot have sub-items")
+            if tabs_mode:
+                raise LabError(f"menu_nav_to({path!r}): rail utility {top!r} is unavailable in Top Tabs mode")
+            if not st["rail_focus"]:
+                self.tap(["B"])
+                st = self.read_menu_state()
+                if not st["rail_focus"]:
+                    raise LabError(f"menu_nav_to({path!r}): B did not focus left rail")
+            target_rail = mdef["cat_count"] + util_idx
+            for _ in range(mdef["cat_count"] + mdef["util_count"] + 2):
+                if st["rail_cursor"] == target_rail:
+                    return {"page_id": st["stack"][0], "rail_cursor": st["rail_cursor"], "rail_focus": True, "state": st}
+                prev = st["rail_cursor"]
+                self.tap(stick=DOWN if target_rail > prev else UP)
+                st = self.read_menu_state()
+                if st["rail_cursor"] == prev:
+                    raise LabError(f"menu_nav_to({path!r}): rail cursor stuck at {prev}, wanted {target_rail}")
+            raise LabError(f"menu_nav_to({path!r}): could not reach rail utility {top!r}")
+
+        if tabs_mode:
+            n_cats = mdef["cat_count"]
+            for _ in range(n_cats + 1):
+                if st["category"] == cat_idx:
+                    break
+                cur_cat = st["category"]
+                fwd = (cat_idx - cur_cat) % n_cats
+                bwd = (cur_cat - cat_idx) % n_cats
+                self.tap(["R"] if fwd <= bwd else ["L"])
+                st = self.read_menu_state()
+                if st["category"] == cur_cat:
+                    raise LabError(f"menu_nav_to({path!r}): L/R did not move category from {cur_cat}")
+        else:
+            if st["category"] != cat_idx or st["rail_focus"]:
+                if not st["rail_focus"]:
+                    self.tap(["B"])
+                    st = self.read_menu_state()
+                    if not st["rail_focus"]:
+                        raise LabError(f"menu_nav_to({path!r}): B did not focus left rail")
+                for _ in range(mdef["cat_count"] + mdef["util_count"] + 2):
+                    if st["rail_cursor"] == cat_idx:
+                        break
+                    prev = st["rail_cursor"]
+                    self.tap(stick=DOWN if cat_idx > prev else UP)
+                    st = self.read_menu_state()
+                    if st["rail_cursor"] == prev:
+                        raise LabError(f"menu_nav_to({path!r}): rail cursor stuck at {prev}, wanted {cat_idx}")
+                if st["rail_cursor"] != cat_idx:
+                    raise LabError(f"menu_nav_to({path!r}): failed to reach category {top!r} on rail")
+                if len(parts) > 1 or st["rail_focus"]:
+                    self.tap(["A"])
+                    st = self.read_menu_state()
+                    if st["rail_focus"] or st["stack"][0] != mdef["cat_pages"][cat_idx]:
+                        raise LabError(f"menu_nav_to({path!r}): A did not enter category {top!r} "
+                                       f"(railFocus={st['rail_focus']}, stack[0]={st['stack'][0]})")
+
+        if len(parts) == 1:
+            pid = st["stack"][0]
+            return {"page_id": pid, "row": st["cursor"][pid], "state": st}
+
+        res = None
+        for idx, comp in enumerate(parts[1:], start=1):
+            res = self.menu_select_row(comp, mdef)
+            if idx < len(parts) - 1:
+                if res["option"]["kind"] != KIND_MENU:
+                    raise LabError(f"menu_nav_to({path!r}): {comp!r} on page {res['page_id']} is not a submenu "
+                                   f"(kind={res['option']['kind']})")
+                prev_depth = res["state"]["depth"]
+                self.tap(["A"])
+                st = self.read_menu_state()
+                if st["depth"] != prev_depth + 1:
+                    raise LabError(f"menu_nav_to({path!r}): A on submenu {comp!r} did not advance depth "
+                                   f"(stayed {st['depth']})")
+        return res
 
     def setting(self, offset, half=False):
         return self.emu.u16(self.settings + offset) if half else self.emu.u8(self.settings + offset)

@@ -2109,6 +2109,10 @@ namespace lab {
         {
             TM_LOG("lab: screen %s; frame advance %s, overlay %s\n", wide ? "16:9" : "4:3",
                    settings().general.frameAdvance ? "on" : "off", settings().display.debugOverlay ? "on" : "off");
+#ifdef __MWERKS__
+            TM_LOG("lab: menu pointers def %08x state %08x\n", reinterpret_cast<u32>(&ui::labMenu()),
+                   reinterpret_cast<u32>(&net.menu));
+#endif
         }
     }
 
