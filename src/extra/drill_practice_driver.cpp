@@ -633,9 +633,9 @@ namespace extra {
                                        | (tMode != kTargetStationary ? kFlagNoReact : 0u)));
         if (soloZoomCam)
         {
-            // Keep vanilla Brawl fighter-centered camera tracking, simply zoomed
-            // out slightly from single-fighter closeup to comfortable 1v1 distance.
-            applyCameraRect(hmn->fighter, hmnFs.x - 44.0f, hmnFs.x + 44.0f, hmnFs.y + 40.0f, hmnFs.y - 18.0f);
+            // Keep vanilla Brawl fighter-centered camera tracking with balanced
+            // solo framing that keeps fighter + wavedash/ledge space crisp in 16:9 and 4:3.
+            applyCameraRect(hmn->fighter, hmnFs.x - 33.0f, hmnFs.x + 33.0f, hmnFs.y + 30.0f, hmnFs.y - 14.0f);
         }
 
         int p1Slot = -1;

@@ -153,10 +153,10 @@ namespace extra {
     inline const char* drillHudTitle(u8 drillId)
     {
         static const char kNames[] =
-            "TECH PRACTICE\0LEDGEDASH\0WAVEDASH\0L-CANCEL\0FLOAT / HOVER\0"
-            "POWERSHIELD\0RAR\0DACUS\0B-REVERSE\0CANCEL ENDURANCE\0"
-            "MOVEMENT FLOW\0REACTION LAB\0TECHCHASE ESC\0SWEETSPOT\0CC / ASDI-DOWN\0"
-            "SNAKE RECOVERY\0TECHCHASE\0BREAK THE TARGETS!";
+            "Tech Practice\0Ledgedash\0Wavedash\0L-Cancel\0Float / Hover\0"
+            "Powershield\0RAR\0DACUS\0B-Reverse\0Cancel Endurance\0"
+            "Movement Flow\0Reaction Lab\0Techchase Esc\0Sweetspot\0CC / ASDI-Down\0"
+            "Snake Recovery\0Techchase\0Break the Targets!";
         return drillNthStr(kNames, drillId < drills::kDrillIdCount ? drillId : 0);
     }
 

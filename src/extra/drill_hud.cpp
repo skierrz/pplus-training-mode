@@ -62,8 +62,8 @@ namespace extra {
             kClamp168 = 1 << 7
         };
 
-        const u32 kGradeCols[5] = {0xA0BCC4FFu, 0xFFD300FFu, 0x4CE688FFu, 0xFF6658FFu, 0xFFB848FFu};
-        const u32 kPipCols[5] = {0x20343EFFu, 0xFFD300FFu, 0x4CE688FFu, 0xFF6658FFu, 0xFFB848FFu};
+        const u32 kGradeCols[5] = {0xA0BCC4FFu, kHudGold, kHudGreen, kHudRed, kHudWarn};
+        const u32 kPipCols[5] = {0x20343EFFu, kHudGold, kHudGreen, kHudRed, kHudWarn};
         const float kScales[5] = {
             ui::style::kTypeMicro / ui::style::kCapHeight,
             ui::style::kTypeBody / ui::style::kCapHeight,
@@ -291,7 +291,7 @@ namespace extra {
                          static_cast<unsigned>(st.totalAtt));
             }
 
-            // Zone 1: Top-Center Pure Timing / State Bar (symmetric Early / Title / Late matching 08-calm-wavedash).
+            // Zone 1: Top-Center Timing / State Bar (symmetric Early / Title / Late) or Rep-History Strip.
             gfx::Rgba cells[64];
             int cellCount = 15;
             int ptrCell = -1;
@@ -301,6 +301,12 @@ namespace extra {
             const char* rightLbl = NULL;
             char caption[40];
             caption[0] = '\0';
+            TimingBarFx fx;
+            memset(&fx, 0, sizeof(fx));
+            fx.pointerPos = -1.0f;
+            fx.flashCell = -1;
+            fx.tickStartCell = -1;
+            fx.tickEndCell = -1;
 
             if (d == drills::kDrillWavedash)
             {
@@ -406,6 +412,10 @@ namespace extra {
                 leftLbl = "Early";
                 rightLbl = "Late";
                 snprintf(caption, sizeof(caption), hitlagExt > 0 ? "L-Cancel +HL" : "L-Cancel");
+                fx.tickStartCell = 4 + hitlagExt;
+                fx.tickEndCell = 10 + hitlagExt;
+                fx.tickStartLabel = "7f";
+                fx.tickEndLabel = "1f";
                 lbl0 = "Timing";
                 lbl1 = "Hitlag";
                 if (lc != NULL && lc->seq > 0u)
@@ -417,8 +427,8 @@ namespace extra {
                         // pf=7 is 7f before landing (earliest valid, leftmost green);
                         // pf=1 is 1f before landing (latest valid, rightmost green next to Late +1f).
                         ptrCell = 4 + hitlagExt + (7 - pf);
-                        snprintf(val0, sizeof(val0), "%df / 7f", pf);
-                        col0 = 0x4CE688FFu;
+                        snprintf(val0, sizeof(val0), "Frame %d/7", pf);
+                        col0 = kHudGreen;
                     }
                     else if (r.outcome == kLcMissEarly)
                     {
@@ -604,31 +614,35 @@ namespace extra {
             }
             else
             {
-                // Unified calm white-label rep/progress timing bar for all other drills & challenges.
+                // Distinct discrete streak/rep pip strip (no timing pointer, no Early/Late framing).
                 int pips = target > 0 ? static_cast<int>(target) : kDrillFreePips;
                 if (pips > kDrillMaxSetReps) pips = kDrillMaxSetReps;
                 cellCount = pips;
                 for (int i = 0; i < cellCount; i++)
                 {
                     u8 p = st.repPips[i];
-                    cells[i] = p == 0 ? 0x1E2C38C8u : kPipCols[p < 5 ? p : 0];
+                    cells[i] = p == 0 ? kHudCellEmpty : kPipCols[p < 5 ? p : 0];
                 }
-                int activePip = target > 0 ? (static_cast<int>(st.repsDone) - 1) : (static_cast<int>(st.freePipCount) - 1);
-                if (activePip >= 0 && activePip < cellCount)
+                fx.isRepStrip = true;
+                fx.repTag = target > 0 ? "Reps" : "Streak";
+                if (st.mode == kDrillModeFree)
                 {
-                    ptrCell = activePip;
+                    snprintf(caption, sizeof(caption), "%s", drillHudTitle(d));
                 }
-                snprintf(caption, sizeof(caption), "%s  -  %s", drillHudTitle(d), drillModeLabel(st.mode));
+                else
+                {
+                    snprintf(caption, sizeof(caption), "%s  -  %s", drillHudTitle(d), drillModeLabel(st.mode));
+                }
             }
 
             drawTimingBar(cells, cellCount, ptrCell, legendCount > 0 ? legend : NULL, legendCount,
-                          legendCount == 0 ? caption : NULL, wide, leftLbl, rightLbl);
+                          legendCount == 0 ? caption : NULL, wide, leftLbl, rightLbl, &fx);
 
             // Zone 2: Panel B Right-Margin Quiet Smoked Stat Plate stacked cleanly under Option A GC controller.
             StatPlateRow rows[3];
             rows[0].label = lbl0; rows[0].value = val0; rows[0].valueColor = col0;
-            rows[1].label = lbl1; rows[1].value = val1; rows[1].valueColor = 0xF4F8FCFFu;
-            rows[2].label = lbl2; rows[2].value = val2; rows[2].valueColor = 0xF4F8FCFFu;
+            rows[1].label = lbl1; rows[1].value = val1; rows[1].valueColor = kHudTextValue;
+            rows[2].label = lbl2; rows[2].value = val2; rows[2].valueColor = kHudTextValue;
             drawStatPlate(rows, 3, hudViewerColumnBottom(wide), wide);
 
             // Floating 2D TARGET label above the Wavedash floor target zone.
@@ -677,46 +691,22 @@ namespace extra {
                 target = kDrillSetReps10;
             }
 
+            // Pass 1: batch modal chrome, badge/pips, stat row slabs, and footer badges before text.
             gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, 0x070B12B8u);
             drawPanel(ox, modalTop, modalW, modalH, kLabBaseTop, kLabBaseBot);
 
-            // Unified 36 px header band + 2 px (F3) accent divider so DisplayFont
-            // heading clears both the top accent bar and subtitle cleanly.
             const float hdrH = kFibBandH + kFibHair;
             u32 accent = st.newBest ? kLabFocusGold : kLabTealTop;
             gfx::fillGradV(ix, inTop, iw, hdrH, kLabHeaderTop, kLabHeaderBot);
             gfx::fillRect(ix, inTop, iw, kFibHair, accent);
             gfx::fillRect(ix, inTop + hdrH, iw, kFibHair, kLabDivider);
 
-            char buf[28];
-            snprintf(buf, sizeof(buf), "%s PRACTICE", drillHudTitle(st.activeDrill));
-            label(320.0f, inTop + 6.0f, buf, 0xFFFFFFFFu, kAlignCenter | kSzDisp13);
-            const char* subTitle = "60s RUN COMPLETE";
-            if (!timed)
-            {
-                snprintf(buf, sizeof(buf), "%u-REP SET COMPLETE", static_cast<unsigned>(target));
-                subTitle = buf;
-            }
-            label(320.0f, inTop + 23.0f, subTitle, 0xFFF5B8FFu, kAlignCenter);
-
-            // Hero score (21 px = F8, ~phi jump from 13 px heading) + balanced vertical rhythm.
             float bodyY = inTop + hdrH + kFibHair;
-            unsigned denom = timed ? (st.totalAtt > 0u ? static_cast<unsigned>(st.totalAtt) : 1u)
-                                   : static_cast<unsigned>(target);
-            unsigned hits = timed ? static_cast<unsigned>(st.totalHit)
-                                  : (st.totalHit < target ? static_cast<unsigned>(st.totalHit) : static_cast<unsigned>(target));
-            unsigned pct = (timed && st.totalAtt == 0u) ? 0u : (hits * 100u) / denom;
-            snprintf(buf, sizeof(buf), "%u / %u  (%u%%)", hits, timed ? static_cast<unsigned>(st.totalAtt) : denom, pct);
-            u8 scFl = kAlignCenter | kSzDisp20 | (pct >= 80u ? kDispGold : (pct < 50u ? kDispRed : 0));
-            label(320.0f, bodyY + 11.0f, buf, pct >= 80u ? 0xFFE866FFu : (pct >= 50u ? 0xFFFFFFFFu : 0xFF9E92FFu),
-                  scFl);
-
             float badgeY = bodyY + 11.0f + kTypeHero + 11.0f;
             if (st.newBest)
             {
                 float pw = 104.0f * xs;
                 gfx::fillGradV(320.0f - pw * 0.5f, badgeY, pw, kFibRowH, kLabGoldTop, kLabGoldBot);
-                label(320.0f, badgeY + (kFibRowH - kTypeMicro) * 0.5f, "NEW BEST!", kLabGoldInk, kAlignCenter);
             }
             else
             {
@@ -729,43 +719,14 @@ namespace extra {
             float rowW = (modalW - 2.0f * rowPad) * xs;
             float lx = rowX + kFibPad * xs;
             float rx = rowX + rowW - kFibPad * xs;
-            float ry = badgeY + kFibRowH + 11.0f;
-            for (int r = 0; r < 3; r++, ry += 24.0f + kFibTight)
+            float ry0 = badgeY + kFibRowH + 11.0f;
+            for (int r = 0; r < 3; r++)
             {
+                float ry = ry0 + i2f(r) * (24.0f + kFibTight);
                 gfx::fillGradV(rowX, ry, rowW, 24.0f, kLabRowSlateTop, kLabRowSlateBot);
                 gfx::fillRect(rowX, ry + 22.0f, rowW, kFibHair, kLabRowSlateEdge);
-                const char* lbl = r == 0 ? "Personal Best" : (r == 1 ? "Best Streak" : drillHighlightLabel(st.activeDrill));
-                const char* val = buf;
-                u32 vc = 0xF0F4F8FFu;
-                if (r == 0)
-                {
-                    if (st.sessionBest)
-                    {
-                        snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(st.sessionBest));
-                    }
-                    else
-                    {
-                        val = "--";
-                    }
-                    if (st.newBest)
-                    {
-                        vc = kLabFocusGold;
-                    }
-                }
-                else if (r == 1)
-                {
-                    snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(st.bestStreakFull));
-                }
-                else
-                {
-                    drillHudFormatHighlight(st, buf, sizeof(buf));
-                    vc = kLabTealTop;
-                }
-                label(lx, ry + (24.0f - kTypeBody) * 0.5f, lbl, kGradeCols[0], kSz10);
-                label(rx, ry + (24.0f - kTypeBody) * 0.5f, val, vc, kSz10 | kAlignRight);
             }
 
-            // Unified 34 px (F9) footer band + 2 px (F3) divider.
             float footTop = inBot - kFibBandH - kFibHair;
             gfx::fillRect(ix, footTop, iw, kFibHair, kLabDivider);
             gfx::fillGradV(ix, footTop + kFibHair, iw, kFibBandH, kLabFooterTopCol, kLabFooterBotCol);
@@ -805,11 +766,79 @@ namespace extra {
                 totalW += itemW[p];
             }
             totalW += 2.0f * itemGap;
-            float px = 320.0f - totalW * 0.5f;
+            float footStartX = 320.0f - totalW * 0.5f;
+            float px = footStartX;
+            for (int p = 0; p < 3; p++)
+            {
+                drawGlossyPillBadge(px, footMid - bh * 0.5f, badgeW[p], bh, kBadgeCols[p][0], kBadgeCols[p][1]);
+                px += itemW[p] + itemGap;
+            }
+
+            // Pass 2: batched text (Title Case header/subtitle, hero score, badge, 3 stat rows, footer labels).
+            char buf[28];
+            snprintf(buf, sizeof(buf), "%s Practice", drillHudTitle(st.activeDrill));
+            label(320.0f, inTop + 6.0f, buf, 0xFFFFFFFFu, kAlignCenter | kSzDisp13);
+            const char* subTitle = "60s Run Complete";
+            if (!timed)
+            {
+                snprintf(buf, sizeof(buf), "%u-Rep Set Complete", static_cast<unsigned>(target));
+                subTitle = buf;
+            }
+            label(320.0f, inTop + 23.0f, subTitle, 0xFFF5B8FFu, kAlignCenter);
+
+            unsigned denom = timed ? (st.totalAtt > 0u ? static_cast<unsigned>(st.totalAtt) : 1u)
+                                   : static_cast<unsigned>(target);
+            unsigned hits = timed ? static_cast<unsigned>(st.totalHit)
+                                  : (st.totalHit < target ? static_cast<unsigned>(st.totalHit) : static_cast<unsigned>(target));
+            unsigned pct = (timed && st.totalAtt == 0u) ? 0u : (hits * 100u) / denom;
+            snprintf(buf, sizeof(buf), "%u / %u  (%u%%)", hits, timed ? static_cast<unsigned>(st.totalAtt) : denom, pct);
+            u8 scFl = kAlignCenter | kSzDisp20 | (pct >= 80u ? kDispGold : (pct < 50u ? kDispRed : 0));
+            label(320.0f, bodyY + 11.0f, buf, pct >= 80u ? 0xFFE866FFu : (pct >= 50u ? 0xFFFFFFFFu : 0xFF9E92FFu),
+                  scFl);
+
+            if (st.newBest)
+            {
+                label(320.0f, badgeY + (kFibRowH - kTypeMicro) * 0.5f, "New Best!", kLabGoldInk, kAlignCenter);
+            }
+
+            for (int r = 0; r < 3; r++)
+            {
+                float ry = ry0 + i2f(r) * (24.0f + kFibTight);
+                const char* lbl = r == 0 ? "Personal Best" : (r == 1 ? "Best Streak" : drillHighlightLabel(st.activeDrill));
+                const char* val = buf;
+                u32 vc = 0xF0F4F8FFu;
+                if (r == 0)
+                {
+                    if (st.sessionBest)
+                    {
+                        snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(st.sessionBest));
+                    }
+                    else
+                    {
+                        val = "--";
+                    }
+                    if (st.newBest)
+                    {
+                        vc = kLabFocusGold;
+                    }
+                }
+                else if (r == 1)
+                {
+                    snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(st.bestStreakFull));
+                }
+                else
+                {
+                    drillHudFormatHighlight(st, buf, sizeof(buf));
+                    vc = kLabTealTop;
+                }
+                label(lx, ry + (24.0f - kTypeBody) * 0.5f, lbl, kGradeCols[0], kSz10);
+                label(rx, ry + (24.0f - kTypeBody) * 0.5f, val, vc, kSz10 | kAlignRight);
+            }
+
+            px = footStartX;
             for (int p = 0; p < 3; p++)
             {
                 float bw = badgeW[p];
-                drawGlossyPillBadge(px, footMid - bh * 0.5f, bw, bh, kBadgeCols[p][0], kBadgeCols[p][1]);
                 float gw = gfx::textWidth(glyphs[p], gScale);
                 gfx::text(px + (bw - gw) * 0.5f, textYForCap(gCapY, gScale), glyphs[p], kBadgeCols[p][2], gScale);
                 gfx::text(px + bw + kFibTight * xs, textYForCap(lCapY, lScale), drillNthStr(kPromptLabels, p),

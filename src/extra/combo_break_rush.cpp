@@ -789,50 +789,50 @@ namespace extra {
         const float bw = b.x1 - b.x0;
         const float bh = b.y1 - b.y0;
 
-        // Panel B quiet borderless smoked plate (zero wireframe border, zero neon accent bar).
-        gfx::fillRect(ox, oy, bw, bh, 0x0E161EA6u);
-
         const float padX = ui::style::kFibGap * xs;
         const float lx = ox + padX;
         const float rx = ox + bw - padX;
         const float txtSc = ui::style::scaleForCap(ui::style::kTypeMeta);
+        const float barW = bw - 2.0f * padX;
+        const float barY = oy + bh - 4.0f;
 
-        // Top row: calm white Rodin title + mode/timer readout.
+        // Pass 1: all quads (smoked glass plate, 2px inset divider, chain timer bar).
+        drawSmokedPlate(ox, oy, bw, bh);
+        gfx::fillRect(lx, oy + 18.0f, barW, ui::style::kFibHair, kSmokedDivider);
+        gfx::fillRect(lx, barY, barW, 2.0f, 0x060C1280u);
+        if (st.chainFrames > 0)
+        {
+            gfx::fillRect(lx, barY, barW * i2f(st.chainFrames) / i2f(kRushChainMaxFrames), 2.0f,
+                          st.multiplier >= 4 ? (kHudGold & 0xFFFFFFF0u) : (kHudGreen & 0xFFFFFFE8u));
+        }
+
+        // Pass 2: all text (title + timed countdown only when timed, score/multiplier/chain/best).
         const float topY = ui::style::textYForCap(oy + 4.0f, txtSc);
-        drawShadowText(lx, topY, "Break the Targets!", 0xF2F6FAFFu, txtSc);
+        drawShadowText(lx, topY, "Break the Targets!", kHudTextValue, txtSc);
 
         char buf[32];
-        if (st.mode == kRushFree)
-        {
-            float tw = gfx::textWidth("Free", txtSc);
-            drawShadowText(rx - tw, topY, "Free", 0xA8E8C8FFu, txtSc);
-        }
-        else
+        if (st.mode != kRushFree)
         {
             unsigned secs = (static_cast<unsigned>(st.timerFrames) + 59u) / 60u;
             if (st.finished) strcpy(buf, "Time Up");
             else snprintf(buf, sizeof(buf), "%u:%02u", secs / 60u, secs % 60u);
-            gfx::Rgba tCol = (st.finished || secs <= 5u) ? 0xFF7868FFu : 0xFFD300FFu;
+            gfx::Rgba tCol = (st.finished || secs <= 5u) ? kHudRed : kHudGold;
             drawShadowText(rx - gfx::textWidth(buf, txtSc), topY, buf, tCol, txtSc);
         }
 
-        // 2px integer-Y inset divider matching Panel B grounding (480i interlace-safe).
-        gfx::fillRect(lx, oy + 18.0f, bw - 2.0f * padX, ui::style::kFibHair, 0xFFFFFF24u);
-
-        // Second row: calm white labels + semantic gold/green values.
         const float rowY = ui::style::textYForCap(oy + 23.0f, txtSc);
         float curX = lx;
         drawShadowText(curX, rowY, "Score ", 0xD8E2ECFFu, txtSc);
         curX += gfx::textWidth("Score ", txtSc);
 
         snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(st.score));
-        drawShadowText(curX, rowY, buf, 0xFFD300FFu, txtSc);
+        drawShadowText(curX, rowY, buf, kHudGold, txtSc);
         curX += gfx::textWidth(buf, txtSc) + ui::style::kFibGap * xs;
 
         snprintf(buf, sizeof(buf), "x%u", static_cast<unsigned>(st.multiplier));
-        gfx::Rgba multCol = st.multiplier >= 7 ? 0xFF7868FFu
-                                               : (st.multiplier >= 4 ? 0xFFD300FFu
-                                                                     : (st.multiplier >= 2 ? 0x4CE688FFu : 0xC8D6E0FFu));
+        gfx::Rgba multCol = st.multiplier >= 7 ? kHudRed
+                                               : (st.multiplier >= 4 ? kHudGold
+                                                                     : (st.multiplier >= 2 ? kHudGreen : 0xC8D6E0FFu));
         drawShadowText(curX, rowY, buf, multCol, txtSc);
 
         if (st.bestScore > 0u)
@@ -851,18 +851,7 @@ namespace extra {
         float stkX = rx - bestW - ui::style::kFibGap * xs - stkW;
         if (stkX > curX + ui::style::kFibPad * xs)
         {
-            drawShadowText(stkX, rowY, buf, st.streak > 0 ? 0x4CE688FFu : 0xB8C6D2FFu, txtSc);
-        }
-
-        // 2px integer-Y chain timer bar along the bottom inset of the smoked plate.
-        const float barW = bw - 2.0f * padX;
-        const float barY = oy + bh - 4.0f;
-        gfx::fillRect(lx, barY, barW, 2.0f, 0x060C1280u);
-        if (st.chainFrames > 0)
-        {
-            gfx::fillRect(lx, barY,
-                          barW * i2f(st.chainFrames) / i2f(kRushChainMaxFrames), 2.0f,
-                          st.multiplier >= 4 ? 0xFFD300F0u : 0x4CE688E8u);
+            drawShadowText(stkX, rowY, buf, st.streak > 0 ? kHudGreen : 0xB8C6D2FFu, txtSc);
         }
         s_net->debug.draw2dCalls++;
     }

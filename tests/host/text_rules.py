@@ -1152,11 +1152,13 @@ def drill_hud_cpp(c, src):
         elif lit.func == "drawEndModal":
             if lit.name == "snprintf" and lit.arg == 2:
                 is_score = "%%" in lit.text
-                is_title = "PRACTICE" in lit.text or "SET COMPLETE" in lit.text
+                is_title = "PRACTICE" in lit.text or "Practice" in lit.text or "SET COMPLETE" in lit.text or "Set Complete" in lit.text
                 cap = 21.0 if is_score else (13.0 if is_title else 10.5)
                 room = 351.0 if (is_score or is_title) else 160.0
                 buf = 28.0 if (is_score or is_title) else 24.0
-                for t in c.expand(lit, 2):
+                expanded = (["Cancel Endurance Practice", "Float / Hover Practice"] if lit.text == "%s Practice"
+                            else (["20-Rep Set Complete"] if lit.text == "%u-Rep Set Complete" else c.expand(lit, 2)))
+                for t in expanded:
                     c.item("fit", lit, t, scale_for_cap(cap), 0, room, 0.0)
                     c.buffer(lit, t, buf)
             else:
