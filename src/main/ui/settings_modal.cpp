@@ -104,7 +104,7 @@ namespace ui {
         const float inL43 = kFrame.left43 + kLabBorder;
         const float inR43 = kFrame.right43 - kLabBorder;
         const float inTop = kFrame.topY + kLabBorder;
-        drawModalFrame(kFrame, "UPDATE SAVED SETTINGS");
+        drawModalFrame(kFrame, "Update Saved Settings");
 
         float ss = scaleForCap(kTypeMeta);
         const char* sub = "Settings from an older build were found on SD.";
@@ -146,13 +146,14 @@ namespace ui {
             fitText(textX, y + 27.0f, subs[i], sel ? kLabGoldInkMuted : kLabMutedText, kTypeMeta, textMaxW);
         }
 
-        // Unified glossy vector footer emblems (neutral silver D-Pad + green glossy A).
+        // Unified glossy vector footer emblems (neutral silver D-Pad pill + green glossy A/2).
         float fx = cx(inL43 + kFibPad);
         float footMid = 351.0f + kFibBandH * 0.5f;
-        u8 flags = kBadgeRound | kBadgeTightGap | kBadgeWidePad;
-        fx = drawFooterBadge(fx, footMid, 16.0f, "+", "Choose", kBtnLight, flags);
+        u8 dpadFlags = kBadgeTightGap | kBadgeWidePad;
+        u8 btnFlags = kBadgeRound | kBadgeTightGap | kBadgeWidePad;
+        fx = drawFooterBadge(fx, footMid, 16.0f, "D-Pad", "Choose", kBtnLight, dpadFlags);
         drawFooterBadge(fx, footMid, 16.0f, s_ctrlType == gfPadType::WIIMOTE ? "2" : "A", "Confirm & Save", kBtnA,
-                        flags);
+                        btnFlags);
 
         // Subtle 2px top inner bevel matching existing modal framing.
         gfx::fillRect(cx(inL43), inTop, w(inR43 - inL43), kFibHair, kLabDivider);

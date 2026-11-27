@@ -700,9 +700,6 @@ namespace browser {
         }
         if (s_count == 0)
         {
-            descLine(0, "No recordings found on the SD card.", kText);
-            descLine(1, "Export one in a Training match: lab menu,", kLabDescText);
-            descLine(2, "Recording > Export.", kLabDescText);
             return;
         }
         const Entry& e = s_entries[s_row];
@@ -735,7 +732,7 @@ namespace browser {
             char cpu[16];
             slotsText(hmn, sizeof(hmn), i.hmnSlots);
             slotsText(cpu, sizeof(cpu), i.cpuSlots);
-            snprintf(line, sizeof(line), "Slots: HMN %s  CPU %s", hmn, cpu);
+            snprintf(line, sizeof(line), "Slots: P1 %s  CPU %s", hmn, cpu);
             descLine(2, line, kLabDescText);
             break;
         }
@@ -789,28 +786,57 @@ namespace browser {
         drawScrollBar(s_count, first > s_count - kVisibleRows ? (s_count > kVisibleRows ? s_count - kVisibleRows : 0)
                                                                : first);
 
-        // Glossy shoulder pills + page readout in the header's right half.
+        // Glossy shoulder pills + page readout in the header's right half (only when files exist).
         bool wiiPage = (s_controllerType == gfPadType::WIIMOTE || s_controllerType == gfPadType::NUNCHUK);
-        const char* prevG = wiiPage ? "-" : "L";
-        const char* nextG = wiiPage ? "+" : "R";
         float pScale = scaleForCap(kTypeMeta);
-        float pillH = 18.0f;
-        float pillW = gw(22.0f);
-        float pillY = hdrMid - pillH * 0.5f;
         float pTextY = textYForCap(hdrMid - kTypeMeta * 0.5f, pScale);
-        float lPillX = cx(412.0f);
-        float rPillX = cx(inR43 - kFibPad - 22.0f);
-        drawGlossyPillBadge(lPillX, pillY, pillW, pillH, kLabBtnLightTop, kLabBtnLightBot);
-        drawGlossyPillBadge(rPillX, pillY, pillW, pillH, kLabBtnLightTop, kLabBtnLightBot);
-        gfx::text(lPillX + (pillW - gfx::textWidth(prevG, pScale)) * 0.5f, pTextY, prevG, kLabBtnDarkText, pScale);
-        gfx::text(rPillX + (pillW - gfx::textWidth(nextG, pScale)) * 0.5f, pTextY, nextG, kLabBtnDarkText, pScale);
+        if (s_count > 0)
+        {
+            const char* prevG = wiiPage ? "-" : "L";
+            const char* nextG = wiiPage ? "+" : "R";
+            float pillH = 18.0f;
+            float pillW = gw(22.0f);
+            float pillY = hdrMid - pillH * 0.5f;
+            float lPillX = cx(412.0f);
+            float rPillX = cx(inR43 - kFibPad - 22.0f);
+            drawGlossyPillBadge(lPillX, pillY, pillW, pillH, kLabBtnLightTop, kLabBtnLightBot);
+            drawGlossyPillBadge(rPillX, pillY, pillW, pillH, kLabBtnLightTop, kLabBtnLightBot);
+            gfx::text(lPillX + (pillW - gfx::textWidth(prevG, pScale)) * 0.5f, pTextY, prevG, kLabBtnDarkText, pScale);
+            gfx::text(rPillX + (pillW - gfx::textWidth(nextG, pScale)) * 0.5f, pTextY, nextG, kLabBtnDarkText, pScale);
 
-        char page[20];
-        int pages = (s_count + kPageRows - 1) / kPageRows;
-        snprintf(page, sizeof(page), "Page %d/%d", s_count > 0 ? s_row / kPageRows + 1 : 1, pages > 0 ? pages : 1);
-        float pgW = gfx::textWidth(page, pScale);
-        float slotCenter = (lPillX + pillW + rPillX) * 0.5f;
-        gfx::text(slotCenter - pgW * 0.5f, pTextY, page, kLabDescText, pScale);
+            char page[20];
+            int pages = (s_count + kPageRows - 1) / kPageRows;
+            snprintf(page, sizeof(page), "Page %d/%d", s_row / kPageRows + 1, pages > 0 ? pages : 1);
+            float pgW = gfx::textWidth(page, pScale);
+            float slotCenter = (lPillX + pillW + rPillX) * 0.5f;
+            gfx::text(slotCenter - pgW * 0.5f, pTextY, page, kLabDescText, pScale);
+        }
+        else
+        {
+            const char* emptyTag = "0 files";
+            float ew = gfx::textWidth(emptyTag, pScale);
+            gfx::text(cx(inR43 - kFibPad) - ew, pTextY, emptyTag, kLabMutedText, pScale);
+        }
+
+        if (s_count == 0 && !s_confirm && s_phase != kDelete && s_message == NULL)
+        {
+            float listMidY = (kRowTop + kRowsBandBottom) * 0.5f;
+            float midX = cx((inL43 + inR43) * 0.5f);
+            float maxW = w(inR43 - inL43 - 2.0f * kFibPad);
+            float headScale = scaleForCap(kTypeBody);
+            const char* emptyHead = "No recordings found on the SD card.";
+            const char* emptySub1 = "Export one in a Training match: Lab Menu,";
+            const char* emptySub2 = "Recording > Export Recording.";
+            float hw = gfx::textWidth(emptyHead, headScale);
+            float s1w = gfx::textWidth(emptySub1, pScale);
+            float s2w = gfx::textWidth(emptySub2, pScale);
+            drawFitText(midX - (hw > maxW ? maxW : hw) * 0.5f, textYForCap(listMidY - 24.0f, headScale), emptyHead,
+                        kText, headScale, maxW);
+            drawFitText(midX - (s1w > maxW ? maxW : s1w) * 0.5f, textYForCap(listMidY + 2.0f, pScale), emptySub1,
+                        kLabDescText, pScale, maxW);
+            drawFitText(midX - (s2w > maxW ? maxW : s2w) * 0.5f, textYForCap(listMidY + 18.0f, pScale), emptySub2,
+                        kLabDescText, pScale, maxW);
+        }
 
         float capOffset = (kRowBoxH - kRowCap) * 0.5f;
         char text[48];
@@ -856,6 +882,10 @@ namespace browser {
         {
             fx = drawFooterBadge(fx, fy, 18.0f, okG, "Delete", kBtnB, kBadgeRound);
             drawFooterBadge(fx, fy, 18.0f, backG, "Cancel", kBtnLight, kBadgeRound);
+        }
+        else if (s_count == 0)
+        {
+            drawFooterBadge(fx, fy, 18.0f, backG, "Back", kBtnB, kBadgeRound);
         }
         else
         {

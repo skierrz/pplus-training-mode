@@ -825,7 +825,7 @@ TEST(drill_list, per_controller_footer_and_browser_labels)
     // GC owner draws GC footer strip, All Modes section & L/R banner pills.
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK(canvasDrew("TRAINING MODE"));
+    CHECK(canvasDrew("Training Mode"));
     CHECK(canvasDrew("All Modes"));
     CHECK(canvasDrew("L"));
     CHECK(canvasDrew("R"));
@@ -1465,7 +1465,7 @@ TEST(drill_list, y_quick_osds_patches_osd_area_in_place_without_clobbering_other
 TEST(drill_list, y_quick_osds_blocks_edits_on_v1_and_newer_saves)
 {
     static const u16 kLayouts[2] = {1u, static_cast<u16>(main::kSettingsVersion + 1)};
-    static const char* const kNotes[2] = {"v1 save on SD: upgrade in match", "Newer save on SD: read-only"};
+    static const char* const kNotes[2] = {"Older save on SD: upgrade in match", "Newer save on SD: read-only"};
 
     for (int c = 0; c < 2; c++)
     {

@@ -588,7 +588,7 @@ namespace osdQuick {
             else if (head->layout < main::kSettingsVersion)
             {
                 s_olderLayoutOnCard = true;
-                s_statusNote = "v1 save on SD: upgrade in match";
+                s_statusNote = "Older save on SD: upgrade in match";
             }
             else
             {
@@ -982,7 +982,7 @@ namespace osdQuick {
         const float bodyTop = kFrame.hdrBot + kFibHair;
         const float descTop = kFrame.descTop;
         const float footTop = kFrame.footTop;
-        drawModalFrame(kFrame, "QUICK OVERLAYS");
+        drawModalFrame(kFrame, "Quick Overlays");
 
         float hdrMid = (inTop + kFrame.hdrBot) * 0.5f;
         const char* sub = s_statusNote != NULL ? s_statusNote : "Saves to SD on exit";

@@ -121,7 +121,7 @@ namespace pages {
         TM_COMBO_TOGGLE("Enabled", comboTrainer.enabled, 0, comboActive),
         TM_COMBO_TOGGLE("Noclip Reset", comboTrainer.noclip, 1, comboAnyResetEnabled),
         TM_COMBO_TOGGLE("Fix Position", comboTrainer.fixPosition, 0, comboFixPosEligible),
-        TM_COMBO_TOGGLE("Reset P1", comboTrainer.resetP1, 1, comboFixPosChildEnabled),
+        TM_COMBO_TOGGLE("Reset P1 Position", comboTrainer.resetP1, 1, comboFixPosChildEnabled),
         TM_ROW_CHOICE_P(0, TM_FIELD(comboTrainer.resetDelay), main::kComboDelayCount,
                         main::kComboDelay30, "Reset Delay", kResetDelays, NULL, comboFixPosChildEnabled),
         TM_ROW_CHOICE_P(0, TM_FIELD(comboTrainer.postHitstunEscape), main::kComboEscapeCount,

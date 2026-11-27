@@ -1400,9 +1400,13 @@ namespace ui {
         }
 
         const char* desc = NULL;
+        char diBuf[96];
         if (diPickerActiveFor(pageId, state))
         {
-            desc = "Tilt control stick to aim DI, then press A to lock or B to cancel.";
+            const CtrlSpec& cs = ctrlSpec(state.controllerType);
+            snprintf(diBuf, sizeof(diBuf), "Tilt control stick to aim DI, then press %s to lock or %s to cancel.",
+                     cs.txtA, cs.txtB);
+            desc = diBuf;
         }
         else if (isRailStyle(def) && state.railFocus)
         {
@@ -1491,6 +1495,7 @@ namespace ui {
                     : (railMode ? (state.railFocus ? "Close" : "Categories")
                                 : (!state.openStart ? "Close" : NULL));
 
+            bool bIsClose = bLabel != NULL && strcmp(bLabel, "Close") == 0;
             if (showA)
             {
                 pushFooter(items, n, 0, true, cs.txtA, aLabel);
@@ -1499,16 +1504,15 @@ namespace ui {
             {
                 pushFooter(items, n, 1, true, cs.txtB, bLabel);
             }
-            if (state.openStart)
+            if (state.openStart && !bIsClose)
             {
                 pushFooter(items, n, 2, (cs.roundBits & 1) != 0, cs.txtStart, "Close");
             }
             pushFooter(items, n, (cs.roundBits & 0x10) ? 3 : 2, (cs.roundBits & 2) != 0, cs.txtZ,
-                       state.openStart ? "Brawl Pause" : "Close");
-            if (def.categoryCount > 1)
+                       state.openStart ? "Brawl Training" : "Close");
+            if (def.categoryCount > 1 && isTabsStyle(def))
             {
-                pushFooter(items, n, 2, (cs.roundBits & 4) != 0, cs.txtCat,
-                           isTabsStyle(def) ? "Tab" : "Category");
+                pushFooter(items, n, 2, (cs.roundBits & 4) != 0, cs.txtCat, "Tab");
             }
             bool resetRound = (cs.roundBits & 0x20) != 0;
             if (railMode && state.railFocus)

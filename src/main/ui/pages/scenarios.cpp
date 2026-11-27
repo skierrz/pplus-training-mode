@@ -327,7 +327,7 @@ namespace pages {
         TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.tech), 5, 0,
                         "Tech Option", kComboTechLabels, NULL, scenarioComboLabActive),
         TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(comboTrainer.resetP1), 0, 1, 1,
-               "Reset P1", NULL, NULL, scenarioComboLabActive),
+               "Reset P1 Position", NULL, NULL, scenarioComboLabActive),
         TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(comboTrainer.noclip), 0, 1, 1,
                "Noclip Reset", NULL, NULL, scenarioComboLabActive),
         // Techchase inline rows

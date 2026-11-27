@@ -712,7 +712,7 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK(strcmp(scen.options[5].name, "Reset Delay") == 0);
     CHECK(strcmp(scen.options[6].name, "Trajectory DI") == 0);
     CHECK(strcmp(scen.options[7].name, "Tech Option") == 0);
-    CHECK(strcmp(scen.options[8].name, "Reset P1") == 0);
+    CHECK(strcmp(scen.options[8].name, "Reset P1 Position") == 0);
     CHECK(strcmp(scen.options[9].name, "Noclip Reset") == 0);
     CHECK(strcmp(scen.options[10].name, "Setup") == 0);
     CHECK(strcmp(scen.options[11].name, "Position") == 0);

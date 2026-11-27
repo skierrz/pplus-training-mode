@@ -764,7 +764,7 @@ TEST(text_fit, lab_menu_pages)
                         }
                     }
 
-                    // Worst-case dense footer: Lab > P1 Damage ("Reset 0%" + "Categories" + "Brawl Pause" + "Reset" + "Reset Page").
+                    // Worst-case dense footer: Lab > P1 Damage ("Reset 0%" + "Categories" + "Brawl Training" + "Reset" + "Reset Page").
                     ui::MenuState dmgState;
                     memset(&dmgState, 0, sizeof(dmgState));
                     dmgState.category = 0;
@@ -953,7 +953,7 @@ TEST(text_fit, drill_list)
                 }
                 drawList();
 
-                const canvas::Run* banner = runOf("TRAINING MODE");
+                const canvas::Run* banner = runOf("Training Mode");
                 REQUIRE(banner != NULL);
                 const canvas::Run* secRun = runOf(sec.name);
                 REQUIRE(secRun != NULL);

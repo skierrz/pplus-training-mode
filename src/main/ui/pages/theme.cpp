@@ -26,13 +26,13 @@ namespace pages {
 
     // In main::InfoBgColor order (main/settings.h).
     TM_LABELS_BEGIN(kInfoBgLabels)
-        TM_L("Default") TM_L("P+ Teal") TM_L("Brawl Navy") TM_L("Charcoal") TM_L("Black") TM_L("Violet") TM_L("Crimson")
+        TM_L("Dark Slate") TM_L("P+ Teal") TM_L("Brawl Navy") TM_L("Charcoal") TM_L("Black") TM_L("Violet") TM_L("Crimson")
     TM_LABELS_END
     TM_LABELS_ASSERT(kInfoBgLabels, main::kInfoBgColorCount, tm_info_bg_labels_match);
 
     // In main::InfoAlpha order (main/settings.h).
     TM_LABELS_BEGIN(kInfoAlphaLabels)
-        TM_L("Default") TM_L("0%") TM_L("20%") TM_L("40%") TM_L("60%") TM_L("80%") TM_L("100%")
+        TM_L("Smoked 80%") TM_L("0%") TM_L("20%") TM_L("40%") TM_L("60%") TM_L("80%") TM_L("100%")
     TM_LABELS_END
     TM_LABELS_ASSERT(kInfoAlphaLabels, main::kInfoAlphaCount, tm_info_alpha_labels_match);
 #endif

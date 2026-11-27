@@ -611,7 +611,7 @@ TEST(wii_lab, sideways_a_cycles_tabs_and_draws_badges)
     CHECK(lab_uut::menuOpen());
     CHECK_EQ(0, static_cast<int>(lab_uut::s_menu.category));
 
-    // Draft A Start mode at depth 0 draws [A] Tab, [+] Close, [-] Brawl Pause,
+    // Draft A Start mode at depth 0 draws [A] Tab, [+] Close, [-] Brawl Training,
     // omits the no-op [1] Back pill, and suppresses the bottom-right watermark while open.
     host::canvas::clear();
     lab_uut::onRender(0, host::fakes::match());
@@ -619,7 +619,7 @@ TEST(wii_lab, sideways_a_cycles_tabs_and_draws_badges)
     CHECK(canvasDrew("Tab"));
     CHECK(canvasDrew("2"));
     CHECK(canvasDrew("+"));
-    CHECK(canvasDrew("Brawl Pause"));
+    CHECK(canvasDrew("Brawl Training"));
     CHECK(!canvasDrew("1"));
     bool sawBottomWatermark = false;
     for (int i = 0; i < host::canvas::runs(); i++)
@@ -652,12 +652,12 @@ TEST(wii_lab, sideways_a_cycles_tabs_and_draws_badges)
     stepBoth(pads);
     CHECK_EQ(1, static_cast<int>(main::settings().general.frameAdvance));
 
-    // Switch to Draft C (Rail): Sideways A also switches categories and draws "Category" and "Categories".
+    // Switch to Draft C (Rail): redundant "Category" badge is omitted from the footer while
+    // [1] Categories is shown and Sideways A still switches categories.
     main::settings().controls.menuStyle = main::kMenuStyleRail;
     host::canvas::clear();
     lab_uut::onRender(0, host::fakes::match());
-    CHECK(canvasDrew("A"));
-    CHECK(canvasDrew("Category"));
+    CHECK(!canvasDrew("Category"));
     CHECK(canvasDrew("1"));
     CHECK(canvasDrew("Categories"));
     setPad(pads[4], 0);
@@ -684,7 +684,7 @@ TEST(wii_lab, sideways_a_cycles_tabs_and_draws_badges)
     host::canvas::clear();
     lab_uut::onRender(0, host::fakes::match());
     CHECK(!canvasDrew("+"));
-    CHECK(!canvasDrew("Brawl Pause"));
+    CHECK(!canvasDrew("Brawl Training"));
     CHECK(canvasDrew("-"));
     CHECK(canvasDrew("1"));
     CHECK(canvasDrew("Close"));

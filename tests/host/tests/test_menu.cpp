@@ -1961,7 +1961,7 @@ TEST(lab_menu, stream1_combo_lab_inline_rows_on_scenarios)
     const ui::Page& scen = ui::pages::kScenarios;
     static const char* const kExpectedComboLab[11] = {
         "Preset", "Auto-Reset", "Side",
-        "Post-Hitstun", "Reset Delay", "Trajectory DI", "Tech Option", "Reset P1", "Noclip Reset",
+        "Post-Hitstun", "Reset Delay", "Trajectory DI", "Tech Option", "Reset P1 Position", "Noclip Reset",
         "Reset Now", "More Combo Options"
     };
     int vis = 0;

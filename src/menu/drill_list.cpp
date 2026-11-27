@@ -1189,9 +1189,9 @@ namespace list {
         float midY = (kBannerTop + kBannerBottom) * 0.5f;
         float titleScale = displayScaleForCap(kBannerTitleCap);
         float titleMaxW = w(114.0f);
-        float titleW = gfx::displayTextWidth("TRAINING MODE", titleScale);
+        float titleW = gfx::displayTextWidth("Training Mode", titleScale);
         float titleSx = titleW > titleMaxW && titleW > 0.0f ? titleScale * titleMaxW / titleW : titleScale;
-        gfx::displayText(cx(kBannerTitleX), displayYForCap(midY - kBannerTitleCap * 0.5f, titleScale), "TRAINING MODE",
+        gfx::displayText(cx(kBannerTitleX), displayYForCap(midY - kBannerTitleCap * 0.5f, titleScale), "Training Mode",
                          kBannerInk, kBannerInk, titleSx, titleScale, 0.0f, 0);
 
         bool wiiShoulder = type == gfPadType::WIIMOTE || type == gfPadType::NUNCHUK;
