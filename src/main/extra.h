@@ -90,8 +90,7 @@ namespace main {
         bool (*fighterSwapBusy)();
         // Single-line option descriptions (extra/menu_descriptions.h).
         const char* (*optionDesc)(u8 pageId, u8 row);
-        // Native Brawl/P+ UI button emblems & page overlays (extra/ui_assets.h).
-        bool (*drawUiIcon)(u8 iconId, float x, float y, float w, float h, u32 rgba);
+        // Native Brawl/P+ page overlays (extra/ui_assets.h).
         void (*drawPageOverlay)(u8 pageId, bool railMode);
         // Per-fighter Info Display panels (main/ui/info_display.cpp, linked in extra).
         bool (*infoWanted)();
@@ -298,8 +297,7 @@ namespace main {
 #endif
     // Single-line lab menu option descriptions (extra/menu_descriptions.h).
     const char* extraOptionDesc(u8 pageId, u8 row);
-    // Native Brawl/P+ UI button emblems & page overlays (extra/ui_assets.h).
-    bool extraDrawUiIcon(u8 iconId, float x, float y, float w, float h, u32 rgba);
+    // Native Brawl/P+ page overlays (extra/ui_assets.h).
     void extraDrawPageOverlay(u8 pageId, bool railMode);
     // Per-fighter Info Display panels (linked in extra).
     bool extraInfoWanted();

@@ -291,7 +291,7 @@ namespace extra {
         heatmapDraw,       heatmapReset,       adaptiveCpuBias,    adaptiveCpuReset,
         scenarioPresetsCall, onCpuStep,        scenarioPresetsSavedView, grabVizDraw,
         fighterSwapRow,    fighterSwapChanged, fighterSwapApply,   fighterSwapBusy,
-        optionDesc,        uiAssetsDrawIcon,   uiAssetsDrawPageOverlay,
+        optionDesc,        uiAssetsDrawPageOverlay,
         ui::infoWanted,    ui::infoStep,       ui::drawInfo,       ui::infoReset,
         ui::applyInfoPreset, inputViewerDraw,  drawColoredHitboxes, diCompassDraw,
         reversalSlotsPick, psaInspectorDraw,   onTimingAndPracticeDraw, onDrillHook,

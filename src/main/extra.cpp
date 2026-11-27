@@ -250,12 +250,6 @@ namespace main {
         return s_hooks != NULL && s_hooks->optionDesc != NULL ? s_hooks->optionDesc(pageId, row) : NULL;
     }
 
-    bool extraDrawUiIcon(u8 iconId, float x, float y, float w, float h, u32 rgba)
-    {
-        return s_hooks != NULL && s_hooks->drawUiIcon != NULL
-               && s_hooks->drawUiIcon(iconId, x, y, w, h, rgba);
-    }
-
     void extraDrawPageOverlay(u8 pageId, bool railMode)
     {
         if (s_hooks != NULL && s_hooks->drawPageOverlay != NULL) s_hooks->drawPageOverlay(pageId, railMode);

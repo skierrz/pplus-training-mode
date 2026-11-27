@@ -21,7 +21,6 @@
 #include "main/ui/style.h"
 #include "shared/game/menu_sound.h"
 #include "shared/log.h"
-#include "shared/ui_icons.h"
 
 namespace tm {
 namespace ui {
@@ -1088,7 +1087,7 @@ namespace ui {
         {kLabBtnZTop, kLabBtnZBot, kLabWhiteText}
     };
 
-    enum { kNoIcon = 0xFF, kEmblemCentre = 1, kEmblemTab = 2, kEmblemDense = 4 };
+    enum { kEmblemCentre = 1, kEmblemTab = 2, kEmblemDense = 4 };
 
     static void fillBox(float x43, float y, float w43, float h, gfx::Rgba color)
     {
@@ -1174,14 +1173,11 @@ namespace ui {
     // Draws a unified sculpted glossy GX button badge (resolution-independent
     // across 1x 480p and high internal resolution so footer badges never mix
     // muddy 16x16 sprites with sharp vector chrome).
-    static float drawEmblem(u8 icon1, u8 icon2, float x, float midY, float fbW, u8 theme, u8 flags, bool& usedIcon)
+    static float drawEmblem(float x, float midY, float fbW, u8 theme, u8 flags)
     {
-        (void)icon1;
-        (void)icon2;
         float fbH = (flags & kEmblemTab) ? 18.0f : ((flags & kEmblemDense) ? 14.0f : 16.0f);
         float bx = (flags & kEmblemCentre) ? x - fbW * 0.5f : x;
         drawGlossyPillBadge(bx, midY - fbH * 0.5f, fbW, fbH, kBtnTheme[theme][0], kBtnTheme[theme][1]);
-        usedIcon = false;
         return fbW;
     }
 
@@ -1210,7 +1206,6 @@ namespace ui {
     }
 
     struct CtrlSpec {
-        u8 a, b, start, z1, z2, cat1, cat2, tabL, tabR, resetOpt, resetPage;
         u8 roundBits; // bit 0:start, 1:z, 2:cat, 3:tabR, 4:zPurple, 5:resetRound
         const char* txtA;
         const char* txtB;
@@ -1226,14 +1221,10 @@ namespace ui {
     static const CtrlSpec& ctrlSpec(u8 ct)
     {
         static const CtrlSpec kSpecs[4] = {
-            {kIconGcA, kIconGcB, kNoIcon, kIconGcZ, kNoIcon, kIconGcL, kIconGcR, kIconGcL, kIconGcR, kIconGcX, kIconGcY,
-             0x30, "A", "B", "START", "Z", "L/R", "L", "R", "X", "Y"},
-            {kIconWii2, kIconWii1, kIconWiiPlus, kIconWiiMinus, kNoIcon, kIconWiiA, kNoIcon, kNoIcon, kIconWiiA,
-             kNoIcon, kNoIcon, 0x0F, "2", "1", "+", "-", "A", NULL, "A", NULL, NULL},
-            {kIconWiiA, kIconWiiB, kIconWiiPlus, kIconNunZ, kNoIcon, kIconNunC, kIconWii2, kIconNunC, kIconWii2,
-             kIconWiiMinus, kNoIcon, 0x29, "A", "B", "+", "Z", "C/2", "C", "2", "-", NULL},
-            {kIconClA, kIconClB, kIconWiiPlus, kIconClZL, kIconClZR, kIconClL, kIconClR, kIconClL, kIconClR, kIconClX,
-             kIconClY, 0x21, "A", "B", "+", "ZL/ZR", "L/R", "L", "R", "X", "Y"}
+            {0x30, "A", "B", "START", "Z", "L/R", "L", "R", "X", "Y"},
+            {0x0F, "2", "1", "+", "-", "A", NULL, "A", NULL, NULL},
+            {0x29, "A", "B", "+", "Z", "C/2", "C", "2", "-", NULL},
+            {0x21, "A", "B", "+", "ZL/ZR", "L/R", "L", "R", "X", "Y"}
         };
         if (ct == gfPadType::WIIMOTE)
         {
@@ -1251,20 +1242,15 @@ namespace ui {
     }
 
     struct FooterItem {
-        u8 icon1;
-        u8 icon2;
         u8 theme;
         bool round;
         const char* badge;
         const char* label;
     };
 
-    static void pushFooter(FooterItem* items, int& n, u8 i1, u8 i2, u8 theme, bool round, const char* badge,
-                           const char* label)
+    static void pushFooter(FooterItem* items, int& n, u8 theme, bool round, const char* badge, const char* label)
     {
         FooterItem& it = items[n++];
-        it.icon1 = i1;
-        it.icon2 = i2;
         it.theme = theme;
         it.round = round;
         it.badge = badge;
@@ -1440,22 +1426,19 @@ namespace ui {
         int n = 0;
         if (diPicking)
         {
-            pushFooter(items, n, cs.a, kNoIcon, 0, true, cs.txtA, "Lock Angle");
-            pushFooter(items, n, cs.b, kNoIcon, 1, true, cs.txtB, "Cancel");
+            pushFooter(items, n, 0, true, cs.txtA, "Lock Angle");
+            pushFooter(items, n, 1, true, cs.txtB, "Cancel");
         }
         else if (state.resetConfirmPage != 0)
         {
             bool byOpt = (state.resetConfirmPage & 0x80u) != 0;
-            u8 icon = state.controllerType == gfPadType::GCC
-                          ? kNoIcon
-                          : ((byOpt || cs.txtResetPage == NULL) ? cs.resetOpt : cs.resetPage);
             const char* txt = (byOpt || cs.txtResetPage == NULL) ? cs.txtResetOpt : cs.txtResetPage;
             if (txt == NULL)
             {
                 txt = "Y";
             }
-            pushFooter(items, n, icon, kNoIcon, 2, (cs.roundBits & 0x20) != 0, txt, "Confirm Reset");
-            pushFooter(items, n, cs.b, kNoIcon, 1, true, cs.txtB, "Cancel");
+            pushFooter(items, n, 2, (cs.roundBits & 0x20) != 0, txt, "Confirm Reset");
+            pushFooter(items, n, 1, true, cs.txtB, "Cancel");
         }
         else
         {
@@ -1493,45 +1476,42 @@ namespace ui {
 
             if (showA)
             {
-                pushFooter(items, n, cs.a, kNoIcon, 0, true, cs.txtA, aLabel);
+                pushFooter(items, n, 0, true, cs.txtA, aLabel);
             }
             if (bLabel != NULL)
             {
-                pushFooter(items, n, cs.b, kNoIcon, 1, true, cs.txtB, bLabel);
+                pushFooter(items, n, 1, true, cs.txtB, bLabel);
             }
             if (state.openStart)
             {
-                pushFooter(items, n, cs.start, kNoIcon, 2, (cs.roundBits & 1) != 0, cs.txtStart, "Close");
+                pushFooter(items, n, 2, (cs.roundBits & 1) != 0, cs.txtStart, "Close");
             }
-            pushFooter(items, n, cs.z1, cs.z2, (cs.roundBits & 0x10) ? 3 : 2, (cs.roundBits & 2) != 0, cs.txtZ,
+            pushFooter(items, n, (cs.roundBits & 0x10) ? 3 : 2, (cs.roundBits & 2) != 0, cs.txtZ,
                        state.openStart ? "Brawl Pause" : "Close");
             if (def.categoryCount > 1)
             {
-                pushFooter(items, n, cs.cat1, cs.cat2, 2, (cs.roundBits & 4) != 0, cs.txtCat,
+                pushFooter(items, n, 2, (cs.roundBits & 4) != 0, cs.txtCat,
                            isTabsStyle(def) ? "Tab" : "Category");
             }
             bool resetRound = (cs.roundBits & 0x20) != 0;
-            u8 resetOptIcon = state.controllerType == gfPadType::GCC ? kNoIcon : cs.resetOpt;
-            u8 resetPageIcon = state.controllerType == gfPadType::GCC ? kNoIcon : cs.resetPage;
             if (railMode && state.railFocus)
             {
                 const char* railResetTxt = cs.txtResetPage != NULL ? cs.txtResetPage : cs.txtResetOpt;
-                u8 railResetIcon = cs.txtResetPage != NULL ? resetPageIcon : resetOptIcon;
                 if (state.railCursor < def.categoryCount && railResetTxt != NULL
                     && pageHasResettableOptions(def, def.categoryPages[state.railCursor]))
                 {
-                    pushFooter(items, n, railResetIcon, kNoIcon, 2, resetRound, railResetTxt, "Reset Page");
+                    pushFooter(items, n, 2, resetRound, railResetTxt, "Reset Page");
                 }
             }
             else
             {
                 if (cs.txtResetOpt != NULL && p.count > 0 && cur < p.count && resettableOption(p.options[cur]))
                 {
-                    pushFooter(items, n, resetOptIcon, kNoIcon, 2, resetRound, cs.txtResetOpt, "Reset");
+                    pushFooter(items, n, 2, resetRound, cs.txtResetOpt, "Reset");
                 }
                 if (cs.txtResetPage != NULL && pageHasResettableOptions(def, pageId))
                 {
-                    pushFooter(items, n, resetPageIcon, kNoIcon, 2, resetRound, cs.txtResetPage, "Reset Page");
+                    pushFooter(items, n, 2, resetRound, cs.txtResetPage, "Reset Page");
                 }
             }
         }
@@ -1556,7 +1536,6 @@ namespace ui {
         u8 embFlags = tier > 0 ? kEmblemDense : 0;
 
         float badgeX[7], badgeW[7], labelX[7];
-        bool usedIcon[7];
         for (int i = 0; i < n; i++)
         {
             const FooterItem& it = items[i];
@@ -1566,18 +1545,15 @@ namespace ui {
             {
                 fbW = minPillW;
             }
-            badgeW[i] = drawEmblem(it.icon1, it.icon2, curX, footerMidY, fbW, it.theme, embFlags, usedIcon[i]);
+            badgeW[i] = drawEmblem(curX, footerMidY, fbW, it.theme, embFlags);
             labelX[i] = curX + badgeW[i] + iconGap;
             curX = labelX[i] + boldWidth(it.label, scale) + itemGap;
         }
         for (int i = 0; i < n; i++)
         {
-            if (!usedIcon[i])
-            {
-                float bw = boldWidth(items[i].badge, scale);
-                boldText(badgeX[i] + (badgeW[i] - bw) * 0.5f, textY, items[i].badge, kBtnTheme[items[i].theme][2],
-                         scale, scale);
-            }
+            float bw = boldWidth(items[i].badge, scale);
+            boldText(badgeX[i] + (badgeW[i] - bw) * 0.5f, textY, items[i].badge, kBtnTheme[items[i].theme][2],
+                     scale, scale);
             boldText(labelX[i], textY, items[i].label, pal.mutedText, scale, scale);
         }
     }
@@ -1692,15 +1668,12 @@ namespace ui {
         float tabH = kFibRowH;
         float tabMidY = tabY + tabH * 0.5f;
         const CtrlSpec& cs = ctrlSpec(state.controllerType);
-        bool leftUsedIcon = false;
-        bool rightUsedIcon = false;
-        if (cs.tabL != kNoIcon)
+        if (cs.txtTabL != NULL)
         {
-            drawEmblem(cs.tabL, kNoIcon, cx(57.5f), tabMidY, gw(24.0f), 2, kEmblemCentre | kEmblemTab, leftUsedIcon);
+            drawEmblem(cx(57.5f), tabMidY, gw(24.0f), 2, kEmblemCentre | kEmblemTab);
         }
         bool rRound = (cs.roundBits & 8) != 0;
-        drawEmblem(cs.tabR, kNoIcon, cx(582.5f), tabMidY, gw(rRound ? 18.0f : 24.0f), 2, kEmblemCentre | kEmblemTab,
-                   rightUsedIcon);
+        drawEmblem(cx(582.5f), tabMidY, gw(rRound ? 18.0f : 24.0f), 2, kEmblemCentre | kEmblemTab);
 
         BevelCols accentBevel = {pal.accentTop, pal.accentBot, pal.accentSheen, pal.accentEdge};
         BevelCols tabBevel = {pal.tabTop, pal.tabBot, pal.bevelLight, pal.bevelDark};
@@ -1714,14 +1687,11 @@ namespace ui {
 
         float capScale = scaleForCap(kTypeMeta);
         float capY = textYForCap(tabMidY - kTypeMeta * 0.5f, capScale);
-        if (cs.txtTabL != NULL && !leftUsedIcon)
+        if (cs.txtTabL != NULL)
         {
             fitText(57.5f, capY, cs.txtTabL, kLabBtnDarkText, capScale, 24.0f, true);
         }
-        if (!rightUsedIcon)
-        {
-            fitText(582.5f, capY, cs.txtTabR, kLabBtnDarkText, capScale, 24.0f, true);
-        }
+        fitText(582.5f, capY, cs.txtTabR, kLabBtnDarkText, capScale, 24.0f, true);
 
         float labelTop = tabMidY - kTabsCap * 0.5f;
         tx = 76.0f;

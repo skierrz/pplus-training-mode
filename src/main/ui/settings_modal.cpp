@@ -3,7 +3,6 @@
 #include <cstdio>
 #include <gf/gf_pad_status.h>
 
-#include "main/extra.h"
 #include "main/gfx/draw.h"
 #include "main/gfx/text.h"
 #include "main/storage/settings_file.h"
@@ -11,7 +10,6 @@
 #include "main/ui/style.h"
 #include "shared/game/menu_sound.h"
 #include "shared/game/pad_bits.h"
-#include "shared/ui_icons.h"
 
 namespace tm {
 namespace ui {

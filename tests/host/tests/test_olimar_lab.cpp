@@ -56,7 +56,7 @@ namespace {
         fakeCharacterRng, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
         NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
         NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, NULL, fakeOlimarAction
+        NULL, NULL, NULL, fakeOlimarAction
     };
 
     void bootClean()
