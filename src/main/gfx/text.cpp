@@ -4,6 +4,7 @@
 #include <ms/ms_char_writer.h>
 #ifdef __MWERKS__
 #include <GX/GXTev.h>
+extern "C" void GXSetTevDirect(GXTevStageID);
 #endif
 #if defined(TM_MODULE_MAIN) && defined(__MWERKS__)
 #include <GX/GXGeometry.h>
@@ -388,6 +389,8 @@ namespace gfx {
         GXSetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_SUBHALF, GX_CS_SCALE_1, TRUE, GX_TEVPREV);
 
         GXSetTevOrder(GX_TEVSTAGE1, GX_TEXCOORD_NULL, GX_TEXMAP_NULL, GX_COLOR0A0);
+        GXSetTevSwapMode(GX_TEVSTAGE1, GX_TEV_SWAP0, GX_TEV_SWAP0);
+        GXSetTevDirect(GX_TEVSTAGE1);
         GXSetTevColorIn(GX_TEVSTAGE1, GX_CC_ZERO, GX_CC_ZERO, GX_CC_ZERO, GX_CC_CPREV);
         GXSetTevColorOp(GX_TEVSTAGE1, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, TRUE, GX_TEVPREV);
         GXSetTevAlphaIn(GX_TEVSTAGE1, GX_CA_ZERO, GX_CA_APREV, GX_CA_RASA, GX_CA_ZERO);

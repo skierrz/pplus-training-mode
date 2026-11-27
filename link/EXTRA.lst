@@ -56,6 +56,7 @@
 
 // Hardware TEV alpha-slope tightening for crisp high-IR font rendering (src/main/gfx/text.cpp):
 // RSBE01 rev 2 addresses from the doldecomp/brawl symbol map (config/RSBE01_02/symbols.txt).
+801f3afc:GXSetTevDirect
 801f3c30:GXSetTevColorIn
 801f3c70:GXSetTevAlphaIn
 801f3cb0:GXSetTevColorOp

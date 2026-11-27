@@ -2,6 +2,9 @@
 
 #include <GX/GXGeometry.h>
 #include <GX/GXHardware.h>
+#ifdef __MWERKS__
+#include <GX/GXTev.h>
+#endif
 #include <GX/GXTransform.h>
 #include <gf/gf_camera.h>
 #include <gf/gf_draw.h>
@@ -56,10 +59,14 @@ namespace gfx {
 
     void end()
     {
-        // Camera 0 is the main camera. TEV, blend, vertex-format and depth are
-        // left as the game's 2D helpers leave them: the game sets them again
-        // for all it draws, as it must after P+'s Code Menu, which draws text
-        // here every frame it is open.
+        // Camera 0 is the main camera. Restore 1 TEV stage if our 2-stage
+        // crisp text TEV was left active; other 2D state is re-set by callers.
+#ifdef __MWERKS__
+        if (s_state == kStateText)
+        {
+            GXSetNumTevStages(1);
+        }
+#endif
         s_camera = kMainCamera;
         s_state = kStateNone;
         gfCameraManager::getManager()->m_cameras[kMainCamera].setGX();
