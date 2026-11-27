@@ -92,7 +92,7 @@ namespace ui {
         float barH = bar.y1 - bar.y0;
         float barCx = (bar.x0 + bar.x1) * 0.5f;
 
-        // Zone 1: Calm white swatch-legend row directly above the frame bar (>= 6px item gap).
+        // Zone 1: Bold calm-white swatch-legend row directly above bar (09-calm-ledgedash).
         if (g.ledgePanel)
         {
             static const char* const kLegNames[6] = {"Ledge", "Drop", "Jump", "Dodge", "Land", "GALINT"};
@@ -102,7 +102,7 @@ namespace ui {
             };
             float lScale = style::scaleForCap(layout::kKeyCap);
             float swW = layout::kKeySwatch * xs;
-            float swGap = 3.0f * xs;
+            float swGap = 3.5f * xs;
             float itemGap = 7.0f * xs;
             float lWidths[6];
             float totalW = 0.0f;
@@ -111,58 +111,78 @@ namespace ui {
                 lWidths[i] = gfx::textWidth(kLegNames[i], lScale);
                 totalW += swW + swGap + lWidths[i] + (i < 5 ? itemGap : 0.0f);
             }
-            float maxRight = layout::kViewerRight - layout::kViewerWidth * xs - layout::kStepGap;
-            float lx0 = barCx - totalW * 0.5f;
-            if (lx0 + totalW > maxRight)
+            layout::Box hdrBox = layout::ledgeHeaderBox(wide);
+            float availW = (hdrBox.x1 - hdrBox.x0) - 4.0f * xs;
+            float sx = (totalW > availW && totalW > 0.0f) ? (lScale * availW / totalW) : lScale;
+            float drawTotalW = totalW > availW ? availW : totalW;
+            float lx0 = barCx - drawTotalW * 0.5f;
+            if (lx0 + drawTotalW > hdrBox.x1 - 2.0f * xs)
             {
-                lx0 = maxRight - totalW;
+                lx0 = hdrBox.x1 - 2.0f * xs - drawTotalW;
             }
-            if (lx0 < layout::kSafeMarginX)
+            if (lx0 < hdrBox.x0 + 2.0f * xs)
             {
-                lx0 = layout::kSafeMarginX;
+                lx0 = hdrBox.x0 + 2.0f * xs;
             }
+            float ratio = lScale > 0.0f ? (sx / lScale) : 1.0f;
+            float swY = layout::kKeyLabelTop + (layout::kKeyCap - layout::kKeySwatch) * 0.5f;
             float curX = lx0;
             for (int i = 0; i < 6; i++)
             {
-                gfx::fillRect(curX, 27.5f, swW, 7.0f, kCellColors[kLegCells[i]] | 0xFFu);
-                curX += swW + swGap + lWidths[i] + itemGap;
+                gfx::fillRect(curX - 1.0f * xs, swY - 1.0f, swW + 2.0f * xs, layout::kKeySwatch + 2.0f, 0x05090FF2u);
+                gfx::fillRect(curX, swY, swW, layout::kKeySwatch, kCellColors[kLegCells[i]] | 0xFFu);
+                curX += (swW + swGap + lWidths[i] + itemGap) * ratio;
             }
             curX = lx0;
             float ly = style::textYForCap(layout::kKeyLabelTop, lScale);
             for (int i = 0; i < 6; i++)
             {
-                gfx::text(curX + swW + swGap + xs, ly + 1.0f, kLegNames[i], 0x000000C8u, lScale);
-                gfx::text(curX + swW + swGap, ly, kLegNames[i], 0xF1F5F9FFu, lScale);
-                curX += swW + swGap + lWidths[i] + itemGap;
+                float tx = curX + (swW + swGap) * ratio;
+                gfx::text(tx + 0.8f * xs, ly + 0.8f, kLegNames[i], 0x04070CE8u, sx, lScale);
+                gfx::text(tx, ly, kLegNames[i], 0xF8FCFFFFu, sx, lScale);
+                curX += (swW + swGap + lWidths[i] + itemGap) * ratio;
             }
         }
 
-        // Chronological frame-state cell bar inside quiet smoked trough.
-        gfx::fillRect(bar.x0, bar.y0, barW, barH, 0x0A121ADCu);
+        // Chunky individually dark-outlined chronological frame cells (09-calm-ledgedash).
+        gfx::fillRect(bar.x0, bar.y0, barW, barH, 0x05090FF4u);
         float gap = layout::kCellGap * xs;
-        float cellW = (barW - (n + 1) * gap) / n;
+        float innerPadX = 2.0f * xs;
+        float cellW = (barW - 2.0f * innerPadX - (n - 1) * gap) / n;
+        if (cellW < 1.5f)
+        {
+            gap = 1.0f * xs;
+            cellW = (barW - 2.0f * innerPadX - (n - 1) * gap) / n;
+        }
         float cellH = barH - 4.0f;
         for (int k = 0; k < n; k++)
         {
             u8 type = static_cast<u8>(k < frames ? l.cells[first + k] : game::kCellGalint);
-            gfx::Rgba col = type < game::kCellTypes ? kCellColors[type] : kCellColors[game::kCellOther];
-            gfx::fillRect(bar.x0 + gap + k * (cellW + gap), bar.y0 + 2.0f, cellW, cellH, col);
+            gfx::Rgba col = (type < game::kCellTypes ? kCellColors[type] : kCellColors[game::kCellOther]) | 0xFFu;
+            float cx = bar.x0 + innerPadX + k * (cellW + gap);
+            gfx::fillRect(cx, bar.y0 + 2.0f, cellW, cellH, col);
+            gfx::fillRect(cx, bar.y0 + 2.0f, cellW, 2.0f, 0xFFFFFF34u);
         }
 
-        // Clean white upward pointer arrow (^) at first actionable frame.
+        // Bold black-outlined white upward pointer arrow (^) at first actionable frame.
         {
             int ptrCell = frames < n ? frames : (n - 1);
-            float halfBase = 4.2f * xs;
-            float px = bar.x0 + gap + ptrCell * (cellW + gap) + cellW * 0.5f;
-            if (px - halfBase < bar.x0)
+            float halfBase = 4.4f * xs;
+            float outPad = 1.4f * xs;
+            float px = bar.x0 + innerPadX + ptrCell * (cellW + gap) + cellW * 0.5f;
+            if (px - halfBase - outPad < bar.x0)
             {
-                px = bar.x0 + halfBase;
+                px = bar.x0 + halfBase + outPad;
             }
-            if (px + halfBase > bar.x1)
+            if (px + halfBase + outPad > bar.x1)
             {
-                px = bar.x1 - halfBase;
+                px = bar.x1 - halfBase - outPad;
             }
-            gfx::fillTri(px, bar.y1 + 1.5f, px - halfBase, bar.y1 + 7.5f, px + halfBase, bar.y1 + 7.5f, 0xFFFFFFFFu);
+            float tipY = bar.y1 + 1.5f;
+            float baseY = bar.y1 + 7.5f;
+            gfx::fillTri(px, tipY - 0.5f, px - halfBase - outPad, baseY + 1.0f, px + halfBase + outPad,
+                         baseY + 1.0f, 0x04070CF8u);
+            gfx::fillTri(px, tipY, px - halfBase, baseY, px + halfBase, baseY, 0xFFFFFFFFu);
         }
 
         // Zone 2: Panel B single quiet smoked plate on right margin under Option A GC controller.
@@ -220,7 +240,7 @@ namespace ui {
             float ph = plate.y1 - plate.y0;
             float pcx = (plate.x0 + plate.x1) * 0.5f;
             float maxW = pw - 2.0f * style::kFibTight * xs;
-            gfx::fillRect(plate.x0, plate.y0, pw, ph, 0x0E161EA6u);
+            gfx::fillRect(plate.x0, plate.y0, pw, ph, 0x111720C0u);
 
             static const char* const kRowLabels[3] = {"GALINT", "On Ledge", "Angle"};
             const char* rowVals[3] = {galintBuf, ledgeBuf, angleBuf};
@@ -232,7 +252,7 @@ namespace ui {
                 float ry = plate.y0 + 4.0f + r * layout::kDrillPlateRowH;
                 if (r > 0)
                 {
-                    gfx::fillRect(plate.x0 + 8.0f * xs, ry - 1.0f, pw - 16.0f * xs, 2.0f, 0xDCE8F028u);
+                    gfx::fillRect(plate.x0 + 8.0f * xs, ry - 1.0f, pw - 16.0f * xs, 2.0f, 0xFFFFFF38u);
                 }
                 float lw = gfx::textWidth(kRowLabels[r], lblSc);
                 float lx = pcx - lw * 0.5f;

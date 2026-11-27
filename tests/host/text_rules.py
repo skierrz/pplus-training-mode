@@ -559,16 +559,16 @@ def menu_descriptions(c, src):
         c.take(lit)
 
 
-guard("main/ui/info_display.cpp", "drawSide", "369aa81f")
+guard("main/ui/info_display.cpp", "drawSide", "e04cb829")
 
 
 def info_display(c, src):
     # drawSide(): a row is squeezed to the Panel B smoked plate's width less its two
-    # insets, (214 - 2 x 6.0) = 202 px at capitals kCap = 10.5 (Medium), normal weight
+    # insets, (214 - 2 x 8.0) = 198 px at capitals kCap = 10.5 (Medium), normal weight
     # with 1px drop shadow. Small/Medium/Large widths are 206/214/218 px on 4:3
     # (<= 218 px clears 4:3 timer). A row's buffer has 64 bytes.
     def row(lit, text):
-        c.item("squeeze", lit, text, scale_for_cap(10.5), 0, 214.0 - 2 * 6.0, 0.0)
+        c.item("squeeze", lit, text, scale_for_cap(10.5), 0, 214.0 - 2 * 7.0, 0.0)
         c.buffer(lit, text, 64.0)
 
     formats = [l for l in src.literals if l.func == "gameText" and re.search(r"format =$", l.stmt)]
@@ -631,11 +631,11 @@ def info_display(c, src):
         c.take(lit)
 
 
-guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "04bc9fcb")
+guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "afb7e853")
 
 
 def ledgedash_hud(c, src):
-    # drawLedgedashHud(): calm white swatch-legend row directly above bar plus
+    # drawLedgedashHud(): bold calm white swatch-legend row directly above bar plus
     # Panel B right-margin smoked stat plate (118 px wide, 108 px inner text room).
     for lit in src.literals:
         if c.taken(lit):
@@ -646,7 +646,7 @@ def ledgedash_hud(c, src):
                 c.item("squeeze", lit, t, scale_for_cap(13.0), 0, 108.0, 0.0)
                 c.buffer(lit, t, cap)
         elif lit.var == "kLegNames":
-            c.item("fit", lit, lit.text, scale_for_cap(8.5), 0, 80.0, 0.0)
+            c.item("fit", lit, lit.text, scale_for_cap(9.0), 0, 80.0, 0.0)
         elif lit.var == "kRowLabels":
             c.item("fit", lit, lit.text, scale_for_cap(9.0), 0, 108.0, 0.0)
         else:
@@ -1298,6 +1298,7 @@ HANDLERS = [
     ("extra/hud_draw.cpp", hud_draw_cpp),
     ("extra/action_log_core.h", action_log_core_h),
     ("extra/action_log.cpp", action_log_cpp),
+    ("extra/input_viewer.cpp", walked),
     ("extra/combo_break_rush.cpp", combo_break_rush_cpp),
     ("main/savestate/savestate.cpp", savestate),
     ("main/game/pad_inmatch.cpp", pad_inmatch_cpp),

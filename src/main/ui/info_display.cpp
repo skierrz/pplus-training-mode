@@ -614,7 +614,7 @@ namespace ui {
     }
 
     // One side's quiet Panel B smoked-plate panel from `top`; returns its bottom (`top` if nothing drawn).
-    static float drawSide(int side, float top, bool drawTopDivider)
+    static float drawSide(int side, float top, float width, bool drawTopDivider)
     {
         int rows = rowCount(side);
         game::FighterRef ref;
@@ -627,7 +627,6 @@ namespace ui {
         int size = s.size < main::kInfoSizeCount ? s.size : main::kInfoMedium;
         bool wide = gfx::widescreen();
         float xs = layout::xsOf(wide);
-        float width = layout::infoWidth(size, wide);
         float height = layout::infoHeight(rows, size);
         float left = layout::infoLeft(wide);
         const main::Settings& all = settings();
@@ -635,7 +634,7 @@ namespace ui {
         u8 alphaId = all.size ? all.osd.infoBgAlpha : static_cast<u8>(main::kInfoAlphaDefault);
         InfoThemeColors theme = resolveInfoTheme(bgId, alphaId);
         gfx::Rgba fillCol = (bgId == main::kInfoBgDefault && alphaId == main::kInfoAlphaDefault)
-                                ? 0x0E161EA6u
+                                ? 0x111720C0u
                                 : theme.fillColor;
         // Quiet borderless Panel B smoked plate (zero outer wireframe border, zero title tab).
         if (fillCol != 0)
@@ -645,14 +644,14 @@ namespace ui {
         if (drawTopDivider)
         {
             float divInset = 8.0f * xs;
-            gfx::fillRect(left + divInset, top - 1.0f, width - 2.0f * divInset, 2.0f, 0xDCE8F028u);
+            gfx::fillRect(left + divInset, top - 1.0f, width - 2.0f * divInset, 2.0f, 0xFFFFFF38u);
         }
 
         const game::Tracked* t = game::trackedEntry(ref.entryId);
         float scale = style::scaleForCap(kCap[size]);
-        float inset = 6.0f * xs;
+        float inset = 7.0f * xs;
         float maxW = width - 2.0f * inset;
-        float capTop = top + 5.0f;
+        float capTop = top + 6.0f;
         char buf[64];
         for (int r = 0; r < rows; r++)
         {
@@ -668,7 +667,7 @@ namespace ui {
                 float sx = textW > maxW && textW > 0.0f ? scale * maxW / textW : scale;
                 float tx = left + inset;
                 float ty = style::textYForCap(capTop + r * kPitch[size], scale);
-                gfx::Rgba shadowCol = theme.shadowColor != 0 ? theme.shadowColor : 0x000000D0u;
+                gfx::Rgba shadowCol = theme.shadowColor != 0 ? theme.shadowColor : 0x000000DCu;
                 gfx::text(tx + xs, ty + 1.0f, buf, shadowCol, sx, scale);
                 gfx::text(tx, ty, buf, built ? style::kText : style::kTextDisabled, sx, scale);
             }
@@ -684,7 +683,8 @@ namespace ui {
         }
         // Step cleanly below Brawl's native top-left Training Info/Combo HUD (y = 83)
         // when visible (IfTraining +0x30), or labBand (y = 69) when either intersects
-        // horizontally; default y0 = 28.
+        // horizontally; default y0 = 24. Unify width across P1, CPU, and PSA Inspector
+        // so stacked Panel B blocks never form a staircase notch.
         bool wide = gfx::widescreen();
         float width = 0.0f;
         for (int side = 0; side < main::kSideCount; side++)
@@ -692,6 +692,14 @@ namespace ui {
             const main::InfoSettings& s = settings().info[side];
             float w = rowCount(side) > 0 ? layout::infoWidth(s.size, wide) : 0.0f;
             width = w > width ? w : width;
+        }
+        if (width > 0.0f && settings().display.psaInspector != main::kPsaOff)
+        {
+            float psaW = layout::kPsaWidth * layout::xsOf(wide);
+            if (psaW > width)
+            {
+                width = psaW;
+            }
         }
         float top = layout::infoTop(layout::topBand(), width, wide);
         if (game::trainingGameMode() && settings().display.hud != 0 && ui::matchHudCounterShown())
@@ -704,9 +712,9 @@ namespace ui {
                 top = cY1 + layout::kStepGap;
             }
         }
-        float bottom = drawSide(main::kSideHuman, top, false);
+        float bottom = drawSide(main::kSideHuman, top, width, false);
         bool hasBoth = bottom > top && rowCount(main::kSideCpu) > 0;
-        drawSide(main::kSideCpu, hasBoth ? bottom : top, hasBoth);
+        drawSide(main::kSideCpu, hasBoth ? bottom : top, width, hasBoth);
     }
 }
 }

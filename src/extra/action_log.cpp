@@ -28,6 +28,8 @@ namespace extra {
             ActionLogState st;
             Sf6StripState sf6;
             ActionLogDebugBlock debug;
+            u8 topIsCpu;
+            u8 botIsCpu;
         };
 
         static ActionLogNet* s_net = NULL;
@@ -216,6 +218,8 @@ namespace extra {
         }
         const game::Tracked* topRow = wantCpu && p2 != NULL ? p2 : p1;
         const game::Tracked* botRow = wantCpu && p2 != NULL ? p1 : p2;
+        s_net->topIsCpu = (topRow != NULL && topRow->cpu) ? 1u : 0u;
+        s_net->botIsCpu = (botRow != NULL && botRow->cpu) ? 1u : 0u;
         int st0 = topRow != NULL ? static_cast<int>(topRow->cur.status) : 0;
         bool act0 = topRow == NULL || topRow->cur.actionable != 0;
         bool hit0 = trackedHasActiveHitbox(topRow);
@@ -249,45 +253,54 @@ namespace extra {
         const float ox = b.x0, oy = b.y0, bw = b.x1 - b.x0, bh = b.y1 - b.y0;
         const int visibleCells = wide ? kSf6Cells16 : kSf6Cells43;
         const float cellPitch = wide ? 6.0f : 8.0f;
-        const float cellFillW = wide ? 5.0f : 6.5f;
+        const float cellFillW = wide ? 4.8f : 6.4f;
 
-        // Quiet borderless Panel B smoked backing (zero outer wireframe, zero 6px legend).
-        gfx::fillRect(ox, oy, bw, bh, 0x0E161EA6u);
+        // Crisp dark grounded SF6 pill strip (matching 02-final-sf6-16x9-4x3).
+        gfx::fillRect(ox, oy, bw, bh, 0x091018D8u);
+        gfx::fillRect(ox, oy, bw, 2.0f, 0x04080EF0u);
+        gfx::fillRect(ox, oy + bh - 2.0f, bw, 2.0f, 0x04080EF0u);
 
-        const float tagX = ox + 5.0f * xs;
-        const float cellsX = ox + (wide ? 22.0f : 26.0f);
-        const float rowH = 9.2f;
-        const float rowY[2] = {oy + 7.0f, oy + bh - 7.0f - rowH};
+        const float tagRight = ox + (wide ? 22.0f : 28.0f);
+        const float cellsX = tagRight + 4.0f * xs;
+        const float rowH = 10.4f;
+        const float rowY[2] = {oy + 6.5f, oy + bh - 6.5f - rowH};
         const bool swapCpu = (mode == main::kActionLogCpu);
-        const char* const rowTags[2] = {swapCpu ? "P2" : "P1", swapCpu ? "P1" : "P2"};
-        const gfx::Rgba tagCols[2] = {swapCpu ? 0x86D4E8FFu : 0xF4F8FCFFu, swapCpu ? 0xF4F8FCFFu : 0x86D4E8FFu};
-
-        // Faint 2px horizontal inset divider between the two fighter tracks.
-        {
-            float divW = bw - (wide ? 54.0f : 62.0f);
-            float inset = 6.0f * xs;
-            if (divW > 2.0f * inset)
-            {
-                gfx::fillRect(ox + inset, oy + bh * 0.5f - 1.0f, divW - 2.0f * inset, 2.0f, 0xDCE8F028u);
-            }
-        }
+        const char* topTag = s_net->topIsCpu ? "CPU" : (swapCpu ? "P2" : "P1");
+        const char* botTag = s_net->botIsCpu ? "CPU" : (swapCpu ? "P1" : "P2");
+        const char* const rowTags[2] = {topTag, botTag};
+        const gfx::Rgba tagCols[2] = {s_net->topIsCpu ? 0x86DCEEFFu : 0xF8FCFFFFu,
+                                      s_net->botIsCpu ? 0x86DCEEFFu : 0xF8FCFFFFu};
 
         const Sf6StripState& sf = s_net->sf6;
         int filled = static_cast<int>(sf.filled);
         int startIdx = filled > visibleCells ? (filled - visibleCells) : 0;
-        const float tagSc = ui::style::scaleForCap(8.2f);
+        const float tagSc = ui::style::scaleForCap(9.0f);
+        const float trackW = static_cast<float>(visibleCells) * cellPitch + (cellPitch - cellFillW);
 
         for (int r = 0; r < 2; r++)
         {
-            float ty = ui::style::textYForCap(rowY[r] + 0.5f, tagSc);
-            gfx::text(tagX + xs, ty + 1.0f, rowTags[r], 0x000000C8u, tagSc);
-            gfx::text(tagX, ty, rowTags[r], tagCols[r], tagSc);
+            float tw = gfx::textWidth(rowTags[r], tagSc);
+            float tx = tagRight - tw;
+            if (tx < ox + 3.0f * xs)
+            {
+                tx = ox + 3.0f * xs;
+            }
+            float ty = ui::style::textYForCap(rowY[r] + (rowH - 9.0f) * 0.5f, tagSc);
+            gfx::text(tx + xs, ty + 1.0f, rowTags[r], 0x000000E0u, tagSc);
+            gfx::text(tx, ty, rowTags[r], tagCols[r], tagSc);
+
+            // Crisp dark cell trough so individual frame slots read sharply.
+            gfx::fillRect(cellsX - 1.0f * xs, rowY[r] - 1.0f, trackW + 1.0f * xs, rowH + 2.0f, 0x04070CECu);
             for (int c = 0; c < visibleCells; c++)
             {
                 int src = startIdx + c;
                 u8 kind = (src < filled) ? sf6CellAt(sf, r, src) : static_cast<u8>(kSf6Empty);
                 float cx = cellsX + static_cast<float>(c) * cellPitch;
                 gfx::fillRect(cx, rowY[r], cellFillW, rowH, sf6CellColor(kind));
+                if (kind != kSf6Empty && kind != kSf6Gap)
+                {
+                    gfx::fillRect(cx, rowY[r], cellFillW, 2.0f, 0xFFFFFF38u);
+                }
                 if (kind == kSf6Gap)
                 {
                     // Crisp 3.5-scanline bright yellow gap marker centered in the cell.

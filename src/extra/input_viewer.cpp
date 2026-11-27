@@ -81,42 +81,83 @@ namespace extra {
             return true;
         }
 
-        void drawOctagonGate(float cx, float cy, float rx, float ry, s8 rawX, s8 rawY, float xs, bool isCStick,
-                             gfx::Rgba rimCol)
+        void fillOctagon(float cx, float cy, float rx, float ry, gfx::Rgba col)
         {
-            // Dark outer silhouette stroke + translucent smoked octagonal interior.
-            gfx::fillEllipse(cx, cy, rx + 1.8f * xs, ry + 1.8f, 0x050B10DCu);
-            gfx::fillEllipse(cx, cy, rx, ry, 0x0E161EC0u);
-
-            // Subtle crosshairs for 480i cardinal readability.
-            gfx::lineBegin(GX_LINES, 4, 9);
-            gfx::vertex(cx - rx * 0.72f, cy, 0x8AA0B044u);
-            gfx::vertex(cx + rx * 0.72f, cy, 0x8AA0B044u);
-            gfx::vertex(cx, cy - ry * 0.72f, 0x8AA0B044u);
-            gfx::vertex(cx, cy + ry * 0.72f, 0x8AA0B044u);
-
-            // Crisp octagonal gate rim (stride 2 over 16-point unit circle).
-            gfx::lineBegin(GX_LINESTRIP, 9, 12);
-            for (int i = 0; i < 9; i++)
+            float vx[8], vy[8];
+            for (int i = 0; i < 8; i++)
             {
                 float ux, uy;
                 unitPoint16(i * 2, ux, uy);
-                gfx::vertex(cx + ux * rx, cy - uy * ry, rimCol);
+                vx[i] = cx + ux * rx;
+                vy[i] = cy - uy * ry;
             }
+            for (int i = 0; i < 8; i++)
+            {
+                int next = (i + 1) & 7;
+                gfx::fillTri(cx, cy, vx[i], vy[i], vx[next], vy[next], col);
+            }
+        }
+
+        void drawOctagonGate(float cx, float cy, float rx, float ry, s8 rawX, s8 rawY, float xs, bool isCStick,
+                             gfx::Rgba rimCol)
+        {
+            // True octagonal 3-layer silhouette: dark outer frame, crisp rim, deep smoked interior.
+            fillOctagon(cx, cy, rx + 2.2f * xs, ry + 2.2f, 0x05090FF4u);
+            fillOctagon(cx, cy, rx + 0.6f * xs, ry + 0.6f, rimCol);
+            fillOctagon(cx, cy, rx - 1.1f * xs, ry - 1.1f, 0x101822DCu);
+
+            // Subtle crosshairs for 480i cardinal readability.
+            gfx::lineBegin(GX_LINES, 4, 9);
+            gfx::vertex(cx - rx * 0.78f, cy, 0x98B0C458u);
+            gfx::vertex(cx + rx * 0.78f, cy, 0x98B0C458u);
+            gfx::vertex(cx, cy - ry * 0.78f, 0x98B0C458u);
+            gfx::vertex(cx, cy + ry * 0.78f, 0x98B0C458u);
 
             float nx, ny;
             viewerStickNorm(rawX, rawY, nx, ny);
             bool tilted = nx != 0.0f || ny != 0.0f;
-            drawDialRayDot(cx, cy, rx, ry, nx, ny, 0.84f, isCStick ? 2.8f : 3.4f, xs,
-                           isCStick ? 0xFFD300CCu : 0x60DCE8D8u, isCStick ? 0xFFD300FFu : 0xF8FAFCFFu, 11, tilted);
+            drawDialRayDot(cx, cy, rx, ry, nx, ny, 0.84f, isCStick ? 3.2f : 3.6f, xs,
+                           isCStick ? 0xFFD300E0u : 0x70E6F2E8u, isCStick ? 0xFFD300FFu : 0xFFFFFFFFu, 12, tilted);
+        }
+
+        void fillStadiumShape(float x, float y, float w, float h, float xs, gfx::Rgba col)
+        {
+            if (w >= h * xs)
+            {
+                float ry = h * 0.5f;
+                float rx = ry * xs;
+                float cy = y + ry;
+                if (w <= 2.0f * rx + 0.5f)
+                {
+                    gfx::fillEllipse(x + w * 0.5f, cy, w * 0.5f, ry, col);
+                    return;
+                }
+                gfx::fillEllipse(x + rx, cy, rx, ry, col);
+                gfx::fillEllipse(x + w - rx, cy, rx, ry, col);
+                gfx::fillRect(x + rx, y, w - 2.0f * rx, h, col);
+            }
+            else
+            {
+                float rx = w * 0.5f;
+                float ry = rx / (xs > 0.01f ? xs : 1.0f);
+                float cx = x + rx;
+                if (h <= 2.0f * ry + 0.5f)
+                {
+                    gfx::fillEllipse(cx, y + h * 0.5f, rx, h * 0.5f, col);
+                    return;
+                }
+                gfx::fillEllipse(cx, y + ry, rx, ry, col);
+                gfx::fillEllipse(cx, y + h - ry, rx, ry, col);
+                gfx::fillRect(x, y + ry, w, h - 2.0f * ry, col);
+            }
         }
 
         void drawPillSilhouette(float x, float y, float w, float h, float xs, gfx::Rgba fillCol, gfx::Rgba rimCol)
         {
             float px = 1.6f * xs;
-            gfx::fillRect(x, y, w, h, 0x050B10E4u);
-            gfx::fillRect(x + px * 0.6f, y + 1.0f, w - 1.2f * px, h - 2.0f, rimCol);
-            gfx::fillRect(x + px, y + 1.8f, w - 2.0f * px, h - 3.6f, fillCol);
+            fillStadiumShape(x - px * 0.5f, y - 0.8f, w + px, h + 1.6f, xs, 0x05090FF2u);
+            fillStadiumShape(x + px * 0.35f, y + 0.6f, w - 0.7f * px, h - 1.2f, xs, rimCol);
+            fillStadiumShape(x + px * 0.95f, y + 1.6f, w - 1.9f * px, h - 3.2f, xs, fillCol);
         }
 
         void drawBareGcc(const ui::layout::Box& b, int playerNo, bool cpu, bool showTag,
@@ -128,88 +169,87 @@ namespace extra {
             float bw = b.x1 - b.x0;
             float bh = b.y1 - b.y0;
 
-            // Optional subtle P1/CPU tag only when dual controllers are active.
+            // Clean P1/CPU tag when dual controllers are active (matching 01-final-everyday).
             if (showTag)
             {
                 char tag[8];
                 viewerTagText(playerNo, cpu, tag);
-                drawShadowCapCenter(x + bw * 0.48f, y + 1.0f, tag, cpu ? 0x86D4E8F0u : 0xFF9494F0u, 8.5f);
+                drawShadowCapCenter(x + bw * 0.45f, y + 0.5f, tag, cpu ? 0x86DCEEFFu : 0xFF8C8CFFu, 9.5f);
             }
 
-            // Thickened L & R trigger pills (6.8 scanlines tall for crisp 480i readability).
-            const float trigH = 6.8f;
-            const float trigY = y + 1.5f;
-            const float trigW = bw * 0.30f;
+            // Rounded stadium L & R shoulder triggers aligned tightly above the stick & face cluster.
+            const float trigH = 7.4f;
+            const float trigY = y + 3.0f;
+            const float trigW = bw * 0.28f;
             for (int t = 0; t < 2; t++)
             {
                 bool isR = (t == 1);
                 float rx = isR ? (x + bw - trigW - 2.0f * xs) : (x + 2.0f * xs);
                 bool dig = (pad.buttons & (isR ? game::kPadR : game::kPadL)) != 0;
                 float fill = viewerTriggerFill(isR ? pad.rTrig : pad.lTrig, dig);
-                float bx = 1.8f * xs;
-                gfx::fillRect(rx, trigY, trigW, trigH, 0x050B10E8u);
-                gfx::fillRect(rx + bx * 0.55f, trigY + 0.9f, trigW - 1.1f * bx, trigH - 1.8f,
-                              dig ? 0xFFF0A0FFu : 0x8498AAB8u);
-                gfx::fillRect(rx + bx, trigY + 1.8f, trigW - 2.0f * bx, trigH - 3.6f, 0x16222CE0u);
+                float bx = 1.6f * xs;
+                fillStadiumShape(rx - bx * 0.5f, trigY - 0.8f, trigW + bx, trigH + 1.6f, xs, 0x05090FF2u);
+                fillStadiumShape(rx + bx * 0.3f, trigY + 0.6f, trigW - 0.6f * bx, trigH - 1.2f, xs,
+                                 dig ? 0xFFF4A8FFu : 0xA8BAC8E0u);
+                fillStadiumShape(rx + bx * 0.9f, trigY + 1.6f, trigW - 1.8f * bx, trigH - 3.2f, xs, 0x1A2430E8u);
                 if (fill > 0.01f)
                 {
-                    float iw = (trigW - 2.0f * bx) * fill;
-                    float ix = isR ? (rx + trigW - bx - iw) : (rx + bx);
-                    gfx::fillRect(ix, trigY + 1.8f, iw, trigH - 3.6f, dig ? 0xFFD300FFu : 0x56D8CEFFu);
+                    float iw = (trigW - 2.2f * bx) * fill;
+                    float ix = isR ? (rx + trigW - 1.1f * bx - iw) : (rx + 1.1f * bx);
+                    gfx::fillRect(ix, trigY + 1.8f, iw, trigH - 3.6f, dig ? 0xFFD300FFu : 0x4CE2D2FFu);
                 }
             }
 
-            // Z pill: staggered horizontally right-top above X, leaving >= 4.5 scanlines
-            // clear dark gap above Y (y + 23.0) and A (y + 32.5) so 480i never blurs them.
+            // Z indigo stadium pill tucked cleanly directly below R, clearing Y and A on 480i.
             {
                 bool zOn = (pad.buttons & game::kPadZ) != 0;
-                float zw = bw * 0.24f;
-                float zx = x + bw - zw - 2.0f * xs;
-                float zy = y + 11.5f;
-                drawPillSilhouette(zx, zy, zw, 6.6f, xs, zOn ? 0xA892FFFFu : 0x5646B0D0u,
-                                   zOn ? 0xFFFFFFFFu : 0x8A78E0D8u);
+                float zw = bw * 0.25f;
+                float zx = x + bw - zw - 3.0f * xs;
+                float zy = y + 13.0f;
+                drawPillSilhouette(zx, zy, zw, 6.4f, xs, zOn ? 0xB8A6FFFFu : 0x5E4EC8E8u,
+                                   zOn ? 0xFFFFFFFFu : 0x9E90F0F0u);
             }
 
-            // Octagonal L-stick gate (left) and gold C-stick octagon (lower-center).
-            gfx::Rgba lRim = showTag ? (cpu ? 0x72C6DCE8u : 0xEA6868E8u) : 0xC8D8E4DCu;
-            drawOctagonGate(x + bw * 0.22f, y + bh * 0.57f, 14.5f * xs, 14.5f, pad.sx, pad.sy, xs, false, lRim);
-            drawOctagonGate(x + bw * 0.49f, y + bh * 0.77f, 8.6f * xs, 8.6f, pad.cx, pad.cy, xs, true, 0xE8C238E8u);
+            // True octagonal L-stick gate (left) and unmistakable gold C-stick octagon (lower-center).
+            gfx::Rgba lRim = showTag ? (cpu ? 0x76D4ECFFu : 0xF27474FFu) : 0xDCE8F2F0u;
+            drawOctagonGate(x + bw * 0.20f, y + bh * 0.57f, 15.0f * xs, 15.0f, pad.sx, pad.sy, xs, false, lRim);
+            drawOctagonGate(x + bw * 0.48f, y + bh * 0.77f, 9.2f * xs, 9.2f, pad.cx, pad.cy, xs, true, 0xFFD300F8u);
 
-            // Compact Start dot and D-pad cross.
+            // Compact Start pill + crisp outlined D-pad cross.
             {
                 bool stOn = (pad.buttons & game::kPadStart) != 0;
-                float scx = x + bw * 0.47f;
-                float scy = y + bh * 0.46f;
-                gfx::fillEllipse(scx, scy, 3.3f * xs, 3.3f, 0x050B10DCu);
-                gfx::fillEllipse(scx, scy, 2.3f * xs, 2.3f, stOn ? 0xFFFFFFFFu : 0x8A9AA8A8u);
+                float scx = x + bw * 0.45f;
+                float scy = y + bh * 0.44f;
+                gfx::fillEllipse(scx, scy, 3.6f * xs, 3.6f, 0x05090FF0u);
+                gfx::fillEllipse(scx, scy, 2.4f * xs, 2.4f, stOn ? 0xFFFFFFFFu : 0x9AAAB8D0u);
             }
             {
                 float dcx = x + bw * 0.34f;
                 float dcy = y + bh * 0.85f;
-                float arm = 5.0f;
-                float th = 3.0f;
-                gfx::fillRect(dcx - arm * xs, dcy - th * 0.5f, 2.0f * arm * xs, th, 0x050B10D8u);
-                gfx::fillRect(dcx - th * 0.5f * xs, dcy - arm, th * xs, 2.0f * arm, 0x050B10D8u);
-                gfx::fillRect(dcx - (arm - 1.0f) * xs, dcy - 0.8f, 2.0f * (arm - 1.0f) * xs, 1.6f, 0x6A7C8CA8u);
-                gfx::fillRect(dcx - 0.8f * xs, dcy - (arm - 1.0f), 1.6f * xs, 2.0f * (arm - 1.0f), 0x6A7C8CA8u);
+                float arm = 5.4f;
+                float th = 3.4f;
+                gfx::fillRect(dcx - arm * xs, dcy - th * 0.5f, 2.0f * arm * xs, th, 0x05090FF0u);
+                gfx::fillRect(dcx - th * 0.5f * xs, dcy - arm, th * xs, 2.0f * arm, 0x05090FF0u);
+                gfx::fillRect(dcx - (arm - 1.2f) * xs, dcy - 0.9f, 2.0f * (arm - 1.2f) * xs, 1.8f, 0x8CA0B2D8u);
+                gfx::fillRect(dcx - 0.9f * xs, dcy - (arm - 1.2f), 1.8f * xs, 2.0f * (arm - 1.2f), 0x8CA0B2D8u);
                 int dx, dy;
                 viewerDpadDir(pad.buttons, dx, dy);
                 if (dx != 0 || dy != 0)
                 {
-                    gfx::fillEllipse(dcx + i2f(dx) * 3.2f * xs, dcy - i2f(dy) * 3.2f, 2.2f * xs, 2.2f, 0xFFD300FFu);
+                    gfx::fillEllipse(dcx + i2f(dx) * 3.4f * xs, dcy - i2f(dy) * 3.4f, 2.4f * xs, 2.4f, 0xFFD300FFu);
                 }
             }
 
-            // Right face button cluster (480i un-cramped silhouettes, no micro-letter inside B):
-            //  - Y horizontal pill (y + 23.0..29.0, 5.0 scanlines below Z)
-            //  - A clean emerald circle (center y + 39.5, r = 6.8)
-            //  - B solid crimson dot (center y + 46.5, r = 4.6)
-            //  - X vertical pill right of A (y + 32.0..45.0)
+            // Iconic GameCube right face cluster (matching 01-final-everyday & 10-grounding):
+            //  - Y rounded horizontal pill cleanly above A
+            //  - Bold emerald A circle with bright mint rim and crisp centered 'A' glyph
+            //  - Outlined crimson B circle tucked lower-left of A
+            //  - X rounded vertical pill tucked right of A
             {
                 bool yOn = (pad.buttons & game::kPadY) != 0;
-                float yw = 14.5f * xs;
-                drawPillSilhouette(x + bw * 0.72f - yw * 0.5f, y + 22.8f, yw, 6.0f, xs,
-                                   yOn ? 0xFFFFFFFFu : 0x8EA0B0B8u, yOn ? 0xFFFFFFFFu : 0xBCCAD6C8u);
+                float yw = 15.5f * xs;
+                drawPillSilhouette(x + bw * 0.72f - yw * 0.5f, y + 22.0f, yw, 5.8f, xs,
+                                   yOn ? 0xFFFFFFFFu : 0x62707EE8u, yOn ? 0xFFFFFFFFu : 0xBCCAD8E8u);
             }
             {
                 bool aOn = (pad.buttons & game::kPadA) != 0;
@@ -217,27 +257,36 @@ namespace extra {
                 float acy = y + 38.5f;
                 if (aOn)
                 {
-                    gfx::fillEllipse(acx, acy, 9.5f * xs, 9.5f, 0x48FFA868u);
+                    gfx::fillEllipse(acx, acy, 10.6f * xs, 10.6f, 0x48FFA870u);
                 }
-                gfx::fillEllipse(acx, acy, 8.2f * xs, 8.2f, 0x050B10E8u);
-                gfx::fillEllipse(acx, acy, 6.7f * xs, 6.7f, aOn ? 0x52FFAAFFu : 0x26B878D0u);
+                gfx::fillEllipse(acx, acy, 9.4f * xs, 9.4f, 0x05090FF4u);
+                gfx::fillEllipse(acx, acy, 7.9f * xs, 7.9f, aOn ? 0x9AFFD0FFu : 0x4CE2B4F0u);
+                gfx::fillEllipse(acx, acy, 6.7f * xs, 6.7f, aOn ? 0x46F09CFFu : 0x1E8F64E8u);
+                float aCap = 8.4f;
+                float aSc = ui::style::scaleForCap(aCap);
+                float aW = gfx::textWidth("A", aSc);
+                float aX = acx - aW * 0.5f;
+                float aY = ui::style::textYForCap(acy - aCap * 0.5f, aSc);
+                gfx::text(aX + 0.6f * xs, aY + 0.8f, "A", 0x04120CE0u, aSc);
+                gfx::text(aX, aY, "A", aOn ? 0x041C12FFu : 0xE8FFF4FFu, aSc);
             }
             {
                 bool bOn = (pad.buttons & game::kPadB) != 0;
                 float bcx = x + bw * 0.59f;
-                float bcy = y + 46.0f;
+                float bcy = y + 46.5f;
                 if (bOn)
                 {
-                    gfx::fillEllipse(bcx, bcy, 6.8f * xs, 6.8f, 0xFF5A5A68u);
+                    gfx::fillEllipse(bcx, bcy, 7.6f * xs, 7.6f, 0xFF5A5A70u);
                 }
-                gfx::fillEllipse(bcx, bcy, 5.8f * xs, 5.8f, 0x050B10E8u);
-                gfx::fillEllipse(bcx, bcy, 4.5f * xs, 4.5f, bOn ? 0xFF5A5AFFu : 0xD83838DCu);
+                gfx::fillEllipse(bcx, bcy, 6.5f * xs, 6.5f, 0x05090FF4u);
+                gfx::fillEllipse(bcx, bcy, 5.2f * xs, 5.2f, bOn ? 0xFF8C8CFFu : 0xF05454F0u);
+                gfx::fillEllipse(bcx, bcy, 4.3f * xs, 4.3f, bOn ? 0xFF4242FFu : 0xC82828E8u);
             }
             {
                 bool xOn = (pad.buttons & game::kPadX) != 0;
-                float xw = 6.2f * xs;
-                drawPillSilhouette(x + bw * 0.89f - xw * 0.5f, y + 31.5f, xw, 13.5f, xs,
-                                   xOn ? 0xFFFFFFFFu : 0x8EA0B0B8u, xOn ? 0xFFFFFFFFu : 0xBCCAD6C8u);
+                float xw = 6.0f * xs;
+                drawPillSilhouette(x + bw * 0.90f - xw * 0.5f, y + 31.0f, xw, 14.5f, xs,
+                                   xOn ? 0xFFFFFFFFu : 0x62707EE8u, xOn ? 0xFFFFFFFFu : 0xBCCAD8E8u);
             }
         }
 

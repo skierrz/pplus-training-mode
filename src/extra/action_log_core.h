@@ -148,12 +148,12 @@ namespace extra {
     inline u32 sf6CellColor(u8 kind)
     {
         static const u32 kCols[kSf6CellKindCount] = {
-            0x16222CC4u, // Empty
-            0x22BCCEFFu, // Startup (teal)
-            0xEC3C4EFFu, // Active (vivid crimson)
-            0x6C88A8FFu, // Recovery (cool slate)
-            0xF5B82EFFu, // Stun (Solo-Gold)
-            0x16222CC4u  // Gap (dark trough + yellow 3.5px center marker drawn on top)
+            0x1E2A36DCu, // Empty (crisp visible dark slot well)
+            0x28D8ECFFu, // Startup (bright cyan-teal)
+            0xF43C4EFFu, // Active (vivid crimson)
+            0x7698BCFFu, // Recovery (clear steel-blue)
+            0xFFB824FFu, // Stun (rich Solo-Gold)
+            0x1E2A36DCu  // Gap (dark slot + yellow 3.5px center marker drawn on top)
         };
         return kCols[kind < kSf6CellKindCount ? kind : 0];
     }

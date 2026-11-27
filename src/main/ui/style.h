@@ -102,7 +102,7 @@ namespace style {
     static const gfx::Rgba kLabDescBotCol = 0x090C11F5;
     static const gfx::Rgba kLabFooterTopCol = 0x0B0E14FF;
     static const gfx::Rgba kLabFooterBotCol = 0x05070BFF;
-    static const gfx::Rgba kLabDivider = 0x26303EFF;
+    static const gfx::Rgba kLabDivider = 0x344254FF;
     static const gfx::Rgba kLabAccent = 0x2DB3A1FF;
     static const gfx::Rgba kLabTealTop = 0x2DB3A1FF;
     static const gfx::Rgba kLabTealBot = 0x209485FF;
@@ -215,50 +215,50 @@ namespace style {
     static const float kLabDescCap = kTypeMeta;
     static const float kLabFooterCap = kTypeMeta;
     static const float kLabRowCap = kTypeBody;
-    static const float kLabRowPitch = 28.0f;     // kLabRowH (23) + kFibTight (5)
-    static const float kLabRowH = 23.0f;
+    static const float kLabRowPitch = 29.0f;     // kLabRowH (24) + kFibTight (5) -> 10 rows end at 358 (8 px bottom)
+    static const float kLabRowH = 24.0f;
     static const float kLabPillH = kFibRowH;     // 21.0f (F8)
     static const float kLabScrollLeft = 585.0f;  // 8 px (F6) right inset to 601
     static const float kLabScrollW = kFibGap;    // 8.0f (F6)
 
-    // Category Rail geometry (unified 34 px header, 21 px subpage crumb, 5 px gaps).
+    // Category Rail geometry (unified 34 px header w/ inline ribbon breadcrumb, symmetric 8 px top/bottom).
     static const float kRailHeaderBottom = kLabHeaderBottom;
     static const float kRailBodyTop = kLabBodyTop;
     static const float kRailRight = 195.0f;      // 39..195 (W = 156) + 2 px div (195..197)
     static const float kRailPaneLeft = 197.0f;   // 197..601 (W = 404)
     static const float kRailRowTop = 73.0f;      // kLabBodyTop (65) + kFibGap (8)
-    static const float kRailSubRowTop = 96.0f;   // kLabSubBodyTop (88) + kFibGap (8)
-    static const float kRailScrollH = 275.0f;    // 10 rows: 9 * 28 + 23
-    static const float kRailSubScrollH = 247.0f; // 9 rows: 8 * 28 + 23
+    static const float kRailSubRowTop = 73.0f;   // subpages put breadcrumb on header ribbon (03-mockup)
+    static const float kRailScrollH = 285.0f;    // 10 rows: 9 * 29 + 24 (y 73..358, symmetric 8 px bottom)
+    static const float kRailSubScrollH = 285.0f; // full 10 rows on Rail subpages
     static const float kRailHlLeft = 202.0f;     // kRailPaneLeft (197) + kFibTight (5)
     static const float kRailHlRight = 580.0f;    // kLabScrollLeft (585) - kFibTight (5)
-    static const float kRailNameX = 223.0f;      // clears cursor triangle cleanly
-    static const float kRailNameMaxW = 178.0f;   // 410 - 223 - 9
+    static const float kRailNameX = 228.0f;      // crisp 7+ px gap after red cursor triangle (03-mockup)
+    static const float kRailNameMaxW = 174.0f;   // 410 - 228 - 8
     static const float kRailPillLeft = 410.0f;
     static const float kRailPillRight = 575.0f;  // kRailHlRight (580) - kFibTight (5)
     static const float kRailValCenter = 492.5f;
     static const float kRailValMaxW = 135.0f;
-    static const float kRailItemTop = 73.0f;     // aligns pixel-for-pixel with option row 0
+    static const float kRailItemTop = 73.0f;     // aligns with option row 0
     static const float kRailItemPitch = 28.0f;   // kRailItemH (23) + kFibTight (5)
     static const float kRailItemH = 23.0f;
-    static const float kRailUtilDivY = 269.0f;   // 73 + 6*28 + 23 = 264 -> +5 = 269
-    static const float kRailUtilTop = 276.0f;    // 269 + 2 div + 5 gap = 276
-    static const float kRailTextX = 52.0f;       // kLabInnerLeft (39) + kFibPad (13)
-    static const float kRailTextMaxW = 128.0f;
-    static const float kRailCap = kTypeMeta;
+    static const float kRailUtilDivY = 270.0f;   // centered between 7 categories (end 264) and utilities (278)
+    static const float kRailUtilTop = 278.0f;    // 3 utilities end at 357 (symmetric 9 px bottom)
+    static const float kRailTextX = 58.0f;       // clears left-rail cursor triangle by 5+ px (03-mockup)
+    static const float kRailTextMaxW = 126.0f;
+    static const float kRailCap = kTypeBody;     // crisp 10.5 px Rodin system font on rail (03-mockup)
 
     // Top L/R Tabs geometry (unified 34 px header, 21 px subpage crumb, 5 px gaps).
     static const float kTabsBarBottom = kLabHeaderBottom;
     static const float kTabsBodyTop = kLabBodyTop;
     static const float kTabsCrumbBottom = kLabCrumbBottom;
     static const float kTabsRowTop = kRailRowTop;
-    static const float kTabsSubRowTop = kRailSubRowTop;
+    static const float kTabsSubRowTop = 96.0f;   // kLabSubBodyTop (88) + kFibGap (8)
     static const float kTabsScrollH = kRailScrollH;
-    static const float kTabsSubScrollH = kRailSubScrollH;
+    static const float kTabsSubScrollH = 256.0f; // 9 rows: 8 * 29 + 24 (y 96..352)
     static const float kTabsHlLeft = 47.0f;      // kLabInnerLeft (39) + kFibGap (8)
     static const float kTabsHlRight = 580.0f;    // kLabScrollLeft (585) - kFibTight (5)
-    static const float kTabsNameX = 68.0f;       // kTabsHlLeft (47) + kFibRowH (21)
-    static const float kTabsNameMaxW = 280.0f;
+    static const float kTabsNameX = 73.0f;       // crisp 7+ px gap after red cursor triangle
+    static const float kTabsNameMaxW = 275.0f;
     static const float kTabsPillLeft = 356.0f;
     static const float kTabsPillRight = 575.0f;  // kTabsHlRight (580) - kFibTight (5)
     static const float kTabsValCenter = 465.5f;

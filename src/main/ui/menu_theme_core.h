@@ -49,7 +49,7 @@ namespace ui {
             // 0: P+ Teal (v1 Direction A smoked charcoal + emerald-teal, matching ui/style.h)
             {
                 0x2A3544A0u, 0x05070BFFu, 0x151B24F2u, 0x0E1219F2u, 0x11161EF2u, 0x0B0E14F2u,
-                0x141A22E6u, 0x0D1117E6u, 0x0F141BF5u, 0x090C11F5u, 0x26303EFFu, 0x2DB3A1FFu,
+                0x141A22E6u, 0x0D1117E6u, 0x0F141BF5u, 0x090C11F5u, 0x344254FFu, 0x2DB3A1FFu,
                 0x209485FFu, 0x7CE4D670u, 0x125B52FFu, 0x061413FFu, 0x242C38FFu, 0x181E27FFu,
                 0xC0CCD6FFu, 0x9AA7B4FFu, 0xD2DCE4FFu
             },

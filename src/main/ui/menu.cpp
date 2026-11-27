@@ -1109,8 +1109,8 @@ namespace ui {
                             kLabStripeCol);
         }
         float midY = y + h * 0.5f;
-        float iconH = cursorSize + 2.0f;
-        float triX43 = flushLeft ? (x43 + 4.0f) : (x43 + slant * 0.55f + 3.0f);
+        float iconH = cursorSize + 1.0f;
+        float triX43 = flushLeft ? (x43 + 4.0f) : (x43 + slant * 0.55f + 2.5f);
         if (!main::extraDrawUiIcon(kIconCursorRight, cx(triX43), midY - iconH * 0.5f, w(iconH), iconH, 0xFFFFFFFF))
         {
             drawCursorTri(cx(triX43 + 1.0f), midY, cursorSize);
@@ -1498,7 +1498,8 @@ namespace ui {
             const char* bLabel =
                 state.depth > 0
                     ? "Back"
-                    : (railMode ? (state.railFocus ? "Close" : "Categories") : (!state.openStart ? "Close" : NULL));
+                    : (railMode ? (state.railFocus ? (!state.openStart ? "Close" : NULL) : "Categories")
+                                : (!state.openStart ? "Close" : NULL));
 
             if (showA)
             {
@@ -1520,23 +1521,25 @@ namespace ui {
                            isTabsStyle(def) ? "Tab" : "Category");
             }
             bool resetRound = (cs.roundBits & 0x20) != 0;
+            u8 resetOptIcon = state.controllerType == gfPadType::GCC ? kNoIcon : cs.resetOpt;
+            u8 resetPageIcon = state.controllerType == gfPadType::GCC ? kNoIcon : cs.resetPage;
             if (railMode && state.railFocus)
             {
                 if (state.railCursor < def.categoryCount && cs.txtResetOpt != NULL
                     && pageHasResettableOptions(def, def.categoryPages[state.railCursor]))
                 {
-                    pushFooter(items, n, cs.resetOpt, kNoIcon, 2, resetRound, cs.txtResetOpt, "Reset Page");
+                    pushFooter(items, n, resetOptIcon, kNoIcon, 2, resetRound, cs.txtResetOpt, "Reset Page");
                 }
             }
             else
             {
                 if (cs.txtResetOpt != NULL && p.count > 0 && cur < p.count && resettableOption(p.options[cur]))
                 {
-                    pushFooter(items, n, cs.resetOpt, kNoIcon, 2, resetRound, cs.txtResetOpt, "Reset");
+                    pushFooter(items, n, resetOptIcon, kNoIcon, 2, resetRound, cs.txtResetOpt, "Reset");
                 }
                 if (cs.txtResetPage != NULL && pageHasResettableOptions(def, pageId))
                 {
-                    pushFooter(items, n, cs.resetPage, kNoIcon, 2, resetRound, cs.txtResetPage, "Reset Page");
+                    pushFooter(items, n, resetPageIcon, kNoIcon, 2, resetRound, cs.txtResetPage, "Reset Page");
                 }
             }
         }
@@ -1596,21 +1599,15 @@ namespace ui {
         float bodyH = kLabDescTop - kRailBodyTop;
         gradBox(kLabInnerLeft, kRailBodyTop, railW, bodyH, pal.railTop, pal.railBot);
         fillBox(kRailRight, kRailBodyTop, kFibHair, bodyH, pal.divider);
-        float paneTop = kRailBodyTop;
-        if (state.depth > 0)
-        {
-            gradBox(kRailPaneLeft, kRailBodyTop, paneW, kLabCrumbBottom - kRailBodyTop, pal.descTop, pal.descBot);
-            fillBox(kRailPaneLeft, kLabCrumbBottom, paneW, kFibHair, pal.divider);
-            paneTop = kLabSubBodyTop;
-        }
-        gradBox(kRailPaneLeft, paneTop, paneW, kLabDescTop - paneTop, pal.baseTop, pal.baseBot);
+        gradBox(kRailPaneLeft, kRailBodyTop, paneW, bodyH, pal.baseTop, pal.baseBot);
         fillBox(kLabInnerLeft + kFibGap, kRailUtilDivY, railW - 2.0f * kFibGap, kFibHair, pal.divider);
 
         // Flush vertical left edge on top emerald-teal header ribbon + // stripes.
+        // On subpages, widen the ribbon and draw the breadcrumb inline (matching 03-mockup-lab-menu).
         bool utilFoc = railUtilityFocused(def, state);
         float hdrH = kRailHeaderBottom - kLabInnerTop;
         float hdrSlant = hdrH * kSlantTan;
-        float ribbonRight = 292.0f;
+        float ribbonRight = (!utilFoc && state.depth > 0) ? 472.0f : 292.0f;
         drawSlantBar(kLabInnerLeft, ribbonRight, kLabInnerTop, hdrH, true, pal.accentTop, pal.accentBot, 0);
         drawDiagStripes(cx(ribbonRight - 6.0f), kLabInnerTop, kRailHeaderBottom, w(hdrSlant), w(4.5f), w(3.5f),
                         kLabStripeCol);
@@ -1622,7 +1619,7 @@ namespace ui {
             float y = kRailItemTop + i * kRailItemPitch;
             if (state.railFocus && state.railCursor == i)
             {
-                drawGoldBar(kLabInnerLeft, itemW, y, kRailItemH, 8.5f, true, kLabInnerLeft + itemW - kFibTight);
+                drawGoldBar(kLabInnerLeft, itemW, y, kRailItemH, 8.0f, true, kLabInnerLeft + itemW - kFibTight);
             }
             else if (!state.railFocus && state.category == i)
             {
@@ -1634,35 +1631,40 @@ namespace ui {
         {
             if (state.railFocus && state.railCursor == def.categoryCount + u)
             {
-                drawGoldBar(kLabInnerLeft, itemW, kRailUtilTop + u * kRailItemPitch, kRailItemH, 8.5f, true,
+                drawGoldBar(kLabInnerLeft, itemW, kRailUtilTop + u * kRailItemPitch, kRailItemH, 8.0f, true,
                             kLabInnerLeft + itemW - kFibTight);
             }
         }
 
         float headerMid = (kLabInnerTop + kRailHeaderBottom) * 0.5f;
-        float ribbonMaxW = ribbonRight - (kLabInnerLeft + kFibPad) - 28.0f;
-        const char* hdr = utilFoc ? def.utilities[state.railCursor - def.categoryCount].name
-                                  : pageTitle(def, state.stack[0]);
-        fitDisplay(kLabInnerLeft + kFibPad, headerMid - kTypeHeading * 0.5f, hdr, pal.activeTabText, kTypeHeading,
-                   ribbonMaxW, 0);
-        if (state.depth > 0)
+        float ribbonMaxW = ribbonRight - (kLabInnerLeft + kFibPad) - 30.0f;
+        if (!utilFoc && state.depth > 0)
         {
-            drawBreadcrumb(def, state, kRailHlLeft + kFibGap, (kRailBodyTop + kLabCrumbBottom) * 0.5f, kTypeMeta,
-                           376.0f, pal);
+            float crumbCap = state.depth >= 2 ? 11.0f : kTypeHeading;
+            drawBreadcrumb(def, state, kLabInnerLeft + kFibPad, headerMid, crumbCap, ribbonMaxW, pal, true);
+        }
+        else
+        {
+            const char* hdr = utilFoc ? def.utilities[state.railCursor - def.categoryCount].name
+                                      : pageTitle(def, state.stack[0]);
+            fitDisplay(kLabInnerLeft + kFibPad, headerMid - kTypeHeading * 0.5f, hdr, pal.activeTabText, kTypeHeading,
+                       ribbonMaxW, 0);
         }
         float verScale = scaleForCap(kTypeMicro);
         float verW = boldWidth(TM_VERSION_MARK, verScale);
         boldText(cx(kLabInnerRight - kFibGap) - verW, textYForCap(headerMid - kTypeMicro * 0.5f, verScale),
                  TM_VERSION_MARK, pal.mutedText, verScale, verScale);
 
+        // Crisp Rodin system typography on left rail (matching 03-mockup-lab-menu-pplus).
+        float railScale = scaleForCap(kRailCap);
         float capOff = (kRailItemH - kRailCap) * 0.5f;
         for (u8 i = 0; i < def.categoryCount; i++)
         {
             bool focused = state.railFocus && state.railCursor == i;
             gfx::Rgba col = focused ? kLabGoldInk
-                                    : (!state.railFocus && state.category == i ? pal.activeTabText : pal.mutedText);
-            fitDisplay(kRailTextX, kRailItemTop + i * kRailItemPitch + capOff,
-                       pageTitle(def, def.categoryPages[i]), col, kRailCap, kRailTextMaxW - kFibGap, 0);
+                                    : (!state.railFocus && state.category == i ? pal.activeTabText : pal.tabInactiveText);
+            fitText(kRailTextX, textYForCap(kRailItemTop + i * kRailItemPitch + capOff, railScale),
+                    pageTitle(def, def.categoryPages[i]), col, railScale, kRailTextMaxW, false);
         }
         for (u8 u = 0; u < def.utilityCount; u++)
         {
@@ -1671,8 +1673,8 @@ namespace ui {
             const char* label = confirming ? def.utilities[u].label : def.utilities[u].name;
             gfx::Rgba col = focused ? (confirming ? 0x7A0C00FF : kLabGoldInk)
                                     : (confirming ? kLabFocusGold : pal.mutedText);
-            fitDisplay(kRailTextX, kRailUtilTop + u * kRailItemPitch + capOff, label, col, kRailCap,
-                       kRailTextMaxW - kFibGap, 0);
+            fitText(kRailTextX, textYForCap(kRailUtilTop + u * kRailItemPitch + capOff, railScale), label, col,
+                    railScale, kRailTextMaxW, false);
         }
     }
 
@@ -1883,7 +1885,7 @@ namespace ui {
                 if (selected)
                 {
                     float stripeX = hasVal ? (g.pillLeft + 3.0f) : (g.hlRight - 18.0f);
-                    drawGoldBar(g.hlLeft, g.hlRight - g.hlLeft, y, kLabRowH, 9.5f, false, stripeX);
+                    drawGoldBar(g.hlLeft, g.hlRight - g.hlLeft, y, kLabRowH, 8.5f, false, stripeX);
                 }
                 else
                 {

@@ -559,7 +559,7 @@ namespace list {
     static const float kColTop = 94.0f;
     static const float kColRowH = 26.0f;
     static const float kColPitch = 31.0f;       // kColRowH (26) + kFibTight (5)
-    static const float kColTextX = 52.0f;       // kColLeft (36) + 16
+    static const float kColTextX = 58.0f;       // clears red cursor triangle cleanly (04-mockup)
 
     static const float kCardLeft = 280.0f;      // 13 px (F7) gutter from scrollbar (267..280)
     static const float kCardRight = 604.0f;     // W = 324 (324 / 220 = 1.473)

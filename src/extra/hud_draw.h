@@ -59,10 +59,10 @@ namespace extra {
         kHudCardTechchase = 3
     };
 
-    // Quiet Panel B borderless smoked-dark plate (0x0E161EA6u) with zero border
-    // and zero colored header tab, plus faint 2px inset horizontal divider.
-    static const gfx::Rgba kSmokedPlateBg = 0x0E161EA6u;
-    static const gfx::Rgba kSmokedDivider = 0xDCE8F028u;
+    // Quiet Panel B borderless smoked-dark plate (0x111720C0u, matching 10-grounding Panel B)
+    // with zero border and zero colored header tab, plus faint 2px inset horizontal divider.
+    static const gfx::Rgba kSmokedPlateBg = 0x111720C0u;
+    static const gfx::Rgba kSmokedDivider = 0xFFFFFF38u;
 
     void drawSmokedPlate(float x, float y, float w, float h, gfx::Rgba bg = kSmokedPlateBg);
     void drawPlateDivider(float x, float y, float w, float xs);

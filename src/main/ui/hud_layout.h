@@ -94,22 +94,23 @@ namespace layout {
     }
 
     // ---- Ledgedash / Unified Drill Timing Bar top band (ui/ledgedash_hud.cpp) ----
-    // Calm white caption/legend row sits directly above the bar (y 26..38),
-    // crisp cell bar at y 41..55, and upward pointer arrow at y 57..63.
+    // Bold calm-white caption/legend row sits directly above the bar (y 27.5..37),
+    // chunky dark-outlined cell bar at y 41..57 (16 px tall), and upward pointer
+    // arrow at y 58.5..65.5 (matching 08-calm-wavedash & 09-calm-ledgedash).
     // Max width 450 px on 4:3 (x 32..482) clears the Top-Right Option A GC
     // controller (x 490..608) by 8 px (F6) even at 64 cells.
     static const float kBarTop = 41.0f;
-    static const float kBarBottom = 55.0f;
+    static const float kBarBottom = 57.0f;
     static const float kBarMaxW = 450.0f;
     static const float kKeyY = 24.0f;
     static const float kKeyLabelTop = 27.0f;
-    static const float kLegendTop = 57.0f;
-    static const float kLegendCap = 8.5f;
+    static const float kLegendTop = 58.5f;
+    static const float kLegendCap = 9.0f;
 
-    static const float kCellW = 10.8f;
-    static const float kCellGap = 1.0f;
-    static const float kKeySwatch = 7.0f;
-    static const float kKeyCap = 8.5f;
+    static const float kCellW = 11.5f;
+    static const float kCellGap = 1.5f;
+    static const float kKeySwatch = 7.5f;
+    static const float kKeyCap = 9.0f;
 
     // The Ledgedash HUD's bar of `cells` cells, centred and dynamically narrowed
     // to clear the Top-Right Option A GC controller within the 5% CRT safe area.
@@ -137,11 +138,11 @@ namespace layout {
     static const float kRecBarHeight = 20.0f;
 
     // ---- Portrait-docked CPU status tag (extra/hud_draw.cpp) ----
-    // Compact 10.5-scanline tag docked above the CPU portrait (y 382..395),
-    // clearing both kPositionHud OSDs (floor 376) and recBar (y <= 376).
+    // Compact 13-scanline tag docked above the CPU portrait (y 382..395),
+    // clearing both kPositionHud OSDs and recBar (y <= 376) by 6 px.
     static const float kCpuTagTop = 382.0f;
     static const float kCpuTagHeight = 13.0f;
-    static const float kCpuTagWidth = 104.0f;
+    static const float kCpuTagWidth = 108.0f;
 
     inline Box cpuStatusTagBox(int cpuPlayerNo, bool wide)
     {

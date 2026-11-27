@@ -368,9 +368,9 @@ namespace extra {
             int fitRows = rowCount > 0 ? rowCount : 1;
             float maxBh = b.y1 - b.y0;
             float rowPitch = 12.0f;
-            float rowsTop = 32.0f;
+            float rowsTop = 34.0f;
             float rowsBot = rowsTop + i2fScale(fitRows, rowPitch);
-            float bh = rowsBot + (hasFocus ? 16.0f : 5.0f);
+            float bh = rowsBot + (hasFocus ? 16.0f : 7.0f);
             if (bh > maxBh)
             {
                 bh = maxBh;
@@ -393,7 +393,7 @@ namespace extra {
             psaFormatTitle(isCpu, dbg->playerNo, title, sizeof(title));
             psaFormatFsm(dbg->fsmRate, fsm, sizeof(fsm));
             float hdrSc = ui::style::scaleForCap(10.5f);
-            float hdrY = ui::style::textYForCap(y + 5.0f, hdrSc);
+            float hdrY = ui::style::textYForCap(y + 7.0f, hdrSc);
             drawShadowText(colName, hdrY, title, 0xC6D4E0FFu, hdrSc);
             gfx::Rgba fsmCol = psaFsmIsModified(dbg->fsmRate) ? 0xFFD300FFu : 0xF4F8FCFFu;
             float fsmW = gfx::textWidth(fsm, hdrSc);
@@ -406,11 +406,11 @@ namespace extra {
             float subSc = ui::style::scaleForCap(10.5f);
             float subW = gfx::textWidth(subLine, subSc);
             float subSx = (subW > innerW && subW > 0.0f) ? (subSc * innerW / subW) : subSc;
-            float subY = ui::style::textYForCap(y + 18.0f, subSc);
-            gfx::text(colName + xs, subY + 1.0f, subLine, 0x000000C8u, subSx, subSc);
+            float subY = ui::style::textYForCap(y + 20.0f, subSc);
+            gfx::text(colName + xs, subY + 1.0f, subLine, 0x000000DCu, subSx, subSc);
             gfx::text(colName, subY, subLine, 0xD8E6F0FFu, subSx, subSc);
 
-            drawPlateDivider(x, y + 29.0f, bw, xs);
+            drawPlateDivider(x, y + 31.0f, bw, xs);
 
             // Active threads: Name | Frame | Wait | Decoded Opcode Name (fit to <= 218 px on 4:3).
             float rowScale = ui::style::scaleForCap(10.5f);

@@ -82,12 +82,12 @@ namespace extra {
         float bh = bar.y1 - bar.y0;
         float barCx = (bar.x0 + bar.x1) * 0.5f;
 
-        // Calm white Rodin caption / swatch legend row directly above the bar (y = 27..38).
-        float capSize = 8.5f;
+        // Bold calm-white Rodin caption / swatch legend row directly above bar (08/09 mockups).
+        float capSize = kKeyCap;
         float sc = ui::style::scaleForCap(capSize);
         float swW = kKeySwatch * xs;
-        float swGap = 3.0f * xs;
-        float itemGap = 8.0f * xs;
+        float swGap = 4.0f * xs;
+        float itemGap = 9.0f * xs;
         float totalW = 0.0f;
         float widths[8];
         int lCount = legend != NULL ? (legendCount < 8 ? legendCount : 8) : 0;
@@ -99,74 +99,91 @@ namespace extra {
                 totalW += (legend[i].swatch != 0u ? (swW + swGap) : 0.0f) + widths[i] + (i + 1 < lCount ? itemGap : 0.0f);
             }
             float maxRight = kViewerRight - kViewerWidth * xs - kStepGap;
-            float lx0 = barCx - totalW * 0.5f;
-            if (lx0 + totalW > maxRight)
+            float availW = maxRight - kSafeMarginX;
+            float sx = (totalW > availW && totalW > 0.0f) ? (sc * availW / totalW) : sc;
+            float drawTotalW = totalW > availW ? availW : totalW;
+            float lx0 = barCx - drawTotalW * 0.5f;
+            if (lx0 + drawTotalW > maxRight)
             {
-                lx0 = maxRight - totalW;
+                lx0 = maxRight - drawTotalW;
             }
             if (lx0 < kSafeMarginX)
             {
                 lx0 = kSafeMarginX;
             }
+            float ratio = (sc > 0.0f) ? (sx / sc) : 1.0f;
             float curX = lx0;
+            float swY = kKeyLabelTop + (capSize - kKeySwatch) * 0.5f;
             for (int i = 0; i < lCount; i++)
             {
                 if (legend[i].swatch != 0u)
                 {
-                    gfx::fillRect(curX, 27.5f, swW, 7.0f, legend[i].swatch);
-                    curX += swW + swGap;
+                    gfx::fillRect(curX - 1.2f * xs, swY - 1.2f, swW + 2.4f * xs, kKeySwatch + 2.4f, 0x05090FF2u);
+                    gfx::fillRect(curX, swY, swW, kKeySwatch, legend[i].swatch | 0xFFu);
+                    curX += (swW + swGap) * ratio;
                 }
-                curX += widths[i] + itemGap;
+                curX += (widths[i] + itemGap) * ratio;
             }
             curX = lx0;
-            float ty = ui::style::textYForCap(27.0f, sc);
+            float ty = ui::style::textYForCap(kKeyLabelTop, sc);
             for (int i = 0; i < lCount; i++)
             {
                 if (legend[i].swatch != 0u)
                 {
-                    curX += swW + swGap;
+                    curX += (swW + swGap) * ratio;
                 }
-                drawShadowText(curX, ty, legend[i].label, 0xF1F5F9FFu, sc);
-                curX += widths[i] + itemGap;
+                gfx::text(curX - 0.8f * xs, ty + 0.8f, legend[i].label, 0x04070CE8u, sx, sc);
+                gfx::text(curX + 1.0f * xs, ty + 1.0f, legend[i].label, 0x04070CE8u, sx, sc);
+                gfx::text(curX, ty, legend[i].label, 0xF8FCFFFFu, sx, sc);
+                curX += (widths[i] + itemGap) * ratio;
             }
         }
         else if (caption != NULL && caption[0] != '\0')
         {
-            drawShadowCapCenter(barCx, 27.0f, caption, 0xF1F5F9FFu, capSize, bw + 60.0f * xs);
+            drawShadowCapCenter(barCx, kKeyLabelTop, caption, 0xF8FCFFFFu, capSize, bw + 60.0f * xs);
         }
 
-        // Crisp dark smoked trough + high-contrast semantic color cells.
-        gfx::fillRect(bar.x0, bar.y0, bw, bh, 0x0A121ADCu);
+        // Chunky individually dark-outlined frame cells (matching 08-calm-wavedash & 09-calm-ledgedash).
+        gfx::fillRect(bar.x0, bar.y0, bw, bh, 0x05090FF4u);
         float gap = kCellGap * xs;
-        float cellW = (bw - i2f(n + 1) * gap) / i2f(n);
+        float innerPadX = 2.0f * xs;
+        float cellW = (bw - 2.0f * innerPadX - i2f(n - 1) * gap) / i2f(n);
         if (cellW < 1.5f)
         {
-            cellW = 1.5f;
+            gap = 1.0f * xs;
+            cellW = (bw - 2.0f * innerPadX - i2f(n - 1) * gap) / i2f(n);
+            if (cellW < 1.2f)
+            {
+                cellW = 1.2f;
+            }
         }
         float cellH = bh - 4.0f;
         for (int k = 0; k < n; k++)
         {
-            gfx::Rgba col = (cells != NULL && k < count) ? cells[k] : 0x263644CCu;
-            gfx::fillRect(bar.x0 + gap + i2f(k) * (cellW + gap), bar.y0 + 2.0f, cellW, cellH, col);
+            gfx::Rgba col = (cells != NULL && k < count) ? (cells[k] | 0xFFu) : 0x243442FFu;
+            float cx = bar.x0 + innerPadX + i2f(k) * (cellW + gap);
+            gfx::fillRect(cx, bar.y0 + 2.0f, cellW, cellH, col);
+            gfx::fillRect(cx, bar.y0 + 2.0f, cellW, 2.0f, 0xFFFFFF34u);
         }
 
-        // Clean white upward pointer arrow (^) centered under `pointerCell`.
+        // Bold black-outlined white upward pointer arrow (^) centered under `pointerCell`.
         if (pointerCell >= 0 && pointerCell < n)
         {
-            float halfBase = 4.2f * xs;
-            float px = bar.x0 + gap + i2f(pointerCell) * (cellW + gap) + cellW * 0.5f;
-            if (px - halfBase - xs < bar.x0)
+            float halfBase = 4.4f * xs;
+            float outPad = 1.4f * xs;
+            float px = bar.x0 + innerPadX + i2f(pointerCell) * (cellW + gap) + cellW * 0.5f;
+            if (px - halfBase - outPad < bar.x0)
             {
-                px = bar.x0 + halfBase + xs;
+                px = bar.x0 + halfBase + outPad;
             }
-            if (px + halfBase + xs > bar.x1)
+            if (px + halfBase + outPad > bar.x1)
             {
-                px = bar.x1 - halfBase - xs;
+                px = bar.x1 - halfBase - outPad;
             }
             float tipY = bar.y1 + 1.5f;
             float baseY = bar.y1 + 7.5f;
-            gfx::fillTri(px, tipY - 0.5f, px - halfBase - xs, baseY + 1.0f, px + halfBase + xs, baseY + 1.0f,
-                         0x060C12E0u);
+            gfx::fillTri(px, tipY - 0.5f, px - halfBase - outPad, baseY + 1.0f, px + halfBase + outPad,
+                         baseY + 1.0f, 0x04070CF8u);
             gfx::fillTri(px, tipY, px - halfBase, baseY, px + halfBase, baseY, 0xFFFFFFFFu);
         }
 
@@ -299,8 +316,9 @@ namespace extra {
         ui::layout::Box b = ui::layout::cpuStatusTagBox(cpuSlot, wide);
         float bw = b.x1 - b.x0;
         float bh = b.y1 - b.y0;
-        drawSmokedPlate(b.x0, b.y0, bw, bh, 0x0E161E98u);
-        drawShadowCapCenter((b.x0 + b.x1) * 0.5f, b.y0 + 1.2f, label, 0xE6F0F8FFu, 10.5f, bw - 6.0f * xs);
+        drawSmokedPlate(b.x0, b.y0, bw, bh, 0x0E141CC0u);
+        drawShadowCapCenter((b.x0 + b.x1) * 0.5f, b.y0 + (bh - 9.5f) * 0.5f, label, 0xF2F7FCFFu, 9.5f,
+                            bw - 8.0f * xs);
     }
 
     void drawHudCard(float x, float y, float w, float h, float xs, gfx::Rgba accent, gfx::Rgba sheen)
