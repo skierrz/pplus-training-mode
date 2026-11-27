@@ -256,12 +256,11 @@ namespace extra {
         const float cellPitch = wide ? 6.0f : 8.0f;
         const float cellFillW = wide ? 4.8f : 6.4f;
 
-        // Frameless SF6 Dual Frame Strip matching 02-final-sf6-16x9-4x3:
-        // zero heavy outer rectangle, crisp dark-outlined P1/CPU tags, individually
-        // dark-framed cells with translucent empty slots, yellow active-frame tick,
-        // and bold oversized frameless Brawl Display Font advantage readout.
-        const float tagRight = ox + (wide ? 22.0f : 28.0f);
-        const float cellsX = tagRight + 4.0f * xs;
+        // Cohesive smoked-glass SF6 Dual Frame Strip strictly inside actionLogBox:
+        // batched quad pass first (scrim card, cell troughs/cells/sheen/gaps, active-frame tick),
+        // then text pass (P1/CPU tags and Brawl Display Font advantage readout).
+        const float tagRight = ox + (wide ? 24.0f : 30.0f);
+        const float cellsX = tagRight + 3.5f * xs;
         const float rowH = 10.4f;
         const float rowY[2] = {oy + 5.5f, oy + 5.5f + rowH + 3.0f};
         const bool swapCpu = (mode == main::kActionLogCpu);
@@ -277,39 +276,32 @@ namespace extra {
         const float tagSc = ui::style::scaleForCap(9.5f);
         const float trackW = static_cast<float>(visibleCells) * cellPitch + (cellPitch - cellFillW);
 
+        // Pass 1: all quads (scrim card + frame strip cells + active-frame tick).
+        drawSmokedCard(ox, oy, bw, bh, xs);
+
         for (int r = 0; r < 2; r++)
         {
-            float tw = gfx::textWidth(rowTags[r], tagSc);
-            float tx = tagRight - tw;
-            if (tx < ox + 2.0f * xs)
-            {
-                tx = ox + 2.0f * xs;
-            }
-            float ty = ui::style::textYForCap(rowY[r] + (rowH - 9.5f) * 0.5f, tagSc);
-            drawOutlinedText(tx, ty, rowTags[r], tagCols[r], tagSc, tagSc);
-
-            // Tight dark perimeter around cell row only (zero heavy box behind labels/readout).
-            gfx::fillRect(cellsX - 1.0f * xs, rowY[r] - 1.0f, trackW + 1.0f * xs, rowH + 2.0f, 0x05090FD8u);
+            gfx::fillRect(cellsX - 1.0f * xs, rowY[r] - 1.0f, trackW + 1.0f * xs, rowH + 2.0f, kHudTroughBg);
             for (int c = 0; c < visibleCells; c++)
             {
                 int src = startIdx + c;
                 u8 kind = (src < filled) ? sf6CellAt(sf, r, src) : static_cast<u8>(kSf6Empty);
                 float cx = cellsX + static_cast<float>(c) * cellPitch;
-                gfx::Rgba cellCol = (kind == kSf6Empty) ? 0x18222EC0u : sf6CellColor(kind);
+                gfx::Rgba cellCol = (kind == kSf6Empty) ? kHudCellEmpty : sf6CellColor(kind);
                 gfx::fillRect(cx, rowY[r], cellFillW, rowH, cellCol);
                 if (kind != kSf6Empty && kind != kSf6Gap)
                 {
-                    gfx::fillRect(cx, rowY[r], cellFillW, 2.0f, 0xFFFFFF3Cu);
+                    gfx::fillRect(cx, rowY[r], cellFillW, 2.0f, kHudCellSheen);
                 }
                 if (kind == kSf6Gap)
                 {
                     // Crisp 3.5-scanline bright yellow gap marker centered in the cell.
-                    gfx::fillRect(cx, rowY[r] + (rowH - 3.5f) * 0.5f, cellFillW, 3.5f, 0xFFD300FFu);
+                    gfx::fillRect(cx, rowY[r] + (rowH - 3.5f) * 0.5f, cellFillW, 3.5f, kHudGold);
                 }
             }
         }
 
-        // Bright yellow current-frame underline tick directly beneath newest filled column (02-final-sf6).
+        // Bright yellow current-frame underline tick directly beneath newest filled column.
         if (filled > 0)
         {
             int curCol = filled - 1 - startIdx;
@@ -317,12 +309,25 @@ namespace extra {
             {
                 float tickX = cellsX + static_cast<float>(curCol) * cellPitch;
                 float tickY = rowY[1] + rowH + 2.0f;
-                gfx::fillRect(tickX - 0.8f * xs, tickY - 0.5f, cellFillW + 1.6f * xs, 3.5f, 0x05090FF0u);
-                gfx::fillRect(tickX, tickY, cellFillW, 2.5f, 0xFFD820FFu);
+                gfx::fillRect(tickX - 0.8f * xs, tickY - 0.5f, cellFillW + 1.6f * xs, 3.5f, kHudTroughBg);
+                gfx::fillRect(tickX, tickY, cellFillW, 2.5f, kHudGold);
             }
         }
 
-        // Bold frameless Brawl Display Font (0x80497DA4, 21 scanlines) frame advantage readout on right.
+        // Pass 2: all text (P1/CPU tags + Brawl Display Font frame advantage readout).
+        for (int r = 0; r < 2; r++)
+        {
+            float tw = gfx::textWidth(rowTags[r], tagSc);
+            float tx = tagRight - tw;
+            if (tx < ox + 3.0f * xs)
+            {
+                tx = ox + 3.0f * xs;
+            }
+            float ty = ui::style::textYForCap(rowY[r] + (rowH - 9.5f) * 0.5f, tagSc);
+            drawOutlinedText(tx, ty, rowTags[r], tagCols[r], tagSc, tagSc);
+        }
+
+        // Bold Brawl Display Font (0x80497DA4, 21 scanlines) frame advantage readout on right.
         char advBuf[12];
         gfx::Rgba topCol = 0xE2EEF6FFu;
         gfx::Rgba botCol = 0x9CB2C4FFu;
@@ -353,8 +358,8 @@ namespace extra {
             strcpy(advBuf, "--");
         }
         float advSc = 21.0f / 24.0f;
-        float advAreaX = cellsX + static_cast<float>(visibleCells) * cellPitch + 5.0f * xs;
-        float advAreaW = (ox + bw - 2.0f * xs) - advAreaX;
+        float advAreaX = cellsX + static_cast<float>(visibleCells) * cellPitch + 4.0f * xs;
+        float advAreaW = (ox + bw - 3.5f * xs) - advAreaX;
         float advW = gfx::displayTextWidth(advBuf, advSc);
         float advSx = (advW > advAreaW && advW > 0.0f) ? (advSc * advAreaW / advW) : advSc;
         float drawW = advW > advAreaW ? advAreaW : advW;

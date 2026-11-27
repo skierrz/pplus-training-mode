@@ -43,12 +43,27 @@ namespace extra {
         kHudCardTechchase = 3
     };
 
-    // Quiet Panel B borderless smoked-dark plate (0x111720A8u, ~66% matching 10-grounding Panel B)
-    // with zero border and zero colored header tab, plus faint 2px inset horizontal divider.
-    static const gfx::Rgba kSmokedPlateBg = 0x111720A8u;
+    // Shared semantic HUD scrim and feedback tokens for live extra/ overlays
+    // (~77% dark smoked slate for >= 4.5:1 text contrast over bright stages).
+    static const gfx::Rgba kSmokedPlateBg = 0x0D131CC4u;
+    static const gfx::Rgba kSmokedPlateEdge = 0x05080DE8u;
+    static const gfx::Rgba kSmokedPlateSheen = 0xFFFFFF22u;
     static const gfx::Rgba kSmokedDivider = 0xFFFFFF38u;
+    static const gfx::Rgba kHudOutlineEdge = 0x04070CE8u;
+    static const gfx::Rgba kHudTextPrimary = 0xF8FCFFFFu;
+    static const gfx::Rgba kHudTextLabel = 0xC6D4E0FFu;
+    static const gfx::Rgba kHudTextValue = 0xF4F8FCFFu;
+    static const gfx::Rgba kHudTroughBg = 0x05090FF4u;
+    static const gfx::Rgba kHudCellEmpty = 0x1E2C38C8u;
+    static const gfx::Rgba kHudCellSheen = 0xFFFFFF34u;
+    static const gfx::Rgba kHudGold = 0xFFD300FFu;
+    static const gfx::Rgba kHudGreen = 0x4CE688FFu;
+    static const gfx::Rgba kHudWarn = 0xFFB848FFu;
+    static const gfx::Rgba kHudRed = 0xFF6658FFu;
 
     void drawSmokedPlate(float x, float y, float w, float h, gfx::Rgba bg = kSmokedPlateBg);
+    // Smoked glass scrim card strictly within [x..x+w, y..y+h] with crisp 2px dark edge and subtle top sheen.
+    void drawSmokedCard(float x, float y, float w, float h, float xs, gfx::Rgba bg = kSmokedPlateBg);
     void drawPlateDivider(float x, float y, float w, float xs);
 
     // Draws centered shadowed text sized to `cap` pixels around horizontal `cx`.
@@ -63,16 +78,29 @@ namespace extra {
         const char* label;
     };
 
+    // Optional visual extras for drawTimingBar (pointer glide, hit flash, green-window end ticks, rep-pip mode).
+    struct TimingBarFx {
+        float pointerPos; // >= 0.0f: continuous cell index for smooth pointer glide (overrides pointerCell)
+        int flashCell;    // >= 0: cell index receiving landed hit flash
+        float flashAlpha; // 0..1 intensity for landed hit flash
+        int tickStartCell;
+        int tickEndCell;
+        const char* tickStartLabel;
+        const char* tickEndLabel;
+        const char* repTag; // non-NULL: right-side micro-label for rep-history strips ("Streak" / "Reps")
+        bool isRepStrip;    // true: render spaced discrete streak/rep pips instead of timing bar cells
+    };
+
     // Unified Zone 1 Top-Center Timing / State Bar:
     //  - when `leftLabel`/`rightLabel` are set, draws the calm 3-zone header
-    //    (Early left | Drill Title center | Late right, matching 08-calm-wavedash)
+    //    (Early left | Drill Title center | Late right) on a smoked scrim strip
     //  - otherwise draws the calm white swatch-legend or centered caption row
     //  - crisp color cells inside a dark-outlined trough (widescreen expanded)
     //  - clean white upward pointer arrow (^) at `pointerCell` (-1 = none)
     // Returns the total occupied bounding box for top-band registration.
     ui::layout::Box drawTimingBar(const gfx::Rgba* cells, int count, int pointerCell, const TimingLegendItem* legend,
                                   int legendCount, const char* caption, bool wide, const char* leftLabel = NULL,
-                                  const char* rightLabel = NULL);
+                                  const char* rightLabel = NULL, const TimingBarFx* fx = NULL);
 
     // One metric row for a Panel B right-margin quiet smoked stat plate.
     struct StatPlateRow {

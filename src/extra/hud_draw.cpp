@@ -17,6 +17,7 @@
 #include "main/gfx/text.h"
 #include "main/settings.h"
 #include "main/ui/match_hud.h"
+#include "main/ui/pages/scenarios.h"
 #include "main/ui/style.h"
 #include "shared/game/mem.h"
 #include "shared/game/scene.h"
@@ -59,6 +60,29 @@ namespace extra {
         if (w > 0.0f && h > 0.0f)
         {
             gfx::fillRect(x, y, w, h, bg);
+            if (h > 4.0f)
+            {
+                gfx::fillRect(x, y, w, 2.0f, kSmokedPlateSheen);
+            }
+        }
+    }
+
+    void drawSmokedCard(float x, float y, float w, float h, float xs, gfx::Rgba bg)
+    {
+        if (w <= 0.0f || h <= 0.0f)
+        {
+            return;
+        }
+        float ex = 2.0f * xs;
+        float ey = 2.0f;
+        gfx::fillRect(x, y, w, h, kSmokedPlateEdge);
+        if (w > 2.0f * ex && h > 2.0f * ey)
+        {
+            gfx::fillRect(x + ex, y + ey, w - 2.0f * ex, h - 2.0f * ey, bg);
+            if (h > 6.0f)
+            {
+                gfx::fillRect(x + ex, y + ey, w - 2.0f * ex, 2.0f, kSmokedPlateSheen);
+            }
         }
     }
 
@@ -74,7 +98,7 @@ namespace extra {
     void drawOutlinedText(float x, float y, const char* text, gfx::Rgba color, float sx, float sy)
     {
         float dx = gfx::xScale();
-        const gfx::Rgba edge = 0x04070CE8u;
+        const gfx::Rgba edge = kHudOutlineEdge;
         gfx::text(x - dx, y, text, edge, sx, sy);
         gfx::text(x + dx, y, text, edge, sx, sy);
         gfx::text(x, y - 1.0f, text, edge, sx, sy);
@@ -84,7 +108,7 @@ namespace extra {
 
     ui::layout::Box drawTimingBar(const gfx::Rgba* cells, int count, int pointerCell, const TimingLegendItem* legend,
                                   int legendCount, const char* caption, bool wide, const char* leftLabel,
-                                  const char* rightLabel)
+                                  const char* rightLabel, const TimingBarFx* fx)
     {
         using namespace ui::layout;
         float xs = xsOf(wide);
@@ -94,102 +118,141 @@ namespace extra {
         float bw = bar.x1 - bar.x0;
         float bh = bar.y1 - bar.y0;
         float barCx = (bar.x0 + bar.x1) * 0.5f;
+        float maxRight = kViewerRight - kViewerWidth * xs - kStepGap;
+        bool repStrip = (fx != NULL && fx->isRepStrip);
 
+        // Precompute header / legend layout so all quads (scrim pills, swatches, cells, pointer)
+        // batch cleanly before any text draws.
         float capSize = kKeyCap;
         float sc = ui::style::scaleForCap(capSize);
         float ty = ui::style::textYForCap(kKeyLabelTop, sc);
         bool has3Zone = (leftLabel != NULL && leftLabel[0] != '\0') || (rightLabel != NULL && rightLabel[0] != '\0');
+        bool hasRepHdr = !has3Zone && repStrip && fx->repTag != NULL && fx->repTag[0] != '\0'
+                         && caption != NULL && caption[0] != '\0';
+
+        int lCount = (!has3Zone && !hasRepHdr && legend != NULL) ? (legendCount < 8 ? legendCount : 8) : 0;
+        float swW = kKeySwatch * xs;
+        float swGap = 4.0f * xs;
+        float itemGap = 9.0f * xs;
+        float widths[8];
+        float hdrSx = sc;
+        float hdrRatio = 1.0f;
+        float lw = 0.0f, cw = 0.0f, rw = 0.0f;
+        float lx0 = bar.x0;
+        float drawTotalW = bw;
+        float pillX0 = bar.x0;
+        float pillX1 = bar.x1;
+        float pillY0 = kKeyY;
+        float pillH = kBarTop - 2.0f - kKeyY; // 16 px (y 25..41)
+        bool hasHeader = false;
+
         if (has3Zone)
         {
-            // Calm 3-zone symmetric header (Early left | Drill Title center | Late right, matching 08-calm-wavedash).
-            float lw = (leftLabel != NULL && leftLabel[0] != '\0') ? gfx::textWidth(leftLabel, sc) : 0.0f;
-            float cw = (caption != NULL && caption[0] != '\0') ? gfx::textWidth(caption, sc) : 0.0f;
-            float rw = (rightLabel != NULL && rightLabel[0] != '\0') ? gfx::textWidth(rightLabel, sc) : 0.0f;
+            hasHeader = true;
+            lw = (leftLabel != NULL && leftLabel[0] != '\0') ? gfx::textWidth(leftLabel, sc) : 0.0f;
+            cw = (caption != NULL && caption[0] != '\0') ? gfx::textWidth(caption, sc) : 0.0f;
+            rw = (rightLabel != NULL && rightLabel[0] != '\0') ? gfx::textWidth(rightLabel, sc) : 0.0f;
+            float padX = 6.0f * xs;
+            float innerW = bw - 2.0f * padX;
             float minGap = 8.0f * xs;
             float need = lw + cw + rw + (lw > 0.0f ? minGap : 0.0f) + (rw > 0.0f ? minGap : 0.0f);
-            float sx = (need > bw && need > 0.0f) ? (sc * bw / need) : sc;
-            float ratio = sc > 0.0f ? (sx / sc) : 1.0f;
-            if (lw > 0.0f)
-            {
-                drawOutlinedText(bar.x0, ty, leftLabel, 0xF8FCFFFFu, sx, sc);
-            }
-            if (cw > 0.0f)
-            {
-                drawOutlinedText(barCx - cw * ratio * 0.5f, ty, caption, 0xF8FCFFFFu, sx, sc);
-            }
-            if (rw > 0.0f)
-            {
-                drawOutlinedText(bar.x1 - rw * ratio, ty, rightLabel, 0xF8FCFFFFu, sx, sc);
-            }
+            hdrSx = (need > innerW && need > 0.0f) ? (sc * innerW / need) : sc;
+            hdrRatio = sc > 0.0f ? (hdrSx / sc) : 1.0f;
+            pillX0 = bar.x0;
+            pillX1 = bar.x1;
         }
-        else
+        else if (hasRepHdr)
         {
-            // Bold calm-white Rodin caption / swatch legend row directly above bar (09-calm-ledgedash).
-            float swW = kKeySwatch * xs;
-            float swGap = 4.0f * xs;
-            float itemGap = 9.0f * xs;
-            float totalW = 0.0f;
-            float widths[8];
-            int lCount = legend != NULL ? (legendCount < 8 ? legendCount : 8) : 0;
-            if (lCount > 0)
+            hasHeader = true;
+            lw = gfx::textWidth(caption, sc);
+            rw = gfx::textWidth(fx->repTag, sc);
+            float padX = 6.0f * xs;
+            float minGap = 10.0f * xs;
+            float need = lw + rw + minGap;
+            float pillMinW = bw;
+            if (need + 2.0f * padX > pillMinW)
             {
-                for (int i = 0; i < lCount; i++)
-                {
-                    widths[i] = gfx::textWidth(legend[i].label, sc);
-                    totalW += (legend[i].swatch != 0u ? (swW + swGap) : 0.0f) + widths[i]
-                              + (i + 1 < lCount ? itemGap : 0.0f);
-                }
-                float maxRight = kViewerRight - kViewerWidth * xs - kStepGap;
-                float availW = maxRight - kSafeMarginX;
-                float sx = (totalW > availW && totalW > 0.0f) ? (sc * availW / totalW) : sc;
-                float drawTotalW = totalW > availW ? availW : totalW;
-                float lx0 = barCx - drawTotalW * 0.5f;
-                if (lx0 + drawTotalW > maxRight)
-                {
-                    lx0 = maxRight - drawTotalW;
-                }
-                if (lx0 < kSafeMarginX)
-                {
-                    lx0 = kSafeMarginX;
-                }
-                float ratio = (sc > 0.0f) ? (sx / sc) : 1.0f;
-                float curX = lx0;
-                float swY = kKeyLabelTop + (capSize - kKeySwatch) * 0.5f;
-                for (int i = 0; i < lCount; i++)
-                {
-                    if (legend[i].swatch != 0u)
-                    {
-                        gfx::fillRect(curX - 1.2f * xs, swY - 1.2f, swW + 2.4f * xs, kKeySwatch + 2.4f, 0x05090FF2u);
-                        gfx::fillRect(curX, swY, swW, kKeySwatch, legend[i].swatch | 0xFFu);
-                        curX += (swW + swGap) * ratio;
-                    }
-                    curX += (widths[i] + itemGap) * ratio;
-                }
-                curX = lx0;
-                for (int i = 0; i < lCount; i++)
-                {
-                    if (legend[i].swatch != 0u)
-                    {
-                        curX += (swW + swGap) * ratio;
-                    }
-                    drawOutlinedText(curX, ty, legend[i].label, 0xF8FCFFFFu, sx, sc);
-                    curX += (widths[i] + itemGap) * ratio;
-                }
+                pillMinW = need + 2.0f * padX;
             }
-            else if (caption != NULL && caption[0] != '\0')
+            float avail = maxRight - kSafeMarginX;
+            if (pillMinW > avail)
             {
-                float cw = gfx::textWidth(caption, sc);
-                float maxCapW = bw + 60.0f * xs;
-                float sx = (cw > maxCapW && cw > 0.0f) ? (sc * maxCapW / cw) : sc;
-                float drawW = cw > maxCapW ? maxCapW : cw;
-                drawOutlinedText(barCx - drawW * 0.5f, ty, caption, 0xF8FCFFFFu, sx, sc);
+                pillMinW = avail;
+            }
+            pillX0 = barCx - pillMinW * 0.5f;
+            pillX1 = barCx + pillMinW * 0.5f;
+            if (pillX1 > maxRight)
+            {
+                pillX0 -= (pillX1 - maxRight);
+                pillX1 = maxRight;
+            }
+            if (pillX0 < kSafeMarginX)
+            {
+                pillX0 = kSafeMarginX;
+            }
+            float innerW = (pillX1 - pillX0) - 2.0f * padX;
+            hdrSx = (need > innerW && need > 0.0f) ? (sc * innerW / need) : sc;
+            hdrRatio = sc > 0.0f ? (hdrSx / sc) : 1.0f;
+        }
+        else if (lCount > 0)
+        {
+            hasHeader = true;
+            float totalW = 0.0f;
+            for (int i = 0; i < lCount; i++)
+            {
+                widths[i] = gfx::textWidth(legend[i].label, sc);
+                totalW += (legend[i].swatch != 0u ? (swW + swGap) : 0.0f) + widths[i]
+                          + (i + 1 < lCount ? itemGap : 0.0f);
+            }
+            float padX = 6.0f * xs;
+            float availW = (maxRight - kSafeMarginX) - 2.0f * padX;
+            hdrSx = (totalW > availW && totalW > 0.0f) ? (sc * availW / totalW) : sc;
+            drawTotalW = totalW > availW ? availW : totalW;
+            hdrRatio = (sc > 0.0f) ? (hdrSx / sc) : 1.0f;
+            lx0 = barCx - drawTotalW * 0.5f;
+            if (lx0 + drawTotalW + padX > maxRight)
+            {
+                lx0 = maxRight - padX - drawTotalW;
+            }
+            if (lx0 - padX < kSafeMarginX)
+            {
+                lx0 = kSafeMarginX + padX;
+            }
+            pillX0 = lx0 - padX;
+            pillX1 = lx0 + drawTotalW + padX;
+            if (pillX0 > bar.x0) pillX0 = bar.x0;
+            if (pillX1 < bar.x1) pillX1 = bar.x1;
+        }
+        else if (caption != NULL && caption[0] != '\0')
+        {
+            hasHeader = true;
+            cw = gfx::textWidth(caption, sc);
+            float padX = 8.0f * xs;
+            float maxCapW = bw + 60.0f * xs;
+            if (maxCapW > maxRight - kSafeMarginX - 2.0f * padX)
+            {
+                maxCapW = maxRight - kSafeMarginX - 2.0f * padX;
+            }
+            hdrSx = (cw > maxCapW && cw > 0.0f) ? (sc * maxCapW / cw) : sc;
+            drawTotalW = cw > maxCapW ? maxCapW : cw;
+            pillX0 = barCx - drawTotalW * 0.5f - padX;
+            pillX1 = barCx + drawTotalW * 0.5f + padX;
+            if (pillX0 > bar.x0) pillX0 = bar.x0;
+            if (pillX1 < bar.x1) pillX1 = bar.x1;
+            if (pillX1 > maxRight)
+            {
+                pillX0 -= (pillX1 - maxRight);
+                pillX1 = maxRight;
+            }
+            if (pillX0 < kSafeMarginX)
+            {
+                pillX0 = kSafeMarginX;
             }
         }
 
-        // Chunky individually dark-outlined frame cells (matching 08-calm-wavedash & 09-calm-ledgedash).
-        gfx::fillRect(bar.x0, bar.y0, bw, bh, 0x05090FF4u);
-        float gap = kCellGap * barScale;
-        float innerPadX = 2.0f * barScale;
+        // Cell geometry shared across cells, hit flash, pointer, and end ticks.
+        float gap = (repStrip ? 3.0f : kCellGap) * barScale;
+        float innerPadX = (repStrip ? 4.0f : 2.0f) * barScale;
         float cellW = (bw - 2.0f * innerPadX - i2f(n - 1) * gap) / i2f(n);
         if (cellW < 1.5f)
         {
@@ -200,34 +263,197 @@ namespace extra {
                 cellW = 1.2f;
             }
         }
-        float cellH = bh - 4.0f;
+        float cellTop = repStrip ? (bar.y0 + 3.5f) : (bar.y0 + 2.0f);
+        float cellH = repStrip ? (bh - 7.0f) : (bh - 4.0f);
+
+        // Determine pointer position (continuous glide when fx->pointerPos >= 0, else integer pointerCell).
+        bool drawPtr = false;
+        float ptrIdx = -1.0f;
+        if (!repStrip)
+        {
+            if (fx != NULL && fx->pointerPos >= 0.0f)
+            {
+                ptrIdx = fx->pointerPos;
+                if (ptrIdx > i2f(n - 1)) ptrIdx = i2f(n - 1);
+                drawPtr = true;
+            }
+            else if (pointerCell >= 0 && pointerCell < n)
+            {
+                ptrIdx = i2f(pointerCell);
+                drawPtr = true;
+            }
+        }
+        float ptrPx = 0.0f;
+        if (drawPtr)
+        {
+            float halfBase = 4.4f * xs;
+            float outPad = 1.4f * xs;
+            ptrPx = bar.x0 + innerPadX + ptrIdx * (cellW + gap) + cellW * 0.5f;
+            if (ptrPx - halfBase - outPad < bar.x0)
+            {
+                ptrPx = bar.x0 + halfBase + outPad;
+            }
+            if (ptrPx + halfBase + outPad > bar.x1)
+            {
+                ptrPx = bar.x1 - halfBase - outPad;
+            }
+            ptrPx = i2f(f2i(ptrPx + 0.5f));
+        }
+
+        // Precompute optional L-Cancel / window end-tick markers ("7f" / "1f", >= 8.0 px cap).
+        bool hasTicks = !repStrip && fx != NULL && fx->tickStartLabel != NULL && fx->tickEndLabel != NULL
+                        && fx->tickStartCell >= 0 && fx->tickEndCell >= fx->tickStartCell && fx->tickEndCell < n;
+        float tickSc = ui::style::scaleForCap(ui::style::kTypeMicro);
+        float tick0X = 0.0f, tick1X = 0.0f, tick0W = 0.0f, tick1W = 0.0f;
+        float tickEdge0 = 0.0f, tickEdge1 = 0.0f;
+        if (hasTicks)
+        {
+            tick0W = gfx::textWidth(fx->tickStartLabel, tickSc);
+            tick1W = gfx::textWidth(fx->tickEndLabel, tickSc);
+            tickEdge0 = bar.x0 + innerPadX + i2f(fx->tickStartCell) * (cellW + gap);
+            tickEdge1 = bar.x0 + innerPadX + i2f(fx->tickEndCell) * (cellW + gap) + cellW;
+            // Default aligned inside the green zone edges; nudge outside if pointer sits right on that edge.
+            tick0X = tickEdge0;
+            tick1X = tickEdge1 - tick1W;
+            if (drawPtr && ptrPx >= tick0X - 5.0f * xs && ptrPx <= tick0X + tick0W + 5.0f * xs)
+            {
+                tick0X = tickEdge0 - tick0W - 3.0f * xs;
+            }
+            if (drawPtr && ptrPx >= tick1X - 5.0f * xs && ptrPx <= tick1X + tick1W + 5.0f * xs)
+            {
+                tick1X = tickEdge1 + 3.0f * xs;
+            }
+            tick0X = i2f(f2i(tick0X + 0.5f));
+            tick1X = i2f(f2i(tick1X + 0.5f));
+        }
+
+        // ---- PASS 1: ALL QUADS & TRIANGLES (zero shape<->text GX flushes) ----
+        if (hasHeader)
+        {
+            drawSmokedCard(pillX0, pillY0, pillX1 - pillX0, pillH, xs);
+        }
+        if (lCount > 0)
+        {
+            float curX = lx0;
+            float swY = kKeyLabelTop + (capSize - kKeySwatch) * 0.5f;
+            for (int i = 0; i < lCount; i++)
+            {
+                if (legend[i].swatch != 0u)
+                {
+                    gfx::fillRect(curX - 1.2f * xs, swY - 1.2f, swW + 2.4f * xs, kKeySwatch + 2.4f, kHudTroughBg);
+                    gfx::fillRect(curX, swY, swW, kKeySwatch, legend[i].swatch | 0xFFu);
+                    curX += (swW + swGap) * hdrRatio;
+                }
+                curX += (widths[i] + itemGap) * hdrRatio;
+            }
+        }
+
+        // Trough & cells (discrete compact streak pips for rep strips, chunky timing cells for timing bars).
+        if (repStrip)
+        {
+            drawSmokedCard(bar.x0, bar.y0, bw, bh, xs);
+        }
+        else
+        {
+            gfx::fillRect(bar.x0, bar.y0, bw, bh, kHudTroughBg);
+        }
         for (int k = 0; k < n; k++)
         {
             gfx::Rgba col = (cells != NULL && k < count) ? (cells[k] | 0xFFu) : 0x243442FFu;
             float cx = bar.x0 + innerPadX + i2f(k) * (cellW + gap);
-            gfx::fillRect(cx, bar.y0 + 2.0f, cellW, cellH, col);
-            gfx::fillRect(cx, bar.y0 + 2.0f, cellW, 2.0f, 0xFFFFFF34u);
+            if (repStrip)
+            {
+                gfx::fillRect(cx - 1.0f * xs, cellTop - 1.0f, cellW + 2.0f * xs, cellH + 2.0f, kHudTroughBg);
+                gfx::fillRect(cx, cellTop, cellW, cellH, col);
+                if (cells != NULL && k < count && (cells[k] & 0xFFFFFF00u) != (kHudCellEmpty & 0xFFFFFF00u))
+                {
+                    gfx::fillRect(cx, cellTop, cellW, 2.0f, kHudCellSheen);
+                }
+            }
+            else
+            {
+                gfx::fillRect(cx, cellTop, cellW, cellH, col);
+                gfx::fillRect(cx, cellTop, cellW, 2.0f, kHudCellSheen);
+                if (fx != NULL && fx->flashCell == k && fx->flashAlpha > 0.01f)
+                {
+                    u32 fa = static_cast<u32>(fx->flashAlpha * 185.0f);
+                    if (fa > 220u) fa = 220u;
+                    gfx::fillRect(cx, cellTop, cellW, cellH, 0xFFF29A00u | fa);
+                }
+            }
         }
 
-        // Bold black-outlined white upward pointer arrow (^) centered under `pointerCell`.
-        if (pointerCell >= 0 && pointerCell < n)
+        // Scrim pills + crisp boundary ticks for green-window end markers ("7f" ... "1f").
+        if (hasTicks)
+        {
+            float tPad = 3.0f * xs;
+            float tPillY = bar.y1 + 0.5f;
+            float tPillH = 10.0f;
+            gfx::fillRect(tickEdge0, bar.y1 - 2.0f, 2.0f * xs, 3.0f, kHudGreen);
+            gfx::fillRect(tickEdge1 - 2.0f * xs, bar.y1 - 2.0f, 2.0f * xs, 3.0f, kHudGreen);
+            drawSmokedPlate(tick0X - tPad, tPillY, tick0W + 2.0f * tPad, tPillH);
+            drawSmokedPlate(tick1X - tPad, tPillY, tick1W + 2.0f * tPad, tPillH);
+        }
+
+        // Bold black-outlined white upward pointer arrow (^) centered under `ptrPx`.
+        if (drawPtr)
         {
             float halfBase = 4.4f * xs;
             float outPad = 1.4f * xs;
-            float px = bar.x0 + innerPadX + i2f(pointerCell) * (cellW + gap) + cellW * 0.5f;
-            if (px - halfBase - outPad < bar.x0)
-            {
-                px = bar.x0 + halfBase + outPad;
-            }
-            if (px + halfBase + outPad > bar.x1)
-            {
-                px = bar.x1 - halfBase - outPad;
-            }
             float tipY = bar.y1 + 1.5f;
             float baseY = bar.y1 + 7.5f;
-            gfx::fillTri(px, tipY - 0.5f, px - halfBase - outPad, baseY + 1.0f, px + halfBase + outPad,
-                         baseY + 1.0f, 0x04070CF8u);
-            gfx::fillTri(px, tipY, px - halfBase, baseY, px + halfBase, baseY, 0xFFFFFFFFu);
+            gfx::fillTri(ptrPx, tipY - 0.5f, ptrPx - halfBase - outPad, baseY + 1.0f, ptrPx + halfBase + outPad,
+                         baseY + 1.0f, kHudTroughBg);
+            gfx::fillTri(ptrPx, tipY, ptrPx - halfBase, baseY, ptrPx + halfBase, baseY, 0xFFFFFFFFu);
+        }
+
+        // ---- PASS 2: ALL TEXT (single uninterrupted font pass) ----
+        if (has3Zone)
+        {
+            float padX = 6.0f * xs;
+            if (lw > 0.0f)
+            {
+                drawOutlinedText(bar.x0 + padX, ty, leftLabel, kHudTextPrimary, hdrSx, sc);
+            }
+            if (cw > 0.0f)
+            {
+                drawOutlinedText(barCx - cw * hdrRatio * 0.5f, ty, caption, kHudTextPrimary, hdrSx, sc);
+            }
+            if (rw > 0.0f)
+            {
+                drawOutlinedText(bar.x1 - padX - rw * hdrRatio, ty, rightLabel, kHudTextPrimary, hdrSx, sc);
+            }
+        }
+        else if (hasRepHdr)
+        {
+            float padX = 6.0f * xs;
+            drawOutlinedText(pillX0 + padX, ty, caption, kHudTextPrimary, hdrSx, sc);
+            drawOutlinedText(pillX1 - padX - rw * hdrRatio, ty, fx->repTag, 0x8CE8D8FFu, hdrSx, sc);
+        }
+        else if (lCount > 0)
+        {
+            float curX = lx0;
+            for (int i = 0; i < lCount; i++)
+            {
+                if (legend[i].swatch != 0u)
+                {
+                    curX += (swW + swGap) * hdrRatio;
+                }
+                drawOutlinedText(curX, ty, legend[i].label, kHudTextPrimary, hdrSx, sc);
+                curX += (widths[i] + itemGap) * hdrRatio;
+            }
+        }
+        else if (hasHeader)
+        {
+            drawOutlinedText(barCx - drawTotalW * 0.5f, ty, caption, kHudTextPrimary, hdrSx, sc);
+        }
+
+        if (hasTicks)
+        {
+            float tickCapY = bar.y1 + 1.5f;
+            float tickTy = ui::style::textYForCap(tickCapY, tickSc);
+            drawShadowText(tick0X, tickTy, fx->tickStartLabel, kHudTextPrimary, tickSc);
+            drawShadowText(tick1X, tickTy, fx->tickEndLabel, kHudTextPrimary, tickSc);
         }
 
         Box out = {bar.x0, kKeyY, bar.x1, bar.y1 + 9.0f};
@@ -253,28 +479,49 @@ namespace extra {
         float cx = (b.x0 + b.x1) * 0.5f;
         float maxW = bw - 2.0f * ui::style::kFibTight * xs;
 
+        // Pass 1: all quads (plate + row dividers).
         drawSmokedPlate(b.x0, b.y0, bw, bh);
+        for (int i = 1; i < count; i++)
+        {
+            float ry = b.y0 + 4.0f + i2f(i) * kDrillPlateRowH;
+            drawPlateDivider(b.x0, ry - 1.5f, bw, xs);
+        }
+        // Pass 2: all text.
         for (int i = 0; i < count; i++)
         {
             float ry = b.y0 + 4.0f + i2f(i) * kDrillPlateRowH;
-            if (i > 0)
-            {
-                drawPlateDivider(b.x0, ry - 1.5f, bw, xs);
-            }
             if (rows[i].label != NULL && rows[i].label[0] != '\0')
             {
-                drawShadowCapCenter(cx, ry + 4.0f, rows[i].label, 0xC6D4E0FFu, 8.5f, maxW);
+                drawShadowCapCenter(cx, ry + 4.0f, rows[i].label, kHudTextLabel, 8.5f, maxW);
             }
             if (rows[i].value != NULL && rows[i].value[0] != '\0')
             {
-                gfx::Rgba vc = rows[i].valueColor != 0u ? rows[i].valueColor : 0xF4F8FCFFu;
+                gfx::Rgba vc = rows[i].valueColor != 0u ? rows[i].valueColor : kHudTextValue;
                 drawShadowCapCenter(cx, ry + 15.0f, rows[i].value, vc, 12.5f, maxW);
             }
         }
     }
 
+    static bool cpuIsPassiveDefault(const cpu::CpuOptions& o)
+    {
+        // Untouched Lab defaults (cpu_options.cpp): Lab control, Stand behavior, Random DI,
+        // no SDI/intangible/mash/adaptive/multi-reversal, shield not forced Always On,
+        // and default counter slots (Ground=13 Jab, Air=1 Airdodge, Shield=1 Grab, or None=0).
+        bool defCounters = (o.counterGround == 0 || o.counterGround == 13)
+                           && (o.counterAir == 0 || o.counterAir == 1)
+                           && (o.counterShield == 0 || o.counterShield == 1);
+        return o.control == cpu::kControlLab && o.behavior == cpu::kBehaviorStand && o.tdi == cpu::kTdiRandom
+               && o.adaptiveMode == cpu::kAdaptiveOff && o.sdiAmount == 0 && o.intangible == cpu::kIntangibleOff
+               && o.infiniteShields != cpu::kShieldsOn && o.grabEscape == cpu::kMashNone
+               && o.clatterEscape == cpu::kMashNone && o.controlledBy == 0 && o.multiReversal == 0 && defCounters;
+    }
+
     static const char* cpuStatusLabel(const cpu::CpuOptions& o)
     {
+        if (cpuIsPassiveDefault(o))
+        {
+            return NULL;
+        }
         if (o.control == cpu::kControlTraining)
         {
             return "CPU: Game AI";
@@ -307,7 +554,7 @@ namespace extra {
         {
             return "CPU: Combo DI";
         }
-        if (o.tdi == cpu::kTdiRandom || o.tdi == cpu::kTdiSlightRandom)
+        if (o.tdi == cpu::kTdiSlightRandom)
         {
             return "CPU: Rand DI";
         }
@@ -323,9 +570,14 @@ namespace extra {
         {
             return "CPU: Custom DI";
         }
-        if (o.counterGround != 0 || o.counterAir != 0)
+        if ((o.counterGround != 0 && o.counterGround != 13) || (o.counterAir != 0 && o.counterAir != 1)
+            || o.multiReversal != 0)
         {
             return "CPU: Counter";
+        }
+        if (o.tdi == cpu::kTdiRandom)
+        {
+            return "CPU: Rand DI";
         }
         return "CPU: Stand";
     }
@@ -334,7 +586,13 @@ namespace extra {
     {
         if (!match.running || !match.training || match.paused || menuOpen || !display::hudShown()
             || drillHudActiveId() != 0 || comboBreakRushActive() || drillPracticeCpuInStandby()
+            || ui::pages::scenarioMenuState()->preset != ui::pages::kPresetOff || scenarioPresetsWantsDraw(match)
             || gfx::lineHeight(0.5f) <= 0.0f)
+        {
+            return;
+        }
+        const char* label = cpuStatusLabel(main::settings().cpu.options);
+        if (label == NULL)
         {
             return;
         }
@@ -355,19 +613,22 @@ namespace extra {
         }
         bool wide = gfx::widescreen();
         float xs = ui::layout::xsOf(wide);
-        const char* label = cpuStatusLabel(main::settings().cpu.options);
-        // Frameless dark-outlined portrait tag matching 01-final-everyday & 02-final-sf6.
         ui::layout::Box b = ui::layout::cpuStatusTagBox(cpuSlot, wide);
         float bw = b.x1 - b.x0;
         float bh = b.y1 - b.y0;
-        float cap = 10.0f;
+        float cap = 9.0f;
         float sc = ui::style::scaleForCap(cap);
-        float maxW = bw + 12.0f * xs;
+        float padX = 6.0f * xs;
+        float maxW = bw - 2.0f * padX;
         float tw = gfx::textWidth(label, sc);
         float sx = (tw > maxW && tw > 0.0f) ? (sc * maxW / tw) : sc;
         float drawW = tw > maxW ? maxW : tw;
+        float pillW = drawW + 2.0f * padX;
+        if (pillW > bw) pillW = bw;
+        float pillX = (b.x0 + b.x1) * 0.5f - pillW * 0.5f;
+        drawSmokedCard(pillX, b.y0, pillW, bh, xs);
         drawOutlinedText((b.x0 + b.x1) * 0.5f - drawW * 0.5f, ui::style::textYForCap(b.y0 + (bh - cap) * 0.5f, sc),
-                         label, 0xF8FCFFFFu, sx, sc);
+                         label, kHudTextPrimary, sx, sc);
     }
 
     void drawUnitDial(float cx, float cy, float rx, float ry, gfx::Rgba fillCol, gfx::Rgba rimCol)

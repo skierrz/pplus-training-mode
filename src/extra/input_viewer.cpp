@@ -169,13 +169,9 @@ namespace extra {
             float bw = b.x1 - b.x0;
             float bh = b.y1 - b.y0;
 
-            // Clean P1/CPU tag when dual controllers are active (matching 01-final-everyday).
-            if (showTag)
-            {
-                char tag[8];
-                viewerTagText(playerNo, cpu, tag);
-                drawShadowCapCenter(x + bw * 0.45f, y + 0.5f, tag, cpu ? 0x86DCEEFFu : 0xFF8C8CFFu, 9.5f);
-            }
+            // Smoked glass scrim card strictly within hudViewerCardBox bounds so
+            // triggers, stick rays, and button labels hold >= 4.5:1 contrast over bright stages.
+            drawSmokedCard(x, y, bw, bh, xs);
 
             // Rounded stadium L & R shoulder triggers aligned tightly above the stick & face cluster.
             const float trigH = 7.4f;
@@ -188,15 +184,15 @@ namespace extra {
                 bool dig = (pad.buttons & (isR ? game::kPadR : game::kPadL)) != 0;
                 float fill = viewerTriggerFill(isR ? pad.rTrig : pad.lTrig, dig);
                 float bx = 1.6f * xs;
-                fillStadiumShape(rx - bx * 0.5f, trigY - 0.8f, trigW + bx, trigH + 1.6f, xs, 0x05090FF2u);
+                fillStadiumShape(rx - bx * 0.5f, trigY - 0.8f, trigW + bx, trigH + 1.6f, xs, kHudTroughBg);
                 fillStadiumShape(rx + bx * 0.3f, trigY + 0.6f, trigW - 0.6f * bx, trigH - 1.2f, xs,
-                                 dig ? 0xFFF4A8FFu : 0xA8BAC8E0u);
+                                 dig ? 0xFFF4A8FFu : 0xB8CAD8ECu);
                 fillStadiumShape(rx + bx * 0.9f, trigY + 1.6f, trigW - 1.8f * bx, trigH - 3.2f, xs, 0x1A2430E8u);
                 if (fill > 0.01f)
                 {
                     float iw = (trigW - 2.2f * bx) * fill;
                     float ix = isR ? (rx + trigW - 1.1f * bx - iw) : (rx + 1.1f * bx);
-                    gfx::fillRect(ix, trigY + 1.8f, iw, trigH - 3.6f, dig ? 0xFFD300FFu : 0x4CE2D2FFu);
+                    gfx::fillRect(ix, trigY + 1.8f, iw, trigH - 3.6f, dig ? kHudGold : 0x4CE2D2FFu);
                 }
             }
 
@@ -220,7 +216,7 @@ namespace extra {
                 bool stOn = (pad.buttons & game::kPadStart) != 0;
                 float scx = x + bw * 0.48f;
                 float scy = y + bh * 0.42f;
-                gfx::fillEllipse(scx, scy, 3.2f * xs, 3.2f, 0x05090FF0u);
+                gfx::fillEllipse(scx, scy, 3.2f * xs, 3.2f, kHudTroughBg);
                 gfx::fillEllipse(scx, scy, 2.1f * xs, 2.1f, stOn ? 0xFFFFFFFFu : 0x9AAAB8D0u);
             }
             {
@@ -228,47 +224,36 @@ namespace extra {
                 float dcy = y + bh * 0.83f;
                 float arm = 6.6f;
                 float th = 3.8f;
-                gfx::fillRect(dcx - arm * xs, dcy - th * 0.5f, 2.0f * arm * xs, th, 0x05090FF0u);
-                gfx::fillRect(dcx - th * 0.5f * xs, dcy - arm, th * xs, 2.0f * arm, 0x05090FF0u);
+                gfx::fillRect(dcx - arm * xs, dcy - th * 0.5f, 2.0f * arm * xs, th, kHudTroughBg);
+                gfx::fillRect(dcx - th * 0.5f * xs, dcy - arm, th * xs, 2.0f * arm, kHudTroughBg);
                 gfx::fillRect(dcx - (arm - 1.3f) * xs, dcy - 1.0f, 2.0f * (arm - 1.3f) * xs, 2.0f, 0x96AABCE4u);
                 gfx::fillRect(dcx - 1.0f * xs, dcy - (arm - 1.3f), 2.0f * xs, 2.0f * (arm - 1.3f), 0x96AABCE4u);
                 int dx, dy;
                 viewerDpadDir(pad.buttons, dx, dy);
                 if (dx != 0 || dy != 0)
                 {
-                    gfx::fillEllipse(dcx + i2f(dx) * 4.0f * xs, dcy - i2f(dy) * 4.0f, 2.6f * xs, 2.6f, 0xFFD300FFu);
+                    gfx::fillEllipse(dcx + i2f(dx) * 4.0f * xs, dcy - i2f(dy) * 4.0f, 2.6f * xs, 2.6f, kHudGold);
                 }
             }
 
-            // Iconic GameCube right face cluster (matching 01-final-everyday & 10-grounding):
-            //  - Y rounded horizontal pill cleanly below Z and above A
-            //  - Bold emerald A circle with bright mint rim and crisp centered 'A' glyph
-            //  - Outlined crimson B circle cleanly separated from C-stick and lower-left of A
-            //  - X rounded vertical pill tucked right of A
+            // Iconic GameCube right face cluster (shapes first, text batched last):
             {
                 bool yOn = (pad.buttons & game::kPadY) != 0;
                 float yw = 15.0f * xs;
                 drawPillSilhouette(x + bw * 0.77f - yw * 0.5f, y + 23.0f, yw, 5.6f, xs,
                                    yOn ? 0xFFFFFFFFu : 0x62707EE8u, yOn ? 0xFFFFFFFFu : 0xBCCAD8E8u);
             }
+            bool aOn = (pad.buttons & game::kPadA) != 0;
+            float acx = x + bw * 0.78f;
+            float acy = y + 39.5f;
             {
-                bool aOn = (pad.buttons & game::kPadA) != 0;
-                float acx = x + bw * 0.78f;
-                float acy = y + 39.5f;
                 if (aOn)
                 {
                     gfx::fillEllipse(acx, acy, 10.4f * xs, 10.4f, 0x48FFA870u);
                 }
-                gfx::fillEllipse(acx, acy, 9.2f * xs, 9.2f, 0x05090FF4u);
+                gfx::fillEllipse(acx, acy, 9.2f * xs, 9.2f, kHudTroughBg);
                 gfx::fillEllipse(acx, acy, 7.7f * xs, 7.7f, aOn ? 0x9AFFD0FFu : 0x4CE2B4F0u);
                 gfx::fillEllipse(acx, acy, 6.5f * xs, 6.5f, aOn ? 0x46F09CFFu : 0x1E8F64E8u);
-                float aCap = 8.4f;
-                float aSc = ui::style::scaleForCap(aCap);
-                float aW = gfx::textWidth("A", aSc);
-                float aX = acx - aW * 0.5f;
-                float aY = ui::style::textYForCap(acy - aCap * 0.5f, aSc);
-                gfx::text(aX + 0.6f * xs, aY + 0.8f, "A", 0x04120CE0u, aSc);
-                gfx::text(aX, aY, "A", aOn ? 0x041C12FFu : 0xE8FFF4FFu, aSc);
             }
             {
                 bool bOn = (pad.buttons & game::kPadB) != 0;
@@ -278,7 +263,7 @@ namespace extra {
                 {
                     gfx::fillEllipse(bcx, bcy, 7.3f * xs, 7.3f, 0xFF5A5A70u);
                 }
-                gfx::fillEllipse(bcx, bcy, 6.2f * xs, 6.2f, 0x05090FF4u);
+                gfx::fillEllipse(bcx, bcy, 6.2f * xs, 6.2f, kHudTroughBg);
                 gfx::fillEllipse(bcx, bcy, 5.0f * xs, 5.0f, bOn ? 0xFF8C8CFFu : 0xF05454F0u);
                 gfx::fillEllipse(bcx, bcy, 4.1f * xs, 4.1f, bOn ? 0xFF4242FFu : 0xC82828E8u);
             }
@@ -287,6 +272,23 @@ namespace extra {
                 float xw = 5.8f * xs;
                 drawPillSilhouette(x + bw * 0.93f - xw * 0.5f, y + 32.0f, xw, 14.2f, xs,
                                    xOn ? 0xFFFFFFFFu : 0x62707EE8u, xOn ? 0xFFFFFFFFu : 0xBCCAD8E8u);
+            }
+
+            // Batched text pass: P1/CPU dual tag (>= 8.5 px cap) and centered 'A' glyph.
+            if (showTag)
+            {
+                char tag[8];
+                viewerTagText(playerNo, cpu, tag);
+                drawShadowCapCenter(x + bw * 0.48f, y + 2.5f, tag, cpu ? 0x86DCEEFFu : 0xFF8C8CFFu, 9.5f);
+            }
+            {
+                float aCap = 8.4f;
+                float aSc = ui::style::scaleForCap(aCap);
+                float aW = gfx::textWidth("A", aSc);
+                float aX = acx - aW * 0.5f;
+                float aY = ui::style::textYForCap(acy - aCap * 0.5f, aSc);
+                gfx::text(aX + 0.6f * xs, aY + 0.8f, "A", 0x04120CE0u, aSc);
+                gfx::text(aX, aY, "A", aOn ? 0x041C12FFu : 0xE8FFF4FFu, aSc);
             }
         }
 
@@ -335,12 +337,8 @@ namespace extra {
             float bw = b.x1 - b.x0;
             float bh = b.y1 - b.y0;
 
-            if (showTag)
-            {
-                char tag[8];
-                viewerTagText(playerNo, cpu, tag);
-                drawShadowCapCenter(x + bw * 0.5f, y + 1.0f, tag, cpu ? 0x86D4E8F0u : 0xFF9494F0u, 8.5f);
-            }
+            // Ground non-GC layouts (Classic / Wiimote / Nunchuk) on the same smoked glass scrim card.
+            drawSmokedCard(x, y, bw, bh, xs);
 
             for (int t = 0; t < 2; t++)
             {
@@ -356,7 +354,7 @@ namespace extra {
                 bool dig = (pad.buttons & tr.digitalMask) != 0;
                 float fill = viewerTriggerFill(tr.isRight ? pad.rTrig : pad.lTrig, dig);
                 float bx = 1.8f * xs;
-                gfx::fillRect(rx, ry, rw, rh, 0x050B10E4u);
+                gfx::fillRect(rx, ry, rw, rh, kHudTroughBg);
                 gfx::fillRect(rx + bx, ry + 1.6f, rw - 2.0f * bx, rh - 3.2f, 0x16222CC8u);
                 if (fill > 0.01f)
                 {
@@ -391,7 +389,7 @@ namespace extra {
                     }
                     if (!uiAssetsDrawIcon(btn.iconId, cx - iw * 0.5f, cy - ih * 0.5f, iw, ih, viewerIconTint(pressed)))
                     {
-                        gfx::fillEllipse(cx, cy, iw * 0.42f, ih * 0.42f, pressed ? 0xFFD300FFu : 0x5A6B78A0u);
+                        gfx::fillEllipse(cx, cy, iw * 0.42f, ih * 0.42f, pressed ? kHudGold : 0x5A6B78A0u);
                     }
                     if (pressed && viewerIsDpadIcon(btn.iconId))
                     {
@@ -400,10 +398,17 @@ namespace extra {
                         if (dx != 0 || dy != 0)
                         {
                             gfx::fillEllipse(cx + i2f(dx) * iw * 0.30f, cy - i2f(dy) * ih * 0.30f, 2.2f * xs, 2.2f,
-                                             0xFFD300FFu);
+                                             kHudGold);
                         }
                     }
                 }
+            }
+
+            if (showTag)
+            {
+                char tag[8];
+                viewerTagText(playerNo, cpu, tag);
+                drawShadowCapCenter(x + bw * 0.5f, y + 2.5f, tag, cpu ? 0x86D4E8F0u : 0xFF9494F0u, 9.0f);
             }
         }
     }
