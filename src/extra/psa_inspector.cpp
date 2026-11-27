@@ -364,7 +364,8 @@ namespace extra {
             float bw = b.x1 - b.x0;
             int shown[kPsaDisplayRows];
             int rowCount = psaSelectDisplayThreads(dbg->threads, shown, kPsaDisplayRows);
-            bool hasFocus = dbg->focusText[0] != '\0';
+            // Only show bottom focus strip when the focused command actually carries decoded arguments.
+            bool hasFocus = dbg->focusArgCount > 0u && dbg->focusText[0] != '\0';
             int fitRows = rowCount > 0 ? rowCount : 1;
             float maxBh = b.y1 - b.y0;
             float rowPitch = 12.0f;
@@ -376,30 +377,43 @@ namespace extra {
                 bh = maxBh;
             }
 
-            // Quiet borderless Panel B smoked plate (zero window border, zero colored title tab).
+            int maxRows = static_cast<int>((bh - rowsTop - (hasFocus ? 24.0f : 6.0f)) / rowPitch);
+            if (maxRows < 1)
+            {
+                maxRows = 1;
+            }
+            int drawRows = rowCount < maxRows ? rowCount : maxRows;
+            float focusDivY = y + rowsTop + i2fScale(drawRows, rowPitch) + 2.0f;
+            bool drawFocusStrip = hasFocus && rowCount > 0 && (focusDivY + 18.0f <= y + bh);
+
+            // Pass 1: all quads (plate + all dividers batched before any text draw).
             drawSmokedPlate(x, y, bw, bh);
             if (stackedUnderInfo)
             {
                 drawPlateDivider(x, y, bw, xs);
             }
+            drawPlateDivider(x, y + 31.0f, bw, xs);
+            if (drawFocusStrip)
+            {
+                drawPlateDivider(x, focusDivY, bw, xs);
+            }
 
+            // Pass 2: all text (header + active thread rows + optional focus command strip).
             float insetX = 8.0f * xs;
             float colName = x + insetX;
             float innerW = bw - 2.0f * insetX;
 
-            // Header line 1: subtle target + FSM rate (>= 10.5 scanlines, crisp 1px drop shadow).
             char title[16];
             char fsm[20];
             psaFormatTitle(isCpu, dbg->playerNo, title, sizeof(title));
             psaFormatFsm(dbg->fsmRate, fsm, sizeof(fsm));
             float hdrSc = ui::style::scaleForCap(10.5f);
             float hdrY = ui::style::textYForCap(y + 7.0f, hdrSc);
-            drawShadowText(colName, hdrY, title, 0xC6D4E0FFu, hdrSc);
-            gfx::Rgba fsmCol = psaFsmIsModified(dbg->fsmRate) ? 0xFFD300FFu : 0xF4F8FCFFu;
+            drawShadowText(colName, hdrY, title, kHudTextLabel, hdrSc);
+            gfx::Rgba fsmCol = psaFsmIsModified(dbg->fsmRate) ? kHudGold : kHudTextValue;
             float fsmW = gfx::textWidth(fsm, hdrSc);
             drawShadowText(x + bw - insetX - fsmW, hdrY, fsm, fsmCol, hdrSc);
 
-            // Header line 2: Action / Subaction / AnimFrame.
             char subLine[40];
             psaFormatSubHeader(dbg->status, dbg->subaction, dbg->animFrame, dbg->secondaryKind,
                                dbg->secondaryRate, subLine, sizeof(subLine));
@@ -410,9 +424,6 @@ namespace extra {
             gfx::text(colName + xs, subY + 1.0f, subLine, 0x000000DCu, subSx, subSc);
             gfx::text(colName, subY, subLine, 0xD8E6F0FFu, subSx, subSc);
 
-            drawPlateDivider(x, y + 31.0f, bw, xs);
-
-            // Active threads: Name | Frame | Wait | Decoded Opcode Name (fit to <= 218 px on 4:3).
             float rowScale = ui::style::scaleForCap(10.5f);
             if (rowCount == 0)
             {
@@ -429,12 +440,6 @@ namespace extra {
             float frameMaxW = colWait - colFrame - 3.0f * xs;
             float waitMaxW = colOp - colWait - 3.0f * xs;
 
-            int maxRows = static_cast<int>((bh - rowsTop - (hasFocus ? 24.0f : 6.0f)) / rowPitch);
-            if (maxRows < 1)
-            {
-                maxRows = 1;
-            }
-            int drawRows = rowCount < maxRows ? rowCount : maxRows;
             for (int r = 0; r < drawRows; r++)
             {
                 int idx = shown[r];
@@ -450,7 +455,7 @@ namespace extra {
                 clipTextToWidth(opBuf, rowScale, opMaxW);
 
                 gfx::Rgba nameCol = (idx == dbg->focusThread) ? 0xFFE24AFFu
-                                                               : ((idx <= 1) ? 0xF4F8FCFFu : 0xC6D4E0FFu);
+                                                               : ((idx <= 1) ? kHudTextValue : kHudTextLabel);
                 static const gfx::Rgba kWaitCols[3] = {0x8094A4FFu, 0x36CFC2FFu, 0xFFE24AFFu};
                 gfx::Rgba waitCol = kWaitCols[th.waitKind < 3u ? th.waitKind : 0u];
                 gfx::Rgba opCol = th.cmdHeader != 0u ? 0xE2EEF6FFu : 0x8094A4FFu;
@@ -474,19 +479,14 @@ namespace extra {
                 drawShadowText(colOp, ry, opBuf, opCol, rowScale);
             }
 
-            if (hasFocus)
+            if (drawFocusStrip)
             {
-                float divY = y + rowsTop + i2fScale(drawRows, rowPitch) + 2.0f;
-                if (divY + 18.0f <= y + bh)
-                {
-                    drawPlateDivider(x, divY, bw, xs);
-                    char focusLine[56];
-                    snprintf(focusLine, sizeof(focusLine), "%s:%s", psaThreadName(dbg->focusThread),
-                             dbg->focusText);
-                    clipTextToWidth(focusLine, rowScale, innerW);
-                    drawShadowText(colName, ui::style::textYForCap(divY + 5.0f, rowScale), focusLine, 0x8EF5EAFFu,
-                                   rowScale);
-                }
+                char focusLine[56];
+                snprintf(focusLine, sizeof(focusLine), "%s:%s", psaThreadName(dbg->focusThread),
+                         dbg->focusText);
+                clipTextToWidth(focusLine, rowScale, innerW);
+                drawShadowText(colName, ui::style::textYForCap(focusDivY + 5.0f, rowScale), focusLine, 0x8EF5EAFFu,
+                               rowScale);
             }
         }
     }

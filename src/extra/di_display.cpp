@@ -1235,6 +1235,57 @@ namespace extra {
         return d < 0 ? 0 : d;
     }
 
+    static u8 activeHumanControllerType()
+    {
+        game::FighterRef ref;
+        s8 raw[4];
+        u8 ct = kPadGcc;
+        if (game::findFighter(false, ref))
+        {
+            int port = extraHumanPort(ref);
+            if (port >= 0 && port < display::kPortPads && display::inputStickWithType(port, raw, &ct))
+            {
+                return ct;
+            }
+        }
+        for (int p = 0; p < display::kPortPads; p++)
+        {
+            if (display::inputStickWithType(p, raw, &ct))
+            {
+                return ct;
+            }
+        }
+        return kPadGcc;
+    }
+
+    static const char* diPickerPromptText(u8 controllerType, bool picking)
+    {
+        // gfPadType: 0 GCC, 1 Classic, 2 Sideways Wiimote, 3 Wiimote + Nunchuk.
+        if (controllerType == 2u)
+        {
+            return picking ? "2: Lock Angle   1: Cancel" : "2: Aim / Lock   1: Cancel";
+        }
+        if (controllerType == 1u)
+        {
+            return picking ? "A: Lock Angle   B: Cancel" : "R-Stick: Aim   A: Stick / Lock";
+        }
+        if (controllerType == 3u)
+        {
+            return picking ? "A: Lock Angle   B: Cancel" : "A: Stick Aim / Lock";
+        }
+        return picking ? "A: Lock Angle   B: Cancel" : "C-Stick: Aim   A: Stick / Lock";
+    }
+
+    static void drawPickerFitLine(float x, float capY, const char* text, gfx::Rgba color, float cap, float maxW)
+    {
+        float sc = ui::style::scaleForCap(cap);
+        float tw = gfx::textWidth(text, sc);
+        float sx = (maxW > 0.0f && tw > maxW && tw > 0.0f) ? (sc * maxW / tw) : sc;
+        float dy = ui::style::textYForCap(capY, sc);
+        gfx::text(x + 0.8f, dy + 0.8f, text, 0x000000C8u, sx, sc);
+        gfx::text(x, dy, text, color, sx, sc);
+    }
+
     void diDrawCustomPickerOverlay(bool railMode)
     {
         const main::Settings& set = main::settings();
@@ -1243,27 +1294,27 @@ namespace extra {
             return;
         }
         bool picking = ui::menuScratch()[ui::kDiPickActiveScratchOffset] != 0;
+        u8 padType = activeHumanControllerType();
         float xs = gfx::xScale();
         float paneCenter = railMode ? 392.0f : 315.0f;
         bool compact = !railMode;
-        float topY = compact ? 258.0f : 246.0f;
-        float cardW = ui::style::w(268.0f);
-        float cardH = compact ? 98.0f : 112.0f;
+        float topY = compact ? 252.0f : 244.0f;
+        float cardW = ui::style::w(276.0f);
+        float cardH = compact ? 104.0f : 114.0f;
         float cardX = ui::style::cx(paneCenter) - cardW * 0.5f;
 
-        // v1 Direction A smoked-charcoal card with crisp dark border (zero neon wireframe).
+        // Pass 1: smoked-charcoal card + octagonal gate + dial ray (all shapes before text).
         float bx = ui::style::w(2.0f);
         gfx::Rgba borderCol = picking ? 0xF4C830FFu : 0x3A4656FFu;
         gfx::fillRect(cardX - bx, topY - 2.0f, cardW + 2.0f * bx, cardH + 4.0f, 0x06080DFFu);
         gfx::fillRect(cardX, topY, cardW, cardH, borderCol);
         gfx::fillGradV(cardX + bx, topY + 2.0f, cardW - 2.0f * bx, cardH - 4.0f, 0x121822F4u, 0x0A0E15F4u);
 
-        float ry = compact ? 30.0f : 35.0f;
+        float ry = compact ? 31.0f : 35.0f;
         float rx = ry * xs;
-        float cx = cardX + ui::style::w(52.0f);
+        float cx = cardX + ui::style::w(50.0f);
         float cy = topY + cardH * 0.5f;
 
-        // Octagonal GameCube stick gate background + crosshairs + crisp white rim.
         gfx::fillEllipse(cx, cy, rx * 0.94f, ry * 0.94f, 0x080C12E8u);
         gfx::lineBegin(GX_LINES, 4, 8);
         gfx::vertex(cx - rx * 0.92f, cy, 0x3E4958C0u);
@@ -1286,10 +1337,13 @@ namespace extra {
         bool hasVec = (vx * vx + vy * vy > 0.0004f);
         drawDialRayDot(cx, cy, rx, ry, vx, vy, 0.90f, 3.0f, xs, 0x2DB3A1FFu, 0xF4C830FFu, 16, hasVec);
 
-        float tx = cardX + ui::style::w(102.0f);
-        float rowStep = compact ? 20.0f : 23.0f;
-        float row0 = topY + (compact ? 14.0f : 16.0f);
-        drawShadowCapText(tx, row0, picking ? "AIMING DI ANGLE" : "CUSTOM DI ANGLE", 0xF4C830FFu, 8.5f);
+        // Pass 2: batched text (>= 8.0 px 480i cap floor on every row, controller-accurate glyphs).
+        float tx = cardX + ui::style::w(98.0f);
+        float textMaxW = (cardX + cardW - ui::style::w(8.0f)) - tx;
+        float rowStep = compact ? 21.5f : 24.0f;
+        float row0 = topY + (compact ? 13.0f : 14.0f);
+        drawPickerFitLine(tx, row0, picking ? "AIMING DI ANGLE" : "CUSTOM DI ANGLE", 0xF4C830FFu,
+                          ui::style::kTypeMeta, textMaxW);
         char line[40];
         if (hasVec)
         {
@@ -1305,11 +1359,11 @@ namespace extra {
         {
             snprintf(line, sizeof(line), "0 deg  (Neutral)");
         }
-        drawShadowCapText(tx, row0 + rowStep, line, 0xEEF4F8FFu, 7.8f);
-        drawShadowCapText(tx, row0 + rowStep * 2.0f, "Orientation: Screen X / Y", 0x9AA7B4FFu, 7.5f);
-        drawShadowCapText(tx, row0 + rowStep * 3.0f,
-                          picking ? "A: Lock Angle   B: Cancel" : "C-Stick: Aim   A: Stick / Lock",
-                          picking ? 0xF4C830FFu : 0xB8C6D4FFu, 7.5f);
+        drawPickerFitLine(tx, row0 + rowStep, line, 0xEEF4F8FFu, 8.5f, textMaxW);
+        drawPickerFitLine(tx, row0 + rowStep * 2.0f, "Orientation: Screen X / Y", 0x9AA7B4FFu,
+                          ui::style::kTypeMicro, textMaxW);
+        drawPickerFitLine(tx, row0 + rowStep * 3.0f, diPickerPromptText(padType, picking),
+                          picking ? 0xF4C830FFu : 0xB8C6D4FFu, ui::style::kTypeMicro, textMaxW);
     }
 
     void diReset()

@@ -533,7 +533,7 @@ namespace ui {
             }
             else if (mi.name != NULL)
             {
-                snprintf(buf, size, "Sub: %.14s %d/%d", mi.name, mi.frame, mi.length);
+                snprintf(buf, size, "Sub: %.19s %d/%d", mi.name, mi.frame, mi.length);
             }
             else
             {
