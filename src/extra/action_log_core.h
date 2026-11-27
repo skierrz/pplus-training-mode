@@ -111,12 +111,14 @@ namespace extra {
     inline u8 actionLogClassify(int status, bool airborne);
 
     // True only when this fighter is a DEFENDER in hitstun, shieldstun, grab
-    // capture, or victim hitlag (never actionable DamageFall 0x49, grounded
-    // Down* 0x4A..0x55 with hitstun == 0, or attacker hitlag on a 3rd/4th player).
+    // capture (excluding Capture_Jump 0x41), knockdown damage (Down_Damage 0x54,
+    // Down_Reflect_Lr 0x55), or victim hitlag (never actionable Damage_Fall 0x49,
+    // grounded Down* 0x4A..0x53 with hitstun == 0, or attacker hitlag on a 3rd/4th player).
     inline bool sf6IsDefenderStun(int status, s16 hitstun, s16 shieldStun, u8 hitReceived, u8 shieldReceived)
     {
         bool stunStatus = status == game::kStatusGuardDamage
-                          || (status >= 0x3D && status <= 0x48)
+                          || (status >= 0x3D && status <= 0x48 && status != 0x41)
+                          || status == 0x54 || status == 0x55
                           || (status >= 0x56 && status <= 0x5F)
                           || (status >= 0x6E && status <= 0x70);
         return hitstun > 0 || shieldStun > 0 || hitReceived != 0 || shieldReceived != 0 || stunStatus;

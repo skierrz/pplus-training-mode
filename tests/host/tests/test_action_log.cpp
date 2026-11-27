@@ -246,15 +246,20 @@ TEST(action_log, sf6_dual_strip_phase_classification_advantage_and_ring_wrap)
     CHECK_EQ(0, static_cast<int>(sf4p.hasAdvantage));
     CHECK_EQ(0, static_cast<int>(sf4p.activeExchange));
 
-    // Actionable DamageFall (0x49) and grounded Down* (0x4A..0x55) with hitstun == 0
-    // (e.g. Techchase Tumble Drop spawn) must NEVER register as defender stun or
-    // emit a bogus 0f advantage or gold stun cells.
+    // Actionable Damage_Fall (0x49), Capture_Jump (0x41), and grounded Down*
+    // (0x4A..0x53) with hitstun == 0 must NEVER register as defender stun or
+    // emit a bogus 0f advantage or gold stun cells; Down_Damage (0x54) and
+    // Down_Reflect_Lr (0x55) ARE defender stun even when hitstun == 0.
+    CHECK(!sf6IsDefenderStun(0x41, 0, 0, 0, 0)); // Capture_Jump (grab release)
     CHECK(!sf6IsDefenderStun(0x49, 0, 0, 0, 0));
     CHECK(!sf6IsDefenderStun(0x4D, 0, 0, 0, 0));
     CHECK(!sf6IsDefenderStun(0x4F, 0, 0, 0, 0));
+    CHECK(!sf6IsDefenderStun(0x53, 0, 0, 0, 0)); // Down_Stand_Attack
+    CHECK(sf6IsDefenderStun(0x54, 0, 0, 0, 0));  // Down_Damage (jab lock)
+    CHECK(sf6IsDefenderStun(0x55, 0, 0, 0, 0));  // Down_Reflect_Lr
     CHECK(sf6IsDefenderStun(0x49, 12, 0, 0, 0)); // genuine hitstun still counts
-    CHECK(sf6IsDefenderStun(0x43, 0, 0, 0, 0));  // DamageHi1..DamageFly still count
-    CHECK(sf6IsDefenderStun(0x3E, 0, 0, 0, 0));  // CaptureWait (grabbed) still counts
+    CHECK(sf6IsDefenderStun(0x43, 0, 0, 0, 0));  // Damage..Damage_Fly still count
+    CHECK(sf6IsDefenderStun(0x3E, 0, 0, 0, 0));  // Capture_Wait (grabbed) still counts
     CHECK_EQ(static_cast<int>(kSf6Recovery), static_cast<int>(sf6ClassifyCell(0x4F, false, false, false, false)));
 
     Sf6StripState sfTc;
