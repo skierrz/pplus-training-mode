@@ -74,6 +74,8 @@ namespace extra {
         const char kPromptLabels[] = "Retry\0Lab\0Return to CSS";
 
         // Single consolidated runtime block avoids per-static PowerPC -sdata 0 address loads.
+        // Motion state (ptrVisual, hitFlashTimer, modalAnim, modalNewBestPop, prevMotionDrill)
+        // is strictly 8 bytes total with zero heap allocations and zero idle pulsing.
         struct Runtime {
             DrillHudDebugBlock debug;
             DrillHudState st;
@@ -81,6 +83,11 @@ namespace extra {
             u32 prevHeld[kPorts];
             u32 releaseMask[kPorts];
             float xs;
+            float ptrVisual;    // 4 B: smoothed timing-bar pointer cell (< 0 = hidden/unset)
+            u8 hitFlashTimer;   // 1 B: 5..0f landed-cell brightness/gold flash on hit
+            u8 modalAnim;       // 1 B: 0..8f modal reveal (steps -2/f on exit -> 4f exit)
+            u8 modalNewBestPop; // 1 B: 5..0f focal pop strictly on New Best! badge
+            u8 prevMotionDrill; // 1 B: active drill id to snap pointer on drill switch
             u8 waitRelease;
             u8 lastPadType;
             u8 fresh;
@@ -89,6 +96,40 @@ namespace extra {
         };
 
         static Runtime* s_rtPtr = NULL;
+
+        inline gfx::Rgba scaleAlpha(gfx::Rgba col, float a)
+        {
+            if (a >= 0.995f)
+            {
+                return col;
+            }
+            if (a <= 0.0f)
+            {
+                return col & 0xFFFFFF00u;
+            }
+            u32 al = static_cast<u32>(f2i(i2f(col & 0xFFu) * a + 0.5f));
+            if (al > 255u) al = 255u;
+            return (col & 0xFFFFFF00u) | al;
+        }
+
+        inline float easeOutCubic(float t)
+        {
+            if (t <= 0.0f) return 0.0f;
+            if (t >= 1.0f) return 1.0f;
+            float u = 1.0f - t;
+            return 1.0f - u * u * u;
+        }
+
+        void resetMotionState(Runtime& s_rt, bool clearModal)
+        {
+            s_rt.ptrVisual = -1.0f;
+            s_rt.hitFlashTimer = 0u;
+            if (clearModal)
+            {
+                s_rt.modalAnim = 0u;
+                s_rt.modalNewBestPop = 0u;
+            }
+        }
 
         void unpauseIfNeeded(Runtime& s_rt)
         {
@@ -113,18 +154,19 @@ namespace extra {
         }
 
         // Unified 3 px (F4) outer modal frame + dark gradient body matching style.h.
-        void drawPanel(float ox, float oy, float w, float h, u32 top, u32 bot)
+        void drawPanel(float ox, float oy, float w, float h, u32 top, u32 bot, float alpha = 1.0f)
         {
             float xs = s_rtPtr->xs;
             float bw = w * xs;
             float b = ui::style::kLabBorder;
             float bx = b * xs;
-            gfx::fillRect(ox, oy, bw, h, ui::style::kLabBorderColor);
-            gfx::fillGradV(ox + bx, oy + b, bw - 2.0f * bx, h - 2.0f * b, top, bot);
+            gfx::fillRect(ox, oy, bw, h, scaleAlpha(ui::style::kLabBorderColor, alpha));
+            gfx::fillGradV(ox + bx, oy + b, bw - 2.0f * bx, h - 2.0f * b, scaleAlpha(top, alpha),
+                           scaleAlpha(bot, alpha));
         }
 
-        // Compact 5-argument text renderer supporting system and Brawl Display fonts.
-        void label(float x, float y, const char* s, u32 col, u8 fl)
+        // Compact text renderer supporting system and Brawl Display fonts with optional fade alpha.
+        void label(float x, float y, const char* s, u32 col, u8 fl, float alpha = 1.0f)
         {
             int sz = (fl >> 2) & 7;
             bool disp = sz >= 2;
@@ -145,15 +187,16 @@ namespace extra {
             if (disp)
             {
                 u32 bot = (fl & kDispGold) ? 0xE89B00FFu : ((fl & kDispRed) ? 0xD8483EFFu : 0xB8E0EEFFu);
-                gfx::displayText(dx, ui::style::displayYForCap(y, sc), s, col, bot, sx, sc, 1.2f, 0x050C12FFu);
+                gfx::displayText(dx, ui::style::displayYForCap(y, sc), s, scaleAlpha(col, alpha),
+                                 scaleAlpha(bot, alpha), sx, sc, 1.2f, scaleAlpha(0x050C12FFu, alpha));
             }
             else
             {
-                gfx::text(dx, ui::style::textYForCap(y, sc), s, col, sx, sc);
+                gfx::text(dx, ui::style::textYForCap(y, sc), s, scaleAlpha(col, alpha), sx, sc);
             }
         }
 
-        void drawPips(float x, float y, float totalW, float h, int count)
+        void drawPips(float x, float y, float totalW, float h, int count, float alpha = 1.0f)
         {
             Runtime& s_rt = *s_rtPtr;
             if (count <= 0)
@@ -170,7 +213,7 @@ namespace extra {
             for (int k = 0; k < count && k < kDrillMaxSetReps; k++, x += step)
             {
                 u8 p = s_rt.st.repPips[k];
-                gfx::fillRect(x, y, pw, h, kPipCols[p < 5 ? p : 0]);
+                gfx::fillRect(x, y, pw, h, scaleAlpha(kPipCols[p < 5 ? p : 0], alpha));
             }
         }
 
@@ -635,6 +678,51 @@ namespace extra {
                 }
             }
 
+            // 60fps timing bar pointer glide (4-5f, alpha=0.45) + 5f landed-cell hit flash.
+            // Snaps instantly when game::frozen() (Frame Advance) or switching drills.
+            if (s_rt.prevMotionDrill != d)
+            {
+                s_rt.prevMotionDrill = d;
+                s_rt.ptrVisual = -1.0f;
+                s_rt.hitFlashTimer = 0u;
+            }
+            if (!fx.isRepStrip && ptrCell >= 0)
+            {
+                float targetPtr = i2f(ptrCell);
+                if (s_rt.ptrVisual < 0.0f || game::frozen())
+                {
+                    s_rt.ptrVisual = targetPtr;
+                }
+                else
+                {
+                    float dp = targetPtr - s_rt.ptrVisual;
+                    if (dp > -0.04f && dp < 0.04f)
+                    {
+                        s_rt.ptrVisual = targetPtr;
+                    }
+                    else
+                    {
+                        s_rt.ptrVisual += dp * 0.45f;
+                    }
+                }
+                fx.pointerPos = s_rt.ptrVisual;
+                if (game::frozen())
+                {
+                    s_rt.hitFlashTimer = 0u;
+                }
+                else if (s_rt.hitFlashTimer > 0u)
+                {
+                    fx.flashCell = ptrCell;
+                    fx.flashAlpha = i2f(s_rt.hitFlashTimer) * 0.2f;
+                    s_rt.hitFlashTimer--;
+                }
+            }
+            else
+            {
+                s_rt.ptrVisual = -1.0f;
+                s_rt.hitFlashTimer = 0u;
+            }
+
             drawTimingBar(cells, cellCount, ptrCell, legendCount > 0 ? legend : NULL, legendCount,
                           legendCount == 0 ? caption : NULL, wide, leftLbl, rightLbl, &fx);
 
@@ -670,14 +758,17 @@ namespace extra {
             }
         }
 
-        void drawEndModal()
+        void drawEndModal(float animT)
         {
             using namespace ui::style;
             Runtime& s_rt = *s_rtPtr;
             DrillHudState& st = s_rt.st;
             float xs = s_rt.xs;
+            float eased = easeOutCubic(animT);
+            float alpha = (animT >= 0.99f) ? 1.0f : (0.15f + 0.85f * eased);
+            float yOff = (animT >= 0.99f) ? 0.0f : i2f(f2i(6.0f * (1.0f - eased) + 0.5f));
             float modalW = ui::layout::kDrillModalWidth; // 377.0f (F14)
-            float modalTop = ui::layout::kDrillModalTop; // 113.0f
+            float modalTop = ui::layout::kDrillModalTop + yOff; // 113.0f at rest
             float modalH = ui::layout::kDrillModalHeight; // 254.0f
             float ox = 320.0f - (modalW * 0.5f) * xs;
             float ix = ox + kLabBorder * xs;
@@ -692,26 +783,36 @@ namespace extra {
             }
 
             // Pass 1: batch modal chrome, badge/pips, stat row slabs, and footer badges before text.
-            gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, 0x070B12B8u);
-            drawPanel(ox, modalTop, modalW, modalH, kLabBaseTop, kLabBaseBot);
+            gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, scaleAlpha(0x070B12B8u, eased));
+            drawPanel(ox, modalTop, modalW, modalH, kLabBaseTop, kLabBaseBot, alpha);
 
             const float hdrH = kFibBandH + kFibHair;
             u32 accent = st.newBest ? kLabFocusGold : kLabTealTop;
-            gfx::fillGradV(ix, inTop, iw, hdrH, kLabHeaderTop, kLabHeaderBot);
-            gfx::fillRect(ix, inTop, iw, kFibHair, accent);
-            gfx::fillRect(ix, inTop + hdrH, iw, kFibHair, kLabDivider);
+            gfx::fillGradV(ix, inTop, iw, hdrH, scaleAlpha(kLabHeaderTop, alpha), scaleAlpha(kLabHeaderBot, alpha));
+            gfx::fillRect(ix, inTop, iw, kFibHair, scaleAlpha(accent, alpha));
+            gfx::fillRect(ix, inTop + hdrH, iw, kFibHair, scaleAlpha(kLabDivider, alpha));
 
             float bodyY = inTop + hdrH + kFibHair;
             float badgeY = bodyY + 11.0f + kTypeHero + 11.0f;
             if (st.newBest)
             {
-                float pw = 104.0f * xs;
-                gfx::fillGradV(320.0f - pw * 0.5f, badgeY, pw, kFibRowH, kLabGoldTop, kLabGoldBot);
+                float pop = 0.0f;
+                if (st.modalOpen && s_rt.modalNewBestPop > 0u)
+                {
+                    float u = i2f(s_rt.modalNewBestPop) * 0.2f;
+                    pop = 4.0f * u * (1.0f - u);
+                    s_rt.modalNewBestPop--;
+                }
+                float pw = 104.0f * (1.0f + 0.06f * pop) * xs;
+                float extraH = pop > 0.01f ? i2f(f2i(2.0f * pop + 0.5f)) : 0.0f;
+                gfx::fillGradV(320.0f - pw * 0.5f, badgeY - extraH * 0.5f, pw, kFibRowH + extraH,
+                               scaleAlpha(kLabGoldTop, alpha), scaleAlpha(kLabGoldBot, alpha));
             }
             else
             {
                 float pw = 220.0f * xs;
-                drawPips(320.0f - pw * 0.5f, badgeY + 7.0f, pw, 6.0f, timed ? kDrillFreePips : static_cast<int>(target));
+                drawPips(320.0f - pw * 0.5f, badgeY + 7.0f, pw, 6.0f, timed ? kDrillFreePips : static_cast<int>(target),
+                         alpha);
             }
 
             float rowPad = kFibPad + kLabBorder;
@@ -723,14 +824,16 @@ namespace extra {
             for (int r = 0; r < 3; r++)
             {
                 float ry = ry0 + i2f(r) * (24.0f + kFibTight);
-                gfx::fillGradV(rowX, ry, rowW, 24.0f, kLabRowSlateTop, kLabRowSlateBot);
-                gfx::fillRect(rowX, ry + 22.0f, rowW, kFibHair, kLabRowSlateEdge);
+                gfx::fillGradV(rowX, ry, rowW, 24.0f, scaleAlpha(kLabRowSlateTop, alpha),
+                               scaleAlpha(kLabRowSlateBot, alpha));
+                gfx::fillRect(rowX, ry + 22.0f, rowW, kFibHair, scaleAlpha(kLabRowSlateEdge, alpha));
             }
 
             float footTop = inBot - kFibBandH - kFibHair;
-            gfx::fillRect(ix, footTop, iw, kFibHair, kLabDivider);
-            gfx::fillGradV(ix, footTop + kFibHair, iw, kFibBandH, kLabFooterTopCol, kLabFooterBotCol);
-            gfx::fillRect(ix, inBot - kFibHair, iw, kFibHair, kLabBevelDark);
+            gfx::fillRect(ix, footTop, iw, kFibHair, scaleAlpha(kLabDivider, alpha));
+            gfx::fillGradV(ix, footTop + kFibHair, iw, kFibBandH, scaleAlpha(kLabFooterTopCol, alpha),
+                           scaleAlpha(kLabFooterBotCol, alpha));
+            gfx::fillRect(ix, inBot - kFibHair, iw, kFibHair, scaleAlpha(kLabBevelDark, alpha));
 
             u8 ct = s_rt.lastPadType < 4 ? s_rt.lastPadType : 0;
             bool sideways = (ct == gfPadType::WIIMOTE);
@@ -770,21 +873,22 @@ namespace extra {
             float px = footStartX;
             for (int p = 0; p < 3; p++)
             {
-                drawGlossyPillBadge(px, footMid - bh * 0.5f, badgeW[p], bh, kBadgeCols[p][0], kBadgeCols[p][1]);
+                drawGlossyPillBadge(px, footMid - bh * 0.5f, badgeW[p], bh, scaleAlpha(kBadgeCols[p][0], alpha),
+                                    scaleAlpha(kBadgeCols[p][1], alpha));
                 px += itemW[p] + itemGap;
             }
 
             // Pass 2: batched text (Title Case header/subtitle, hero score, badge, 3 stat rows, footer labels).
             char buf[28];
             snprintf(buf, sizeof(buf), "%s Practice", drillHudTitle(st.activeDrill));
-            label(320.0f, inTop + 6.0f, buf, 0xFFFFFFFFu, kAlignCenter | kSzDisp13);
+            label(320.0f, inTop + 6.0f, buf, 0xFFFFFFFFu, kAlignCenter | kSzDisp13, alpha);
             const char* subTitle = "60s Run Complete";
             if (!timed)
             {
                 snprintf(buf, sizeof(buf), "%u-Rep Set Complete", static_cast<unsigned>(target));
                 subTitle = buf;
             }
-            label(320.0f, inTop + 23.0f, subTitle, 0xFFF5B8FFu, kAlignCenter);
+            label(320.0f, inTop + 23.0f, subTitle, 0xFFF5B8FFu, kAlignCenter, alpha);
 
             unsigned denom = timed ? (st.totalAtt > 0u ? static_cast<unsigned>(st.totalAtt) : 1u)
                                    : static_cast<unsigned>(target);
@@ -794,11 +898,11 @@ namespace extra {
             snprintf(buf, sizeof(buf), "%u / %u  (%u%%)", hits, timed ? static_cast<unsigned>(st.totalAtt) : denom, pct);
             u8 scFl = kAlignCenter | kSzDisp20 | (pct >= 80u ? kDispGold : (pct < 50u ? kDispRed : 0));
             label(320.0f, bodyY + 11.0f, buf, pct >= 80u ? 0xFFE866FFu : (pct >= 50u ? 0xFFFFFFFFu : 0xFF9E92FFu),
-                  scFl);
+                  scFl, alpha);
 
             if (st.newBest)
             {
-                label(320.0f, badgeY + (kFibRowH - kTypeMicro) * 0.5f, "New Best!", kLabGoldInk, kAlignCenter);
+                label(320.0f, badgeY + (kFibRowH - kTypeMicro) * 0.5f, "New Best!", kLabGoldInk, kAlignCenter, alpha);
             }
 
             for (int r = 0; r < 3; r++)
@@ -831,8 +935,8 @@ namespace extra {
                     drillHudFormatHighlight(st, buf, sizeof(buf));
                     vc = kLabTealTop;
                 }
-                label(lx, ry + (24.0f - kTypeBody) * 0.5f, lbl, kGradeCols[0], kSz10);
-                label(rx, ry + (24.0f - kTypeBody) * 0.5f, val, vc, kSz10 | kAlignRight);
+                label(lx, ry + (24.0f - kTypeBody) * 0.5f, lbl, kGradeCols[0], kSz10, alpha);
+                label(rx, ry + (24.0f - kTypeBody) * 0.5f, val, vc, kSz10 | kAlignRight, alpha);
             }
 
             px = footStartX;
@@ -840,9 +944,10 @@ namespace extra {
             {
                 float bw = badgeW[p];
                 float gw = gfx::textWidth(glyphs[p], gScale);
-                gfx::text(px + (bw - gw) * 0.5f, textYForCap(gCapY, gScale), glyphs[p], kBadgeCols[p][2], gScale);
+                gfx::text(px + (bw - gw) * 0.5f, textYForCap(gCapY, gScale), glyphs[p],
+                          scaleAlpha(kBadgeCols[p][2], alpha), gScale);
                 gfx::text(px + bw + kFibTight * xs, textYForCap(lCapY, lScale), drillNthStr(kPromptLabels, p),
-                          0xF0F4F8FFu, lScale);
+                          scaleAlpha(0xF0F4F8FFu, alpha), lScale);
                 px += itemW[p] + itemGap;
             }
         }
@@ -858,6 +963,7 @@ namespace extra {
         }
         Runtime& s_rt = *s_rtPtr;
         s_rt.fresh = 1;
+        resetMotionState(s_rt, true);
         s_rt.sess = drills::sessionIn(main::services().settings());
 
         u8 id = (s_rt.sess && isValidSkillDrill(s_rt.sess->drill)) ? s_rt.sess->drill
@@ -894,6 +1000,7 @@ namespace extra {
         if (s_rtPtr != NULL)
         {
             s_rtPtr->synced = 0;
+            resetMotionState(*s_rtPtr, false);
         }
     }
 
@@ -1008,10 +1115,16 @@ namespace extra {
                 s_rt.synced = 1;
             }
             bool modalTriggered = false;
+            u16 prevAtt = st.totalAtt;
             if ((sync || !st.modalOpen) && drillHudPoll(st, feed, sync) && !sync)
             {
                 saveBest = true;
                 modalTriggered = st.modalOpen != 0;
+                if (!game::frozen() && st.totalAtt != prevAtt
+                    && (st.lastGrade == kDrillGradeGood || st.lastGrade == kDrillGradePerfect))
+                {
+                    s_rt.hitFlashTimer = 5u;
+                }
             }
             if (!st.modalOpen && drillHudTickTimer(st))
             {
@@ -1165,11 +1278,13 @@ namespace extra {
                             challengeBackendsReset();
                         }
 #endif
+                        resetMotionState(s_rt, false);
                         s_rt.synced = 0;
                     }
                     else
                     {
                         st.modalOpen = 0;
+                        resetMotionState(s_rt, true);
                         if (act == 2)
                         {
                             st.activeDrill = drills::kDrillNone;
@@ -1243,11 +1358,29 @@ namespace extra {
         s_rt.xs = ui::layout::xsOf(gfx::widescreen());
         if (s_rt.st.modalOpen)
         {
-            drawEndModal();
+            // 8f smooth modal reveal; trigger 5f New Best! focal pop once on open.
+            if (s_rt.modalAnim == 0u && s_rt.st.newBest != 0u)
+            {
+                s_rt.modalNewBestPop = 5u;
+            }
+            if (s_rt.modalAnim < 8u)
+            {
+                s_rt.modalAnim++;
+            }
+            drawEndModal(i2f(s_rt.modalAnim) * 0.125f);
         }
         else
         {
             drawLiveHud();
+            // 4f fast modal exit fade (<= 0.65 * 8f) over live gameplay without blocking inputs.
+            if (s_rt.modalAnim > 0u)
+            {
+                s_rt.modalAnim = s_rt.modalAnim > 2u ? static_cast<u8>(s_rt.modalAnim - 2u) : 0u;
+                if (s_rt.modalAnim > 0u)
+                {
+                    drawEndModal(i2f(s_rt.modalAnim) * 0.125f);
+                }
+            }
         }
         s_rt.debug.drawCalls++;
     }
@@ -1275,6 +1408,7 @@ namespace extra {
         {
             drillHudInitMode(s_rt.st, s_rt.st.activeDrill, s_rt.st.sessionBest, clean);
             ui::menuScratch()[ui::kLedgeDismissScratchOffset]++;
+            resetMotionState(s_rt, true);
             s_rt.synced = 0;
             syncDebug();
         }
@@ -1290,6 +1424,7 @@ namespace extra {
         }
         Runtime& s_rt = *s_rtPtr;
         unpauseIfNeeded(s_rt);
+        resetMotionState(s_rt, true);
         drillHudInit(s_rt.st, static_cast<u8>(drills::kDrillNone), 0u);
         drillPracticeSetActiveDrill(kPracticeDrillNone);
         ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();

@@ -726,3 +726,19 @@ TEST(drill_hud, wavedash_timing_bar_pointer_mapping)
     r.outcome = kWdMissZairTether;
     CHECK_EQ(-1, wdTimingBarPointerCell(r));
 }
+
+TEST(drill_hud, title_case_names_and_mode_labels)
+{
+    CHECK(strcmp(drillHudTitle(drills::kDrillNone), "Tech Practice") == 0);
+    CHECK(strcmp(drillHudTitle(drills::kDrillLedgedash), "Ledgedash") == 0);
+    CHECK(strcmp(drillHudTitle(drills::kDrillWavedash), "Wavedash") == 0);
+    CHECK(strcmp(drillHudTitle(drills::kDrillLCancel), "L-Cancel") == 0);
+    CHECK(strcmp(drillHudTitle(drills::kDrillHoverFloat), "Float / Hover") == 0);
+    CHECK(strcmp(drillHudTitle(drills::kDrillPowershield), "Powershield") == 0);
+    CHECK(strcmp(drillHudTitle(drills::kDrillCancelSprint), "Cancel Endurance") == 0);
+    CHECK(strcmp(drillHudTitle(drills::kDrillFloorhug), "CC / ASDI-Down") == 0);
+    CHECK(strcmp(drillHudTitle(drills::kDrillComboBreakRush), "Break the Targets!") == 0);
+    CHECK(strcmp(drillModeLabel(kDrillModeSet10), "10-REP") == 0);
+    CHECK(strcmp(drillModeLabel(kDrillModeSet20), "20-REP") == 0);
+    CHECK(strcmp(drillModeLabel(kDrillModeTimed60), "60s") == 0);
+}
