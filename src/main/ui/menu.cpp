@@ -637,6 +637,92 @@ namespace ui {
                    || (pageId == pages::P_CPU && o.offset == offsetof(main::Settings, cpu.percent)));
     }
 
+#pragma dont_inline on
+    // Shared active-override / training-aid highlight predicate across Toggle,
+    // Choice, and Int: vanilla-P+ ON/default options stay neutral at vanilla and
+    // highlight on deviation; active training aids/overrides highlight whenever
+    // enabled (!= Off / != None), even when active by default.
+    static bool optionHighlighted(const MenuDef& def, int pageId, const Option& o)
+    {
+        if (!hasValue(o) || (o.flags & kFlagUnavailable) != 0)
+        {
+            return false;
+        }
+        int v = optionValue(def, o);
+        if (!isLabMenu(def))
+        {
+            return v != o.def;
+        }
+        if ((o.flags & kFlagScratch) != 0)
+        {
+            if (pageId == pages::P_CPU_COUNTERS && o.offset == kCounterModeScratchOffset)
+            {
+                return v != 0;
+            }
+            return v != o.def;
+        }
+        u16 off = o.offset;
+        if (off == offsetof(main::Settings, general.playerInfiniteShields)
+            || off == offsetof(main::Settings, general.ledgeHud)
+            || off == offsetof(main::Settings, cpu.options.infiniteShields)
+            || off == offsetof(main::Settings, cpu.options.counterGround)
+            || off == offsetof(main::Settings, cpu.options.counterAir)
+            || off == offsetof(main::Settings, cpu.options.counterShield)
+            || off == offsetof(main::Settings, osd.techSparkle)
+            || (pageId == pages::P_OSD_MENU && o.kind == kKindToggle))
+        {
+            return v != 0;
+        }
+        if (off == offsetof(main::Settings, cpu.options.tdi))
+        {
+            return v != cpu::kTdiNone;
+        }
+        if (off == offsetof(main::Settings, display.diVectorMode))
+        {
+            return v != main::kDiVectorNone;
+        }
+        return v != o.def;
+    }
+
+    static bool pageHasOverride(const MenuDef& def, int pageId, u8 depth = 0)
+    {
+        if (static_cast<u32>(pageId) >= def.pageCount || depth >= 3)
+        {
+            return false;
+        }
+        bool savedRail = s_rail;
+        bool savedAllow = s_allowShowInactive;
+        s_rail = isRailStyle(def);
+        s_allowShowInactive = allowShowInactive(def, pageId);
+        const Page& p = pageAt(def, pageId);
+        bool found = false;
+        for (int i = 0; i < p.count; i++)
+        {
+            const Option& o = p.options[i];
+            if (!active(o))
+            {
+                continue;
+            }
+            if (o.kind == kKindMenu)
+            {
+                if (o.max != pageId && pageHasOverride(def, o.max, static_cast<u8>(depth + 1)))
+                {
+                    found = true;
+                    break;
+                }
+            }
+            else if (optionHighlighted(def, pageId, o))
+            {
+                found = true;
+                break;
+            }
+        }
+        s_rail = savedRail;
+        s_allowShowInactive = savedAllow;
+        return found;
+    }
+#pragma dont_inline reset
+
     static bool unavailableLabel(const char* s)
     {
         if (s == NULL)
@@ -1265,6 +1351,13 @@ namespace ui {
         gfx::fillTri(r - gw(5.0f), midY, r - gw(11.0f), midY - 4.0f, r - gw(11.0f), midY + 4.0f, color);
     }
 
+    static void drawOverrideDot(float x43, float cy, float size, bool onGold, bool onAccent, const MenuPalette& pal)
+    {
+        gfx::Rgba col = onGold ? kLabGoldInk : (onAccent ? pal.activeTabText : pal.accentTop);
+        float sw = gw(size);
+        gfx::fillRect(cx(x43) - sw * 0.5f, cy - size * 0.5f, sw, size, col);
+    }
+
     static bool diPickerActiveFor(u8 pageId, const MenuState& state)
     {
         return pageId == pages::P_CPU_DI && !state.railFocus && s_scratch[kDiPickActiveScratchOffset] != 0;
@@ -1429,7 +1522,8 @@ namespace ui {
             }
             else
             {
-                if (cs.txtResetOpt != NULL && p.count > 0 && cur < p.count && resettableOption(p.options[cur]))
+                if (cs.txtResetOpt != NULL && p.count > 0 && cur < p.count && resettableOption(p.options[cur])
+                    && optionValue(def, p.options[cur]) != p.options[cur].def)
                 {
                     pushFooter(items, n, 2, resetRound, cs.txtResetOpt, "Reset");
                 }
@@ -1477,13 +1571,19 @@ namespace ui {
         for (u8 i = 0; i < def.categoryCount; i++)
         {
             float y = kRailItemTop + i * kRailItemPitch;
-            if (state.railFocus && state.railCursor == i)
+            bool focused = state.railFocus && state.railCursor == i;
+            bool activeCat = !state.railFocus && state.category == i;
+            if (focused)
             {
                 drawGoldBar(kLabInnerLeft, itemRight, y, kRailItemH, 8.0f, true, itemRight - kFibTight);
             }
-            else if (!state.railFocus && state.category == i)
+            else if (activeCat)
             {
                 drawSlantBar(kLabInnerLeft, itemRight, y, kRailItemH, true, pal.accentTop, pal.accentBot, 0);
+            }
+            if (pageHasOverride(def, def.categoryPages[i]))
+            {
+                drawOverrideDot(166.0f, y + kRailItemH * 0.5f, 5.0f, focused, activeCat, pal);
             }
         }
         for (u8 u = 0; u < def.utilityCount; u++)
@@ -1523,7 +1623,7 @@ namespace ui {
             gfx::Rgba col = focused ? kLabGoldInk
                                     : (!state.railFocus && state.category == i ? pal.activeTabText : pal.tabInactiveText);
             fitText(kRailTextX, textYForCap(kRailItemTop + i * kRailItemPitch + capOff, railScale),
-                    pageTitle(def, def.categoryPages[i]), col, railScale, kRailTextMaxW, false);
+                    pageTitle(def, def.categoryPages[i]), col, railScale, 102.0f, false);
         }
         for (u8 u = 0; u < def.utilityCount; u++)
         {
@@ -1575,7 +1675,12 @@ namespace ui {
         for (u8 i = 0; i < def.categoryCount && i < 7; i++)
         {
             float tw = kTabWidths[i];
-            bevelBox(tx, tabY, tw, tabH, i == state.category ? accentBevel : tabBevel);
+            bool activeTab = i == state.category;
+            bevelBox(tx, tabY, tw, tabH, activeTab ? accentBevel : tabBevel);
+            if (pageHasOverride(def, def.categoryPages[i]))
+            {
+                drawOverrideDot(tx + tw - 5.0f, tabY + 5.0f, 4.0f, false, activeTab, pal);
+            }
             tx += tw + kFibTight;
         }
 
@@ -1750,17 +1855,21 @@ namespace ui {
                 }
                 if (hasVal)
                 {
-                    bool isOnToggle = o.kind == kKindToggle && optionValue(def, o) != 0;
-                    drawValuePill(g.pillLeft, g.pillRight, y, kLabRowH, isOnToggle, on, selected);
+                    bool isHi = optionHighlighted(def, pageId, o);
+                    drawValuePill(g.pillLeft, g.pillRight, y, kLabRowH, isHi, on, selected);
                     if (selected && hasValue(o) && on)
                     {
-                        drawValueArrows(g.pillLeft, g.pillRight, y, kLabRowH, isOnToggle ? kLabFocusGold : kLabGoldInk);
+                        drawValueArrows(g.pillLeft, g.pillRight, y, kLabRowH, isHi ? kLabFocusGold : kLabGoldInk);
                     }
                 }
                 else if (o.kind == kKindMenu)
                 {
                     gfx::Rgba chevCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted)
                                                  : (on ? pal.mutedText : kTextDisabled);
+                    if (on && pageHasOverride(def, o.max))
+                    {
+                        drawOverrideDot(g.hlRight - 26.0f, y + kLabRowH * 0.5f, 5.0f, selected, false, pal);
+                    }
                     drawSubmenuChevron(g.hlRight - 10.0f, y, chevCol);
                 }
             }
@@ -1781,9 +1890,9 @@ namespace ui {
                 const char* value = valueText(def, o, buf, sizeof(buf), grey);
                 if (value != NULL && value[0] != '\0')
                 {
-                    bool isOnToggle = o.kind == kKindToggle && optionValue(def, o) != 0;
+                    bool isHi = optionHighlighted(def, pageId, o);
                     gfx::Rgba valCol =
-                        (on && !grey) ? ((selected && !isOnToggle) ? kLabGoldInk : kLabWhiteText) : kTextDisabled;
+                        (on && !grey) ? ((selected && !isHi) ? kLabGoldInk : kLabWhiteText) : kTextDisabled;
                     fitText(g.valCenter, y, value, valCol, scale, g.valMaxW - 14.0f, true);
                 }
             }

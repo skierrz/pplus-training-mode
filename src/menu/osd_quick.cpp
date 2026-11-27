@@ -734,6 +734,32 @@ namespace osdQuick {
         }
     }
 
+    static bool quickRowHighlighted(const QuickRow& r, u8 v)
+    {
+        if (r.kind == kKindToggle || r.offset == offsetof(OsdSettings, timingMeter)
+            || r.offset == offsetof(OsdSettings, techSparkle))
+        {
+            return v != 0;
+        }
+        if (r.offset == offsetof(OsdSettings, preset))
+        {
+            return v != main::kOsdPresetEssentials;
+        }
+        if (r.offset == offsetof(OsdSettings, position))
+        {
+            return v != osd::kPositionSides;
+        }
+        if (r.offset == offsetof(OsdSettings, maxMessages))
+        {
+            return v != 4;
+        }
+        if (r.offset == offsetof(OsdSettings, advantageTolerance))
+        {
+            return v != 1;
+        }
+        return v != 0;
+    }
+
     static void adjustRow(int idx, int delta)
     {
         if (s_newerOnCard || s_olderLayoutOnCard || !rowEnabled(idx))
@@ -999,12 +1025,12 @@ namespace osdQuick {
             }
 
             u8 v = readRowValue(row);
-            bool isOn = row.kind == kKindToggle && v != 0;
-            drawValuePill(pillLeft43, pillRight43, y, rowH, isOn, on, sel);
+            bool isHi = quickRowHighlighted(row, v);
+            drawValuePill(pillLeft43, pillRight43, y, rowH, isHi, on, sel);
 
             if (sel && on)
             {
-                drawValueArrows(pillLeft43, pillRight43, y, rowH, isOn ? kLabFocusGold : kLabGoldInk);
+                drawValueArrows(pillLeft43, pillRight43, y, rowH, isHi ? kLabFocusGold : kLabGoldInk);
             }
 
             float ty = textYForCap(y + capOff, rowScale);
@@ -1026,7 +1052,7 @@ namespace osdQuick {
             {
                 valTxt = (v <= row.maxVal && row.labels != NULL) ? row.labels[v] : "?";
             }
-            gfx::Rgba valCol = on ? ((sel && !isOn) ? kLabGoldInk : kLabWhiteText) : kTextDisabled;
+            gfx::Rgba valCol = on ? ((sel && !isHi) ? kLabGoldInk : kLabWhiteText) : kTextDisabled;
             drawFitText(pillCenter, ty, valTxt, valCol, rowScale, valMaxW, true);
         }
 

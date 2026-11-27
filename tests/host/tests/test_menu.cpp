@@ -2222,9 +2222,18 @@ TEST(lab_menu, reset_option_and_page_via_menu_input_and_rail_and_footer_badges)
     CHECK(ui::menuStep(menu, st, inResetPage));
     CHECK_EQ(static_cast<int>(main::kMenuStyleRail), static_cast<int>(main::settings().controls.menuStyle));
 
-    // Footer badges: GCC shows Reset + Reset Page on P1 Damage; Sideways omits both; Nunchuk shows '-' Reset.
+    // Footer badges: X: Reset is gated on val != o.def; GCC/Classic show Reset + Reset Page when mutated;
+    // Sideways omits both; Nunchuk shows '-' Reset when mutated.
     REQUIRE(ui::menuJump(menu, st, genPath, 1));
-    st.cursor[ui::pages::P_GENERAL] = 1;
+    st.cursor[ui::pages::P_GENERAL] = 1; // P1 Damage (default 0)
+    main::settings().general.playerPercent = 0;
+    st.controllerType = gfPadType::GCC;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(!menuCanvasDrew("Reset"));
+    CHECK(menuCanvasDrew("Reset Page"));
+
+    main::settings().general.playerPercent = 42;
     static const struct {
         u8 ct;
         bool hasOpt;
@@ -2485,6 +2494,143 @@ TEST(lab_menu, footer_honesty_for_rail_close_choice_cycle_and_noop_rows)
     ui::menuDraw(menu, st);
     CHECK(!menuCanvasDrew("A"));
     CHECK(!menuCanvasDrew("Select"));
+
+    main::setExtraHooks(NULL);
+    storage::detach();
+}
+
+namespace {
+    bool rowPillIsGreen(int visRow)
+    {
+        float yTop = ui::style::kRailRowTop + visRow * ui::style::kLabRowPitch;
+        for (int i = 0; i < host::canvas::rects(); i++)
+        {
+            const host::canvas::Rect& r = host::canvas::rect(i);
+            if (r.color == ui::style::kLabPillOnTop && r.x >= ui::style::kRailPillLeft - 2.0f
+                && r.y >= yTop && r.y <= yTop + ui::style::kLabRowH)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool hasOverrideDotAt(float x43, float cy)
+    {
+        for (int i = 0; i < host::canvas::rects(); i++)
+        {
+            const host::canvas::Rect& r = host::canvas::rect(i);
+            if (r.width >= 3.5f && r.width <= 5.5f && r.height >= 3.5f && r.height <= 5.5f)
+            {
+                float rcx = r.x + r.width * 0.5f;
+                float rcy = r.y + r.height * 0.5f;
+                if (rcx >= x43 - 1.0f && rcx <= x43 + 1.0f && rcy >= cy - 1.0f && rcy <= cy + 1.0f)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+}
+
+TEST(lab_menu, active_override_highlights_x_reset_gating_and_parent_override_dots)
+{
+    bootLab();
+    main::setExtraHooks(&kNoHooks);
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+    main::settings().controls.menuStyle = main::kMenuStyleRail;
+
+    // 1. Lab page (P_GENERAL):
+    //    - Move Staling (row 7): vanilla On -> neutral; Off -> highlighted.
+    //    - P1 Infinite Shield (row 4): Until Hit -> highlighted; Off -> neutral.
+    //    - Game Speed (row 5): 1x -> neutral; != 1x -> highlighted.
+    st.railFocus = false;
+    st.stack[0] = ui::pages::P_GENERAL;
+    st.cursor[ui::pages::P_GENERAL] = 0;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(rowPillIsGreen(4));  // P1 Infinite Shield = Until Hit (active aid)
+    CHECK(!rowPillIsGreen(5)); // Game Speed = 1x (vanilla)
+    CHECK(!rowPillIsGreen(7)); // Move Staling = On (vanilla)
+
+    main::settings().general.playerInfiniteShields = cpu::kShieldsOff;
+    main::settings().general.gameSpeed = 2;
+    main::settings().general.moveStaling = 0;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(!rowPillIsGreen(4)); // P1 Infinite Shield = Off (neutral)
+    CHECK(rowPillIsGreen(5));  // Game Speed != 1x (highlighted)
+    CHECK(rowPillIsGreen(7));  // Move Staling = Off (deviation from vanilla)
+
+    // 2. X: Reset footer hint gated on val != o.def.
+    st.cursor[ui::pages::P_GENERAL] = 5; // Game Speed = 2 (!= def 0)
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(menuCanvasDrew("Reset"));
+
+    main::settings().general.gameSpeed = 0;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(!menuCanvasDrew("Reset"));
+
+    // 3. OSDs page: Tech Sparkle (row 4) and Essentials toggles (Wavedash row 6, L-Cancel row 7)
+    //    highlight when active; config rows (OSD Position row 1, Max OSDs row 2) stay neutral at default.
+    const u8 osdPath[] = {ui::pages::P_OSD_MENU};
+    REQUIRE(ui::menuJump(menu, st, osdPath, 1));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(!rowPillIsGreen(1)); // OSD Position = Sides (default)
+    CHECK(!rowPillIsGreen(2)); // Max OSDs = 4 (default)
+    CHECK(rowPillIsGreen(4));  // Tech Sparkle = Perfect Wavedash (active aid)
+    CHECK(rowPillIsGreen(6));  // Wavedash = On (active OSD)
+    CHECK(rowPillIsGreen(7));  // L-Cancel = On (active OSD)
+
+    main::settings().osd.techSparkle = main::kTechSparkleOff;
+    main::settings().osd.wavedash = 0;
+    main::settings().osd.maxMessages = 6;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(rowPillIsGreen(2));  // Max OSDs = 6 (!= def 4)
+    CHECK(!rowPillIsGreen(4)); // Tech Sparkle = Off (neutral)
+    CHECK(!rowPillIsGreen(6)); // Wavedash = Off (neutral)
+    CHECK(rowPillIsGreen(7));  // L-Cancel = On (still active)
+
+    // 4. Parent override dots on Category Rail, Top Tabs, and kKindMenu submenu rows.
+    main::resetSettings();
+    const u8 dispPath[] = {ui::pages::P_DISPLAY};
+    REQUIRE(ui::menuJump(menu, st, dispPath, 1));
+    // Display > Ledgedash HUD defaults On -> Display rail entry (cat 4) has dot, Recording (cat 3) has none.
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    float dispRailY = ui::style::kRailItemTop + 4 * ui::style::kRailItemPitch + ui::style::kRailItemH * 0.5f;
+    float recRailY = ui::style::kRailItemTop + 3 * ui::style::kRailItemPitch + ui::style::kRailItemH * 0.5f;
+    CHECK(hasOverrideDotAt(166.0f, dispRailY));
+    CHECK(!hasOverrideDotAt(166.0f, recRailY));
+
+    // Turn Ledgedash HUD Off -> Display rail dot clears; enable P1 Overlays Actionable -> both submenu row & rail dot return.
+    main::settings().general.ledgeHud = 0;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(!hasOverrideDotAt(166.0f, dispRailY));
+    // P1 Overlays is visible row 7 on Display.
+    float p1OvRowY = ui::style::kRailRowTop + 7 * ui::style::kLabRowPitch + ui::style::kLabRowH * 0.5f;
+    CHECK(!hasOverrideDotAt(ui::style::kRailHlRight - 26.0f, p1OvRowY));
+
+    main::settings().overlay[main::kSideHuman].groups[0] = 2; // Actionable = Green
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(hasOverrideDotAt(166.0f, dispRailY));
+    CHECK(hasOverrideDotAt(ui::style::kRailHlRight - 26.0f, p1OvRowY));
+
+    // Top Tabs mode also renders parent override dot on Display tab (index 4).
+    main::settings().controls.menuStyle = main::kMenuStyleTabs;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    // Tab 4 right edge: 76 + (38+5) + (86+5) + (40+5) + (86+5) + 66 = 76 + 43 + 91 + 45 + 91 + 66 = 412 -> dot at 407, y = 41.
+    CHECK(hasOverrideDotAt(407.0f, 41.0f));
 
     main::setExtraHooks(NULL);
     storage::detach();
