@@ -1660,12 +1660,10 @@ namespace list {
         float modeSx = modeW > modeDrawW && modeW > 0.0f ? scale * modeDrawW / modeW : scale;
         float pillW = fixedW + modeDrawW;
         float pillH = 22.0f;
-        float pillA = 1.0f;
         float pillDy = 0.0f;
         if (s_anim.pillTick > 0)
         {
             float pt = easeOutCubic(static_cast<float>(7 - s_anim.pillTick) / 6.0f);
-            pillA = 0.25f + 0.75f * pt;
             pillDy = snapPx((1.0f - pt) * -6.0f);
             s_anim.pillTick--;
         }
@@ -1674,10 +1672,10 @@ namespace list {
         float bx = w(kFibHair);
 
         // Flat Direction A smoked plate with crisp 2px border (matching panel borders).
-        gfx::fillRect(leftX, topY, pillW, pillH, scaleAlpha(kLabBorderColor, pillA));
+        gfx::fillRect(leftX, topY, pillW, pillH, kLabBorderColor);
         gfx::fillGradV(leftX + bx, topY + kFibHair, pillW - 2.0f * bx, pillH - 2.0f * kFibHair,
-                       scaleAlpha(kLabHeaderTop, pillA), scaleAlpha(kLabHeaderBot, pillA));
-        gfx::fillRect(leftX + bx, topY + kFibHair, pillW - 2.0f * bx, kFibHair, scaleAlpha(kLabBevelLight, pillA));
+                       kLabHeaderTop, kLabHeaderBot);
+        gfx::fillRect(leftX + bx, topY + kFibHair, pillW - 2.0f * bx, kFibHair, kLabBevelLight);
 
         float midY = topY + pillH * 0.5f;
         float ty = textYForCap(midY - 4.25f, scale);

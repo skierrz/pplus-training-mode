@@ -1478,8 +1478,11 @@ namespace {
     void drawBrowser()
     {
         gfx::forgetWidths();
-        canvas::clear();
-        menu::browser::draw();
+        for (int f = 0; f < 8; f++)
+        {
+            canvas::clear();
+            menu::browser::draw();
+        }
         canvas::clear();
         menu::browser::draw();
     }

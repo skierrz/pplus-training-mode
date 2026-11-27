@@ -23,6 +23,7 @@
 #include "main/storage/settings_file.h"
 #include "main/ui/lab_menu.h"
 #include "main/ui/menu.h"
+#include "main/ui/pages/fighter_swap.h"
 #include "main/ui/pages/pages.h"
 #include "main/ui/pages/scenarios.h"
 #include "main/ui/style.h"
@@ -2631,6 +2632,85 @@ TEST(lab_menu, active_override_highlights_x_reset_gating_and_parent_override_dot
     ui::menuDraw(menu, st);
     // Tab 4 right edge: 76 + (38+5) + (86+5) + (40+5) + (86+5) + 66 = 76 + 43 + 91 + 45 + 91 + 66 = 412 -> dot at 407, y = 41.
     CHECK(hasOverrideDotAt(407.0f, 41.0f));
+
+    // 5. Fighter Swap (P_FIGHTER_SWAP) never triggers a false Stage & Cast override dot or green pills.
+    static const char* const kSwapRoster[2] = {"Mario", "Fox"};
+    main::setFighterSwapLabels(kSwapRoster, 1);
+    main::setFighterSwapCostumeMax(0, 5);
+    main::settings().controls.menuStyle = main::kMenuStyleRail;
+    ui::menuReset(menu, st);
+    ui::pages::FighterSwapMenuState* fsw = ui::pages::fighterSwapMenuState();
+    fsw->p1Fighter = 1;
+    fsw->p1Costume = 2;
+    fsw->cpuFighter = 1;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    float stageRailY = ui::style::kRailItemTop + 6 * ui::style::kRailItemPitch + ui::style::kRailItemH * 0.5f;
+    CHECK(!hasOverrideDotAt(166.0f, stageRailY));
+    const u8 swapPath[] = {ui::pages::P_FIGHTER_SWAP};
+    st.stack[0] = ui::pages::P_STAGE_CAST;
+    st.category = 6;
+    st.stack[1] = swapPath[0];
+    st.depth = 1;
+    st.cursor[ui::pages::P_FIGHTER_SWAP] = 0;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(!rowPillIsGreen(0));
+    CHECK(!rowPillIsGreen(1));
+    main::setFighterSwapLabels(NULL, -1);
+
+    // 6. Custom Pools (P_COUNTER_POOL) highlights active On toggles uniformly (not Off toggles).
+    const u8 poolPath[] = {ui::pages::P_CPU, ui::pages::P_CPU_COUNTERS, ui::pages::P_COUNTER_POOL};
+    REQUIRE(ui::menuJump(menu, st, poolPath, 3));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(!rowPillIsGreen(4)); // Nothing (Wait) = Off (row 4)
+    CHECK(rowPillIsGreen(5));  // Spotdodge = On (row 5, default 1)
+    CHECK(!rowPillIsGreen(8)); // Up B = Off (row 8, default 0)
+
+    // 7. Ledgedash HUD highlights Enable, Show GALINT, and Show Summary uniformly when On.
+    main::resetSettings();
+    const u8 ledgePath[] = {ui::pages::P_LEDGEDASH_HUD};
+    st.stack[0] = ui::pages::P_DISPLAY;
+    st.category = 4;
+    st.stack[1] = ledgePath[0];
+    st.depth = 1;
+    st.cursor[ui::pages::P_LEDGEDASH_HUD] = 0;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(rowPillIsGreen(0)); // Enable = On
+    CHECK(rowPillIsGreen(2)); // Show GALINT = On
+    CHECK(rowPillIsGreen(3)); // Show Summary = On
+    main::settings().general.ledgeHud = 0;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(!hasOverrideDotAt(166.0f, dispRailY));
+
+    // 8. CPU Trajectory DI: active DI (Random/In) highlights; None is neutral; X Reset still tracks def (Random=0).
+    main::resetSettings();
+    const u8 cpuDiPath[] = {ui::pages::P_CPU_DI};
+    st.stack[0] = ui::pages::P_CPU;
+    st.category = 2;
+    st.stack[1] = cpuDiPath[0];
+    st.depth = 1;
+    st.cursor[ui::pages::P_CPU_DI] = 0;
+    st.controllerType = gfPadType::GCC;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(rowPillIsGreen(0)); // Trajectory DI = Random (active DI)
+    CHECK(!menuCanvasDrew("Reset"));
+
+    main::settings().cpu.options.tdi = tm::cpu::kTdiNone;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(!rowPillIsGreen(0)); // Trajectory DI = None (no DI)
+    CHECK(menuCanvasDrew("Reset"));
+
+    main::settings().cpu.options.tdi = tm::cpu::kTdiInwards;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(rowPillIsGreen(0)); // Trajectory DI = In (active DI)
+    CHECK(menuCanvasDrew("Reset"));
 
     main::setExtraHooks(NULL);
     storage::detach();

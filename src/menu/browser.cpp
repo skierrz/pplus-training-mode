@@ -660,12 +660,12 @@ namespace browser {
         drawFitText(cx(kFooterX), textYForCap(capTop, scale), text, color, scale, w(kFooterMaxW));
     }
 
-    static void descLine(int line, const char* text, gfx::Rgba color)
+    static void descLine(int line, const char* text, gfx::Rgba color, float dy)
     {
-        descLineAt(kFooterCapTop + line * kFooterPitch, text, color);
+        descLineAt(kFooterCapTop + line * kFooterPitch + dy, text, color);
     }
 
-    static void drawDescription()
+    static void drawDescription(float dy)
     {
         static const gfx::Rgba kError = kLabErrorText;
         char line[80];
@@ -674,7 +674,7 @@ namespace browser {
             // High-contrast delete confirmation alert banner inside the description strip.
             float bx = cx(kPanelLeft + kLabBorder + kFibGap);
             float bw = w(kPanelRight - kPanelLeft - 2.0f * (kLabBorder + kFibGap));
-            float by = kRowsBandBottom + kFibTight;
+            float by = kRowsBandBottom + dy + kFibTight;
             float bh = kBrowserFootTop - kRowsBandBottom - 2.0f * kFibTight;
             gfx::fillRect(bx, by, bw, kFibHair, kLabBtnBTop);
             gfx::fillRect(bx, by + bh - kFibHair, bw, kFibHair, kLabBtnBTop);
@@ -691,12 +691,12 @@ namespace browser {
         }
         if (s_phase == kDelete)
         {
-            descLine(0, "Deleting...", kText);
+            descLine(0, "Deleting...", kText, dy);
             return;
         }
         if (s_message != NULL)
         {
-            descLine(0, s_message, s_phase == kVerify ? kText : kError);
+            descLine(0, s_message, s_phase == kVerify ? kText : kError, dy);
             return;
         }
         if (s_count == 0)
@@ -707,39 +707,39 @@ namespace browser {
         switch (e.status)
         {
         case kUnread:
-            descLine(0, "Reading...", kText);
+            descLine(0, "Reading...", kText, dy);
             return;
         case kNewer:
-            descLine(0, "Made by a newer version of the mod.", kError);
+            descLine(0, "Made by a newer version of the mod.", kError, dy);
             break;
         case kOlder:
-            descLine(0, "Made by an older version that cannot load it.", kError);
+            descLine(0, "Made by an older version that cannot load it.", kError, dy);
             break;
         case kDamaged:
-            descLine(0, "This file is damaged.", kError);
+            descLine(0, "This file is damaged.", kError, dy);
             break;
         default:
         {
             const storage::RecordingInfo& i = e.info;
             snprintf(line, sizeof(line), "%s (costume %u) vs %s (costume %u)", characterName(i.hmnKind),
                      i.hmnColor, characterName(i.cpuKind), i.cpuColor);
-            descLine(0, line, kText);
+            descLine(0, line, kText, dy);
             char length[16];
             lengthText(length, sizeof(length), i.frames);
             snprintf(line, sizeof(line), "%s, %u-%02u-%02u %02u:%02u, %s", stageName(i.stage), i.year, i.month,
                      i.day, i.hour, i.minute, length);
-            descLine(1, line, kLabDescText);
+            descLine(1, line, kLabDescText, dy);
             char hmn[16];
             char cpu[16];
             slotsText(hmn, sizeof(hmn), i.hmnSlots);
             slotsText(cpu, sizeof(cpu), i.cpuSlots);
             snprintf(line, sizeof(line), "Slots: P1 %s  CPU %s", hmn, cpu);
-            descLine(2, line, kLabDescText);
+            descLine(2, line, kLabDescText, dy);
             break;
         }
         }
         snprintf(line, sizeof(line), "File %s", e.file);
-        descLine(3, line, kLabMutedText);
+        descLine(3, line, kLabMutedText, dy);
     }
 
     static void drawBrowserPanel(float dy, float alpha)
@@ -785,8 +785,9 @@ namespace browser {
             float barY = modalAnimCursor(s_anim, targetY) + dy;
             drawGoldBar(hlLeft43, hlRight43, barY, kRowBoxH, 8.0f);
         }
-        drawScrollBar(s_count, first > s_count - kVisibleRows ? (s_count > kVisibleRows ? s_count - kVisibleRows : 0)
-                                                               : first);
+        drawScrollBarAt(kScrollLeft, kScrollTop + dy, kScrollH, s_count,
+                        first > s_count - kVisibleRows ? (s_count > kVisibleRows ? s_count - kVisibleRows : 0) : first,
+                        kVisibleRows, kLabDivider, kLabTealTop, kLabTealBot);
 
         // Glossy shoulder pills + page readout in the header's right half (only when files exist).
         bool wiiPage = (s_controllerType == gfPadType::WIIMOTE || s_controllerType == gfPadType::NUNCHUK);
@@ -873,7 +874,7 @@ namespace browser {
             float room = cx(kRowBoxRight) - 4.0f - gfx::textWidth(right, scale) - 9.0f - nameX;
             drawFitText(nameX, y, name, nameColor, scale, room > 0.0f ? room : 1.0f);
         }
-        drawDescription();
+        drawDescription(dy);
 
         // Glossy Brawl footer control badges matching drill_list.cpp & osd_quick.cpp.
         float fy = kBrowserFootTop + dy + kFibHair + (inBot - (kBrowserFootTop + dy + kFibHair)) * 0.5f;

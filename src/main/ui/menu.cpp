@@ -527,7 +527,8 @@ namespace ui {
                 {
                     continue;
                 }
-                if (o.kind == kKindMenu ? (o.max != pageId && scanPage(def, o.max, true, static_cast<u8>(depth + 1)))
+                if (o.kind == kKindMenu ? (o.max != pageId && o.max != pages::P_FIGHTER_SWAP
+                                           && scanPage(def, o.max, true, static_cast<u8>(depth + 1)))
                                         : optionHighlighted(def, pageId, o))
                 {
                     found = true;
@@ -702,22 +703,31 @@ namespace ui {
         {
             return v != o.def;
         }
+        if (pageId == pages::P_FIGHTER_SWAP)
+        {
+            return false;
+        }
         if ((o.flags & kFlagScratch) != 0)
         {
             return (pageId == pages::P_CPU_COUNTERS && o.offset == kCounterModeScratchOffset) ? (v != 0) : (v != o.def);
         }
-        if (pageId == pages::P_OSD_MENU && o.kind == kKindToggle)
+        if ((pageId == pages::P_OSD_MENU || pageId == pages::P_COUNTER_POOL) && o.kind == kKindToggle)
         {
             return v != 0;
+        }
+        if (o.offset == static_cast<u16>(offsetof(main::Settings, cpu.options.tdi)))
+        {
+            return v != cpu::kTdiNone;
         }
         static const u16 kActiveAidOffs[] = {
             static_cast<u16>(offsetof(main::Settings, general.playerInfiniteShields)),
             static_cast<u16>(offsetof(main::Settings, general.ledgeHud)),
+            static_cast<u16>(offsetof(main::Settings, general.ledgeGalint)),
+            static_cast<u16>(offsetof(main::Settings, general.ledgePanel)),
             static_cast<u16>(offsetof(main::Settings, cpu.options.infiniteShields)),
             static_cast<u16>(offsetof(main::Settings, cpu.options.counterGround)),
             static_cast<u16>(offsetof(main::Settings, cpu.options.counterAir)),
             static_cast<u16>(offsetof(main::Settings, cpu.options.counterShield)),
-            static_cast<u16>(offsetof(main::Settings, cpu.options.tdi)),
             static_cast<u16>(offsetof(main::Settings, display.diVectorMode)),
             static_cast<u16>(offsetof(main::Settings, osd.techSparkle))
         };
