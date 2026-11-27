@@ -2051,7 +2051,8 @@ def o_place_platforms(r):
     r.refresh()
     p1 = r.g.entry(P1)
 
-    spots = [("left side platform", m0["x"], m0["y"]), ("right side platform", c0["x"], c0["y"]),
+    # Place Mario clear of CPU 1 standing at c0["x"] so pushboxes do not shove him post-restore.
+    spots = [("left side platform", m0["x"], m0["y"]), ("right side platform", c0["x"] - 10.0, c0["y"]),
              ("top platform", 0.0, top["y"]), ("main floor", -55.0, floor["y"])]
     try:
         for idx, (name, xc, ys) in enumerate(spots):
@@ -6250,7 +6251,7 @@ def cmd_test_cpu(rest):
                 match = None
                 if need_main:
                     step = "into the match"
-                    nav.start_training_match(emu, "mario", opts.cpu)
+                    nav.start_training_match(emu, "mario", opts.cpu, seed_rng=True)
                     emu.advance(60)
                     match = ("mario", opts.cpu, "final_destination")
                     step = "savestates"
@@ -6297,7 +6298,7 @@ def cmd_test_cpu(rest):
                     if match != (p1, cpu, stage):
                         if nav.scene(emu)[0] == "scMelee":
                             nav.finish_training(emu)
-                        nav.start_training_match(emu, p1, cpu, stage)
+                        nav.start_training_match(emu, p1, cpu, stage, seed_rng=True)
                         emu.advance(60)
                         match = (p1, cpu, stage)
                         r.cpu_name = cpu

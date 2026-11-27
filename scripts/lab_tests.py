@@ -2236,7 +2236,8 @@ def cmd_test_lab(rest):
                 lab.back_to_main()
                 lab.close_menu()
                 nav.resume_training(emu)
-                emu.advance(20)
+                # Let earlier Hit/Shield Adv. 150f OSDs finish expiring before Frame Advance freezes game::frozen().
+                emu.advance(115)
 
                 step = "frame advance on"
                 nav.pause_training(emu)
