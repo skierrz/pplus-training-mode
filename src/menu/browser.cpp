@@ -905,8 +905,8 @@ namespace browser {
                                                                        : (e.status == kOlder ? "Older version" : "Damaged"));
             }
             gfx::textRight(kSlotRows + r, cx(kRowBoxRight) - 4.0f, y, right, rightColor, scale);
-            // Keep the matchup name clear of the date/duration column.
-            float nameX = cx(hlLeft43 + kFibRowH);
+            // Keep the matchup name clear of the cursor triangle and date/duration column.
+            float nameX = cx(hlLeft43 + 26.0f);
             float room = cx(kRowBoxRight) - 4.0f - gfx::textWidth(right, scale) - 9.0f - nameX;
             float sx = nameWidth > room && nameWidth > 0.0f && room > 0.0f ? scale * room / nameWidth : scale;
             boldText(nameX, y, name, nameColor, sx, scale);

@@ -71,13 +71,7 @@ namespace extra {
             ui::style::kTypeHeading / ui::style::kDisplayCapHeight,
             ui::style::kTypeHero / ui::style::kDisplayCapHeight
         };
-        const u8 kPromptIcons[3][4] = {
-            {ui::kIconGcA, ui::kIconClA, ui::kIconWii2, ui::kIconWiiA},
-            {ui::kIconGcStart, ui::kIconWiiPlus, ui::kIconWiiPlus, ui::kIconWiiPlus},
-            {ui::kIconGcB, ui::kIconClB, ui::kIconWii1, ui::kIconWiiB}
-        };
         const char kPromptLabels[] = "Retry\0Lab\0Return to CSS";
-        const char kPromptGlyphs[] = "A\0+\0B";
 
         // Single consolidated runtime block avoids per-static PowerPC -sdata 0 address loads.
         struct Runtime {
@@ -719,20 +713,49 @@ namespace extra {
             gfx::fillRect(ix, inBot - kFibHair, iw, kFibHair, kLabBevelDark);
 
             u8 ct = s_rt.lastPadType < 4 ? s_rt.lastPadType : 0;
-            float bw = 16.0f * xs;
-            float px = ox + 26.0f * xs;
-            float step = 104.0f * xs;
+            bool sideways = (ct == gfPadType::WIIMOTE);
+            const char* glyphs[3] = {
+                sideways ? "2" : "A",
+                ct == gfPadType::GCC ? "START" : "+",
+                sideways ? "1" : "B"
+            };
+            static const gfx::Rgba kBadgeCols[3][3] = {
+                {kLabBtnATop,     kLabBtnABot,     kLabActiveTabText},
+                {kLabBtnLightTop, kLabBtnLightBot, kLabBtnDarkText},
+                {kLabBtnBTop,     kLabBtnBBot,     kLabWhiteText}
+            };
             float footMid = footTop + kFibHair + kFibBandH * 0.5f;
-            for (int p = 0; p < 3; p++, px += step)
+            float bh = 17.0f;
+            float gScale = scaleForCap(kTypeMicro);
+            float gCapY = footMid - kTypeMicro * 0.5f;
+            float lScale = scaleForCap(kTypeBody);
+            float lCapY = footMid - kTypeBody * 0.5f;
+            float itemGap = 20.0f * xs;
+            float badgeW[3];
+            float itemW[3];
+            float totalW = 0.0f;
+            for (int p = 0; p < 3; p++)
             {
-                if (!uiAssetsDrawIcon(kPromptIcons[p][ct], px, footMid - 8.0f, bw, 16.0f, 0xFFFFFFFFu))
-                {
-                    gfx::fillRect(px, footMid - 8.0f, bw, 16.0f, kLabTealTop);
-                    label(px + bw * 0.5f, footMid - kTypeMicro * 0.5f, drillNthStr(kPromptGlyphs, p), 0xF0F4F8FFu,
-                          kAlignCenter);
-                }
-                label(px + bw + kFibTight * xs, footMid - kTypeBody * 0.5f, drillNthStr(kPromptLabels, p), 0xF0F4F8FFu,
-                      kSz10);
+                bool round = (p != 1 || ct != gfPadType::GCC);
+                float gw = gfx::textWidth(glyphs[p], gScale);
+                float bw = round ? bh * xs : (gw + 10.0f * xs);
+                if (bw < bh * xs) bw = bh * xs;
+                badgeW[p] = bw;
+                float lw = gfx::textWidth(drillNthStr(kPromptLabels, p), lScale);
+                itemW[p] = bw + kFibTight * xs + lw;
+                totalW += itemW[p];
+            }
+            totalW += 2.0f * itemGap;
+            float px = 320.0f - totalW * 0.5f;
+            for (int p = 0; p < 3; p++)
+            {
+                float bw = badgeW[p];
+                drawGlossyPillBadge(px, footMid - bh * 0.5f, bw, bh, kBadgeCols[p][0], kBadgeCols[p][1]);
+                float gw = gfx::textWidth(glyphs[p], gScale);
+                gfx::text(px + (bw - gw) * 0.5f, textYForCap(gCapY, gScale), glyphs[p], kBadgeCols[p][2], gScale);
+                gfx::text(px + bw + kFibTight * xs, textYForCap(lCapY, lScale), drillNthStr(kPromptLabels, p),
+                          0xF0F4F8FFu, lScale);
+                px += itemW[p] + itemGap;
             }
         }
     }

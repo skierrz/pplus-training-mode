@@ -216,16 +216,16 @@ namespace extra {
             float ry = b.y0 + 4.0f + i2f(i) * kDrillPlateRowH;
             if (i > 0)
             {
-                drawPlateDivider(b.x0, ry - 1.0f, bw, xs);
+                drawPlateDivider(b.x0, ry - 1.5f, bw, xs);
             }
             if (rows[i].label != NULL && rows[i].label[0] != '\0')
             {
-                drawShadowCapCenter(cx, ry + 3.0f, rows[i].label, 0xC6D4E0FFu, ui::style::kTypeMeta, maxW);
+                drawShadowCapCenter(cx, ry + 4.0f, rows[i].label, 0xC6D4E0FFu, 8.5f, maxW);
             }
             if (rows[i].value != NULL && rows[i].value[0] != '\0')
             {
                 gfx::Rgba vc = rows[i].valueColor != 0u ? rows[i].valueColor : 0xF4F8FCFFu;
-                drawShadowCapCenter(cx, ry + 16.0f, rows[i].value, vc, ui::style::kTypeHeading, maxW);
+                drawShadowCapCenter(cx, ry + 15.0f, rows[i].value, vc, 12.5f, maxW);
             }
         }
     }

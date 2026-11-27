@@ -1632,7 +1632,7 @@ TEST(drill_list, challenges_and_character_trainers_tabs_arm_all_seven_and_show_s
     menu::list::onRender(0);
     CHECK(canvasDrew("Character Trainers"));
     CHECK(canvasDrew("Snake Infinite Recovery"));
-    CHECK(canvasDrew("Duelist - Cypher & C4 recovery chain"));
+    CHECK(canvasDrew("Practice Snake's infinite Cypher"));
     CHECK(canvasDrew("Recommended: Snake"));
     CHECK(canvasDrew("4"));
 

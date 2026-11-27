@@ -87,10 +87,10 @@ Codes**) and regular Versus matches are untouched.
   - **Tech Practice (7 single-page drills):** **L-Cancel**, **Wavedash /
     Waveland**, **Ledgedash**, **Powershield**, **RAR**, **DACUS**, and
     **B-Reverse / Wavebounce**.
-  - **Challenges:** **Cancel Sprint**, **Flow Course**, **Reaction Lab**,
-    **Techchase Escape**, **Recovery Sweetspot**, **Floorhug**, and **Break the
-    Targets!**.
-  - **Character Trainers:** **Snake Recovery** and **Float / Hover & DJC**.
+  - **Challenges:** **Cancel Practice: Endurance**, **Movement Flow Course**,
+    **Situational Reaction Lab**, **Universal Techchase Escape**, **Universal
+    Recovery Sweetspot**, **CC / ASDI-Down**, and **Break the Targets!**.
+  - **Character Trainers:** **Snake Infinite Recovery** and **Float / Hover & DJC**.
   - Defaults to infinite **Free Practice** with live hit rate, streak, best
     streak (persisted to SD), and mode-specific frame/angle/GALINT readouts.
     Press **L + D-pad Up** in-match to switch between **Free Practice**,

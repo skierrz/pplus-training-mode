@@ -159,6 +159,17 @@ class Runner:
     def rush_cmd(self, val):
         self.e.h.call("write_mem", addr=self.tmbr + TMBR_CMD_OFF, hex=f"{int(val) & 0xFF:02x}")
 
+    def activate_rush(self, mode, max_frames=60):
+        want_active = 1 if mode != 0 else 0
+        self.rush_cmd(mode)
+        for _ in range(max_frames):
+            step(self.e, 1)
+            st = read_tmbr(self.e, self.tmbr)
+            if st["active"] == want_active and st["mode"] == mode:
+                step(self.e, 4)
+                return read_tmbr(self.e, self.tmbr)
+        return read_tmbr(self.e, self.tmbr)
+
     def snap(self, name):
         self.set_u8(S_FRAME_ADVANCE, 1)
         step(self.e, 1)
@@ -226,9 +237,7 @@ def sc_combo_break_fd(t):
     t.check(s0["magic"] == TMBR_MAGIC and s0["active"] == 0, "fd-idle", f"magic={s0['magic']:#x} act={s0['active']}")
 
     # Activate Timed 30s Rush (mode = 1).
-    t.rush_cmd(1)
-    step(e, 8)
-    s1 = read_tmbr(e, t.tmbr)
+    s1 = t.activate_rush(1)
     valid_spawns = sum(1 for r in s1["targetR"][:3] if r >= 3.5)
     t.check(
         s1["active"] == 1
@@ -285,9 +294,7 @@ def sc_combo_break_fd(t):
 def sc_combo_break_bf(t):
     e = t.e
     t.start_match("battlefield")
-    t.rush_cmd(1)  # Timed 30s
-    step(e, 10)
-    s1 = read_tmbr(e, t.tmbr)
+    s1 = t.activate_rush(1)  # Timed 30s
     t.check(
         s1["active"] == 1 and s1["stagePlatforms"] >= 3 and s1["activeTargets"] == 3,
         "bf-platform-aware-spawns",

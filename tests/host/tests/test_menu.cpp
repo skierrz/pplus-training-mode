@@ -2145,7 +2145,36 @@ TEST(lab_menu, reset_option_and_page_via_menu_input_and_rail_and_footer_badges)
     CHECK(ui::menuStep(menu, st, inNextCat));
     CHECK_EQ(0, static_cast<int>(st.resetConfirmPage));
 
-    // Left-rail category 2-tap reset via resetOpt (e.g. Nunchuk '-' or GCC 'X') resets that category page.
+    // Left-rail GCC keeps X strictly single-option (no-op on rail) and uses Y for 2-tap Reset Page.
+    main::settings().general.playerPercent = 77;
+    main::settings().general.gameSpeed = 2;
+    st.category = 0;
+    st.depth = 0;
+    st.stack[0] = ui::pages::P_GENERAL;
+    st.railFocus = true;
+    st.railCursor = 0;
+    st.controllerType = gfPadType::GCC;
+    CHECK(ui::menuStep(menu, st, inResetOpt));
+    CHECK_EQ(0, static_cast<int>(st.resetConfirmPage));
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK(st.resetConfirmPage != 0);
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    bool sawGccPrompt = false;
+    for (int i = 0; i < host::canvas::runs(); i++)
+    {
+        if (strcmp(host::canvas::run(i).text, "Press Y again to reset Lab to defaults.") == 0)
+        {
+            sawGccPrompt = true;
+        }
+    }
+    CHECK(sawGccPrompt);
+    CHECK(ui::menuStep(menu, st, inResetPage));
+    CHECK_EQ(0, static_cast<int>(st.resetConfirmPage));
+    CHECK_EQ(0, static_cast<int>(main::settings().general.playerPercent));
+    CHECK_EQ(0, static_cast<int>(main::settings().general.gameSpeed));
+
+    // Left-rail Nunchuk (no separate Y) still supports 2-tap '-' (resetOpt) to reset that category page.
     main::settings().general.playerPercent = 77;
     main::settings().general.gameSpeed = 2;
     st.category = 0;

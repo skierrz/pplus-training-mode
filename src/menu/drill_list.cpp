@@ -139,7 +139,7 @@ namespace list {
             },
             "Any Fighter",
             "Free Practice",
-            "In-match L + D-Up: Free / 10 / 20-Rep"
+            "In-match L+D-Up: Mode | D-Right: Side"
         },
         {
             "Combo Lab",
@@ -432,9 +432,9 @@ namespace list {
             kRowSkillDrill,
             drills::kDrillSnakeRecovery,
             {
-                "Duelist - Cypher & C4 recovery chain",
-                "Chain Cypher lift, C4 self-hit,",
-                "and safe re-ledge recovery reps."
+                "Practice Snake's infinite Cypher",
+                "and C4 self-hit recovery chains",
+                "back to ledge from deep offstage."
             },
             "Recommended: Snake",
             "Free / Set / 60s",
@@ -1258,7 +1258,7 @@ namespace list {
         float ix1Bot = x1Bot + dySlant - padX;
         float inSlantPx = w((kColRowH - 4.0f) * kSlantTan);
         float textX = cx(kColTextX);
-        float textMaxW = cx(kColBarRight - 28.0f) - textX;
+        float textMaxW = cx(kColBarRight - 30.0f) - textX;
 
         for (int r = 0; r < kVisibleRows && s_scroll + r < sec.count; r++)
         {

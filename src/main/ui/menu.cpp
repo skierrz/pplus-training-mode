@@ -755,10 +755,12 @@ namespace ui {
                 }
                 else if ((in.resetOpt || in.resetPage) && !in.up && !in.down && !in.right)
                 {
-                    if (state.railCursor < def.categoryCount)
+                    bool hasPageBtn =
+                        state.controllerType == gfPadType::GCC || state.controllerType == gfPadType::WII_CLASSIC;
+                    bool fireReset = hasPageBtn ? in.resetPage : (in.resetPage || in.resetOpt);
+                    if (fireReset && state.railCursor < def.categoryCount)
                     {
-                        sound = stepPageReset(def, state, def.categoryPages[state.railCursor],
-                                              in.resetOpt && !in.resetPage);
+                        sound = stepPageReset(def, state, def.categoryPages[state.railCursor], !hasPageBtn);
                     }
                     else
                     {
@@ -1470,7 +1472,9 @@ namespace ui {
         else if (state.resetConfirmPage != 0)
         {
             bool byOpt = (state.resetConfirmPage & 0x80u) != 0;
-            u8 icon = (byOpt || cs.txtResetPage == NULL) ? cs.resetOpt : cs.resetPage;
+            u8 icon = state.controllerType == gfPadType::GCC
+                          ? kNoIcon
+                          : ((byOpt || cs.txtResetPage == NULL) ? cs.resetOpt : cs.resetPage);
             const char* txt = (byOpt || cs.txtResetPage == NULL) ? cs.txtResetOpt : cs.txtResetPage;
             if (txt == NULL)
             {
@@ -1525,10 +1529,12 @@ namespace ui {
             u8 resetPageIcon = state.controllerType == gfPadType::GCC ? kNoIcon : cs.resetPage;
             if (railMode && state.railFocus)
             {
-                if (state.railCursor < def.categoryCount && cs.txtResetOpt != NULL
+                const char* railResetTxt = cs.txtResetPage != NULL ? cs.txtResetPage : cs.txtResetOpt;
+                u8 railResetIcon = cs.txtResetPage != NULL ? resetPageIcon : resetOptIcon;
+                if (state.railCursor < def.categoryCount && railResetTxt != NULL
                     && pageHasResettableOptions(def, def.categoryPages[state.railCursor]))
                 {
-                    pushFooter(items, n, resetOptIcon, kNoIcon, 2, resetRound, cs.txtResetOpt, "Reset Page");
+                    pushFooter(items, n, railResetIcon, kNoIcon, 2, resetRound, railResetTxt, "Reset Page");
                 }
             }
             else

@@ -7,6 +7,7 @@ namespace ui {
 namespace pages {
     static const char* const kWho[] = {"Off", "P1", "CPU", "Both"};
     static const char* const kPsaTargets[] = {"Off", "P1", "CPU"};
+    static const char* const kFrameMeterModes[] = {"Off", "P1 Top", "CPU Top"};
     static const char* const kHitboxColors[] = {"Default", "Property", "Priority"};
     static const char* const kDiVectors[] = {
         "Live Stick", "No DI", "In", "Out", "Up-In", "Up-Out", "Down-In", "Down-Out", "Survival"
@@ -28,8 +29,8 @@ namespace pages {
     }
 
     static const Option kRows[] = {
-        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(general.actionLog), 0, TM_COUNT(kPsaTargets) - 1, 0,
-               "Frame Meter", kPsaTargets, NULL, main::extraLoaded),
+        TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(general.actionLog), 0, TM_COUNT(kFrameMeterModes) - 1, 0,
+               "Frame Meter", kFrameMeterModes, NULL, main::extraLoaded),
         TM_ROW(::tm::ui::kKindChoice, 0, TM_FIELD(display.inputViewer), 0, TM_COUNT(kWho) - 1, 0,
                "Input Viewer", kWho, NULL, main::extraLoaded),
         TM_CHOICE("Hitboxes", display.hitboxes, kWho, 0, NULL),

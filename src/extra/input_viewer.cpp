@@ -212,56 +212,56 @@ namespace extra {
 
             // True octagonal L-stick gate (left) and unmistakable gold C-stick octagon (lower-center).
             gfx::Rgba lRim = showTag ? (cpu ? 0x76D4ECFFu : 0xF27474FFu) : 0xDCE8F2F0u;
-            drawOctagonGate(x + bw * 0.20f, y + bh * 0.57f, 15.0f * xs, 15.0f, pad.sx, pad.sy, xs, false, lRim);
-            drawOctagonGate(x + bw * 0.48f, y + bh * 0.77f, 9.2f * xs, 9.2f, pad.cx, pad.cy, xs, true, 0xFFD300F8u);
+            drawOctagonGate(x + bw * 0.17f, y + bh * 0.54f, 14.5f * xs, 14.5f, pad.sx, pad.sy, xs, false, lRim);
+            drawOctagonGate(x + bw * 0.49f, y + bh * 0.79f, 8.6f * xs, 8.6f, pad.cx, pad.cy, xs, true, 0xFFD300F8u);
 
             // Compact Start pill + crisp outlined D-pad cross.
             {
                 bool stOn = (pad.buttons & game::kPadStart) != 0;
-                float scx = x + bw * 0.45f;
-                float scy = y + bh * 0.44f;
-                gfx::fillEllipse(scx, scy, 3.6f * xs, 3.6f, 0x05090FF0u);
-                gfx::fillEllipse(scx, scy, 2.4f * xs, 2.4f, stOn ? 0xFFFFFFFFu : 0x9AAAB8D0u);
+                float scx = x + bw * 0.47f;
+                float scy = y + bh * 0.42f;
+                gfx::fillEllipse(scx, scy, 3.4f * xs, 3.4f, 0x05090FF0u);
+                gfx::fillEllipse(scx, scy, 2.3f * xs, 2.3f, stOn ? 0xFFFFFFFFu : 0x9AAAB8D0u);
             }
             {
-                float dcx = x + bw * 0.34f;
-                float dcy = y + bh * 0.85f;
-                float arm = 5.4f;
-                float th = 3.4f;
+                float dcx = x + bw * 0.31f;
+                float dcy = y + bh * 0.83f;
+                float arm = 6.6f;
+                float th = 3.8f;
                 gfx::fillRect(dcx - arm * xs, dcy - th * 0.5f, 2.0f * arm * xs, th, 0x05090FF0u);
                 gfx::fillRect(dcx - th * 0.5f * xs, dcy - arm, th * xs, 2.0f * arm, 0x05090FF0u);
-                gfx::fillRect(dcx - (arm - 1.2f) * xs, dcy - 0.9f, 2.0f * (arm - 1.2f) * xs, 1.8f, 0x8CA0B2D8u);
-                gfx::fillRect(dcx - 0.9f * xs, dcy - (arm - 1.2f), 1.8f * xs, 2.0f * (arm - 1.2f), 0x8CA0B2D8u);
+                gfx::fillRect(dcx - (arm - 1.3f) * xs, dcy - 1.0f, 2.0f * (arm - 1.3f) * xs, 2.0f, 0x96AABCE4u);
+                gfx::fillRect(dcx - 1.0f * xs, dcy - (arm - 1.3f), 2.0f * xs, 2.0f * (arm - 1.3f), 0x96AABCE4u);
                 int dx, dy;
                 viewerDpadDir(pad.buttons, dx, dy);
                 if (dx != 0 || dy != 0)
                 {
-                    gfx::fillEllipse(dcx + i2f(dx) * 3.4f * xs, dcy - i2f(dy) * 3.4f, 2.4f * xs, 2.4f, 0xFFD300FFu);
+                    gfx::fillEllipse(dcx + i2f(dx) * 4.0f * xs, dcy - i2f(dy) * 4.0f, 2.6f * xs, 2.6f, 0xFFD300FFu);
                 }
             }
 
             // Iconic GameCube right face cluster (matching 01-final-everyday & 10-grounding):
-            //  - Y rounded horizontal pill cleanly above A
+            //  - Y rounded horizontal pill cleanly below Z and above A
             //  - Bold emerald A circle with bright mint rim and crisp centered 'A' glyph
-            //  - Outlined crimson B circle tucked lower-left of A
+            //  - Outlined crimson B circle cleanly separated from C-stick and lower-left of A
             //  - X rounded vertical pill tucked right of A
             {
                 bool yOn = (pad.buttons & game::kPadY) != 0;
-                float yw = 15.5f * xs;
-                drawPillSilhouette(x + bw * 0.72f - yw * 0.5f, y + 22.0f, yw, 5.8f, xs,
+                float yw = 15.0f * xs;
+                drawPillSilhouette(x + bw * 0.77f - yw * 0.5f, y + 23.0f, yw, 5.6f, xs,
                                    yOn ? 0xFFFFFFFFu : 0x62707EE8u, yOn ? 0xFFFFFFFFu : 0xBCCAD8E8u);
             }
             {
                 bool aOn = (pad.buttons & game::kPadA) != 0;
-                float acx = x + bw * 0.73f;
-                float acy = y + 38.5f;
+                float acx = x + bw * 0.78f;
+                float acy = y + 39.5f;
                 if (aOn)
                 {
-                    gfx::fillEllipse(acx, acy, 10.6f * xs, 10.6f, 0x48FFA870u);
+                    gfx::fillEllipse(acx, acy, 10.4f * xs, 10.4f, 0x48FFA870u);
                 }
-                gfx::fillEllipse(acx, acy, 9.4f * xs, 9.4f, 0x05090FF4u);
-                gfx::fillEllipse(acx, acy, 7.9f * xs, 7.9f, aOn ? 0x9AFFD0FFu : 0x4CE2B4F0u);
-                gfx::fillEllipse(acx, acy, 6.7f * xs, 6.7f, aOn ? 0x46F09CFFu : 0x1E8F64E8u);
+                gfx::fillEllipse(acx, acy, 9.2f * xs, 9.2f, 0x05090FF4u);
+                gfx::fillEllipse(acx, acy, 7.7f * xs, 7.7f, aOn ? 0x9AFFD0FFu : 0x4CE2B4F0u);
+                gfx::fillEllipse(acx, acy, 6.5f * xs, 6.5f, aOn ? 0x46F09CFFu : 0x1E8F64E8u);
                 float aCap = 8.4f;
                 float aSc = ui::style::scaleForCap(aCap);
                 float aW = gfx::textWidth("A", aSc);
@@ -272,20 +272,20 @@ namespace extra {
             }
             {
                 bool bOn = (pad.buttons & game::kPadB) != 0;
-                float bcx = x + bw * 0.59f;
-                float bcy = y + 46.5f;
+                float bcx = x + bw * 0.65f;
+                float bcy = y + 48.5f;
                 if (bOn)
                 {
-                    gfx::fillEllipse(bcx, bcy, 7.6f * xs, 7.6f, 0xFF5A5A70u);
+                    gfx::fillEllipse(bcx, bcy, 7.3f * xs, 7.3f, 0xFF5A5A70u);
                 }
-                gfx::fillEllipse(bcx, bcy, 6.5f * xs, 6.5f, 0x05090FF4u);
-                gfx::fillEllipse(bcx, bcy, 5.2f * xs, 5.2f, bOn ? 0xFF8C8CFFu : 0xF05454F0u);
-                gfx::fillEllipse(bcx, bcy, 4.3f * xs, 4.3f, bOn ? 0xFF4242FFu : 0xC82828E8u);
+                gfx::fillEllipse(bcx, bcy, 6.2f * xs, 6.2f, 0x05090FF4u);
+                gfx::fillEllipse(bcx, bcy, 5.0f * xs, 5.0f, bOn ? 0xFF8C8CFFu : 0xF05454F0u);
+                gfx::fillEllipse(bcx, bcy, 4.1f * xs, 4.1f, bOn ? 0xFF4242FFu : 0xC82828E8u);
             }
             {
                 bool xOn = (pad.buttons & game::kPadX) != 0;
-                float xw = 6.0f * xs;
-                drawPillSilhouette(x + bw * 0.90f - xw * 0.5f, y + 31.0f, xw, 14.5f, xs,
+                float xw = 5.8f * xs;
+                drawPillSilhouette(x + bw * 0.93f - xw * 0.5f, y + 32.0f, xw, 14.2f, xs,
                                    xOn ? 0xFFFFFFFFu : 0x62707EE8u, xOn ? 0xFFFFFFFFu : 0xBCCAD8E8u);
             }
         }

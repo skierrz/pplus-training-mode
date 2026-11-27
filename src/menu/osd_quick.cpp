@@ -1007,8 +1007,8 @@ namespace osdQuick {
         const float hlLeft43 = inL43 + kFibGap;
         const float sbX43 = inR43 - kFibGap - kFibGap;
         const float hlRight43 = sbX43 - kFibTight;
-        const float nameX = cx(hlLeft43 + kFibRowH);
-        const float nameMaxW = w(262.0f);
+        const float nameX = cx(hlLeft43 + 26.0f);
+        const float nameMaxW = w(257.0f);
         const float pillLeft43 = 384.0f;
         const float pillRight43 = hlRight43 - kFibTight;
         const float pillLeft = cx(pillLeft43);
