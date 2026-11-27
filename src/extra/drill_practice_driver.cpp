@@ -436,9 +436,17 @@ namespace extra {
         {
             return;
         }
+        u8 prevPsMode = s_net->cfg.psAttackMode;
         const ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
         memcpy(&s_net->cfg.psAttackMode, &pm->psAttackMode, 9);
         sanitizePracticeConfig(s_net->cfg);
+        if (s_net->cfg.psAttackMode != prevPsMode)
+        {
+            for (int i = 0; i < game::kMaxFighters; i++)
+            {
+                s_net->sub.psCpu[i].placed = 0u;
+            }
+        }
         syncPracticeMenuFromCfg(*s_net);
     }
 
