@@ -217,6 +217,7 @@ namespace style {
         gfx::fillRect(bodyX, hdrBot, bodyW, kFibHair, kLabDivider);
         gfx::fillGradV(bodyX, bodyTop, bodyW, bodyEnd - bodyTop, kLabBaseTop, kLabBaseBot);
 #if defined(TM_MODULE_MENU) || !defined(__MWERKS__)
+        // Menu modals supply descTop > 0.0f; MAIN modals currently pass descTop = 0.0f.
         if (descTop > 0.0f)
         {
             gfx::fillRect(bodyX, descTop, bodyW, kFibHair, kLabDivider);

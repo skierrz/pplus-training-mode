@@ -2207,42 +2207,55 @@ TEST(text_fit, osd_continuity_same_id_glide_and_exit)
     CHECK(slot1Age0Top < slot0RestTop - 10.0f);
     CHECK(slot1RestTop == ui::style::snapPx(slot1RestTop));
 
-    // 3. Same-id update from slot > 0 glides from prior slot without dropping below settled slot 0.
+    // 3. Same-id update from slot > 0 glides from prior slot without dropping below settled slot 0
+    //    or getting clipped away by the outgoing slot 0 -> 1 card.
     host::fakes::setTrackerFrame(118);
     REQUIRE(osd_real::post(0, osd_real::kIdWavedash, osd_real::kWhite, "First\nUpdated") != NULL);
     canvas::clear();
     osd_real::draw();
     float maxBodyTop = -1.0f;
+    int fullBodies = 0;
     for (int i = 0; i < canvas::rects(); i++)
     {
+        if (canvas::rect(i).height > 40.0f)
+        {
+            fullBodies++;
+        }
         if (canvas::rect(i).height > 10.0f && canvas::rect(i).y > maxBodyTop)
         {
             maxBodyTop = canvas::rect(i).y;
         }
     }
-    // Neither card drops below settled slot 0 (no -0.10f re-entry replay).
+    // Both cards draw at full kBoxHeight on frame 0, and neither drops below settled slot 0.
+    CHECK_EQ(2, fullBodies);
+    CHECK(runOf("First") != NULL);
+    CHECK(runOf("Updated") != NULL);
+    CHECK(runOf("Second") != NULL);
     CHECK(maxBodyTop <= slot0RestTop + 0.5f);
 
-    // 4. 4f alpha + gentle slide exit preserves full un-squashed text scaleY and disappears cleanly.
+    // 4. 4f alpha + gentle slide exit starts on exit frame 0, preserves scaleY, and clears cleanly.
     osd_real::reset();
     host::fakes::setTrackerFrame(200);
     REQUIRE(osd_real::post(0, osd_real::kIdWavedash, osd_real::kWhite, "Exit\nCheck") != NULL);
-    host::fakes::setTrackerFrame(200 + osd_real::kLifetime + 1);
-    canvas::clear();
-    osd_real::draw();
     float expectedSy = ui::style::scaleForCap(9.0f);
-    int exitFg = 0;
-    for (int i = 0; i < canvas::runs(); i++)
+    for (int f = 0; f <= 1; f++)
     {
-        const canvas::Run& r = canvas::run(i);
-        if ((r.color & 0xFFFFFF00u) != 0u)
+        host::fakes::setTrackerFrame(200 + osd_real::kLifetime + f);
+        canvas::clear();
+        osd_real::draw();
+        int exitFg = 0;
+        for (int i = 0; i < canvas::runs(); i++)
         {
-            CHECK(fabsf(r.scaleY - expectedSy) <= 0.001f);
-            CHECK((r.color & 0xFFu) < 0xFFu);
-            exitFg++;
+            const canvas::Run& r = canvas::run(i);
+            if ((r.color & 0xFFFFFF00u) != 0u)
+            {
+                CHECK(fabsf(r.scaleY - expectedSy) <= 0.001f);
+                CHECK((r.color & 0xFFu) < 0xFFu);
+                exitFg++;
+            }
         }
+        CHECK_EQ(2, exitFg);
     }
-    CHECK_EQ(2, exitFg);
     host::fakes::setTrackerFrame(200 + osd_real::kLifetime + 4);
     CHECK(!osd_real::visible());
     osd_real::reset();

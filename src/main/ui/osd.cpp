@@ -344,7 +344,7 @@ namespace osd {
         float exitSlide = 0.0f;
         if (age >= kLifetime)
         {
-            float exitT = ui::style::easeOutQuart(static_cast<float>(age - kLifetime) / kExitFrames);
+            float exitT = ui::style::easeOutQuart(static_cast<float>(age - kLifetime + 1) / kExitFrames);
             alpha = 1.0f - exitT;
             if (alpha <= 0.01f)
             {
@@ -386,7 +386,7 @@ namespace osd {
         if (at.dy < 0.0f && age < kLifetime)
         {
             float minTop = prevBot + ((-at.dy) - kBoxHeight);
-            if (hasPrevBot && top < minTop)
+            if (hasPrevBot && top < minTop && m.from < static_cast<float>(m.slot))
             {
                 top = minTop;
                 h = bottom - top;
