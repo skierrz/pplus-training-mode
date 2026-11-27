@@ -10,7 +10,7 @@
 namespace tm {
 namespace osd {
     enum {
-        kShadowAlphaStepMax = 2
+        kShadowAlphaStepMax = main::kOsdAlphaMax - 1
     };
 
     struct ThemeColors {
@@ -65,12 +65,13 @@ namespace osd {
         return body == 0 ? 0 : static_cast<u8>(body + ((255u - body) >> 4));
     }
 
-    // Dark drop-shadow active at <= 20% opacity: 0x000000D0 at 0%, 0x000000AC
-    // at 10%, 0x00000088 at 20%, and 0 (disabled) at >= 30%.
+    // Always-on 1px dark drop-shadow whenever opacity < 100% (steps 0..9:
+    // 0x000000D0 at 0% tapering by 0x10 per 10% step to 0x00000040 at 90%;
+    // 0 at 100% opaque).
     static inline gfx::Rgba dropShadowColor(u8 bgAlpha)
     {
         u8 step = clampBgAlpha(bgAlpha);
-        return step <= kShadowAlphaStepMax ? static_cast<gfx::Rgba>(0xD0u - static_cast<u32>(step) * 0x24u) : 0;
+        return step <= kShadowAlphaStepMax ? static_cast<gfx::Rgba>(0xD0u - static_cast<u32>(step) * 0x10u) : 0;
     }
 
     static inline void resolveThemeTo(u8 bgColor, u8 bgAlpha, ThemeColors& out)
@@ -87,7 +88,7 @@ namespace osd {
         }
         out.bodyColor = body;
         out.trackColor = track;
-        out.shadowColor = step <= kShadowAlphaStepMax ? static_cast<gfx::Rgba>(0xD0u - static_cast<u32>(step) * 0x24u) : 0;
+        out.shadowColor = step <= kShadowAlphaStepMax ? static_cast<gfx::Rgba>(0xD0u - static_cast<u32>(step) * 0x10u) : 0;
     }
 
     static inline ThemeColors resolveTheme(u8 bgColor, u8 bgAlpha)

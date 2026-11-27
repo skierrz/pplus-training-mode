@@ -117,15 +117,16 @@ TEST(osd_theme, presets_opacity_track_darkening_and_drop_shadow)
         CHECK(((dark >> 8) & 0xFFu) < ((rgb >> 8) & 0xFFu));
         CHECK((dark & 0xFFu) < (rgb & 0xFFu));
 
-        osd::ThemeColors t50 = osd::resolveTheme(c, main::kDefaultOsdAlpha);
-        CHECK_EQ((rgb << 8) | 128u, t50.bodyColor);
-        CHECK_EQ(dark, (t50.trackColor >> 8) & 0xFFFFFFu);
-        CHECK((t50.trackColor & 0xFFu) >= 128u);
-        CHECK_EQ(0u, t50.shadowColor);
+        osd::ThemeColors tDef = osd::resolveTheme(c, main::kDefaultOsdAlpha);
+        CHECK_EQ((rgb << 8) | 204u, tDef.bodyColor);
+        CHECK_EQ(dark, (tDef.trackColor >> 8) & 0xFFFFFFu);
+        CHECK((tDef.trackColor & 0xFFu) >= 204u);
+        CHECK_EQ(0x00000050u, tDef.shadowColor);
     }
 
-    // All 11 opacity steps (0%..100%) and drop-shadow threshold (<= 20%).
+    // All 11 opacity steps (0%..100%) and always-on 1px drop-shadow whenever < 100%.
     u8 prevTrackA = 0;
+    u32 prevShadow = 0xFFu;
     for (u8 step = 0; step <= main::kOsdAlphaMax; step++)
     {
         CHECK_EQ(static_cast<int>(kExpectedAlpha[step]), static_cast<int>(osd::bodyAlphaByte(step)));
@@ -135,6 +136,7 @@ TEST(osd_theme, presets_opacity_track_darkening_and_drop_shadow)
             CHECK_EQ(0u, t.bodyColor);
             CHECK_EQ(0u, t.trackColor);
             CHECK_EQ(0x000000D0u, t.shadowColor);
+            prevShadow = t.shadowColor;
         }
         else
         {
@@ -143,13 +145,11 @@ TEST(osd_theme, presets_opacity_track_darkening_and_drop_shadow)
             CHECK(trackA >= kExpectedAlpha[step]);
             CHECK(trackA >= prevTrackA);
             prevTrackA = trackA;
-            if (step == 1)
+            if (step < main::kOsdAlphaMax)
             {
-                CHECK_EQ(0x000000ACu, t.shadowColor);
-            }
-            else if (step == 2)
-            {
-                CHECK_EQ(0x00000088u, t.shadowColor);
+                CHECK_EQ(static_cast<u32>(0xD0u - step * 0x10u), t.shadowColor);
+                CHECK(t.shadowColor < prevShadow);
+                prevShadow = t.shadowColor;
             }
             else
             {
@@ -226,10 +226,10 @@ TEST(osd_theme, display_theme_menu_navigation_and_descriptions)
     CHECK(ui::menuStep(menu, state, makeInput(0, 0, 0, 1, false, false)));
     CHECK_EQ(static_cast<int>(main::kOsdBgBrawlNavy), static_cast<int>(main::settings().osd.bgColor));
 
-    // Move Down to OSD Opacity and step Left 5 times: 50% (5) -> 0% (0).
+    // Move Down to OSD Opacity and step Left 8 times: 80% (8) -> 0% (0).
     CHECK(ui::menuStep(menu, state, makeInput(0, 1, 0, 0, false, false)));
     CHECK_EQ(1, static_cast<int>(state.cursor[ui::pages::P_THEME]));
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < main::kDefaultOsdAlpha; i++)
     {
         CHECK(ui::menuStep(menu, state, makeInput(0, 0, 1, 0, false, false)));
     }

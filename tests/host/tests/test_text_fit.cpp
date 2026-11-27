@@ -500,6 +500,7 @@ TEST(text_fit, osd_messages)
             host::fakes::setTrackerFrame(100);
             REQUIRE(osd::post(0, osd::kIdMiscellaneous, osd::kWhite, "%s", text) != NULL);
             osd::draw();
+            int fgRuns = 0;
             for (int i = 0; i < canvas::runs(); i++)
             {
                 const canvas::Run& r = canvas::run(i);
@@ -512,10 +513,15 @@ TEST(text_fit, osd_messages)
                            shown(r.text), kept * 100.0f, kAspectNames[a], natural, r.right - r.x, kMinSqueeze * 100.0f,
                            natural - (r.right - r.x) / kMinSqueeze);
                 }
+                // Default 80% smoked cards draw a 1px black drop shadow behind each line.
+                if ((r.color & 0xFFFFFF00u) != 0u)
+                {
+                    fgRuns++;
+                }
             }
-            if (canvas::runs() != (lines < osd::kMaxLines ? lines : osd::kMaxLines))
+            if (fgRuns != (lines < osd::kMaxLines ? lines : osd::kMaxLines))
             {
-                misfit("osd", item->where, text, "%d of its %d lines were drawn on %s", canvas::runs(), lines,
+                misfit("osd", item->where, text, "%d of its %d lines were drawn on %s", fgRuns, lines,
                        kAspectNames[a]);
             }
         }
@@ -2141,4 +2147,100 @@ TEST(text_fit, multi_hud_non_overlap_43_and_169)
     }
     CHECK_EQ(2 * 4 * 3 * 3 * 2 * 2 * 2, combosChecked);
     NOTE("%d multi-HUD 4:3/16:9 combinations verified with 0 overlaps", combosChecked);
+}
+
+TEST(text_fit, osd_continuity_same_id_glide_and_exit)
+{
+    gfx::setXScale(1.0f);
+    osd_real::setPosition(osd_real::kPositionSides);
+
+    // 1. Settled single card snaps to integer pixels at rest.
+    osd_real::reset();
+    host::fakes::setTrackerFrame(100);
+    REQUIRE(osd_real::post(0, osd_real::kIdWavedash, osd_real::kWhite, "Wavedash\nFrame 1") != NULL);
+    host::fakes::setTrackerFrame(110);
+    canvas::clear();
+    osd_real::draw();
+    float slot0RestTop = -1.0f;
+    for (int i = 0; i < canvas::rects(); i++)
+    {
+        if (canvas::rect(i).height > 10.0f)
+        {
+            slot0RestTop = canvas::rect(i).y;
+            break;
+        }
+    }
+    REQUIRE(slot0RestTop > 0.0f);
+    CHECK(slot0RestTop == ui::style::snapPx(slot0RestTop));
+
+    // 2. Smooth 7f easeOutCubic stack glide (no 1-frame 49px teleport) + integer rest snap.
+    host::fakes::setTrackerFrame(110);
+    REQUIRE(osd_real::post(0, osd_real::kIdLCancel, osd_real::kWhite, "Second\nCard") != NULL);
+    canvas::clear();
+    osd_real::draw();
+    float slot1Age0Top = -1.0f;
+    for (int i = 0; i < canvas::rects(); i++)
+    {
+        if (canvas::rect(i).height > 10.0f)
+        {
+            slot1Age0Top = canvas::rect(i).y;
+            break;
+        }
+    }
+    host::fakes::setTrackerFrame(116);
+    canvas::clear();
+    osd_real::draw();
+    float slot1RestTop = -1.0f;
+    for (int i = 0; i < canvas::rects(); i++)
+    {
+        if (canvas::rect(i).height > 10.0f)
+        {
+            slot1RestTop = canvas::rect(i).y;
+            break;
+        }
+    }
+    // At frame 0 of push, slot 1 is mid-glide (between slot 0 and settled slot 1).
+    CHECK(slot1Age0Top > slot1RestTop + 10.0f);
+    CHECK(slot1Age0Top < slot0RestTop - 10.0f);
+    CHECK(slot1RestTop == ui::style::snapPx(slot1RestTop));
+
+    // 3. Same-id update from slot > 0 glides from prior slot without dropping below settled slot 0.
+    host::fakes::setTrackerFrame(118);
+    REQUIRE(osd_real::post(0, osd_real::kIdWavedash, osd_real::kWhite, "First\nUpdated") != NULL);
+    canvas::clear();
+    osd_real::draw();
+    float maxBodyTop = -1.0f;
+    for (int i = 0; i < canvas::rects(); i++)
+    {
+        if (canvas::rect(i).height > 10.0f && canvas::rect(i).y > maxBodyTop)
+        {
+            maxBodyTop = canvas::rect(i).y;
+        }
+    }
+    // Neither card drops below settled slot 0 (no -0.10f re-entry replay).
+    CHECK(maxBodyTop <= slot0RestTop + 0.5f);
+
+    // 4. 4f alpha + gentle slide exit preserves full un-squashed text scaleY and disappears cleanly.
+    osd_real::reset();
+    host::fakes::setTrackerFrame(200);
+    REQUIRE(osd_real::post(0, osd_real::kIdWavedash, osd_real::kWhite, "Exit\nCheck") != NULL);
+    host::fakes::setTrackerFrame(200 + osd_real::kLifetime + 1);
+    canvas::clear();
+    osd_real::draw();
+    float expectedSy = ui::style::scaleForCap(9.0f);
+    int exitFg = 0;
+    for (int i = 0; i < canvas::runs(); i++)
+    {
+        const canvas::Run& r = canvas::run(i);
+        if ((r.color & 0xFFFFFF00u) != 0u)
+        {
+            CHECK(fabsf(r.scaleY - expectedSy) <= 0.001f);
+            CHECK((r.color & 0xFFu) < 0xFFu);
+            exitFg++;
+        }
+    }
+    CHECK_EQ(2, exitFg);
+    host::fakes::setTrackerFrame(200 + osd_real::kLifetime + 4);
+    CHECK(!osd_real::visible());
+    osd_real::reset();
 }

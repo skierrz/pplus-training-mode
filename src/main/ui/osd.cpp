@@ -24,16 +24,21 @@
 #include "shared/log.h"
 
 // Per-player OSD message stacks rendered in a themed P+ card with a bottom
-// lifetime strip, smoothstep glide transitions, and fold-out expiry.
+// lifetime strip, easeOutCubic stack glide transitions, and easeOutQuart exit.
 // Placement geometry lives in osd_place.h.
 namespace tm {
 namespace osd {
+    enum {
+        kEnterFrames = 7,
+        kGlideFrames = 7,
+        kExitFrames = 4
+    };
     static const float kStrip = 3.0f;
     static const float kTextCap = 9.0f;
     static const float kLinePitch = 13.5f;
     // 6 px margin each side inside the 124 px card; wider lines scale down.
     static const float kTextWidth = 112.0f;
-    static const gfx::Rgba kBar = 0x38BDF8FF;
+    static const gfx::Rgba kBar = ui::style::kLabTealTop;
 
     static int s_position = kPositionSides;
 
@@ -98,40 +103,35 @@ namespace osd {
 #ifdef __MWERKS__
 #pragma dont_inline on
 #endif
-    static float smooth(float t)
-    {
-        t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
-        return t * t * (3.0f - 2.0f * t);
-    }
-
     // The stack place a message is drawn at now (between `from` and `slot`
     // while it glides). No animation while frame advance holds the game.
     static float place(const Message& m, s32 now)
     {
         if (game::frozen())
         {
-            return m.slot;
+            return static_cast<float>(m.slot);
         }
-        float t = smooth(static_cast<float>(now - m.moved) / kAnimFrames);
-        return m.from + (m.slot - m.from) * t;
+        float t = ui::style::easeOutCubic(static_cast<float>(now - m.moved + 1) / kGlideFrames);
+        return m.from + (static_cast<float>(m.slot) - m.from) * t;
     }
 
     static bool expired(const Message& m, s32 now)
     {
-        return now < m.born || now - m.born >= kLifetime + (game::frozen() ? 0 : kAnimFrames);
+        return now < m.born || now - m.born >= kLifetime + (game::frozen() ? 0 : kExitFrames);
     }
 #ifdef __MWERKS__
 #pragma dont_inline reset
 #endif
 
-    // Drops expired messages and gives the rest of `player`'s stack their
-    // places by age, starting a glide for every message whose place changed.
+    // Drops expired messages and gives active messages of `player`'s stack their
+    // places by age, starting a 7f easeOutCubic glide for every shifted card.
     static void restack(int player, s32 now)
     {
         if (s_messages == NULL)
         {
             return;
         }
+        bool frozen = game::frozen();
         Message* order[kPerPlayer];
         int n = 0;
         for (int i = 0; i < kPlayers * kPerPlayer; i++)
@@ -144,6 +144,11 @@ namespace osd {
             if (expired(m, now))
             {
                 m.used = false;
+                continue;
+            }
+            // Already-exiting cards stay at their final slot while fading out.
+            if (now - m.born >= kLifetime)
+            {
                 continue;
             }
             int j = n++;
@@ -159,10 +164,16 @@ namespace osd {
             Message& m = *order[k];
             if (m.slot != k)
             {
-                // Pushing older cards up to make room for a new arrival completes
-                // immediately so they never overlap the entering card mid-glide.
-                m.from = place(m, now);
-                m.moved = (m.slot >= 0 && k > m.slot) ? now - kAnimFrames : now;
+                if (frozen)
+                {
+                    m.from = static_cast<float>(k);
+                    m.moved = now - kGlideFrames;
+                }
+                else
+                {
+                    m.from = m.slot < 0 ? static_cast<float>(k) : place(m, now);
+                    m.moved = now;
+                }
                 m.slot = static_cast<s16>(k);
             }
         }
@@ -175,19 +186,21 @@ namespace osd {
             return NULL;
         }
         s32 now = game::trackerFrame();
+        bool frozen = game::frozen();
         restack(player, now);
-        // Same id: the old message goes; if it was the newest, the new one
-        // takes its place at once instead of sliding in.
-        bool instant = false;
+        // Same id: replace in place without replaying entrance glide from below.
+        int replacedSlot = -1;
+        float replacedPlace = 0.0f;
         Message* oldest = NULL;
         Message* free = NULL;
         int count = 0;
         for (int i = 0; i < kPlayers * kPerPlayer; i++)
         {
             Message& m = s_messages[i];
-            if (m.used && m.player == player && m.id == id)
+            if (m.used && m.player == player && m.id == id && now - m.born < kLifetime)
             {
-                instant = instant || m.slot == 0;
+                replacedSlot = m.slot;
+                replacedPlace = place(m, now);
                 m.used = false;
             }
             if (!m.used)
@@ -195,7 +208,7 @@ namespace osd {
                 free = free == NULL ? &m : free;
                 continue;
             }
-            if (m.player == player)
+            if (m.player == player && now - m.born < kLifetime)
             {
                 count++;
                 oldest = oldest == NULL || m.born < oldest->born ? &m : oldest;
@@ -203,7 +216,20 @@ namespace osd {
         }
         int limit = main::settings().osd.maxMessages;
         limit = limit < 1 || limit > kPerPlayer ? kPerPlayer : limit;
-        Message* m = count >= limit ? oldest : free;
+        Message* m = free;
+        if (count >= limit && oldest != NULL)
+        {
+            if (!frozen && free != NULL)
+            {
+                // Smoothly evict oldest card over kExitFrames while reusing a free slot.
+                oldest->born = now - kLifetime;
+                m = free;
+            }
+            else
+            {
+                m = oldest;
+            }
+        }
         if (m == NULL)
         {
             return NULL;
@@ -240,19 +266,30 @@ namespace osd {
             }
             p = end + 1;
         }
-        // Placed below the stack and glided up into place, unless it
-        // replaced the newest message.
         m->slot = -1;
         restack(player, now);
-        if (instant)
+        if (frozen)
         {
-            m->from = 0.0f;
+            // Stamp settled state so stepping 1-4 frames then unfreezing never rewinds.
+            m->from = static_cast<float>(m->slot);
+            m->moved = now - kGlideFrames;
+        }
+        else if (replacedSlot == 0)
+        {
+            m->from = static_cast<float>(m->slot);
+            m->moved = now - kGlideFrames;
+        }
+        else if (replacedSlot > 0)
+        {
+            // Same-id update from slot > 0 glides cleanly from its prior slot without replaying -0.10f enter.
+            m->from = replacedPlace;
+            m->moved = now;
         }
         else
         {
             m->from = kEnterFrom;
+            m->moved = now;
         }
-        m->moved = now;
 
         TM_LOG("osd: P%d id %d: %s%s%s%s%s\n", player + 1, id, m->text[0], m->lines > 1 ? " | " : "",
                m->lines > 1 ? m->text[1] : "", m->lines > 2 ? " | " : "", m->lines > 2 ? m->text[2] : "");
@@ -291,31 +328,100 @@ namespace osd {
     }
 
     static void drawMessage(Message& m, s32 now, float scale, float floorY, float topY, int playerCount,
-                            const ThemeColors& t)
+                            const ThemeColors& t, bool& hasPrevBot, float& prevBot)
     {
+        bool frozen = game::frozen();
+        int age = now - m.born;
+        float alpha = 1.0f;
+        float exitSlide = 0.0f;
+        if (age >= kLifetime)
+        {
+            if (frozen)
+            {
+                return;
+            }
+            float exitT = ui::style::easeOutQuart(static_cast<float>(age - kLifetime) / kExitFrames);
+            alpha = 1.0f - exitT;
+            if (alpha <= 0.01f)
+            {
+                return;
+            }
+            exitSlide = exitT * 6.0f;
+        }
+        else if (!frozen && m.from < 0.0f && age < kEnterFrames)
+        {
+            alpha = ui::style::easeOutCubic(static_cast<float>(age + 1) / kEnterFrames);
+        }
+
         float xs = gfx::xScale();
         float ws = widthScale(xs);
         float w = kBoxWidth * ws;
+        float h = kBoxHeight;
         StackPlace at = stackPlace(s_position, m.player, xs, floorY, topY, playerCount);
         float slot = place(m, now);
         float cx = at.x + slot * at.dx;
         float cy = at.y + slot * at.dy;
-        int age = now - m.born;
-        // Closing: the box and its text squash to their centre line.
-        float fold = age < kLifetime ? 1.0f : 1.0f - smooth(static_cast<float>(age - kLifetime) / kAnimFrames);
-        if (fold <= 0.0f)
+        if (exitSlide > 0.0f)
         {
-            return;
+            if (at.dy < 0.0f)
+            {
+                cy -= exitSlide;
+            }
+            else if (at.dx > 0.0f)
+            {
+                cx += exitSlide;
+            }
+            else if (at.dx < 0.0f)
+            {
+                cx -= exitSlide;
+            }
         }
-        float h = kBoxHeight * fold;
+        bool atRest = frozen || (now - m.moved + 1 >= kGlideFrames && age < kLifetime);
         float left = cx - w * 0.5f;
         float top = cy - h * 0.5f;
-        float strip = kStrip * fold;
-        float barY = top + h - strip;
+        if (atRest)
+        {
+            left = ui::style::snapPx(left);
+            top = ui::style::snapPx(top);
+            cx = left + w * 0.5f;
+        }
+        float bottom = top + h;
+        // Prevent overlap while an older card glides up above an entering card:
+        // keep bottom anchored and reveal the entering card cleanly below prevBot.
+        if (at.dy < 0.0f && age < kLifetime)
+        {
+            float gap = (-at.dy) - kBoxHeight;
+            if (gap < 2.0f)
+            {
+                gap = 2.0f;
+            }
+            if (hasPrevBot && top < prevBot + gap)
+            {
+                top = prevBot + gap;
+                h = bottom - top;
+                if (h <= kStrip + 2.0f)
+                {
+                    return;
+                }
+            }
+            if (!hasPrevBot || bottom > prevBot)
+            {
+                prevBot = bottom;
+                hasPrevBot = true;
+            }
+        }
+        float barY = top + h - kStrip;
         if (t.bodyColor != 0)
         {
-            gfx::fillRect(left, top, w, h - strip, t.bodyColor);
-            gfx::fillRect(left, barY, w, strip, t.trackColor);
+            gfx::Rgba bodyCol = ui::style::scaleAlpha(t.bodyColor, alpha);
+            gfx::Rgba trackCol = ui::style::scaleAlpha(t.trackColor, alpha);
+            gfx::Rgba edgeCol = ui::style::scaleAlpha(ui::style::kLabBevelLight, alpha);
+            gfx::Rgba botRule = ui::style::scaleAlpha(ui::style::kLabRowEdge, alpha);
+            gfx::fillRect(left, top, w, h - kStrip, bodyCol);
+            gfx::fillRect(left, barY, w, kStrip, trackCol);
+            // Subtle Direction A / Panel B card highlights inside the exact box bounds.
+            gfx::fillRect(left, top, w, 2.0f, edgeCol);
+            gfx::fillRect(left, barY - 1.0f, w, 1.0f, botRule);
         }
         float life = age < kLifetime ? 1.0f - static_cast<float>(age) / kLifetime : 0.0f;
         if (life > 0.0f)
@@ -323,19 +429,23 @@ namespace osd {
             float barW = w * life;
             if (t.shadowColor != 0)
             {
-                gfx::fillRect(left + xs, barY + 1.0f, barW, strip, t.shadowColor);
+                gfx::fillRect(left + xs, barY + 1.0f, barW, kStrip, ui::style::scaleAlpha(t.shadowColor, alpha));
             }
-            gfx::fillRect(left, barY, barW, strip, kBar);
+            gfx::fillRect(left, barY, barW, kStrip, ui::style::scaleAlpha(kBar, alpha));
         }
-        // Centre the lines' capital-height block vertically inside the body.
-        float sy = scale * fold;
-        float pitch = kLinePitch * fold;
-        float cap = kTextCap * fold;
-        float block = (m.lines - 1) * pitch + cap;
-        float capTop = top + (h - strip - block) * 0.5f;
-        float y = ui::style::textYForCap(capTop, sy);
+        // Centre the lines' capital-height block vertically inside the body (full crisp scale on exit).
+        float block = (m.lines - 1) * kLinePitch + kTextCap;
+        float capTop = top + (h - kStrip - block) * 0.5f;
+        float y = ui::style::textYForCap(capTop, scale);
+        gfx::Rgba shCol = t.shadowColor != 0 ? ui::style::scaleAlpha(t.shadowColor, alpha) : 0u;
         for (int i = 0; i < m.lines; i++)
         {
+            float lineCapTop = capTop + i * kLinePitch;
+            if (h < kBoxHeight - 0.5f && (lineCapTop < top + 1.0f || lineCapTop + kTextCap > barY - 1.0f))
+            {
+                y += kLinePitch;
+                continue;
+            }
             if (!(m.measured & (1 << i)))
             {
                 m.width[i] = gfx::textWidth(m.text[i], scale);
@@ -349,12 +459,18 @@ namespace osd {
                 tw = kTextWidth * ws;
             }
             float tx = cx - tw * 0.5f;
-            if (t.shadowColor != 0)
+            float ty = y;
+            if (atRest)
             {
-                gfx::text(tx + xs, y + 1.0f, m.text[i], t.shadowColor, sx, sy);
+                tx = ui::style::snapPx(tx);
+                ty = ui::style::snapPx(ty);
             }
-            gfx::text(tx, y, m.text[i], m.color[i], sx, sy);
-            y += pitch;
+            if (shCol != 0)
+            {
+                gfx::text(tx + xs, ty + 1.0f, m.text[i], shCol, sx, scale);
+            }
+            gfx::text(tx, ty, m.text[i], ui::style::scaleAlpha(m.color[i], alpha), sx, scale);
+            y += kLinePitch;
         }
     }
 
@@ -420,6 +536,8 @@ namespace osd {
         for (int p = 0; p < kPlayers; p++)
         {
             restack(p, now);
+            bool hasPrevBot = false;
+            float prevBot = 0.0f;
             // Oldest first, so newer boxes cover older ones while they glide.
             for (int slot = kPerPlayer - 1; slot >= 0; slot--)
             {
@@ -428,7 +546,7 @@ namespace osd {
                     Message& m = s_messages[i];
                     if (m.used && m.player == p && m.slot == slot)
                     {
-                        drawMessage(m, now, scale, floorY, topY, playerCount, theme);
+                        drawMessage(m, now, scale, floorY, topY, playerCount, theme, hasPrevBot, prevBot);
                     }
                 }
             }

@@ -1314,9 +1314,9 @@ def sc_osd_theme(r, name):
     lab.tap(["A"])
     lab.down(DISPLAY_THEME)
     lab.tap(["A"])
-    if lab.setting(S_OSD_BG_COLOR) != 0 or lab.setting(S_OSD_BG_ALPHA) != 5:
+    if lab.setting(S_OSD_BG_COLOR) != 0 or lab.setting(S_OSD_BG_ALPHA) != 8:
         raise OsdError(f"{name}: Theme defaults ({lab.setting(S_OSD_BG_COLOR)}, {lab.setting(S_OSD_BG_ALPHA)}), "
-                       f"wanted (0, 5)")
+                       f"wanted (0, 8)")
     r.shots.append(emu.screenshot("osds-menu-theme"))
     lab.set_choice(S_OSD_BG_COLOR, 2)
     lab.down(1)

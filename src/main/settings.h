@@ -182,7 +182,7 @@ namespace main {
     };
     enum {
         kOsdAlphaMax = 10,
-        kDefaultOsdAlpha = 5
+        kDefaultOsdAlpha = 8
     };
 
     // Display > Theme: Lab Menu accent palette presets.
@@ -273,7 +273,7 @@ namespace main {
         u8 itemThrow;
         u8 maxMessages; // 1-6 per player (osd::kPerPlayer, default 4)
         u8 bgColor;     // OsdBgColor (0..6, default kOsdBgTeal)
-        u8 bgAlpha;     // 0..10 (0%..100% in 10% steps, default 5 = 50%)
+        u8 bgAlpha;     // 0..10 (0%..100% in 10% steps, default 8 = 80%)
         u8 menuAccent;  // MenuAccent (0..3, default kMenuAccentTeal)
         u8 infoBgColor; // InfoBgColor (0..6, default kInfoBgDefault)
         u8 infoBgAlpha; // InfoAlpha (0..6, default kInfoAlphaDefault = 80%)

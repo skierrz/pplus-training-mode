@@ -43,6 +43,59 @@ namespace style {
         return width * gfx::xScale();
     }
 
+    // ---- Zero-state pure 60fps GX motion & rest-snapping math ----
+    inline float clamp01(float t)
+    {
+        return t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+    }
+
+    inline float easeOutCubic(float t)
+    {
+        float u = 1.0f - clamp01(t);
+        return 1.0f - u * u * u;
+    }
+
+    inline float easeOutQuart(float t)
+    {
+        float u = 1.0f - clamp01(t);
+        float u2 = u * u;
+        return 1.0f - u2 * u2;
+    }
+
+    inline float chase60(float cur, float target, float alpha)
+    {
+        float d = target - cur;
+        if (d > -0.25f && d < 0.25f)
+        {
+            return target;
+        }
+        return cur + d * alpha;
+    }
+
+    inline float snapPx(float v)
+    {
+        int i = static_cast<int>(v >= 0.0f ? (v + 0.5f) : (v - 0.5f));
+        return static_cast<float>(i);
+    }
+
+    inline gfx::Rgba scaleAlpha(gfx::Rgba c, float a)
+    {
+        if (a >= 0.999f)
+        {
+            return c;
+        }
+        if (a <= 0.001f)
+        {
+            return c & 0xFFFFFF00u;
+        }
+        u32 alpha = static_cast<u32>(static_cast<float>(c & 0xFFu) * a + 0.5f);
+        if (alpha > 255u)
+        {
+            alpha = 255u;
+        }
+        return (c & 0xFFFFFF00u) | alpha;
+    }
+
     // System font metrics at scale 1: capital letters are kCapHeight tall and
     // begin kCapOffset below the y passed to gfx::text.
     static const float kCapHeight = 15.0f;
