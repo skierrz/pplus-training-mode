@@ -246,7 +246,7 @@ TEST(settings_file, written_then_read_gives_the_same_settings)
     storage::detach();
 
     boot();
-    CHECK_LOG("storage: settings loaded from settings-a.bin (save 1, layout 2): 16 areas, 0 with new fields, "
+    CHECK_LOG("storage: settings loaded from settings-a.bin (save 1, layout 2): 17 areas, 0 with new fields, "
               "0 at defaults, 0 unknown");
     CHECK(!storage::noticeActive());
     CHECK_SETTINGS(afterReboot(chosen, defaults), main::settings());
@@ -654,12 +654,12 @@ TEST(settings_file, v1_to_v2_upgrade_modal_three_choices_and_input_flow)
     CHECK_EQ(static_cast<int>(chosen.osd.wavedash), static_cast<int>(main::settings().osd.wavedash));
     // Display had out-of-range hitboxes=99 -> clamped to max valid value (3)!
     CHECK_EQ(3, static_cast<int>(main::settings().display.hitboxes));
-    // Clean v2 file written to slot B with obsolete area 60 trimmed (16 areas, not 17).
+    // Clean v2 file written to slot B with obsolete area 60 trimmed (17 areas, not 18).
     REQUIRE(host::card::has(kFileB));
     storage::SettingsHead* savedHead =
         reinterpret_cast<storage::SettingsHead*>(host::card::data(kFileB) + sizeof(storage::FileHeader));
     CHECK_EQ(2, static_cast<int>(savedHead->layout));
-    CHECK_EQ(16, static_cast<int>(savedHead->areaCount));
+    CHECK_EQ(17, static_cast<int>(savedHead->areaCount));
     CHECK(areaEntry(kFileB, 60) == NULL);
     storage::detach();
 
@@ -682,7 +682,7 @@ TEST(settings_file, v1_to_v2_upgrade_modal_three_choices_and_input_flow)
     REQUIRE(host::card::has(kFileB));
     savedHead = reinterpret_cast<storage::SettingsHead*>(host::card::data(kFileB) + sizeof(storage::FileHeader));
     CHECK_EQ(2, static_cast<int>(savedHead->layout));
-    CHECK_EQ(16, static_cast<int>(savedHead->areaCount));
+    CHECK_EQ(17, static_cast<int>(savedHead->areaCount));
     CHECK(areaEntry(kFileB, 60) == NULL);
     storage::detach();
 
@@ -723,7 +723,7 @@ TEST(settings_file, an_area_from_an_older_version_keeps_new_fields_at_their_defa
     reseal(kFileA);
 
     boot();
-    CHECK_LOG("16 areas, 2 with new fields, 0 at defaults, 0 unknown");
+    CHECK_LOG("17 areas, 2 with new fields, 0 at defaults, 0 unknown");
     CHECK_LOG("storage: notice: Lab settings from an older version: new ones at defaults");
     Settings expected = afterReboot(chosen, defaults);
     expected.general.diDisplay = defaults.general.diDisplay;
@@ -765,7 +765,7 @@ TEST(settings_file, a_controls_area_without_allow_code_menu_reads_blocked_defaul
     reseal(newest);
 
     boot();
-    CHECK_LOG("16 areas, 1 with new fields, 0 at defaults, 0 unknown");
+    CHECK_LOG("17 areas, 1 with new fields, 0 at defaults, 0 unknown");
     CHECK_EQ(0, static_cast<int>(main::settings().controls.allowCodeMenu));
     CHECK_EQ(static_cast<int>(chosen.controls.advanceButton),
              static_cast<int>(main::settings().controls.advanceButton));
@@ -778,7 +778,7 @@ TEST(settings_file, a_controls_area_without_menu_style_defaults_to_rail_c)
 {
     CHECK_EQ(2, static_cast<int>(main::kSettingsVersion));
     CHECK_EQ(16u, sizeof(main::ControlSettings));
-    CHECK_EQ(464u, sizeof(main::Settings));
+    CHECK_EQ(480u, sizeof(main::Settings));
     CHECK_EQ(33u, offsetof(main::Settings, controls.menuStyle));
 
     Settings defaults, chosen;
@@ -810,7 +810,7 @@ TEST(settings_file, a_controls_area_without_menu_style_defaults_to_rail_c)
     reseal(newest);
 
     boot();
-    CHECK_LOG("16 areas, 1 with new fields, 0 at defaults, 0 unknown");
+    CHECK_LOG("17 areas, 1 with new fields, 0 at defaults, 0 unknown");
     CHECK_EQ(static_cast<int>(main::kMenuStyleRail), static_cast<int>(main::settings().controls.menuStyle));
     CHECK_EQ(1, static_cast<int>(main::settings().controls.allowCodeMenu));
     CHECK_EQ(static_cast<int>(chosen.controls.advanceButton),
@@ -854,7 +854,7 @@ TEST(settings_file, general_area_without_player_infinite_shields_defaults_to_unt
     reseal(newest);
 
     boot();
-    CHECK_LOG("16 areas, 1 with new fields, 0 at defaults, 0 unknown");
+    CHECK_LOG("17 areas, 1 with new fields, 0 at defaults, 0 unknown");
     CHECK_EQ(static_cast<int>(cpu::kShieldsUntilHit),
              static_cast<int>(main::settings().general.playerInfiniteShields));
     storage::detach();
@@ -874,7 +874,7 @@ TEST(settings_file, areas_of_another_generation_or_unknown_or_longer)
     reseal(kFileA);
 
     boot();
-    CHECK_LOG("14 areas, 0 with new fields, 2 at defaults, 1 unknown");
+    CHECK_LOG("15 areas, 0 with new fields, 2 at defaults, 1 unknown");
     CHECK_LOG("storage: notice: Lab settings from an older version: new ones at defaults");
     Settings expected = afterReboot(chosen, defaults);
     expected.techInvis = defaults.techInvis;
@@ -896,7 +896,7 @@ TEST(settings_file, character_rng_of_another_generation_reads_as_default)
     reseal(kFileA);
 
     boot();
-    CHECK_LOG("15 areas, 0 with new fields, 1 at defaults, 0 unknown");
+    CHECK_LOG("16 areas, 0 with new fields, 1 at defaults, 0 unknown");
     Settings expected = afterReboot(chosen, defaults);
     expected.characterRng = defaults.characterRng;
     CHECK(chosen.characterRng.peachTurnip != defaults.characterRng.peachTurnip);
@@ -914,7 +914,7 @@ TEST(settings_file, values_out_of_range_are_clamped_on_load)
     saveChosen(defaults, chosen);
     storage::detach();
     u8* file = host::card::data(kFileA);
-    u32 from = sizeof(storage::FileHeader) + sizeof(storage::SettingsHead) + 16 * sizeof(storage::AreaEntry);
+    u32 from = sizeof(storage::FileHeader) + sizeof(storage::SettingsHead) + 17 * sizeof(storage::AreaEntry);
     for (u32 i = from; i < header(kFileA)->size; i++)
     {
         file[i] = 0xEE;
@@ -959,7 +959,7 @@ TEST(settings_file, fields_outside_menu_rows_are_sanitized_on_load)
     saveChosen(defaults, chosen);
     storage::detach();
     u8* file = host::card::data(kFileA);
-    u32 from = sizeof(storage::FileHeader) + sizeof(storage::SettingsHead) + 16 * sizeof(storage::AreaEntry);
+    u32 from = sizeof(storage::FileHeader) + sizeof(storage::SettingsHead) + 17 * sizeof(storage::AreaEntry);
     for (u32 i = from; i < header(kFileA)->size; i++)
     {
         file[i] = 0xFF;
@@ -1053,7 +1053,7 @@ TEST(settings_file, combo_trainer_gen1_legacy_save_resets_to_safe_defaults)
     reseal(kFileA);
 
     boot();
-    CHECK_LOG("15 areas, 0 with new fields, 1 at defaults, 0 unknown");
+    CHECK_LOG("16 areas, 0 with new fields, 1 at defaults, 0 unknown");
     CHECK_LOG("storage: notice: Lab settings from an older version: new ones at defaults");
     CHECK_EQ(0, static_cast<int>(main::settings().comboTrainer.enabledMeters));
     CHECK_EQ(1, static_cast<int>(main::settings().comboTrainer.noclip));
@@ -1061,6 +1061,117 @@ TEST(settings_file, combo_trainer_gen1_legacy_save_resets_to_safe_defaults)
     Settings expected = afterReboot(chosen, defaults);
     expected.comboTrainer = defaults.comboTrainer;
     CHECK_SETTINGS(expected, main::settings());
+    storage::detach();
+}
+
+// Existing 16-area v2 saves (pre-Area 17 kAreaOsdPresets) stay 100% backwards-compatible:
+// they load silently without triggering the v1 upgrade modal, preserve all 16 areas,
+// and initialize kAreaOsdPresets cleanly to zeroes.
+TEST(settings_file, v2_16_area_save_backwards_compatible_with_area17)
+{
+    Settings defaults, chosen;
+    saveChosen(defaults, chosen);
+    storage::detach();
+
+    u8 raw[storage::kSettingsFileCap];
+    memset(raw, 0, sizeof(raw));
+    u32 tableOff = sizeof(storage::FileHeader) + sizeof(storage::SettingsHead);
+    u16 count = 0;
+    const u32 kPre17Mask = 0x1FFFEu; // ids 1..16 only
+    u32 body = storage::writeAreas(raw + tableOff, sizeof(raw) - tableOff, tableOff,
+                                   reinterpret_cast<const u8*>(&chosen), kPre17Mask, count);
+    REQUIRE(body > 0 && count == 16);
+    storage::FileHeader* fh = reinterpret_cast<storage::FileHeader*>(raw);
+    storage::SettingsHead* sh = reinterpret_cast<storage::SettingsHead*>(raw + sizeof(storage::FileHeader));
+    sh->areaCount = count;
+    sh->layout = main::kSettingsVersion;
+    fh->magic = storage::kSettingsMagic;
+    fh->format = storage::kSettingsFormat;
+    fh->headerSize = sizeof(storage::FileHeader);
+    fh->size = tableOff + body;
+    fh->sequence = 9;
+    fh->checksum = storage::checksum(raw + storage::kChecksumFrom, fh->size - storage::kChecksumFrom);
+
+    host::card::reset();
+    host::card::put(kFileA, raw, fh->size);
+    u8* block = boot();
+    CHECK(!storage::settingsUpgradePending());
+    CHECK_LOG("16 areas, 0 with new fields, 1 at defaults, 0 unknown");
+    Settings expected = afterReboot(chosen, defaults);
+    expected.osdPresets = defaults.osdPresets;
+    CHECK_SETTINGS(expected, main::settings());
+    CHECK_EQ(0u, main::settings().osdPresets.customMask[0]);
+    CHECK_EQ(0u, main::settings().osdPresets.customMask[1]);
+    CHECK_EQ(0u, main::settings().osdPresets.customMask[2]);
+    // Resaving writes clean 17-area v2 blob.
+    main::settings().osdPresets.customMask[0] = main::kOsdCustomSavedBit | 0x3Fu;
+    closeMenu();
+    REQUIRE(host::card::has(kFileB));
+    const storage::SettingsHead* saved =
+        reinterpret_cast<const storage::SettingsHead*>(host::card::data(kFileB) + sizeof(storage::FileHeader));
+    CHECK_EQ(17, static_cast<int>(saved->areaCount));
+    (void)block;
+    storage::detach();
+}
+
+// Partial files carrying 1..3 areas strictly within {General, Display, OSD}
+// are treated as clean Quick Setup files (sets force=1, zero older-version notice),
+// whereas partial files including other areas (e.g. CPU) trigger the notice.
+TEST(settings_file, quick_setup_partial_file_1_to_3_areas_only)
+{
+    Settings defaults, chosen;
+    saveChosen(defaults, chosen);
+    storage::detach();
+
+    u8 raw[storage::kSettingsFileCap];
+    memset(raw, 0, sizeof(raw));
+    u32 tableOff = sizeof(storage::FileHeader) + sizeof(storage::SettingsHead);
+    u16 count = 0;
+    const u32 kQuickMask = storage::areaBit(storage::kAreaGeneral) | storage::areaBit(storage::kAreaDisplay)
+                           | storage::areaBit(storage::kAreaOsd);
+    u32 body = storage::writeAreas(raw + tableOff, sizeof(raw) - tableOff, tableOff,
+                                   reinterpret_cast<const u8*>(&chosen), kQuickMask, count);
+    REQUIRE(body > 0 && count == 3);
+    storage::FileHeader* fh = reinterpret_cast<storage::FileHeader*>(raw);
+    storage::SettingsHead* sh = reinterpret_cast<storage::SettingsHead*>(raw + sizeof(storage::FileHeader));
+    sh->areaCount = count;
+    sh->layout = main::kSettingsVersion;
+    fh->magic = storage::kSettingsMagic;
+    fh->format = storage::kSettingsFormat;
+    fh->headerSize = sizeof(storage::FileHeader);
+    fh->size = tableOff + body;
+    fh->sequence = 1;
+    fh->checksum = storage::checksum(raw + storage::kChecksumFrom, fh->size - storage::kChecksumFrom);
+
+    host::card::reset();
+    host::card::put(kFileA, raw, fh->size);
+    u8* block = boot();
+    CHECK(!storage::noticeActive());
+    CHECK_EQ(1, static_cast<int>(storage::blockState(block)->force));
+    CHECK_EQ(static_cast<int>(chosen.display.hitboxes), static_cast<int>(main::settings().display.hitboxes));
+    CHECK_EQ(static_cast<int>(chosen.osd.wavedash), static_cast<int>(main::settings().osd.wavedash));
+    storage::detach();
+
+    // Partial save with non-Quick-Setup area (kAreaCpu) still surfaces notice.
+    memset(raw, 0, sizeof(raw));
+    count = 0;
+    const u32 kMixedMask = storage::areaBit(storage::kAreaOsd) | storage::areaBit(storage::kAreaCpu);
+    body = storage::writeAreas(raw + tableOff, sizeof(raw) - tableOff, tableOff,
+                               reinterpret_cast<const u8*>(&chosen), kMixedMask, count);
+    REQUIRE(body > 0 && count == 2);
+    sh->areaCount = count;
+    sh->layout = main::kSettingsVersion;
+    fh->magic = storage::kSettingsMagic;
+    fh->format = storage::kSettingsFormat;
+    fh->headerSize = sizeof(storage::FileHeader);
+    fh->size = tableOff + body;
+    fh->sequence = 1;
+    fh->checksum = storage::checksum(raw + storage::kChecksumFrom, fh->size - storage::kChecksumFrom);
+
+    host::card::reset();
+    host::card::put(kFileA, raw, fh->size);
+    boot();
+    CHECK_LOG("storage: notice: Lab settings from an older version: new ones at defaults");
     storage::detach();
 }
 
@@ -1261,11 +1372,11 @@ TEST(areas, the_table_and_the_bounds)
     u8 out[1024];
     u16 count = 0;
     u32 n = storage::writeAreas(out, sizeof(out), 40, settings, storage::kAllAreas, count);
-    CHECK_EQ(16, count);
-    CHECK(n > 16 * sizeof(storage::AreaEntry));
+    CHECK_EQ(17, count);
+    CHECK(n > 17 * sizeof(storage::AreaEntry));
     // Every area lies inside what was written, 4-byte aligned, in order.
     const storage::AreaEntry* table = reinterpret_cast<const storage::AreaEntry*>(out);
-    u32 next = 40 + 16 * sizeof(storage::AreaEntry);
+    u32 next = 40 + 17 * sizeof(storage::AreaEntry);
     for (int i = 0; i < count; i++)
     {
         CHECK_EQ(next, table[i].offset);
@@ -1292,36 +1403,36 @@ TEST(areas, the_table_and_the_bounds)
     storage::AreaStats stats;
     CHECK_EQ(31, storage::kMaxAreas);
     CHECK_EQ(48, ui::kMaxPages);
-    CHECK(!storage::readAreas(file, 40 + n, 40 + n, 16, reinterpret_cast<u8*>(&into), storage::kAllAreas, stats));
+    CHECK(!storage::readAreas(file, 40 + n, 40 + n, 17, reinterpret_cast<u8*>(&into), storage::kAllAreas, stats));
     CHECK(!storage::readAreas(file, 40 + n, 40, storage::kMaxAreas + 1, reinterpret_cast<u8*>(&into),
                               storage::kAllAreas, stats));
     // One byte short of the last area's fields (the padding after them is
     // not part of the area).
-    const storage::AreaEntry& last = reinterpret_cast<const storage::AreaEntry*>(file + 40)[15];
-    CHECK(!storage::readAreas(file, last.offset + last.used - 1, 40, 16, reinterpret_cast<u8*>(&into),
+    const storage::AreaEntry& last = reinterpret_cast<const storage::AreaEntry*>(file + 40)[16];
+    CHECK(!storage::readAreas(file, last.offset + last.used - 1, 40, 17, reinterpret_cast<u8*>(&into),
                               storage::kAllAreas, stats));
     CHECK_SETTINGS(untouched, into);
-    CHECK(storage::readAreas(file, 40 + n, 40, 16, reinterpret_cast<u8*>(&into), storage::kAllAreas, stats));
-    CHECK_EQ(16, stats.copied);
+    CHECK(storage::readAreas(file, 40 + n, 40, 17, reinterpret_cast<u8*>(&into), storage::kAllAreas, stats));
+    CHECK_EQ(17, stats.copied);
     CHECK_EQ(0, stats.grown + stats.reset + stats.skipped);
     CHECK(memcmp(&into.osd, &main::settings().osd, offsetof(main::OsdSettings, reserved)) == 0);
 
-    // 31-area future table (all 16 real areas + 15 future unknown areas) loads
-    // all 16 real areas identically and safely skips the 15 unknown entries, while
+    // 31-area future table (all 17 real areas + 14 future unknown areas) loads
+    // all 17 real areas identically and safely skips the 14 unknown entries, while
     // preserving MenuState cursor/scroll ceilings at ui::kMaxPages == 48.
     u8 wide[1024];
     memset(wide, 0, sizeof(wide));
     storage::AreaEntry* wideTbl = reinterpret_cast<storage::AreaEntry*>(wide + 40);
-    memcpy(wideTbl, file + 40, 16 * sizeof(storage::AreaEntry));
+    memcpy(wideTbl, file + 40, 17 * sizeof(storage::AreaEntry));
     u32 wideData = 40 + 31 * sizeof(storage::AreaEntry);
-    for (u16 i = 0; i < 16; i++)
+    for (u16 i = 0; i < 17; i++)
     {
         wideTbl[i].offset = wideData;
         u32 room = (wideTbl[i].used + 3u) & ~3u;
         memcpy(wide + wideData, file + reinterpret_cast<const storage::AreaEntry*>(file + 40)[i].offset, room);
         wideData += room;
     }
-    for (u16 i = 16; i < 31; i++)
+    for (u16 i = 17; i < 31; i++)
     {
         wideTbl[i].id = static_cast<u8>(i + 1);
         wideTbl[i].generation = 1;
@@ -1332,8 +1443,8 @@ TEST(areas, the_table_and_the_bounds)
     Settings wideInto;
     memset(&wideInto, 0x55, sizeof(wideInto));
     CHECK(storage::readAreas(wide, wideData, 40, 31, reinterpret_cast<u8*>(&wideInto), storage::kAllAreas, stats));
-    CHECK_EQ(16, stats.copied);
-    CHECK_EQ(15, stats.skipped);
+    CHECK_EQ(17, stats.copied);
+    CHECK_EQ(14, stats.skipped);
     CHECK_EQ(0, stats.reset);
     CHECK(memcmp(&wideInto.osd, &main::settings().osd, offsetof(main::OsdSettings, reserved)) == 0);
 
@@ -1359,7 +1470,7 @@ TEST(areas, the_table_and_the_bounds)
     CHECK(storage::readAreas(later, sizeof(later), 0, 1, reinterpret_cast<u8*>(&into), storage::kAllAreas, stats));
     CHECK_EQ(1, stats.copied);
     CHECK_EQ(0, stats.grown);
-    CHECK_EQ(15, stats.reset);
+    CHECK_EQ(16, stats.reset);
     u32 known = offsetof(main::InfoSettings, reserved);
     const u8* info = reinterpret_cast<const u8*>(&into.info[0]);
     for (u32 i = 0; i < sizeof(main::InfoSettings) * 2; i++)

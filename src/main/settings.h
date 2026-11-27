@@ -235,7 +235,20 @@ namespace main {
         kOsdPresetMovement,
         kOsdPresetDefense,
         kOsdPresetAllOff,
+        kOsdPresetCustom1,
+        kOsdPresetCustom2,
+        kOsdPresetCustom3,
         kOsdPresetCount
+    };
+
+    enum {
+        kOsdCustomSlotCount = 3,
+        kOsdCustomSavedBit = 0x80000000u
+    };
+
+    struct OsdPresetsSettings {
+        u32 customMask[kOsdCustomSlotCount]; // bit n = row n (< 31); bit 31 = kOsdCustomSavedBit
+        u8 reserved[4];
     };
 
     // OSDs > Tech Sparkle (clean-room native ef_common visual cue).
@@ -593,11 +606,13 @@ namespace main {
         StageOptionsSettings stageOptions;
         ComboTrainerSettings comboTrainer;
         FighterMechanicsSettings fighterMechanics;
+        OsdPresetsSettings osdPresets;
     };
     TM_STATIC_ASSERT(sizeof(CharacterRngSettings) == 4, tm_character_rng_settings_size);
     TM_STATIC_ASSERT(sizeof(StageOptionsSettings) == 16, tm_stage_options_settings_size);
     TM_STATIC_ASSERT(sizeof(ComboTrainerSettings) == 16, tm_combo_trainer_settings_size);
     TM_STATIC_ASSERT(sizeof(FighterMechanicsSettings) == 32, tm_fighter_mechanics_settings_size);
+    TM_STATIC_ASSERT(sizeof(OsdPresetsSettings) == 16, tm_osd_presets_settings_size);
 
     TM_STATIC_ASSERT(sizeof(GeneralSettings) == 16, tm_general_settings_size);
     TM_STATIC_ASSERT(sizeof(ControlSettings) == 16, tm_control_settings_size);
@@ -659,7 +674,8 @@ namespace main {
     TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.olimarColorMatAndMode) == 458, tm_settings_olimar_cmat_at_458);
     TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.olimarStartLineup) == 460, tm_settings_olimar_start_at_460);
     TM_STATIC_ASSERT(offsetof(Settings, fighterMechanics.olimarDpadPresets) == 462, tm_settings_olimar_presets_at_462);
-    TM_STATIC_ASSERT(sizeof(Settings) == 464, tm_settings_size_unchanged);
+    TM_STATIC_ASSERT(offsetof(Settings, osdPresets) == 464, tm_settings_osd_presets_at_464);
+    TM_STATIC_ASSERT(sizeof(Settings) == 480, tm_settings_size_unchanged);
 
     // Lab Menu Button's default: Start in the match opens the menu (0 keeps it
     // inside Training's pause, where Z opens it).

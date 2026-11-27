@@ -559,6 +559,24 @@ namespace extra {
                 }
                 continue;
             }
+            if (call == main::kRngSnakeP1)
+            {
+                if (!refs[i].cpu && kind == kFtSnake)
+                {
+                    matched = true;
+                }
+                continue;
+            }
+            if (call == main::kRngFloatDjcP1)
+            {
+                if (!refs[i].cpu
+                    && (kind == kFtPeach || kind == kFtMewtwo || kind == kFtGanondorf
+                        || kind == 0x04 || kind == 0x0A || kind == kFtLucas))
+                {
+                    matched = true;
+                }
+                continue;
+            }
             if (call != main::kRngApply && matchesQuery(call, kind, hasLivePartner(refs[i])))
             {
                 matched = true;

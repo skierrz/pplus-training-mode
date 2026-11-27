@@ -261,7 +261,7 @@ TEST(stage6b_vs, storage_migrates_pre_wave3_general_area_and_roundtrips_offline_
     resealFile(newest);
 
     bootStorage();
-    CHECK_LOG("16 areas, 1 with new fields, 0 at defaults, 0 unknown");
+    CHECK_LOG("17 areas, 1 with new fields, 0 at defaults, 0 unknown");
     CHECK_LOG("storage: notice: Lab settings from an older version: new ones at defaults");
     CHECK_EQ(0u, main::settings().general.offlineVersus);
     CHECK(!policy::offlineVersusOptIn(host::fakes::block()));

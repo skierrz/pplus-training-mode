@@ -96,7 +96,7 @@ namespace {
 
 TEST(olimar_lab, settings_abi_and_bitpack_roundtrip)
 {
-    CHECK_EQ(464u, static_cast<u32>(sizeof(main::Settings)));
+    CHECK_EQ(480u, static_cast<u32>(sizeof(main::Settings)));
     CHECK_EQ(32u, static_cast<u32>(sizeof(main::FighterMechanicsSettings)));
     CHECK_EQ(455u, offsetof(main::Settings, fighterMechanics.olimarPikmin));
     CHECK_EQ(456u, offsetof(main::Settings, fighterMechanics.olimarMaturity));

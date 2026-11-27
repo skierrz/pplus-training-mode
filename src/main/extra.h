@@ -117,6 +117,7 @@ namespace main {
         float (*osdTopStartY)(bool isTopRight);
         // Olimar Lab Kit (extra/olimar_lab.h): OlimarAction + D-pad held/pressed masks.
         void (*olimarAction)(u32 action, u32 dpadHeld, u32 dpadPressed);
+        const char* (*submenuSummary)(u8 targetPageId, char* buf, u32 cap);
     };
 
     enum OlimarAction {
@@ -138,7 +139,10 @@ namespace main {
         kScenarioStepPosDown,
         kScenarioSpacingCloser,
         kScenarioSpacingFarther,
-        kScenarioPracticeChanged
+        kScenarioPracticeChanged,
+        kScenarioStartSnakeDrill,
+        kScenarioStartFloatDjcDrill,
+        kScenarioStopDrill
     };
 
     // What the match module asks of the Character RNG / Fighter Mechanics code.
@@ -163,7 +167,9 @@ namespace main {
         kRngGanondorf,
         kRngIceClimbers,
         kRngOlimar,
-        kRngOlimarP1
+        kRngOlimarP1,
+        kRngSnakeP1,
+        kRngFloatDjcP1
     };
 
     // What the match module asks of the Stage Options code.
@@ -211,7 +217,10 @@ namespace main {
     bool extraIceClimbersRows();
     bool extraOlimarRows();
     bool extraOlimarP1();
+    bool extraSnakeP1();
+    bool extraFloatDjcP1();
     void extraOlimarAction(u32 action, u32 dpadHeld, u32 dpadPressed);
+    const char* extraSubmenuSummary(u8 targetPageId, char* buf, u32 cap);
     // The Main Menu row: any character the page has rows for.
     bool extraCharacterRngPage();
     // Stage Options rows on Stage & Cast. Without the extra module, or on a

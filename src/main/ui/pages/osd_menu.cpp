@@ -20,7 +20,7 @@ namespace pages {
     TM_LABELS_ASSERT(kTimingMeter, main::kTimingMeterCount, tm_timing_meter_labels_match);
 
     // In main::OsdPreset order (main/settings.h).
-    TM_LABELS_BEGIN(kOsdPresets) TM_L("Custom") TM_L("Essentials") TM_L("Movement") TM_L("Defense") TM_L("All Off") TM_LABELS_END
+    TM_LABELS_BEGIN(kOsdPresets) TM_L("Custom") TM_L("Essentials") TM_L("Movement") TM_L("Defense") TM_L("All Off") TM_L("Custom 1") TM_L("Custom 2") TM_L("Custom 3") TM_LABELS_END
     TM_LABELS_ASSERT(kOsdPresets, main::kOsdPresetCount, tm_osd_presets_match);
 
     // In main::TechSparkleMode order (main/settings.h).
@@ -63,14 +63,28 @@ namespace pages {
         {
             return;
         }
-        // Bitmasks matching kToggleOffsets order for Essentials / Movement / Defense / All Off.
-        static const u32 kPresetMasks[main::kOsdPresetCount - 1] = {
-            0x0003Fu, // Essentials: Wavedash, L-Cancel, Ledgedash, Act OoS, Shield Adv, Hit Adv
-            0x83B47u, // Movement: Wavedash, L-Cancel, Ledgedash, Dashback, OoLag, OoAir, JC, FF, DACUS, P+ Tech
-            0x2C498u, // Defense: Act OoS, Shield Adv, Powershield, OoHitstun, SDI, Tech Lockout, Grab Escape
-            0x00000u  // All Off
-        };
-        u32 mask = kPresetMasks[preset - 1];
+        u32 mask = 0u;
+        if (preset >= main::kOsdPresetCustom1)
+        {
+            int slot = preset - main::kOsdPresetCustom1;
+            u32 saved = main::settings().osdPresets.customMask[slot];
+            if ((saved & main::kOsdCustomSavedBit) == 0u)
+            {
+                return;
+            }
+            mask = saved & 0xFFFFFu;
+        }
+        else
+        {
+            // Bitmasks matching kToggleOffsets order for Essentials / Movement / Defense / All Off.
+            static const u32 kPresetMasks[4] = {
+                0x0003Fu, // Essentials: Wavedash, L-Cancel, Ledgedash, Act OoS, Shield Adv, Hit Adv
+                0x83B47u, // Movement: Wavedash, L-Cancel, Ledgedash, Dashback, OoLag, OoAir, JC, FF, DACUS, P+ Tech
+                0x2C498u, // Defense: Act OoS, Shield Adv, Powershield, OoHitstun, SDI, Tech Lockout, Grab Escape
+                0x00000u  // All Off
+            };
+            mask = kPresetMasks[preset - 1];
+        }
         u8* raw = reinterpret_cast<u8*>(&main::settings());
         for (int i = 0; i < 20; i++)
         {

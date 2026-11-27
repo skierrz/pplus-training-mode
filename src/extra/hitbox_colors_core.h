@@ -9,7 +9,7 @@
 //  - +0x00 m_status (2 = Active)
 //  - +0x04 m_power (s32 damage)
 //  - +0x18 m_vector (s32 angle; P+ 3.2.1 Meteor = inclusive 260..280)
-//  - +0x38 flags: m_setOffKind = (w >> 30) & 3 (0 = Transcendent),
+//  - +0x38 flags: m_setOffKind = (w >> 23) & 3 (0 = Transcendent),
 //                 m_isShieldable = (w >> 21) & 1 (0 = Unblockable)
 //  - +0x88 m_groupIndex
 namespace tm {
@@ -40,7 +40,7 @@ namespace extra {
     struct HitboxPartProps {
         s32 power;
         s32 angle;
-        u8 setOffKind; // (flags >> 30) & 3; 0 = Transcendent (SetOff_Off)
+        u8 setOffKind; // (flags >> 23) & 3; 0 = Transcendent (SetOff_Off)
         u8 shieldable; // (flags >> 21) & 1; 0 = Unblockable
     };
 
@@ -49,7 +49,7 @@ namespace extra {
         HitboxPartProps p;
         p.power = power;
         p.angle = angle;
-        p.setOffKind = static_cast<u8>((flags38 >> 30) & 3u);
+        p.setOffKind = static_cast<u8>((flags38 >> 23) & 3u);
         p.shieldable = static_cast<u8>((flags38 >> 21) & 1u);
         return p;
     }

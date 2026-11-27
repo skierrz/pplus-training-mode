@@ -1370,7 +1370,7 @@ TEST(drill_list, y_quick_osds_patches_osd_area_in_place_without_clobbering_other
     u16 areaCount = 0;
     u32 bodyBytes = storage::writeAreas(origFile + at, sizeof(origFile) - at, at,
                                         reinterpret_cast<const u8*>(&main::settings()), storage::kAllAreas, areaCount);
-    REQUIRE(bodyBytes > 0 && areaCount == 16);
+    REQUIRE(bodyBytes > 0 && areaCount == 17);
     ohead->areaCount = areaCount;
     ohead->layout = main::kSettingsVersion;
     oh->magic = storage::kSettingsMagic;
@@ -1394,7 +1394,7 @@ TEST(drill_list, y_quick_osds_patches_osd_area_in_place_without_clobbering_other
              storage::checkHeader(patched, patchedSize, storage::kSettingsMagic, storage::kSettingsFormat, true));
 
     const storage::SettingsHead* phead = reinterpret_cast<const storage::SettingsHead*>(patched + sizeof(storage::FileHeader));
-    CHECK_EQ(16, static_cast<int>(phead->areaCount));
+    CHECK_EQ(17, static_cast<int>(phead->areaCount));
     CHECK_EQ(static_cast<int>(main::kSettingsVersion), static_cast<int>(phead->layout));
 
     // Read patched file back into fresh defaults and confirm EVERY non-OSD area survived verbatim.
@@ -1405,7 +1405,7 @@ TEST(drill_list, y_quick_osds_patches_osd_area_in_place_without_clobbering_other
     REQUIRE(storage::readAreas(patched, patchedSize, at, phead->areaCount,
                                reinterpret_cast<u8*>(&main::settings()), storage::kAllAreas, stats));
     restored = main::settings();
-    CHECK_EQ(16u, stats.copied);
+    CHECK_EQ(17u, stats.copied);
     CHECK_EQ(0u, stats.grown);
     CHECK_EQ(0u, stats.reset);
     CHECK_EQ(55, static_cast<int>(restored.general.ledgeMaxFrames));

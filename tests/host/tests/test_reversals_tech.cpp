@@ -450,7 +450,7 @@ TEST(reversals_tech, sd_migration_from_46_byte_cpu_options_and_round_trip)
 {
     CHECK_EQ(61u, sizeof(cpu::CpuOptions));
     CHECK_EQ(64u, sizeof(main::CpuSettings));
-    CHECK_EQ(464u, sizeof(main::Settings));
+    CHECK_EQ(480u, sizeof(main::Settings));
 
     // Streamlined CPU & OSD menu placement: Counters & Reversals hosts Shield Timing,
     // Custom Pools, Auto L-Cancel, SHFFL Timing, and Reversal Slots; OSDs hosts Tech Sparkle at row 4
@@ -567,7 +567,7 @@ TEST(reversals_tech, sd_migration_from_46_byte_cpu_options_and_round_trip)
     fh->checksum = storage::checksum(raw + storage::kChecksumFrom, fh->size - storage::kChecksumFrom);
 
     bootStorage();
-    CHECK_LOG("16 areas, 1 with new fields, 0 at defaults, 0 unknown");
+    CHECK_LOG("17 areas, 1 with new fields, 0 at defaults, 0 unknown");
     // Pre-existing fields intact:
     CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.dualStickSdi));
     CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.autoLCancel));

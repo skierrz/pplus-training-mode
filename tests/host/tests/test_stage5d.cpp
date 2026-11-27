@@ -187,7 +187,7 @@ TEST(stage5d, nana_throw_menu_row_and_storage_compat)
 {
     CHECK_EQ(454u, offsetof(main::Settings, fighterMechanics.nanaThrow));
     CHECK_EQ(32u, sizeof(main::FighterMechanicsSettings));
-    CHECK_EQ(464u, sizeof(main::Settings));
+    CHECK_EQ(480u, sizeof(main::Settings));
 
     // Nana Throw is at index 32 (after Ganon Float at 31); Olimar submenu follows at 33.
     const ui::Page* page = ui::labMenu().pages[ui::pages::P_STAGE_CAST];

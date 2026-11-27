@@ -339,7 +339,7 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
 {
     CHECK_EQ(2, static_cast<int>(main::kSettingsVersion));
     CHECK_EQ(32u, sizeof(main::OsdSettings));
-    CHECK_EQ(464u, sizeof(Settings));
+    CHECK_EQ(480u, sizeof(Settings));
     CHECK_EQ(110u, offsetof(Settings, osd.bgColor));
     CHECK_EQ(111u, offsetof(Settings, osd.bgAlpha));
     CHECK_EQ(112u, offsetof(Settings, osd.menuAccent));
@@ -381,7 +381,7 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     CHECK_EQ(30u, osdArea->used);
 
     bootStorage();
-    CHECK_LOG("16 areas, 0 with new fields, 0 at defaults, 0 unknown");
+    CHECK_LOG("17 areas, 0 with new fields, 0 at defaults, 0 unknown");
     CHECK_EQ(0, static_cast<int>(main::settings().osd.wavedash));
     CHECK_EQ(3, static_cast<int>(main::settings().osd.maxMessages));
     CHECK_EQ(static_cast<int>(main::kOsdBgCrimson), static_cast<int>(main::settings().osd.bgColor));
@@ -401,7 +401,7 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     resealFile(kFileA);
 
     bootStorage();
-    CHECK_LOG("16 areas, 1 with new fields, 0 at defaults, 0 unknown");
+    CHECK_LOG("17 areas, 1 with new fields, 0 at defaults, 0 unknown");
     CHECK_EQ(static_cast<int>(main::kOsdBgCrimson), static_cast<int>(main::settings().osd.bgColor));
     CHECK_EQ(2, static_cast<int>(main::settings().osd.bgAlpha));
     CHECK_EQ(static_cast<int>(main::kMenuAccentTeal), static_cast<int>(main::settings().osd.menuAccent));
@@ -420,7 +420,7 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     resealFile(kFileA);
 
     bootStorage();
-    CHECK_LOG("16 areas, 1 with new fields, 0 at defaults, 0 unknown");
+    CHECK_LOG("17 areas, 1 with new fields, 0 at defaults, 0 unknown");
     CHECK_LOG("storage: notice: Lab settings from an older version: new ones at defaults");
     CHECK_EQ(0, static_cast<int>(main::settings().osd.wavedash));
     CHECK_EQ(3, static_cast<int>(main::settings().osd.maxMessages));

@@ -314,7 +314,7 @@ TEST(psa_inspector, hud_layout_non_overlap_and_safe_area_4_3_and_16_9)
 TEST(psa_inspector, sd_storage_round_trip_clamping_and_migration)
 {
     CHECK_EQ(16u, sizeof(main::DisplaySettings));
-    CHECK_EQ(464u, sizeof(main::Settings));
+    CHECK_EQ(480u, sizeof(main::Settings));
     CHECK_EQ(55u, offsetof(main::Settings, display.psaInspector));
 
     host::card::reset();

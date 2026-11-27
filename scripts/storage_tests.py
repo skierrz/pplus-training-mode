@@ -97,7 +97,7 @@ DEFAULTS = {"cameraMode": 0, "moveStaling": 1, "wavedash": 1, "lCancel": 1,
 HALF = {"playerPercent", "cpuPercent"}
 # Areas (src/main/storage/areas.h) and where they start in main::Settings.
 AREA_AT = {1: 8, 2: 24, 3: 40, 4: 56, 5: 72, 6: 88, 7: 120, 8: 184, 9: 248, 10: 268, 11: 288, 12: 296, 13: 292,
-           14: 400, 15: 416, 16: 432}
+           14: 400, 15: 416, 16: 432, 17: 464}
 AREA_COUNT = len(AREA_AT)
 AREA_GENERAL, AREA_CONTROLS, AREA_OSD = 1, 2, 6
 SETTINGS_MAGIC, RECORDING_MAGIC = 0x544D5346, 0x544D5246

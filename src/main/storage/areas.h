@@ -28,14 +28,15 @@ namespace storage {
         kAreaStageOptions = 14,
         kAreaComboTrainer = 15,
         kAreaFighterMechanics = 16,
-        kAreaLast = kAreaFighterMechanics
+        kAreaOsdPresets = 17,
+        kAreaLast = kAreaOsdPresets
     };
 
     inline u32 areaBit(int id)
     {
         return 1u << id;
     }
-    static const u32 kAllAreas = 0x1FFFEu; // ids 1-16
+    static const u32 kAllAreas = 0x3FFFEu; // ids 1-17
 
     // Byte range of area `id` in main::Settings (including its reserved tail).
     // Returns false for invalid or unknown ids.

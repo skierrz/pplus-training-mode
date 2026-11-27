@@ -152,12 +152,22 @@ namespace main {
     bool extraIceClimbersRows() { return rngCall(kRngIceClimbers); }
     bool extraOlimarRows() { return rngCall(kRngOlimar); }
     bool extraOlimarP1() { return rngCall(kRngOlimarP1); }
+    bool extraSnakeP1() { return rngCall(kRngSnakeP1); }
+    bool extraFloatDjcP1() { return rngCall(kRngFloatDjcP1); }
     void extraOlimarAction(u32 action, u32 dpadHeld, u32 dpadPressed)
     {
         if (s_hooks != NULL && s_hooks->olimarAction != NULL)
         {
             s_hooks->olimarAction(action, dpadHeld, dpadPressed);
         }
+    }
+    const char* extraSubmenuSummary(u8 targetPageId, char* buf, u32 cap)
+    {
+        if (s_hooks == NULL || s_hooks->submenuSummary == NULL || buf == NULL || cap == 0u)
+        {
+            return NULL;
+        }
+        return s_hooks->submenuSummary(targetPageId, buf, cap);
     }
     bool extraCharacterRngPage() { return rngCall(kRngAny); }
 

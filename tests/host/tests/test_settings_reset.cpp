@@ -273,12 +273,16 @@ namespace {
         s.fighterMechanics.robBeam = main::kRobBeamSuper;
         s.fighterMechanics.dededeWaddle = main::kWaddleGordo;
         s.fighterMechanics.nanaThrow = main::kNanaThrowUp;
+
+        // Area 17: OSD Custom Presets
+        s.osdPresets.customMask[0] = main::kOsdCustomSavedBit | 0x3Fu;
+        s.osdPresets.customMask[1] = main::kOsdCustomSavedBit | 0x83B47u;
     }
 }
 
-TEST(settings_reset, area_bounds_cover_all_16_areas_with_no_gaps_or_overlaps)
+TEST(settings_reset, area_bounds_cover_all_17_areas_with_no_gaps_or_overlaps)
 {
-    CHECK_EQ(464u, static_cast<u32>(sizeof(Settings)));
+    CHECK_EQ(480u, static_cast<u32>(sizeof(Settings)));
 
     u16 off = 0xBEEFu;
     u16 sz = 0xCAFEu;
@@ -404,7 +408,7 @@ TEST(settings_reset, invalid_area_ids_and_empty_mask_do_nothing)
     CHECK(!main::resetSettingsArea(33));
     CHECK_EQ(0u, main::resetSettingsAreas(0));
     CHECK_EQ(0u, main::resetSettingsAreas(1u << 0));
-    CHECK_EQ(0u, main::resetSettingsAreas(0xFFFE0000u));
+    CHECK_EQ(0u, main::resetSettingsAreas(0xFFFC0000u));
 
     CHECK_BYTES("invalid area reset must not mutate", &before, &main::settings(), sizeof(Settings));
 }

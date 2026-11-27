@@ -42,6 +42,7 @@ namespace storage {
          sizeof(main::ComboTrainerSettings)},
         {kAreaFighterMechanics, 1, offsetof(Settings, fighterMechanics), sizeof(main::FighterMechanicsSettings),
          sizeof(main::FighterMechanicsSettings)},
+        TM_AREA(kAreaOsdPresets, osdPresets, OsdPresetsSettings),
     };
 #undef TM_AREA
     enum { kAreaCount = sizeof(kAreas) / sizeof(kAreas[0]) };
@@ -52,7 +53,8 @@ namespace storage {
                          && sizeof(main::RecordingSettings) <= 255 && sizeof(main::OverlaySettings) <= 255
                          && sizeof(main::TechInvisSettings) <= 255 && sizeof(cpu::CpuTables) <= 255
                          && sizeof(main::CharacterRngSettings) <= 255 && sizeof(main::StageOptionsSettings) <= 255
-                         && sizeof(main::ComboTrainerSettings) <= 255 && sizeof(main::FighterMechanicsSettings) <= 255,
+                         && sizeof(main::ComboTrainerSettings) <= 255 && sizeof(main::FighterMechanicsSettings) <= 255
+                         && sizeof(main::OsdPresetsSettings) <= 255,
                      tm_area_sizes_fit_u8);
 
     // The largest settings file writeAreas() can make: the two headers, the
@@ -69,12 +71,13 @@ namespace storage {
                            TM_ROOM(main::RecordingSettings) + 2 * TM_ROOM(main::OverlaySettings) +
                            TM_ROOM(main::TechInvisSettings) + TM_ROOM(cpu::CpuTables) +
                            TM_ROOM(main::CharacterRngSettings) + TM_ROOM(main::StageOptionsSettings) +
-                           TM_ROOM(main::ComboTrainerSettings) + TM_ROOM(main::FighterMechanicsSettings),
+                           TM_ROOM(main::ComboTrainerSettings) + TM_ROOM(main::FighterMechanicsSettings) +
+                           TM_ROOM(main::OsdPresetsSettings),
         kSettingsFileWorst = sizeof(FileHeader) + sizeof(SettingsHead) + kAreaCount * sizeof(AreaEntry) +
                              kAreasWorstBytes
     };
 #undef TM_ROOM
-    TM_STATIC_ASSERT(kAreaCount == 16, tm_areas_worst_case_counts_16_rows);
+    TM_STATIC_ASSERT(kAreaCount == 17, tm_areas_worst_case_counts_17_rows);
     TM_STATIC_ASSERT(offsetof(main::GeneralSettings, reserved) == 15, tm_general_area_used_bytes);
     TM_STATIC_ASSERT(sizeof(main::FighterMechanicsSettings) == 32, tm_fighter_mechanics_area_used_bytes);
     TM_STATIC_ASSERT(kSettingsFileWorst <= kSettingsFileCap, tm_settings_file_fits_its_cap);

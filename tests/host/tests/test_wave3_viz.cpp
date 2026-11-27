@@ -258,10 +258,12 @@ TEST(wave3_viz, input_viewer_pressed_idle_sticks_triggers_and_ai_pad)
 
 TEST(wave3_viz, hitbox_color_property_classifier_and_pplus_meteor_window)
 {
-    // Flags word (+0x38): setOffKind = (w >> 30) & 3; shieldable = (w >> 21) & 1.
-    const u32 kClangShieldable = (3u << 30) | (1u << 21);
-    const u32 kTranscendentShieldable = (0u << 30) | (1u << 21);
-    const u32 kUnblockable = (3u << 30) | (0u << 21);
+    // Flags word (+0x38): m_soundLevel = (w >> 30) & 3; m_setOffKind = (w >> 23) & 3; m_isShieldable = (w >> 21) & 1.
+    const u32 kClangShieldable = (3u << 23) | (1u << 21);
+    const u32 kTranscendentShieldable = (0u << 23) | (1u << 21);
+    const u32 kUnblockable = (3u << 23) | (0u << 21);
+    const u32 kSmallSoundClank = 0x03A00000u; // live P+ 3.2.1 Mario Jab 1: soundLevel=0, setOffKind=3, shieldable=1
+    const u32 kMedSoundTransc = 0x50200000u;  // live P+ 3.2.1 Fox Up-B: soundLevel=1, setOffKind=0, shieldable=1
 
     // 1. Unblockable takes highest priority.
     HitboxPartProps unblock = decodeAttackPartFlags(12, 270, kUnblockable);
@@ -287,11 +289,20 @@ TEST(wave3_viz, hitbox_color_property_classifier_and_pplus_meteor_window)
     CHECK_EQ(kHitPropNormal, classifyHitboxProperty(spike281, 14, 14));
     CHECK_EQ(static_cast<u32>(kHitboxColorMeteor), hitboxPropertyColor(kHitPropMeteor));
 
-    // 3. Transcendent (setOffKind == 0).
+    // 3. Transcendent (setOffKind == 0), independent of m_soundLevel (bits 31..30).
     HitboxPartProps transc = decodeAttackPartFlags(10, 45, kTranscendentShieldable);
     CHECK_EQ(0, transc.setOffKind);
     CHECK_EQ(kHitPropTranscendent, classifyHitboxProperty(transc, 10, 10));
     CHECK_EQ(static_cast<u32>(kHitboxColorTranscendent), hitboxPropertyColor(kHitPropTranscendent));
+
+    HitboxPartProps foxUpB = decodeAttackPartFlags(2, 70, kMedSoundTransc);
+    CHECK_EQ(0, foxUpB.setOffKind);
+    CHECK_EQ(1, foxUpB.shieldable);
+    CHECK_EQ(kHitPropTranscendent, classifyHitboxProperty(foxUpB, 2, 2));
+
+    HitboxPartProps jabSmallSound = decodeAttackPartFlags(3, 83, kSmallSoundClank);
+    CHECK_EQ(3, jabSmallSound.setOffKind);
+    CHECK_EQ(kHitPropNormal, classifyHitboxProperty(jabSmallSound, 3, 3));
 
     // 4. Sweetspot vs Sourspot on multi-part attacks (minPower < maxPower).
     HitboxPartProps sweet = decodeAttackPartFlags(18, 32, kClangShieldable);
@@ -325,7 +336,7 @@ TEST(wave3_viz, hitbox_color_priority_palette_distinct_ids)
     CHECK_EQ(cols[0], hitboxPriorityColor(8));
     CHECK_EQ(cols[1], hitboxPriorityColor(9));
 
-    HitboxPartProps dummy = decodeAttackPartFlags(10, 270, (3u << 30) | (1u << 21));
+    HitboxPartProps dummy = decodeAttackPartFlags(10, 270, (3u << 23) | (1u << 21));
     CHECK_EQ(cols[0], hitboxColorForMode(main::kHitboxColorPriority, 0, dummy, 10, 10));
     CHECK_EQ(cols[2], hitboxColorForMode(main::kHitboxColorPriority, 2, dummy, 10, 10));
     CHECK_EQ(static_cast<u32>(kHitboxColorMeteor), hitboxColorForMode(main::kHitboxColorProperty, 2, dummy, 10, 10));

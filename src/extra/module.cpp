@@ -295,7 +295,7 @@ namespace extra {
         ui::infoWanted,    ui::infoStep,       ui::drawInfo,       ui::infoReset,
         ui::applyInfoPreset, inputViewerDraw,  drawColoredHitboxes, diCompassDraw,
         reversalSlotsPick, psaInspectorDraw,   onTimingAndPracticeDraw, onDrillHook,
-        osdTopStartYHook,  olimarLabAction
+        osdTopStartYHook,  olimarLabAction,    NULL
     };
 
     static bool attach(iface::Interface* iface)

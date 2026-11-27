@@ -400,7 +400,7 @@ TEST(cpu_shffl, storage_migration_from_44_byte_cpu_options_and_round_trip)
 {
     CHECK_EQ(61u, sizeof(cpu::CpuOptions));
     CHECK_EQ(64u, sizeof(main::CpuSettings));
-    CHECK_EQ(464u, sizeof(main::Settings));
+    CHECK_EQ(480u, sizeof(main::Settings));
 
     host::card::reset();
     bootStorage();
@@ -470,7 +470,7 @@ TEST(cpu_shffl, storage_migration_from_44_byte_cpu_options_and_round_trip)
     fh->checksum = storage::checksum(raw + storage::kChecksumFrom, fh->size - storage::kChecksumFrom);
 
     bootStorage();
-    CHECK_LOG("16 areas, 1 with new fields, 0 at defaults, 0 unknown");
+    CHECK_LOG("17 areas, 1 with new fields, 0 at defaults, 0 unknown");
     CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.dualStickSdi));
     CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.autoLCancel));
     CHECK_EQ(static_cast<int>(cpu::kShfflFramePerfect), static_cast<int>(main::settings().cpu.options.shfflTiming));

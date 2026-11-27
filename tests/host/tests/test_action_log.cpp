@@ -167,7 +167,7 @@ TEST(action_log, aerial_subactions_and_settings_layout_round_trip)
     CHECK(strcmp(out, "Dair") == 0);
 
     // Settings layout invariant + sanitize clamp.
-    CHECK_EQ(464u, static_cast<u32>(sizeof(tm::main::Settings)));
+    CHECK_EQ(480u, static_cast<u32>(sizeof(tm::main::Settings)));
     CHECK_EQ(22u, static_cast<u32>(offsetof(tm::main::Settings, general.actionLog)));
 
     tm::main::Settings s;

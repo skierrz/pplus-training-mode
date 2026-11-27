@@ -567,7 +567,7 @@ TEST(fighter_mechanics, settings_offsets_and_storage_roundtrip)
     CHECK_EQ(455u, offsetof(main::Settings, fighterMechanics.olimarPikmin));
     CHECK_EQ(456u, offsetof(main::Settings, fighterMechanics.olimarMaturity));
     CHECK_EQ(32u, sizeof(main::FighterMechanicsSettings));
-    CHECK_EQ(464u, sizeof(main::Settings));
+    CHECK_EQ(480u, sizeof(main::Settings));
 
     CHECK_EQ(-1, extra::olimarMaturityTarget(main::kPikminMaturityDefault));
     CHECK_EQ(0, extra::olimarMaturityTarget(main::kPikminLeaf));

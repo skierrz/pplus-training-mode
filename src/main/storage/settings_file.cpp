@@ -287,6 +287,23 @@ namespace storage {
 #pragma dont_inline reset
 #endif
 
+    static bool isQuickSetupPartialFile(const SettingsHead* head, const AreaEntry* entries, const AreaStats& stats)
+    {
+        if (head->areaCount < 1 || head->areaCount > 3 || stats.copied != head->areaCount || stats.grown != 0)
+        {
+            return false;
+        }
+        for (u16 i = 0; i < head->areaCount; i++)
+        {
+            u8 id = entries[i].id;
+            if (id != kAreaGeneral && id != kAreaDisplay && id != kAreaOsd)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     static void load()
     {
         if (s_file == NULL)
@@ -409,11 +426,9 @@ namespace storage {
         TM_LOG("storage: settings loaded from %s (save %u, layout %u): %u areas, %u with new fields, %u at defaults, "
                "%u unknown\n",
                kNames[best], h->sequence, head->layout, stats.copied, stats.grown, stats.reset, stats.skipped);
-        bool quickOsdOnly = head->areaCount == 1 && stats.copied == 1 && stats.grown == 0
-                            && reinterpret_cast<const AreaEntry*>(s_file + sizeof(FileHeader) + sizeof(SettingsHead))
-                                       ->id
-                                   == kAreaOsd;
-        if (quickOsdOnly)
+        const AreaEntry* entries =
+            reinterpret_cast<const AreaEntry*>(s_file + sizeof(FileHeader) + sizeof(SettingsHead));
+        if (isQuickSetupPartialFile(head, entries, stats))
         {
             s_state->force = 1;
         }

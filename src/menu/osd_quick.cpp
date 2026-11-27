@@ -43,7 +43,9 @@ namespace osdQuick {
     TM_STATIC_ASSERT(kOsdUsed == 30, tm_osd_quick_used_bytes);
 
     static const char* const kNames[2] = {"settings-a.bin", "settings-b.bin"};
-    static const char* const kPresets[] = {"Custom", "Essentials", "Movement", "Defense", "All Off"};
+    static const char* const kPresets[main::kOsdPresetCount] = {
+        "Custom", "Essentials", "Movement", "Defense", "All Off", "Custom 1", "Custom 2", "Custom 3"
+    };
     static const char* const kPositions[] = {"HUD", "Sides", "Top Left", "Top Right"};
     static const char* const kTiming[] = {"Off", "All", "L-Cancel", "Wavedash", "Act-Out"};
     static const char* const kSparkle[] = {"Off", "Perfect Wavedash", "Shorthop", "Both"};
@@ -140,7 +142,7 @@ namespace osdQuick {
         static_cast<u8>(offsetof(OsdSettings, grabBreakout)),
         static_cast<u8>(offsetof(OsdSettings, itemThrow))
     };
-    static const u32 kPresetMasks[main::kOsdPresetCount - 1] = {
+    static const u32 kPresetMasks[4] = {
         0x0003Fu, // Essentials
         0x83B47u, // Movement (includes P+ Tech OSD bit 19)
         0x2C498u, // Defense
@@ -173,7 +175,7 @@ namespace osdQuick {
 
     static void applyPreset(OsdSettings& osd, u8 preset)
     {
-        if (preset == main::kOsdPresetCustom || preset >= main::kOsdPresetCount)
+        if (preset == main::kOsdPresetCustom || preset > main::kOsdPresetAllOff)
         {
             return;
         }

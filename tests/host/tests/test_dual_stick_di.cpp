@@ -413,7 +413,7 @@ TEST(dual_stick_di, settings_layout_menu_row_and_storage_round_trip)
 {
     CHECK_EQ(61u, sizeof(cpu::CpuOptions));
     CHECK_EQ(64u, sizeof(main::CpuSettings));
-    CHECK_EQ(464u, sizeof(main::Settings));
+    CHECK_EQ(480u, sizeof(main::Settings));
 
     // Dual-Stick SDI lives on CPU > DI & SDI (P_CPU_DI, row 4); counters live on P_CPU_COUNTERS;
     // P+ Tech OSD lives on P_OSD_MENU (row 5).
