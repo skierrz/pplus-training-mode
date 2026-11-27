@@ -637,6 +637,10 @@ test-boot: install
 test-harness: install
 	$(Q)$(EMU) test-harness $(REL) $(HARNESS_ARGS)
 
+# Strict Wii-compat verification (MMU, no-Fastmem, non-JIT CPUCore, DSP LLE, 4P MEM2 heap).
+test-wii-strict: install
+	$(Q)$(EMU) test-wii-strict $(REL) $(WII_STRICT_ARGS)
+
 KIND ?= badversion
 test-reject: install negative
 	$(Q)$(EMU) test-reject $(NEGATIVE)/$(TARGET)-$(KIND).rel $(KIND) --restore $(REL)

@@ -2630,8 +2630,8 @@ TEST(lab_menu, active_override_highlights_x_reset_gating_and_parent_override_dot
     main::settings().controls.menuStyle = main::kMenuStyleTabs;
     host::canvas::clear();
     ui::menuDraw(menu, st);
-    // Tab 4 right edge: 76 + (38+5) + (86+5) + (40+5) + (86+5) + 66 = 76 + 43 + 91 + 45 + 91 + 66 = 412 -> dot at 407, y = 41.
-    CHECK(hasOverrideDotAt(407.0f, 41.0f));
+    // Tab 4 right edge: 76 + (44+5) + (82+5) + (46+5) + (82+5) + 64 = 76 + 49 + 87 + 51 + 87 + 64 = 414 -> dot at 409.5, y = 41.
+    CHECK(hasOverrideDotAt(409.5f, 41.0f));
 
     // 5. Fighter Swap (P_FIGHTER_SWAP) never triggers a false Stage & Cast override dot or green pills.
     static const char* const kSwapRoster[2] = {"Mario", "Fox"};

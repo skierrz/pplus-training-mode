@@ -1968,8 +1968,14 @@ def cmd_test_lab(rest):
         taken.append(emu.screenshot(name + ("-4x3" if opts.aspect == "4:3" else "")))
         return taken[-1][0]
 
+    aspect_args = []
+    if opts.aspect == "4:3":
+        aspect_args = ["-C", "GFX.Settings.AspectRatio=2", "-C", "GFX.Settings.InternalResolution=1"]
+    elif opts.aspect == "16:9":
+        aspect_args = ["-C", "GFX.Settings.AspectRatio=1", "-C", "GFX.Settings.InternalResolution=1"]
     try:
-        with E.harness_run(backend, E.DETERMINISTIC_ARGS) as (proc, emu):
+        with E.harness_run(backend, E.DETERMINISTIC_ARGS + aspect_args,
+                           css_cache=(opts.aspect != "4:3")) as (proc, emu):
             log_path = emu.log_path
             lab = Lab(emu, [])
             try:

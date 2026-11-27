@@ -1261,19 +1261,23 @@ namespace extra {
     static const char* diPickerPromptText(u8 controllerType, bool picking)
     {
         // gfPadType: 0 GCC, 1 Classic, 2 Sideways Wiimote, 3 Wiimote + Nunchuk.
+        if (picking)
+        {
+            return controllerType == 2u ? "D-Pad: Aim angle" : "Tilt stick to aim";
+        }
         if (controllerType == 2u)
         {
-            return picking ? "2: Lock Angle   1: Cancel" : "2: Aim / Lock   1: Cancel";
+            return "2: Aim / Lock   1: Cancel";
         }
         if (controllerType == 1u)
         {
-            return picking ? "A: Lock Angle   B: Cancel" : "R-Stick: Aim   A: Stick / Lock";
+            return "R-Stick: Aim   A: Stick / Lock";
         }
         if (controllerType == 3u)
         {
-            return picking ? "A: Lock Angle   B: Cancel" : "A: Stick Aim / Lock";
+            return "A: Stick Aim / Lock";
         }
-        return picking ? "A: Lock Angle   B: Cancel" : "C-Stick: Aim   A: Stick / Lock";
+        return "C-Stick: Aim   A: Stick / Lock";
     }
 
     static void drawPickerFitLine(float x, float capY, const char* text, gfx::Rgba color, float cap, float maxW)

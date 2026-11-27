@@ -1686,8 +1686,8 @@ namespace ui {
         gradBox(kLabInnerLeft, paneTop, innerW, kLabDescTop - paneTop, pal.baseTop, pal.baseBot);
 
         // Proportional 7-tab widths spanning x 76..564 (sum 458 + 6*5 gaps = 488),
-        // sized for 100% natural Brawl Display Font width at kTabsCap (9.0f).
-        static const float kTabWidths[7] = {38.0f, 86.0f, 40.0f, 86.0f, 66.0f, 50.0f, 92.0f};
+        // sized for 100% natural Brawl Display Font width + override dot clearance.
+        static const float kTabWidths[7] = {44.0f, 82.0f, 46.0f, 82.0f, 64.0f, 52.0f, 88.0f};
         float tabY = 36.0f;
         float tabH = kFibRowH;
         float tabMidY = tabY + tabH * 0.5f;
@@ -1712,7 +1712,7 @@ namespace ui {
             bevelBox(tx, tabY, tw, tabH, activeTab ? accentBevel : tabBevel);
             if (pageHasOverride(def, def.categoryPages[i]))
             {
-                drawOverrideDot(tx + tw - 5.0f, tabY + 5.0f, 4.0f, false, activeTab, pal);
+                drawOverrideDot(tx + tw - 4.5f, tabY + 5.0f, 3.5f, false, activeTab, pal);
             }
             tx += tw + kFibTight;
         }
@@ -1743,7 +1743,9 @@ namespace ui {
                 label = (def.tabLabels != NULL && def.tabLabels[i] != NULL) ? def.tabLabels[i] : pageTitle(def, catPage);
             }
             gfx::Rgba col = i == state.category ? pal.activeTabText : pal.tabInactiveText;
-            fitDisplay(tx + tw * 0.5f, labelTop, label, col, kTabsCap, tw - 6.0f, 1);
+            bool hasOv = pageHasOverride(def, catPage);
+            float labelCx = tx + (hasOv ? (tw - 5.5f) * 0.5f : tw * 0.5f);
+            fitDisplay(labelCx, labelTop, label, col, kTabsCap, tw - (hasOv ? 11.0f : 6.0f), 1);
             tx += tw + kFibTight;
         }
 
@@ -1866,9 +1868,7 @@ namespace ui {
             float midY = (kRailBodyTop + kLabDescTop) * 0.5f;
             gfx::Rgba ruleCol = confirming ? kLabFocusGold : pal.divider;
             fillBox(paneCenter - 48.0f, midY - 26.0f, 96.0f, kFibHair, ruleCol);
-            char prompt[48];
-            snprintf(prompt, sizeof(prompt), confirming ? "Press %s again to confirm." : "Press %s to run this action.",
-                     cs.txtA);
+            const char* prompt = confirming ? "Confirm Reset" : act.name;
             float approxW = gw(18.0f + kFibTight) + gfx::textWidth(prompt, scaleForCap(kTypeMeta));
             drawFooterBadge(cx(paneCenter) - approxW * 0.5f, midY, 18.0f, cs.txtA, prompt, kBtnA,
                             kBadgeRound | kBadgeTightGap, confirming ? kLabFocusGold : kText);
@@ -1968,9 +1968,7 @@ namespace ui {
             return;
         }
         float alpha = 1.0f - easeOutQuart(static_cast<float>(5 - s_anim.closeTick--) / 4.0f);
-        drawFrameBorder(kLabLeft, kLabRight, kLabTop, kLabBottom, kLabBorder, scaleAlpha(kLabBorderColor, alpha));
-        fillBox(kLabInnerLeft, kLabInnerTop, kLabInnerRight - kLabInnerLeft, kLabInnerBottom - kLabInnerTop,
-                scaleAlpha(kLabBaseTop, alpha * 0.65f));
+        gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, scaleAlpha(kLabModalBackdrop, alpha * 0.6f));
     }
 }
 }

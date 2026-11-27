@@ -188,11 +188,12 @@ namespace layout {
 
     // Brawl's stock right-side Training Help sidebar (Speed / Enemy / Damage /
     // Consecutive Hits / Total Damage, IfTraining[0x30] != 0), live-measured in
-    // 640x480 2D space on both 16:9 and 4:3 Dolphin D3D captures.
+    // 640x480 2D space on both 16:9 and 4:3 Dolphin D3D captures (Consecutive Hits
+    // cap extends to x ~ 474.6 on 4:3).
     inline Box trainingSidebarRoom(bool wide)
     {
         Box b16 = {445.0f, 35.0f, 582.0f, 316.0f};
-        Box b43 = {492.0f, 35.0f, 608.0f, 316.0f};
+        Box b43 = {472.0f, 35.0f, 608.0f, 316.0f};
         return wide ? b16 : b43;
     }
 

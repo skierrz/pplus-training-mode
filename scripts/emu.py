@@ -1833,6 +1833,9 @@ def main():
     if cmd == "test-harness" and rest:
         import harness_tests
         return harness_tests.cmd_test_harness(rest)
+    if cmd == "test-wii-strict" and rest:
+        import wii_strict_tests
+        return wii_strict_tests.cmd_test_wii_strict(rest)
     raise SystemExit(__doc__)
 
 

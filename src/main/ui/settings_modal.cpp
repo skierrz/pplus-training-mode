@@ -118,8 +118,6 @@ namespace ui {
         if (!pending)
         {
             gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, scaleAlpha(kLabModalBackdropHeavy, alpha));
-            drawFrameBorder(kFrame.left43, kFrame.right43, kFrame.topY + dy, kFrame.botY + dy, kLabBorder,
-                            scaleAlpha(kLabBorderColor, alpha));
             return;
         }
         drawModalFrame(kFrame, "Update Saved Settings", dy, alpha);
@@ -136,11 +134,16 @@ namespace ui {
         };
         int affected = storage::settingsUpgradeAffectedCount();
         char affectedSub[64];
-        snprintf(affectedSub, sizeof(affectedSub), "Resets %d changed %s and keeps your other choices.",
-                 affected, affected == 1 ? "section" : "sections");
+        const char* affectedText = "No section layouts changed; keeps your saved choices.";
+        if (affected > 0)
+        {
+            snprintf(affectedSub, sizeof(affectedSub), "Resets %d changed %s and keeps your other choices.",
+                     affected, affected == 1 ? "section" : "sections");
+            affectedText = affectedSub;
+        }
         const char* subs[3] = {
             "Starts fresh with the latest default settings.",
-            affectedSub,
+            affectedText,
             "Keeps compatible choices and removes obsolete options."
         };
         const float cardL43 = inL43 + kFibPad;
