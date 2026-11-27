@@ -78,6 +78,7 @@ namespace browser {
     static bool s_jobStale = false;
     static u8* s_head = NULL;
     static u8* s_temp = NULL;
+    static ModalAnim s_anim;
 
     static float rowScale()
     {
@@ -741,14 +742,14 @@ namespace browser {
         descLine(3, line, kLabMutedText);
     }
 
-    static void drawBrowserPanel()
+    static void drawBrowserPanel(float dy, float alpha)
     {
         static const ModalFrame kFrame = {
             kPanelLeft, kPanelRight, kPanelTop, kBrowserBottom,
             kTitleBandBottom - kFibHair, kRowsBandBottom - kFibHair, kBrowserFootTop,
             278.0f, kLabModalBackdrop
         };
-        drawModalFrame(kFrame, "Recordings");
+        drawModalFrame(kFrame, "Recordings", dy, alpha);
     }
 
     void draw()
@@ -758,13 +759,15 @@ namespace browser {
         {
             return;
         }
-        drawBrowserPanel();
+        float alpha = 1.0f;
+        float dy = modalAnimStep(s_anim, alpha);
+        drawBrowserPanel(dy, alpha);
         const float b = kLabBorder;
         const float inL43 = kPanelLeft + b;
         const float inR43 = kPanelRight - b;
-        const float inTop = kPanelTop + b;
-        const float inBot = kBrowserBottom - b;
-        const float hdrBot = kTitleBandBottom - kFibHair;
+        const float inTop = kPanelTop + dy + b;
+        const float inBot = kBrowserBottom + dy - b;
+        const float hdrBot = kTitleBandBottom + dy - kFibHair;
         const float hdrMid = (inTop + hdrBot) * 0.5f;
 
         int first = s_row / kPageRows * kPageRows;
@@ -772,16 +775,15 @@ namespace browser {
         const float hlRight43 = kScrollLeft - kFibTight;
         for (int r = 0; r < kPageRows && first + r < s_count; r++)
         {
-            float y = kRowTop + r * kRowPitch;
-            if (first + r == s_row)
-            {
-                drawGoldBar(hlLeft43, hlRight43, y, kRowBoxH, 8.0f);
-            }
-            else
-            {
-                drawSlantBar(hlLeft43, hlRight43, y, kRowBoxH, false, kLabRowSlateTop, kLabRowSlateBot,
-                             kLabRowSlateEdge);
-            }
+            float y = kRowTop + r * kRowPitch + dy;
+            drawSlantBar(hlLeft43, hlRight43, y, kRowBoxH, false, kLabRowSlateTop, kLabRowSlateBot,
+                         kLabRowSlateEdge);
+        }
+        if (s_count > 0 && s_row >= first && s_row < first + kPageRows)
+        {
+            float targetY = kRowTop + (s_row - first) * kRowPitch;
+            float barY = modalAnimCursor(s_anim, targetY) + dy;
+            drawGoldBar(hlLeft43, hlRight43, barY, kRowBoxH, 8.0f);
         }
         drawScrollBar(s_count, first > s_count - kVisibleRows ? (s_count > kVisibleRows ? s_count - kVisibleRows : 0)
                                                                : first);
@@ -820,7 +822,7 @@ namespace browser {
 
         if (s_count == 0 && !s_confirm && s_phase != kDelete && s_message == NULL)
         {
-            float listMidY = (kRowTop + kRowsBandBottom) * 0.5f;
+            float listMidY = (kRowTop + kRowsBandBottom) * 0.5f + dy;
             float midX = cx((inL43 + inR43) * 0.5f);
             float maxW = w(inR43 - inL43 - 2.0f * kFibPad);
             float headScale = scaleForCap(kTypeBody);
@@ -844,7 +846,7 @@ namespace browser {
         {
             bool selected = first + r == s_row;
             const Entry& e = s_entries[first + r];
-            float y = textYForCap(kRowTop + r * kRowPitch + capOffset, scale);
+            float y = textYForCap(kRowTop + r * kRowPitch + capOffset + dy, scale);
             title(text, sizeof(text), e);
             gfx::Rgba nameColor = selected ? (e.status == kReady ? kLabGoldInk : kLabGoldInkMuted)
                                            : (e.status == kReady ? kText : kTextDisabled);
@@ -874,7 +876,7 @@ namespace browser {
         drawDescription();
 
         // Glossy Brawl footer control badges matching drill_list.cpp & osd_quick.cpp.
-        float fy = kBrowserFootTop + kFibHair + (inBot - (kBrowserFootTop + kFibHair)) * 0.5f;
+        float fy = kBrowserFootTop + dy + kFibHair + (inBot - (kBrowserFootTop + dy + kFibHair)) * 0.5f;
         float fx = cx(inL43 + kFibPad);
         const char* okG = s_controllerType == gfPadType::WIIMOTE ? "2" : "A";
         const char* backG = s_controllerType == gfPadType::WIIMOTE ? "1" : "B";
@@ -911,6 +913,7 @@ namespace browser {
         s_waitRelease = true;
         s_repeat[0].held = s_repeat[1].held = 0;
         s_row = 0;
+        modalAnimOpen(s_anim);
         gfx::forgetWidths();
         if (s_phase == kIdle || s_phase == kHeaders)
         {
@@ -946,6 +949,7 @@ namespace browser {
         s_head = NULL;
         s_temp = NULL;
         s_startNow = false;
+        modalAnimReset(s_anim);
     }
 
     void detach()

@@ -43,58 +43,40 @@ namespace style {
         return width * gfx::xScale();
     }
 
-    // ---- Zero-state pure 60fps GX motion & rest-snapping math ----
-    inline float clamp01(float t)
-    {
-        return t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
-    }
+    // Pure 60fps GX motion math helpers (out-of-line in style.cpp to save PPC code size).
+    float easeOutCubic(float t);
+    float easeOutQuart(float t);
+    float chase60(float cur, float target, float alpha);
+    float snapPx(float v);
+    gfx::Rgba scaleAlpha(gfx::Rgba c, float a);
 
-    inline float easeOutCubic(float t)
-    {
-        float u = 1.0f - clamp01(t);
-        return 1.0f - u * u * u;
-    }
+    // Shared 8-byte modal motion state (<= 16 B budget) for 8f enter / 4f exit / chase60 cursor.
+    struct ModalAnim {
+        float cursorY;
+        u8 enter;
+        u8 exit;
+        u8 hasCursor;
+        u8 pad;
+    };
 
-    inline float easeOutQuart(float t)
+    inline void modalAnimReset(ModalAnim& a)
     {
-        float u = 1.0f - clamp01(t);
-        float u2 = u * u;
-        return 1.0f - u2 * u2;
+        a.cursorY = 0.0f;
+        a.enter = a.exit = a.hasCursor = a.pad = 0;
     }
-
-    inline float chase60(float cur, float target, float alpha)
+    inline void modalAnimOpen(ModalAnim& a)
     {
-        float d = target - cur;
-        if (d > -0.25f && d < 0.25f)
-        {
-            return target;
-        }
-        return cur + d * alpha;
+        a.enter = 8;
+        a.exit = 0;
+        a.hasCursor = 0;
     }
-
-    inline float snapPx(float v)
+    inline void modalAnimClose(ModalAnim& a)
     {
-        int i = static_cast<int>(v >= 0.0f ? (v + 0.5f) : (v - 0.5f));
-        return static_cast<float>(i);
+        a.enter = 0;
+        a.exit = 4;
     }
-
-    inline gfx::Rgba scaleAlpha(gfx::Rgba c, float a)
-    {
-        if (a >= 0.999f)
-        {
-            return c;
-        }
-        if (a <= 0.001f)
-        {
-            return c & 0xFFFFFF00u;
-        }
-        u32 alpha = static_cast<u32>(static_cast<float>(c & 0xFFu) * a + 0.5f);
-        if (alpha > 255u)
-        {
-            alpha = 255u;
-        }
-        return (c & 0xFFFFFF00u) | alpha;
-    }
+    float modalAnimStep(ModalAnim& a, float& alphaOut);
+    float modalAnimCursor(ModalAnim& a, float targetY);
 
     // System font metrics at scale 1: capital letters are kCapHeight tall and
     // begin kCapOffset below the y passed to gfx::text.
@@ -398,19 +380,17 @@ namespace style {
     // Draws a v1 Direction A modal backdrop, 4-strip border, header/body/(desc)/footer
     // bands with 2px dividers, flush-left header ribbon + // stripes, optional DisplayFont
     // ribbon title, and bottom inner shadow.
-    void drawModalFrame(const ModalFrame& f, const char* title = NULL);
+    void drawModalFrame(const ModalFrame& f, const char* title = NULL, float dy = 0.0f, float alpha = 1.0f);
 
     // Flush-left slanted header ribbon + twin "//" diagonal stripes.
     void drawHeaderRibbon(float inL43, float right43, float topY, float height, gfx::Rgba topCol, gfx::Rgba botCol);
 
-    // Draws the legacy panel layout (recordings browser). When `withFooter` is
-    // false, the rows band fills the full height down to the bottom border.
-    void drawMenuPanel(bool withFooter = false);
-
+#ifndef TM_MODULE_MENU
     // CRT-safe metallic bevel bar: 2-stop vertical gradient with 2px top sheen
     // and 2px bottom shadow (zero 1px horizontal lines for flicker-free 480i).
     void drawBevelBar(float x, float y, float width, float height, gfx::Rgba topCol, gfx::Rgba botCol,
                       gfx::Rgba sheenCol, gfx::Rgba edgeCol);
+#endif
 
     // Stock P+ ~24 deg slanted vertical-gradient quad in 2D screen coordinates.
     void drawSlantGradV(float x0Top, float x0Bot, float x1Top, float x1Bot, float y0, float y1, gfx::Rgba topCol,
@@ -472,7 +452,9 @@ namespace style {
     void drawScrollBarAt(float left43, float topY, float height, int count, int scroll, int visible,
                          gfx::Rgba trackCol, gfx::Rgba thumbTop, gfx::Rgba thumbBot);
 
+#if defined(TM_MODULE_MENU) || !defined(__MWERKS__)
     void drawScrollBar(int count, int scroll, int visible = kVisibleRows, float height = kScrollH);
+#endif
 }
 }
 }

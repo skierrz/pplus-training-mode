@@ -810,6 +810,8 @@ namespace osdQuick {
         sound(game::kSoundMove);
     }
 
+    static ui::style::ModalAnim s_anim;
+
     void attach()
     {
         s_open = false;
@@ -820,6 +822,7 @@ namespace osdQuick {
         s_scroll = 0;
         memset(s_rep, 0, sizeof(s_rep));
         s_statusNote = NULL;
+        ui::style::modalAnimReset(s_anim);
     }
 
     void detach()
@@ -838,6 +841,7 @@ namespace osdQuick {
         s_cursor = 0;
         s_scroll = 0;
         memset(s_rep, 0, sizeof(s_rep));
+        ui::style::modalAnimOpen(s_anim);
         gfx::forgetWidths();
         TM_LOG("osdquick: opened for port %d\n", port + 1);
     }
@@ -971,20 +975,23 @@ namespace osdQuick {
             return;
         }
 
+        float alpha = 1.0f;
+        float dy = modalAnimStep(s_anim, alpha);
+
         // Smoked-charcoal v1 Direction A modal panel (5% CRT safe, >= 2px scanlines).
         static const ModalFrame kFrame = {
             56.0f, 584.0f, 34.0f, 446.0f, 71.0f, 379.0f, 407.0f, 326.0f, kLabModalBackdrop
         };
         const float inL43 = kFrame.left43 + kLabBorder;
         const float inR43 = kFrame.right43 - kLabBorder;
-        const float inTop = kFrame.topY + kLabBorder;
-        const float inBot = kFrame.botY - kLabBorder;
-        const float bodyTop = kFrame.hdrBot + kFibHair;
-        const float descTop = kFrame.descTop;
-        const float footTop = kFrame.footTop;
-        drawModalFrame(kFrame, "Quick Overlays");
+        const float inTop = kFrame.topY + dy + kLabBorder;
+        const float inBot = kFrame.botY + dy - kLabBorder;
+        const float bodyTop = kFrame.hdrBot + dy + kFibHair;
+        const float descTop = kFrame.descTop + dy;
+        const float footTop = kFrame.footTop + dy;
+        drawModalFrame(kFrame, "Quick Overlays", dy, alpha);
 
-        float hdrMid = (inTop + kFrame.hdrBot) * 0.5f;
+        float hdrMid = (inTop + kFrame.hdrBot + dy) * 0.5f;
         const char* sub = s_statusNote != NULL ? s_statusNote : "Saves to SD on exit";
         float subScale = scaleForCap(kTypeMeta);
         float subW = gfx::textWidth(sub, subScale);
@@ -1010,19 +1017,23 @@ namespace osdQuick {
 
         for (int r = 0; r < kVisibleRows && s_scroll + r < kRowCount; r++)
         {
+            float y = rowTop + r * rowPitch;
+            drawSlantBar(hlLeft43, hlRight43, y, rowH, false, kLabRowSlateTop, kLabRowSlateBot, kLabRowSlateEdge);
+        }
+        if (s_cursor >= s_scroll && s_cursor < s_scroll + kVisibleRows)
+        {
+            float targetY = (kFrame.hdrBot + kFibHair + 20.0f) + (s_cursor - s_scroll) * rowPitch;
+            float barY = modalAnimCursor(s_anim, targetY) + dy;
+            drawGoldBar(hlLeft43, hlRight43, barY, rowH, 8.5f, false, pillLeft43 + 4.5f);
+        }
+
+        for (int r = 0; r < kVisibleRows && s_scroll + r < kRowCount; r++)
+        {
             int idx = s_scroll + r;
             const QuickRow& row = kRows[idx];
             float y = rowTop + r * rowPitch;
             bool sel = idx == s_cursor;
             bool on = rowEnabled(idx);
-            if (sel)
-            {
-                drawGoldBar(hlLeft43, hlRight43, y, rowH, 8.5f, false, pillLeft43 + 4.5f);
-            }
-            else
-            {
-                drawSlantBar(hlLeft43, hlRight43, y, rowH, false, kLabRowSlateTop, kLabRowSlateBot, kLabRowSlateEdge);
-            }
 
             u8 v = readRowValue(row);
             bool isHi = quickRowHighlighted(row, v);

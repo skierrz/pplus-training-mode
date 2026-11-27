@@ -21,6 +21,7 @@ namespace ui {
     static u8 s_ctrlType = 0;
     static u8 s_waitNeutral = 1;
     static u8 s_dirHeld = 0;
+    static ModalAnim s_anim;
 
     void settingsModalAttach()
     {
@@ -28,6 +29,11 @@ namespace ui {
         s_ctrlType = 0;
         s_waitNeutral = 1;
         s_dirHeld = 0;
+        modalAnimReset(s_anim);
+        if (storage::settingsUpgradePending())
+        {
+            modalAnimOpen(s_anim);
+        }
     }
 
     bool settingsModalOpen()
@@ -79,6 +85,7 @@ namespace ui {
         {
             menuSound(game::kSoundConfirm);
             storage::settingsUpgradeApply(s_cursor);
+            modalAnimClose(s_anim);
             return true;
         }
         return false;
@@ -92,10 +99,14 @@ namespace ui {
 
     void settingsModalDraw()
     {
-        if (!storage::settingsUpgradePending() || gfx::lineHeight(scaleForCap(10.5f)) <= 0.0f)
+        bool pending = storage::settingsUpgradePending();
+        if ((!pending && s_anim.exit == 0) || gfx::lineHeight(scaleForCap(10.5f)) <= 0.0f)
         {
             return;
         }
+
+        float alpha = 1.0f;
+        float dy = modalAnimStep(s_anim, alpha);
 
         // Smoked-charcoal v1 Direction A upgrade modal (5% CRT safe, >= 2px scanlines).
         static const ModalFrame kFrame = {
@@ -103,12 +114,19 @@ namespace ui {
         };
         const float inL43 = kFrame.left43 + kLabBorder;
         const float inR43 = kFrame.right43 - kLabBorder;
-        const float inTop = kFrame.topY + kLabBorder;
-        drawModalFrame(kFrame, "Update Saved Settings");
+        const float inTop = kFrame.topY + dy + kLabBorder;
+        if (!pending)
+        {
+            gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, scaleAlpha(kLabModalBackdropHeavy, alpha));
+            drawFrameBorder(kFrame.left43, kFrame.right43, kFrame.topY + dy, kFrame.botY + dy, kLabBorder,
+                            scaleAlpha(kLabBorderColor, alpha));
+            return;
+        }
+        drawModalFrame(kFrame, "Update Saved Settings", dy, alpha);
 
         float ss = scaleForCap(kTypeMeta);
-        const char* sub = "Settings from an older build were found on SD.";
-        gfx::text(320.0f - gfx::textWidth(sub, ss) * 0.5f, textYForCap(144.0f, ss), sub, kLabDescText, ss);
+        drawFitText(320.0f, textYForCap(144.0f + dy, ss), "Settings from an older build were found on SD.",
+                    kLabDescText, ss, 420.0f, true);
 
         // 3 v1 Direction A slanted choice cards (Solo-Gold focused / dark-slate unselected).
         static const char* const kTitles[3] = {
@@ -128,27 +146,27 @@ namespace ui {
         const float cardL43 = inL43 + kFibPad;
         const float cardR43 = inR43 - kFibPad;
         const float cardH = 48.0f;
+        const float cardStep = cardH + kFibGap;
         float textX = cx(cardL43 + 34.0f);
         float textMaxW = w(348.0f);
+        float barY = modalAnimCursor(s_anim, 169.0f + s_cursor * cardStep) + dy;
         for (int i = 0; i < 3; i++)
         {
-            float y = 169.0f + i * (cardH + kFibGap);
+            drawSlantBar(cardL43, cardR43, 169.0f + i * cardStep + dy, cardH, false, kLabRowSlateTop, kLabRowSlateBot,
+                         kLabRowSlateEdge);
+        }
+        drawGoldBar(cardL43, cardR43, barY, cardH, 9.0f, false, cardR43 - 10.0f);
+        for (int i = 0; i < 3; i++)
+        {
+            float y = 169.0f + i * cardStep + dy;
             bool sel = i == s_cursor;
-            if (sel)
-            {
-                drawGoldBar(cardL43, cardR43, y, cardH, 9.0f, false, cardR43 - 10.0f);
-            }
-            else
-            {
-                drawSlantBar(cardL43, cardR43, y, cardH, false, kLabRowSlateTop, kLabRowSlateBot, kLabRowSlateEdge);
-            }
             fitText(textX, y + kFibGap, kTitles[i], sel ? kLabGoldInk : kText, kTypeBody, textMaxW);
             fitText(textX, y + 27.0f, subs[i], sel ? kLabGoldInkMuted : kLabMutedText, kTypeMeta, textMaxW);
         }
 
         // Unified glossy vector footer emblems (neutral silver D-Pad pill + green glossy A/2).
         float fx = cx(inL43 + kFibPad);
-        float footMid = 351.0f + kFibBandH * 0.5f;
+        float footMid = 351.0f + dy + kFibBandH * 0.5f;
         u8 dpadFlags = kBadgeTightGap | kBadgeWidePad;
         u8 btnFlags = kBadgeRound | kBadgeTightGap | kBadgeWidePad;
         fx = drawFooterBadge(fx, footMid, 16.0f, "D-Pad", "Choose", kBtnLight, dpadFlags);

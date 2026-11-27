@@ -160,13 +160,18 @@ namespace ui {
     // page (the caller decides whether that closes the menu).
     bool menuStep(const MenuDef& def, MenuState& state, const MenuInput& in);
 
+#ifndef __MWERKS__
     // Rewinds to the top page, then opens `path` (page ids below the top)
     // through its rows; false, changing nothing, if a row on the way is
-    // disabled.
+    // disabled. Used by host tests only.
     bool menuJump(const MenuDef& def, MenuState& state, const u8* path, int count);
+#endif
 
     // Draws the menu in the 2D pass (inside gfx::begin()/end()).
     void menuDraw(const MenuDef& def, MenuState& state);
+    // Triggers 8f open settle (open=true) or 4f fast non-blocking exit (open=false).
+    void menuAnim(bool open);
+    void menuDrawClosing();
 
     // The row whose function A is running (for rows that share one).
     int activeRow();

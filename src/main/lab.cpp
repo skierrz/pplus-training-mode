@@ -650,6 +650,7 @@ namespace lab {
         TM_LOG("lab: menu opened by port %d (%s) on page %d (%s) row %d, depth %d, main row %d, rail %d\n", port + 1,
                start ? "Start" : "Z in pause", shown, ui::labMenu().pages[shown]->title, net.menu.cursor[shown],
                net.menu.depth, net.menu.railFocus ? net.menu.railCursor : net.menu.category, net.menu.railFocus ? 1 : 0);
+        ui::menuAnim(true);
         ui::menuSound(game::kSoundOpen);
     }
 
@@ -700,6 +701,7 @@ namespace lab {
         // is let go, so it neither moves Training's menu nor the fighters.
         latchReleaseWaits();
         TM_LOG("lab: menu closed\n");
+        ui::menuAnim(false);
         storage::settingsMenuClosed();
     }
 #pragma force_active reset
@@ -1978,10 +1980,11 @@ namespace lab {
                         TM_PERF_SCOPE(kMenuDraw);
                         ui::menuDraw(ui::labMenu(), net.menu);
                     }
-                    if (modal)
+                    else if (!modal)
                     {
-                        ui::settingsModalDraw();
+                        ui::menuDrawClosing();
                     }
+                    ui::settingsModalDraw();
                 }
                 else if (!m.paused && !st.open)
                 {

@@ -23,6 +23,7 @@ namespace style {
 #ifdef __MWERKS__
 #pragma dont_inline on
 #endif
+#ifndef TM_MODULE_MENU
     void drawBevelBar(float x, float y, float width, float height, gfx::Rgba topCol, gfx::Rgba botCol,
                       gfx::Rgba sheenCol, gfx::Rgba edgeCol)
     {
@@ -30,6 +31,7 @@ namespace style {
         gfx::fillRect(x, y, width, 2.0f, sheenCol);
         gfx::fillRect(x, y + height - 2.0f, width, 2.0f, edgeCol);
     }
+#endif
 
     void drawSlantGradV(float x0Top, float x0Bot, float x1Top, float x1Bot, float y0, float y1, gfx::Rgba topCol,
                         gfx::Rgba botCol)
@@ -167,34 +169,6 @@ namespace style {
         }
     }
 
-    void drawMenuPanel(bool withFooter)
-    {
-        float ms = menuScale();
-        float left = mapX(kPanelLeft, ms);
-        float right = mapX(kPanelRight, ms);
-        float bx = kBorderX * ms;
-        float width = right - left;
-        float innerH = kPanelBottom - kPanelTop - 2.0f * kBorderY;
-        gfx::fillRect(left, kPanelTop, width, kBorderY, kBorder);
-        gfx::fillRect(left, kPanelBottom - kBorderY, width, kBorderY, kBorder);
-        gfx::fillRect(left, kPanelTop + kBorderY, bx, innerH, kBorder);
-        gfx::fillRect(right - bx, kPanelTop + kBorderY, bx, innerH, kBorder);
-        float x0 = left + bx;
-        float iw = width - 2.0f * bx;
-        float top = kPanelTop + kBorderY;
-        float bottom = kPanelBottom - kBorderY;
-        gfx::fillRect(x0, top, iw, kTitleBandBottom - top, kTitleBand);
-        if (withFooter)
-        {
-            gfx::fillRect(x0, kTitleBandBottom, iw, kRowsBandBottom - kTitleBandBottom, kRowsBand);
-            gfx::fillRect(x0, kRowsBandBottom, iw, bottom - kRowsBandBottom, kFooterBand);
-        }
-        else
-        {
-            gfx::fillRect(x0, kTitleBandBottom, iw, bottom - kTitleBandBottom, kRowsBand);
-        }
-    }
-
     void drawGoldBar(float x043, float x143, float y, float h, float cursorSize, bool flushLeft, float stripeRight43)
     {
         float ms = menuScale();
@@ -218,42 +192,49 @@ namespace style {
                         3.5f * ms, kLabStripeCol);
     }
 
-    void drawModalFrame(const ModalFrame& f, const char* title)
+    void drawModalFrame(const ModalFrame& f, const char* title, float dy, float alpha)
     {
         if (f.backdrop != 0)
         {
-            gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, f.backdrop);
+            gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, scaleAlpha(f.backdrop, alpha));
         }
-        drawFrameBorder(f.left43, f.right43, f.topY, f.botY, kLabBorder, kLabBorderColor);
+        float topY = f.topY + dy;
+        float botY = f.botY + dy;
+        float hdrBot = f.hdrBot + dy;
+        float descTop = f.descTop > 0.0f ? (f.descTop + dy) : 0.0f;
+        float footTop = f.footTop + dy;
+        drawFrameBorder(f.left43, f.right43, topY, botY, kLabBorder, kLabBorderColor);
         float ms = menuScale();
         float inL43 = f.left43 + kLabBorder;
-        float inTop = f.topY + kLabBorder;
-        float inBot = f.botY - kLabBorder;
+        float inTop = topY + kLabBorder;
+        float inBot = botY - kLabBorder;
         float bodyX = mapX(inL43, ms);
         float bodyW = (f.right43 - f.left43 - 2.0f * kLabBorder) * ms;
-        float bodyTop = f.hdrBot + kFibHair;
-        float bodyEnd = f.descTop > 0.0f ? f.descTop : f.footTop;
+        float bodyTop = hdrBot + kFibHair;
+        float bodyEnd = descTop > 0.0f ? descTop : footTop;
 
-        gfx::fillGradV(bodyX, inTop, bodyW, f.hdrBot - inTop, kLabHeaderTop, kLabHeaderBot);
-        gfx::fillRect(bodyX, f.hdrBot, bodyW, kFibHair, kLabDivider);
+        gfx::fillGradV(bodyX, inTop, bodyW, hdrBot - inTop, kLabHeaderTop, kLabHeaderBot);
+        gfx::fillRect(bodyX, hdrBot, bodyW, kFibHair, kLabDivider);
         gfx::fillGradV(bodyX, bodyTop, bodyW, bodyEnd - bodyTop, kLabBaseTop, kLabBaseBot);
-        if (f.descTop > 0.0f)
+#if defined(TM_MODULE_MENU) || !defined(__MWERKS__)
+        if (descTop > 0.0f)
         {
-            gfx::fillRect(bodyX, f.descTop, bodyW, kFibHair, kLabDivider);
-            gfx::fillGradV(bodyX, f.descTop + kFibHair, bodyW, f.footTop - f.descTop - kFibHair, kLabDescTopCol,
+            gfx::fillRect(bodyX, descTop, bodyW, kFibHair, kLabDivider);
+            gfx::fillGradV(bodyX, descTop + kFibHair, bodyW, footTop - descTop - kFibHair, kLabDescTopCol,
                            kLabDescBotCol);
         }
-        gfx::fillRect(bodyX, f.footTop, bodyW, kFibHair, kLabDivider);
-        gfx::fillGradV(bodyX, f.footTop + kFibHair, bodyW, inBot - f.footTop - kFibHair, kLabFooterTopCol,
+#endif
+        gfx::fillRect(bodyX, footTop, bodyW, kFibHair, kLabDivider);
+        gfx::fillGradV(bodyX, footTop + kFibHair, bodyW, inBot - footTop - kFibHair, kLabFooterTopCol,
                        kLabFooterBotCol);
         if (f.ribbonRight43 > 0.0f)
         {
-            drawHeaderRibbon(inL43, f.ribbonRight43, inTop, f.hdrBot - inTop, kLabTealTop, kLabTealBot);
+            drawHeaderRibbon(inL43, f.ribbonRight43, inTop, hdrBot - inTop, kLabTealTop, kLabTealBot);
         }
         if (title != NULL)
         {
             float titleScale = displayScaleForCap(kTypeHeading);
-            float hdrMid = (inTop + f.hdrBot) * 0.5f;
+            float hdrMid = (inTop + hdrBot) * 0.5f;
             gfx::displayText(mapX(inL43 + kFibPad, ms), displayYForCap(hdrMid - kTypeHeading * 0.5f, titleScale),
                              title, kLabActiveTabText, kLabActiveTabText, titleScale, titleScale, 0.0f, 0);
         }
@@ -338,9 +319,70 @@ namespace style {
         gfx::fillGradV(left + ms, thumbY, width - 2.0f * ms, length, thumbTop, thumbBot);
     }
 
+#if defined(TM_MODULE_MENU) || !defined(__MWERKS__)
     void drawScrollBar(int count, int scroll, int visible, float height)
     {
         drawScrollBarAt(kScrollLeft, kScrollTop, height, count, scroll, visible, kLabDivider, kLabTealTop, kLabTealBot);
+    }
+#endif
+
+    float easeOutCubic(float t)
+    {
+        float u = t <= 0.0f ? 1.0f : (t >= 1.0f ? 0.0f : 1.0f - t);
+        return 1.0f - u * u * u;
+    }
+
+    float easeOutQuart(float t)
+    {
+        float u = t <= 0.0f ? 1.0f : (t >= 1.0f ? 0.0f : 1.0f - t);
+        float u2 = u * u;
+        return 1.0f - u2 * u2;
+    }
+
+    float chase60(float cur, float target, float alpha)
+    {
+        float d = target - cur;
+        return (d > -0.25f && d < 0.25f) ? target : (cur + d * alpha);
+    }
+
+    float snapPx(float v)
+    {
+        return static_cast<float>(static_cast<int>(v + 1024.5f) - 1024);
+    }
+
+    gfx::Rgba scaleAlpha(gfx::Rgba c, float a)
+    {
+        int m = static_cast<int>(a * 256.0f + 0.5f);
+        if (m >= 256)
+        {
+            return c;
+        }
+        return (c & 0xFFFFFF00u) | (m <= 0 ? 0u : (((c & 0xFFu) * static_cast<u32>(m)) >> 8));
+    }
+
+    float modalAnimStep(ModalAnim& a, float& alphaOut)
+    {
+        if (a.enter > 0)
+        {
+            float t = easeOutCubic(static_cast<float>(9 - a.enter--) / 8.0f);
+            alphaOut = 0.25f + 0.75f * t;
+            return static_cast<float>(-static_cast<int>((1.0f - t) * 6.0f + 0.5f));
+        }
+        if (a.exit > 0)
+        {
+            float t = easeOutQuart(static_cast<float>(5 - a.exit--) / 4.0f);
+            alphaOut = 1.0f - t;
+            return static_cast<float>(static_cast<int>(t * 4.0f + 0.5f));
+        }
+        alphaOut = 1.0f;
+        return 0.0f;
+    }
+
+    float modalAnimCursor(ModalAnim& a, float targetY)
+    {
+        a.cursorY = a.hasCursor ? chase60(a.cursorY, targetY, 0.44f) : targetY;
+        a.hasCursor = 1;
+        return a.cursorY;
     }
 #ifdef __MWERKS__
 #pragma dont_inline reset

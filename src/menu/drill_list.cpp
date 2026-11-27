@@ -628,6 +628,20 @@ namespace list {
     static Repeat s_repeat[2];
     static bool s_fresh = false; // no presses on the first capture after attach
 
+    // Budgeted 16-byte boot menu motion state (<= 24 B): 9f open + 6f stagger,
+    // 5f non-blocking exit -> 6f CSS pill settle, chase60 cursor, 7f L/R slide.
+    struct ListAnim {
+        float barY;
+        float slideX;
+        u8 openTick;
+        u8 closeTick;
+        u8 pillTick;
+        u8 modalExitTick;
+        u8 valid;
+        u8 pad[3];
+    };
+    static ListAnim s_anim;
+
     static u32 activeType()
     {
         return (s_owner >= 0 && s_owner < kPorts && s_sys[s_owner].connected)
@@ -767,6 +781,10 @@ namespace list {
         s_scroll = 0;
         keepRowVisible();
         s_repeat[0].held = s_repeat[1].held = 0;
+        s_anim.openTick = 9;
+        s_anim.closeTick = 0;
+        s_anim.slideX = 0.0f;
+        s_anim.valid = 0;
         gfx::forgetWidths();
         TM_LOG("drills: list opened (%s) for port %d, row %d %s\n", how, s_owner + 1, s_row, current().name);
     }
@@ -785,6 +803,9 @@ namespace list {
     static void close(const char* why)
     {
         s_open = false;
+        s_anim.openTick = 0;
+        s_anim.closeTick = 5;
+        s_anim.pillTick = 6;
         session().labChosen = 1;
         remember();
         holdBackHeld();
@@ -839,6 +860,8 @@ namespace list {
         s_row = 0;
         s_scroll = 0;
         s_repeat[0].held = s_repeat[1].held = 0;
+        s_anim.slideX = delta > 0 ? 12.0f : -12.0f;
+        s_anim.valid = 0;
         gfx::forgetWidths();
         TM_LOG("drills: page %s\n", currentSection().name);
         sound(game::kSoundMove);
@@ -938,6 +961,7 @@ namespace list {
             }
             else if (!browser::isOpen())
             {
+                s_anim.modalExitTick = 4;
                 resetWaitRelease();
                 gfx::forgetWidths();
             }
@@ -953,6 +977,7 @@ namespace list {
             osdQuick::step(s_owner, oi);
             if (!osdQuick::isOpen())
             {
+                s_anim.modalExitTick = 4;
                 resetWaitRelease();
                 gfx::forgetWidths();
             }
@@ -1259,32 +1284,49 @@ namespace list {
         float inSlantPx = w((kColRowH - 4.0f) * kSlantTan);
         float textX = cx(kColTextX);
         float textMaxW = cx(kColBarRight - 30.0f) - textX;
+        float slidePx = w(s_anim.slideX);
+        float openElapsed = s_anim.openTick > 0 ? static_cast<float>(9 - s_anim.openTick) : 9.0f;
+        float rowOff[kVisibleRows];
+
+        // Draw unselected dark-slate plates first (capped <= 6f stagger on open, never blocks input).
+        for (int r = 0; r < kVisibleRows && s_scroll + r < sec.count; r++)
+        {
+            float staggerT = s_anim.openTick > 0 ? easeOutCubic((openElapsed - r * 0.45f) / 4.5f) : 1.0f;
+            float rxOff = slidePx - w((1.0f - staggerT) * 10.0f);
+            rowOff[r] = rxOff;
+            float y = kColTop + r * kColPitch;
+            drawSlantGradV(x0Top + rxOff, x0Bot + rxOff, x1Top + rxOff, x1Bot + rxOff, y, y + kColRowH,
+                           kLabBorderColor, kLabBorderColor);
+            drawSlantGradV(ix0Top + rxOff, ix0Bot + rxOff, ix1Top + rxOff, ix1Bot + rxOff, y + kFibHair,
+                           y + kColRowH - kFibHair, kRowFillTop, kRowFillBot);
+        }
+
+        // Gliding Solo-Gold cursor bar (chase60(0.44f), snapped at rest via snapPx).
+        if (s_row >= s_scroll && s_row < s_scroll + kVisibleRows && s_row < sec.count)
+        {
+            float targetY = kColTop + (s_row - s_scroll) * kColPitch;
+            s_anim.barY = s_anim.valid ? chase60(s_anim.barY, targetY, 0.44f) : targetY;
+            s_anim.valid = 1;
+            float by = s_anim.barY == targetY ? snapPx(targetY) : s_anim.barY;
+            drawSlantGradV(x0Top + slidePx, x0Bot + slidePx, x1Top + slidePx, x1Bot + slidePx, by, by + kColRowH,
+                           kLabGoldEdge, kLabGoldEdge);
+            drawSlantGradV(ix0Top + slidePx, ix0Bot + slidePx, ix1Top + slidePx, ix1Bot + slidePx, by + kFibHair,
+                           by + kColRowH - kFibHair, kLabGoldTop, kLabGoldBot);
+            drawDiagStripes(ix1Top + slidePx - w(kFibTight), by + kFibHair, by + kColRowH - kFibHair, inSlantPx,
+                            w(4.5f), w(3.5f), kLabStripeCol);
+            drawCursorTri(cx(kColLeft + slant * 0.55f + 1.5f) + slidePx, by + kColRowH * 0.5f, 8.0f);
+        }
 
         for (int r = 0; r < kVisibleRows && s_scroll + r < sec.count; r++)
         {
             int idx = s_scroll + r;
             bool selected = idx == s_row;
+            float rxOff = selected ? slidePx : rowOff[r];
             float y = kColTop + r * kColPitch;
-            if (selected)
-            {
-                drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + kColRowH, kLabGoldEdge, kLabGoldEdge);
-                drawSlantGradV(ix0Top, ix0Bot, ix1Top, ix1Bot, y + kFibHair, y + kColRowH - kFibHair, kLabGoldTop,
-                               kLabGoldBot);
-                drawDiagStripes(ix1Top - w(kFibTight), y + kFibHair, y + kColRowH - kFibHair, inSlantPx, w(4.5f),
-                                w(3.5f), kLabStripeCol);
-                drawCursorTri(cx(kColLeft + slant * 0.55f + 1.5f), y + kColRowH * 0.5f, 8.0f);
-            }
-            else
-            {
-                drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + kColRowH, kLabBorderColor, kLabBorderColor);
-                drawSlantGradV(ix0Top, ix0Bot, ix1Top, ix1Bot, y + kFibHair, y + kColRowH - kFibHair, kRowFillTop,
-                               kRowFillBot);
-            }
-
             const char* name = rowAt(sec, idx).name;
             float nw = boldWidth(name, scale);
             float sx = nw > textMaxW && nw > 0.0f ? scale * textMaxW / nw : scale;
-            boldText(textX, textYForCap(y + capOffset, scale), name, selected ? kLabGoldInk : kText, sx, scale);
+            boldText(textX + rxOff, textYForCap(y + capOffset, scale), name, selected ? kLabGoldInk : kText, sx, scale);
         }
 
         if (sec.count > kVisibleRows)
@@ -1493,12 +1535,31 @@ namespace list {
         {
             return;
         }
+        float openA = 1.0f;
+        if (s_anim.openTick > 0)
+        {
+            openA = 0.25f + 0.75f * easeOutCubic(static_cast<float>(10 - s_anim.openTick) / 9.0f);
+        }
+        if (s_anim.slideX != 0.0f)
+        {
+            s_anim.slideX = chase60(s_anim.slideX, 0.0f, 0.42f);
+        }
         u32 type = activeType();
-        gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, kBackdropDim);
+        gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, scaleAlpha(kBackdropDim, openA));
         drawBanner(type);
         drawLeftColumn();
         drawDetailsCard();
         drawFooterStrip(type);
+        if (s_anim.openTick > 0)
+        {
+            s_anim.openTick--;
+        }
+        if (s_anim.modalExitTick > 0)
+        {
+            float mt = easeOutQuart(static_cast<float>(5 - s_anim.modalExitTick) / 4.0f);
+            gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, scaleAlpha(kLabModalBackdrop, (1.0f - mt) * 0.6f));
+            s_anim.modalExitTick--;
+        }
     }
 
     static u32 preferredPadType()
@@ -1599,15 +1660,24 @@ namespace list {
         float modeSx = modeW > modeDrawW && modeW > 0.0f ? scale * modeDrawW / modeW : scale;
         float pillW = fixedW + modeDrawW;
         float pillH = 22.0f;
-        float topY = 58.0f;
-        float leftX = rightX - pillW;
+        float pillA = 1.0f;
+        float pillDy = 0.0f;
+        if (s_anim.pillTick > 0)
+        {
+            float pt = easeOutCubic(static_cast<float>(7 - s_anim.pillTick) / 6.0f);
+            pillA = 0.25f + 0.75f * pt;
+            pillDy = snapPx((1.0f - pt) * -6.0f);
+            s_anim.pillTick--;
+        }
+        float topY = 58.0f + pillDy;
+        float leftX = snapPx(rightX - pillW);
         float bx = w(kFibHair);
 
         // Flat Direction A smoked plate with crisp 2px border (matching panel borders).
-        gfx::fillRect(leftX, topY, pillW, pillH, kLabBorderColor);
-        gfx::fillGradV(leftX + bx, topY + kFibHair, pillW - 2.0f * bx, pillH - 2.0f * kFibHair, kLabHeaderTop,
-                       kLabHeaderBot);
-        gfx::fillRect(leftX + bx, topY + kFibHair, pillW - 2.0f * bx, kFibHair, kLabBevelLight);
+        gfx::fillRect(leftX, topY, pillW, pillH, scaleAlpha(kLabBorderColor, pillA));
+        gfx::fillGradV(leftX + bx, topY + kFibHair, pillW - 2.0f * bx, pillH - 2.0f * kFibHair,
+                       scaleAlpha(kLabHeaderTop, pillA), scaleAlpha(kLabHeaderBot, pillA));
+        gfx::fillRect(leftX + bx, topY + kFibHair, pillW - 2.0f * bx, kFibHair, scaleAlpha(kLabBevelLight, pillA));
 
         float midY = topY + pillH * 0.5f;
         float ty = textYForCap(midY - 4.25f, scale);
@@ -1650,6 +1720,12 @@ namespace list {
             if (training::selectRunning())
             {
                 gfx::begin();
+                if (s_anim.closeTick > 0)
+                {
+                    float ct = easeOutQuart(static_cast<float>(6 - s_anim.closeTick) / 5.0f);
+                    gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, scaleAlpha(kBackdropDim, 1.0f - ct));
+                    s_anim.closeTick--;
+                }
                 drawPending();
                 gfx::end();
             }
@@ -1680,6 +1756,7 @@ namespace list {
         s_rebuilding = false;
         s_exiting = false;
         s_fresh = true;
+        memset(&s_anim, 0, sizeof(s_anim));
         s_test.magic = kTestMagic;
         s_test.request = 0;
         s_test.result = 0;

@@ -138,11 +138,12 @@ def band_colour(path, y_frac, x0_frac, x1_frac):
     return tuple(t / n for t in total)
 
 
-def row_highlighted(path, row, x0=260.0, x1=295.0):
-    """True if the boot menu's solid P+ yellow highlight (0xFFD300FF) is on
-    visible row `row` (kColTop = 100, kColPitch = 30, kColRowH = 26)."""
-    centre = 100.0 + 26.0 / 2.0 + row * 30.0
-    r, g, b = band_colour(path, centre / 480.0, x0 / 640.0, x1 / 640.0)
+def row_highlighted(path, row, x0=170.0, x1=224.0):
+    """True if the boot menu's solid P+ Solo-Gold highlight is on visible row `row`
+    (kColTop = 94, kColPitch = 31, kColRowH = 26, kColLeft = 36..256). Samples the
+    unobstructed top gold strip clear of row text and right diagonal stripes."""
+    sample_y = 94.0 + 4.5 + row * 31.0
+    r, g, b = band_colour(path, sample_y / 480.0, x0 / 640.0, x1 / 640.0)
     return r > 200 and g > 165 and b < 60, (round(r), round(g), round(b))
 
 
@@ -218,8 +219,8 @@ def check_list_screens(emu, taken, notes):
     if last_row(emu) != 3:
         raise nav.NavError(f"Down at bottom Offense row moved off row 3 to {last_row(emu)}")
     path = shot(emu, taken, "drills-list-offense-bottom")
-    hi3, c3 = row_highlighted(path, 3, x0=278.0, x1=298.0)
-    hi2, c2 = row_highlighted(path, 2, x0=278.0, x1=298.0)
+    hi3, c3 = row_highlighted(path, 3)
+    hi2, c2 = row_highlighted(path, 2)
     if not hi3 or hi2:
         raise nav.NavError(f"the highlight is not on Offense row 3 alone (row 2 {c2}, row 3 {c3})")
 

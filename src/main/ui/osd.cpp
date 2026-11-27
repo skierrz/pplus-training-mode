@@ -327,6 +327,14 @@ namespace osd {
         return false;
     }
 
+    static gfx::Rgba fadeA(gfx::Rgba c, u32 a256)
+    {
+        return a256 >= 256u ? c : ((c & 0xFFFFFF00u) | (((c & 0xFFu) * a256) >> 8));
+    }
+
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     static void drawMessage(Message& m, s32 now, float scale, float floorY, float topY, int playerCount,
                             const ThemeColors& t, bool& hasPrevBot, float& prevBot)
     {
@@ -336,10 +344,6 @@ namespace osd {
         float exitSlide = 0.0f;
         if (age >= kLifetime)
         {
-            if (frozen)
-            {
-                return;
-            }
             float exitT = ui::style::easeOutQuart(static_cast<float>(age - kLifetime) / kExitFrames);
             alpha = 1.0f - exitT;
             if (alpha <= 0.01f)
@@ -352,6 +356,7 @@ namespace osd {
         {
             alpha = ui::style::easeOutCubic(static_cast<float>(age + 1) / kEnterFrames);
         }
+        u32 a256 = alpha >= 0.999f ? 256u : static_cast<u32>(alpha * 256.0f);
 
         float xs = gfx::xScale();
         float ws = widthScale(xs);
@@ -363,18 +368,8 @@ namespace osd {
         float cy = at.y + slot * at.dy;
         if (exitSlide > 0.0f)
         {
-            if (at.dy < 0.0f)
-            {
-                cy -= exitSlide;
-            }
-            else if (at.dx > 0.0f)
-            {
-                cx += exitSlide;
-            }
-            else if (at.dx < 0.0f)
-            {
-                cx -= exitSlide;
-            }
+            if (at.dy < 0.0f) cy -= exitSlide;
+            else if (at.dx != 0.0f) cx += at.dx > 0.0f ? exitSlide : -exitSlide;
         }
         bool atRest = frozen || (now - m.moved + 1 >= kGlideFrames && age < kLifetime);
         float left = cx - w * 0.5f;
@@ -390,14 +385,10 @@ namespace osd {
         // keep bottom anchored and reveal the entering card cleanly below prevBot.
         if (at.dy < 0.0f && age < kLifetime)
         {
-            float gap = (-at.dy) - kBoxHeight;
-            if (gap < 2.0f)
+            float minTop = prevBot + ((-at.dy) - kBoxHeight);
+            if (hasPrevBot && top < minTop)
             {
-                gap = 2.0f;
-            }
-            if (hasPrevBot && top < prevBot + gap)
-            {
-                top = prevBot + gap;
+                top = minTop;
                 h = bottom - top;
                 if (h <= kStrip + 2.0f)
                 {
@@ -413,31 +404,26 @@ namespace osd {
         float barY = top + h - kStrip;
         if (t.bodyColor != 0)
         {
-            gfx::Rgba bodyCol = ui::style::scaleAlpha(t.bodyColor, alpha);
-            gfx::Rgba trackCol = ui::style::scaleAlpha(t.trackColor, alpha);
-            gfx::Rgba edgeCol = ui::style::scaleAlpha(ui::style::kLabBevelLight, alpha);
-            gfx::Rgba botRule = ui::style::scaleAlpha(ui::style::kLabRowEdge, alpha);
-            gfx::fillRect(left, top, w, h - kStrip, bodyCol);
-            gfx::fillRect(left, barY, w, kStrip, trackCol);
-            // Subtle Direction A / Panel B card highlights inside the exact box bounds.
-            gfx::fillRect(left, top, w, 2.0f, edgeCol);
-            gfx::fillRect(left, barY - 1.0f, w, 1.0f, botRule);
+            gfx::fillRect(left, top, w, h - kStrip, fadeA(t.bodyColor, a256));
+            gfx::fillRect(left, barY, w, kStrip, fadeA(t.trackColor, a256));
+            // Subtle Direction A / Panel B 2px top sheen inside the exact box bounds.
+            gfx::fillRect(left, top, w, 2.0f, fadeA(ui::style::kLabBevelLight, a256));
         }
+        gfx::Rgba shCol = t.shadowColor != 0 ? fadeA(t.shadowColor, a256) : 0u;
         float life = age < kLifetime ? 1.0f - static_cast<float>(age) / kLifetime : 0.0f;
         if (life > 0.0f)
         {
             float barW = w * life;
-            if (t.shadowColor != 0)
+            if (shCol != 0)
             {
-                gfx::fillRect(left + xs, barY + 1.0f, barW, kStrip, ui::style::scaleAlpha(t.shadowColor, alpha));
+                gfx::fillRect(left + xs, barY + 1.0f, barW, kStrip, shCol);
             }
-            gfx::fillRect(left, barY, barW, kStrip, ui::style::scaleAlpha(kBar, alpha));
+            gfx::fillRect(left, barY, barW, kStrip, fadeA(kBar, a256));
         }
         // Centre the lines' capital-height block vertically inside the body (full crisp scale on exit).
         float block = (m.lines - 1) * kLinePitch + kTextCap;
         float capTop = top + (h - kStrip - block) * 0.5f;
         float y = ui::style::textYForCap(capTop, scale);
-        gfx::Rgba shCol = t.shadowColor != 0 ? ui::style::scaleAlpha(t.shadowColor, alpha) : 0u;
         for (int i = 0; i < m.lines; i++)
         {
             float lineCapTop = capTop + i * kLinePitch;
@@ -469,10 +455,13 @@ namespace osd {
             {
                 gfx::text(tx + xs, ty + 1.0f, m.text[i], shCol, sx, scale);
             }
-            gfx::text(tx, ty, m.text[i], ui::style::scaleAlpha(m.color[i], alpha), sx, scale);
+            gfx::text(tx, ty, m.text[i], fadeA(m.color[i], a256), sx, scale);
             y += kLinePitch;
         }
     }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 
     void draw()
     {
