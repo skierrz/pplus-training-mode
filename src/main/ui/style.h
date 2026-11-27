@@ -305,8 +305,35 @@ namespace style {
     // Watermark capital height (placed in hud_layout.h).
     static const float kWatermarkCap = 9.0f;
 
+    // Unified glossy GX button color themes: 0=A green, 1=B red, 2=light silver, 3=Z purple.
+    enum BtnTheme {
+        kBtnA = 0,
+        kBtnB = 1,
+        kBtnLight = 2,
+        kBtnZ = 3
+    };
+    extern const gfx::Rgba kBtnTheme[4][3];
+
+    // Smoked-charcoal v1 Direction A modal panel specification (4:3 coordinates).
+    struct ModalFrame {
+        float left43, right43, topY, botY;
+        float hdrBot;        // top of header divider (header fills inTop..hdrBot)
+        float descTop;       // top of description divider, or 0 if no description band
+        float footTop;       // top of footer divider (footer fills footTop+2..inBot)
+        float ribbonRight43; // right edge of flush-left teal header ribbon (0 = none)
+        gfx::Rgba backdrop;  // full-screen dim behind the modal (0 = none)
+    };
+
     // 4-strip opaque outer frame border around a translucent 4:3-proportioned panel.
     void drawFrameBorder(float left43, float right43, float topY, float botY, float border, gfx::Rgba color);
+
+    // Draws a v1 Direction A modal backdrop, 4-strip border, header/body/(desc)/footer
+    // bands with 2px dividers, flush-left header ribbon + // stripes, optional DisplayFont
+    // ribbon title, and bottom inner shadow.
+    void drawModalFrame(const ModalFrame& f, const char* title = NULL);
+
+    // Flush-left slanted header ribbon + twin "//" diagonal stripes.
+    void drawHeaderRibbon(float inL43, float right43, float topY, float height, gfx::Rgba topCol, gfx::Rgba botCol);
 
     // Draws the legacy panel layout (recordings browser). When `withFooter` is
     // false, the rows band fills the full height down to the bottom border.
@@ -325,8 +352,15 @@ namespace style {
     void drawSlantBar(float x043, float x143, float y, float height, bool flushLeft, gfx::Rgba topCol,
                       gfx::Rgba botCol, gfx::Rgba edgeCol);
 
+    // Slanted Solo-Gold focused row bar with red cursor triangle and optional "//" stripes.
+    void drawGoldBar(float x043, float x143, float y, float h, float cursorSize, bool flushLeft = false,
+                     float stripeRight43 = 0.0f);
+
     // Slanted v1 Direction A value pill (On green, focused light, or dark slate).
     void drawValuePill(float left43, float right43, float y, float rowH, bool isOn, bool on, bool selected);
+
+    // Left/right adjustment triangles inside a focused value pill.
+    void drawValueArrows(float pillLeft43, float pillRight43, float rowY, float rowH, gfx::Rgba col);
 
     // Twin P+ "//" diagonal stripes inside a slanted bar ending at `rightTopX`.
     void drawDiagStripes(float rightTopX, float y0, float y1, float slantPx, float stripeW, float gap,
@@ -349,6 +383,26 @@ namespace style {
         float rx = radius * gfx::xScale();
         drawGlossyPillBadge(cxPos - rx, cyPos - radius, 2.0f * rx, 2.0f * radius, topCol, botCol);
     }
+
+    // Flags for drawFooterBadge.
+    enum FooterBadgeFlags {
+        kBadgeRound = 1,
+        kBadgeTightGap = 2, // kFibTight (5 px) gap instead of kFibGap (8 px)
+        kBadgeWidePad = 4,  // kFibPad + kFibGap trailing pad instead of kFibPad
+        kBadgeDense = 8     // kTypeMicro (8 px) dense footer tier
+    };
+
+    // Draws a glossy footer button badge + label and returns the next item's x.
+    float drawFooterBadge(float x, float cy, float badgeH, const char* glyph, const char* label, u8 theme, u8 flags,
+                          gfx::Rgba labelCol = kLabMutedText);
+
+    // Horizontally squeezes `str` to fit within `maxW` (screen px) when needed.
+    void drawFitText(float x, float y, const char* str, gfx::Rgba color, float scale, float maxW,
+                     bool centre = false);
+
+    // Scrollbar at an explicit 4:3 left position, top y, height, and palette colors.
+    void drawScrollBarAt(float left43, float topY, float height, int count, int scroll, int visible,
+                         gfx::Rgba trackCol, gfx::Rgba thumbTop, gfx::Rgba thumbBot);
 
     void drawScrollBar(int count, int scroll, int visible = kVisibleRows, float height = kScrollH);
 }

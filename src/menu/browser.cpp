@@ -656,9 +656,7 @@ namespace browser {
     static void descLineAt(float capTop, const char* text, gfx::Rgba color)
     {
         float scale = scaleForCap(kTypeMeta);
-        float width = boldWidth(text, scale);
-        float sx = width > w(kFooterMaxW) ? scale * w(kFooterMaxW) / width : scale;
-        boldText(cx(kFooterX), textYForCap(capTop, scale), text, color, sx, scale);
+        drawFitText(cx(kFooterX), textYForCap(capTop, scale), text, color, scale, w(kFooterMaxW));
     }
 
     static void descLine(int line, const char* text, gfx::Rgba color)
@@ -746,70 +744,14 @@ namespace browser {
         descLine(3, line, kLabMutedText);
     }
 
-    static float drawFootBadge(float x, float cy, const char* glyph, bool round, gfx::Rgba topCol, gfx::Rgba botCol,
-                               gfx::Rgba fg, const char* label)
-    {
-        float gScale = scaleForCap(kTypeMeta);
-        float lScale = scaleForCap(kTypeMeta);
-        float glyphW = gfx::textWidth(glyph, gScale);
-        float bh = 18.0f;
-        float bw = round ? gw(bh) : (glyphW + gw(10.0f));
-        float minW = round ? gw(bh) : gw(bh + 4.0f);
-        if (bw < minW)
-        {
-            bw = minW;
-        }
-        if (round)
-        {
-            drawGlossyRoundBadge(x + bw * 0.5f, cy, bh * 0.5f, topCol, botCol);
-        }
-        else
-        {
-            drawGlossyPillBadge(x, cy - bh * 0.5f, bw, bh, topCol, botCol);
-        }
-        gfx::text(x + (bw - glyphW) * 0.5f, textYForCap(cy - kTypeMeta * 0.5f, gScale), glyph, fg, gScale);
-        float lx = x + bw + gw(kFibGap);
-        float endX = gfx::text(lx, textYForCap(cy - kTypeMeta * 0.5f, lScale), label, kLabMutedText, lScale);
-        return endX + gw(kFibPad);
-    }
-
     static void drawBrowserPanel()
     {
-        static const gfx::Rgba kBackdropDim = 0x070B12B8u;
-        const float b = kLabBorder;
-        const float inL43 = kPanelLeft + b;
-        const float inR43 = kPanelRight - b;
-        const float inTop = kPanelTop + b;
-        const float inBot = kBrowserBottom - b;
-
-        gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, kBackdropDim);
-
-        float left = cx(kPanelLeft);
-        float width = w(kPanelRight - kPanelLeft);
-        float bx = w(b);
-        gfx::fillRect(left, kPanelTop, width, b, kLabBorderColor);
-        gfx::fillRect(left, kBrowserBottom - b, width, b, kLabBorderColor);
-        gfx::fillRect(left, inTop, bx, inBot - inTop, kLabBorderColor);
-        gfx::fillRect(cx(inR43), inTop, bx, inBot - inTop, kLabBorderColor);
-
-        float x0 = cx(inL43);
-        float iw = w(inR43 - inL43);
-        float hdrBot = kTitleBandBottom - kFibHair;
-        float rowsBot = kRowsBandBottom - kFibHair;
-        gfx::fillGradV(x0, inTop, iw, hdrBot - inTop, kLabHeaderTop, kLabHeaderBot);
-        gfx::fillRect(x0, hdrBot, iw, kFibHair, kLabDivider);
-        gfx::fillGradV(x0, kTitleBandBottom, iw, rowsBot - kTitleBandBottom, kLabBaseTop, kLabBaseBot);
-        gfx::fillRect(x0, rowsBot, iw, kFibHair, kLabDivider);
-        gfx::fillGradV(x0, kRowsBandBottom, iw, kBrowserFootTop - kRowsBandBottom, kLabDescTopCol, kLabDescBotCol);
-        gfx::fillRect(x0, kBrowserFootTop, iw, kFibHair, kLabDivider);
-        gfx::fillGradV(x0, kBrowserFootTop + kFibHair, iw, inBot - (kBrowserFootTop + kFibHair), kLabFooterTopCol,
-                       kLabFooterBotCol);
-
-        // Flush-left emerald-teal slanted header ribbon + // diagonal stripes.
-        float hdrH = hdrBot - inTop;
-        float ribbonRight43 = 278.0f;
-        drawSlantBar(inL43, ribbonRight43, inTop, hdrH, true, kLabTealTop, kLabTealBot, 0);
-        drawDiagStripes(cx(ribbonRight43 - 6.0f), inTop, hdrBot, w(hdrH * 0.445f), w(4.5f), w(3.5f), kLabStripeCol);
+        static const ModalFrame kFrame = {
+            kPanelLeft, kPanelRight, kPanelTop, kBrowserBottom,
+            kTitleBandBottom - kFibHair, kRowsBandBottom - kFibHair, kBrowserFootTop,
+            278.0f, 0x070B12B8u
+        };
+        drawModalFrame(kFrame, "Recordings");
     }
 
     void draw()
@@ -831,15 +773,12 @@ namespace browser {
         int first = s_row / kPageRows * kPageRows;
         const float hlLeft43 = inL43 + kFibGap;
         const float hlRight43 = kScrollLeft - kFibTight;
-        const float slantTan = 0.445f;
         for (int r = 0; r < kPageRows && first + r < s_count; r++)
         {
             float y = kRowTop + r * kRowPitch;
-            bool selected = first + r == s_row;
-            if (selected)
+            if (first + r == s_row)
             {
-                drawSlantBar(hlLeft43, hlRight43, y, kRowBoxH, false, kLabGoldTop, kLabGoldBot, kLabGoldEdge);
-                drawCursorTri(cx(hlLeft43 + kRowBoxH * slantTan * 0.55f + 3.0f), y + kRowBoxH * 0.5f, 8.0f);
+                drawGoldBar(hlLeft43, hlRight43, y, kRowBoxH, 8.0f);
             }
             else
             {
@@ -849,10 +788,6 @@ namespace browser {
         }
         drawScrollBar(s_count, first > s_count - kVisibleRows ? (s_count > kVisibleRows ? s_count - kVisibleRows : 0)
                                                                : first);
-        float titleCap = kTypeHeading;
-        float titleScale = displayScaleForCap(titleCap);
-        gfx::displayText(cx(inL43 + kFibPad), displayYForCap(hdrMid - titleCap * 0.5f, titleScale), "Recordings",
-                         kLabActiveTabText, kLabActiveTabText, titleScale, titleScale, 0.0f, 0);
 
         // Glossy shoulder pills + page readout in the header's right half.
         bool wiiPage = (s_controllerType == gfPadType::WIIMOTE || s_controllerType == gfPadType::NUNCHUK);
@@ -885,7 +820,6 @@ namespace browser {
             const Entry& e = s_entries[first + r];
             float y = textYForCap(kRowTop + r * kRowPitch + capOffset, scale);
             title(text, sizeof(text), e);
-            float nameWidth = boldWidth(text, scale);
             gfx::Rgba nameColor = selected ? (e.status == kReady ? kLabGoldInk : kLabGoldInkMuted)
                                            : (e.status == kReady ? kText : kTextDisabled);
             gfx::Rgba rightColor = selected ? kLabGoldInkMuted : kLabMutedText;
@@ -909,8 +843,7 @@ namespace browser {
             // Keep the matchup name clear of the cursor triangle and date/duration column.
             float nameX = cx(hlLeft43 + 26.0f);
             float room = cx(kRowBoxRight) - 4.0f - gfx::textWidth(right, scale) - 9.0f - nameX;
-            float sx = nameWidth > room && nameWidth > 0.0f && room > 0.0f ? scale * room / nameWidth : scale;
-            boldText(nameX, y, name, nameColor, sx, scale);
+            drawFitText(nameX, y, name, nameColor, scale, room > 0.0f ? room : 1.0f);
         }
         drawDescription();
 
@@ -921,25 +854,19 @@ namespace browser {
         const char* backG = s_controllerType == gfPadType::WIIMOTE ? "1" : "B";
         if (s_confirm)
         {
-            fx = drawFootBadge(fx, fy, okG, true, kLabBtnBTop, kLabBtnBBot, kLabWhiteText, "Delete");
-            drawFootBadge(fx, fy, backG, true, kLabBtnLightTop, kLabBtnLightBot, kLabBtnDarkText, "Cancel");
+            fx = drawFooterBadge(fx, fy, 18.0f, okG, "Delete", kBtnB, kBadgeRound);
+            drawFooterBadge(fx, fy, 18.0f, backG, "Cancel", kBtnLight, kBadgeRound);
         }
         else
         {
             const char* delG = s_controllerType == gfPadType::WIIMOTE ? "A"
                                                                       : (s_controllerType == gfPadType::NUNCHUK ? "C" : "X");
             const char* pgG = wiiPage ? "-/+" : "L/R";
-            fx = drawFootBadge(fx, fy, okG, true, kLabBtnATop, kLabBtnABot, kLabActiveTabText, "Load");
-            fx = drawFootBadge(fx, fy, delG, true, kLabBtnLightTop, kLabBtnLightBot,
-                               kLabBtnDarkText, "Delete");
-            fx = drawFootBadge(fx, fy, backG, true, kLabBtnBTop, kLabBtnBBot, kLabWhiteText, "Back");
-            drawFootBadge(fx, fy, pgG, false, kLabBtnLightTop, kLabBtnLightBot, kLabBtnDarkText, "Page");
+            fx = drawFooterBadge(fx, fy, 18.0f, okG, "Load", kBtnA, kBadgeRound);
+            fx = drawFooterBadge(fx, fy, 18.0f, delG, "Delete", kBtnLight, kBadgeRound);
+            fx = drawFooterBadge(fx, fy, 18.0f, backG, "Back", kBtnB, kBadgeRound);
+            drawFooterBadge(fx, fy, 18.0f, pgG, "Page", kBtnLight, 0);
         }
-
-        // Bottom inner shadow matching menu.cpp (no grey bar across top emerald ribbon).
-        float x0 = cx(inL43);
-        float iw = w(inR43 - inL43);
-        gfx::fillRect(x0, inBot - kFibHair, iw, kFibHair, kLabBevelDark);
     }
 
     // ---- open / close ----

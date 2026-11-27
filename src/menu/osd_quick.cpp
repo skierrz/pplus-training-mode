@@ -946,59 +946,26 @@ namespace osdQuick {
         }
 
         // Smoked-charcoal v1 Direction A modal panel (5% CRT safe, >= 2px scanlines).
-        gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, 0x070B12B8u);
-        const float left43 = 56.0f;
-        const float right43 = 584.0f;
-        const float topY = 34.0f;
-        const float botY = 446.0f;
-        const float b = kLabBorder;
-        const float inL43 = left43 + b;
-        const float inR43 = right43 - b;
-        const float inTop = topY + b;
-        const float inBot = botY - b;
-        const float hdrBot = inTop + kFibBandH;
-        const float bodyTop = hdrBot + kFibHair;
-        const float footTop = inBot - kFibBandH - kFibHair;
-        const float descTop = footTop - 26.0f - kFibHair;
-        const float slantTan = 0.445f;
+        static const ModalFrame kFrame = {
+            56.0f, 584.0f, 34.0f, 446.0f, 71.0f, 379.0f, 407.0f, 326.0f, 0x070B12B8u
+        };
+        const float inL43 = kFrame.left43 + kLabBorder;
+        const float inR43 = kFrame.right43 - kLabBorder;
+        const float inTop = kFrame.topY + kLabBorder;
+        const float inBot = kFrame.botY - kLabBorder;
+        const float bodyTop = kFrame.hdrBot + kFibHair;
+        const float descTop = kFrame.descTop;
+        const float footTop = kFrame.footTop;
+        drawModalFrame(kFrame, "QUICK OVERLAYS");
 
-        float left = cx(left43);
-        float panelW = w(right43 - left43);
-        float bx = w(b);
-        gfx::fillRect(left, topY, panelW, b, kLabBorderColor);
-        gfx::fillRect(left, botY - b, panelW, b, kLabBorderColor);
-        gfx::fillRect(left, inTop, bx, inBot - inTop, kLabBorderColor);
-        gfx::fillRect(cx(inR43), inTop, bx, inBot - inTop, kLabBorderColor);
-
-        float bodyX = cx(inL43);
-        float bodyW = w(inR43 - inL43);
-        gfx::fillGradV(bodyX, inTop, bodyW, hdrBot - inTop, kLabHeaderTop, kLabHeaderBot);
-        gfx::fillRect(bodyX, hdrBot, bodyW, kFibHair, kLabDivider);
-        gfx::fillGradV(bodyX, bodyTop, bodyW, descTop - bodyTop, kLabBaseTop, kLabBaseBot);
-        gfx::fillRect(bodyX, descTop, bodyW, kFibHair, kLabDivider);
-        gfx::fillGradV(bodyX, descTop + kFibHair, bodyW, footTop - (descTop + kFibHair), kLabDescTopCol, kLabDescBotCol);
-        gfx::fillRect(bodyX, footTop, bodyW, kFibHair, kLabDivider);
-        gfx::fillGradV(bodyX, footTop + kFibHair, bodyW, inBot - (footTop + kFibHair), kLabFooterTopCol, kLabFooterBotCol);
-
-        // Flush-left emerald-teal slanted header ribbon + // diagonal stripes.
-        float hdrH = hdrBot - inTop;
-        float ribbonRight43 = 326.0f;
-        drawSlantBar(inL43, ribbonRight43, inTop, hdrH, true, kLabTealTop, kLabTealBot, 0);
-        drawDiagStripes(cx(ribbonRight43 - 6.0f), inTop, hdrBot, w(hdrH * slantTan), w(4.5f), w(3.5f), kLabStripeCol);
-
-        float titleCap = kTypeHeading;
-        float titleScale = displayScaleForCap(titleCap);
-        float hdrMid = inTop + hdrH * 0.5f;
-        gfx::displayText(cx(inL43 + kFibPad), displayYForCap(hdrMid - titleCap * 0.5f, titleScale), "QUICK OVERLAYS",
-                         kLabActiveTabText, kLabActiveTabText, titleScale, titleScale, 0.0f, 0);
+        float hdrMid = (inTop + kFrame.hdrBot) * 0.5f;
         const char* sub = s_statusNote != NULL ? s_statusNote : "Saves to SD on exit";
         float subScale = scaleForCap(kTypeMeta);
         float subW = gfx::textWidth(sub, subScale);
-        float subMax = w(inR43 - ribbonRight43 - kFibPad);
-        float subSx = subW > subMax && subW > 0.0f ? subScale * subMax / subW : subScale;
+        float subMax = w(inR43 - kFrame.ribbonRight43 - kFibPad);
         float subDrawW = subW > subMax ? subMax : subW;
-        gfx::text(cx(inR43 - kFibPad) - subDrawW, textYForCap(hdrMid - kTypeMeta * 0.5f, subScale), sub,
-                  s_statusNote != NULL ? kLabFocusGold : kLabMutedText, subSx, subScale);
+        drawFitText(cx(inR43 - kFibPad) - subDrawW, textYForCap(hdrMid - kTypeMeta * 0.5f, subScale), sub,
+                    s_statusNote != NULL ? kLabFocusGold : kLabMutedText, subScale, subMax);
 
         // 9 visible slanted rows matching menu.cpp (Solo-Gold focused / dark-slate unselected).
         const float rowH = 25.0f;
@@ -1011,9 +978,7 @@ namespace osdQuick {
         const float nameMaxW = w(257.0f);
         const float pillLeft43 = 384.0f;
         const float pillRight43 = hlRight43;
-        const float pillLeft = cx(pillLeft43);
-        const float pillRight = cx(pillRight43);
-        const float pillCenter = (pillLeft + pillRight) * 0.5f;
+        const float pillCenter = (cx(pillLeft43) + cx(pillRight43)) * 0.5f;
         const float valMaxW = w(132.0f);
         float capOff = (rowH - kLabRowCap) * 0.5f;
 
@@ -1026,10 +991,7 @@ namespace osdQuick {
             bool on = rowEnabled(idx);
             if (sel)
             {
-                drawSlantBar(hlLeft43, hlRight43, y, rowH, false, kLabGoldTop, kLabGoldBot, kLabGoldEdge);
-                drawDiagStripes(cx(pillLeft43 + 4.5f), y + 2.0f, y + rowH - 2.0f, w((rowH - 4.0f) * slantTan),
-                                w(4.0f), w(3.0f), kLabStripeCol);
-                drawCursorTri(cx(hlLeft43 + rowH * slantTan * 0.55f + 4.0f), y + rowH * 0.5f, 8.5f);
+                drawGoldBar(hlLeft43, hlRight43, y, rowH, 8.5f, false, pillLeft43 + 4.5f);
             }
             else
             {
@@ -1042,20 +1004,12 @@ namespace osdQuick {
 
             if (sel && on)
             {
-                float midY = y + rowH * 0.5f;
-                gfx::Rgba arrCol = isOn ? kLabFocusGold : kLabGoldInk;
-                float midSlant = rowH * slantTan * 0.5f;
-                float l = cx(pillLeft43 + midSlant + 4.0f);
-                float rt = cx(pillRight43 - midSlant - 4.0f);
-                gfx::fillTri(l + gw(2.0f), midY, l + gw(8.0f), midY - 4.0f, l + gw(8.0f), midY + 4.0f, arrCol);
-                gfx::fillTri(rt - gw(2.0f), midY, rt - gw(8.0f), midY - 4.0f, rt - gw(8.0f), midY + 4.0f, arrCol);
+                drawValueArrows(pillLeft43, pillRight43, y, rowH, isOn ? kLabFocusGold : kLabGoldInk);
             }
 
             float ty = textYForCap(y + capOff, rowScale);
-            float nw = boldWidth(row.name, rowScale);
-            float nsx = nw > nameMaxW && nw > 0.0f ? rowScale * nameMaxW / nw : rowScale;
             gfx::Rgba nameCol = sel ? (on ? kLabGoldInk : kLabGoldInkMuted) : (on ? kText : kTextDisabled);
-            boldText(nameX, ty, row.name, nameCol, nsx, rowScale);
+            drawFitText(nameX, ty, row.name, nameCol, rowScale, nameMaxW);
 
             char buf[24];
             const char* valTxt = buf;
@@ -1072,67 +1026,31 @@ namespace osdQuick {
             {
                 valTxt = (v <= row.maxVal && row.labels != NULL) ? row.labels[v] : "?";
             }
-            float vw = boldWidth(valTxt, rowScale);
-            float vsx = vw > valMaxW && vw > 0.0f ? rowScale * valMaxW / vw : rowScale;
-            float drawVw = vw > valMaxW ? valMaxW : vw;
             gfx::Rgba valCol = on ? ((sel && !isOn) ? kLabGoldInk : kLabWhiteText) : kTextDisabled;
-            boldText(pillCenter - drawVw * 0.5f, ty, valTxt, valCol, vsx, rowScale);
+            drawFitText(pillCenter, ty, valTxt, valCol, rowScale, valMaxW, true);
         }
 
         // Scrollbar.
-        if (kRowCount > kVisibleRows)
-        {
-            float sbX = cx(sbX43);
-            float sbW = w(kFibGap);
-            float sbH = (kVisibleRows - 1) * rowPitch + rowH;
-            gfx::fillRect(sbX, rowTop, sbW, sbH, kLabDivider);
-            float inner = sbH - 4.0f;
-            float thumbH = inner * kVisibleRows / kRowCount;
-            if (thumbH < kFibRowH)
-            {
-                thumbH = kFibRowH;
-            }
-            int maxScroll = kRowCount - kVisibleRows;
-            float thumbY = rowTop + 2.0f + (inner - thumbH) * s_scroll / maxScroll;
-            gfx::fillGradV(sbX + w(1.0f), thumbY, sbW - w(2.0f), thumbH, kLabTealTop, kLabTealBot);
-        }
+        drawScrollBarAt(sbX43, rowTop, (kVisibleRows - 1) * rowPitch + rowH, kRowCount, s_scroll, kVisibleRows,
+                        kLabDivider, kLabTealTop, kLabTealBot);
 
         // Per-row 1-line help description bar above the footer.
         const char* help = (s_cursor >= 0 && s_cursor < kRowCount && kRows[s_cursor].help != NULL)
                                ? kRows[s_cursor].help
                                : "Use D-Pad or Stick to toggle or cycle overlays.";
         float hScale = scaleForCap(kTypeMeta);
-        float hw = boldWidth(help, hScale);
-        float hMax = w(inR43 - inL43 - 2.0f * kFibPad);
-        float hsx = hw > hMax && hw > 0.0f ? hScale * hMax / hw : hScale;
         float hy = textYForCap(descTop + kFibHair + (footTop - descTop - kFibHair - kTypeMeta) * 0.5f, hScale);
-        boldText(cx(inL43 + kFibPad), hy, help, kLabDescText, hsx, hScale);
+        drawFitText(cx(inL43 + kFibPad), hy, help, kLabDescText, hScale, w(inR43 - inL43 - 2.0f * kFibPad));
 
         // Glossy Brawl footer badges.
         const char* okGlyph = s_type == gfPadType::WIIMOTE ? "2" : "A";
         const char* backGlyph = s_type == gfPadType::WIIMOTE ? "1" : "B";
         float fy = footTop + kFibHair + (inBot - (footTop + kFibHair)) * 0.5f;
-        float bCap = kTypeMeta;
-        float bScale = scaleForCap(bCap);
-        float lScale = scaleForCap(kTypeMeta);
         float fx = cx(inL43 + kFibPad);
-        float bw = gw(17.0f);
-
-        drawGlossyRoundBadge(fx + bw * 0.5f, fy, 8.5f, kLabBtnATop, kLabBtnABot);
-        gfx::text(fx + (bw - gfx::textWidth(okGlyph, bScale)) * 0.5f, textYForCap(fy - bCap * 0.5f, bScale), okGlyph,
-                  kLabActiveTabText, bScale);
-        fx = gfx::text(fx + bw + gw(kFibTight), textYForCap(fy - kTypeMeta * 0.5f, lScale), "Toggle / Cycle",
-                       kLabMutedText, lScale)
-             + gw(kFibPad);
-
-        drawGlossyRoundBadge(fx + bw * 0.5f, fy, 8.5f, kLabBtnBTop, kLabBtnBBot);
-        gfx::text(fx + (bw - gfx::textWidth(backGlyph, bScale)) * 0.5f, textYForCap(fy - bCap * 0.5f, bScale),
-                  backGlyph, kLabWhiteText, bScale);
+        u8 flags = kBadgeRound | kBadgeTightGap;
+        fx = drawFooterBadge(fx, fy, 17.0f, okGlyph, "Toggle / Cycle", kBtnA, flags);
         const char* backLabel = (s_newerOnCard || s_olderLayoutOnCard) ? "Back" : "Back & Save";
-        gfx::text(fx + bw + gw(kFibTight), textYForCap(fy - kTypeMeta * 0.5f, lScale), backLabel, kLabMutedText, lScale);
-
-        // Bottom inner shadow matching menu.cpp (no grey bar across top emerald ribbon).
-        gfx::fillRect(bodyX, inBot - kFibHair, bodyW, kFibHair, kLabBevelDark);
+        drawFooterBadge(fx, fy, 17.0f, backGlyph, backLabel, kBtnB, flags);
     }
 }
 }

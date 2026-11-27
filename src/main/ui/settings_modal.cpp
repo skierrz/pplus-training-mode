@@ -87,8 +87,7 @@ namespace ui {
     static void fitText(float x, float y, const char* str, gfx::Rgba col, float cap, float maxW)
     {
         float s = scaleForCap(cap);
-        float tw = gfx::textWidth(str, s);
-        gfx::text(x, textYForCap(y, s), str, col, tw > maxW ? s * maxW / tw : s, s);
+        drawFitText(x, textYForCap(y, s), str, col, s, maxW);
     }
 
     void settingsModalDraw()
@@ -99,48 +98,14 @@ namespace ui {
         }
 
         // Smoked-charcoal v1 Direction A upgrade modal (5% CRT safe, >= 2px scanlines).
-        gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, 0x070B12C8u);
-        const float left43 = 96.0f;
-        const float right43 = 544.0f;
-        const float topY = 92.0f;
-        const float botY = 388.0f;
-        const float b = kLabBorder;
-        const float inL43 = left43 + b;
-        const float inR43 = right43 - b;
-        const float inTop = topY + b;
-        const float inBot = botY - b;
-        const float slantTan = 0.445f;
-        float xs = gfx::xScale();
-        drawFrameBorder(left43, right43, topY, botY, b, kLabBorderColor);
-
-        static const struct {
-            float y, h;
-            gfx::Rgba top, bot;
-        } kBands[5] = {
-            {95.0f,  kFibBandH, kLabHeaderTop,    kLabHeaderBot},
-            {129.0f, kFibHair,  kLabDivider,      kLabDivider},
-            {131.0f, 218.0f,    kLabBaseTop,      kLabBaseBot},
-            {349.0f, kFibHair,  kLabDivider,      kLabDivider},
-            {351.0f, kFibBandH, kLabFooterTopCol, kLabFooterBotCol}
+        static const ModalFrame kFrame = {
+            96.0f, 544.0f, 92.0f, 388.0f, 129.0f, 0.0f, 349.0f, 446.0f, 0x070B12C8u
         };
-        float bodyX = cx(inL43);
-        float bodyW = w(inR43 - inL43);
-        for (int i = 0; i < 5; i++)
-        {
-            gfx::fillGradV(bodyX, kBands[i].y, bodyW, kBands[i].h, kBands[i].top, kBands[i].bot);
-        }
+        const float inL43 = kFrame.left43 + kLabBorder;
+        const float inR43 = kFrame.right43 - kLabBorder;
+        const float inTop = kFrame.topY + kLabBorder;
+        drawModalFrame(kFrame, "UPDATE SAVED SETTINGS");
 
-        // Flush-left emerald-teal slanted header ribbon + // diagonal stripes.
-        float ribbonRight43 = 446.0f;
-        drawSlantBar(inL43, ribbonRight43, inTop, kFibBandH, true, kLabTealTop, kLabTealBot, 0);
-        drawDiagStripes(cx(ribbonRight43 - 6.0f), inTop, inTop + kFibBandH, w(kFibBandH * slantTan), w(4.5f), w(3.5f),
-                        kLabStripeCol);
-
-        float titleCap = kTypeHeading;
-        float ts = displayScaleForCap(titleCap);
-        const char* title = "UPDATE SAVED SETTINGS";
-        gfx::displayText(cx(inL43 + kFibPad), displayYForCap(inTop + (kFibBandH - titleCap) * 0.5f, ts), title,
-                         kLabActiveTabText, kLabActiveTabText, ts, ts, 0.0f, 0);
         float ss = scaleForCap(kTypeMeta);
         const char* sub = "Settings from an older build were found on SD.";
         gfx::text(320.0f - gfx::textWidth(sub, ss) * 0.5f, textYForCap(144.0f, ss), sub, kLabDescText, ss);
@@ -171,11 +136,7 @@ namespace ui {
             bool sel = i == s_cursor;
             if (sel)
             {
-                drawSlantBar(cardL43, cardR43, y, cardH, false, kLabGoldTop, kLabGoldBot, kLabGoldEdge);
-                drawDiagStripes(cx(cardR43 - 10.0f), y + kFibHair, y + cardH - kFibHair,
-                                w((cardH - 2.0f * kFibHair) * slantTan), w(4.5f), w(3.5f), kLabStripeCol);
-                float iconX = cx(cardL43 + cardH * slantTan * 0.55f + 2.0f);
-                drawCursorTri(iconX + 1.0f * xs, y + 24.0f, 9.0f);
+                drawGoldBar(cardL43, cardR43, y, cardH, 9.0f, false, cardR43 - 10.0f);
             }
             else
             {
@@ -186,31 +147,15 @@ namespace ui {
         }
 
         // Unified glossy vector footer emblems (neutral silver D-Pad + green glossy A).
-        static const gfx::Rgba kFootCols[2][3] = {
-            {kLabBtnLightTop, kLabBtnLightBot, kLabBtnDarkText},
-            {kLabBtnATop, kLabBtnABot, kLabActiveTabText}
-        };
-        const char* glyphs[2] = {"+", s_ctrlType == gfPadType::WIIMOTE ? "2" : "A"};
-        const char* labels[2] = {"Choose", "Confirm & Save"};
         float fx = cx(inL43 + kFibPad);
         float footMid = 351.0f + kFibBandH * 0.5f;
-        float ls = scaleForCap(kTypeMeta);
-        float gs = scaleForCap(kTypeMeta);
-        float iw = gw(16.0f);
-        for (int i = 0; i < 2; i++)
-        {
-            drawGlossyPillBadge(fx, footMid - 8.0f, iw, 16.0f, kFootCols[i][0], kFootCols[i][1]);
-            float gwid = gfx::textWidth(glyphs[i], gs);
-            gfx::text(fx + (iw - gwid) * 0.5f, textYForCap(footMid - kTypeMeta * 0.5f, gs), glyphs[i],
-                      kFootCols[i][2], gs);
-            fx = gfx::text(fx + iw + gw(kFibTight), textYForCap(footMid - kTypeMeta * 0.5f, ls), labels[i],
-                           kLabMutedText, ls)
-                 + gw(kFibPad + kFibGap);
-        }
+        u8 flags = kBadgeRound | kBadgeTightGap | kBadgeWidePad;
+        fx = drawFooterBadge(fx, footMid, 16.0f, "+", "Choose", kBtnLight, flags);
+        drawFooterBadge(fx, footMid, 16.0f, s_ctrlType == gfPadType::WIIMOTE ? "2" : "A", "Confirm & Save", kBtnA,
+                        flags);
 
-        // Subtle 2px dark inner top/bottom bevel matching menu.cpp.
-        gfx::fillRect(bodyX, inTop, bodyW, kFibHair, kLabDivider);
-        gfx::fillRect(bodyX, inBot - kFibHair, bodyW, kFibHair, kLabBevelDark);
+        // Subtle 2px top inner bevel matching existing modal framing.
+        gfx::fillRect(cx(inL43), inTop, w(inR43 - inL43), kFibHair, kLabDivider);
     }
 }
 }

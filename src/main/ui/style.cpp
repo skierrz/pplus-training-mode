@@ -8,6 +8,21 @@
 namespace tm {
 namespace ui {
 namespace style {
+    const gfx::Rgba kBtnTheme[4][3] = {
+        {kLabBtnATop, kLabBtnABot, kLabActiveTabText},
+        {kLabBtnBTop, kLabBtnBBot, kLabWhiteText},
+        {kLabBtnLightTop, kLabBtnLightBot, kLabBtnDarkText},
+        {kLabBtnZTop, kLabBtnZBot, kLabWhiteText}
+    };
+
+    static inline float mapX(float x43, float ms)
+    {
+        return 320.0f + (x43 - 320.0f) * ms;
+    }
+
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
     void drawBevelBar(float x, float y, float width, float height, gfx::Rgba topCol, gfx::Rgba botCol,
                       gfx::Rgba sheenCol, gfx::Rgba edgeCol)
     {
@@ -38,16 +53,17 @@ namespace style {
     void drawSlantBar(float x043, float x143, float y, float height, bool flushLeft, gfx::Rgba topCol,
                       gfx::Rgba botCol, gfx::Rgba edgeCol)
     {
+        float ms = menuScale();
         float slant = height * kStyleSlantTan;
-        float x0Top = cx(flushLeft ? x043 : (x043 + slant));
-        float x0Bot = cx(x043);
-        float x1Top = cx(x143);
-        float x1Bot = cx(x143 - slant);
+        float x0Top = mapX(flushLeft ? x043 : (x043 + slant), ms);
+        float x0Bot = mapX(x043, ms);
+        float x1Top = mapX(x143, ms);
+        float x1Bot = mapX(x143 - slant, ms);
         if (edgeCol != 0)
         {
             drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, y, y + height, edgeCol, edgeCol);
-            float padX = w(2.0f);
-            float dySlant = w(2.0f * kStyleSlantTan);
+            float padX = 2.0f * ms;
+            float dySlant = (2.0f * kStyleSlantTan) * ms;
             float ix0Top = flushLeft ? x0Top : (x0Top - dySlant + padX);
             float ix0Bot = flushLeft ? x0Bot : (x0Bot + dySlant + padX);
             float ix1Top = x1Top - dySlant - padX;
@@ -133,9 +149,10 @@ namespace style {
 
     void drawFrameBorder(float left43, float right43, float topY, float botY, float border, gfx::Rgba color)
     {
-        float left = cx(left43);
-        float panelW = w(right43 - left43);
-        float bx = w(border);
+        float ms = menuScale();
+        float left = mapX(left43, ms);
+        float panelW = (right43 - left43) * ms;
+        float bx = border * ms;
         float inTop = topY + border;
         float inH = botY - topY - 2.0f * border;
         const float r[4][4] = {
@@ -152,9 +169,10 @@ namespace style {
 
     void drawMenuPanel(bool withFooter)
     {
-        float left = cx(kPanelLeft);
-        float right = cx(kPanelRight);
-        float bx = w(kBorderX);
+        float ms = menuScale();
+        float left = mapX(kPanelLeft, ms);
+        float right = mapX(kPanelRight, ms);
+        float bx = kBorderX * ms;
         float width = right - left;
         float innerH = kPanelBottom - kPanelTop - 2.0f * kBorderY;
         gfx::fillRect(left, kPanelTop, width, kBorderY, kBorder);
@@ -177,24 +195,156 @@ namespace style {
         }
     }
 
-    void drawScrollBar(int count, int scroll, int visible, float height)
+    void drawGoldBar(float x043, float x143, float y, float h, float cursorSize, bool flushLeft, float stripeRight43)
+    {
+        float ms = menuScale();
+        float slant = h * kStyleSlantTan;
+        drawSlantBar(x043, x143, y, h, flushLeft, kLabGoldTop, kLabGoldBot, kLabGoldEdge);
+        if (stripeRight43 > 0.0f)
+        {
+            float inH = h - 4.0f;
+            drawDiagStripes(mapX(stripeRight43, ms), y + 2.0f, y + h - 2.0f, (inH * kStyleSlantTan) * ms, 4.0f * ms,
+                            3.0f * ms, kLabStripeCol);
+        }
+        float triX43 = flushLeft ? (x043 + 4.0f) : (x043 + slant * 0.55f + 2.5f);
+        drawCursorTri(mapX(triX43 + 1.0f, ms), y + h * 0.5f, cursorSize);
+    }
+
+    void drawHeaderRibbon(float inL43, float right43, float topY, float height, gfx::Rgba topCol, gfx::Rgba botCol)
+    {
+        float ms = menuScale();
+        drawSlantBar(inL43, right43, topY, height, true, topCol, botCol, 0);
+        drawDiagStripes(mapX(right43 - 6.0f, ms), topY, topY + height, (height * kStyleSlantTan) * ms, 4.5f * ms,
+                        3.5f * ms, kLabStripeCol);
+    }
+
+    void drawModalFrame(const ModalFrame& f, const char* title)
+    {
+        if (f.backdrop != 0)
+        {
+            gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, f.backdrop);
+        }
+        drawFrameBorder(f.left43, f.right43, f.topY, f.botY, kLabBorder, kLabBorderColor);
+        float ms = menuScale();
+        float inL43 = f.left43 + kLabBorder;
+        float inTop = f.topY + kLabBorder;
+        float inBot = f.botY - kLabBorder;
+        float bodyX = mapX(inL43, ms);
+        float bodyW = (f.right43 - f.left43 - 2.0f * kLabBorder) * ms;
+        float bodyTop = f.hdrBot + kFibHair;
+        float bodyEnd = f.descTop > 0.0f ? f.descTop : f.footTop;
+
+        gfx::fillGradV(bodyX, inTop, bodyW, f.hdrBot - inTop, kLabHeaderTop, kLabHeaderBot);
+        gfx::fillRect(bodyX, f.hdrBot, bodyW, kFibHair, kLabDivider);
+        gfx::fillGradV(bodyX, bodyTop, bodyW, bodyEnd - bodyTop, kLabBaseTop, kLabBaseBot);
+        if (f.descTop > 0.0f)
+        {
+            gfx::fillRect(bodyX, f.descTop, bodyW, kFibHair, kLabDivider);
+            gfx::fillGradV(bodyX, f.descTop + kFibHair, bodyW, f.footTop - f.descTop - kFibHair, kLabDescTopCol,
+                           kLabDescBotCol);
+        }
+        gfx::fillRect(bodyX, f.footTop, bodyW, kFibHair, kLabDivider);
+        gfx::fillGradV(bodyX, f.footTop + kFibHair, bodyW, inBot - f.footTop - kFibHair, kLabFooterTopCol,
+                       kLabFooterBotCol);
+        if (f.ribbonRight43 > 0.0f)
+        {
+            drawHeaderRibbon(inL43, f.ribbonRight43, inTop, f.hdrBot - inTop, kLabTealTop, kLabTealBot);
+        }
+        if (title != NULL)
+        {
+            float titleScale = displayScaleForCap(kTypeHeading);
+            float hdrMid = (inTop + f.hdrBot) * 0.5f;
+            gfx::displayText(mapX(inL43 + kFibPad, ms), displayYForCap(hdrMid - kTypeHeading * 0.5f, titleScale),
+                             title, kLabActiveTabText, kLabActiveTabText, titleScale, titleScale, 0.0f, 0);
+        }
+        gfx::fillRect(bodyX, inBot - kFibHair, bodyW, kFibHair, kLabBevelDark);
+    }
+
+    void drawValueArrows(float pillLeft43, float pillRight43, float rowY, float rowH, gfx::Rgba col)
+    {
+        float ms = menuScale();
+        float xs = gfx::xScale();
+        float midY = rowY + rowH * 0.5f;
+        float midSlant = rowH * kStyleSlantTan * 0.5f;
+        float l = mapX(pillLeft43 + midSlant + 4.0f, ms);
+        float r = mapX(pillRight43 - midSlant - 4.0f, ms);
+        float dx2 = 2.0f * xs;
+        float dx8 = 8.0f * xs;
+        gfx::fillTri(l + dx2, midY, l + dx8, midY - 4.0f, l + dx8, midY + 4.0f, col);
+        gfx::fillTri(r - dx2, midY, r - dx8, midY - 4.0f, r - dx8, midY + 4.0f, col);
+    }
+
+    float drawFooterBadge(float x, float cy, float badgeH, const char* glyph, const char* label, u8 theme, u8 flags,
+                          gfx::Rgba labelCol)
+    {
+        float xs = gfx::xScale();
+        bool dense = (flags & kBadgeDense) != 0;
+        float cap = dense ? kTypeMicro : kTypeMeta;
+        float scale = scaleForCap(cap);
+        float glyphW = gfx::textWidth(glyph, scale);
+        bool round = (flags & kBadgeRound) != 0;
+        float pillPad = (dense ? 6.0f : 10.0f) * xs;
+        float bw = round ? (badgeH * xs) : (glyphW + pillPad);
+        float minW = (round ? badgeH : (badgeH + 3.0f)) * xs;
+        if (bw < minW)
+        {
+            bw = minW;
+        }
+        const gfx::Rgba* tc = kBtnTheme[theme < 4 ? theme : 0];
+        drawGlossyPillBadge(x, cy - badgeH * 0.5f, bw, badgeH, tc[0], tc[1]);
+        float textY = textYForCap(cy - cap * 0.5f, scale);
+        gfx::text(x + (bw - glyphW) * 0.5f, textY, glyph, tc[2], scale);
+        float gap = (dense ? 3.5f : ((flags & kBadgeTightGap) ? kFibTight : kFibGap)) * xs;
+        float pad = (dense ? 5.5f : ((flags & kBadgeWidePad) ? (kFibPad + kFibGap) : kFibPad)) * xs;
+        float endX = gfx::text(x + bw + gap, textY, label, labelCol, scale);
+        return endX + pad;
+    }
+
+    void drawFitText(float x, float y, const char* str, gfx::Rgba color, float scale, float maxW, bool centre)
+    {
+        float width = gfx::textWidth(str, scale);
+        float sx = scale;
+        if (width > maxW && width > 0.0f)
+        {
+            sx = scale * maxW / width;
+            width = maxW;
+        }
+        gfx::text(centre ? x - width * 0.5f : x, y, str, color, sx, scale);
+    }
+
+    void drawScrollBarAt(float left43, float topY, float height, int count, int scroll, int visible,
+                         gfx::Rgba trackCol, gfx::Rgba thumbTop, gfx::Rgba thumbBot)
     {
         if (count <= visible)
         {
             return;
         }
-        float left = cx(kScrollLeft);
-        float width = w(kScrollW);
-        gfx::fillRect(left, kScrollTop, width, height, kLabDivider);
+        float ms = menuScale();
+        float left = mapX(left43, ms);
+        float width = kScrollW * ms;
+        gfx::fillRect(left, topY, width, height, trackCol);
         float inner = height - 4.0f;
         float length = inner * visible / count;
         if (length < kFibRowH)
         {
             length = kFibRowH;
         }
-        float top = kScrollTop + 2.0f + (inner - length) * scroll / (count - visible);
-        gfx::fillGradV(left + w(1.0f), top, width - w(2.0f), length, kLabTealTop, kLabTealBot);
+        int maxScroll = count - visible;
+        if (scroll > maxScroll)
+        {
+            scroll = maxScroll;
+        }
+        float thumbY = topY + 2.0f + (inner - length) * scroll / maxScroll;
+        gfx::fillGradV(left + ms, thumbY, width - 2.0f * ms, length, thumbTop, thumbBot);
     }
+
+    void drawScrollBar(int count, int scroll, int visible, float height)
+    {
+        drawScrollBarAt(kScrollLeft, kScrollTop, height, count, scroll, visible, kLabDivider, kLabTealTop, kLabTealBot);
+    }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
 }
 }
 }

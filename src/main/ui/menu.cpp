@@ -1079,52 +1079,22 @@ namespace ui {
         return menuPalette(s.size ? s.osd.menuAccent : static_cast<u8>(main::kMenuAccentTeal));
     }
 
-    // Button themes: 0=A green, 1=B red, 2=light silver, 3=Z purple.
-    static const gfx::Rgba kBtnTheme[4][3] = {
-        {kLabBtnATop, kLabBtnABot, kLabActiveTabText},
-        {kLabBtnBTop, kLabBtnBBot, kLabWhiteText},
-        {kLabBtnLightTop, kLabBtnLightBot, kLabBtnDarkText},
-        {kLabBtnZTop, kLabBtnZBot, kLabWhiteText}
-    };
-
-    enum { kEmblemCentre = 1, kEmblemTab = 2, kEmblemDense = 4 };
-
     static void fillBox(float x43, float y, float w43, float h, gfx::Rgba color)
     {
-        gfx::fillRect(cx(x43), y, w(w43), h, color);
+        float ms = menuScale();
+        gfx::fillRect(320.0f + (x43 - 320.0f) * ms, y, w43 * ms, h, color);
     }
 
     static void gradBox(float x43, float y, float w43, float h, gfx::Rgba top, gfx::Rgba bot)
     {
-        gfx::fillGradV(cx(x43), y, w(w43), h, top, bot);
+        float ms = menuScale();
+        gfx::fillGradV(320.0f + (x43 - 320.0f) * ms, y, w43 * ms, h, top, bot);
     }
 
     static void bevelBox(float x43, float y, float w43, float h, const BevelCols& c)
     {
-        float x = cx(x43);
-        float bw = w(w43);
-        gfx::fillGradV(x, y, bw, h, c.top, c.bot);
-        gfx::fillRect(x, y, bw, 2.0f, c.sheen);
-        gfx::fillRect(x, y + h - 2.0f, bw, 2.0f, c.edge);
-    }
-
-    static const float kSlantTan = 0.445f; // ~24 deg stock P+ slant
-
-    static void drawGoldBar(float x43, float w43, float y, float h, float cursorSize, bool flushLeft = false,
-                            float stripeRight43 = 0.0f)
-    {
-        float slant = h * kSlantTan;
-        float x143 = x43 + w43;
-        drawSlantBar(x43, x143, y, h, flushLeft, kLabGoldTop, kLabGoldBot, kLabGoldEdge);
-        if (stripeRight43 > 0.0f)
-        {
-            float inH = h - 4.0f;
-            drawDiagStripes(cx(stripeRight43), y + 2.0f, y + h - 2.0f, w(inH * kSlantTan), w(4.0f), w(3.0f),
-                            kLabStripeCol);
-        }
-        float midY = y + h * 0.5f;
-        float triX43 = flushLeft ? (x43 + 4.0f) : (x43 + slant * 0.55f + 2.5f);
-        drawCursorTri(cx(triX43 + 1.0f), midY, cursorSize);
+        float ms = menuScale();
+        drawBevelBar(320.0f + (x43 - 320.0f) * ms, y, w43 * ms, h, c.top, c.bot, c.sheen, c.edge);
     }
 
     static void drawHeaderBand(float bottomY, const MenuPalette& pal)
@@ -1137,32 +1107,25 @@ namespace ui {
     // Squeezes long strings horizontally to fit `maxW` (in 4:3 units).
     static void fitText(float x43, float y, const char* str, gfx::Rgba color, float scale, float maxW, bool centre)
     {
-        float width = boldWidth(str, scale);
-        float limit = w(maxW);
-        float sx = scale;
-        if (width > limit && width > 0.0f)
-        {
-            sx = scale * limit / width;
-            width = limit;
-        }
-        float x = cx(x43);
-        boldText(centre ? x - width * 0.5f : x, y, str, color, sx, scale);
+        float ms = menuScale();
+        drawFitText(320.0f + (x43 - 320.0f) * ms, y, str, color, scale, maxW * ms, centre);
     }
 
     // DisplayFont squeeze helper; when `titled` is true, renders the metallic
     // white-silver gradient + dark edge used on panel headers.
     static void fitDisplay(float x43, float capTop, const char* str, gfx::Rgba col, float cap, float maxW, u8 flags)
     {
+        float ms = menuScale();
         float scale = displayScaleForCap(cap);
         float width = gfx::displayTextWidth(str, scale);
-        float limit = w(maxW);
+        float limit = maxW * ms;
         float sx = scale;
         if (width > limit && width > 0.0f)
         {
             sx = scale * limit / width;
             width = limit;
         }
-        float x = cx(x43);
+        float x = 320.0f + (x43 - 320.0f) * ms;
         bool centre = (flags & 1) != 0;
         bool titled = (flags & 2) != 0;
         gfx::displayText(centre ? x - width * 0.5f : x, displayYForCap(capTop, scale), str,
@@ -1170,39 +1133,10 @@ namespace ui {
                          titled ? 1.2f : 0.0f, titled ? kLabTitleEdge : 0);
     }
 
-    // Draws a unified sculpted glossy GX button badge (resolution-independent
-    // across 1x 480p and high internal resolution so footer badges never mix
-    // muddy 16x16 sprites with sharp vector chrome).
-    static float drawEmblem(float x, float midY, float fbW, u8 theme, u8 flags)
-    {
-        float fbH = (flags & kEmblemTab) ? 18.0f : ((flags & kEmblemDense) ? 14.0f : 16.0f);
-        float bx = (flags & kEmblemCentre) ? x - fbW * 0.5f : x;
-        drawGlossyPillBadge(bx, midY - fbH * 0.5f, fbW, fbH, kBtnTheme[theme][0], kBtnTheme[theme][1]);
-        return fbW;
-    }
-
     static void drawLabScrollBar(int count, int scroll, int visible, float topY, float height, const MenuPalette& pal)
     {
-        if (count <= visible)
-        {
-            return;
-        }
-        float left = cx(kLabScrollLeft);
-        float width = w(kLabScrollW);
-        gfx::fillRect(left, topY, width, height, pal.divider);
-        float inner = height - 4.0f;
-        float length = inner * visible / count;
-        if (length < kFibRowH)
-        {
-            length = kFibRowH;
-        }
-        int maxScroll = count - visible;
-        if (scroll > maxScroll)
-        {
-            scroll = maxScroll;
-        }
-        float thumbY = topY + 2.0f + (inner - length) * scroll / maxScroll;
-        gfx::fillGradV(left + w(1.0f), thumbY, width - w(2.0f), length, pal.accentTop, pal.accentBot);
+        drawScrollBarAt(kLabScrollLeft, topY, height, count, scroll, visible, pal.divider, pal.accentTop,
+                        pal.accentBot);
     }
 
     struct CtrlSpec {
@@ -1322,16 +1256,6 @@ namespace ui {
             }
             gfx::displayText(x + prefixW, ty, leaf, kLabTitleTop, kLabTitleBot, sx, scale, 1.0f, kLabTitleEdge);
         }
-    }
-
-    static void drawHorizArrows(float pillLeft43, float pillRight43, float rowY, gfx::Rgba col)
-    {
-        float midY = rowY + kLabRowH * 0.5f;
-        float midSlant = kLabRowH * kSlantTan * 0.5f;
-        float l = cx(pillLeft43 + midSlant + 4.0f);
-        float r = cx(pillRight43 - midSlant - 4.0f);
-        gfx::fillTri(l + gw(2.0f), midY, l + gw(8.0f), midY - 4.0f, l + gw(8.0f), midY + 4.0f, col);
-        gfx::fillTri(r - gw(2.0f), midY, r - gw(8.0f), midY - 4.0f, r - gw(8.0f), midY + 4.0f, col);
     }
 
     static void drawSubmenuChevron(float right43, float rowY, gfx::Rgba color)
@@ -1516,45 +1440,16 @@ namespace ui {
             }
         }
 
-        static const struct {
-            float cap, startX, badgeH, iconGap, itemGap, padW;
-        } kFoot[2] = {
-            {kTypeMeta,  kLabInnerLeft + kFibPad,   16.0f, kFibTight, kFibPad, 10.0f},
-            {kTypeMicro, kLabInnerLeft + kFibTight, 14.0f, 3.5f,      5.5f,    6.0f}
-        };
-        int tier = n >= 6 ? 1 : 0;
-        const float cap = kFoot[tier].cap;
-        float scale = scaleForCap(cap);
+        bool dense = n >= 6;
         float footerMidY = kLabFooterTop + 2.0f + (kLabInnerBottom - kLabFooterTop - 4.0f) * 0.5f;
-        float textY = textYForCap(footerMidY - cap * 0.5f, scale);
-        float curX = cx(kFoot[tier].startX);
-        float roundW = gw(kFoot[tier].badgeH);
-        float minPillW = gw(kFoot[tier].badgeH + 3.0f);
-        float iconGap = gw(kFoot[tier].iconGap);
-        float itemGap = gw(kFoot[tier].itemGap);
-        float padW = gw(kFoot[tier].padW);
-        u8 embFlags = tier > 0 ? kEmblemDense : 0;
-
-        float badgeX[7], badgeW[7], labelX[7];
+        float curX = cx(dense ? (kLabInnerLeft + kFibTight) : (kLabInnerLeft + kFibPad));
+        float badgeH = dense ? 14.0f : 16.0f;
+        u8 baseFlags = static_cast<u8>(kBadgeTightGap | (dense ? kBadgeDense : 0));
         for (int i = 0; i < n; i++)
         {
             const FooterItem& it = items[i];
-            badgeX[i] = curX;
-            float fbW = it.round ? roundW : (boldWidth(it.badge, scale) + padW);
-            if (!it.round && fbW < minPillW)
-            {
-                fbW = minPillW;
-            }
-            badgeW[i] = drawEmblem(curX, footerMidY, fbW, it.theme, embFlags);
-            labelX[i] = curX + badgeW[i] + iconGap;
-            curX = labelX[i] + boldWidth(it.label, scale) + itemGap;
-        }
-        for (int i = 0; i < n; i++)
-        {
-            float bw = boldWidth(items[i].badge, scale);
-            boldText(badgeX[i] + (badgeW[i] - bw) * 0.5f, textY, items[i].badge, kBtnTheme[items[i].theme][2],
-                     scale, scale);
-            boldText(labelX[i], textY, items[i].label, pal.mutedText, scale, scale);
+            curX = drawFooterBadge(curX, footerMidY, badgeH, it.badge, it.label, it.theme,
+                                   static_cast<u8>(baseFlags | (it.round ? kBadgeRound : 0)), pal.mutedText);
         }
     }
 
@@ -1574,33 +1469,29 @@ namespace ui {
         // On subpages, widen the ribbon and draw the breadcrumb inline (matching 03-mockup-lab-menu).
         bool utilFoc = railUtilityFocused(def, state);
         float hdrH = kRailHeaderBottom - kLabInnerTop;
-        float hdrSlant = hdrH * kSlantTan;
         float ribbonRight = (!utilFoc && state.depth > 0) ? 472.0f : 292.0f;
-        drawSlantBar(kLabInnerLeft, ribbonRight, kLabInnerTop, hdrH, true, pal.accentTop, pal.accentBot, 0);
-        drawDiagStripes(cx(ribbonRight - 6.0f), kLabInnerTop, kRailHeaderBottom, w(hdrSlant), w(4.5f), w(3.5f),
-                        kLabStripeCol);
+        drawHeaderRibbon(kLabInnerLeft, ribbonRight, kLabInnerTop, hdrH, pal.accentTop, pal.accentBot);
 
         // Flush vertical left edge on active left-rail category/utility bar (slanted right edge).
-        float itemW = railW - kFibTight;
+        float itemRight = kLabInnerLeft + railW - kFibTight;
         for (u8 i = 0; i < def.categoryCount; i++)
         {
             float y = kRailItemTop + i * kRailItemPitch;
             if (state.railFocus && state.railCursor == i)
             {
-                drawGoldBar(kLabInnerLeft, itemW, y, kRailItemH, 8.0f, true, kLabInnerLeft + itemW - kFibTight);
+                drawGoldBar(kLabInnerLeft, itemRight, y, kRailItemH, 8.0f, true, itemRight - kFibTight);
             }
             else if (!state.railFocus && state.category == i)
             {
-                drawSlantBar(kLabInnerLeft, kLabInnerLeft + itemW, y, kRailItemH, true, pal.accentTop, pal.accentBot,
-                             0);
+                drawSlantBar(kLabInnerLeft, itemRight, y, kRailItemH, true, pal.accentTop, pal.accentBot, 0);
             }
         }
         for (u8 u = 0; u < def.utilityCount; u++)
         {
             if (state.railFocus && state.railCursor == def.categoryCount + u)
             {
-                drawGoldBar(kLabInnerLeft, itemW, kRailUtilTop + u * kRailItemPitch, kRailItemH, 8.0f, true,
-                            kLabInnerLeft + itemW - kFibTight);
+                drawGoldBar(kLabInnerLeft, itemRight, kRailUtilTop + u * kRailItemPitch, kRailItemH, 8.0f, true,
+                            itemRight - kFibTight);
             }
         }
 
@@ -1668,12 +1559,15 @@ namespace ui {
         float tabH = kFibRowH;
         float tabMidY = tabY + tabH * 0.5f;
         const CtrlSpec& cs = ctrlSpec(state.controllerType);
+        float pillW24 = gw(24.0f);
         if (cs.txtTabL != NULL)
         {
-            drawEmblem(cx(57.5f), tabMidY, gw(24.0f), 2, kEmblemCentre | kEmblemTab);
+            drawGlossyPillBadge(cx(57.5f) - pillW24 * 0.5f, tabMidY - 9.0f, pillW24, 18.0f, kLabBtnLightTop,
+                                kLabBtnLightBot);
         }
-        bool rRound = (cs.roundBits & 8) != 0;
-        drawEmblem(cx(582.5f), tabMidY, gw(rRound ? 18.0f : 24.0f), 2, kEmblemCentre | kEmblemTab);
+        float rPillW = gw((cs.roundBits & 8) != 0 ? 18.0f : 24.0f);
+        drawGlossyPillBadge(cx(582.5f) - rPillW * 0.5f, tabMidY - 9.0f, rPillW, 18.0f, kLabBtnLightTop,
+                            kLabBtnLightBot);
 
         BevelCols accentBevel = {pal.accentTop, pal.accentBot, pal.accentSheen, pal.accentEdge};
         BevelCols tabBevel = {pal.tabTop, pal.tabBot, pal.bevelLight, pal.bevelDark};
@@ -1847,7 +1741,7 @@ namespace ui {
                 if (selected)
                 {
                     float stripeX = hasVal ? (g.pillLeft + 4.5f) : (g.hlRight - 18.0f);
-                    drawGoldBar(g.hlLeft, g.hlRight - g.hlLeft, y, kLabRowH, 8.5f, false, stripeX);
+                    drawGoldBar(g.hlLeft, g.hlRight, y, kLabRowH, 8.5f, false, stripeX);
                 }
                 else
                 {
@@ -1860,7 +1754,7 @@ namespace ui {
                     drawValuePill(g.pillLeft, g.pillRight, y, kLabRowH, isOnToggle, on, selected);
                     if (selected && hasValue(o) && on)
                     {
-                        drawHorizArrows(g.pillLeft, g.pillRight, y, isOnToggle ? kLabFocusGold : kLabGoldInk);
+                        drawValueArrows(g.pillLeft, g.pillRight, y, kLabRowH, isOnToggle ? kLabFocusGold : kLabGoldInk);
                     }
                 }
                 else if (o.kind == kKindMenu)
