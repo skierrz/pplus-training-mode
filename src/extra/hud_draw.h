@@ -59,9 +59,9 @@ namespace extra {
         kHudCardTechchase = 3
     };
 
-    // Quiet Panel B borderless smoked-dark plate (0x111720C0u, matching 10-grounding Panel B)
+    // Quiet Panel B borderless smoked-dark plate (0x111720A8u, ~66% matching 10-grounding Panel B)
     // with zero border and zero colored header tab, plus faint 2px inset horizontal divider.
-    static const gfx::Rgba kSmokedPlateBg = 0x111720C0u;
+    static const gfx::Rgba kSmokedPlateBg = 0x111720A8u;
     static const gfx::Rgba kSmokedDivider = 0xFFFFFF38u;
 
     void drawSmokedPlate(float x, float y, float w, float h, gfx::Rgba bg = kSmokedPlateBg);
@@ -70,6 +70,9 @@ namespace extra {
     // Draws centered shadowed text sized to `cap` pixels around horizontal `cx`.
     void drawShadowCapCenter(float cx, float capY, const char* text, gfx::Rgba color, float cap, float maxW = 0.0f);
 
+    // Draws crisp 4-way dark-outlined floating HUD text (zero muddy diagonal double-shadow).
+    void drawOutlinedText(float x, float y, const char* text, gfx::Rgba color, float sx, float sy);
+
     // One key item for the calm white legend row above a timing/state bar.
     struct TimingLegendItem {
         gfx::Rgba swatch; // 0 = caption text only (no color swatch)
@@ -77,12 +80,15 @@ namespace extra {
     };
 
     // Unified Zone 1 Top-Center Timing / State Bar:
-    //  - calm white Rodin caption/legend row directly above bar (>= 6px item gap)
-    //  - crisp color cells inside a quiet smoked trough (dynamic width clamping)
+    //  - when `leftLabel`/`rightLabel` are set, draws the calm 3-zone header
+    //    (Early left | Drill Title center | Late right, matching 08-calm-wavedash)
+    //  - otherwise draws the calm white swatch-legend or centered caption row
+    //  - crisp color cells inside a dark-outlined trough (widescreen expanded)
     //  - clean white upward pointer arrow (^) at `pointerCell` (-1 = none)
     // Returns the total occupied bounding box for top-band registration.
     ui::layout::Box drawTimingBar(const gfx::Rgba* cells, int count, int pointerCell, const TimingLegendItem* legend,
-                                  int legendCount, const char* caption, bool wide);
+                                  int legendCount, const char* caption, bool wide, const char* leftLabel = NULL,
+                                  const char* rightLabel = NULL);
 
     // One metric row for a Panel B right-margin quiet smoked stat plate.
     struct StatPlateRow {

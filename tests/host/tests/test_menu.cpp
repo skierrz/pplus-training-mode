@@ -1099,13 +1099,17 @@ TEST(lab_menu, rail_and_tabs_navigation_and_stage_cast_compaction)
     CHECK_EQ(0, static_cast<int>(st.railCursor));
     CHECK(!ui::menuStep(menu, st, inB));
 
-    // Scroll rail down to Stage & Cast (index 6) and enter options pane.
+    // Scroll rail down to Stage & Cast (index 6); Right on the rail must NOT enter
+    // the options pane (prevents asymmetric Right-enter / Left-edits-value trap); A enters.
+    ui::MenuInput inRightRail = {0, 0, 0, 1, false, false, false, false};
     for (int i = 0; i < 6; i++)
     {
         CHECK(ui::menuStep(menu, st, inDown));
     }
     CHECK_EQ(6, static_cast<int>(st.railCursor));
     CHECK_EQ(ui::pages::P_STAGE_CAST, ui::currentPage(st));
+    CHECK(ui::menuStep(menu, st, inRightRail));
+    CHECK(st.railFocus);
     CHECK(ui::menuStep(menu, st, inA));
     CHECK(!st.railFocus);
 

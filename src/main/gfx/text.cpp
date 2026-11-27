@@ -2,6 +2,9 @@
 
 #include <GX/GXPixel.h>
 #include <ms/ms_char_writer.h>
+#ifdef __MWERKS__
+#include <GX/GXTev.h>
+#endif
 #if defined(TM_MODULE_MAIN) && defined(__MWERKS__)
 #include <GX/GXGeometry.h>
 #include <GX/GXHardware.h>
@@ -367,6 +370,31 @@ namespace gfx {
         return w.GetFontHeight();
     }
 
+    // Hardware GX TEV alpha-slope tightening for Brawl's I4 bitmap fonts
+    // (0x80497E44 SystemFont & 0x80497DA4 DisplayFont without edge pass).
+    // Bilinear filtering smears a 1-texel alpha ramp over 3-4 pixels at 2x-4x
+    // internal resolution; Stage 0 maps TEXA -> clamp(2 * TEXA - 0.5, 0, 1)
+    // (preserving the exact 0.5 stroke midpoint and smooth AA on 480p/480i
+    // while halving bilinear halo width at high IR), then Stage 1 modulates
+    // by vertex alpha (RASA).
+    static inline void applyCrispTextTev()
+    {
+#ifdef __MWERKS__
+        GXSetNumTevStages(2);
+        GXSetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_COLOR0A0);
+        GXSetTevColorIn(GX_TEVSTAGE0, GX_CC_ZERO, GX_CC_ZERO, GX_CC_ZERO, GX_CC_RASC);
+        GXSetTevColorOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, TRUE, GX_TEVPREV);
+        GXSetTevAlphaIn(GX_TEVSTAGE0, GX_CA_TEXA, GX_CA_ZERO, GX_CA_ZERO, GX_CA_TEXA);
+        GXSetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_SUBHALF, GX_CS_SCALE_1, TRUE, GX_TEVPREV);
+
+        GXSetTevOrder(GX_TEVSTAGE1, GX_TEXCOORD_NULL, GX_TEXMAP_NULL, GX_COLOR0A0);
+        GXSetTevColorIn(GX_TEVSTAGE1, GX_CC_ZERO, GX_CC_ZERO, GX_CC_ZERO, GX_CC_CPREV);
+        GXSetTevColorOp(GX_TEVSTAGE1, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, TRUE, GX_TEVPREV);
+        GXSetTevAlphaIn(GX_TEVSTAGE1, GX_CA_ZERO, GX_CA_APREV, GX_CA_RASA, GX_CA_ZERO);
+        GXSetTevAlphaOp(GX_TEVSTAGE1, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, TRUE, GX_TEVPREV);
+#endif
+    }
+
     float text(float x, float y, const char* text, Rgba color, float scaleX, float scaleY)
     {
         if (!fontLoaded())
@@ -383,6 +411,7 @@ namespace gfx {
             prepare();
             w.SetupGX();
             GXSetZMode(false, GX_ALWAYS, false);
+            applyCrispTextTev();
             keepTextState();
         }
 #ifdef TM_MODULE_MAIN
@@ -447,12 +476,22 @@ namespace gfx {
         ms::CharWriter& w = writer();
         bool firstDisp = haveDisp && displayHasChar(static_cast<u8>(*str));
         w.m_font = (firstDisp || !haveSys) ? kDisplayFont : kSystemFont;
-        if (!textStateKept() || TM_PERF_LEGACY())
+        // Edge-outlined displayText relies on CharWriter's native TEV setup, so
+        // re-run SetupGX whenever edgeWidth > 0 and drop cached text state after.
+        if (edgeWidth > 0.0f || !textStateKept() || TM_PERF_LEGACY())
         {
             prepare();
             w.SetupGX();
             GXSetZMode(false, GX_ALWAYS, false);
-            keepTextState();
+            if (edgeWidth <= 0.0f)
+            {
+                applyCrispTextTev();
+                keepTextState();
+            }
+            else
+            {
+                forgetState();
+            }
         }
         w.SetTextColor(nw4r::ut::Color(topColor));
         if (botColor != topColor)

@@ -826,16 +826,12 @@ namespace extra {
         }
         const ui::pages::ScenarioMenuState* m = ui::pages::scenarioMenuState();
 
-        // Zone 1: Calm white-label timing bar (Early | Cover | Late) with ^ pointer.
+        // Zone 1: Calm 3-zone symmetric timing bar (Early | Techchase | Late) with ^ pointer.
         static const gfx::Rgba kTcCells[11] = {
             0xDC4444E8u, 0xDC4444E8u, 0xDC4444E8u, 0xF0B838E8u,
             0x3CE890FFu, 0x3CE890FFu, 0x3CE890FFu,
             0xF0B838E8u, 0xDC4444E8u, 0xDC4444E8u, 0xDC4444E8u
         };
-        TimingLegendItem leg[3];
-        leg[0].swatch = 0xDC4444FFu; leg[0].label = "Early";
-        leg[1].swatch = 0x3CE890FFu; leg[1].label = "Cover";
-        leg[2].swatch = 0xDC4444FFu; leg[2].label = "Late";
         int ptrCell = -1;
 
         char resBuf[24];
@@ -867,7 +863,7 @@ namespace extra {
             sprintf(resBuf, early ? "%df Early" : "%df Late", d);
             resStr = resBuf;
         }
-        drawTimingBar(kTcCells, 11, ptrCell, leg, 3, NULL, wide);
+        drawTimingBar(kTcCells, 11, ptrCell, NULL, 0, "Techchase", wide, "Early", "Late");
 
         // Zone 2: Panel B Right-Margin Quiet Smoked Stat Plate under Option A GC controller.
         char posBuf[16];

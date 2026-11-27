@@ -177,10 +177,7 @@ namespace ui {
                 drawDiagStripes(cx(cardR43 - 10.0f), y + kFibHair, y + cardH - kFibHair,
                                 w((cardH - 2.0f * kFibHair) * slantTan), w(4.5f), w(3.5f), kLabStripeCol);
                 float iconX = cx(cardL43 + cardH * slantTan * 0.55f + 2.0f);
-                if (!main::extraDrawUiIcon(kIconCursorRight, iconX, y + 18.0f, 12.0f * xs, 12.0f, 0xFFFFFFFFu))
-                {
-                    drawCursorTri(iconX + 1.0f * xs, y + 24.0f, 9.0f);
-                }
+                drawCursorTri(iconX + 1.0f * xs, y + 24.0f, 9.0f);
             }
             else
             {
@@ -190,33 +187,27 @@ namespace ui {
             fitText(textX, y + 27.0f, subs[i], sel ? kLabGoldInkMuted : kLabMutedText, kTypeMeta, textMaxW);
         }
 
-        // Native Brawl footer emblems (neutral silver D-Pad + green glossy A).
-        static const u8 kOkIcons[4] = {kIconGcA, kIconClA, kIconWii2, kIconWiiA};
+        // Unified glossy vector footer emblems (neutral silver D-Pad + green glossy A).
         static const gfx::Rgba kFootCols[2][3] = {
             {kLabBtnLightTop, kLabBtnLightBot, kLabBtnDarkText},
             {kLabBtnATop, kLabBtnABot, kLabActiveTabText}
         };
-        u8 icons[2] = {static_cast<u8>(s_ctrlType == gfPadType::GCC ? kIconGcDpad : kIconWiiDpad), kOkIcons[s_ctrlType]};
         const char* glyphs[2] = {"+", s_ctrlType == gfPadType::WIIMOTE ? "2" : "A"};
         const char* labels[2] = {"Choose", "Confirm & Save"};
         float fx = cx(inL43 + kFibPad);
         float footMid = 351.0f + kFibBandH * 0.5f;
         float ls = scaleForCap(kTypeMeta);
         float gs = scaleForCap(kTypeMeta);
-        float iw = 16.0f * xs;
+        float iw = gw(16.0f);
         for (int i = 0; i < 2; i++)
         {
-            bool forceGreenA = (i == 1 && (s_ctrlType == gfPadType::GCC || s_ctrlType == gfPadType::WII_CLASSIC));
-            if (forceGreenA || !main::extraDrawUiIcon(icons[i], fx, footMid - 8.0f, iw, 16.0f, 0xFFFFFFFFu))
-            {
-                drawGlossyPillBadge(fx, footMid - 8.0f, iw, 16.0f, kFootCols[i][0], kFootCols[i][1]);
-                float gw = gfx::textWidth(glyphs[i], gs);
-                gfx::text(fx + (iw - gw) * 0.5f, textYForCap(footMid - kTypeMeta * 0.5f, gs), glyphs[i],
-                          kFootCols[i][2], gs);
-            }
-            fx = gfx::text(fx + iw + kFibTight * xs, textYForCap(footMid - kTypeMeta * 0.5f, ls), labels[i],
+            drawGlossyPillBadge(fx, footMid - 8.0f, iw, 16.0f, kFootCols[i][0], kFootCols[i][1]);
+            float gwid = gfx::textWidth(glyphs[i], gs);
+            gfx::text(fx + (iw - gwid) * 0.5f, textYForCap(footMid - kTypeMeta * 0.5f, gs), glyphs[i],
+                      kFootCols[i][2], gs);
+            fx = gfx::text(fx + iw + gw(kFibTight), textYForCap(footMid - kTypeMeta * 0.5f, ls), labels[i],
                            kLabMutedText, ls)
-                 + (kFibPad + kFibGap) * xs;
+                 + gw(kFibPad + kFibGap);
         }
 
         // Subtle 2px dark inner top/bottom bevel matching menu.cpp.

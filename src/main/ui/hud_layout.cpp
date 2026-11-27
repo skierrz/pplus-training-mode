@@ -19,12 +19,13 @@ namespace layout {
     Box frameBarBox(int cells, bool wide)
     {
         float xs = xsOf(wide);
+        float barScale = wide ? 0.90f : 1.0f;
         float cell = kCellW;
         if (cells * (kCellW + kCellGap) + kCellGap > kBarMaxW)
         {
             cell = (kBarMaxW - kCellGap) / cells - kCellGap;
         }
-        float total = cells * (cell + kCellGap) * xs + kCellGap * xs;
+        float total = cells * (cell + kCellGap) * barScale + kCellGap * barScale;
         float x0 = 320.0f - total * 0.5f;
         float x1 = 320.0f + total * 0.5f;
         float maxRight = kViewerRight - kViewerWidth * xs - kStepGap;
@@ -45,8 +46,9 @@ namespace layout {
     Box ledgeHeaderBox(bool wide)
     {
         float xs = xsOf(wide);
+        float barScale = wide ? 0.90f : 1.0f;
         float maxRight = kViewerRight - kViewerWidth * xs - kStepGap;
-        float half = 196.0f * xs;
+        float half = 206.0f * barScale;
         float x0 = 320.0f - half;
         float x1 = 320.0f + half;
         if (x1 > maxRight)
@@ -66,8 +68,9 @@ namespace layout {
     Box ledgeLegendBox(bool wide)
     {
         float xs = xsOf(wide);
+        float barScale = wide ? 0.90f : 1.0f;
         float maxRight = kViewerRight - kViewerWidth * xs - kStepGap;
-        float half = 196.0f * xs;
+        float half = 206.0f * barScale;
         float x0 = 320.0f - half;
         float x1 = 320.0f + half;
         if (x1 > maxRight)

@@ -53,3 +53,12 @@
 801f47a8:GXSetZCompLoc
 801f3f20:GXSetTevSwapMode
 801f3f5c:GXSetTevSwapModeTable
+
+// Hardware TEV alpha-slope tightening for crisp high-IR font rendering (src/main/gfx/text.cpp):
+// RSBE01 rev 2 addresses from the doldecomp/brawl symbol map (config/RSBE01_02/symbols.txt).
+801f3c30:GXSetTevColorIn
+801f3c70:GXSetTevAlphaIn
+801f3cb0:GXSetTevColorOp
+801f3d08:GXSetTevAlphaOp
+801f409c:GXSetTevOrder
+801f41f8:GXSetNumTevStages

@@ -12,7 +12,8 @@ TEST(osd_place, hud_and_sides_align_and_step_upward)
     const float xs[2] = {1.0f, 0.75f};
     for (int k = 0; k < 2; k++)
     {
-        float half = osd::kBoxWidth * xs[k] * 0.5f;
+        float ws = osd::widthScale(xs[k]);
+        float half = osd::kBoxWidth * ws * 0.5f;
         float minX = ui::layout::kSafeMarginX + half;
         float maxX = 640.0f - ui::layout::kSafeMarginX - half;
         for (int p = 0; p < 4; p++)
@@ -37,9 +38,8 @@ TEST(osd_place, hud_and_sides_align_and_step_upward)
             CHECK_EQ(0.0f, s4.dx);
             CHECK_EQ(-osd::kPitch, s4.dy);
         }
-        // 1v1 Sides pushes P1 to the outer left CRT-safe edge and P2 to the
-        // outer right CRT-safe edge (32..608) in both 4:3 and 16:9.
-        float marginX = ui::layout::kSafeMarginX;
+        // 1v1 Sides anchors P1/P2 inside CRT-safe margins, pulled gently inward on 16:9.
+        float marginX = xs[k] < 1.0f ? 46.0f : ui::layout::kSafeMarginX;
         osd::StackPlace s1 = osd::stackPlace(osd::kPositionSides, 0, xs[k], 0.0f, 0.0f, 2);
         osd::StackPlace s2 = osd::stackPlace(osd::kPositionSides, 1, xs[k], 0.0f, 0.0f, 2);
         osd::StackPlace h2 = osd::stackPlace(osd::kPositionHud, 1, xs[k], 0.0f, 0.0f, 2);
@@ -61,8 +61,9 @@ TEST(osd_place, top_left_rows_grow_right_inside_safe_area)
         CHECK_EQ(0.0f, t.dy);
     }
     osd::StackPlace w = osd::stackPlace(osd::kPositionTopLeft, 0, 0.75f);
-    CHECK_NEAR(ui::layout::kSafeMarginX + osd::kBoxWidth * 0.75f * 0.5f, w.x, 0.001f);
-    CHECK_NEAR((osd::kBoxWidth + osd::kTopColGap) * 0.75f, w.dx, 0.001f);
+    float ws = osd::widthScale(0.75f);
+    CHECK_NEAR(ui::layout::kSafeMarginX + osd::kBoxWidth * ws * 0.5f, w.x, 0.001f);
+    CHECK_NEAR((osd::kBoxWidth + osd::kTopColGap) * ws, w.dx, 0.001f);
 }
 
 TEST(osd_place, top_right_mirrors_top_left)
@@ -152,7 +153,7 @@ TEST(osd_place, hud_43_aligns_with_damage_readouts_on_screen_and_apart)
         }
         osd::StackPlace w = osd::stackPlace(osd::kPositionHud, p, 0.75f);
         float expectedRight16 = 320.0f + (pos16[p] + persDx) * pxPerUnit16;
-        CHECK_NEAR(osd::kHudRight[p], w.x + osd::kBoxWidth * 0.75f * 0.5f, 0.001f);
+        CHECK_NEAR(osd::kHudRight[p], w.x + osd::kBoxWidth * osd::widthScale(0.75f) * 0.5f, 0.001f);
         CHECK_NEAR(expectedRight16, osd::kHudRight[p], 1.5f);
     }
 }

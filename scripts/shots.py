@@ -141,14 +141,20 @@ PAUSE_MENU_SHOWN = 0.15
 PAUSE_MENU_GONE = 0.05
 
 
+def menu_scale(xscale):
+    """Horizontal menu panel scale matching src/main/ui/style.h style::menuScale()."""
+    return 0.90 if xscale < 1.0 else 1.0
+
+
 def pause_menu_behind_panel(xscale):
     """The part of PAUSE_MENU_BOX the lab menu's Draft C rail covers and draws
     no text on (empty right gutter of the rail, x 189-194, strictly clear of
     kRailTextX + kRailTextMaxW = 180.0), as fractions of the frame. On 16:9 the
     panel is narrower than the screen, so Training's menu shows beside it;
     behind it the menu's white boxes must be dimmed."""
+    ms = menu_scale(xscale)
     def fx(gx):
-        return (320 + (gx - 320) * xscale) / 640
+        return (320 + (gx - 320) * ms) / 640
     return (max(PAUSE_MENU_BOX[0], fx(189)), 73 / 480, min(PAUSE_MENU_BOX[2], fx(194)),
             min(PAUSE_MENU_BOX[3], 362 / 480))
 
@@ -157,8 +163,7 @@ def pause_menu_behind_panel(xscale):
 #
 # Expected positions and colours match src/main/ui/style.h (Draft C Category
 # Rail default) in the game's 640x480 2D space. A screenshot is mapped back
-# to that space with the game's horizontal squeeze (0.75 on 16:9, 1 on 4:3):
-# the plugin keeps every element's 4:3 proportions, centred on x 320.
+# to that space with style::menuScale() (0.90 on 16:9, 1 on 4:3).
 
 PANEL = {"left": 36.0, "right": 604.0, "top": 26.0, "bottom": 432.0}
 BORDER = (6, 8, 13)
@@ -166,7 +171,7 @@ TITLE_TOP, TITLE_BOT, TITLE_Y, TITLE_ALPHA = (21, 27, 36), (14, 18, 25), (29.0, 
 RAIL_TOP, RAIL_BOT, RAIL_Y, RAIL_ALPHA = (17, 22, 30), (11, 14, 20), (65.0, 366.0), 0xF2 / 255.0
 ROWS_TOP, ROWS_BOT, ROWS_Y, BAND_ALPHA = (20, 26, 34), (13, 17, 23), (65.0, 366.0), 0xE6 / 255.0
 ROW_SLATE_TOP, ROW_SLATE_BOT, ROW_SLATE_ALPHA = (42, 50, 62), (33, 40, 50), 0xE8 / 255.0
-ROW_BOX_TOP, ROW_BOX_BOT, BOX_ALPHA = (26, 32, 41), (19, 24, 32), 0xEE / 255.0
+ROW_BOX_TOP, ROW_BOX_BOT, BOX_ALPHA = (26, 32, 41), (19, 24, 32), 1.0
 ROW_BOX_FOCUS_TOP, ROW_BOX_FOCUS_BOT, BOX_FOCUS_ALPHA = (246, 249, 252), (226, 232, 240), 1.0
 ROW_BOX_ON_TOP, ROW_BOX_ON_BOT, BOX_ON_ALPHA = (36, 170, 72), (22, 120, 48), 1.0
 ROW_BOX, ROW_BOX_ON = (23, 28, 37), (29, 145, 60)
@@ -178,9 +183,9 @@ ROW_TOP, ROW_PITCH, ROW_H = 73.0, 29.0, 24.0
 NAME_X, ROW_CAP = 228.0, 10.5
 TITLE_X, TITLE_CAP_TOP, TITLE_CAP = 52.0, 39.5, 13.0
 HIGHLIGHT_X = (202.0, 580.0)
-BOX_X = (410.0, 575.0)
+BOX_X = (410.0, 580.0)
 SCROLL_X, SCROLL_W, SCROLL_TOP, SCROLL_H = 585.0, 8.0, 73.0, 285.0
-VALUE_CENTRE = 492.5
+VALUE_CENTRE = 495.0
 TEXT_DISABLED = (122, 134, 153)
 
 
@@ -311,7 +316,7 @@ def box_on(path, row, xscale):
     """Whether the value box of visible menu row `row` is the green On state
     (src/main/ui/style.h kLabPillOn), and its mean (red, green): green well
     above red inside the right margin clear of the text and arrow."""
-    s = Shot(path, xscale)
+    s = Shot(path, menu_scale(xscale))
     red, green, _ = s.mean(*row_rect(row, 535, 560))
     return green - red > 45, (round(red), round(green))
 
@@ -436,14 +441,15 @@ def check_menu(closed_path, open_path, xscale, cursor_row, count, disabled_rows=
     glyph size is measured on (one without descenders).
     Returns (results, failures): each result is (element, expected,
     measured, ok)."""
-    closed, opened = Shot(closed_path, xscale), Shot(open_path, xscale)
+    ms = menu_scale(xscale)
+    closed, opened = Shot(closed_path, ms), Shot(open_path, ms)
     out = []
 
     def add(name, expected, measured, ok):
         out.append((name, expected, measured, bool(ok)))
 
-    # One screenshot pixel is 1/xscale game units wide.
-    tol_x = tol_px + 640.0 / opened.w / xscale
+    # One screenshot pixel is 1/ms game units wide.
+    tol_x = tol_px + 640.0 / opened.w / ms
     edges = panel_edges(closed, opened)
     for k in ("left", "right", "top", "bottom"):
         m = edges[k]

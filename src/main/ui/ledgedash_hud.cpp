@@ -138,16 +138,20 @@ namespace ui {
             for (int i = 0; i < 6; i++)
             {
                 float tx = curX + (swW + swGap) * ratio;
-                gfx::text(tx + 0.8f * xs, ly + 0.8f, kLegNames[i], 0x04070CE8u, sx, lScale);
+                gfx::text(tx - xs, ly, kLegNames[i], 0x04070CE8u, sx, lScale);
+                gfx::text(tx + xs, ly, kLegNames[i], 0x04070CE8u, sx, lScale);
+                gfx::text(tx, ly - 1.0f, kLegNames[i], 0x04070CE8u, sx, lScale);
+                gfx::text(tx, ly + 1.0f, kLegNames[i], 0x04070CE8u, sx, lScale);
                 gfx::text(tx, ly, kLegNames[i], 0xF8FCFFFFu, sx, lScale);
                 curX += (swW + swGap + lWidths[i] + itemGap) * ratio;
             }
         }
 
         // Chunky individually dark-outlined chronological frame cells (09-calm-ledgedash).
+        float barScale = wide ? 0.90f : 1.0f;
         gfx::fillRect(bar.x0, bar.y0, barW, barH, 0x05090FF4u);
-        float gap = layout::kCellGap * xs;
-        float innerPadX = 2.0f * xs;
+        float gap = layout::kCellGap * barScale;
+        float innerPadX = 2.0f * barScale;
         float cellW = (barW - 2.0f * innerPadX - (n - 1) * gap) / n;
         if (cellW < 1.5f)
         {
@@ -240,7 +244,7 @@ namespace ui {
             float ph = plate.y1 - plate.y0;
             float pcx = (plate.x0 + plate.x1) * 0.5f;
             float maxW = pw - 2.0f * style::kFibTight * xs;
-            gfx::fillRect(plate.x0, plate.y0, pw, ph, 0x111720C0u);
+            gfx::fillRect(plate.x0, plate.y0, pw, ph, 0x111720A8u);
 
             static const char* const kRowLabels[3] = {"GALINT", "On Ledge", "Angle"};
             const char* rowVals[3] = {galintBuf, ledgeBuf, angleBuf};

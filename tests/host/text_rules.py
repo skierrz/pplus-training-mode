@@ -559,7 +559,7 @@ def menu_descriptions(c, src):
         c.take(lit)
 
 
-guard("main/ui/info_display.cpp", "drawSide", "e04cb829")
+guard("main/ui/info_display.cpp", "drawSide", "eee94189")
 
 
 def info_display(c, src):
@@ -631,7 +631,7 @@ def info_display(c, src):
         c.take(lit)
 
 
-guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "afb7e853")
+guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "8e6bd92b")
 
 
 def ledgedash_hud(c, src):
@@ -1063,7 +1063,7 @@ def scenario_presets_cpp(c, src):
             for t in c.expand(lit, 1):
                 c.item("squeeze", lit, t, scale_for_cap(13.0), 0, 108.0, 0.0)
                 c.buffer(lit, t, 24.0)
-        elif not lit.calls:
+        elif not lit.calls or lit.name == "drawTimingBar":
             c.item("squeeze", lit, lit.text, scale_for_cap(13.0), 0, 108.0, 0.0)
         else:
             continue
@@ -1126,7 +1126,7 @@ def drill_hud_cpp(c, src):
                 c.item("fit", lit, part, scale_for_cap(9.5), 0, 110.0, 0.0)
         elif lit.func == "drawLiveHud":
             if lit.name == "snprintf" and lit.arg == 2:
-                is_cap = lit.text == "%s  -  %s"
+                is_cap = "caption" in lit.stmt
                 cap = 9.0 if is_cap else 13.0
                 room = 320.0 if is_cap else 108.0
                 buf = 40.0 if is_cap else 24.0

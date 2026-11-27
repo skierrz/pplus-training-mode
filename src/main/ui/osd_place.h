@@ -52,6 +52,14 @@ namespace osd {
     // edge and P2 to the outer right CRT-safe edge so Sides is visibly distinct
     // from HUD; in 3P/4P (> 2), Sides uses the four evenly spaced columns.
     // Unknown positions fall back to HUD.
+    // On 16:9 expand OSD card width slightly (0.86 vs 0.75) so cards breathe
+    // naturally on widescreen while staying compact, and pull 1v1 Sides gently
+    // inward (46 vs 32) into natural peripheral eye gravitation.
+    inline float widthScale(float xs)
+    {
+        return xs < 1.0f ? 0.86f : 1.0f;
+    }
+
     inline StackPlace stackPlace(int position, int player, float xs, float floorY = 0.0f, float topY = 0.0f,
                                  int playerCount = 2)
     {
@@ -62,13 +70,14 @@ namespace osd {
         {
             player = 0;
         }
-        float halfW = kBoxWidth * xs * 0.5f;
+        float ws = widthScale(xs);
+        float halfW = kBoxWidth * ws * 0.5f;
         float halfH = kBoxHeight * 0.5f;
         if (position == kPositionSides)
         {
             if (playerCount <= 2 && player < 2)
             {
-                float marginX = ui::layout::kSafeMarginX;
+                float marginX = xs < 1.0f ? 46.0f : ui::layout::kSafeMarginX;
                 s.x = (player == 0) ? (marginX + halfW) : (640.0f - marginX - halfW);
             }
             else
@@ -86,12 +95,12 @@ namespace osd {
             if (position == kPositionTopLeft)
             {
                 s.x = marginX + halfW;
-                s.dx = (kBoxWidth + kTopColGap) * xs;
+                s.dx = (kBoxWidth + kTopColGap) * ws;
             }
             else
             {
                 s.x = 640.0f - marginX - halfW;
-                s.dx = -(kBoxWidth + kTopColGap) * xs;
+                s.dx = -(kBoxWidth + kTopColGap) * ws;
             }
             s.dy = 0.0f;
         }

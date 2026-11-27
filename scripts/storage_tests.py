@@ -276,7 +276,7 @@ def value_box_on(path, xscale, row):
     """True if the lab menu row's value box is the green On state
     (src/main/ui/style.h kLabPillOn): its margins (left and right of the
     centred text, clear of selection triangles) are distinctly green."""
-    shot = shots.Shot(path, xscale)
+    shot = shots.Shot(path, shots.menu_scale(xscale))
     top = shots.ROW_TOP + row * shots.ROW_PITCH
     parts = [shot.mean(424.0, top + 4, 448.0, top + shots.ROW_H - 4),
              shot.mean(536.0, top + 4, 560.0, top + shots.ROW_H - 4)]

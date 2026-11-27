@@ -258,31 +258,30 @@ namespace extra {
                          static_cast<unsigned>(st.totalAtt));
             }
 
-            // Zone 1: Top-Center Pure Timing / State Bar (calm white legend + crisp cells + white ^ pointer).
+            // Zone 1: Top-Center Pure Timing / State Bar (symmetric Early / Title / Late matching 08-calm-wavedash).
             gfx::Rgba cells[64];
             int cellCount = 15;
             int ptrCell = -1;
             TimingLegendItem legend[6];
             int legendCount = 0;
+            const char* leftLbl = NULL;
+            const char* rightLbl = NULL;
             char caption[40];
             caption[0] = '\0';
 
             if (d == drills::kDrillWavedash)
             {
-                // 15-cell Wavedash bar: 3 Early (red) | 1 Perfect f1 (mint green) | 11 Late (lime -> gold -> orange).
+                // Symmetric 15-cell Wavedash bar: 7 Early (red->coral) | center cell 7 = Perfect f1 | 7 Late (lime->gold->red).
                 static const gfx::Rgba kWdCells[15] = {
-                    0xDC4444E8u, 0xDC4444E8u, 0xDC4444E8u,
+                    0xD43E44FFu, 0xD84440FFu, 0xDC4C3CFFu, 0xE05A38FFu, 0xE66E36FFu, 0xEC8434FFu, 0xF09C36FFu,
                     0x3CE890FFu,
-                    0x7CE068E8u, 0xA8DC50E8u, 0xD4D440E8u, 0xF0C038E8u,
-                    0xF0A234E8u, 0xEC8634E8u, 0xE66E36E8u, 0xE05A38E8u,
-                    0xDC4C3CE8u, 0xD84440E8u, 0xD43E44E8u
+                    0x88E260FFu, 0xBCE048FFu, 0xE8D43CFFu, 0xF2B236FFu, 0xEC8434FFu, 0xE25E3AFFu, 0xD43E44FFu
                 };
                 memcpy(cells, kWdCells, sizeof(kWdCells));
                 cellCount = 15;
-                legend[0].swatch = 0xDC4444FFu; legend[0].label = "Early";
-                legend[1].swatch = 0x3CE890FFu; legend[1].label = "Frame 1";
-                legend[2].swatch = 0xF0B838FFu; legend[2].label = "Late";
-                legendCount = 3;
+                leftLbl = "Early";
+                rightLbl = "Late";
+                snprintf(caption, sizeof(caption), "Wavedash");
                 lbl0 = "Timing";
                 lbl1 = "Angle";
                 const WdCoreState* wd = slot >= 0 ? coreDrillWavedashState(slot) : NULL;
@@ -293,7 +292,7 @@ namespace extra {
                     {
                         int f = (r.kind == kWdKindWaveland) ? r.airdodgeAirFrames : r.jumpsquatToDodge;
                         if (f < 1) f = 1;
-                        ptrCell = 3 + (f - 1);
+                        ptrCell = 7 + (f - 1);
                         if (ptrCell >= cellCount) ptrCell = cellCount - 1;
                         if (f == 1)
                         {
@@ -308,7 +307,7 @@ namespace extra {
                     }
                     else if (r.outcome == kWdMissNoAirdodge)
                     {
-                        ptrCell = 1;
+                        ptrCell = 4;
                         snprintf(val0, sizeof(val0), "Early");
                         col0 = 0xFF6658FFu;
                     }
@@ -335,31 +334,21 @@ namespace extra {
             }
             else if (d == drills::kDrillLCancel)
             {
-                // 15-cell L-Cancel bar: 3 Early (red) | 7f P+ window (green) + cyan hitlag ext | Late (red).
+                // Symmetric L-Cancel bar: 4 Early (red) | centered 7f P+ window (green) + cyan hitlag ext | 4 Late (red).
                 const LcCoreState* lc = slot >= 0 ? coreDrillLCancelState(slot) : NULL;
                 int hitlagExt = (lc != NULL && lc->seq > 0u && lc->last.hitlagFrames > 0) ? lc->last.hitlagFrames : 0;
                 if (hitlagExt > 6) hitlagExt = 6;
                 cellCount = 15 + hitlagExt;
                 for (int i = 0; i < cellCount; i++)
                 {
-                    if (i < 3) cells[i] = 0xDC4444E8u;
-                    else if (i < 10) cells[i] = 0x3CE890FFu;
-                    else if (i < 10 + hitlagExt) cells[i] = 0x36DCE8FFu;
-                    else cells[i] = 0xDC4444E8u;
+                    if (i < 4) cells[i] = 0xDC4444FFu;
+                    else if (i < 11) cells[i] = 0x3CE890FFu;
+                    else if (i < 11 + hitlagExt) cells[i] = 0x36DCE8FFu;
+                    else cells[i] = 0xDC4444FFu;
                 }
-                legend[0].swatch = 0xDC4444FFu; legend[0].label = "Early";
-                legend[1].swatch = 0x3CE890FFu; legend[1].label = "7f Window";
-                if (hitlagExt > 0)
-                {
-                    legend[2].swatch = 0x36DCE8FFu; legend[2].label = "Hitlag";
-                    legend[3].swatch = 0xDC4444FFu; legend[3].label = "Late";
-                    legendCount = 4;
-                }
-                else
-                {
-                    legend[2].swatch = 0xDC4444FFu; legend[2].label = "Late";
-                    legendCount = 3;
-                }
+                leftLbl = "Early";
+                rightLbl = "Late";
+                snprintf(caption, sizeof(caption), hitlagExt > 0 ? "L-Cancel +HL" : "L-Cancel");
                 lbl0 = "Timing";
                 lbl1 = "Hitlag";
                 if (lc != NULL && lc->seq > 0u)
@@ -368,14 +357,14 @@ namespace extra {
                     if (r.outcome == kLcSuccessManual)
                     {
                         int pf = r.pressFrame < 1 ? 1 : (r.pressFrame > 7 ? 7 : r.pressFrame);
-                        ptrCell = 3 + (pf - 1);
+                        ptrCell = 4 + (pf - 1);
                         snprintf(val0, sizeof(val0), "%df / 7f", pf);
                         col0 = 0x4CE688FFu;
                     }
                     else if (r.outcome == kLcMissEarly)
                     {
                         int ef = r.earlyFrames < 1 ? 1 : r.earlyFrames;
-                        ptrCell = 3 - ef;
+                        ptrCell = 4 - ef;
                         if (ptrCell < 0) ptrCell = 0;
                         snprintf(val0, sizeof(val0), "Early -%df", ef);
                         col0 = 0xFF6658FFu;
@@ -383,14 +372,14 @@ namespace extra {
                     else if (r.outcome == kLcMissLate)
                     {
                         int lf = r.lateFrames < 1 ? 1 : r.lateFrames;
-                        ptrCell = 10 + hitlagExt + (lf - 1);
+                        ptrCell = 11 + hitlagExt + (lf - 1);
                         if (ptrCell >= cellCount) ptrCell = cellCount - 1;
                         snprintf(val0, sizeof(val0), "Late +%df", lf);
                         col0 = 0xFF6658FFu;
                     }
                     else if (r.outcome == kLcSuccessAuto)
                     {
-                        ptrCell = 6;
+                        ptrCell = 7;
                         snprintf(val0, sizeof(val0), "Auto ON");
                         col0 = 0xFFB848FFu;
                     }
@@ -422,20 +411,18 @@ namespace extra {
             }
             else if (d == drills::kDrillPowershield)
             {
-                // 12-cell Powershield bar: 3 Early (red) | 2f P+ PS (cyan-emerald) | 4 Normal (gold) | 3 Hit (red).
-                static const gfx::Rgba kPsCells[12] = {
-                    0xDC4444E8u, 0xDC4444E8u, 0xDC4444E8u,
+                // Symmetric 14-cell Powershield bar: 6 Early (red) | centered 2f P+ PS (cyan-emerald) | 4 Shield (gold) | 2 Hit (red).
+                static const gfx::Rgba kPsCells[14] = {
+                    0xDC4444FFu, 0xDC4444FFu, 0xDC4444FFu, 0xE0563CFFu, 0xE66C3AFFu, 0xEC8438FFu,
                     0x2EE8C8FFu, 0x2EE8C8FFu,
-                    0xF0BE38E8u, 0xF0BE38E8u, 0xF0BE38E8u, 0xF0BE38E8u,
-                    0xDC4444E8u, 0xDC4444E8u, 0xDC4444E8u
+                    0xF0BE38FFu, 0xF0BE38FFu, 0xEC9E38FFu, 0xE88238FFu,
+                    0xDC4444FFu, 0xD43E44FFu
                 };
                 memcpy(cells, kPsCells, sizeof(kPsCells));
-                cellCount = 12;
-                legend[0].swatch = 0xDC4444FFu; legend[0].label = "Early";
-                legend[1].swatch = 0x2EE8C8FFu; legend[1].label = "2f PS";
-                legend[2].swatch = 0xF0BE38FFu; legend[2].label = "Shield";
-                legend[3].swatch = 0xDC4444FFu; legend[3].label = "Hit";
-                legendCount = 4;
+                cellCount = 14;
+                leftLbl = "Early";
+                rightLbl = "Late";
+                snprintf(caption, sizeof(caption), "Powershield");
                 lbl0 = "Timing";
                 lbl1 = "Type";
                 const PsSlot* ps = slot >= 0 ? hoverPsPowershieldSlot(slot) : NULL;
@@ -445,7 +432,7 @@ namespace extra {
                     if (r.outcome == kPsPhysical || r.outcome == kPsReflect)
                     {
                         int wf = r.windowFrame < 1 ? 1 : (r.windowFrame > 2 ? 2 : r.windowFrame);
-                        ptrCell = 3 + (wf - 1);
+                        ptrCell = 6 + (wf - 1);
                         snprintf(val0, sizeof(val0), "PS f%d", wf);
                         col0 = 0x4CE688FFu;
                         snprintf(val1, sizeof(val1), r.psDropUsed ? "PS-Drop" : (r.outcome == kPsReflect ? "Reflect" : "Physical"));
@@ -453,7 +440,7 @@ namespace extra {
                     else if (r.outcome == kPsMissEarly)
                     {
                         int off = r.offsetFrames < 0 ? -r.offsetFrames : r.offsetFrames;
-                        ptrCell = 3 - (off < 1 ? 1 : off);
+                        ptrCell = 6 - (off < 1 ? 1 : off);
                         if (ptrCell < 0) ptrCell = 0;
                         snprintf(val0, sizeof(val0), "Early -%df", off);
                         col0 = 0xFF6658FFu;
@@ -462,7 +449,7 @@ namespace extra {
                     else
                     {
                         int off = r.offsetFrames < 1 ? 1 : r.offsetFrames;
-                        ptrCell = 5 + (off - 1);
+                        ptrCell = 8 + (off - 1);
                         if (ptrCell >= cellCount) ptrCell = cellCount - 1;
                         snprintf(val0, sizeof(val0), "Late +%df", off);
                         col0 = 0xFFB848FFu;
@@ -563,7 +550,7 @@ namespace extra {
             }
 
             drawTimingBar(cells, cellCount, ptrCell, legendCount > 0 ? legend : NULL, legendCount,
-                          legendCount == 0 ? caption : NULL, wide);
+                          legendCount == 0 ? caption : NULL, wide, leftLbl, rightLbl);
 
             // Zone 2: Panel B Right-Margin Quiet Smoked Stat Plate stacked cleanly under Option A GC controller.
             StatPlateRow rows[3];

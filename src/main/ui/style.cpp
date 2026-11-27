@@ -78,21 +78,9 @@ namespace style {
             topCol = on ? kLabPillOffTop : kLabPillOffMutedTop;
             botCol = on ? kLabPillOffBot : kLabPillOffMutedBot;
         }
-        float ph = (rowH >= kLabPillH + 4.0f) ? kLabPillH : (rowH - 4.0f);
-        float py = y + (rowH - ph) * 0.5f;
-        float slant = ph * kStyleSlantTan;
-        float xs = gfx::xScale();
-        float x0Top = 320.0f + (left43 + slant - 320.0f) * xs;
-        float x0Bot = 320.0f + (left43 - 320.0f) * xs;
-        float x1Top = 320.0f + (right43 - 320.0f) * xs;
-        float x1Bot = 320.0f + (right43 - slant - 320.0f) * xs;
-        float pad = 2.0f * xs;
-        if (selected || isOn)
-        {
-            drawSlantGradV(x0Top - pad, x0Bot - pad, x1Top + pad, x1Bot + pad, py - 2.0f, py + ph + 2.0f,
-                           kLabPillBorder, kLabPillBorder);
-        }
-        drawSlantGradV(x0Top, x0Bot, x1Top, x1Bot, py, py + ph, topCol, botCol);
+        // Seamless flush-height compartment sharing the exact 2 px dark border
+        // and slant of drawSlantBar (zero yellow overhang, zero vertical spill).
+        drawSlantBar(left43, right43, y, rowH, false, topCol, botCol, kLabPillBorder);
     }
 
     void drawDiagStripes(float rightTopX, float y0, float y1, float slantPx, float stripeW, float gap,

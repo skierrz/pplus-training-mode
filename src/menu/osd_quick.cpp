@@ -1010,13 +1010,12 @@ namespace osdQuick {
         const float nameX = cx(hlLeft43 + 26.0f);
         const float nameMaxW = w(257.0f);
         const float pillLeft43 = 384.0f;
-        const float pillRight43 = hlRight43 - kFibTight;
+        const float pillRight43 = hlRight43;
         const float pillLeft = cx(pillLeft43);
         const float pillRight = cx(pillRight43);
         const float pillCenter = (pillLeft + pillRight) * 0.5f;
-        const float valMaxW = w(126.0f);
+        const float valMaxW = w(132.0f);
         float capOff = (rowH - kLabRowCap) * 0.5f;
-        float xs = gfx::xScale();
 
         for (int r = 0; r < kVisibleRows && s_scroll + r < kRowCount; r++)
         {
@@ -1028,7 +1027,7 @@ namespace osdQuick {
             if (sel)
             {
                 drawSlantBar(hlLeft43, hlRight43, y, rowH, false, kLabGoldTop, kLabGoldBot, kLabGoldEdge);
-                drawDiagStripes(cx(pillLeft43 + 3.0f), y + 2.0f, y + rowH - 2.0f, w((rowH - 4.0f) * slantTan),
+                drawDiagStripes(cx(pillLeft43 + 4.5f), y + 2.0f, y + rowH - 2.0f, w((rowH - 4.0f) * slantTan),
                                 w(4.0f), w(3.0f), kLabStripeCol);
                 drawCursorTri(cx(hlLeft43 + rowH * slantTan * 0.55f + 4.0f), y + rowH * 0.5f, 8.5f);
             }
@@ -1045,10 +1044,11 @@ namespace osdQuick {
             {
                 float midY = y + rowH * 0.5f;
                 gfx::Rgba arrCol = isOn ? kLabFocusGold : kLabGoldInk;
-                float l = pillLeft + 4.0f * xs;
-                float rt = pillRight - 4.0f * xs;
-                gfx::fillTri(l + 4.0f * xs, midY, l + 10.0f * xs, midY - 4.0f, l + 10.0f * xs, midY + 4.0f, arrCol);
-                gfx::fillTri(rt - 4.0f * xs, midY, rt - 10.0f * xs, midY - 4.0f, rt - 10.0f * xs, midY + 4.0f, arrCol);
+                float midSlant = rowH * slantTan * 0.5f;
+                float l = cx(pillLeft43 + midSlant + 4.0f);
+                float rt = cx(pillRight43 - midSlant - 4.0f);
+                gfx::fillTri(l + gw(2.0f), midY, l + gw(8.0f), midY - 4.0f, l + gw(8.0f), midY + 4.0f, arrCol);
+                gfx::fillTri(rt - gw(2.0f), midY, rt - gw(8.0f), midY - 4.0f, rt - gw(8.0f), midY + 4.0f, arrCol);
             }
 
             float ty = textYForCap(y + capOff, rowScale);
@@ -1116,23 +1116,22 @@ namespace osdQuick {
         float bScale = scaleForCap(bCap);
         float lScale = scaleForCap(kTypeMeta);
         float fx = cx(inL43 + kFibPad);
-        float bw = w(17.0f);
+        float bw = gw(17.0f);
 
         drawGlossyRoundBadge(fx + bw * 0.5f, fy, 8.5f, kLabBtnATop, kLabBtnABot);
         gfx::text(fx + (bw - gfx::textWidth(okGlyph, bScale)) * 0.5f, textYForCap(fy - bCap * 0.5f, bScale), okGlyph,
                   kLabActiveTabText, bScale);
-        fx = gfx::text(fx + bw + w(kFibTight), textYForCap(fy - kTypeMeta * 0.5f, lScale), "Toggle / Cycle",
+        fx = gfx::text(fx + bw + gw(kFibTight), textYForCap(fy - kTypeMeta * 0.5f, lScale), "Toggle / Cycle",
                        kLabMutedText, lScale)
-             + w(kFibPad);
+             + gw(kFibPad);
 
         drawGlossyRoundBadge(fx + bw * 0.5f, fy, 8.5f, kLabBtnBTop, kLabBtnBBot);
         gfx::text(fx + (bw - gfx::textWidth(backGlyph, bScale)) * 0.5f, textYForCap(fy - bCap * 0.5f, bScale),
                   backGlyph, kLabWhiteText, bScale);
         const char* backLabel = (s_newerOnCard || s_olderLayoutOnCard) ? "Back" : "Back & Save";
-        gfx::text(fx + bw + w(kFibTight), textYForCap(fy - kTypeMeta * 0.5f, lScale), backLabel, kLabMutedText, lScale);
+        gfx::text(fx + bw + gw(kFibTight), textYForCap(fy - kTypeMeta * 0.5f, lScale), backLabel, kLabMutedText, lScale);
 
-        // Subtle 2px dark inner top/bottom bevel matching menu.cpp.
-        gfx::fillRect(bodyX, inTop, bodyW, kFibHair, kLabDivider);
+        // Bottom inner shadow matching menu.cpp (no grey bar across top emerald ribbon).
         gfx::fillRect(bodyX, inBot - kFibHair, bodyW, kFibHair, kLabBevelDark);
     }
 }

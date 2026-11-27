@@ -614,13 +614,21 @@ namespace extra {
                 cpu::setShieldHealth(hmn->partner, static_cast<float>(cpu::kShieldFull));
             }
         }
+        bool soloZoomCam = ((net.flags & kFlagStandby) != 0u) && d != kPracticeDrillLedgedash
+                           && !(d == kPracticeDrillWavedash && net.cfg.wdTargetZone != 0u);
         clearTransient(net, refs, n,
-                       static_cast<u8>(((d != kPracticeDrillLedgedash
+                       static_cast<u8>(((!soloZoomCam && d != kPracticeDrillLedgedash
                                          && !(d == kPracticeDrillWavedash && net.cfg.wdTargetZone != 0u))
                                             ? kFlagCamOverride
                                             : 0u)
                                        | (!anyProj ? kFlagPsIntang : 0u)
                                        | (tMode != kTargetStationary ? kFlagNoReact : 0u)));
+        if (soloZoomCam)
+        {
+            // Keep vanilla Brawl fighter-centered camera tracking, simply zoomed
+            // out slightly from single-fighter closeup to comfortable 1v1 distance.
+            applyCameraRect(hmn->fighter, hmnFs.x - 44.0f, hmnFs.x + 44.0f, hmnFs.y + 40.0f, hmnFs.y - 18.0f);
+        }
 
         int p1Slot = -1;
         if (d == kPracticeDrillLedgedash || d == kPracticeDrillWavedash)

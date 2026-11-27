@@ -212,19 +212,19 @@ namespace extra {
 
             // True octagonal L-stick gate (left) and unmistakable gold C-stick octagon (lower-center).
             gfx::Rgba lRim = showTag ? (cpu ? 0x76D4ECFFu : 0xF27474FFu) : 0xDCE8F2F0u;
-            drawOctagonGate(x + bw * 0.17f, y + bh * 0.54f, 14.5f * xs, 14.5f, pad.sx, pad.sy, xs, false, lRim);
-            drawOctagonGate(x + bw * 0.49f, y + bh * 0.79f, 8.6f * xs, 8.6f, pad.cx, pad.cy, xs, true, 0xFFD300F8u);
+            drawOctagonGate(x + bw * 0.19f, y + bh * 0.55f, 14.5f * xs, 14.5f, pad.sx, pad.sy, xs, false, lRim);
+            drawOctagonGate(x + bw * 0.48f, y + bh * 0.78f, 8.6f * xs, 8.6f, pad.cx, pad.cy, xs, true, 0xFFD300F8u);
 
             // Compact Start pill + crisp outlined D-pad cross.
             {
                 bool stOn = (pad.buttons & game::kPadStart) != 0;
-                float scx = x + bw * 0.47f;
+                float scx = x + bw * 0.48f;
                 float scy = y + bh * 0.42f;
-                gfx::fillEllipse(scx, scy, 3.4f * xs, 3.4f, 0x05090FF0u);
-                gfx::fillEllipse(scx, scy, 2.3f * xs, 2.3f, stOn ? 0xFFFFFFFFu : 0x9AAAB8D0u);
+                gfx::fillEllipse(scx, scy, 3.2f * xs, 3.2f, 0x05090FF0u);
+                gfx::fillEllipse(scx, scy, 2.1f * xs, 2.1f, stOn ? 0xFFFFFFFFu : 0x9AAAB8D0u);
             }
             {
-                float dcx = x + bw * 0.31f;
+                float dcx = x + bw * 0.33f;
                 float dcy = y + bh * 0.83f;
                 float arm = 6.6f;
                 float th = 3.8f;

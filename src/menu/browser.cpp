@@ -751,12 +751,13 @@ namespace browser {
     {
         float gScale = scaleForCap(kTypeMeta);
         float lScale = scaleForCap(kTypeMeta);
-        float gw = gfx::textWidth(glyph, gScale);
+        float glyphW = gfx::textWidth(glyph, gScale);
         float bh = 18.0f;
-        float bw = round ? w(bh) : (gw + w(10.0f));
-        if (bw < w(bh))
+        float bw = round ? gw(bh) : (glyphW + gw(10.0f));
+        float minW = round ? gw(bh) : gw(bh + 4.0f);
+        if (bw < minW)
         {
-            bw = w(bh);
+            bw = minW;
         }
         if (round)
         {
@@ -766,10 +767,10 @@ namespace browser {
         {
             drawGlossyPillBadge(x, cy - bh * 0.5f, bw, bh, topCol, botCol);
         }
-        gfx::text(x + (bw - gw) * 0.5f, textYForCap(cy - kTypeMeta * 0.5f, gScale), glyph, fg, gScale);
-        float lx = x + bw + w(kFibGap);
+        gfx::text(x + (bw - glyphW) * 0.5f, textYForCap(cy - kTypeMeta * 0.5f, gScale), glyph, fg, gScale);
+        float lx = x + bw + gw(kFibGap);
         float endX = gfx::text(lx, textYForCap(cy - kTypeMeta * 0.5f, lScale), label, kLabMutedText, lScale);
-        return endX + w(kFibPad);
+        return endX + gw(kFibPad);
     }
 
     static void drawBrowserPanel()
@@ -859,7 +860,7 @@ namespace browser {
         const char* nextG = wiiPage ? "+" : "R";
         float pScale = scaleForCap(kTypeMeta);
         float pillH = 18.0f;
-        float pillW = w(22.0f);
+        float pillW = gw(22.0f);
         float pillY = hdrMid - pillH * 0.5f;
         float pTextY = textYForCap(hdrMid - kTypeMeta * 0.5f, pScale);
         float lPillX = cx(412.0f);
@@ -929,16 +930,15 @@ namespace browser {
                                                                       : (s_controllerType == gfPadType::NUNCHUK ? "C" : "X");
             const char* pgG = wiiPage ? "-/+" : "L/R";
             fx = drawFootBadge(fx, fy, okG, true, kLabBtnATop, kLabBtnABot, kLabActiveTabText, "Load");
-            fx = drawFootBadge(fx, fy, delG, s_controllerType == gfPadType::WIIMOTE, kLabBtnLightTop, kLabBtnLightBot,
+            fx = drawFootBadge(fx, fy, delG, true, kLabBtnLightTop, kLabBtnLightBot,
                                kLabBtnDarkText, "Delete");
             fx = drawFootBadge(fx, fy, backG, true, kLabBtnBTop, kLabBtnBBot, kLabWhiteText, "Back");
             drawFootBadge(fx, fy, pgG, false, kLabBtnLightTop, kLabBtnLightBot, kLabBtnDarkText, "Page");
         }
 
-        // Subtle 2px dark inner top/bottom bevel matching menu.cpp.
+        // Bottom inner shadow matching menu.cpp (no grey bar across top emerald ribbon).
         float x0 = cx(inL43);
         float iw = w(inR43 - inL43);
-        gfx::fillRect(x0, inTop, iw, kFibHair, kLabDivider);
         gfx::fillRect(x0, inBot - kFibHair, iw, kFibHair, kLabBevelDark);
     }
 

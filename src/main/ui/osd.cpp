@@ -294,7 +294,8 @@ namespace osd {
                             const ThemeColors& t)
     {
         float xs = gfx::xScale();
-        float w = kBoxWidth * xs;
+        float ws = widthScale(xs);
+        float w = kBoxWidth * ws;
         StackPlace at = stackPlace(s_position, m.player, xs, floorY, topY, playerCount);
         float slot = place(m, now);
         float cx = at.x + slot * at.dx;
@@ -342,10 +343,10 @@ namespace osd {
             }
             float sx = scale;
             float tw = m.width[i];
-            if (tw > kTextWidth * xs)
+            if (tw > kTextWidth * ws)
             {
-                sx = scale * kTextWidth * xs / tw;
-                tw = kTextWidth * xs;
+                sx = scale * kTextWidth * ws / tw;
+                tw = kTextWidth * ws;
             }
             float tx = cx - tw * 0.5f;
             if (t.shadowColor != 0)

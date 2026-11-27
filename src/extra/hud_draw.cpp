@@ -71,82 +71,125 @@ namespace extra {
         }
     }
 
+    void drawOutlinedText(float x, float y, const char* text, gfx::Rgba color, float sx, float sy)
+    {
+        float dx = gfx::xScale();
+        const gfx::Rgba edge = 0x04070CE8u;
+        gfx::text(x - dx, y, text, edge, sx, sy);
+        gfx::text(x + dx, y, text, edge, sx, sy);
+        gfx::text(x, y - 1.0f, text, edge, sx, sy);
+        gfx::text(x, y + 1.0f, text, edge, sx, sy);
+        gfx::text(x, y, text, color, sx, sy);
+    }
+
     ui::layout::Box drawTimingBar(const gfx::Rgba* cells, int count, int pointerCell, const TimingLegendItem* legend,
-                                  int legendCount, const char* caption, bool wide)
+                                  int legendCount, const char* caption, bool wide, const char* leftLabel,
+                                  const char* rightLabel)
     {
         using namespace ui::layout;
         float xs = xsOf(wide);
+        float barScale = wide ? 0.90f : 1.0f;
         int n = count > 0 ? count : 1;
         Box bar = frameBarBox(n, wide);
         float bw = bar.x1 - bar.x0;
         float bh = bar.y1 - bar.y0;
         float barCx = (bar.x0 + bar.x1) * 0.5f;
 
-        // Bold calm-white Rodin caption / swatch legend row directly above bar (08/09 mockups).
         float capSize = kKeyCap;
         float sc = ui::style::scaleForCap(capSize);
-        float swW = kKeySwatch * xs;
-        float swGap = 4.0f * xs;
-        float itemGap = 9.0f * xs;
-        float totalW = 0.0f;
-        float widths[8];
-        int lCount = legend != NULL ? (legendCount < 8 ? legendCount : 8) : 0;
-        if (lCount > 0)
+        float ty = ui::style::textYForCap(kKeyLabelTop, sc);
+        bool has3Zone = (leftLabel != NULL && leftLabel[0] != '\0') || (rightLabel != NULL && rightLabel[0] != '\0');
+        if (has3Zone)
         {
-            for (int i = 0; i < lCount; i++)
+            // Calm 3-zone symmetric header (Early left | Drill Title center | Late right, matching 08-calm-wavedash).
+            float lw = (leftLabel != NULL && leftLabel[0] != '\0') ? gfx::textWidth(leftLabel, sc) : 0.0f;
+            float cw = (caption != NULL && caption[0] != '\0') ? gfx::textWidth(caption, sc) : 0.0f;
+            float rw = (rightLabel != NULL && rightLabel[0] != '\0') ? gfx::textWidth(rightLabel, sc) : 0.0f;
+            float minGap = 8.0f * xs;
+            float need = lw + cw + rw + (lw > 0.0f ? minGap : 0.0f) + (rw > 0.0f ? minGap : 0.0f);
+            float sx = (need > bw && need > 0.0f) ? (sc * bw / need) : sc;
+            float ratio = sc > 0.0f ? (sx / sc) : 1.0f;
+            if (lw > 0.0f)
             {
-                widths[i] = gfx::textWidth(legend[i].label, sc);
-                totalW += (legend[i].swatch != 0u ? (swW + swGap) : 0.0f) + widths[i] + (i + 1 < lCount ? itemGap : 0.0f);
+                drawOutlinedText(bar.x0, ty, leftLabel, 0xF8FCFFFFu, sx, sc);
             }
-            float maxRight = kViewerRight - kViewerWidth * xs - kStepGap;
-            float availW = maxRight - kSafeMarginX;
-            float sx = (totalW > availW && totalW > 0.0f) ? (sc * availW / totalW) : sc;
-            float drawTotalW = totalW > availW ? availW : totalW;
-            float lx0 = barCx - drawTotalW * 0.5f;
-            if (lx0 + drawTotalW > maxRight)
+            if (cw > 0.0f)
             {
-                lx0 = maxRight - drawTotalW;
+                drawOutlinedText(barCx - cw * ratio * 0.5f, ty, caption, 0xF8FCFFFFu, sx, sc);
             }
-            if (lx0 < kSafeMarginX)
+            if (rw > 0.0f)
             {
-                lx0 = kSafeMarginX;
-            }
-            float ratio = (sc > 0.0f) ? (sx / sc) : 1.0f;
-            float curX = lx0;
-            float swY = kKeyLabelTop + (capSize - kKeySwatch) * 0.5f;
-            for (int i = 0; i < lCount; i++)
-            {
-                if (legend[i].swatch != 0u)
-                {
-                    gfx::fillRect(curX - 1.2f * xs, swY - 1.2f, swW + 2.4f * xs, kKeySwatch + 2.4f, 0x05090FF2u);
-                    gfx::fillRect(curX, swY, swW, kKeySwatch, legend[i].swatch | 0xFFu);
-                    curX += (swW + swGap) * ratio;
-                }
-                curX += (widths[i] + itemGap) * ratio;
-            }
-            curX = lx0;
-            float ty = ui::style::textYForCap(kKeyLabelTop, sc);
-            for (int i = 0; i < lCount; i++)
-            {
-                if (legend[i].swatch != 0u)
-                {
-                    curX += (swW + swGap) * ratio;
-                }
-                gfx::text(curX - 0.8f * xs, ty + 0.8f, legend[i].label, 0x04070CE8u, sx, sc);
-                gfx::text(curX + 1.0f * xs, ty + 1.0f, legend[i].label, 0x04070CE8u, sx, sc);
-                gfx::text(curX, ty, legend[i].label, 0xF8FCFFFFu, sx, sc);
-                curX += (widths[i] + itemGap) * ratio;
+                drawOutlinedText(bar.x1 - rw * ratio, ty, rightLabel, 0xF8FCFFFFu, sx, sc);
             }
         }
-        else if (caption != NULL && caption[0] != '\0')
+        else
         {
-            drawShadowCapCenter(barCx, kKeyLabelTop, caption, 0xF8FCFFFFu, capSize, bw + 60.0f * xs);
+            // Bold calm-white Rodin caption / swatch legend row directly above bar (09-calm-ledgedash).
+            float swW = kKeySwatch * xs;
+            float swGap = 4.0f * xs;
+            float itemGap = 9.0f * xs;
+            float totalW = 0.0f;
+            float widths[8];
+            int lCount = legend != NULL ? (legendCount < 8 ? legendCount : 8) : 0;
+            if (lCount > 0)
+            {
+                for (int i = 0; i < lCount; i++)
+                {
+                    widths[i] = gfx::textWidth(legend[i].label, sc);
+                    totalW += (legend[i].swatch != 0u ? (swW + swGap) : 0.0f) + widths[i]
+                              + (i + 1 < lCount ? itemGap : 0.0f);
+                }
+                float maxRight = kViewerRight - kViewerWidth * xs - kStepGap;
+                float availW = maxRight - kSafeMarginX;
+                float sx = (totalW > availW && totalW > 0.0f) ? (sc * availW / totalW) : sc;
+                float drawTotalW = totalW > availW ? availW : totalW;
+                float lx0 = barCx - drawTotalW * 0.5f;
+                if (lx0 + drawTotalW > maxRight)
+                {
+                    lx0 = maxRight - drawTotalW;
+                }
+                if (lx0 < kSafeMarginX)
+                {
+                    lx0 = kSafeMarginX;
+                }
+                float ratio = (sc > 0.0f) ? (sx / sc) : 1.0f;
+                float curX = lx0;
+                float swY = kKeyLabelTop + (capSize - kKeySwatch) * 0.5f;
+                for (int i = 0; i < lCount; i++)
+                {
+                    if (legend[i].swatch != 0u)
+                    {
+                        gfx::fillRect(curX - 1.2f * xs, swY - 1.2f, swW + 2.4f * xs, kKeySwatch + 2.4f, 0x05090FF2u);
+                        gfx::fillRect(curX, swY, swW, kKeySwatch, legend[i].swatch | 0xFFu);
+                        curX += (swW + swGap) * ratio;
+                    }
+                    curX += (widths[i] + itemGap) * ratio;
+                }
+                curX = lx0;
+                for (int i = 0; i < lCount; i++)
+                {
+                    if (legend[i].swatch != 0u)
+                    {
+                        curX += (swW + swGap) * ratio;
+                    }
+                    drawOutlinedText(curX, ty, legend[i].label, 0xF8FCFFFFu, sx, sc);
+                    curX += (widths[i] + itemGap) * ratio;
+                }
+            }
+            else if (caption != NULL && caption[0] != '\0')
+            {
+                float cw = gfx::textWidth(caption, sc);
+                float maxCapW = bw + 60.0f * xs;
+                float sx = (cw > maxCapW && cw > 0.0f) ? (sc * maxCapW / cw) : sc;
+                float drawW = cw > maxCapW ? maxCapW : cw;
+                drawOutlinedText(barCx - drawW * 0.5f, ty, caption, 0xF8FCFFFFu, sx, sc);
+            }
         }
 
         // Chunky individually dark-outlined frame cells (matching 08-calm-wavedash & 09-calm-ledgedash).
         gfx::fillRect(bar.x0, bar.y0, bw, bh, 0x05090FF4u);
-        float gap = kCellGap * xs;
-        float innerPadX = 2.0f * xs;
+        float gap = kCellGap * barScale;
+        float innerPadX = 2.0f * barScale;
         float cellW = (bw - 2.0f * innerPadX - i2f(n - 1) * gap) / i2f(n);
         if (cellW < 1.5f)
         {
@@ -313,12 +356,18 @@ namespace extra {
         bool wide = gfx::widescreen();
         float xs = ui::layout::xsOf(wide);
         const char* label = cpuStatusLabel(main::settings().cpu.options);
+        // Frameless dark-outlined portrait tag matching 01-final-everyday & 02-final-sf6.
         ui::layout::Box b = ui::layout::cpuStatusTagBox(cpuSlot, wide);
         float bw = b.x1 - b.x0;
         float bh = b.y1 - b.y0;
-        drawSmokedPlate(b.x0, b.y0, bw, bh, 0x0E141CC0u);
-        drawShadowCapCenter((b.x0 + b.x1) * 0.5f, b.y0 + (bh - 9.5f) * 0.5f, label, 0xF2F7FCFFu, 9.5f,
-                            bw - 8.0f * xs);
+        float cap = 10.0f;
+        float sc = ui::style::scaleForCap(cap);
+        float maxW = bw + 12.0f * xs;
+        float tw = gfx::textWidth(label, sc);
+        float sx = (tw > maxW && tw > 0.0f) ? (sc * maxW / tw) : sc;
+        float drawW = tw > maxW ? maxW : tw;
+        drawOutlinedText((b.x0 + b.x1) * 0.5f - drawW * 0.5f, ui::style::textYForCap(b.y0 + (bh - cap) * 0.5f, sc),
+                         label, 0xF8FCFFFFu, sx, sc);
     }
 
     void drawHudCard(float x, float y, float w, float h, float xs, gfx::Rgba accent, gfx::Rgba sheen)

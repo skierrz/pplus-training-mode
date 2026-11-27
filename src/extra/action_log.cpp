@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "extra/action_log_core.h"
+#include "extra/hud_draw.h"
 #include "main/display/display.h"
 #include "main/game/motion.h"
 #include "main/game/tracker.h"
@@ -255,51 +256,50 @@ namespace extra {
         const float cellPitch = wide ? 6.0f : 8.0f;
         const float cellFillW = wide ? 4.8f : 6.4f;
 
-        // Crisp dark grounded SF6 pill strip (matching 02-final-sf6-16x9-4x3).
-        gfx::fillRect(ox, oy, bw, bh, 0x091018D8u);
-        gfx::fillRect(ox, oy, bw, 2.0f, 0x04080EF0u);
-        gfx::fillRect(ox, oy + bh - 2.0f, bw, 2.0f, 0x04080EF0u);
-
+        // Frameless SF6 Dual Frame Strip matching 02-final-sf6-16x9-4x3:
+        // zero heavy outer rectangle, crisp dark-outlined P1/CPU tags, individually
+        // dark-framed cells with translucent empty slots, yellow active-frame tick,
+        // and bold oversized frameless Brawl Display Font advantage readout.
         const float tagRight = ox + (wide ? 22.0f : 28.0f);
         const float cellsX = tagRight + 4.0f * xs;
         const float rowH = 10.4f;
-        const float rowY[2] = {oy + 6.5f, oy + bh - 6.5f - rowH};
+        const float rowY[2] = {oy + 5.5f, oy + 5.5f + rowH + 3.0f};
         const bool swapCpu = (mode == main::kActionLogCpu);
         const char* topTag = s_net->topIsCpu ? "CPU" : (swapCpu ? "P2" : "P1");
         const char* botTag = s_net->botIsCpu ? "CPU" : (swapCpu ? "P1" : "P2");
         const char* const rowTags[2] = {topTag, botTag};
-        const gfx::Rgba tagCols[2] = {s_net->topIsCpu ? 0x86DCEEFFu : 0xF8FCFFFFu,
-                                      s_net->botIsCpu ? 0x86DCEEFFu : 0xF8FCFFFFu};
+        const gfx::Rgba tagCols[2] = {s_net->topIsCpu ? 0xC6F0FFFFu : 0xFFE2E2FFu,
+                                      s_net->botIsCpu ? 0xC6F0FFFFu : 0xFFE2E2FFu};
 
         const Sf6StripState& sf = s_net->sf6;
         int filled = static_cast<int>(sf.filled);
         int startIdx = filled > visibleCells ? (filled - visibleCells) : 0;
-        const float tagSc = ui::style::scaleForCap(9.0f);
+        const float tagSc = ui::style::scaleForCap(9.5f);
         const float trackW = static_cast<float>(visibleCells) * cellPitch + (cellPitch - cellFillW);
 
         for (int r = 0; r < 2; r++)
         {
             float tw = gfx::textWidth(rowTags[r], tagSc);
             float tx = tagRight - tw;
-            if (tx < ox + 3.0f * xs)
+            if (tx < ox + 2.0f * xs)
             {
-                tx = ox + 3.0f * xs;
+                tx = ox + 2.0f * xs;
             }
-            float ty = ui::style::textYForCap(rowY[r] + (rowH - 9.0f) * 0.5f, tagSc);
-            gfx::text(tx + xs, ty + 1.0f, rowTags[r], 0x000000E0u, tagSc);
-            gfx::text(tx, ty, rowTags[r], tagCols[r], tagSc);
+            float ty = ui::style::textYForCap(rowY[r] + (rowH - 9.5f) * 0.5f, tagSc);
+            drawOutlinedText(tx, ty, rowTags[r], tagCols[r], tagSc, tagSc);
 
-            // Crisp dark cell trough so individual frame slots read sharply.
-            gfx::fillRect(cellsX - 1.0f * xs, rowY[r] - 1.0f, trackW + 1.0f * xs, rowH + 2.0f, 0x04070CECu);
+            // Tight dark perimeter around cell row only (zero heavy box behind labels/readout).
+            gfx::fillRect(cellsX - 1.0f * xs, rowY[r] - 1.0f, trackW + 1.0f * xs, rowH + 2.0f, 0x05090FD8u);
             for (int c = 0; c < visibleCells; c++)
             {
                 int src = startIdx + c;
                 u8 kind = (src < filled) ? sf6CellAt(sf, r, src) : static_cast<u8>(kSf6Empty);
                 float cx = cellsX + static_cast<float>(c) * cellPitch;
-                gfx::fillRect(cx, rowY[r], cellFillW, rowH, sf6CellColor(kind));
+                gfx::Rgba cellCol = (kind == kSf6Empty) ? 0x18222EC0u : sf6CellColor(kind);
+                gfx::fillRect(cx, rowY[r], cellFillW, rowH, cellCol);
                 if (kind != kSf6Empty && kind != kSf6Gap)
                 {
-                    gfx::fillRect(cx, rowY[r], cellFillW, 2.0f, 0xFFFFFF38u);
+                    gfx::fillRect(cx, rowY[r], cellFillW, 2.0f, 0xFFFFFF3Cu);
                 }
                 if (kind == kSf6Gap)
                 {
@@ -309,10 +309,23 @@ namespace extra {
             }
         }
 
-        // Bold Brawl Display Font (0x80497DA4, 20 scanlines) frame advantage readout on right.
+        // Bright yellow current-frame underline tick directly beneath newest filled column (02-final-sf6).
+        if (filled > 0)
+        {
+            int curCol = filled - 1 - startIdx;
+            if (curCol >= 0 && curCol < visibleCells)
+            {
+                float tickX = cellsX + static_cast<float>(curCol) * cellPitch;
+                float tickY = rowY[1] + rowH + 2.0f;
+                gfx::fillRect(tickX - 0.8f * xs, tickY - 0.5f, cellFillW + 1.6f * xs, 3.5f, 0x05090FF0u);
+                gfx::fillRect(tickX, tickY, cellFillW, 2.5f, 0xFFD820FFu);
+            }
+        }
+
+        // Bold frameless Brawl Display Font (0x80497DA4, 21 scanlines) frame advantage readout on right.
         char advBuf[12];
-        gfx::Rgba topCol = 0xD8E6F0FFu;
-        gfx::Rgba botCol = 0x90A8B8FFu;
+        gfx::Rgba topCol = 0xE2EEF6FFu;
+        gfx::Rgba botCol = 0x9CB2C4FFu;
         if (sf.hasAdvantage)
         {
             int adv = static_cast<int>(sf.advantage);
@@ -320,7 +333,7 @@ namespace extra {
             {
                 snprintf(advBuf, sizeof(advBuf), "+%df", adv);
                 topCol = 0x6BFFB0FFu;
-                botCol = 0x26B868FFu;
+                botCol = 0x24C068FFu;
             }
             else if (adv < 0)
             {
@@ -339,15 +352,16 @@ namespace extra {
         {
             strcpy(advBuf, "--");
         }
-        float advSc = 20.0f / 24.0f;
-        float advAreaX = cellsX + static_cast<float>(visibleCells) * cellPitch + 4.0f;
-        float advAreaW = (ox + bw - 5.0f) - advAreaX;
+        float advSc = 21.0f / 24.0f;
+        float advAreaX = cellsX + static_cast<float>(visibleCells) * cellPitch + 5.0f * xs;
+        float advAreaW = (ox + bw - 2.0f * xs) - advAreaX;
         float advW = gfx::displayTextWidth(advBuf, advSc);
         float advSx = (advW > advAreaW && advW > 0.0f) ? (advSc * advAreaW / advW) : advSc;
         float drawW = advW > advAreaW ? advAreaW : advW;
         float advX = advAreaX + (advAreaW - drawW) * 0.5f;
-        float advY = oy + (bh - 20.0f) * 0.5f - 2.0f * advSc;
-        gfx::displayText(advX, advY, advBuf, topCol, botCol, advSx, advSc, 1.4f, 0x050C12FFu);
+        float stripMidY = (rowY[0] + rowY[1] + rowH) * 0.5f;
+        float advY = stripMidY - 10.5f - 2.0f * advSc;
+        gfx::displayText(advX, advY, advBuf, topCol, botCol, advSx, advSc, 1.6f, 0x04080EFFu);
 
         s_net->debug.sf6VisibleCells = static_cast<u8>(visibleCells);
         s_net->debug.sf6RelocatedTop = players > 2 ? 1u : 0u;

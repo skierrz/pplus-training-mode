@@ -370,7 +370,7 @@ namespace extra {
             float rowPitch = 12.0f;
             float rowsTop = 34.0f;
             float rowsBot = rowsTop + i2fScale(fitRows, rowPitch);
-            float bh = rowsBot + (hasFocus ? 16.0f : 7.0f);
+            float bh = rowsBot + (hasFocus ? 20.0f : 9.0f);
             if (bh > maxBh)
             {
                 bh = maxBh;

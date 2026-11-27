@@ -730,12 +730,7 @@ namespace ui {
                 {
                     state.resetConfirmPage = 0;
                 }
-                if (in.right && state.railCursor < def.categoryCount)
-                {
-                    switchCategory(def, state, state.railCursor, false);
-                    sound = game::kSoundMove;
-                }
-                else if (in.a)
+                if (in.a)
                 {
                     state.resetConfirmPage = 0;
                     if (state.railCursor < def.categoryCount)
@@ -753,7 +748,7 @@ namespace ui {
                         }
                     }
                 }
-                else if ((in.resetOpt || in.resetPage) && !in.up && !in.down && !in.right)
+                else if ((in.resetOpt || in.resetPage) && !in.up && !in.down)
                 {
                     bool hasPageBtn =
                         state.controllerType == gfPadType::GCC || state.controllerType == gfPadType::WII_CLASSIC;
@@ -1111,12 +1106,8 @@ namespace ui {
                             kLabStripeCol);
         }
         float midY = y + h * 0.5f;
-        float iconH = cursorSize + 1.0f;
         float triX43 = flushLeft ? (x43 + 4.0f) : (x43 + slant * 0.55f + 2.5f);
-        if (!main::extraDrawUiIcon(kIconCursorRight, cx(triX43), midY - iconH * 0.5f, w(iconH), iconH, 0xFFFFFFFF))
-        {
-            drawCursorTri(cx(triX43 + 1.0f), midY, cursorSize);
-        }
+        drawCursorTri(cx(triX43 + 1.0f), midY, cursorSize);
     }
 
     static void drawHeaderBand(float bottomY, const MenuPalette& pal)
@@ -1162,51 +1153,18 @@ namespace ui {
                          titled ? 1.2f : 0.0f, titled ? kLabTitleEdge : 0);
     }
 
-    // Draws a native Nintendo button emblem via extra (single or paired), or
-    // falls back to a sculpted glossy GX button badge.
+    // Draws a unified sculpted glossy GX button badge (resolution-independent
+    // across 1x 480p and high internal resolution so footer badges never mix
+    // muddy 16x16 sprites with sharp vector chrome).
     static float drawEmblem(u8 icon1, u8 icon2, float x, float midY, float fbW, u8 theme, u8 flags, bool& usedIcon)
     {
-        if (icon1 == kNoIcon)
-        {
-            float fbH = (flags & kEmblemTab) ? 18.0f : 16.0f;
-            float bx = (flags & kEmblemCentre) ? x - fbW * 0.5f : x;
-            drawGlossyPillBadge(bx, midY - fbH * 0.5f, fbW, fbH, kBtnTheme[theme][0], kBtnTheme[theme][1]);
-            usedIcon = false;
-            return fbW;
-        }
-        float maxH = (flags & kEmblemTab) ? 18.0f : ((flags & kEmblemDense) ? 14.0f : 17.0f);
-        float maxW = (flags & kEmblemDense) ? 20.0f : 26.0f;
-        float xs = gfx::xScale();
-        u8 ids[2] = {icon1, icon2};
-        float total = 0.0f;
-        for (int k = 0; k < 2 && ids[k] != kNoIcon; k++)
-        {
-            float asp = uiIconAspect(ids[k]);
-            float h = maxH;
-            float ww = h * asp;
-            if (ww > maxW)
-            {
-                ww = maxW;
-                h = ww / asp;
-            }
-            float iw = ww * xs;
-            float drawX = (k == 0 && (flags & kEmblemCentre)) ? x - iw * 0.5f : x + total;
-            if (!main::extraDrawUiIcon(ids[k], drawX, midY - h * 0.5f, iw, h, 0xFFFFFFFF))
-            {
-                if (k == 0)
-                {
-                    float fbH = (flags & kEmblemTab) ? 18.0f : 16.0f;
-                    float bx = (flags & kEmblemCentre) ? x - fbW * 0.5f : x;
-                    drawGlossyPillBadge(bx, midY - fbH * 0.5f, fbW, fbH, kBtnTheme[theme][0], kBtnTheme[theme][1]);
-                    usedIcon = false;
-                    return fbW;
-                }
-                break;
-            }
-            total += iw + (k == 0 && ids[1] != kNoIcon ? 2.0f * xs : 0.0f);
-        }
-        usedIcon = true;
-        return total;
+        (void)icon1;
+        (void)icon2;
+        float fbH = (flags & kEmblemTab) ? 18.0f : ((flags & kEmblemDense) ? 14.0f : 16.0f);
+        float bx = (flags & kEmblemCentre) ? x - fbW * 0.5f : x;
+        drawGlossyPillBadge(bx, midY - fbH * 0.5f, fbW, fbH, kBtnTheme[theme][0], kBtnTheme[theme][1]);
+        usedIcon = false;
+        return fbW;
     }
 
     static void drawLabScrollBar(int count, int scroll, int visible, float topY, float height, const MenuPalette& pal)
@@ -1215,9 +1173,8 @@ namespace ui {
         {
             return;
         }
-        float xs = gfx::xScale();
-        float left = 320.0f + (kLabScrollLeft - 320.0f) * xs;
-        float width = kLabScrollW * xs;
+        float left = cx(kLabScrollLeft);
+        float width = w(kLabScrollW);
         gfx::fillRect(left, topY, width, height, pal.divider);
         float inner = height - 4.0f;
         float length = inner * visible / count;
@@ -1231,7 +1188,7 @@ namespace ui {
             scroll = maxScroll;
         }
         float thumbY = topY + 2.0f + (inner - length) * scroll / maxScroll;
-        gfx::fillGradV(left + xs, thumbY, width - 2.0f * xs, length, pal.accentTop, pal.accentBot);
+        gfx::fillGradV(left + w(1.0f), thumbY, width - w(2.0f), length, pal.accentTop, pal.accentBot);
     }
 
     struct CtrlSpec {
@@ -1252,7 +1209,7 @@ namespace ui {
     {
         static const CtrlSpec kSpecs[4] = {
             {kIconGcA, kIconGcB, kNoIcon, kIconGcZ, kNoIcon, kIconGcL, kIconGcR, kIconGcL, kIconGcR, kIconGcX, kIconGcY,
-             0x10, "A", "B", "START", "Z", "L/R", "L", "R", "X", "Y"},
+             0x30, "A", "B", "START", "Z", "L/R", "L", "R", "X", "Y"},
             {kIconWii2, kIconWii1, kIconWiiPlus, kIconWiiMinus, kNoIcon, kIconWiiA, kNoIcon, kNoIcon, kIconWiiA,
              kNoIcon, kNoIcon, 0x0F, "2", "1", "+", "-", "A", NULL, "A", NULL, NULL},
             {kIconWiiA, kIconWiiB, kIconWiiPlus, kIconNunZ, kNoIcon, kIconNunC, kIconWii2, kIconNunC, kIconWii2,
@@ -1365,20 +1322,19 @@ namespace ui {
 
     static void drawHorizArrows(float pillLeft43, float pillRight43, float rowY, gfx::Rgba col)
     {
-        float xs = gfx::xScale();
         float midY = rowY + kLabRowH * 0.5f;
-        float l = 320.0f + (pillLeft43 + 4.0f - 320.0f) * xs;
-        float r = 320.0f + (pillRight43 - 4.0f - 320.0f) * xs;
-        gfx::fillTri(l + 4.0f * xs, midY, l + 10.0f * xs, midY - 4.0f, l + 10.0f * xs, midY + 4.0f, col);
-        gfx::fillTri(r - 4.0f * xs, midY, r - 10.0f * xs, midY - 4.0f, r - 10.0f * xs, midY + 4.0f, col);
+        float midSlant = kLabRowH * kSlantTan * 0.5f;
+        float l = cx(pillLeft43 + midSlant + 4.0f);
+        float r = cx(pillRight43 - midSlant - 4.0f);
+        gfx::fillTri(l + gw(2.0f), midY, l + gw(8.0f), midY - 4.0f, l + gw(8.0f), midY + 4.0f, col);
+        gfx::fillTri(r - gw(2.0f), midY, r - gw(8.0f), midY - 4.0f, r - gw(8.0f), midY + 4.0f, col);
     }
 
     static void drawSubmenuChevron(float right43, float rowY, gfx::Rgba color)
     {
-        float xs = gfx::xScale();
         float midY = rowY + kLabRowH * 0.5f;
-        float r = 320.0f + (right43 - 320.0f) * xs;
-        gfx::fillTri(r - 5.0f * xs, midY, r - 11.0f * xs, midY - 4.0f, r - 11.0f * xs, midY + 4.0f, color);
+        float r = cx(right43);
+        gfx::fillTri(r - gw(5.0f), midY, r - gw(11.0f), midY - 4.0f, r - gw(11.0f), midY + 4.0f, color);
     }
 
     static bool diPickerActiveFor(u8 pageId, const MenuState& state)
@@ -1551,22 +1507,22 @@ namespace ui {
         }
 
         static const struct {
-            float cap, startX, minW, iconGap, itemGap, padW;
+            float cap, startX, badgeH, iconGap, itemGap, padW;
         } kFoot[2] = {
-            {kTypeMeta,  kLabInnerLeft + kFibPad,   16.0f,   kFibTight,  kFibPad,   10.0f},
-            {kTypeMicro, kLabInnerLeft + kFibTight, kFibPad, kFibBorder, kFibTight, kFibTight}
+            {kTypeMeta,  kLabInnerLeft + kFibPad,   16.0f, kFibTight, kFibPad, 10.0f},
+            {kTypeMicro, kLabInnerLeft + kFibTight, 14.0f, 3.5f,      5.5f,    6.0f}
         };
         int tier = n >= 6 ? 1 : 0;
         const float cap = kFoot[tier].cap;
         float scale = scaleForCap(cap);
         float footerMidY = kLabFooterTop + 2.0f + (kLabInnerBottom - kLabFooterTop - 4.0f) * 0.5f;
         float textY = textYForCap(footerMidY - cap * 0.5f, scale);
-        float xs = gfx::xScale();
         float curX = cx(kFoot[tier].startX);
-        float minBadgeW = kFoot[tier].minW * xs;
-        float iconGap = kFoot[tier].iconGap * xs;
-        float itemGap = kFoot[tier].itemGap * xs;
-        float padW = kFoot[tier].padW * xs;
+        float roundW = gw(kFoot[tier].badgeH);
+        float minPillW = gw(kFoot[tier].badgeH + 3.0f);
+        float iconGap = gw(kFoot[tier].iconGap);
+        float itemGap = gw(kFoot[tier].itemGap);
+        float padW = gw(kFoot[tier].padW);
         u8 embFlags = tier > 0 ? kEmblemDense : 0;
 
         float badgeX[7], badgeW[7], labelX[7];
@@ -1575,10 +1531,10 @@ namespace ui {
         {
             const FooterItem& it = items[i];
             badgeX[i] = curX;
-            float fbW = it.round ? minBadgeW : (boldWidth(it.badge, scale) + padW);
-            if (fbW < minBadgeW)
+            float fbW = it.round ? roundW : (boldWidth(it.badge, scale) + padW);
+            if (!it.round && fbW < minPillW)
             {
-                fbW = minBadgeW;
+                fbW = minPillW;
             }
             badgeW[i] = drawEmblem(it.icon1, it.icon2, curX, footerMidY, fbW, it.theme, embFlags, usedIcon[i]);
             labelX[i] = curX + badgeW[i] + iconGap;
@@ -1710,10 +1666,10 @@ namespace ui {
         bool rightUsedIcon = false;
         if (cs.tabL != kNoIcon)
         {
-            drawEmblem(cs.tabL, kNoIcon, cx(57.5f), tabMidY, w(24.0f), 2, kEmblemCentre | kEmblemTab, leftUsedIcon);
+            drawEmblem(cs.tabL, kNoIcon, cx(57.5f), tabMidY, gw(24.0f), 2, kEmblemCentre | kEmblemTab, leftUsedIcon);
         }
         bool rRound = (cs.roundBits & 8) != 0;
-        drawEmblem(cs.tabR, kNoIcon, cx(582.5f), tabMidY, w(rRound ? 18.0f : 24.0f), 2, kEmblemCentre | kEmblemTab,
+        drawEmblem(cs.tabR, kNoIcon, cx(582.5f), tabMidY, gw(rRound ? 18.0f : 24.0f), 2, kEmblemCentre | kEmblemTab,
                    rightUsedIcon);
 
         BevelCols accentBevel = {pal.accentTop, pal.accentBot, pal.accentSheen, pal.accentEdge};
@@ -1890,7 +1846,7 @@ namespace ui {
                 bool hasVal = value != NULL && value[0] != '\0';
                 if (selected)
                 {
-                    float stripeX = hasVal ? (g.pillLeft + 3.0f) : (g.hlRight - 18.0f);
+                    float stripeX = hasVal ? (g.pillLeft + 4.5f) : (g.hlRight - 18.0f);
                     drawGoldBar(g.hlLeft, g.hlRight - g.hlLeft, y, kLabRowH, 8.5f, false, stripeX);
                 }
                 else
@@ -1942,11 +1898,10 @@ namespace ui {
             main::extraDrawPageOverlay(pageId, railMode);
         }
 
-        // 5. Shared 1-line description strip, Nintendo button footer strip, and subtle dark inner frame.
+        // 5. Shared 1-line description strip, unified vector button footer, and bottom inner shadow.
         drawDescStrip(def, state, pageId, cur, p, pal);
         drawFooterStrip(def, state, pageId, p, cur, pal);
         float iw = kLabInnerRight - kLabInnerLeft;
-        fillBox(kLabInnerLeft, kLabInnerTop, iw, 2.0f, pal.divider);
         fillBox(kLabInnerLeft, kLabInnerBottom - 2.0f, iw, 2.0f, pal.bevelDark);
     }
 }

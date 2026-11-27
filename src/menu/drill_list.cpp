@@ -542,14 +542,14 @@ namespace list {
     static const float kBannerRightBot = 589.0f;
     static const float kBannerTitleX = 190.0f;
     static const float kBannerTitleCap = kTypeBody;
-    static const float kBannerPillLeftX = 314.0f;
+    static const float kBannerPillLeftX = 330.0f;
     static const float kBannerPillW = 22.0f;
     static const float kBannerPillH = 18.0f;
     static const float kBannerPillCap = kTypeMeta;
-    static const float kBannerSecSlotL = 340.0f;
-    static const float kBannerSecSlotR = 516.0f;
+    static const float kBannerSecSlotL = 356.0f;
+    static const float kBannerSecSlotR = 524.0f;
     static const float kBannerSecCap = kTypeMeta;
-    static const float kBannerPillRightX = 520.0f;
+    static const float kBannerPillRightX = 528.0f;
 
     static const float kColLeft = 36.0f;
     static const float kColBarRight = 256.0f;   // W = 220
@@ -1200,7 +1200,7 @@ namespace list {
 
         float pillScale = scaleForCap(kBannerPillCap);
         float pillY = midY - kBannerPillH * 0.5f;
-        float pillW = w(kBannerPillW);
+        float pillW = gw(kBannerPillW);
         float pillTextY = textYForCap(midY - kBannerPillCap * 0.5f, pillScale);
 
         float prevW = gfx::textWidth(prevGlyph, pillScale);
@@ -1444,9 +1444,9 @@ namespace list {
     {
         float glyphScale = scaleForCap(kBadgeCap);
         float labelScale = scaleForCap(kBadgeLabelCap);
-        float gw = gfx::textWidth(glyph, glyphScale);
-        float badgeW = round ? w(kBadgeH) : (gw + w(kFibGap));
-        float minW = round ? w(kBadgeH) : w(kFibRowH);
+        float glyphW = gfx::textWidth(glyph, glyphScale);
+        float badgeW = round ? gw(kBadgeH) : (glyphW + gw(10.0f));
+        float minW = round ? gw(kBadgeH) : gw(kBadgeH + 4.0f);
         if (badgeW < minW)
         {
             badgeW = minW;
@@ -1460,12 +1460,12 @@ namespace list {
         {
             drawGlossyPillBadge(x, badgeY, badgeW, kBadgeH, topCol, botCol);
         }
-        gfx::text(x + (badgeW - gw) * 0.5f, textYForCap(kStripCenterY - kBadgeCap * 0.5f, glyphScale), glyph, fg,
+        gfx::text(x + (badgeW - glyphW) * 0.5f, textYForCap(kStripCenterY - kBadgeCap * 0.5f, glyphScale), glyph, fg,
                   glyphScale);
-        float lx = x + badgeW + w(kFibTight);
+        float lx = x + badgeW + gw(kFibTight);
         float endX = gfx::text(lx, textYForCap(kStripCenterY - kBadgeLabelCap * 0.5f, labelScale), label, kText,
                                labelScale);
-        return endX + w(kFibPad);
+        return endX + gw(kFibPad);
     }
 
     static void drawFooterStrip(u32 type)
@@ -1478,8 +1478,8 @@ namespace list {
         const char* recGlyph = type == gfPadType::WIIMOTE ? "A" : (type == gfPadType::NUNCHUK ? "C" : "X");
         const char* osdGlyph = type == gfPadType::WIIMOTE ? "-+A" : (type == gfPadType::NUNCHUK ? "Z" : "Y");
         const char* sectionGlyph = (type == gfPadType::WIIMOTE || type == gfPadType::NUNCHUK) ? "-/+" : "L/R";
-        bool recRound = type == gfPadType::WIIMOTE;
-        bool osdRound = type == gfPadType::NUNCHUK;
+        bool recRound = true;
+        bool osdRound = (type != gfPadType::WIIMOTE);
 
         float x = cx(kColLeft);
         x = drawControlBadge(x, confirmGlyph, true, kLabBtnATop, kLabBtnABot, kCardTitle, "Select");

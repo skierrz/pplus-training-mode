@@ -263,8 +263,8 @@ namespace {
         seedLedgedash(cells, true, noXlu);
         canvas::clear();
         ui::hudLayoutDrawLedgedashHud();
-        // Top-center calm white swatch-legend row sits in y < kBarTop, left of the 118 px right column.
-        float plateSplit = layout::kViewerRight - layout::kRightColWidth - 2.0f;
+        // Top-center calm white swatch-legend row sits in y < kBarTop, left of the right column.
+        float plateSplit = layout::kViewerRight - layout::kRightColWidth * layout::xsOf(gfx::widescreen()) - 2.0f;
         Box out = layout::none();
         for (int i = 0; i < 6 && i < canvas::rects(); i++)
         {
@@ -289,8 +289,8 @@ namespace {
         seedLedgedash(cells, true, noXlu);
         canvas::clear();
         ui::hudLayoutDrawLedgedashHud();
-        // Right-margin Panel B quiet smoked stat plate sits at x >= plateSplit (488 on 4:3).
-        float plateSplit = layout::kViewerRight - layout::kRightColWidth - 2.0f;
+        // Right-margin Panel B quiet smoked stat plate sits at x >= plateSplit.
+        float plateSplit = layout::kViewerRight - layout::kRightColWidth * layout::xsOf(gfx::widescreen()) - 2.0f;
         Box out = layout::none();
         for (int i = 0; i < canvas::rects(); i++)
         {
@@ -468,10 +468,8 @@ namespace {
         {"lab-ledgedash-hud", "*", "*", "ledge-bar", "osd-topright-p1", "top spots"},
         {"lab-ledgedash-hud", "*", "*", "ledge-key", "osd-topleft-p1", "top spots"},
         {"lab-ledgedash-hud", "*", "*", "ledge-key", "osd-topright-p1", "top spots"},
-        {"lab-ledgedash-hud", "*", "*", "ledge-plate", "osd-topright-p1", "top spots"},
         {"lab-ledgedash-hud", "*", "*", "ledge-plate", "osd-topright-p2", "top spots"},
         {"lab-ledgedash-hud", "*", "most", "ledge-plate", "osd-sides-p2", "six messages"},
-        {"lab-ledgedash-hud", "*", "most", "ledge-plate", "osd-topleft-p1", "top spots"},
         {"lab-ledgedash-hud", "*", "most", "ledge-plate", "osd-topleft-p2", "top spots"},
         {"*", "*", "most", "info-cpu", "osd-hud-p1", "six messages"},
         {"*", "*", "most", "info-cpu", "osd-hud-p2", "six messages"},
@@ -1179,7 +1177,7 @@ TEST(hud_layout, stream2_live_hud_ergonomics_f1_to_f8_43_and_169)
             CHECK(v1Timer.x0 >= timer.x1 + 110.0f - 0.5f);
         }
 
-        // Ledgedash 64-cell bar clears Option A GC controller and Panel B stat plate stacks flush below it.
+        // Ledgedash 64-cell bar clears Option A GC controller and Panel B stat plate sits in middle-right eye real estate.
         Box ledgeBar64 = layout::frameBarBox(64, wide);
         CHECK(inside(ledgeBar64, safe));
         CHECK(!layout::meets(ledgeBar64, v0Ledge));
@@ -1188,7 +1186,7 @@ TEST(hud_layout, stream2_live_hud_ergonomics_f1_to_f8_43_and_169)
         CHECK(inside(statPlate, safe));
         CHECK_NEAR(608.0f, statPlate.x1, 0.01f);
         CHECK_NEAR(v0Ledge.x0, statPlate.x0, 0.01f);
-        CHECK_NEAR(87.0f, statPlate.y0, 0.01f);
+        CHECK_NEAR(layout::kDrillPlateMidY, statPlate.y0, 0.01f);
         CHECK(!layout::meets(statPlate, v0Ledge));
         CHECK(!layout::meets(statPlate, ledgeBar64));
 

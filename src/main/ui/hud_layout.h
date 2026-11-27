@@ -94,17 +94,18 @@ namespace layout {
     }
 
     // ---- Ledgedash / Unified Drill Timing Bar top band (ui/ledgedash_hud.cpp) ----
-    // Bold calm-white caption/legend row sits directly above the bar (y 27.5..37),
-    // chunky dark-outlined cell bar at y 41..57 (16 px tall), and upward pointer
-    // arrow at y 58.5..65.5 (matching 08-calm-wavedash & 09-calm-ledgedash).
+    // Calm white 3-zone header (Early / Drill Title / Late) or legend directly above
+    // bar (y 31..41), pulled gently off the ceiling for natural eye gravitation
+    // (08-calm-wavedash), chunky dark-outlined cell bar at y 48..64 (16 px tall),
+    // and upward pointer arrow at y 65.5..72.5.
     // Max width 450 px on 4:3 (x 32..482) clears the Top-Right Option A GC
     // controller (x 490..608) by 8 px (F6) even at 64 cells.
-    static const float kBarTop = 41.0f;
-    static const float kBarBottom = 57.0f;
+    static const float kBarTop = 43.0f;
+    static const float kBarBottom = 59.0f;
     static const float kBarMaxW = 450.0f;
-    static const float kKeyY = 24.0f;
-    static const float kKeyLabelTop = 27.0f;
-    static const float kLegendTop = 58.5f;
+    static const float kKeyY = 25.0f;
+    static const float kKeyLabelTop = 29.0f;
+    static const float kLegendTop = 60.5f;
     static const float kLegendCap = 9.0f;
 
     static const float kCellW = 11.5f;
@@ -403,11 +404,13 @@ namespace layout {
 
     // ---- Panel B Right-Margin Drill Stat Plate (extra/hud_draw.cpp, ui/ledgedash_hud.cpp) ----
     // Quiet smoked-dark borderless plate flush on the unified 118 px right column
-    // (row pitch F9 = 34 px, gap F6 = 8 px). When Brawl's Training Help sidebar is shown
-    // and stacking below it would exceed y = 390, docks cleanly left of the sidebar at y = 73.
+    // (row pitch F9 = 34 px, gap F6 = 8 px). Anchored vertically in middle-right
+    // eye-gravitation real estate (y = 152..262 for 3 rows, centered ~207), staying
+    // rock-steady whether 0, 1, or 2 Option A GC controllers are visible above it.
     static const float kDrillPlateWidth = kRightColWidth;
     static const float kDrillPlateGap = kStepGap;
     static const float kDrillPlateRowH = 34.0f;
+    static const float kDrillPlateMidY = 124.0f;
 
     inline Box drillStatPlateBox(int rows, float aboveBottom, bool wide, bool trainingSidebar = false)
     {
@@ -424,7 +427,8 @@ namespace layout {
             }
             return box(kViewerRight - w, y0, w, h);
         }
-        float y0 = aboveBottom > 0.0f ? (aboveBottom + kDrillPlateGap) : kViewerTop;
+        float minTop = aboveBottom > 0.0f ? (aboveBottom + kDrillPlateGap) : kDrillPlateMidY;
+        float y0 = minTop > kDrillPlateMidY ? minTop : kDrillPlateMidY;
         return box(kViewerRight - w, y0, w, h);
     }
 

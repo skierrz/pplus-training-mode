@@ -5,14 +5,21 @@
 
 // Shared native P+ / Brawl UI styling in Brawl's 640x480 2D coordinate space.
 // Header-only so both match and menu modules share it.
-// On 16:9 the display widens the 640x480 picture, so horizontal positions pass
-// through cx(), lx(), or rx() and widths through w() to preserve 4:3 aspect.
+// On 16:9 the display widens the 640x480 picture by 4/3: gfx::xScale() (0.75)
+// keeps glyphs, circles, and icons aspect-correct via gw(), while menuScale()
+// (0.90 on 16:9, 1.0 on 4:3) lets menu panels breathe across ~80% of widescreen
+// (x 64..576, well inside 5% CRT safe 32..608) via cx() and w().
 namespace tm {
 namespace ui {
 namespace style {
+    inline float menuScale()
+    {
+        return gfx::widescreen() ? 0.90f : 1.0f;
+    }
+
     inline float cx(float x)
     {
-        return 320.0f + (x - 320.0f) * gfx::xScale();
+        return 320.0f + (x - 320.0f) * menuScale();
     }
 
     inline float lx(float x)
@@ -26,6 +33,12 @@ namespace style {
     }
 
     inline float w(float width)
+    {
+        return width * menuScale();
+    }
+
+    // Aspect-preserving graphic width for circular badges, icons, and arrows.
+    inline float gw(float width)
     {
         return width * gfx::xScale();
     }
@@ -122,19 +135,19 @@ namespace style {
     static const gfx::Rgba kLabGoldInkMuted = 0x524214FF;
     static const gfx::Rgba kLabRowSlateTop = 0x2A323EE8;
     static const gfx::Rgba kLabRowSlateBot = 0x212832E8;
-    static const gfx::Rgba kLabRowSlateEdge = 0x10141BE8;
+    static const gfx::Rgba kLabRowSlateEdge = 0x080C12FF;
     static const gfx::Rgba kLabStripeCol = 0x5A6674E0;
     static const gfx::Rgba kLabPillBorder = 0x080C12FF;
     static const gfx::Rgba kLabPillFocusTop = 0xF6F9FCFF;
     static const gfx::Rgba kLabPillFocusBot = 0xE2E8F0FF;
     static const gfx::Rgba kLabPillOnTop = 0x24AA48FF;
     static const gfx::Rgba kLabPillOnBot = 0x167830FF;
-    static const gfx::Rgba kLabPillOnMutedTop = 0x1A4C28B0;
-    static const gfx::Rgba kLabPillOnMutedBot = 0x11311AB0;
-    static const gfx::Rgba kLabPillOffTop = 0x1A2029EE;
-    static const gfx::Rgba kLabPillOffBot = 0x131820EE;
-    static const gfx::Rgba kLabPillOffMutedTop = 0x151A22B0;
-    static const gfx::Rgba kLabPillOffMutedBot = 0x0F131AB0;
+    static const gfx::Rgba kLabPillOnMutedTop = 0x1A4C28FF;
+    static const gfx::Rgba kLabPillOnMutedBot = 0x11311AFF;
+    static const gfx::Rgba kLabPillOffTop = 0x1A2029FF;
+    static const gfx::Rgba kLabPillOffBot = 0x131820FF;
+    static const gfx::Rgba kLabPillOffMutedTop = 0x151A22FF;
+    static const gfx::Rgba kLabPillOffMutedBot = 0x0F131AFF;
     static const gfx::Rgba kLabPillOnSheen = 0xFFFFFF38;
     static const gfx::Rgba kLabPillOffSheen = 0x50607430;
     static const gfx::Rgba kLabDescText = 0xD2DCE4FF;
@@ -235,9 +248,9 @@ namespace style {
     static const float kRailNameX = 228.0f;      // crisp 7+ px gap after red cursor triangle (03-mockup)
     static const float kRailNameMaxW = 174.0f;   // 410 - 228 - 8
     static const float kRailPillLeft = 410.0f;
-    static const float kRailPillRight = 575.0f;  // kRailHlRight (580) - kFibTight (5)
-    static const float kRailValCenter = 492.5f;
-    static const float kRailValMaxW = 135.0f;
+    static const float kRailPillRight = kRailHlRight; // flush with row right edge (no gold overhang)
+    static const float kRailValCenter = 495.0f;
+    static const float kRailValMaxW = 140.0f;
     static const float kRailItemTop = 73.0f;     // aligns with option row 0
     static const float kRailItemPitch = 28.0f;   // kRailItemH (23) + kFibTight (5)
     static const float kRailItemH = 23.0f;
@@ -260,9 +273,9 @@ namespace style {
     static const float kTabsNameX = 73.0f;       // crisp 7+ px gap after red cursor triangle
     static const float kTabsNameMaxW = 275.0f;
     static const float kTabsPillLeft = 356.0f;
-    static const float kTabsPillRight = 575.0f;  // kTabsHlRight (580) - kFibTight (5)
-    static const float kTabsValCenter = 465.5f;
-    static const float kTabsValMaxW = 182.0f;
+    static const float kTabsPillRight = kTabsHlRight; // flush with row right edge (no gold overhang)
+    static const float kTabsValCenter = 468.0f;
+    static const float kTabsValMaxW = 186.0f;
     static const float kTabsCap = kTypeMeta;
     static const float kRowTop = 91.0f;
     static const float kRowPitch = 26.0f;        // kRowBoxH (21) + kFibTight (5)
