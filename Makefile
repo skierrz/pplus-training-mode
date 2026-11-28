@@ -291,7 +291,7 @@ endif
         test-reject test-lab test-displays test-osds test-drills test-cpu test-recovery-combo test-stage3f test-scenarios \
         test-display test-controls test-di test-frames test-savestate test-record test-storage \
         test-card test-extra-heaps test-fighter-sets test-fighter-sets-no-extra test-fighter-swap test-big-file test-sounds test-rng test-fighter-mechanics test-stage-options test-stage3d test-stage5d test-stage4a-core test-stage4a-hover-ps test-stage4a-pplus-tech test-stage4c test-grab-visualizer test-psa-inspector test-hud-theme-meter test-match-hud test-code-menu test-boot test-harness test-perf match-baseline \
-        match-compare check-host
+        match-compare check-host verify-release
 
 all: $(BUILT_REL)
 
@@ -446,6 +446,10 @@ export TM_HOST_DUMP := $(HOST_DUMP)
 endif
 check-host:
 	$(Q)MSYS2_ARG_CONV_EXCL='*' $(PYTHON) tests/host/build.py $(HOST_ARGS)
+
+VERIFY_RELEASE_ARGS ?=
+verify-release:
+	$(Q)MSYS2_ARG_CONV_EXCL='*' $(PYTHON) scripts/verify_release.py $(VERIFY_RELEASE_ARGS)
 
 # Emulator targets. Settings are passed in the environment, not on the command
 # line, so paths with spaces need no quoting. MSYS2_ARG_CONV_EXCL stops MSYS2
