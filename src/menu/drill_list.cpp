@@ -622,17 +622,19 @@ namespace list {
     static Repeat s_repeat[2];
     static bool s_fresh = false; // no presses on the first capture after attach
 
-    // Budgeted 16-byte boot menu motion state (<= 24 B): 9f open + 6f stagger,
-    // 5f non-blocking exit -> 6f CSS pill settle, chase60 cursor, 7f L/R slide.
+    // Budgeted 20-byte boot menu motion state (<= 24 B): 9f open + 6f stagger,
+    // 5f non-blocking exit -> 6f CSS pill settle, chase60 cursor & scroll, 7f L/R slide.
     struct ListAnim {
         float barY;
         float slideX;
+        float scrollY;
         u8 openTick;
         u8 closeTick;
         u8 pillTick;
         u8 modalExitTick;
         u8 valid;
-        u8 pad[3];
+        u8 hasScroll;
+        u8 pad[2];
     };
     static ListAnim s_anim;
 
@@ -779,6 +781,7 @@ namespace list {
         s_anim.closeTick = 0;
         s_anim.slideX = 0.0f;
         s_anim.valid = 0;
+        s_anim.hasScroll = 0;
         gfx::forgetWidths();
         TM_LOG("drills: list opened (%s) for port %d, row %d %s\n", how, s_owner + 1, s_row, current().name);
     }
@@ -856,6 +859,7 @@ namespace list {
         s_repeat[0].held = s_repeat[1].held = 0;
         s_anim.slideX = delta > 0 ? 12.0f : -12.0f;
         s_anim.valid = 0;
+        s_anim.hasScroll = 0;
         gfx::forgetWidths();
         TM_LOG("drills: page %s\n", currentSection().name);
         sound(game::kSoundMove);
@@ -1259,6 +1263,26 @@ namespace list {
         boldText(cx(kCardRight) - verW, textYForCap(70.0f, verScale), TM_VERSION_MARK, kCardMuted, verScale, verScale);
     }
 
+    static void drawLeftColLabels(const LauncherSection& sec, int drawStart, int drawEnd, float drawScrollY,
+                                  const float* rowOff, float slidePx, float textX, float textMaxW, float scale,
+                                  float capOffset, int passMode, float lensTop, float lensBot)
+    {
+        for (int idx = drawStart; idx < drawEnd; idx++)
+        {
+            float y = kColTop + static_cast<float>(idx) * kColPitch - drawScrollY;
+            if (passMode == 2 && (y + kColRowH <= lensTop || y >= lensBot))
+            {
+                continue;
+            }
+            bool selected = passMode == 2 ? true : (passMode == 0 && idx == s_row);
+            float rxOff = (passMode == 2 && s_anim.openTick == 0) ? slidePx : rowOff[idx - drawStart];
+            const char* name = rowAt(sec, idx).name;
+            float nw = boldWidth(name, scale);
+            float sx = nw > textMaxW && nw > 0.0f ? scale * textMaxW / nw : scale;
+            boldText(textX + rxOff, textYForCap(y + capOffset, scale), name, selected ? kLabGoldInk : kText, sx, scale);
+        }
+    }
+
     static void drawLeftColumn()
     {
         const LauncherSection& sec = currentSection();
@@ -1280,66 +1304,126 @@ namespace list {
         float textMaxW = cx(kColBarRight - 30.0f) - textX;
         float slidePx = w(s_anim.slideX);
         float openElapsed = s_anim.openTick > 0 ? static_cast<float>(9 - s_anim.openTick) : 9.0f;
-        float rowOff[kVisibleRows];
 
-        // Draw unselected dark-slate plates first (capped <= 6f stagger on open, never blocks input).
-        for (int r = 0; r < kVisibleRows && s_scroll + r < sec.count; r++)
+        float targetScrollY = static_cast<float>(s_scroll) * kColPitch;
+        s_anim.scrollY = s_anim.hasScroll ? chase60(s_anim.scrollY, targetScrollY, 0.52f) : targetScrollY;
+        s_anim.hasScroll = 1;
+        bool scrolling = (s_anim.scrollY < targetScrollY - 0.25f || s_anim.scrollY > targetScrollY + 0.25f);
+        float drawScrollY = scrolling ? s_anim.scrollY : targetScrollY;
+
+        int drawStart = s_scroll;
+        int drawEnd = s_scroll + kVisibleRows;
+        if (scrolling)
         {
-            float staggerT = s_anim.openTick > 0 ? easeOutCubic((openElapsed - r * 0.45f) / 4.5f) : 1.0f;
-            float rxOff = slidePx - w((1.0f - staggerT) * 10.0f);
-            rowOff[r] = rxOff;
-            float y = kColTop + r * kColPitch;
-            drawSlantGradV(x0Top + rxOff, x0Bot + rxOff, x1Top + rxOff, x1Bot + rxOff, y, y + kColRowH,
-                           kLabBorderColor, kLabBorderColor);
-            drawSlantGradV(ix0Top + rxOff, ix0Bot + rxOff, ix1Top + rxOff, ix1Bot + rxOff, y + kFibHair,
-                           y + kColRowH - kFibHair, kRowFillTop, kRowFillBot);
+            drawStart = static_cast<int>(drawScrollY / kColPitch) - 1;
+            if (drawStart < 0)
+            {
+                drawStart = 0;
+            }
+            drawEnd = drawStart + kVisibleRows + 3;
+        }
+        if (drawEnd > sec.count)
+        {
+            drawEnd = sec.count;
+        }
+        enum { kMaxBootDraw = kVisibleRows + 4 };
+        if (drawEnd - drawStart > kMaxBootDraw)
+        {
+            drawEnd = drawStart + kMaxBootDraw;
         }
 
-        // Gliding Solo-Gold cursor bar (chase60(0.44f), snapped at rest via snapPx).
-        if (s_row >= s_scroll && s_row < s_scroll + kVisibleRows && s_row < sec.count)
+        float rowOff[kMaxBootDraw];
+        float selOff = slidePx;
+        for (int idx = drawStart; idx < drawEnd; idx++)
+        {
+            int local = idx - drawStart;
+            float staggerT = s_anim.openTick > 0 ? easeOutCubic((openElapsed - local * 0.45f) / 4.5f) : 1.0f;
+            rowOff[local] = slidePx - w((1.0f - staggerT) * 10.0f);
+            if (idx == s_row)
+            {
+                selOff = rowOff[local];
+            }
+        }
+
+        bool hasBar = (s_row >= s_scroll && s_row < s_scroll + kVisibleRows && s_row < sec.count);
+        bool barGliding = false;
+        float by = 0.0f;
+        if (hasBar)
         {
             float targetY = kColTop + (s_row - s_scroll) * kColPitch;
-            s_anim.barY = s_anim.valid ? chase60(s_anim.barY, targetY, 0.44f) : targetY;
+            s_anim.barY = s_anim.valid ? chase60(s_anim.barY, targetY, 0.52f) : targetY;
             s_anim.valid = 1;
-            float by = s_anim.barY == targetY ? snapPx(targetY) : s_anim.barY;
-            drawSlantGradV(x0Top + slidePx, x0Bot + slidePx, x1Top + slidePx, x1Bot + slidePx, by, by + kColRowH,
-                           kLabGoldEdge, kLabGoldEdge);
-            drawSlantGradV(ix0Top + slidePx, ix0Bot + slidePx, ix1Top + slidePx, ix1Bot + slidePx, by + kFibHair,
-                           by + kColRowH - kFibHair, kLabGoldTop, kLabGoldBot);
-            drawDiagStripes(ix1Top + slidePx - w(kFibTight), by + kFibHair, by + kColRowH - kFibHair, inSlantPx,
-                            w(4.5f), w(3.5f), kLabStripeCol);
-            drawCursorTri(cx(kColLeft + slant * 0.55f + 1.5f) + slidePx, by + kColRowH * 0.5f, 8.0f);
+            barGliding = (s_anim.barY < targetY - 0.25f || s_anim.barY > targetY + 0.25f);
+            by = barGliding ? s_anim.barY : snapPx(targetY);
         }
 
-        for (int r = 0; r < kVisibleRows && s_scroll + r < sec.count; r++)
+        bool clipList = scrolling || s_anim.slideX != 0.0f || s_anim.openTick > 0;
+        gfx::ScissorState listSc;
+        bool listClipped = false;
+        bool listVisible = true;
+        if (clipList)
         {
-            int idx = s_scroll + r;
-            bool selected = idx == s_row;
-            float rxOff = selected ? slidePx : rowOff[r];
-            float y = kColTop + r * kColPitch;
-            const char* name = rowAt(sec, idx).name;
-            float nw = boldWidth(name, scale);
-            float sx = nw > textMaxW && nw > 0.0f ? scale * textMaxW / nw : scale;
-            boldText(textX + rxOff, textYForCap(y + capOffset, scale), name, selected ? kLabGoldInk : kText, sx, scale);
+            listClipped = gfx::pushScissor(cx(kColLeft - 2.0f), kColTop - 2.0f, cx(kColScrollLeft - 1.0f),
+                                           kCardBottom + 2.0f, listSc);
+            listVisible = listClipped;
         }
 
-        if (sec.count > kVisibleRows)
+        if (listVisible)
         {
-            float sbLeft = cx(kColScrollLeft);
-            float sbW = w(kColScrollW);
-            float sbH = (kVisibleRows - 1) * kColPitch + kColRowH;
-            gfx::fillRect(sbLeft, kColTop, sbW, sbH, kLabDivider);
-            float inner = sbH - 4.0f;
-            float thumbH = inner * kVisibleRows / sec.count;
-            if (thumbH < kFibRowH)
+            // Draw unselected dark-slate plates first (capped <= 6f stagger on open, never blocks input).
+            for (int idx = drawStart; idx < drawEnd; idx++)
             {
-                thumbH = kFibRowH;
+                float rxOff = rowOff[idx - drawStart];
+                float y = kColTop + static_cast<float>(idx) * kColPitch - drawScrollY;
+                drawSlantGradV(x0Top + rxOff, x0Bot + rxOff, x1Top + rxOff, x1Bot + rxOff, y, y + kColRowH,
+                               kLabBorderColor, kLabBorderColor);
+                drawSlantGradV(ix0Top + rxOff, ix0Bot + rxOff, ix1Top + rxOff, ix1Bot + rxOff, y + kFibHair,
+                               y + kColRowH - kFibHair, kRowFillTop, kRowFillBot);
             }
-            int maxScroll = sec.count - kVisibleRows;
-            int sc = s_scroll > maxScroll ? maxScroll : s_scroll;
-            float thumbY = kColTop + 2.0f + (inner - thumbH) * sc / maxScroll;
-            gfx::fillGradV(sbLeft + w(1.0f), thumbY, sbW - w(2.0f), thumbH, kLabTealTop, kLabTealBot);
+
+            float barOff = (barGliding || scrolling) ? slidePx : selOff;
+            if (hasBar && (barGliding || scrolling))
+            {
+                drawLeftColLabels(sec, drawStart, drawEnd, drawScrollY, rowOff, slidePx, textX, textMaxW, scale,
+                                  capOffset, 1, 0.0f, 0.0f);
+                drawSlantGradV(x0Top + barOff, x0Bot + barOff, x1Top + barOff, x1Bot + barOff, by, by + kColRowH,
+                               kLabGoldEdge, kLabGoldEdge);
+                drawSlantGradV(ix0Top + barOff, ix0Bot + barOff, ix1Top + barOff, ix1Bot + barOff, by + kFibHair,
+                               by + kColRowH - kFibHair, kLabGoldTop, kLabGoldBot);
+                drawDiagStripes(ix1Top + barOff - w(kFibTight), by + kFibHair, by + kColRowH - kFibHair, inSlantPx,
+                                w(4.5f), w(3.5f), kLabStripeCol);
+                drawCursorTri(cx(kColLeft + slant * 0.55f + 1.5f) + barOff, by + kColRowH * 0.5f, 8.0f);
+                gfx::ScissorState lensSc;
+                if (gfx::pushScissor(0.0f, by, 640.0f, by + kColRowH, lensSc))
+                {
+                    drawLeftColLabels(sec, drawStart, drawEnd, drawScrollY, rowOff, slidePx, textX, textMaxW, scale,
+                                      capOffset, 2, by, by + kColRowH);
+                    gfx::popScissor(lensSc);
+                }
+            }
+            else
+            {
+                if (hasBar)
+                {
+                    drawSlantGradV(x0Top + barOff, x0Bot + barOff, x1Top + barOff, x1Bot + barOff, by, by + kColRowH,
+                                   kLabGoldEdge, kLabGoldEdge);
+                    drawSlantGradV(ix0Top + barOff, ix0Bot + barOff, ix1Top + barOff, ix1Bot + barOff, by + kFibHair,
+                                   by + kColRowH - kFibHair, kLabGoldTop, kLabGoldBot);
+                    drawDiagStripes(ix1Top + barOff - w(kFibTight), by + kFibHair, by + kColRowH - kFibHair, inSlantPx,
+                                    w(4.5f), w(3.5f), kLabStripeCol);
+                    drawCursorTri(cx(kColLeft + slant * 0.55f + 1.5f) + barOff, by + kColRowH * 0.5f, 8.0f);
+                }
+                drawLeftColLabels(sec, drawStart, drawEnd, drawScrollY, rowOff, slidePx, textX, textMaxW, scale,
+                                  capOffset, 0, 0.0f, 0.0f);
+            }
         }
+        if (listClipped)
+        {
+            gfx::popScissor(listSc);
+        }
+
+        drawScrollBarFloat(kColScrollLeft, kColTop, (kVisibleRows - 1) * kColPitch + kColRowH, sec.count,
+                           drawScrollY / kColPitch, kVisibleRows, kLabDivider, kLabTealTop, kLabTealBot);
     }
 
     static void drawDetailsCard()
@@ -1472,54 +1556,63 @@ namespace list {
         }
     }
 
-    static float drawControlBadge(float x, const char* glyph, bool round, gfx::Rgba topCol, gfx::Rgba botCol,
-                                  gfx::Rgba fg, const char* label)
-    {
-        float glyphScale = scaleForCap(kBadgeCap);
-        float labelScale = scaleForCap(kBadgeLabelCap);
-        float glyphW = gfx::textWidth(glyph, glyphScale);
-        float badgeW = round ? gw(kBadgeH) : (glyphW + gw(10.0f));
-        float minW = round ? gw(kBadgeH) : gw(kBadgeH + 4.0f);
-        if (badgeW < minW)
-        {
-            badgeW = minW;
-        }
-        float badgeY = kStripCenterY - kBadgeH * 0.5f;
-        if (round)
-        {
-            drawGlossyRoundBadge(x + badgeW * 0.5f, kStripCenterY, kBadgeH * 0.5f, topCol, botCol);
-        }
-        else
-        {
-            drawGlossyPillBadge(x, badgeY, badgeW, kBadgeH, topCol, botCol);
-        }
-        gfx::text(x + (badgeW - glyphW) * 0.5f, textYForCap(kStripCenterY - kBadgeCap * 0.5f, glyphScale), glyph, fg,
-                  glyphScale);
-        float lx = x + badgeW + gw(kFibTight);
-        float endX = gfx::text(lx, textYForCap(kStripCenterY - kBadgeLabelCap * 0.5f, labelScale), label, kText,
-                               labelScale);
-        return endX + gw(kFibPad);
-    }
-
     static void drawFooterStrip(u32 type)
     {
         gfx::fillGradV(0.0f, kStripTop, 640.0f, kStripH, kLabFooterTopCol, kLabFooterBotCol);
         gfx::fillRect(0.0f, kStripTop, 640.0f, 2.0f, kRowEdge);
 
-        const char* confirmGlyph = type == gfPadType::WIIMOTE ? "2" : "A";
-        const char* backGlyph = type == gfPadType::WIIMOTE ? "1" : "B";
-        const char* recGlyph = type == gfPadType::WIIMOTE ? "A" : (type == gfPadType::NUNCHUK ? "C" : "X");
-        const char* osdGlyph = type == gfPadType::WIIMOTE ? "-+A" : (type == gfPadType::NUNCHUK ? "Z" : "Y");
-        const char* sectionGlyph = (type == gfPadType::WIIMOTE || type == gfPadType::NUNCHUK) ? "-/+" : "L/R";
-        bool recRound = true;
-        bool osdRound = (type != gfPadType::WIIMOTE);
-
-        float x = cx(kColLeft);
-        x = drawControlBadge(x, confirmGlyph, true, kLabBtnATop, kLabBtnABot, kLabBtnDarkText, "Select");
-        x = drawControlBadge(x, backGlyph, true, kLabBtnBTop, kLabBtnBBot, kCardTitle, "Back");
-        x = drawControlBadge(x, recGlyph, recRound, kBadgeImportTop, kBadgeImportBot, kLabBtnDarkText, "Recordings");
-        x = drawControlBadge(x, osdGlyph, osdRound, kBadgeOsdTop, kBadgeOsdBot, kLabBtnDarkText, "Quick Setup");
-        drawControlBadge(x, sectionGlyph, false, kLabBtnLightTop, kLabBtnLightBot, kLabBtnDarkText, "Section");
+        struct BootBadge {
+            const char* glyph;
+            bool round;
+            gfx::Rgba topCol, botCol, fg;
+            const char* label;
+        };
+        const BootBadge items[5] = {
+            {type == gfPadType::WIIMOTE ? "2" : "A", true, kLabBtnATop, kLabBtnABot, kLabBtnDarkText, "Select"},
+            {type == gfPadType::WIIMOTE ? "1" : "B", true, kLabBtnBTop, kLabBtnBBot, kCardTitle, "Back"},
+            {type == gfPadType::WIIMOTE ? "A" : (type == gfPadType::NUNCHUK ? "C" : "X"), true, kBadgeImportTop,
+             kBadgeImportBot, kLabBtnDarkText, "Recordings"},
+            {type == gfPadType::WIIMOTE ? "-+A" : (type == gfPadType::NUNCHUK ? "Z" : "Y"),
+             type != gfPadType::WIIMOTE, kBadgeOsdTop, kBadgeOsdBot, kLabBtnDarkText, "Quick Setup"},
+            {(type == gfPadType::WIIMOTE || type == gfPadType::NUNCHUK) ? "-/+" : "L/R", false, kLabBtnLightTop,
+             kLabBtnLightBot, kLabBtnDarkText, "Section"}
+        };
+        float glyphScale = scaleForCap(kBadgeCap);
+        float labelScale = scaleForCap(kBadgeLabelCap);
+        float posX[5], badgeW[5], glyphW[5];
+        float curX = cx(kColLeft);
+        for (int i = 0; i < 5; i++)
+        {
+            float gwPx = gfx::textWidth(items[i].glyph, glyphScale);
+            float lwPx = gfx::textWidth(items[i].label, labelScale);
+            float bw = items[i].round ? gw(kBadgeH) : (gwPx + gw(10.0f));
+            float minW = items[i].round ? gw(kBadgeH) : gw(kBadgeH + 4.0f);
+            if (bw < minW) bw = minW;
+            posX[i] = curX;
+            badgeW[i] = bw;
+            glyphW[i] = gwPx;
+            curX += bw + gw(kFibTight) + lwPx + gw(kFibPad);
+        }
+        float badgeY = kStripCenterY - kBadgeH * 0.5f;
+        for (int i = 0; i < 5; i++)
+        {
+            if (items[i].round)
+            {
+                drawGlossyRoundBadge(posX[i] + badgeW[i] * 0.5f, kStripCenterY, kBadgeH * 0.5f, items[i].topCol,
+                                     items[i].botCol);
+            }
+            else
+            {
+                drawGlossyPillBadge(posX[i], badgeY, badgeW[i], kBadgeH, items[i].topCol, items[i].botCol);
+            }
+        }
+        float gy = textYForCap(kStripCenterY - kBadgeCap * 0.5f, glyphScale);
+        float ly = textYForCap(kStripCenterY - kBadgeLabelCap * 0.5f, labelScale);
+        for (int i = 0; i < 5; i++)
+        {
+            gfx::text(posX[i] + (badgeW[i] - glyphW[i]) * 0.5f, gy, items[i].glyph, items[i].fg, glyphScale);
+            gfx::text(posX[i] + badgeW[i] + gw(kFibTight), ly, items[i].label, kText, labelScale);
+        }
     }
 
     static void draw()

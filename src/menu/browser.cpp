@@ -165,6 +165,7 @@ namespace browser {
         {
             s_row = s_count > 0 ? s_count - 1 : 0;
         }
+        s_anim.hasScroll = 0;
         if (n < 0)
         {
             say("Could not load: %s", storage::resultText(storage::cardInserted() ? storage::kMissing : storage::kNoCard));
@@ -574,10 +575,12 @@ namespace browser {
         }
         if (in.pressed & map.alt)
         {
+            s_anim.hasCursor = 0;
             askDelete();
         }
         else if (in.pressed & map.confirm)
         {
+            s_anim.hasCursor = 0;
             select();
         }
     }
@@ -760,6 +763,58 @@ namespace browser {
         drawModalFrame(kFrame, "Recordings", dy, alpha);
     }
 
+    static void drawBrowserRowsText(int drawStart, int drawEnd, float dy, float drawScrollY, float hlLeft43,
+                                    float scale, int passMode, float lensTop, float lensBot)
+    {
+        float capOffset = (kRowBoxH - kRowCap) * 0.5f;
+        char text[48];
+        for (int idx = drawStart; idx < drawEnd; idx++)
+        {
+            float rowY = kRowTop + static_cast<float>(idx) * kRowPitch - drawScrollY + dy;
+            if (passMode == 2 && (rowY + kRowBoxH <= lensTop || rowY >= lensBot))
+            {
+                continue;
+            }
+            bool selected = passMode == 2 ? true : (passMode == 0 && idx == s_row);
+            const Entry& e = s_entries[idx];
+            float y = textYForCap(rowY + capOffset, scale);
+            title(text, sizeof(text), e);
+            gfx::Rgba nameColor = selected ? (e.status == kReady ? kLabGoldInk : kLabGoldInkMuted)
+                                           : (e.status == kReady ? kText : kTextDisabled);
+            gfx::Rgba rightColor = selected ? kLabGoldInkMuted : kLabMutedText;
+            char name[sizeof(text)];
+            snprintf(name, sizeof(name), "%s", text);
+            const char* right = text;
+            if (e.status == kReady)
+            {
+                // The date tells exports of the same pair apart.
+                char length[16];
+                lengthText(length, sizeof(length), e.info.frames);
+                snprintf(text, sizeof(text), "%02u-%02u %02u:%02u   %s", e.info.month, e.info.day, e.info.hour,
+                         e.info.minute, length);
+            }
+            else
+            {
+                right = e.status == kUnread ? "" : (e.status == kNewer ? "Newer version"
+                                                                       : (e.status == kOlder ? "Older version"
+                                                                                             : "Damaged"));
+            }
+            float rightW = gfx::textWidth(right, scale);
+            gfx::text(cx(kRowBoxRight) - 4.0f - rightW, y, right, rightColor, scale);
+            // Keep the matchup name clear of the cursor triangle and date/duration column.
+            float nameX = cx(hlLeft43 + 26.0f);
+            float room = cx(kRowBoxRight) - 4.0f - rightW - 9.0f - nameX;
+            if (room > 0.0f)
+            {
+                drawFitText(nameX, y, name, nameColor, scale, room);
+            }
+            else
+            {
+                gfx::text(nameX, y, name, nameColor, scale);
+            }
+        }
+    }
+
     void draw()
     {
         float scale = rowScale();
@@ -781,21 +836,31 @@ namespace browser {
         int first = s_row / kPageRows * kPageRows;
         const float hlLeft43 = inL43 + kFibGap;
         const float hlRight43 = kScrollLeft - kFibTight;
-        for (int r = 0; r < kPageRows && first + r < s_count; r++)
+        float targetScrollY = static_cast<float>(first) * kRowPitch;
+        float scrollY = modalAnimScroll(s_anim, targetScrollY);
+        bool scrolling = (scrollY < targetScrollY - 0.25f || scrollY > targetScrollY + 0.25f);
+        float drawScrollY = scrolling ? scrollY : targetScrollY;
+
+        int drawStart = first;
+        int drawEnd = first + kPageRows;
+        if (scrolling)
         {
-            float y = kRowTop + r * kRowPitch + dy;
-            drawSlantBar(hlLeft43, hlRight43, y, kRowBoxH, false, kLabRowSlateTop, kLabRowSlateBot,
-                         kLabRowSlateEdge);
+            drawStart = static_cast<int>(drawScrollY / kRowPitch) - 1;
+            if (drawStart < 0) drawStart = 0;
+            drawEnd = drawStart + kPageRows + 3;
         }
-        if (s_count > 0 && s_row >= first && s_row < first + kPageRows)
+        if (drawEnd > s_count) drawEnd = s_count;
+
+        bool hasBar = (s_count > 0 && s_row >= first && s_row < first + kPageRows);
+        bool barGliding = false;
+        float barY = 0.0f;
+        if (hasBar)
         {
             float targetY = kRowTop + (s_row - first) * kRowPitch;
-            float barY = modalAnimCursor(s_anim, targetY) + dy;
-            drawGoldBar(hlLeft43, hlRight43, barY, kRowBoxH, 8.0f);
+            float animY = modalAnimCursor(s_anim, targetY);
+            barGliding = (animY < targetY - 0.25f || animY > targetY + 0.25f);
+            barY = (barGliding ? animY : snapPx(targetY)) + dy;
         }
-        drawScrollBarAt(kScrollLeft, kScrollTop + dy, kScrollH, s_count,
-                        first > s_count - kVisibleRows ? (s_count > kVisibleRows ? s_count - kVisibleRows : 0) : first,
-                        kVisibleRows, kLabDivider, kLabTealTop, kLabTealBot);
 
         // Glossy shoulder pills + page readout in the header's right half (only when files exist).
         bool wiiPage = (s_controllerType == gfPadType::WIIMOTE || s_controllerType == gfPadType::NUNCHUK);
@@ -829,6 +894,53 @@ namespace browser {
             gfx::text(cx(inR43 - kFibPad) - ew, pTextY, emptyTag, kLabMutedText, pScale);
         }
 
+        gfx::ScissorState listSc;
+        bool listClipped = false;
+        bool listVisible = true;
+        if (scrolling)
+        {
+            listClipped = gfx::pushScissor(cx(inL43), kTitleBandBottom + dy, cx(kScrollLeft - 2.0f),
+                                           kRowsBandBottom - kFibHair + dy, listSc);
+            listVisible = listClipped;
+        }
+        if (listVisible && s_count > 0)
+        {
+            for (int idx = drawStart; idx < drawEnd; idx++)
+            {
+                float y = kRowTop + static_cast<float>(idx) * kRowPitch - drawScrollY + dy;
+                drawSlantBar(hlLeft43, hlRight43, y, kRowBoxH, false, kLabRowSlateTop, kLabRowSlateBot,
+                             kLabRowSlateEdge);
+            }
+            if (hasBar && (barGliding || scrolling))
+            {
+                drawBrowserRowsText(drawStart, drawEnd, dy, drawScrollY, hlLeft43, scale, 1, 0.0f, 0.0f);
+                drawGoldBar(hlLeft43, hlRight43, barY, kRowBoxH, 8.0f);
+                gfx::ScissorState lensSc;
+                if (gfx::pushScissor(0.0f, barY, 640.0f, barY + kRowBoxH, lensSc))
+                {
+                    drawBrowserRowsText(drawStart, drawEnd, dy, drawScrollY, hlLeft43, scale, 2, barY,
+                                        barY + kRowBoxH);
+                    gfx::popScissor(lensSc);
+                }
+            }
+            else
+            {
+                if (hasBar)
+                {
+                    drawGoldBar(hlLeft43, hlRight43, barY, kRowBoxH, 8.0f);
+                }
+                drawBrowserRowsText(drawStart, drawEnd, dy, drawScrollY, hlLeft43, scale, 0, 0.0f, 0.0f);
+            }
+        }
+        if (listClipped)
+        {
+            gfx::popScissor(listSc);
+        }
+
+        float sbScroll = drawScrollY / kRowPitch;
+        drawScrollBarFloat(kScrollLeft, kScrollTop + dy, kScrollH, s_count, sbScroll, kVisibleRows, kLabDivider,
+                           kLabTealTop, kLabTealBot);
+
         if (s_count == 0 && !s_confirm && s_phase != kDelete && s_message == NULL)
         {
             float listMidY = (kRowTop + kRowsBandBottom) * 0.5f + dy;
@@ -848,73 +960,46 @@ namespace browser {
             drawFitText(midX - (s2w > maxW ? maxW : s2w) * 0.5f, textYForCap(listMidY + 18.0f, pScale), emptySub2,
                         kLabDescText, pScale, maxW);
         }
-
-        float capOffset = (kRowBoxH - kRowCap) * 0.5f;
-        char text[48];
-        for (int r = 0; r < kPageRows && first + r < s_count; r++)
-        {
-            bool selected = first + r == s_row;
-            const Entry& e = s_entries[first + r];
-            float y = textYForCap(kRowTop + r * kRowPitch + capOffset + dy, scale);
-            title(text, sizeof(text), e);
-            gfx::Rgba nameColor = selected ? (e.status == kReady ? kLabGoldInk : kLabGoldInkMuted)
-                                           : (e.status == kReady ? kText : kTextDisabled);
-            gfx::Rgba rightColor = selected ? kLabGoldInkMuted : kLabMutedText;
-            char name[sizeof(text)];
-            snprintf(name, sizeof(name), "%s", text);
-            const char* right = text;
-            if (e.status == kReady)
-            {
-                // The date tells exports of the same pair apart.
-                char length[16];
-                lengthText(length, sizeof(length), e.info.frames);
-                snprintf(text, sizeof(text), "%02u-%02u %02u:%02u   %s", e.info.month, e.info.day, e.info.hour,
-                         e.info.minute, length);
-            }
-            else
-            {
-                right = e.status == kUnread ? "" : (e.status == kNewer ? "Newer version"
-                                                                       : (e.status == kOlder ? "Older version" : "Damaged"));
-            }
-            gfx::textRight(kSlotRows + r, cx(kRowBoxRight) - 4.0f, y, right, rightColor, scale);
-            // Keep the matchup name clear of the cursor triangle and date/duration column.
-            float nameX = cx(hlLeft43 + 26.0f);
-            float room = cx(kRowBoxRight) - 4.0f - gfx::textWidth(right, scale) - 9.0f - nameX;
-            if (room > 0.0f)
-            {
-                drawFitText(nameX, y, name, nameColor, scale, room);
-            }
-            else
-            {
-                gfx::text(nameX, y, name, nameColor, scale);
-            }
-        }
         drawDescription(dy);
 
-        // Glossy Brawl footer control badges matching drill_list.cpp & osd_quick.cpp.
+        // Glossy Brawl footer control badges matching drill_list.cpp & osd_quick.cpp (2-pass batched).
         float fy = kBrowserFootTop + dy + kFibHair + (inBot - (kBrowserFootTop + dy + kFibHair)) * 0.5f;
         float fx = cx(inL43 + kFibPad);
         const char* okG = s_controllerType == gfPadType::WIIMOTE ? "2" : "A";
         const char* backG = s_controllerType == gfPadType::WIIMOTE ? "1" : "B";
+        FooterBadgeItem foot[4];
+        int footN = 0;
+        struct FootPush {
+            static void add(FooterBadgeItem* f, int& n, const char* g, const char* l, u8 t, u8 fl)
+            {
+                f[n].glyph = g;
+                f[n].label = l;
+                f[n].theme = t;
+                f[n].flags = fl;
+                f[n].labelCol = kLabMutedText;
+                n++;
+            }
+        };
         if (s_confirm)
         {
-            fx = drawFooterBadge(fx, fy, 18.0f, okG, "Delete", kBtnB, kBadgeRound);
-            drawFooterBadge(fx, fy, 18.0f, backG, "Cancel", kBtnLight, kBadgeRound);
+            FootPush::add(foot, footN, okG, "Delete", kBtnB, kBadgeRound);
+            FootPush::add(foot, footN, backG, "Cancel", kBtnLight, kBadgeRound);
         }
         else if (s_count == 0)
         {
-            drawFooterBadge(fx, fy, 18.0f, backG, "Back", kBtnB, kBadgeRound);
+            FootPush::add(foot, footN, backG, "Back", kBtnB, kBadgeRound);
         }
         else
         {
             const char* delG = s_controllerType == gfPadType::WIIMOTE ? "A"
                                                                       : (s_controllerType == gfPadType::NUNCHUK ? "C" : "X");
             const char* pgG = wiiPage ? "-/+" : "L/R";
-            fx = drawFooterBadge(fx, fy, 18.0f, okG, "Load", kBtnA, kBadgeRound);
-            fx = drawFooterBadge(fx, fy, 18.0f, delG, "Delete", kBtnLight, kBadgeRound);
-            fx = drawFooterBadge(fx, fy, 18.0f, backG, "Back", kBtnB, kBadgeRound);
-            drawFooterBadge(fx, fy, 18.0f, pgG, "Page", kBtnLight, 0);
+            FootPush::add(foot, footN, okG, "Load", kBtnA, kBadgeRound);
+            FootPush::add(foot, footN, delG, "Delete", kBtnLight, kBadgeRound);
+            FootPush::add(foot, footN, backG, "Back", kBtnB, kBadgeRound);
+            FootPush::add(foot, footN, pgG, "Page", kBtnLight, 0);
         }
+        drawFooterBadges(fx, fy, 18.0f, foot, footN);
     }
 
     // ---- open / close ----

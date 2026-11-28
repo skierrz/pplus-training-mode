@@ -855,6 +855,8 @@ namespace osdQuick {
         return v != 0;
     }
 
+    static ui::style::ModalAnim s_anim;
+
     static void adjustRow(const QuickRow& r, int delta)
     {
         if (r.kind == kKindSub) return;
@@ -902,10 +904,9 @@ namespace osdQuick {
         }
         pushLive();
         s_dirty = true;
+        s_anim.hasCursor = 0;
         sound(game::kSoundMove);
     }
-
-    static ui::style::ModalAnim s_anim;
 
     void attach()
     {
@@ -1000,6 +1001,7 @@ namespace osdQuick {
                 s_cursor[1] = 0;
                 s_scroll[1] = 0;
                 s_anim.hasCursor = 0;
+                s_anim.hasScroll = 0;
                 gfx::forgetWidths();
                 sound(game::kSoundConfirm);
                 return;
@@ -1022,6 +1024,7 @@ namespace osdQuick {
             {
                 s_subView = false;
                 s_anim.hasCursor = 0;
+                s_anim.hasScroll = 0;
                 gfx::forgetWidths();
                 sound(game::kSoundBack);
                 return;
@@ -1076,6 +1079,98 @@ namespace osdQuick {
         storage::freeWriteBuffer(s_writeBuf, result);
     }
 
+    static void drawQuickRowsLayer(const QuickRow* rows, int drawStart, int drawEnd, int cursor, float rowTop,
+                                   float rowH, float rowPitch, float scrollY, float nameX, float nameMaxW,
+                                   float pillLeft43, float pillRight43, float pillCenter, float valMaxW, float rowScale,
+                                   float capOff, int passMode, float lensTop, float lensBot)
+    {
+        using namespace ui::style;
+        // Sub-pass 1: value pills and arrows (quads/tris).
+        for (int idx = drawStart; idx < drawEnd; idx++)
+        {
+            float y = rowTop + static_cast<float>(idx) * rowPitch - scrollY;
+            if (passMode == 2 && (y + rowH <= lensTop || y >= lensBot))
+            {
+                continue;
+            }
+            const QuickRow& row = rows[idx];
+            if (row.kind == kKindSub)
+            {
+                continue;
+            }
+            bool sel = passMode == 2 ? true : (passMode == 0 && idx == cursor);
+            bool on = rowEnabled(row);
+            bool isHi = quickRowHighlighted(row, readRowValue(row));
+            drawValuePill(pillLeft43, pillRight43, y, rowH, isHi, on, sel);
+            if (sel && on)
+            {
+                drawValueArrows(pillLeft43, pillRight43, y, rowH, isHi ? kLabFocusGold : kLabGoldInk);
+            }
+        }
+        // Sub-pass 2: labels and values (text).
+        for (int idx = drawStart; idx < drawEnd; idx++)
+        {
+            float y = rowTop + static_cast<float>(idx) * rowPitch - scrollY;
+            if (passMode == 2 && (y + rowH <= lensTop || y >= lensBot))
+            {
+                continue;
+            }
+            const QuickRow& row = rows[idx];
+            bool sel = passMode == 2 ? true : (passMode == 0 && idx == cursor);
+            bool on = rowEnabled(row);
+            u8 v = readRowValue(row);
+            bool isHi = quickRowHighlighted(row, v);
+            float ty = textYForCap(y + capOff, rowScale);
+            gfx::Rgba nameCol = sel ? (on ? kLabGoldInk : kLabGoldInkMuted) : (on ? kText : kTextDisabled);
+            drawFitText(nameX, ty, row.name, nameCol, rowScale, nameMaxW);
+
+            char buf[24];
+            const char* valTxt = buf;
+            if (row.kind == kKindSub)
+            {
+                int cnt = activeIndividualOsdCount();
+                snprintf(buf, sizeof(buf), cnt > 0 ? "%d Active  >" : "All Off  >", cnt);
+                gfx::Rgba valCol = sel ? kLabGoldInk : kLabMutedText;
+                drawFitText(pillCenter, ty, valTxt, valCol, rowScale, valMaxW, true);
+                continue;
+            }
+            if (row.kind == kKindToggle)
+            {
+                valTxt = v != 0 ? "On" : "Off";
+            }
+            else if (row.kind == kKindInt)
+            {
+                snprintf(buf, sizeof(buf),
+                         (row.source == kSrcOsd && row.offset == offsetof(OsdSettings, advantageTolerance)) ? "%uf"
+                                                                                                           : "%u",
+                         static_cast<unsigned>(v));
+            }
+            else
+            {
+                if (row.source == kSrcOsd && row.offset == offsetof(OsdSettings, preset)
+                    && v >= main::kOsdPresetCustom1 && v < main::kOsdPresetCount)
+                {
+                    u32 slot = static_cast<u32>(v - main::kOsdPresetCustom1);
+                    if ((s_osdPresets.customMask[slot] & main::kOsdCustomSavedBit) == 0u)
+                    {
+                        snprintf(buf, sizeof(buf), "Custom %u (Empty)", static_cast<unsigned>(slot + 1u));
+                        valTxt = buf;
+                    }
+                    else
+                    {
+                        valTxt = row.labels[v];
+                    }
+                }
+                else
+                {
+                    valTxt = (v <= row.maxVal && row.labels != NULL) ? row.labels[v] : "?";
+                }
+            }
+            gfx::Rgba valCol = on ? ((sel && !isHi) ? kLabGoldInk : kLabWhiteText) : kTextDisabled;
+            drawFitText(pillCenter, ty, valTxt, valCol, rowScale, valMaxW, true);
+        }
+    }
+
     void draw()
     {
         using namespace ui::style;
@@ -1126,89 +1221,83 @@ namespace osdQuick {
         const float valMaxW = w(132.0f);
         float capOff = (rowH - kLabRowCap) * 0.5f;
 
-        for (int r = 0; r < kVisibleRows && scroll + r < rowCount; r++)
+        float targetScrollY = static_cast<float>(scroll) * rowPitch;
+        float scrollY = modalAnimScroll(s_anim, targetScrollY);
+        bool scrolling = (scrollY < targetScrollY - 0.25f || scrollY > targetScrollY + 0.25f);
+        float drawScrollY = scrolling ? scrollY : targetScrollY;
+
+        int drawStart = scroll;
+        int drawEnd = scroll + kVisibleRows;
+        if (scrolling)
         {
-            float y = rowTop + r * rowPitch;
-            drawSlantBar(hlLeft43, hlRight43, y, rowH, false, kLabRowSlateTop, kLabRowSlateBot, kLabRowSlateEdge);
+            drawStart = static_cast<int>(drawScrollY / rowPitch) - 1;
+            if (drawStart < 0) drawStart = 0;
+            drawEnd = drawStart + kVisibleRows + 3;
         }
-        if (cursor >= scroll && cursor < scroll + kVisibleRows)
+        if (drawEnd > rowCount) drawEnd = rowCount;
+
+        bool hasBar = (cursor >= scroll && cursor < scroll + kVisibleRows && cursor < rowCount);
+        bool barGliding = false;
+        float barY = 0.0f;
+        float stripeR = 0.0f;
+        if (hasBar)
         {
             float targetY = (kFrame.hdrBot + kFibHair + 20.0f) + (cursor - scroll) * rowPitch;
-            float barY = modalAnimCursor(s_anim, targetY) + dy;
+            float animY = modalAnimCursor(s_anim, targetY);
+            barGliding = (animY < targetY - 0.25f || animY > targetY + 0.25f);
+            barY = (barGliding ? animY : snapPx(targetY)) + dy;
             const QuickRow& selRow = rows[cursor];
-            float stripeR = selRow.kind == kKindSub ? (hlRight43 - 18.0f) : (pillLeft43 + 4.5f);
-            drawGoldBar(hlLeft43, hlRight43, barY, rowH, 8.5f, false, stripeR);
+            stripeR = selRow.kind == kKindSub ? (hlRight43 - 18.0f) : (pillLeft43 + 4.5f);
         }
 
-        for (int r = 0; r < kVisibleRows && scroll + r < rowCount; r++)
+        gfx::ScissorState listSc;
+        bool listClipped = false;
+        bool listVisible = true;
+        if (scrolling)
         {
-            int idx = scroll + r;
-            const QuickRow& row = rows[idx];
-            float y = rowTop + r * rowPitch;
-            bool sel = idx == cursor;
-            bool on = rowEnabled(row);
-
-            u8 v = readRowValue(row);
-            bool isHi = quickRowHighlighted(row, v);
-            if (row.kind != kKindSub)
+            listClipped = gfx::pushScissor(cx(inL43), bodyTop, cx(sbX43 - 2.0f), descTop, listSc);
+            listVisible = listClipped;
+        }
+        if (listVisible)
+        {
+            for (int idx = drawStart; idx < drawEnd; idx++)
             {
-                drawValuePill(pillLeft43, pillRight43, y, rowH, isHi, on, sel);
-                if (sel && on)
+                float y = rowTop + static_cast<float>(idx) * rowPitch - drawScrollY;
+                drawSlantBar(hlLeft43, hlRight43, y, rowH, false, kLabRowSlateTop, kLabRowSlateBot, kLabRowSlateEdge);
+            }
+            if (hasBar && (barGliding || scrolling))
+            {
+                drawQuickRowsLayer(rows, drawStart, drawEnd, cursor, rowTop, rowH, rowPitch, drawScrollY, nameX,
+                                   nameMaxW, pillLeft43, pillRight43, pillCenter, valMaxW, rowScale, capOff, 1, 0.0f,
+                                   0.0f);
+                drawGoldBar(hlLeft43, hlRight43, barY, rowH, 8.5f, false, stripeR);
+                gfx::ScissorState lensSc;
+                if (gfx::pushScissor(0.0f, barY, 640.0f, barY + rowH, lensSc))
                 {
-                    drawValueArrows(pillLeft43, pillRight43, y, rowH, isHi ? kLabFocusGold : kLabGoldInk);
+                    drawQuickRowsLayer(rows, drawStart, drawEnd, cursor, rowTop, rowH, rowPitch, drawScrollY, nameX,
+                                       nameMaxW, pillLeft43, pillRight43, pillCenter, valMaxW, rowScale, capOff, 2,
+                                       barY, barY + rowH);
+                    gfx::popScissor(lensSc);
                 }
-            }
-
-            float ty = textYForCap(y + capOff, rowScale);
-            gfx::Rgba nameCol = sel ? (on ? kLabGoldInk : kLabGoldInkMuted) : (on ? kText : kTextDisabled);
-            drawFitText(nameX, ty, row.name, nameCol, rowScale, nameMaxW);
-
-            char buf[24];
-            const char* valTxt = buf;
-            if (row.kind == kKindSub)
-            {
-                int cnt = activeIndividualOsdCount();
-                snprintf(buf, sizeof(buf), cnt > 0 ? "%d Active  >" : "All Off  >", cnt);
-                gfx::Rgba valCol = sel ? kLabGoldInk : kLabMutedText;
-                drawFitText(pillCenter, ty, valTxt, valCol, rowScale, valMaxW, true);
-                continue;
-            }
-            if (row.kind == kKindToggle)
-            {
-                valTxt = v != 0 ? "On" : "Off";
-            }
-            else if (row.kind == kKindInt)
-            {
-                snprintf(buf, sizeof(buf), (row.source == kSrcOsd && row.offset == offsetof(OsdSettings, advantageTolerance)) ? "%uf" : "%u",
-                         static_cast<unsigned>(v));
             }
             else
             {
-                if (row.source == kSrcOsd && row.offset == offsetof(OsdSettings, preset)
-                    && v >= main::kOsdPresetCustom1 && v < main::kOsdPresetCount)
+                if (hasBar)
                 {
-                    u32 slot = static_cast<u32>(v - main::kOsdPresetCustom1);
-                    if ((s_osdPresets.customMask[slot] & main::kOsdCustomSavedBit) == 0u)
-                    {
-                        snprintf(buf, sizeof(buf), "Custom %u (Empty)", static_cast<unsigned>(slot + 1u));
-                        valTxt = buf;
-                    }
-                    else
-                    {
-                        valTxt = row.labels[v];
-                    }
+                    drawGoldBar(hlLeft43, hlRight43, barY, rowH, 8.5f, false, stripeR);
                 }
-                else
-                {
-                    valTxt = (v <= row.maxVal && row.labels != NULL) ? row.labels[v] : "?";
-                }
+                drawQuickRowsLayer(rows, drawStart, drawEnd, cursor, rowTop, rowH, rowPitch, drawScrollY, nameX,
+                                   nameMaxW, pillLeft43, pillRight43, pillCenter, valMaxW, rowScale, capOff, 0, 0.0f,
+                                   0.0f);
             }
-            gfx::Rgba valCol = on ? ((sel && !isHi) ? kLabGoldInk : kLabWhiteText) : kTextDisabled;
-            drawFitText(pillCenter, ty, valTxt, valCol, rowScale, valMaxW, true);
+        }
+        if (listClipped)
+        {
+            gfx::popScissor(listSc);
         }
 
-        drawScrollBarAt(sbX43, rowTop, (kVisibleRows - 1) * rowPitch + rowH, rowCount, scroll, kVisibleRows,
-                        kLabDivider, kLabTealTop, kLabTealBot);
+        drawScrollBarFloat(sbX43, rowTop, (kVisibleRows - 1) * rowPitch + rowH, rowCount, drawScrollY / rowPitch,
+                           kVisibleRows, kLabDivider, kLabTealTop, kLabTealBot);
 
         const char* help = (!s_subView && cursor >= 0 && cursor < kMainCount)
                                ? kMainHelp[cursor]
@@ -1223,9 +1312,12 @@ namespace osdQuick {
         float fx = cx(inL43 + kFibPad);
         u8 flags = kBadgeRound | kBadgeTightGap;
         const char* okLabel = rows[cursor].kind == kKindSub ? "Open" : "Toggle / Cycle";
-        fx = drawFooterBadge(fx, fy, 17.0f, okGlyph, okLabel, kBtnA, flags);
         const char* backLabel = s_subView ? "Back" : ((s_newerOnCard || s_olderLayoutOnCard) ? "Back" : "Back & Save");
-        drawFooterBadge(fx, fy, 17.0f, backGlyph, backLabel, kBtnB, flags);
+        FooterBadgeItem foot[2] = {
+            {okGlyph, okLabel, kBtnA, flags, kLabMutedText},
+            {backGlyph, backLabel, kBtnB, flags, kLabMutedText}
+        };
+        drawFooterBadges(fx, fy, 17.0f, foot, 2);
     }
 }
 }

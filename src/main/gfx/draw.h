@@ -93,6 +93,16 @@ namespace gfx {
     void vertex(float x, float y, Rgba color);
     // A filled ellipse centred on (x, y), drawn as a 24-segment fan.
     void fillEllipse(float x, float y, float rx, float ry, Rgba color);
+
+    // Hardware EFB scissor clip in 640x480 2D space, intersected with the
+    // active scissor rect so nested list-viewport and highlight-lens clips
+    // compose cleanly across 480i, 480p, PAL, and high-IR rendering.
+    // Returns false (leaving GX scissor untouched) if the clipped rect is empty.
+    struct ScissorState {
+        u32 x, y, w, h;
+    };
+    bool pushScissor(float x0, float y0, float x1, float y1, ScissorState& saved);
+    void popScissor(const ScissorState& saved);
 #endif
 }
 }

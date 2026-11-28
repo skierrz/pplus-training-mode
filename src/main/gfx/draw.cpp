@@ -240,5 +240,48 @@ namespace gfx {
             vertex(x + c[0] * rx, y + c[1] * ry, color);
         }
     }
+
+    static inline int roundNonNegPx(float v)
+    {
+        return v <= 0.0f ? 0 : static_cast<int>(v + 0.5f);
+    }
+
+    bool pushScissor(float x0, float y0, float x1, float y1, ScissorState& saved)
+    {
+        GXGetScissor(&saved.x, &saved.y, &saved.w, &saved.h);
+        f32 vp[6];
+        GXGetViewportv(vp);
+        float vx = vp[2] > 0.0f ? vp[0] : 0.0f;
+        float vy = vp[3] > 0.0f ? vp[1] : 0.0f;
+        float vw = vp[2] > 0.0f ? vp[2] : 640.0f;
+        float vh = vp[3] > 0.0f ? vp[3] : 480.0f;
+
+        int px0 = roundNonNegPx(vx + x0 * (vw / 640.0f));
+        int py0 = roundNonNegPx(vy + y0 * (vh / 480.0f));
+        int px1 = roundNonNegPx(vx + x1 * (vw / 640.0f));
+        int py1 = roundNonNegPx(vy + y1 * (vh / 480.0f));
+
+        int sx0 = static_cast<int>(saved.x);
+        int sy0 = static_cast<int>(saved.y);
+        int sx1 = sx0 + static_cast<int>(saved.w);
+        int sy1 = sy0 + static_cast<int>(saved.h);
+
+        if (px0 < sx0) px0 = sx0;
+        if (py0 < sy0) py0 = sy0;
+        if (px1 > sx1) px1 = sx1;
+        if (py1 > sy1) py1 = sy1;
+        if (px1 <= px0 || py1 <= py0)
+        {
+            return false;
+        }
+        GXSetScissor(static_cast<u32>(px0), static_cast<u32>(py0), static_cast<u32>(px1 - px0),
+                     static_cast<u32>(py1 - py0));
+        return true;
+    }
+
+    void popScissor(const ScissorState& saved)
+    {
+        GXSetScissor(saved.x, saved.y, saved.w, saved.h);
+    }
 }
 }

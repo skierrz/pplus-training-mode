@@ -403,11 +403,12 @@ namespace ui {
         state.scroll[id] = 0;
     }
 
-    // Budgeted 16-byte lab menu motion state (<= 28 B): 8f open, 4f non-blocking
-    // exit, chase60 gold bar glide, 7f tab/subpage slide, 4f L/R value nudge.
+    // Budgeted 24-byte lab menu motion state (<= 28 B): 8f open, 4f non-blocking
+    // exit, chase60 gold bar glide & list scroll, 7f tab/subpage slide, 4f L/R value nudge.
     struct MenuAnim {
         float barY;
         float slideX;
+        float scrollY;
         u8 openTick;
         u8 closeTick;
         u8 nudgeTick;
@@ -416,6 +417,8 @@ namespace ui {
         u8 lastDepth;
         u8 lastRail;
         u8 valid;
+        u8 hasScroll;
+        u8 pad[3];
     };
     static MenuAnim s_anim;
 
@@ -428,6 +431,7 @@ namespace ui {
             s_anim.slideX = 0.0f;
             s_anim.nudgeTick = 0;
             s_anim.valid = 0;
+            s_anim.hasScroll = 0;
         }
     }
 
@@ -882,6 +886,7 @@ namespace ui {
             switchCategory(def, state, cat, false);
             s_anim.slideX = in.prevCat ? -10.0f : 10.0f;
             s_anim.valid = 0;
+            s_anim.hasScroll = 0;
             menuSound(game::kSoundMove);
             return true;
         }
@@ -918,6 +923,7 @@ namespace ui {
                     if (state.railCursor < def.categoryCount)
                     {
                         switchCategory(def, state, state.railCursor, true);
+                        s_anim.hasScroll = 0;
                     }
                 }
                 else if (in.up || in.down)
@@ -927,9 +933,11 @@ namespace ui {
                 if (in.a)
                 {
                     state.resetConfirmPage = 0;
+                    s_anim.valid = 0;
                     if (state.railCursor < def.categoryCount)
                     {
                         switchCategory(def, state, state.railCursor, false);
+                        s_anim.hasScroll = 0;
                         sound = game::kSoundConfirm;
                     }
                     else
@@ -1028,6 +1036,7 @@ namespace ui {
                 {
                     s_anim.nudgeTick = 4;
                     s_anim.nudgeDir = delta > 0 ? 1 : -1;
+                    s_anim.valid = 0;
                 }
                 sound = game::kSoundMove;
             }
@@ -1037,13 +1046,14 @@ namespace ui {
             }
             else if (in.a)
             {
+                s_anim.valid = 0;
                 if (o.kind == kKindMenu && state.depth + 1 < kMaxDepth && o.max >= 0 && o.max < def.pageCount)
                 {
                     state.depth++;
                     state.stack[state.depth] = static_cast<u8>(o.max);
                     enterPage(state, def, o.max);
                     s_anim.slideX = 10.0f;
-                    s_anim.valid = 0;
+                    s_anim.hasScroll = 0;
                     sound = game::kSoundConfirm;
                 }
                 else if (o.kind == kKindFunc && o.onChange != NULL)
@@ -1078,6 +1088,7 @@ namespace ui {
                     if (stored(o) && (o.flags & kFlagScratch) == 0 && optionValue(def, o) != o.def
                         && resetMenuOption(def, pageId, cur))
                     {
+                        s_anim.valid = 0;
                         sound = game::kSoundConfirm;
                     }
                 }
@@ -1109,6 +1120,7 @@ namespace ui {
                 state.depth--;
                 s_anim.slideX = -10.0f;
                 s_anim.valid = 0;
+                s_anim.hasScroll = 0;
                 u8 parentId = state.stack[state.depth];
                 s_allowShowInactive = allowShowInactive(def, parentId);
                 const Page& parent = pageAt(def, parentId);
@@ -1126,6 +1138,7 @@ namespace ui {
                 state.scroll[left] = 0;
                 state.railFocus = true;
                 state.railCursor = state.category;
+                s_anim.valid = 0;
                 sound = game::kSoundMove;
             }
             else
@@ -1317,10 +1330,11 @@ namespace ui {
                          titled ? 1.2f : 0.0f, titled ? kLabTitleEdge : 0);
     }
 
-    static void drawLabScrollBar(int count, int scroll, int visible, float topY, float height, const MenuPalette& pal)
+    static void drawLabScrollBar(int count, float scrollF, int visible, float topY, float height,
+                                 const MenuPalette& pal)
     {
-        drawScrollBarAt(kLabScrollLeft, topY, height, count, scroll, visible, pal.divider, pal.accentTop,
-                        pal.accentBot);
+        drawScrollBarFloat(kLabScrollLeft, topY, height, count, scrollF, visible, pal.divider, pal.accentTop,
+                           pal.accentBot);
     }
 
     struct CtrlSpec {
@@ -1450,12 +1464,6 @@ namespace ui {
         float midY = rowY + kLabRowH * 0.5f;
         float r = cx(right43);
         gfx::fillTri(r - gw(5.0f), midY, r - gw(11.0f), midY - 4.0f, r - gw(11.0f), midY + 4.0f, color);
-    }
-
-    static void drawOverrideDot(float x43, float cy, float size, bool onGold, bool onAccent, const MenuPalette& pal)
-    {
-        gfx::Rgba col = onGold ? kLabGoldInk : (onAccent ? pal.activeTabText : pal.accentTop);
-        fillBox(x43 - size * 0.5f, cy - size * 0.5f, size, size, col);
     }
 
     static bool diPickerActiveFor(u8 pageId, const MenuState& state)
@@ -1640,11 +1648,52 @@ namespace ui {
         float curX = cx(dense ? (kLabInnerLeft + kFibTight) : (kLabInnerLeft + kFibPad));
         float badgeH = dense ? 14.0f : 16.0f;
         u8 baseFlags = static_cast<u8>(kBadgeTightGap | (dense ? kBadgeDense : 0));
+        FooterBadgeItem batch[7];
         for (int i = 0; i < fl.n; i++)
         {
             const FooterItem& it = fl.it[i];
-            curX = drawFooterBadge(curX, footerMidY, badgeH, it.badge, it.label, static_cast<u8>(it.style & 3u),
-                                   static_cast<u8>(baseFlags | ((it.style & 0x80u) ? kBadgeRound : 0)), pal.mutedText);
+            batch[i].glyph = it.badge;
+            batch[i].label = it.label;
+            batch[i].theme = static_cast<u8>(it.style & 3u);
+            batch[i].flags = static_cast<u8>(baseFlags | ((it.style & 0x80u) ? kBadgeRound : 0));
+            batch[i].labelCol = pal.mutedText;
+        }
+        drawFooterBadges(curX, footerMidY, badgeH, batch, fl.n);
+    }
+
+    // Draws left-rail category and utility labels in one pass:
+    // mode 0 = settled, 1 = unfocused pass 1, 2 = focused scissor lens pass 2.
+    static void drawRailLabels(const MenuDef& def, const MenuState& state, const MenuPalette& pal, int mode,
+                               float lensTop, float lensBot)
+    {
+        float railScale = scaleForCap(kRailCap);
+        float capOff = (kRailItemH - kRailCap) * 0.5f;
+        for (u8 i = 0; i < def.categoryCount; i++)
+        {
+            float y = kRailItemTop + i * kRailItemPitch;
+            if (mode == 2 && (y + kRailItemH <= lensTop || y >= lensBot))
+            {
+                continue;
+            }
+            bool focused = (mode == 2) || (mode == 0 && state.railFocus && state.railCursor == i);
+            bool activeCat = (mode == 0) && !state.railFocus && state.category == i;
+            gfx::Rgba col = focused ? kLabGoldInk : (activeCat ? pal.activeTabText : pal.tabInactiveText);
+            fitText(kRailTextX, textYForCap(y + capOff, railScale), pageTitle(def, def.categoryPages[i]), col,
+                    railScale, kRailTextMaxW, false);
+        }
+        for (u8 u = 0; u < def.utilityCount; u++)
+        {
+            float y = kRailUtilTop + u * kRailItemPitch;
+            if (mode == 2 && (y + kRailItemH <= lensTop || y >= lensBot))
+            {
+                continue;
+            }
+            bool confirming = def.utilities[u].label != NULL && def.utilities[u].label[0] != '\0';
+            bool focused = (mode == 2) || (mode == 0 && state.railFocus && state.railCursor == def.categoryCount + u);
+            const char* label = confirming ? def.utilities[u].label : def.utilities[u].name;
+            gfx::Rgba col = focused ? (confirming ? kLabConfirmInkOnGold : kLabGoldInk)
+                                    : (confirming ? kLabFocusGold : pal.mutedText);
+            fitText(kRailTextX, textYForCap(y + capOff, railScale), label, col, railScale, kRailTextMaxW, false);
         }
     }
 
@@ -1661,7 +1710,7 @@ namespace ui {
         fillBox(kLabInnerLeft + kFibGap, kRailUtilDivY, railW - 2.0f * kFibGap, kFibHair, pal.divider);
 
         // Flush vertical left edge on top emerald-teal header ribbon + // stripes.
-        // On subpages, widen the ribbon and draw the breadcrumb inline (matching 03-mockup-lab-menu).
+        // On subpages, widen the ribbon and draw the breadcrumb inline.
         bool utilFoc = railUtilityFocused(def, state);
         float hdrH = kRailHeaderBottom - kLabInnerTop;
         float ribbonRight = (!utilFoc && state.depth > 0) ? 472.0f : 292.0f;
@@ -1669,6 +1718,8 @@ namespace ui {
 
         // Flush vertical left edge on active left-rail category/utility bar (slanted right edge).
         float itemRight = kLabInnerLeft + railW - kFibTight;
+        bool railGliding = false;
+        float railBarY = 0.0f;
         if (!state.railFocus && state.category < def.categoryCount)
         {
             drawSlantBar(kLabInnerLeft, itemRight, kRailItemTop + state.category * kRailItemPitch, kRailItemH, true,
@@ -1679,9 +1730,14 @@ namespace ui {
             float targetY = state.railCursor < def.categoryCount
                                 ? (kRailItemTop + state.railCursor * kRailItemPitch)
                                 : (kRailUtilTop + (state.railCursor - def.categoryCount) * kRailItemPitch);
-            s_anim.barY = (!s_anim.valid || s_anim.lastRail == 0) ? targetY : chase60(s_anim.barY, targetY, 0.44f);
+            s_anim.barY = (!s_anim.valid || s_anim.lastRail == 0) ? targetY : chase60(s_anim.barY, targetY, 0.52f);
             s_anim.valid = s_anim.lastRail = 1;
-            drawGoldBar(kLabInnerLeft, itemRight, s_anim.barY, kRailItemH, 8.0f, true, itemRight - kFibTight);
+            railGliding = (s_anim.barY < targetY - 0.25f || s_anim.barY > targetY + 0.25f);
+            railBarY = railGliding ? s_anim.barY : snapPx(targetY);
+            if (!railGliding)
+            {
+                drawGoldBar(kLabInnerLeft, itemRight, railBarY, kRailItemH, 8.0f, true, itemRight - kFibTight);
+            }
         }
 
         float headerMid = (kLabInnerTop + kRailHeaderBottom) * 0.5f;
@@ -1703,31 +1759,20 @@ namespace ui {
         boldText(cx(kLabInnerRight - kFibGap) - verW, textYForCap(headerMid - kTypeMicro * 0.5f, verScale),
                  TM_VERSION_MARK, pal.mutedText, verScale, verScale);
 
-        // Crisp Rodin system typography on left rail (matching 03-mockup-lab-menu-pplus).
-        float railScale = scaleForCap(kRailCap);
-        float capOff = (kRailItemH - kRailCap) * 0.5f;
-        for (u8 i = 0; i < def.categoryCount; i++)
+        if (railGliding)
         {
-            float y = kRailItemTop + i * kRailItemPitch;
-            bool focused = state.railFocus && state.railCursor == i;
-            bool activeCat = !state.railFocus && state.category == i;
-            if (pageHasOverride(def, def.categoryPages[i]))
+            drawRailLabels(def, state, pal, 1, 0.0f, 0.0f);
+            drawGoldBar(kLabInnerLeft, itemRight, railBarY, kRailItemH, 8.0f, true, itemRight - kFibTight);
+            gfx::ScissorState sc;
+            if (gfx::pushScissor(0.0f, railBarY, 640.0f, railBarY + kRailItemH, sc))
             {
-                drawOverrideDot(166.0f, y + kRailItemH * 0.5f, 5.0f, focused, activeCat, pal);
+                drawRailLabels(def, state, pal, 2, railBarY, railBarY + kRailItemH);
+                gfx::popScissor(sc);
             }
-            gfx::Rgba col = focused ? kLabGoldInk : (activeCat ? pal.activeTabText : pal.tabInactiveText);
-            fitText(kRailTextX, textYForCap(y + capOff, railScale), pageTitle(def, def.categoryPages[i]), col,
-                    railScale, 102.0f, false);
         }
-        for (u8 u = 0; u < def.utilityCount; u++)
+        else
         {
-            bool confirming = def.utilities[u].label != NULL && def.utilities[u].label[0] != '\0';
-            bool focused = state.railFocus && state.railCursor == def.categoryCount + u;
-            const char* label = confirming ? def.utilities[u].label : def.utilities[u].name;
-            gfx::Rgba col = focused ? (confirming ? kLabConfirmInkOnGold : kLabGoldInk)
-                                    : (confirming ? kLabFocusGold : pal.mutedText);
-            fitText(kRailTextX, textYForCap(kRailUtilTop + u * kRailItemPitch + capOff, railScale), label, col,
-                    railScale, kRailTextMaxW, false);
+            drawRailLabels(def, state, pal, 0, 0.0f, 0.0f);
         }
     }
 
@@ -1746,8 +1791,7 @@ namespace ui {
         }
         gradBox(kLabInnerLeft, paneTop, innerW, kLabDescTop - paneTop, pal.baseTop, pal.baseBot);
 
-        // Proportional 7-tab widths spanning x 76..564 (sum 458 + 6*5 gaps = 488),
-        // sized for 100% natural Brawl Display Font width + override dot clearance.
+        // Proportional 7-tab widths spanning x 76..564 (sum 458 + 6*5 gaps = 488).
         static const float kTabWidths[7] = {44.0f, 82.0f, 46.0f, 82.0f, 64.0f, 52.0f, 88.0f};
         float tabY = 36.0f;
         float tabH = kFibRowH;
@@ -1771,10 +1815,6 @@ namespace ui {
             float tw = kTabWidths[i];
             bool activeTab = i == state.category;
             bevelBox(tx, tabY, tw, tabH, activeTab ? accentBevel : tabBevel);
-            if (pageHasOverride(def, def.categoryPages[i]))
-            {
-                drawOverrideDot(tx + tw - 4.5f, tabY + 5.0f, 3.5f, false, activeTab, pal);
-            }
             tx += tw + kFibTight;
         }
 
@@ -1804,9 +1844,7 @@ namespace ui {
                 label = (def.tabLabels != NULL && def.tabLabels[i] != NULL) ? def.tabLabels[i] : pageTitle(def, catPage);
             }
             gfx::Rgba col = i == state.category ? pal.activeTabText : pal.tabInactiveText;
-            bool hasOv = pageHasOverride(def, catPage);
-            float labelCx = tx + (hasOv ? (tw - 5.5f) * 0.5f : tw * 0.5f);
-            fitDisplay(labelCx, labelTop, label, col, kTabsCap, tw - (hasOv ? 11.0f : 6.0f), 1);
+            fitDisplay(tx + tw * 0.5f, labelTop, label, col, kTabsCap, tw - 6.0f, 1);
             tx += tw + kFibTight;
         }
 
@@ -1828,6 +1866,109 @@ namespace ui {
 #endif
 #pragma dont_inline reset
 
+    struct LabPaneGeom {
+        float rowTop, subRowTop, scrollH, subScrollH;
+        float hlLeft, hlRight, nameX, nameMaxW;
+        float pillLeft, pillRight, valCenter, valMaxW;
+    };
+
+    // 2-pass GX batched row content drawer:
+    // passMode: 0 = settled, 1 = unfocused pass 1, 2 = focused scissor-lens pass 2.
+    static void drawLabRowsLayer(const MenuDef& def, const MenuState& state, u8 pageId, const Page& p,
+                                 const LabPaneGeom& g, const MenuPalette& pal, const int* visIdx, const int* visOrd,
+                                 int visN, float rowTop, float scrollY, float sxOff, float nudgeOff, float scale,
+                                 bool diPicking, int passMode, float lensTop, float lensBot)
+    {
+        float hlR = g.hlRight + sxOff;
+        float pilL = g.pillLeft + sxOff;
+        float pilR = g.pillRight + sxOff;
+        int cur = state.cursor[pageId];
+        char buf[32];
+
+        // Sub-pass 1: all value pills, arrows, and submenu chevrons (pure quads/tris).
+        for (int r = 0; r < visN; r++)
+        {
+            float y = rowTop + static_cast<float>(visOrd[r]) * kLabRowPitch - scrollY;
+            if (passMode == 2 && (y + kLabRowH <= lensTop || y >= lensBot))
+            {
+                continue;
+            }
+            int i = visIdx[r];
+            const Option& o = p.options[i];
+            bool selected = passMode == 2 ? true : (passMode == 0 && !state.railFocus && i == cur);
+            bool on = active(o) && (!diPicking || (!state.railFocus && i == cur));
+            bool grey = false;
+            const char* value = valueText(def, o, buf, sizeof(buf), grey);
+            bool hasVal = value != NULL && value[0] != '\0';
+            if (hasVal)
+            {
+                bool isHi = optionHighlighted(def, pageId, o);
+                drawValuePill(pilL, pilR, y, kLabRowH, isHi, on, selected);
+                if (selected && hasValue(o) && on)
+                {
+                    bool nudged = (i == cur && nudgeOff != 0.0f);
+                    drawValueArrows(pilL, pilR, y, kLabRowH,
+                                    nudged ? kLabWhiteText : (isHi ? kLabFocusGold : kLabGoldInk));
+                }
+            }
+            else if (o.kind == kKindMenu)
+            {
+                gfx::Rgba chevCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted)
+                                             : (on ? pal.mutedText : kTextDisabled);
+                drawSubmenuChevron(hlR - 10.0f, y, chevCol);
+            }
+        }
+
+        // Sub-pass 2: all row labels, value strings, and submenu summaries (pure text).
+        float capOffset = (kLabRowH - kLabRowCap) * 0.5f;
+        float sumScale = scaleForCap(kTypeMeta);
+        float sumMaxW = ((hlR - 26.0f) - pilL) * menuScale();
+        for (int r = 0; r < visN; r++)
+        {
+            float y = rowTop + static_cast<float>(visOrd[r]) * kLabRowPitch - scrollY;
+            if (passMode == 2 && (y + kLabRowH <= lensTop || y >= lensBot))
+            {
+                continue;
+            }
+            int i = visIdx[r];
+            const Option& o = p.options[i];
+            bool selected = passMode == 2 ? true : (passMode == 0 && !state.railFocus && i == cur);
+            bool on = active(o) && (!diPicking || (!state.railFocus && i == cur));
+            bool grey = false;
+            const char* value = valueText(def, o, buf, sizeof(buf), grey);
+            bool hasVal = value != NULL && value[0] != '\0';
+            float ty = textYForCap(y + capOffset, scale);
+            gfx::Rgba nameCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted) : (on ? kText : kTextDisabled);
+            fitText(g.nameX + sxOff, ty, o.name, nameCol, scale, g.nameMaxW, false);
+            if (hasVal)
+            {
+                bool isHi = optionHighlighted(def, pageId, o);
+                gfx::Rgba valCol =
+                    (on && !grey) ? ((selected && !isHi) ? kLabGoldInk : kLabWhiteText) : kTextDisabled;
+                float valX = g.valCenter + sxOff + ((selected && i == cur) ? nudgeOff : 0.0f);
+                fitText(valX, ty, value, valCol, scale, g.valMaxW - 14.0f, true);
+            }
+            else if (o.kind == kKindMenu)
+            {
+                const char* sum = main::extraSubmenuSummary(static_cast<u8>(o.max), buf, sizeof(buf));
+                if (sum != NULL && sum[0] != '\0')
+                {
+                    bool hasOv = pageHasOverride(def, o.max);
+                    float textW = gfx::textWidth(sum, sumScale);
+                    float sx = (textW > sumMaxW && textW > 0.0f) ? (sumScale * sumMaxW / textW) : sumScale;
+                    if (textW > sumMaxW)
+                    {
+                        textW = sumMaxW;
+                    }
+                    gfx::Rgba sumCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted)
+                                                : (on ? (hasOv ? pal.accentTop : pal.mutedText) : kTextDisabled);
+                    gfx::text(cx(hlR - 25.0f) - textW, textYForCap(y + (kLabRowH - kTypeMeta) * 0.5f, sumScale), sum,
+                              sumCol, sx, sumScale);
+                }
+            }
+        }
+    }
+
     void menuDraw(const MenuDef& def, MenuState& state)
     {
         float scale = scaleForCap(kLabRowCap);
@@ -1844,37 +1985,14 @@ namespace ui {
         s_rail = railMode;
         s_allowShowInactive = allowShowInactive(def, pageId);
         bool tabsMode = isTabsStyle(def);
-        char buf[32];
 
-        // Gather visible rows in compacted contiguous order starting at `first`.
-        int totalVis = 0;
-        int visIdx[kLabVisibleRows];
-        int visN = 0;
-        for (int i = 0; i < p.count; i++)
-        {
-            if (hidden(p.options[i]))
-            {
-                continue;
-            }
-            if (totalVis >= first && visN < visRows)
-            {
-                visIdx[visN++] = i;
-            }
-            totalVis++;
-        }
-
-        struct PaneGeom {
-            float rowTop, subRowTop, scrollH, subScrollH;
-            float hlLeft, hlRight, nameX, nameMaxW;
-            float pillLeft, pillRight, valCenter, valMaxW;
-        };
-        static const PaneGeom kGeom[2] = {
+        static const LabPaneGeom kGeom[2] = {
             {kRailRowTop, kRailSubRowTop, kRailScrollH, kRailSubScrollH, kRailHlLeft, kRailHlRight, kRailNameX,
              kRailNameMaxW, kRailPillLeft, kRailPillRight, kRailValCenter, kRailValMaxW},
             {kTabsRowTop, kTabsSubRowTop, kTabsScrollH, kTabsSubScrollH, kTabsHlLeft, kTabsHlRight, kTabsNameX,
              kTabsNameMaxW, kTabsPillLeft, kTabsPillRight, kTabsValCenter, kTabsValMaxW}
         };
-        const PaneGeom& g = kGeom[tabsMode ? 1 : 0];
+        const LabPaneGeom& g = kGeom[tabsMode ? 1 : 0];
         float openDy = 0.0f;
         if (s_anim.openTick > 0)
         {
@@ -1894,8 +2012,59 @@ namespace ui {
             nudgeOff = static_cast<float>(s_anim.nudgeDir) * nt * 3.0f;
             s_anim.nudgeTick--;
         }
-        float rowTop = (state.depth > 0 ? g.subRowTop : g.rowTop) + openDy;
+        float baseRowTop = state.depth > 0 ? g.subRowTop : g.rowTop;
+        float rowTop = baseRowTop + openDy;
         float scrollH = state.depth > 0 ? g.subScrollH : g.scrollH;
+
+        // Smooth 60fps list scroll offset (snaps cleanly on page/depth/category switch).
+        bool pageChanged = !s_anim.hasScroll || s_anim.lastPage != pageId || s_anim.lastDepth != state.depth;
+        float targetScrollY = static_cast<float>(first) * kLabRowPitch;
+        s_anim.scrollY = pageChanged ? targetScrollY : chase60(s_anim.scrollY, targetScrollY, 0.52f);
+        s_anim.hasScroll = 1;
+        bool scrolling = (s_anim.scrollY < targetScrollY - 0.25f || s_anim.scrollY > targetScrollY + 0.25f);
+        float drawScrollY = scrolling ? s_anim.scrollY : targetScrollY;
+
+        int drawStart = first;
+        int drawMax = visRows;
+        if (scrolling)
+        {
+            drawStart = static_cast<int>(drawScrollY / kLabRowPitch) - 1;
+            if (drawStart < 0)
+            {
+                drawStart = 0;
+            }
+            drawMax = visRows + 3;
+        }
+        enum { kMaxDrawRows = kLabVisibleRows + 4 };
+        if (drawMax > kMaxDrawRows)
+        {
+            drawMax = kMaxDrawRows;
+        }
+
+        // Gather visible rows intersecting the viewport (plus 1 row above/below while scrolling).
+        int totalVis = 0;
+        int curOrd = -1;
+        int visIdx[kMaxDrawRows];
+        int visOrd[kMaxDrawRows];
+        int visN = 0;
+        for (int i = 0; i < p.count; i++)
+        {
+            if (hidden(p.options[i]))
+            {
+                continue;
+            }
+            if (!state.railFocus && i == cur)
+            {
+                curOrd = totalVis;
+            }
+            if (totalVis >= drawStart && visN < drawMax)
+            {
+                visIdx[visN] = i;
+                visOrd[visN] = totalVis;
+                visN++;
+            }
+            totalVis++;
+        }
 
         const MenuPalette& pal = activePalette();
 
@@ -1921,6 +2090,8 @@ namespace ui {
         bool diPicking = diPickerActiveFor(pageId, state);
         if (utilFocused)
         {
+            s_anim.lastPage = pageId;
+            s_anim.lastDepth = state.depth;
             // Flat right-pane action prompt (no nested bordered card, no repeated title/description).
             const MenuAction& act = def.utilities[state.railCursor - def.categoryCount];
             bool confirming = act.label != NULL && act.label[0] != '\0';
@@ -1940,95 +2111,87 @@ namespace ui {
             float hlL = g.hlLeft + sxOff;
             float hlR = g.hlRight + sxOff;
             float pilL = g.pillLeft + sxOff;
-            float pilR = g.pillRight + sxOff;
-            int selVis = -1;
-            for (int r = 0; r < visN; r++)
-            {
-                drawSlantBar(hlL, hlR, rowTop + r * kLabRowPitch, kLabRowH, false, kLabRowSlateTop, kLabRowSlateBot,
-                             kLabRowSlateEdge);
-                if (!state.railFocus && visIdx[r] == cur)
-                {
-                    selVis = r;
-                }
-            }
-            if (selVis >= 0)
+            bool hasBar = (!state.railFocus && curOrd >= 0 && curOrd >= first && curOrd < first + visRows);
+            bool barGliding = false;
+            float barDrawY = 0.0f;
+            float stripeR = 0.0f;
+            if (hasBar)
             {
                 const Option& so = p.options[cur];
                 bool selHasVal = hasValue(so)
                                  || ((so.kind == kKindFunc || so.kind == kKindInfo) && so.data != NULL
                                      && static_cast<const char*>(so.data)[0] != '\0');
-                float targetY = (state.depth > 0 ? g.subRowTop : g.rowTop) + selVis * kLabRowPitch;
+                float targetY = baseRowTop + (curOrd - first) * kLabRowPitch;
                 bool snap = !s_anim.valid || s_anim.lastRail != 0 || s_anim.lastPage != pageId
                             || s_anim.lastDepth != state.depth;
-                s_anim.barY = snap ? targetY : chase60(s_anim.barY, targetY, 0.44f);
+                s_anim.barY = snap ? targetY : chase60(s_anim.barY, targetY, 0.52f);
                 s_anim.valid = 1;
                 s_anim.lastRail = 0;
                 s_anim.lastPage = pageId;
                 s_anim.lastDepth = state.depth;
-                float stripeR = (so.kind == kKindMenu && main::extraLoaded())
-                                    ? 0.0f
-                                    : (selHasVal ? (pilL + 4.5f) : (hlR - 18.0f));
-                drawGoldBar(hlL, hlR, s_anim.barY + openDy, kLabRowH, 8.5f, false, stripeR);
+                barGliding = (s_anim.barY < targetY - 0.25f || s_anim.barY > targetY + 0.25f);
+                barDrawY = (barGliding ? s_anim.barY : snapPx(targetY)) + openDy;
+                stripeR = (so.kind == kKindMenu && main::extraLoaded())
+                              ? 0.0f
+                              : (selHasVal ? (pilL + 4.5f) : (hlR - 18.0f));
             }
-            drawLabScrollBar(totalVis, first, visRows, rowTop, scrollH, pal);
-
-            // Combined value pills, submenu summaries/dots/chevrons, and System Font row labels.
-            float capOffset = (kLabRowH - kLabRowCap) * 0.5f;
-            float sumScale = scaleForCap(kTypeMeta);
-            float sumMaxW = ((hlR - 26.0f) - pilL) * menuScale();
-            for (int r = 0; r < visN; r++)
+            else
             {
-                int i = visIdx[r];
-                const Option& o = p.options[i];
-                float y = rowTop + r * kLabRowPitch;
-                bool selected = !state.railFocus && i == cur;
-                bool on = active(o) && (!diPicking || selected);
-                bool grey = false;
-                const char* value = valueText(def, o, buf, sizeof(buf), grey);
-                bool hasVal = value != NULL && value[0] != '\0';
-                float ty = textYForCap(y + capOffset, scale);
-                gfx::Rgba nameCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted) : (on ? kText : kTextDisabled);
-                fitText(g.nameX + sxOff, ty, o.name, nameCol, scale, g.nameMaxW, false);
-                if (hasVal)
+                s_anim.lastPage = pageId;
+                s_anim.lastDepth = state.depth;
+            }
+
+            bool lensActive = hasBar && (barGliding || scrolling);
+            bool clipList = scrolling || sxOff != 0.0f;
+            gfx::ScissorState listSc;
+            bool listClipped = false;
+            bool listVisible = true;
+            if (clipList)
+            {
+                float clipL = cx(railMode ? kRailPaneLeft : kLabInnerLeft);
+                float clipR = cx(kLabScrollLeft - 2.0f);
+                float clipT = (tabsMode && state.depth > 0) ? kLabSubBodyTop : kLabBodyTop;
+                listClipped = gfx::pushScissor(clipL, clipT, clipR, kLabDescTop, listSc);
+                listVisible = listClipped;
+            }
+
+            if (listVisible)
+            {
+                for (int r = 0; r < visN; r++)
                 {
-                    bool isHi = optionHighlighted(def, pageId, o);
-                    drawValuePill(pilL, pilR, y, kLabRowH, isHi, on, selected);
-                    if (selected && hasValue(o) && on)
-                    {
-                        drawValueArrows(pilL, pilR, y, kLabRowH,
-                                        nudgeOff != 0.0f ? kLabWhiteText : (isHi ? kLabFocusGold : kLabGoldInk));
-                    }
-                    gfx::Rgba valCol =
-                        (on && !grey) ? ((selected && !isHi) ? kLabGoldInk : kLabWhiteText) : kTextDisabled;
-                    fitText(g.valCenter + sxOff + (selected ? nudgeOff : 0.0f), ty, value, valCol, scale,
-                            g.valMaxW - 14.0f, true);
+                    float y = rowTop + static_cast<float>(visOrd[r]) * kLabRowPitch - drawScrollY;
+                    drawSlantBar(hlL, hlR, y, kLabRowH, false, kLabRowSlateTop, kLabRowSlateBot, kLabRowSlateEdge);
                 }
-                else if (o.kind == kKindMenu)
+                if (lensActive)
                 {
-                    const char* sum = main::extraSubmenuSummary(static_cast<u8>(o.max), buf, sizeof(buf));
-                    bool hasOv = pageHasOverride(def, o.max);
-                    gfx::Rgba chevCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted)
-                                                 : (on ? pal.mutedText : kTextDisabled);
-                    if (sum != NULL && sum[0] != '\0')
+                    // Pass 1: unfocused rows, then gliding Gold Bar, then Pass 2 hardware scissor lens.
+                    drawLabRowsLayer(def, state, pageId, p, g, pal, visIdx, visOrd, visN, rowTop, drawScrollY, sxOff,
+                                     nudgeOff, scale, diPicking, 1, 0.0f, 0.0f);
+                    drawGoldBar(hlL, hlR, barDrawY, kLabRowH, 8.5f, false, stripeR);
+                    gfx::ScissorState lensSc;
+                    if (gfx::pushScissor(0.0f, barDrawY, 640.0f, barDrawY + kLabRowH, lensSc))
                     {
-                        float textW = gfx::textWidth(sum, sumScale);
-                        float sx = (textW > sumMaxW && textW > 0.0f) ? (sumScale * sumMaxW / textW) : sumScale;
-                        if (textW > sumMaxW)
-                        {
-                            textW = sumMaxW;
-                        }
-                        gfx::Rgba sumCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted)
-                                                    : (on ? (hasOv ? pal.accentTop : pal.mutedText) : kTextDisabled);
-                        gfx::text(cx(hlR - 25.0f) - textW, textYForCap(y + (kLabRowH - kTypeMeta) * 0.5f, sumScale),
-                                  sum, sumCol, sx, sumScale);
+                        drawLabRowsLayer(def, state, pageId, p, g, pal, visIdx, visOrd, visN, rowTop, drawScrollY,
+                                         sxOff, nudgeOff, scale, diPicking, 2, barDrawY, barDrawY + kLabRowH);
+                        gfx::popScissor(lensSc);
                     }
-                    else if (on && hasOv)
+                }
+                else
+                {
+                    // Settled rest parity: Gold Bar -> 2-pass batched pills/chevrons then text.
+                    if (hasBar)
                     {
-                        drawOverrideDot(hlR - 26.0f, y + kLabRowH * 0.5f, 5.0f, selected, false, pal);
+                        drawGoldBar(hlL, hlR, barDrawY, kLabRowH, 8.5f, false, stripeR);
                     }
-                    drawSubmenuChevron(hlR - 10.0f, y, chevCol);
+                    drawLabRowsLayer(def, state, pageId, p, g, pal, visIdx, visOrd, visN, rowTop, drawScrollY, sxOff,
+                                     nudgeOff, scale, diPicking, 0, 0.0f, 0.0f);
                 }
             }
+            if (listClipped)
+            {
+                gfx::popScissor(listSc);
+            }
+            drawLabScrollBar(totalVis, drawScrollY / kLabRowPitch, visRows, rowTop, scrollH, pal);
 
             // 4. Optional page-specific overlay from extra (e.g. Fighter Swap stock icon).
             main::extraDrawPageOverlay(pageId, railMode);

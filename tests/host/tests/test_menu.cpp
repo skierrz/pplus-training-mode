@@ -1431,8 +1431,11 @@ TEST(lab_menu, rail_hides_tabs_only_utilities_and_clamps_on_live_style_switch)
         ui::menuStep(menu, st, inDown);
     }
     CHECK_EQ(12, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
-    host::canvas::clear();
-    ui::menuDraw(menu, st);
+    for (int f = 0; f < 8; f++)
+    {
+        host::canvas::clear();
+        ui::menuDraw(menu, st);
+    }
     CHECK(menuCanvasDrew("Brawl Training Menu"));
     CHECK(menuCanvasDrew("Return to CSS"));
 
@@ -2678,39 +2681,30 @@ TEST(lab_menu, active_override_highlights_x_reset_gating_and_parent_override_dot
     CHECK(!rowPillIsGreen(0)); // Wavedash = Off (neutral)
     CHECK(rowPillIsGreen(1));  // L-Cancel = On (still active)
 
-    // 4. Parent override dots on Category Rail, Top Tabs, and kKindMenu submenu rows.
+    // 4. Zero override dots on Category Rail, Top Tabs, or kKindMenu submenu rows
+    //    (submenu state is communicated via summaries and emerald option pills, not dots).
     main::resetSettings();
     const u8 dispPath[] = {ui::pages::P_DISPLAY};
     REQUIRE(ui::menuJump(menu, st, dispPath, 1));
-    // Display > Ledgedash HUD defaults On -> Display rail entry (cat 4) has dot, Recording (cat 3) has none.
     host::canvas::clear();
     ui::menuDraw(menu, st);
     float dispRailY = ui::style::kRailItemTop + 4 * ui::style::kRailItemPitch + ui::style::kRailItemH * 0.5f;
     float recRailY = ui::style::kRailItemTop + 3 * ui::style::kRailItemPitch + ui::style::kRailItemH * 0.5f;
-    CHECK(hasOverrideDotAt(166.0f, dispRailY));
-    CHECK(!hasOverrideDotAt(166.0f, recRailY));
-
-    // Turn Ledgedash HUD Off -> Display rail dot clears; enable P1 Overlays Actionable -> Overlays & Meters row (vis 5) & rail dot return.
-    main::settings().general.ledgeHud = 0;
-    host::canvas::clear();
-    ui::menuDraw(menu, st);
-    CHECK(!hasOverrideDotAt(166.0f, dispRailY));
-    // Overlays & Meters is visible row 5 on Display when Hitboxes & DI Display are Off.
     float p1OvRowY = ui::style::kRailRowTop + 5 * ui::style::kLabRowPitch + ui::style::kLabRowH * 0.5f;
+    CHECK(!hasOverrideDotAt(166.0f, dispRailY));
+    CHECK(!hasOverrideDotAt(166.0f, recRailY));
     CHECK(!hasOverrideDotAt(ui::style::kRailHlRight - 26.0f, p1OvRowY));
 
     main::settings().overlay[main::kSideHuman].groups[0] = 2; // Actionable = Green
     host::canvas::clear();
     ui::menuDraw(menu, st);
-    CHECK(hasOverrideDotAt(166.0f, dispRailY));
-    CHECK(hasOverrideDotAt(ui::style::kRailHlRight - 26.0f, p1OvRowY));
+    CHECK(!hasOverrideDotAt(166.0f, dispRailY));
+    CHECK(!hasOverrideDotAt(ui::style::kRailHlRight - 26.0f, p1OvRowY));
 
-    // Top Tabs mode also renders parent override dot on Display tab (index 4).
     main::settings().controls.menuStyle = main::kMenuStyleTabs;
     host::canvas::clear();
     ui::menuDraw(menu, st);
-    // Tab 4 right edge: 76 + (44+5) + (82+5) + (46+5) + (82+5) + 64 = 76 + 49 + 87 + 51 + 87 + 64 = 414 -> dot at 409.5, y = 41.
-    CHECK(hasOverrideDotAt(409.5f, 41.0f));
+    CHECK(!hasOverrideDotAt(409.5f, 41.0f));
 
     // 5. Fighter Swap (P_FIGHTER_SWAP) never triggers a false Stage & Cast override dot or green pills.
     static const char* const kSwapRoster[2] = {"Mario", "Fox"};
@@ -2803,6 +2797,88 @@ TEST(lab_menu, active_override_highlights_x_reset_gating_and_parent_override_dot
     ui::menuDraw(menu, st);
     CHECK(rowPillIsGreen(0)); // Trajectory DI = In (active DI)
     CHECK(menuCanvasDrew("Reset"));
+
+    main::setExtraHooks(NULL);
+    storage::detach();
+}
+
+TEST(lab_menu, scissor_highlight_lens_instant_edit_snap_and_smooth_scroll)
+{
+    bootLab();
+    main::setExtraHooks(&kNoHooks);
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+    main::settings().controls.menuStyle = main::kMenuStyleRail;
+
+    // 1. Settled rest parity: 0 scissor pushes, balanced depth 0.
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK_EQ(0, host::canvas::scissorPushes());
+    CHECK_EQ(0, host::canvas::scissorDepth());
+
+    // 2. Vertical cursor move enters hardware scissor highlight lens mid-glide, then settles cleanly.
+    ui::MenuInput inDown = {0, 1, 0, 0, false, false, false, false};
+    ui::MenuInput inRight = {0, 0, 0, 1, false, false, false, false};
+    ui::menuStep(menu, st, inDown);
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(host::canvas::scissorPushes() >= 1);
+    CHECK_EQ(0, host::canvas::scissorDepth());
+    for (int f = 0; f < 10; f++)
+    {
+        host::canvas::clear();
+        ui::menuDraw(menu, st);
+    }
+    CHECK_EQ(0, host::canvas::scissorPushes());
+    CHECK_EQ(0, host::canvas::scissorDepth());
+
+    // 3. Instant-edit snap: pressing Right mid-glide snaps barY immediately (0 scissor pushes).
+    ui::menuStep(menu, st, inDown); // row 2 (Lock P1 %)
+    ui::menuStep(menu, st, inRight); // toggle mid-glide -> snap
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK_EQ(0, host::canvas::scissorPushes());
+    CHECK_EQ(0, host::canvas::scissorDepth());
+
+    // 4. Left rail vertical glide uses scissor highlight lens and restores scissor depth cleanly.
+    st.railFocus = true;
+    st.railCursor = 0;
+    host::canvas::clear();
+    ui::menuDraw(menu, st); // settle on rail item 0
+    CHECK_EQ(0, host::canvas::scissorPushes());
+    ui::menuStep(menu, st, inDown); // rail 0 -> 1
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(host::canvas::scissorPushes() >= 1);
+    CHECK_EQ(0, host::canvas::scissorDepth());
+
+    // 5. Smooth 60fps list scroll on scrollable page (Individual OSDs, 21 rows): nested list + lens scissors.
+    const u8 osdIndivPath[] = {ui::pages::P_OSD_MENU, ui::pages::P_OSD_INDIVIDUAL};
+    REQUIRE(ui::menuJump(menu, st, osdIndivPath, 2));
+    for (int i = 0; i < 8; i++)
+    {
+        ui::menuStep(menu, st, inDown);
+    }
+    for (int f = 0; f < 10; f++)
+    {
+        host::canvas::clear();
+        ui::menuDraw(menu, st);
+    }
+    CHECK_EQ(0, static_cast<int>(st.scroll[ui::pages::P_OSD_INDIVIDUAL]));
+    CHECK_EQ(0, host::canvas::scissorPushes());
+    ui::menuStep(menu, st, inDown); // crosses kScrollMargin -> scroll 0 -> 1
+    CHECK_EQ(1, static_cast<int>(st.scroll[ui::pages::P_OSD_INDIVIDUAL]));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(host::canvas::scissorPushes() >= 2);
+    CHECK_EQ(0, host::canvas::scissorDepth());
+    for (int f = 0; f < 10; f++)
+    {
+        host::canvas::clear();
+        ui::menuDraw(menu, st);
+    }
+    CHECK_EQ(0, host::canvas::scissorPushes());
 
     main::setExtraHooks(NULL);
     storage::detach();

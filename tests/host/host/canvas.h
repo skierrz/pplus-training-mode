@@ -51,6 +51,8 @@ namespace canvas {
     const Run& run(int index);
     int rects();
     const Rect& rect(int index);
+    int scissorPushes();
+    int scissorDepth();
 
     // The box around everything drawn since clear(): rectangles, text runs
     // (from their capitals' top to the descenders' bottom, by style.h's

@@ -286,6 +286,64 @@ namespace style {
         return endX + pad;
     }
 
+    void drawFooterBadges(float x, float cy, float badgeH, const FooterBadgeItem* items, int count)
+    {
+        if (count <= 0)
+        {
+            return;
+        }
+        if (count > 8)
+        {
+            count = 8;
+        }
+        float xs = gfx::xScale();
+        float posX[8];
+        float pillW[8];
+        float glyphW[8];
+        float gapArr[8];
+        float curX = x;
+        for (int i = 0; i < count; i++)
+        {
+            const FooterBadgeItem& it = items[i];
+            bool dense = (it.flags & kBadgeDense) != 0;
+            float cap = dense ? kTypeMicro : kTypeMeta;
+            float scale = scaleForCap(cap);
+            float gwPx = gfx::textWidth(it.glyph, scale);
+            float lwPx = gfx::textWidth(it.label, scale);
+            bool round = (it.flags & kBadgeRound) != 0;
+            float pillPad = (dense ? 6.0f : 10.0f) * xs;
+            float bw = round ? (badgeH * xs) : (gwPx + pillPad);
+            float minW = (round ? badgeH : (badgeH + 3.0f)) * xs;
+            if (bw < minW)
+            {
+                bw = minW;
+            }
+            float gap = (dense ? 3.5f : ((it.flags & kBadgeTightGap) ? kFibTight : kFibGap)) * xs;
+            float pad = (dense ? 5.5f : ((it.flags & kBadgeWidePad) ? (kFibPad + kFibGap) : kFibPad)) * xs;
+            posX[i] = curX;
+            pillW[i] = bw;
+            glyphW[i] = gwPx;
+            gapArr[i] = gap;
+            curX += bw + gap + lwPx + pad;
+        }
+        for (int i = 0; i < count; i++)
+        {
+            const gfx::Rgba* tc = kBtnTheme[items[i].theme < 4 ? items[i].theme : 0];
+            drawGlossyPillBadge(posX[i], cy - badgeH * 0.5f, pillW[i], badgeH, tc[0], tc[1]);
+        }
+        for (int i = 0; i < count; i++)
+        {
+            const FooterBadgeItem& it = items[i];
+            bool dense = (it.flags & kBadgeDense) != 0;
+            float cap = dense ? kTypeMicro : kTypeMeta;
+            float scale = scaleForCap(cap);
+            const gfx::Rgba* tc = kBtnTheme[it.theme < 4 ? it.theme : 0];
+            float textY = textYForCap(cy - cap * 0.5f, scale);
+            gfx::text(posX[i] + (pillW[i] - glyphW[i]) * 0.5f, textY, it.glyph, tc[2], scale);
+            gfx::text(posX[i] + pillW[i] + gapArr[i], textY, it.label, it.labelCol, scale);
+        }
+    }
+
     void drawFitText(float x, float y, const char* str, gfx::Rgba color, float scale, float maxW, bool centre)
     {
         float width = gfx::textWidth(str, scale);
@@ -298,8 +356,8 @@ namespace style {
         gfx::text(centre ? x - width * 0.5f : x, y, str, color, sx, scale);
     }
 
-    void drawScrollBarAt(float left43, float topY, float height, int count, int scroll, int visible,
-                         gfx::Rgba trackCol, gfx::Rgba thumbTop, gfx::Rgba thumbBot)
+    void drawScrollBarFloat(float left43, float topY, float height, int count, float scrollF, int visible,
+                            gfx::Rgba trackCol, gfx::Rgba thumbTop, gfx::Rgba thumbBot)
     {
         if (count <= visible)
         {
@@ -315,13 +373,24 @@ namespace style {
         {
             length = kFibRowH;
         }
-        int maxScroll = count - visible;
-        if (scroll > maxScroll)
+        float maxScroll = static_cast<float>(count - visible);
+        if (scrollF < 0.0f)
         {
-            scroll = maxScroll;
+            scrollF = 0.0f;
         }
-        float thumbY = topY + 2.0f + (inner - length) * scroll / maxScroll;
+        if (scrollF > maxScroll)
+        {
+            scrollF = maxScroll;
+        }
+        float thumbY = topY + 2.0f + (inner - length) * scrollF / maxScroll;
         gfx::fillGradV(left + ms, thumbY, width - 2.0f * ms, length, thumbTop, thumbBot);
+    }
+
+    void drawScrollBarAt(float left43, float topY, float height, int count, int scroll, int visible,
+                         gfx::Rgba trackCol, gfx::Rgba thumbTop, gfx::Rgba thumbBot)
+    {
+        drawScrollBarFloat(left43, topY, height, count, static_cast<float>(scroll), visible, trackCol, thumbTop,
+                           thumbBot);
     }
 
 #if defined(TM_MODULE_MENU) || !defined(__MWERKS__)
@@ -385,9 +454,31 @@ namespace style {
 
     float modalAnimCursor(ModalAnim& a, float targetY)
     {
-        a.cursorY = a.hasCursor ? chase60(a.cursorY, targetY, 0.44f) : targetY;
+        a.cursorY = a.hasCursor ? chase60(a.cursorY, targetY, 0.52f) : targetY;
         a.hasCursor = 1;
         return a.cursorY;
+    }
+
+    float modalAnimScroll(ModalAnim& a, float targetY)
+    {
+        if (!a.hasScroll)
+        {
+            a.scrollY = targetY;
+            a.hasScroll = 1;
+            return a.scrollY;
+        }
+        float d = targetY - a.scrollY;
+        // Cap large page-flip jumps (e.g. L/R in Recordings Browser) to ~3 rows of travel so scroll settles cleanly.
+        if (d > 78.0f)
+        {
+            a.scrollY = targetY - 78.0f;
+        }
+        else if (d < -78.0f)
+        {
+            a.scrollY = targetY + 78.0f;
+        }
+        a.scrollY = chase60(a.scrollY, targetY, 0.52f);
+        return a.scrollY;
     }
 #ifdef __MWERKS__
 #pragma dont_inline reset

@@ -50,25 +50,28 @@ namespace style {
     float snapPx(float v);
     gfx::Rgba scaleAlpha(gfx::Rgba c, float a);
 
-    // Shared 8-byte modal motion state (<= 16 B budget) for 8f enter / 4f exit / chase60 cursor.
+    // Shared 12-byte modal motion state (<= 16 B budget) for 8f enter / 4f exit / chase60 cursor & scroll.
     struct ModalAnim {
         float cursorY;
+        float scrollY;
         u8 enter;
         u8 exit;
         u8 hasCursor;
-        u8 pad;
+        u8 hasScroll;
     };
 
     inline void modalAnimReset(ModalAnim& a)
     {
         a.cursorY = 0.0f;
-        a.enter = a.exit = a.hasCursor = a.pad = 0;
+        a.scrollY = 0.0f;
+        a.enter = a.exit = a.hasCursor = a.hasScroll = 0;
     }
     inline void modalAnimOpen(ModalAnim& a)
     {
         a.enter = 8;
         a.exit = 0;
         a.hasCursor = 0;
+        a.hasScroll = 0;
     }
     inline void modalAnimClose(ModalAnim& a)
     {
@@ -77,6 +80,7 @@ namespace style {
     }
     float modalAnimStep(ModalAnim& a, float& alphaOut);
     float modalAnimCursor(ModalAnim& a, float targetY);
+    float modalAnimScroll(ModalAnim& a, float targetY);
 
     // System font metrics at scale 1: capital letters are kCapHeight tall and
     // begin kCapOffset below the y passed to gfx::text.
@@ -465,11 +469,23 @@ namespace style {
     float drawFooterBadge(float x, float cy, float badgeH, const char* glyph, const char* label, u8 theme, u8 flags,
                           gfx::Rgba labelCol = kLabMutedText);
 
+    struct FooterBadgeItem {
+        const char* glyph;
+        const char* label;
+        u8 theme;
+        u8 flags;
+        gfx::Rgba labelCol;
+    };
+    // 2-pass batched footer strip: draws all glossy pills first, then all glyph/label text.
+    void drawFooterBadges(float x, float cy, float badgeH, const FooterBadgeItem* items, int count);
+
     // Horizontally squeezes `str` to fit within `maxW` (screen px) when needed.
     void drawFitText(float x, float y, const char* str, gfx::Rgba color, float scale, float maxW,
                      bool centre = false);
 
     // Scrollbar at an explicit 4:3 left position, top y, height, and palette colors.
+    void drawScrollBarFloat(float left43, float topY, float height, int count, float scrollF, int visible,
+                            gfx::Rgba trackCol, gfx::Rgba thumbTop, gfx::Rgba thumbBot);
     void drawScrollBarAt(float left43, float topY, float height, int count, int scroll, int visible,
                          gfx::Rgba trackCol, gfx::Rgba thumbTop, gfx::Rgba thumbBot);
 

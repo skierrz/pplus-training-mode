@@ -28,12 +28,33 @@ namespace canvas {
     static bool s_wide = false;
     // Shapes other than rectangles and text: the box of their points.
     static Bounds s_shapes = {0.0f, 0.0f, 0.0f, 0.0f, false};
+    static tm::gfx::ScissorState s_scissor = {0, 0, 640, 480};
+    static int s_scissorPushes = 0;
+    static int s_scissorDepth = 0;
 
     // For the stand-ins of the mod's drawing functions at the end of this file.
     float& xScaleValue();
     bool& wideValue();
     void keepPoint(float x, float y);
     void keepRect(float x, float y, float width, float height, u32 color, bool frame);
+    tm::gfx::ScissorState& scissorState();
+    int& scissorPushCount();
+    int& scissorDepthCount();
+
+    tm::gfx::ScissorState& scissorState()
+    {
+        return s_scissor;
+    }
+
+    int& scissorPushCount()
+    {
+        return s_scissorPushes;
+    }
+
+    int& scissorDepthCount()
+    {
+        return s_scissorDepth;
+    }
 
     float& xScaleValue()
     {
@@ -71,6 +92,12 @@ namespace canvas {
         s_rectCount = 0;
         s_open = false;
         s_shapes.any = false;
+        s_scissor.x = 0;
+        s_scissor.y = 0;
+        s_scissor.w = 640;
+        s_scissor.h = 480;
+        s_scissorPushes = 0;
+        s_scissorDepth = 0;
     }
 
     void setFont(bool usable)
@@ -105,6 +132,16 @@ namespace canvas {
     const Rect& rect(int index)
     {
         return s_rects[index];
+    }
+
+    int scissorPushes()
+    {
+        return s_scissorPushes;
+    }
+
+    int scissorDepth()
+    {
+        return s_scissorDepth;
     }
 
     Bounds bounds()
@@ -170,6 +207,19 @@ namespace canvas {
         if (x < kOffScreen || s_runCount >= kMaxRuns)
         {
             return;
+        }
+        if (s_scissorDepth > 0)
+        {
+            float capOff = displayFont ? 2.0f : tm::ui::style::kCapOffset;
+            float capH = displayFont ? 27.0f : tm::ui::style::kCapHeight;
+            float top = y + capOff * scaleY;
+            float bot = top + capH * scaleY;
+            float sy0 = static_cast<float>(s_scissor.y);
+            float sy1 = static_cast<float>(s_scissor.y + s_scissor.h);
+            if (bot <= sy0 || top >= sy1)
+            {
+                return;
+            }
         }
         Run& r = s_runs[s_runCount++];
         r.x = r.right = x;
@@ -298,6 +348,38 @@ namespace gfx {
     {
         host::canvas::keepPoint(x - rx, y - ry);
         host::canvas::keepPoint(x + rx, y + ry);
+    }
+    bool pushScissor(float x0, float y0, float x1, float y1, ScissorState& saved)
+    {
+        saved = host::canvas::scissorState();
+        int px0 = x0 <= 0.0f ? 0 : static_cast<int>(x0 + 0.5f);
+        int py0 = y0 <= 0.0f ? 0 : static_cast<int>(y0 + 0.5f);
+        int px1 = x1 <= 0.0f ? 0 : static_cast<int>(x1 + 0.5f);
+        int py1 = y1 <= 0.0f ? 0 : static_cast<int>(y1 + 0.5f);
+        int sx0 = static_cast<int>(saved.x);
+        int sy0 = static_cast<int>(saved.y);
+        int sx1 = sx0 + static_cast<int>(saved.w);
+        int sy1 = sy0 + static_cast<int>(saved.h);
+        if (px0 < sx0) px0 = sx0;
+        if (py0 < sy0) py0 = sy0;
+        if (px1 > sx1) px1 = sx1;
+        if (py1 > sy1) py1 = sy1;
+        if (px1 <= px0 || py1 <= py0)
+        {
+            return false;
+        }
+        host::canvas::scissorState().x = static_cast<u32>(px0);
+        host::canvas::scissorState().y = static_cast<u32>(py0);
+        host::canvas::scissorState().w = static_cast<u32>(px1 - px0);
+        host::canvas::scissorState().h = static_cast<u32>(py1 - py0);
+        host::canvas::scissorPushCount()++;
+        host::canvas::scissorDepthCount()++;
+        return true;
+    }
+    void popScissor(const ScissorState& saved)
+    {
+        host::canvas::scissorState() = saved;
+        host::canvas::scissorDepthCount()--;
     }
 }
 }

@@ -940,8 +940,11 @@ namespace {
     void drawList()
     {
         gfx::forgetWidths();
-        canvas::clear();
-        menu::list::draw();
+        for (int f = 0; f < 9; f++)
+        {
+            canvas::clear();
+            menu::list::draw();
+        }
         canvas::clear();
         menu::list::draw();
     }
