@@ -851,4 +851,36 @@ TEST(stage4a_hover_ps, ganondorf_dead_mans_float_cancel_and_grounded_warlock_pun
     CHECK_EQ(2u, st.stats.fcAttempts);
     CHECK_EQ(1u, st.stats.fcSuccesses);
     CHECK_EQ(0u, st.stats.fcStreak);
+
+    // 4. Dead Man's Float (0x112 -> 0x33) landing in Landing_Attack_Air (0x18) WITH L-Cancel = Success!
+    in = makeFd(70, kDrillFtGanondorf, kFdStSpecialN, 0x1CE, 1, 3.5f, 0.0f);
+    addFdEv(in, kFdStJump, kFdStSpecialN, 0x10, 0, 1);
+    stepFloatDjc(in, st);
+    in = makeFd(75, kDrillFtGanondorf, kFdStAttackAir, 0x62, 1, 2.0f, -0.4f);
+    addFdEv(in, kFdStSpecialN, kFdStAttackAir, 0x1CE, 0, 1);
+    stepFloatDjc(in, st);
+    in = makeFd(79, kDrillFtGanondorf, kFdStLandingAttackAir, 0x67, 0, 0.0f, -1.2f);
+    addFdEv(in, kFdStAttackAir, kFdStLandingAttackAir, 0x62, 1, 0);
+    stepFloatDjc(in, st);
+    CHECK_EQ(static_cast<int>(kFcSuccess), static_cast<int>(st.last.fcOutcome));
+    CHECK_EQ(1, static_cast<int>(st.last.fcLandingLCancelled));
+    CHECK_EQ(3u, st.stats.fcAttempts);
+    CHECK_EQ(2u, st.stats.fcSuccesses);
+    CHECK_EQ(1u, st.stats.fcStreak);
+
+    // 5. Dead Man's Float (0x112 -> 0x33) landing in 0x18 WITHOUT L-Cancel = kFcMissLCancel (not Dropped Float).
+    in = makeFd(90, kDrillFtGanondorf, kFdStSpecialN, 0x1CE, 1, 3.5f, 0.0f);
+    addFdEv(in, kFdStJump, kFdStSpecialN, 0x10, 0, 1);
+    stepFloatDjc(in, st);
+    in = makeFd(95, kDrillFtGanondorf, kFdStAttackAir, 0x63, 1, 2.0f, -0.4f);
+    addFdEv(in, kFdStSpecialN, kFdStAttackAir, 0x1CE, 0, 1);
+    stepFloatDjc(in, st);
+    in = makeFd(99, kDrillFtGanondorf, kFdStLandingAttackAir, 0x68, 0, 0.0f, -1.2f);
+    addFdEv(in, kFdStAttackAir, kFdStLandingAttackAir, 0x63, 0, 0);
+    stepFloatDjc(in, st);
+    CHECK_EQ(static_cast<int>(kFcMissLCancel), static_cast<int>(st.last.fcOutcome));
+    CHECK_EQ(0, static_cast<int>(st.last.fcLandingLCancelled));
+    CHECK_EQ(4u, st.stats.fcAttempts);
+    CHECK_EQ(2u, st.stats.fcSuccesses);
+    CHECK_EQ(0u, st.stats.fcStreak);
 }

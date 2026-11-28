@@ -250,7 +250,8 @@ TEST(action_log, sf6_dual_strip_phase_classification_advantage_and_ring_wrap)
     // (0x4A..0x53) with hitstun == 0 must NEVER register as defender stun or
     // emit a bogus 0f advantage or gold stun cells; Down_Damage (0x54) and
     // Down_Reflect_Lr (0x55) ARE defender stun even when hitstun == 0.
-    CHECK(!sf6IsDefenderStun(0x41, 0, 0, 0, 0)); // Capture_Jump (grab release)
+    CHECK(!sf6IsDefenderStun(0x40, 0, 0, 0, 0)); // Capture_Cut (grounded grab release)
+    CHECK(!sf6IsDefenderStun(0x41, 0, 0, 0, 0)); // Capture_Jump (aerial grab release)
     CHECK(!sf6IsDefenderStun(0x49, 0, 0, 0, 0));
     CHECK(!sf6IsDefenderStun(0x4D, 0, 0, 0, 0));
     CHECK(!sf6IsDefenderStun(0x4F, 0, 0, 0, 0));

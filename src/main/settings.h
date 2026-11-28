@@ -291,7 +291,7 @@ namespace main {
         u8 infoBgColor; // InfoBgColor (0..6, default kInfoBgDefault)
         u8 infoBgAlpha; // InfoAlpha (0..6, default kInfoAlphaDefault = 80%)
         u8 timingMeter; // TimingMeterMode (0..4, default kTimingMeterOff)
-        u8 preset;      // OsdPreset (0..4, default kOsdPresetEssentials)
+        u8 preset;      // OsdPreset (0..7, default kOsdPresetEssentials)
         u8 techSparkle; // TechSparkleMode (0..3, default kTechSparkleWavedash)
         u8 reserved[2];
     };

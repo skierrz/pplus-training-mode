@@ -24,6 +24,9 @@
 #include "shared/log.h"
 #include "shared/version.h"
 
+#ifndef TM_STAGE4C
+#define TM_STAGE4C 1
+#endif
 #ifndef TM_BOOT_CANCEL_ENDURANCE
 #define TM_BOOT_CANCEL_ENDURANCE 0
 #endif
@@ -80,9 +83,13 @@ namespace list {
         kIdxDacus,
         kIdxBReverse,
         kIdxFloatHover,
+#if TM_STAGE4C
         kIdxFloorhug,
-        kIdxComboBreakRush,
-        kIdxSnakeRecovery
+#endif
+        kIdxComboBreakRush
+#if TM_STAGE4C
+        , kIdxSnakeRecovery
+#endif
 #if TM_BOOT_CANCEL_ENDURANCE
         , kIdxCancelSprint
 #endif
@@ -329,6 +336,7 @@ namespace list {
             "Free Practice",
             "In-match L + D-Up: Free / 10 / 20-Rep"
         },
+#if TM_STAGE4C
         {
             "CC / ASDI-Down",
             kRowSkillDrill,
@@ -342,6 +350,7 @@ namespace list {
             "Free / Set / 60s",
             "In-match L + D-Up: Free / 10 / 20 / 60s"
         },
+#endif
         {
             "Break the Targets!",
             kRowSkillDrill,
@@ -354,8 +363,9 @@ namespace list {
             "Any Fighter",
             "Brawl Targets",
             "In-match L + D-Up: Free / 30s / 60s"
-        },
-        {
+        }
+#if TM_STAGE4C
+        , {
             "Snake C4 Recovery",
             kRowSkillDrill,
             drills::kDrillSnakeRecovery,
@@ -368,6 +378,7 @@ namespace list {
             "Free / Set / 60s",
             "In-match L + D-Up: Free / 10 / 20 / 60s"
         }
+#endif
 #if TM_BOOT_CANCEL_ENDURANCE
         , {
             "Cancel Practice: Endurance",
@@ -445,7 +456,10 @@ namespace list {
     };
     static const u8 kScenariosIndices[] = {
         kIdxComboLab,  kIdxTechchase,   kIdxEdgeguard, kIdxShieldPressure, kIdxShieldDrop,
-        kIdxLedgetech, kIdxSlideOff,    kIdxGrabDefense, kIdxMultiHitSdi,  kIdxFloorhug
+        kIdxLedgetech, kIdxSlideOff,    kIdxGrabDefense, kIdxMultiHitSdi
+#if TM_STAGE4C
+        , kIdxFloorhug
+#endif
     };
     static const u8 kTechPracticeIndices[] = {
         kIdxLCancel, kIdxWavedash, kIdxLedgedash, kIdxPowershield,
@@ -453,8 +467,10 @@ namespace list {
     };
     static const u8 kMinigamesTechIndices[] = {
         kIdxComboBreakRush,
-        kIdxFloatHover,
-        kIdxSnakeRecovery
+        kIdxFloatHover
+#if TM_STAGE4C
+        , kIdxSnakeRecovery
+#endif
 #if TM_BOOT_CANCEL_ENDURANCE
         , kIdxCancelSprint
 #endif

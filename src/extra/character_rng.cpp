@@ -561,10 +561,12 @@ namespace extra {
             }
             if (call == main::kRngSnakeP1)
             {
+#if TM_STAGE4C
                 if (!refs[i].cpu && kind == kFtSnake)
                 {
                     matched = true;
                 }
+#endif
                 continue;
             }
             if (call == main::kRngFloatDjcP1)

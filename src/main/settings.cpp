@@ -155,6 +155,10 @@ namespace main {
         }
 
         s.comboTrainer.enabledMeters &= kMeterAll;
+        for (int i = 0; i < kOsdCustomSlotCount; i++)
+        {
+            s.osdPresets.customMask[i] &= (kOsdCustomSavedBit | 0xFFFFFu);
+        }
         extra::olimarSanitizeSettings(s.fighterMechanics);
     }
 

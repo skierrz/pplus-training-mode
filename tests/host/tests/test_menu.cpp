@@ -2765,6 +2765,19 @@ TEST(lab_menu, active_override_highlights_x_reset_gating_and_parent_override_dot
     ui::menuDraw(menu, st);
     CHECK(!hasOverrideDotAt(166.0f, dispRailY));
 
+    // 7b. Display > DI Vector Mode highlights Live Stick (0) and stays neutral on No DI (1).
+    main::resetSettings();
+    main::settings().general.diDisplay = 1;
+    main::settings().display.diVectorMode = main::kDiVectorLive;
+    REQUIRE(ui::menuJump(menu, st, dispPath, 1));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(rowPillIsGreen(4)); // DI Vector = Live Stick (vis row 4 when Hitboxes Off, DI Display On)
+    main::settings().display.diVectorMode = main::kDiVectorNone;
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(!rowPillIsGreen(4)); // DI Vector = No DI (neutral)
+
     // 8. CPU Trajectory DI: active DI (Random/In) highlights; None is neutral; X Reset still tracks def (Random=0).
     main::resetSettings();
     const u8 cpuDiPath[] = {ui::pages::P_CPU_DI};
@@ -3000,8 +3013,46 @@ TEST(menu_summaries, real_extra_submenu_summaries_fit_and_track_state)
     // Overrides reflect live state accurately.
     main::settings().controls.menuStyle = main::kMenuStyleTabs;
     CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_CONTROLS, buf, sizeof(buf)), "Top Tabs") == 0);
+    // Parent Display fields (hitboxes / diVectorMode) must NOT affect P_COLLISION.
+    main::settings().display.hitboxes = 3;
+    main::settings().display.diVectorMode = main::kDiVectorNone;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_COLLISION, buf, sizeof(buf)), "Off") == 0);
+    main::settings().display.hitboxes = 0;
+    main::settings().display.diVectorMode = main::kDiVectorLive;
     main::settings().display.heatmap = 1;
     CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_COLLISION, buf, sizeof(buf)), "Heatmap") == 0);
+    main::settings().display.grabVisualizer = 1;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_COLLISION, buf, sizeof(buf)), "2 Active") == 0);
+    main::settings().display.grabVisualizer = 0;
+    // Info display belongs to P_DEBUG, not P_HUD_OVERLAYS.
+    main::settings().general.ledgeHud = 0;
+    main::settings().info[0].rows[0] = 1;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_HUD_OVERLAYS, buf, sizeof(buf)), "All Off") == 0);
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_DEBUG, buf, sizeof(buf)), "Info HUD") == 0);
+    main::settings().info[0].rows[0] = 0;
+    main::settings().general.ledgeHud = 1;
+    // P_TECH_WEIGHTS tracks missTechWait; P_TECH maps index 4 to "Miss" and tracks sub-options.
+    main::settings().cpu.options.missTechWait = 20;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_TECH_WEIGHTS, buf, sizeof(buf)), "Custom") == 0);
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_TECH, buf, sizeof(buf)), "Custom") == 0);
+    main::settings().cpu.options.missTechWait = 0;
+    main::settings().cpu.options.tech = cpu::kTechNone;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_TECH, buf, sizeof(buf)), "Miss") == 0);
+    main::settings().cpu.options.tech = cpu::kTechRandom;
+    main::settings().techInvis.mode = 1;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_TECH, buf, sizeof(buf)), "Invis") == 0);
+    main::settings().techInvis.mode = 0;
+    // P_CPU_DI tracks SDI and ASDI alongside TDI.
+    main::settings().cpu.options.sdiAmount = 3;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_CPU_DI, buf, sizeof(buf)), "DI + SDI") == 0);
+    main::settings().cpu.options.asdi = cpu::kAsdiDown;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_CPU_DI, buf, sizeof(buf)), "SDI + ASDI") == 0);
+    main::settings().cpu.options.sdiAmount = 0;
+    main::settings().cpu.options.asdi = cpu::kAsdiAuto;
+    // P_THEME returns "Custom" when only non-accent theme settings change.
+    main::settings().osd.bgAlpha = 4;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_THEME, buf, sizeof(buf)), "Custom") == 0);
+    main::settings().osd.bgAlpha = main::kDefaultOsdAlpha;
     main::settings().cpu.options.techChance[0] = 50;
     CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_TECH_WEIGHTS, buf, sizeof(buf)), "Custom") == 0);
     main::settings().cpu.options.multiReversal = 1;

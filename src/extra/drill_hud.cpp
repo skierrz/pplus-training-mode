@@ -760,13 +760,13 @@ namespace extra {
             }
         }
 
-        void drawEndModal(float animT, const DrillHudState& st)
+        void drawEndModal(float animT, const DrillHudState& st, bool exiting)
         {
             using namespace ui::style;
             Runtime& s_rt = *s_rtPtr;
             float xs = s_rt.xs;
-            float eased = easeOutCubic(animT);
-            float alpha = (animT >= 0.99f) ? 1.0f : (0.15f + 0.85f * eased);
+            float eased = exiting ? (1.0f - easeOutCubic(1.0f - animT)) : easeOutCubic(animT);
+            float alpha = (animT >= 0.99f) ? 1.0f : (exiting ? eased : (0.15f + 0.85f * eased));
             float yOff = (animT >= 0.99f) ? 0.0f : i2f(f2i(6.0f * (1.0f - eased) + 0.5f));
             float modalW = ui::layout::kDrillModalWidth; // 377.0f (F14)
             float modalTop = ui::layout::kDrillModalTop + yOff; // 113.0f at rest
@@ -800,13 +800,14 @@ namespace extra {
                 float pop = 0.0f;
                 if (s_rt.st.modalOpen && s_rt.modalNewBestPop > 0u)
                 {
-                    float u = i2f(s_rt.modalNewBestPop) * 0.2f;
+                    float u = i2f(s_rt.modalNewBestPop) / 6.0f;
                     pop = 4.0f * u * (1.0f - u);
                     s_rt.modalNewBestPop--;
                 }
                 float pw = 104.0f * (1.0f + 0.06f * pop) * xs;
                 float extraH = pop > 0.01f ? i2f(f2i(2.0f * pop + 0.5f)) : 0.0f;
-                gfx::fillGradV(320.0f - pw * 0.5f, badgeY - extraH * 0.5f, pw, kFibRowH + extraH,
+                float topShift = i2f(f2i(extraH * 0.5f));
+                gfx::fillGradV(320.0f - pw * 0.5f, badgeY - topShift, pw, kFibRowH + extraH,
                                scaleAlpha(kLabGoldTop, alpha), scaleAlpha(kLabGoldBot, alpha));
             }
             else
@@ -972,7 +973,7 @@ namespace extra {
         drillHudInit(s_rt.st, id, id ? s_rt.sess->best[id] : 0u);
         drillPracticeSetActiveDrill(id);
         ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
-        pm->activeDrill = id < kPracticeDrillCount ? id : static_cast<u8>(drills::kDrillNone);
+        pm->activeDrill = id;
         pm->mode = s_rt.st.mode < 3u ? s_rt.st.mode : 0u;
         if (id)
         {
@@ -997,7 +998,7 @@ namespace extra {
         drillHudInit(s_rt.st, drillId, best);
         drillPracticeSetActiveDrill(drillId);
         ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
-        pm->activeDrill = drillId < kPracticeDrillCount ? drillId : static_cast<u8>(drills::kDrillNone);
+        pm->activeDrill = drillId;
         pm->mode = s_rt.st.mode < 3u ? s_rt.st.mode : 0u;
         if (s_rt.sess != NULL)
         {
@@ -1401,7 +1402,7 @@ namespace extra {
             {
                 s_rt.modalAnim++;
             }
-            drawEndModal(i2f(s_rt.modalAnim) * 0.125f, s_rt.st);
+            drawEndModal(i2f(s_rt.modalAnim) * 0.125f, s_rt.st, false);
         }
         else
         {
@@ -1412,7 +1413,7 @@ namespace extra {
                 s_rt.modalAnim = s_rt.modalAnim > 2u ? static_cast<u8>(s_rt.modalAnim - 2u) : 0u;
                 if (s_rt.modalAnim > 0u && s_rt.modalSnap.activeDrill != 0u)
                 {
-                    drawEndModal(i2f(s_rt.modalAnim) * 0.125f, s_rt.modalSnap);
+                    drawEndModal(i2f(s_rt.modalAnim) * 0.125f, s_rt.modalSnap, true);
                 }
                 else if (s_rt.modalAnim == 0u)
                 {

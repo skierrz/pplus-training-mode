@@ -170,9 +170,6 @@ namespace game {
         s_net = NULL;
 #endif
     }
-#ifdef __MWERKS__
-#pragma force_active reset
-#endif
 
     const char* statusName(int status)
     {
@@ -205,5 +202,8 @@ namespace game {
             snprintf(buf, size, "0x%X", status);
         }
     }
+#ifdef __MWERKS__
+#pragma force_active reset
+#endif
 }
 }

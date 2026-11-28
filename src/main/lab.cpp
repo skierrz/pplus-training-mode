@@ -1524,6 +1524,8 @@ namespace lab {
     {
         main::resetSettings();
         storage::settingsReset();
+        ui::menuScratch()[ui::kOsdSaveSlotScratchOffset] = 0;
+        ui::pages::osdSyncSaveLabel();
         cpu::controlledByChanged();
         osdSettingsChanged();
         frameAdvanceChanged();

@@ -530,10 +530,12 @@ namespace extra {
                 {
                     if (a != st.prev[0])
                     {
-                        bool ok = (f.fd->last.fcOutcome == kFcSuccess);
+                        u8 out = f.fd->last.fcOutcome;
+                        bool ok = (out == kFcSuccess);
                         mop = ok ? 1 : 0;
                         ev = ok ? 4 : 1;
-                        msg = ok ? (f.fd->last.fcIsHover ? 20 : 19) : 21;
+                        msg = ok ? (f.fd->last.fcIsHover ? 20 : 19)
+                                 : (out == kFcMissLCancel ? 18 : 21);
                     }
                     else if (b != st.prev[1])
                     {
@@ -956,6 +958,7 @@ namespace extra {
     // (0..6 = Early -7f..-1f, 7 = Perfect f1, 8..14 = 1f..7f Late; -1 = omit).
     inline int wdTimingBarPointerCell(const WdResult& r, int cellCount = 15)
     {
+        int mid = cellCount / 2;
         if (r.outcome == kWdOutcomeSuccess)
         {
             int f = (r.kind == kWdKindWaveland) ? r.airdodgeAirFrames : r.jumpsquatToDodge;
@@ -963,14 +966,14 @@ namespace extra {
             {
                 f = 1;
             }
-            int c = 7 + (f - 1);
+            int c = mid + (f - 1);
             return c >= cellCount ? (cellCount - 1) : c;
         }
         if (r.outcome == kWdMissNoAirdodge)
         {
             if (r.earlyGuardFrames > 0)
             {
-                int c = 7 - static_cast<int>(r.earlyGuardFrames);
+                int c = mid - static_cast<int>(r.earlyGuardFrames);
                 return c < 0 ? 0 : c;
             }
             return -1;
@@ -979,11 +982,7 @@ namespace extra {
         {
             return cellCount - 1;
         }
-        if (r.outcome == kWdMissUpwardAirdodge || r.outcome == kWdMissZairTether)
-        {
-            return -1;
-        }
-        return cellCount - 1;
+        return -1;
     }
 }
 }

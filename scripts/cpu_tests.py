@@ -1608,7 +1608,7 @@ def o_tech_invis(r, name=None, check_getup=True):
             # Tech Sound Cue is gated off by techNotMiss() when Tech is Miss.
             lab.menu_select_row("Tech Sound Cue")
             lab.toggle_on(SET_CPU + CPU_FIELDS["techSound"])
-        lab.back_to_main(2)
+        lab.back_to_main(lab.read_menu_state()["depth"])
         lab.close_menu()
         pos = len(emu.log_text())
         sound_at = []
@@ -2328,7 +2328,7 @@ def o_menu(r):
     lab.tap(stick=LT.RIGHT)
     chances = [r.opt.emu.u8(r.opt.base + SET_CPU + CPU_FIELDS["techChance"] + k) for k in range(4)]
     shot2 = emu.screenshot("cpu-menu-tech")[0]
-    lab.back_to_main(3)
+    lab.back_to_main(lab.read_menu_state()["depth"])
     lab.close_menu()
     nav.resume_training(emu)
     emu.advance(20)
@@ -2961,7 +2961,7 @@ def o_oos_techniques(r):
     lab.menu_nav_to("CPU > Counters & Reversals > Shield Counter")
     lab.tap(stick=LT.RIGHT)
     got = r.opt.get("counterShield")
-    lab.back_to_main(2)
+    lab.back_to_main(lab.read_menu_state()["depth"])
     lab.close_menu()
     want = SHIELD_DJC if name in DJC_CHARACTERS else (SHIELD_FLOAT if name in FLOAT_CHARACTERS else SHIELD_SHFFL)
     res.row("menu: Right on Counter Action (Shield) from Random", want, got, got == want)
@@ -4559,8 +4559,11 @@ def o_advanced(r):
     def to_custom_usmash(lab):
         lab.menu_nav_to("CPU > Counters & Reversals > Counter Mode")
         # Counter Mode starts at Single Action (1); step right to Per-Hit (4).
+        # Stepping through Pool -> Reversals resets counterGround to Jab (13),
+        # so restore the test's Spotdodge (1) default for hits without overrides.
         for _ in range(3):
             lab.tap(stick=LT.RIGHT)
+        r.opt.set(counterGround=1)
         lab.menu_select_row("Per-Hit Counters")
         lab.tap(["A"])
         lab.menu_select_row("Hit Rule")

@@ -94,6 +94,7 @@ namespace pages {
     extern TM_PAGE_QUAL Page kHudOverlays;
 
     void osdSyncSaveLabel();
+    void osdApplyPreset();
 
 #ifdef __MWERKS__
     struct RowSpec {

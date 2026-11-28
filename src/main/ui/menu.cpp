@@ -599,16 +599,17 @@ namespace ui {
                 u8 page;
                 u8 act;
             };
-            static const ResetMap kMap[14] = {
+            static const ResetMap kMap[15] = {
                 {pages::P_GENERAL, 1}, {pages::P_CONTROLS, 2}, {pages::P_CPU, 3},
                 {pages::P_CPU_COUNTERS, 4}, {pages::P_ADVANCED_COUNTER, 5},
                 {pages::P_OSD_MENU, 6}, {pages::P_OSD_INDIVIDUAL, 6},
                 {pages::P_STAGE_CAST, 7}, {pages::P_OLIMAR, 8},
                 {pages::P_RECORDING, 9}, {pages::P_SLOTS, 10}, {pages::P_REC_MANAGE, 10},
-                {pages::P_HMN_CHANCES, 11}, {pages::P_CPU_CHANCES, 12}
+                {pages::P_HMN_CHANCES, 11}, {pages::P_CPU_CHANCES, 12},
+                {pages::P_CPU_DI, 13}
             };
             u8 act = 0;
-            for (int k = 0; k < 14; k++)
+            for (int k = 0; k < 15; k++)
             {
                 if (kMap[k].page == targetPg)
                 {
@@ -642,6 +643,14 @@ namespace ui {
             }
             if (act == 6)
             {
+                if (targetPg == pages::P_OSD_MENU)
+                {
+                    pages::osdApplyPreset();
+                }
+                else
+                {
+                    main::settings().osd.preset = main::kOsdPresetEssentials;
+                }
                 lab::osdSettingsChanged();
                 pages::osdSyncSaveLabel();
             }
@@ -666,17 +675,28 @@ namespace ui {
             }
             else if (act == 9 || act == 10)
             {
-                if (act == 9 && record::positionsSaved())
+                if (record::positionsSaved())
                 {
-                    record::hmnModeChanged();
-                    record::cpuModeChanged();
-                    record::mirroredChanged();
+                    if (act == 9)
+                    {
+                        record::hmnModeChanged();
+                        record::cpuModeChanged();
+                    }
+                    else if (targetPg == pages::P_REC_MANAGE)
+                    {
+                        record::mirroredChanged();
+                    }
                 }
                 record::clearDeleteConfirm();
             }
-            else if (act >= 11)
+            else if (act == 11 || act == 12)
             {
                 record::chanceChanged(act == 11 ? main::kSideHuman : main::kSideCpu, -1);
+            }
+            else if (act == 13)
+            {
+                main::settings().cpuTables.customDiX = 100;
+                main::settings().cpuTables.customDiY = 0;
             }
             return game::kSoundConfirm;
         }
@@ -748,6 +768,10 @@ namespace ui {
         {
             return v != cpu::kTdiNone;
         }
+        if (o.offset == static_cast<u16>(offsetof(main::Settings, display.diVectorMode)))
+        {
+            return v != main::kDiVectorNone;
+        }
         static const u16 kActiveAidOffs[] = {
             static_cast<u16>(offsetof(main::Settings, general.playerInfiniteShields)),
             static_cast<u16>(offsetof(main::Settings, general.ledgeHud)),
@@ -757,7 +781,6 @@ namespace ui {
             static_cast<u16>(offsetof(main::Settings, cpu.options.counterGround)),
             static_cast<u16>(offsetof(main::Settings, cpu.options.counterAir)),
             static_cast<u16>(offsetof(main::Settings, cpu.options.counterShield)),
-            static_cast<u16>(offsetof(main::Settings, display.diVectorMode)),
             static_cast<u16>(offsetof(main::Settings, osd.techSparkle))
         };
         for (u32 i = 0; i < sizeof(kActiveAidOffs) / sizeof(kActiveAidOffs[0]); i++)
@@ -1052,7 +1075,8 @@ namespace ui {
                 if (in.resetOpt)
                 {
                     state.resetConfirmPage = 0;
-                    if (resetMenuOption(def, pageId, cur))
+                    if (stored(o) && (o.flags & kFlagScratch) == 0 && optionValue(def, o) != o.def
+                        && resetMenuOption(def, pageId, cur))
                     {
                         sound = game::kSoundConfirm;
                     }

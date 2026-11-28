@@ -28,6 +28,7 @@
 #include "extra/net_alloc.h"
 #include "extra/pplus_collision.h"
 #include "extra/stage_geom.h"
+#include "main/ui/pages/scenarios.h"
 #include "main/ui/style.h"
 #include "main/game/fighters.h"
 #include "main/gfx/draw.h"
@@ -533,6 +534,7 @@ namespace extra {
         if (startMode != kRushOff)
         {
             if (s_net->sess != NULL) s_net->sess->drillRan = 1;
+            ui::pages::practiceMenuState()->activeDrill = static_cast<u8>(drills::kDrillComboBreakRush);
             ensureTargetTex(*s_net);
             drillPracticeSetExternalStandby(true);
         }
@@ -545,6 +547,10 @@ namespace extra {
         if (s_net != NULL)
         {
             saveBest(*s_net);
+            if (ui::pages::practiceMenuState()->activeDrill == drills::kDrillComboBreakRush)
+            {
+                ui::pages::practiceMenuState()->activeDrill = static_cast<u8>(drills::kDrillNone);
+            }
             drillPracticeSetExternalStandby(false);
             releaseTargetTex(*s_net);
         }
@@ -569,6 +575,7 @@ namespace extra {
         rushInit(s_net->st, clean, best, game::frameCounter() ^ 0x9E3779B9u);
         if (clean != kRushOff)
         {
+            ui::pages::practiceMenuState()->activeDrill = static_cast<u8>(drills::kDrillComboBreakRush);
             ensureTargetTex(*s_net);
             drillPracticeSetExternalStandby(true);
             if (queryStageGeometry(s_net->geom, false, true)) s_net->geomReady = 1;
@@ -581,6 +588,10 @@ namespace extra {
         }
         else
         {
+            if (ui::pages::practiceMenuState()->activeDrill == drills::kDrillComboBreakRush)
+            {
+                ui::pages::practiceMenuState()->activeDrill = static_cast<u8>(drills::kDrillNone);
+            }
             drillPracticeSetExternalStandby(false);
             releaseTargetTex(*s_net);
         }

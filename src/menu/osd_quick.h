@@ -30,6 +30,7 @@ namespace osdQuick {
     // Populates defaults matching in-match Lab pages (general / display / osd).
     void defaultOsdSettings(main::OsdSettings& out);
     void defaultQuickSetupData(QuickSetupData& out);
+    void defaultCpuSettings(main::CpuSettings& out);
 
     // Pure host-testable in-place Quick Setup patcher:
     // - When `inFile != NULL` (valid layout-2 settings file), copies every other

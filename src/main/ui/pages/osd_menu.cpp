@@ -111,7 +111,7 @@ namespace pages {
         storage::notice(storage::kNoticeOk, "Saved %d OSDs to Custom %d", count, slot + 1);
     }
 
-    static void osdPresetChanged()
+    void osdApplyPreset()
     {
         u8 preset = main::settings().osd.preset;
         if (preset == main::kOsdPresetCustom || preset >= main::kOsdPresetCount)
@@ -127,6 +127,7 @@ namespace pages {
             u32 saved = main::settings().osdPresets.customMask[slot];
             if ((saved & main::kOsdCustomSavedBit) == 0u)
             {
+                storage::notice(storage::kNoticeWarn, "Custom %d is empty: press Save Current OSDs", slot + 1);
                 return;
             }
             mask = saved & 0xFFFFFu;
@@ -147,6 +148,11 @@ namespace pages {
         {
             raw[kToggleOffsets[i]] = static_cast<u8>((mask >> i) & 1u);
         }
+    }
+
+    static void osdPresetChanged()
+    {
+        osdApplyPreset();
     }
 
     static bool advToleranceEnabled()

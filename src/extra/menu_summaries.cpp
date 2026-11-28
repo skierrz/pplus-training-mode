@@ -3,6 +3,9 @@
 #include <cstdio>
 
 #include "extra/olimar_pikmin_logic.h"
+#include "main/cpu/actions.h"
+#include "main/cpu/view.h"
+#include "main/game/fighters.h"
 #include "main/record/record.h"
 #include "main/settings.h"
 #include "main/ui/pages/pages.h"
@@ -109,9 +112,17 @@ namespace extra {
             if (countOverlayActive(s.overlay[1]) > 0) n++;
             if ((s.comboTrainer.enabledMeters & main::kMeterAll) != 0) n++;
             if (s.general.ledgeHud != 0) n++;
-            if (countInfoRows(s.info[0]) > 0) n++;
-            if (countInfoRows(s.info[1]) > 0) n++;
             return activeOrOff(buf, cap, n, "All Off");
+        }
+
+        bool techWeightsCustom(const cpu::CpuOptions& c)
+        {
+            if (c.missTechWait != 0) return true;
+            for (int i = 0; i < 4; i++)
+            {
+                if (c.techChance[i] != 25 || c.getupChance[i] != 25) return true;
+            }
+            return false;
         }
 
         const char* summarizeCounters(const main::Settings& s, char* buf, u32 cap)
@@ -128,20 +139,38 @@ namespace extra {
             {
                 return copyStr(buf, cap, "Off");
             }
-            // Custom Pool actions sit at the end of each list, right after other options.
-            // Show "Single" vs "Active" compactly without depending on action table indices in extra.
             return copyStr(buf, cap, "Active");
+        }
+
+        int activeCpuFtKind()
+        {
+            game::FighterRef ref;
+            if (game::findFighter(true, ref))
+            {
+                int k = cpu::fighterKind(ref.entryId);
+                if (k >= 0) return k;
+            }
+            return cpu::kKindAny;
         }
 
         const char* summarizePool(const main::Settings& s, char* buf, u32 cap)
         {
+            int checkKind = activeCpuFtKind();
             int counts[3] = {0, 0, 0};
             for (int c = 0; c < 3; c++)
             {
-                for (int b = 0; b < 8; b++)
+                const u8* bits = s.cpuTables.poolBits[c];
+                int total = (bits[0] & 1u) != 0 ? 1 : 0;
+                int limit = cpu::actionCount(c);
+                if (limit > 64) limit = 64;
+                for (int idx = 1; idx < limit; idx++)
                 {
-                    counts[c] += countBits32(s.cpuTables.poolBits[c][b]);
+                    if ((bits[idx >> 3] & (1u << (idx & 7))) != 0 && cpu::actionFor(c, idx, checkKind) != NULL)
+                    {
+                        total++;
+                    }
                 }
+                counts[c] = total;
             }
             snprintf(buf, cap, "G%d A%d S%d", counts[0], counts[1], counts[2]);
             return buf;
@@ -166,13 +195,13 @@ namespace extra {
         case ui::pages::P_COLLISION:
         {
             bool heat = s.display.heatmap != 0;
-            bool boxes = s.display.hitboxes != 0;
-            if (heat && boxes) return copyStr(buf, cap, "Boxes + Heat");
+            bool grab = s.display.grabVisualizer != 0;
+            bool env = s.display.envCollision != 0;
+            int n = (heat ? 1 : 0) + (grab ? 1 : 0) + (env ? 1 : 0);
+            if (n > 1) return activeOrOff(buf, cap, n, "Off");
             if (heat) return copyStr(buf, cap, "Heatmap");
-            if (boxes) return copyStr(buf, cap, "Hitboxes");
-            if (s.display.grabVisualizer != 0) return copyStr(buf, cap, "Grab Boxes");
-            if (s.display.envCollision != 0) return copyStr(buf, cap, "Env Col");
-            if (s.display.diVectorMode != 0) return copyStr(buf, cap, "DI Vector");
+            if (grab) return copyStr(buf, cap, "Grab Boxes");
+            if (env) return copyStr(buf, cap, "Stage Coll");
             return copyStr(buf, cap, "Off");
         }
 
@@ -187,6 +216,10 @@ namespace extra {
             {
                 return copyStr(buf, cap, "Default");
             }
+            if (s.osd.menuAccent == main::kMenuAccentTeal)
+            {
+                return copyStr(buf, cap, "Custom");
+            }
             static const char* const kAccents[main::kMenuAccentCount] = {
                 "P+ Teal", "Brawl Navy", "Violet", "Crimson"
             };
@@ -197,6 +230,7 @@ namespace extra {
         case ui::pages::P_DEBUG:
             if (s.display.psaInspector == main::kPsaP1) return copyStr(buf, cap, "PSA: P1");
             if (s.display.psaInspector == main::kPsaCpu) return copyStr(buf, cap, "PSA: CPU");
+            if (countInfoRows(s.info[0]) > 0 || countInfoRows(s.info[1]) > 0) return copyStr(buf, cap, "Info HUD");
             if (s.display.debugOverlay != 0) return copyStr(buf, cap, "Debug HUD");
             if (s.display.hud == 0 || s.display.models != 3 || s.display.stageModel == 0 || s.display.effects == 0)
             {
@@ -233,6 +267,11 @@ namespace extra {
                 "Random", "In", "Out", "Survival", "None", "Combo",
                 "Slight Rand", "Slight Away", "Down & Away", "Custom"
             };
+            bool hasSdi = c.sdiAmount != 0;
+            bool hasAsdi = c.asdi != cpu::kAsdiAuto;
+            if (hasSdi && hasAsdi) return copyStr(buf, cap, "SDI + ASDI");
+            if (hasSdi) return copyStr(buf, cap, c.tdi == cpu::kTdiNone ? "SDI" : "DI + SDI");
+            if (hasAsdi && (c.tdi == cpu::kTdiRandom || c.tdi == cpu::kTdiNone)) return copyStr(buf, cap, "ASDI");
             u8 tdi = c.tdi < cpu::kTdiCount ? c.tdi : 0;
             return copyStr(buf, cap, kTdi[tdi]);
         }
@@ -242,20 +281,26 @@ namespace extra {
 
         case ui::pages::P_TECH:
         {
-            static const char* const kTech[5] = {"Random", "In Place", "Away", "Toward", "None"};
+            static const char* const kTech[5] = {"Random", "In Place", "Away", "Toward", "Miss"};
             u8 t = c.tech < 5 ? c.tech : 0;
+            bool extras = c.getup != cpu::kGetupRandom || s.techInvis.mode != 0 || c.techSound != 0
+                          || c.techTrap != cpu::kTrapOff || c.techLockout != cpu::kLockoutEarliest
+                          || s.techInvis.preTechDrift != 0 || techWeightsCustom(c);
+            if (t == cpu::kTechRandom && extras)
+            {
+                if (s.techInvis.mode != 0 && c.getup == cpu::kGetupRandom && c.techSound == 0
+                    && c.techTrap == cpu::kTrapOff && c.techLockout == cpu::kLockoutEarliest
+                    && s.techInvis.preTechDrift == 0 && !techWeightsCustom(c))
+                {
+                    return copyStr(buf, cap, "Invis");
+                }
+                return copyStr(buf, cap, "Custom");
+            }
             return copyStr(buf, cap, kTech[t]);
         }
 
         case ui::pages::P_TECH_WEIGHTS:
-            for (int i = 0; i < 4; i++)
-            {
-                if (c.techChance[i] != 25 || c.getupChance[i] != 25)
-                {
-                    return copyStr(buf, cap, "Custom");
-                }
-            }
-            return copyStr(buf, cap, "Default");
+            return copyStr(buf, cap, techWeightsCustom(c) ? "Custom" : "Default");
 
         case ui::pages::P_CPU_DEFENSE:
         {

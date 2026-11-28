@@ -4,7 +4,6 @@
 #include <stddef.h>
 
 #include "main/savestate/snapshot.h"
-#include "main/ui/info_display.h"
 #include "shared/game/mem.h"
 #include "shared/log.h"
 #include "shared/perf.h"
@@ -265,11 +264,17 @@ namespace main {
         if (s_hooks != NULL && s_hooks->drawPageOverlay != NULL) s_hooks->drawPageOverlay(pageId, railMode);
     }
 
-    bool extraInfoWanted() { return ui::infoWanted(); }
-    void extraInfoStep(bool previousRan) { ui::infoStep(previousRan); }
-    void extraInfoDraw() { ui::drawInfo(); }
-    void extraInfoReset() { ui::infoReset(); }
-    void extraInfoApplyPreset(int side) { ui::applyInfoPreset(side); }
+    bool extraInfoWanted() { return callBool(offsetof(ExtraHooks, infoWanted)); }
+    void extraInfoStep(bool previousRan)
+    {
+        if (s_hooks != NULL && s_hooks->infoStep != NULL) s_hooks->infoStep(previousRan);
+    }
+    void extraInfoDraw() { callVoid(offsetof(ExtraHooks, infoDraw)); }
+    void extraInfoReset() { callVoid(offsetof(ExtraHooks, infoReset)); }
+    void extraInfoApplyPreset(int side)
+    {
+        if (s_hooks != NULL && s_hooks->infoApplyPreset != NULL) s_hooks->infoApplyPreset(side);
+    }
 
     void extraInputViewerDraw(const game::MatchState& match, bool menuOpen)
     {

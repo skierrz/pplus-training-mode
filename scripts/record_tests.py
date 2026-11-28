@@ -2625,7 +2625,8 @@ def _set_rec_cpu_state(lab, rec, cpu_mode, takeover, slot, cpu_counter=None, res
     lab.menu_select_row("CPU Mode")
     if rec.get("cpuMode") != CPU_MODE["Off"]:
         lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Off"])
-    if rec.get("cpuSlot") != slot:
+    need_slot = rec.get("cpuSlot") != slot
+    if need_slot:
         lab.menu_select_row("CPU Record Slot")
         lab.set_choice(SET_REC + REC["cpuSlot"], slot)
     if cpu_counter is not None and rec.get("cpuCounter") != cpu_counter:
@@ -2642,7 +2643,7 @@ def _set_rec_cpu_state(lab, rec, cpu_mode, takeover, slot, cpu_counter=None, res
         lab.menu_select_row("Restore Positions")
         lab.tap(["A"])
     lab.close_menu()
-    if restore or rec.get("cpuSlot") != slot or cpu_mode in (CPU_MODE["Playback"], CPU_MODE["Re-Record"]):
+    if restore or need_slot or cpu_mode in (CPU_MODE["Playback"], CPU_MODE["Re-Record"]):
         lab.wait_log("recording state load", r"savestate: recording state loaded frame \d+", pos, frames=180)
 
 

@@ -224,10 +224,8 @@ namespace extra {
                 }
                 else if (ftKind == kDrillFtGanondorf)
                 {
-                    if (t->cur.status == kFdStSpecialN && fdIn.airborne != 0)
-                    {
-                        fdIn.floatRem = work->getInt(kFdVarGanonFloatCount);
-                    }
+                    // LA-Basic[98] is an elapsed Dead Man's Float gravity-ramp counter
+                    // (FitGanon.pac CIL 0x2b270), not remaining frames; leave floatRem 0.
                 }
                 if (isDjcCapable(ftKind) && (t->cur.status == kFdStJumpAerial || t->cur.status == kFdStAttackAir))
                 {

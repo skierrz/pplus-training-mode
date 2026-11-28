@@ -1267,7 +1267,7 @@ namespace extra {
         }
         if (controllerType == 2u)
         {
-            return "2: Aim / Lock   1: Cancel";
+            return "2: Aim / Lock";
         }
         if (controllerType == 1u)
         {
@@ -1286,7 +1286,7 @@ namespace extra {
         float tw = gfx::textWidth(text, sc);
         float sx = (maxW > 0.0f && tw > maxW && tw > 0.0f) ? (sc * maxW / tw) : sc;
         float dy = ui::style::textYForCap(capY, sc);
-        gfx::text(x + 0.8f, dy + 0.8f, text, 0x000000C8u, sx, sc);
+        gfx::text(x + gfx::xScale(), dy + 1.0f, text, 0x000000C8u, sx, sc);
         gfx::text(x, dy, text, color, sx, sc);
     }
 
@@ -1345,7 +1345,7 @@ namespace extra {
         // Pass 2: batched text (>= 8.0 px 480i cap floor on every row, controller-accurate glyphs).
         float tx = cardX + ui::style::w(98.0f);
         float textMaxW = (cardX + cardW - ui::style::w(8.0f)) - tx;
-        float rowStep = compact ? 21.5f : 24.0f;
+        float rowStep = compact ? 22.0f : 24.0f;
         float row0 = topY + (compact ? 13.0f : 14.0f);
         drawPickerFitLine(tx, row0, picking ? "AIMING DI ANGLE" : "CUSTOM DI ANGLE", ui::style::kLabFocusGold,
                           ui::style::kTypeMeta, textMaxW);

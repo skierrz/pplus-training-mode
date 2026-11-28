@@ -250,18 +250,18 @@ namespace main {
         ui::Option& row = kRows[3];
 #endif
 #ifdef __MWERKS__
-        static const u16 kOffs[9] = {
+        static const u16 kOffs[7] = {
             kPs_cast_kPlatDefault, kPs_cast_kPlatGeneric, kPs_cast_kPlatLuigisMansion,
-            kPs_cast_kPlatDelfino, kPs_cast_kPlatHorizontal, kPs_cast_kPlatHorizontal,
-            kPs_cast_kPlatDeadLine, kPs_cast_kPlatRandall, kPs_cast_kPlatRandall
+            kPs_cast_kPlatDelfino, kPs_cast_kPlatHorizontal, kPs_cast_kPlatDeadLine,
+            kPs_cast_kPlatRandall
         };
 #else
-        static const char* const* const kTbls[9] = {
+        static const char* const* const kTbls[7] = {
             kPlatDefault, kPlatGeneric, kPlatLuigisMansion, kPlatDelfino, kPlatHorizontal,
-            kPlatHorizontal, kPlatDeadLine, kPlatRandall, kPlatRandall
+            kPlatDeadLine, kPlatRandall
         };
 #endif
-        static const u8 kMaxs[9] = {4, 1, 3, 3, 4, 4, 4, 4, 4};
+        static const u8 kMaxs[7] = {4, 1, 3, 3, 4, 4, 4};
         int idx = 0;
         switch (preset)
         {
@@ -270,9 +270,9 @@ namespace main {
         case extra::kPresetDelfinoSecret: idx = 3; break;
         case extra::kPresetSmashville:
         case extra::kPresetGreenHill: idx = 4; break;
-        case extra::kPresetDeadLine: idx = 6; break;
+        case extra::kPresetDeadLine: idx = 5; break;
         case extra::kPresetYoshisStory:
-        case extra::kPresetYoshisIsland: idx = 7; break;
+        case extra::kPresetYoshisIsland: idx = 6; break;
         default: break;
         }
 #ifdef __MWERKS__

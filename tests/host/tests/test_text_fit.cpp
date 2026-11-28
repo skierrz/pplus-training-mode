@@ -672,6 +672,68 @@ TEST(text_fit, lab_menu_pages)
         }
     }
 
+    // Check non-default submenu summary strings fit on both Rail and Top Tabs.
+    {
+        struct SumCase {
+            u8 page;
+            u8 row;
+        };
+        static const SumCase kCases[] = {
+            {ui::pages::P_GENERAL, 9},       // Controls ("Category Rail" / "Top Tabs")
+            {ui::pages::P_DISPLAY, 5},       // Boxes & Heatmap ("Grab Boxes" / "Stage Coll" / "2 Active")
+            {ui::pages::P_DISPLAY, 6},       // Overlays & Meters ("4 Active")
+            {ui::pages::P_DISPLAY, 7},       // Theme ("Brawl Navy" / "Custom")
+            {ui::pages::P_DISPLAY, 8},       // Lab Debug ("Info HUD" / "Debug HUD")
+            {ui::pages::P_CPU, 5},           // DI & SDI ("Down & Away" / "SDI + ASDI")
+            {ui::pages::P_CPU, 6},           // Counters & Reversals ("Reversals")
+            {ui::pages::P_CPU, 7},           // Tech & Getup ("In Place" / "Custom")
+            {ui::pages::P_CPU, 8},           // Shield & Grab ("Until Hit" / "Infinite")
+            {ui::pages::P_CPU_COUNTERS, 6},  // Custom Pools ("G.. A.. S..")
+            {ui::pages::P_RECORDING, 7},     // Playback & Positions ("Mirrored")
+            {ui::pages::P_STAGE_CAST, 4},    // Olimar ("D-Pad Pluck")
+            {ui::pages::P_HUD_OVERLAYS, 0},  // P1 Overlays ("ProjectPunch")
+            {ui::pages::P_DEBUG, 0}          // P1 Info Display ("Frame Data")
+        };
+        main::settings().controls.menuStyle = main::kMenuStyleRail;
+        main::settings().display.grabVisualizer = 1;
+        main::settings().osd.menuAccent = main::kMenuAccentNavy;
+        main::settings().info[0].preset = 4;
+        main::settings().info[0].rows[0] = 1;
+        main::settings().cpu.options.tdi = cpu::kTdiDownAway;
+        main::settings().cpu.options.multiReversal = 1;
+        main::settings().cpu.options.tech = cpu::kTechInPlace;
+        main::settings().cpu.options.infiniteShields = cpu::kShieldsOn;
+        main::settings().recording.mirrored = 1;
+        main::settings().fighterMechanics.olimarColorMatAndMode =
+            static_cast<u16>(main::kOlimarDpadPluck << 10);
+        main::settings().overlay[0].preset = 1;
+        for (int st = 0; st < main::kMenuStyleCount; st++)
+        {
+            main::settings().controls.menuStyle = static_cast<u8>(st);
+            for (u32 ci = 0; ci < sizeof(kCases) / sizeof(kCases[0]); ci++)
+            {
+                ui::MenuState state;
+                memset(&state, 0, sizeof(state));
+                state.stack[0] = kCases[ci].page;
+                state.cursor[kCases[ci].page] = kCases[ci].row;
+                state.scroll[kCases[ci].page] = kCases[ci].row;
+                canvas::clear();
+                ui::menuDraw(menu, state);
+                for (int k = 0; k < canvas::runs(); k++)
+                {
+                    const canvas::Run& r = canvas::run(k);
+                    float squeeze = boldSqueeze(r);
+                    if (squeeze < kMinSqueeze - 0.0005f)
+                    {
+                        misfit("lab-row", "extra/menu_summaries.cpp", r.text, "summary squeezed to %.0f%%",
+                               squeeze * 100.0f);
+                    }
+                }
+            }
+        }
+        main::resetSettings();
+    }
+
     // Check every dynamic Stage & Cast platform preset label table on Draft C (tightest value pill).
     main::settings().controls.menuStyle = main::kMenuStyleRail;
     static const int kStagePresets[] = {
@@ -1219,13 +1281,37 @@ TEST(text_fit, drill_list)
         {
             const game::PadMap& pmap = game::padMap(kOsdCtrlTypes[ct]);
             menu::osdQuick::open(0, kOsdCtrlTypes[ct]);
-            for (int view = 0; view < 3; view++)
+            for (int view = 0; view < 5; view++)
             {
                 if (view == 1)
                 {
+                    // Cycle OSD Preset to Custom 1 (Empty) + walk main rows 0..7 to exercise all kMainHelp lines.
+                    menu::osdQuick::Input in = {0, 0, 0, 0, kOsdCtrlTypes[ct]};
+                    for (int s = 0; s < 4; s++)
+                    {
+                        in.held = game::kPadDRight;
+                        menu::osdQuick::step(0, in);
+                        in.held = 0;
+                        menu::osdQuick::step(0, in);
+                    }
+                    // Step down to Frame Meter (row 3) and cycle to "CPU Top", then down to row 7.
+                    for (int s = 0; s < 3; s++)
+                    {
+                        in.held = pmap.down;
+                        menu::osdQuick::step(0, in);
+                        in.held = 0;
+                        menu::osdQuick::step(0, in);
+                    }
+                    in.held = game::kPadDRight;
+                    menu::osdQuick::step(0, in);
+                    in.held = 0;
+                    menu::osdQuick::step(0, in);
+                }
+                else if (view == 2)
+                {
                     // Navigate down to row 7 (All OSDs) and open sub-view.
                     menu::osdQuick::Input in = {0, 0, 0, 0, kOsdCtrlTypes[ct]};
-                    for (int s = 0; s < 7; s++)
+                    for (int s = 0; s < 4; s++)
                     {
                         in.held = pmap.down;
                         menu::osdQuick::step(0, in);
@@ -1235,11 +1321,23 @@ TEST(text_fit, drill_list)
                     in.pressed = pmap.confirm;
                     menu::osdQuick::step(0, in);
                 }
-                else if (view == 2)
+                else if (view == 3)
+                {
+                    // Scroll All OSDs sub-view into middle rows (9..12).
+                    menu::osdQuick::Input in = {0, 0, 0, 0, kOsdCtrlTypes[ct]};
+                    for (int s = 0; s < 11; s++)
+                    {
+                        in.held = pmap.down;
+                        menu::osdQuick::step(0, in);
+                        in.held = 0;
+                        menu::osdQuick::step(0, in);
+                    }
+                }
+                else if (view == 4)
                 {
                     // Scroll All OSDs sub-view to bottom (Max OSDs).
                     menu::osdQuick::Input in = {0, 0, 0, 0, kOsdCtrlTypes[ct]};
-                    for (int s = 0; s < 21; s++)
+                    for (int s = 0; s < 10; s++)
                     {
                         in.held = pmap.down;
                         menu::osdQuick::step(0, in);
@@ -1250,7 +1348,7 @@ TEST(text_fit, drill_list)
                 canvas::clear();
                 menu::osdQuick::draw();
                 CHECK(canvas::runs() >= 8);
-                CHECK(runOf(view == 0 ? "Quick Setup" : "All OSDs") != NULL);
+                CHECK(runOf(view <= 1 ? "Quick Setup" : "All OSDs") != NULL);
                 for (int k = 0; k < canvas::runs(); k++)
                 {
                     const canvas::Run& run = canvas::run(k);

@@ -59,7 +59,12 @@ namespace browser {
         u16 next;
     };
 
-    static Entry s_entries[kMaxEntries];
+#ifdef __MWERKS__
+    static Entry* s_entries = NULL;
+#else
+    static Entry s_entriesStatic[kMaxEntries];
+    static Entry* s_entries = s_entriesStatic;
+#endif
     static int s_count = 0;
     static bool s_more = false; // the folder holds more than kMaxEntries
     static bool s_open = false;
@@ -95,9 +100,12 @@ namespace browser {
 
     static void listed(const char* name, u32 size, void*)
     {
-        if (s_count >= kMaxEntries)
+        if (s_entries == NULL || s_count >= kMaxEntries)
         {
-            s_more = true;
+            if (s_entries != NULL)
+            {
+                s_more = true;
+            }
             return;
         }
         Entry& e = s_entries[s_count];
@@ -872,7 +880,14 @@ namespace browser {
             // Keep the matchup name clear of the cursor triangle and date/duration column.
             float nameX = cx(hlLeft43 + 26.0f);
             float room = cx(kRowBoxRight) - 4.0f - gfx::textWidth(right, scale) - 9.0f - nameX;
-            drawFitText(nameX, y, name, nameColor, scale, room > 0.0f ? room : 1.0f);
+            if (room > 0.0f)
+            {
+                drawFitText(nameX, y, name, nameColor, scale, room);
+            }
+            else
+            {
+                gfx::text(nameX, y, name, nameColor, scale);
+            }
         }
         drawDescription(dy);
 
@@ -914,6 +929,17 @@ namespace browser {
         s_waitRelease = true;
         s_repeat[0].held = s_repeat[1].held = 0;
         s_row = 0;
+#ifdef __MWERKS__
+        if (s_entries == NULL)
+        {
+            u32 bytes = static_cast<u32>(sizeof(Entry) * kMaxEntries);
+            s_entries = reinterpret_cast<Entry*>(allocTemp(bytes));
+            if (s_entries != NULL)
+            {
+                memset(s_entries, 0, bytes);
+            }
+        }
+#endif
         modalAnimOpen(s_anim);
         gfx::forgetWidths();
         if (s_phase == kIdle || s_phase == kHeaders)
@@ -978,6 +1004,14 @@ namespace browser {
         }
         storage::freeReadBuffer(s_head, storage::kOk, 0);
         freeTemp();
+#ifdef __MWERKS__
+        if (s_entries != NULL)
+        {
+            free(s_entries);
+            s_entries = NULL;
+        }
+#endif
+        s_count = 0;
         s_open = false;
         s_phase = kIdle;
     }

@@ -182,7 +182,7 @@ def run_strict_mmu(rel, cpu_core=5):
             t_st = S3.read_tmbr(emu, tmbr_addr)
             if t_st["active"] == 1 and t_st["texLoaded"] == 1 and t_st["activeTargets"] >= 3:
                 break
-        if not t_st or t_st["active"] != 1 or t_st["texLoaded"] != 1:
+        if not t_st or t_st["active"] != 1 or t_st["texLoaded"] != 1 or t_st["activeTargets"] < 3:
             raise StrictError(f"strict-mmu: BTT DVD stream failed ({t_st})")
         emu.advance(30)
         print(f"  BTT DVD stream OK (texLoaded={t_st['texLoaded']}, targets={t_st['activeTargets']})")
@@ -232,7 +232,7 @@ def run_strict_4p_heap_frag(rel):
     print("=== [strict-4p-heap-frag] 4P + PSA + ActionLog + Costume Swaps + Browser (largest >= 0x10BA20) ===")
     img = E.storage_image(rel)
     try:
-        with E.harness_run(E.headless_backend(), E.FOUR_PADS_ARGS, allow_null=True,
+        with E.harness_run(E.headless_backend(), E.DETERMINISTIC_ARGS + E.FOUR_PADS_ARGS, allow_null=True,
                            writable_image=img, locked=False) as (_proc, emu):
             nav.boot_to_training_css(emu)
             nav.start_training_match(emu, "mario", "fox", stage="battlefield", seed_rng=True)
@@ -408,7 +408,7 @@ def run_strict_ps_zoom(rel, take_shots=False):
             cam_raw = emu.read(CAMERA_MGR_ADDR + 0x60, 0x18)
             tx, ty, tz, cx, cy, cz = struct.unpack(">6f", cam_raw)
             # Brawl's tele-FOV places zoomed 1P soloZoomCam around Z=180..290 focused near P1 (vs unzoomed 320..480).
-            if not (80.0 < cz < 340.0) or any(v != v or abs(v) > 2000.0 for v in (tx, ty, tz, cx, cy, cz)):
+            if not (80.0 < cz < 315.0) or abs(tx) > 120.0 or abs(ty) > 120.0 or any(v != v or abs(v) > 2000.0 for v in (tx, ty, tz, cx, cy, cz)):
                 raise StrictError(f"strict-ps-zoom ({s_name}): implausible soloZoomCam target={(tx, ty, tz)} eye={(cx, cy, cz)}")
             if take_shots:
                 emu.screenshot(f"strict-solocam-{s_name}")

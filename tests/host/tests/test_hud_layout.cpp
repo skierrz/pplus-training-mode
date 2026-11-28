@@ -1430,6 +1430,15 @@ TEST(hud_layout, drill_ledgedash_band_matches_bar_header_and_legend_union)
             CHECK_NEAR(expected.y0, actual.y0, 0.001f);
             CHECK_NEAR(expected.x1, actual.x1, 0.001f);
             CHECK_NEAR(expected.y1, actual.y1, 0.001f);
+            Box labB = layout::labBand(false, cells, wide);
+            CHECK_NEAR(labB.x0, actual.x0, 0.001f);
+            CHECK_NEAR(labB.x1, actual.x1, 0.001f);
+            CHECK(actual.y0 < 40.0f && actual.y1 > 60.0f);
+            if (wide && cells == 64)
+            {
+                // 16:9 uses barScale=0.90 (half-width ~185 px centered at 320), not stale 0.75.
+                CHECK((actual.x1 - actual.x0) > 350.0f);
+            }
         }
     }
 }

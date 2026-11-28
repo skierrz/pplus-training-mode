@@ -252,6 +252,14 @@ namespace ui {
     {
         u8* manager = trainingManager();
         u8* anyCentre = trainingCentre();
+        static u8* s_seenCentre = NULL;
+        if (anyCentre != s_seenCentre)
+        {
+            s_seenCentre = anyCentre;
+#ifdef __MWERKS__
+            s_loggedReadySuppress = false;
+#endif
+        }
 #ifdef __MWERKS__
         if (anyCentre != NULL && shouldSuppressReadyGo())
         {
@@ -265,7 +273,6 @@ namespace ui {
         {
             s_centre = centre;
             s_firstFlags = game::byteAt(centre, kFlags);
-            s_hiddenMask = 0;
             TM_LOG("match hud: centre %08x, flags %02x%s\n", centre, s_firstFlags,
                    (s_firstFlags & kTimerOn) ? ": the game's own timer is on, left alone" : "");
         }

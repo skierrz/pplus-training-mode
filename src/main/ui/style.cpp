@@ -143,10 +143,11 @@ namespace style {
     {
         float xs = gfx::xScale();
         float bx = 1.2f * xs;
-        fillStadium(x - bx, y - 1.0f, width + 2.0f * bx, height + 2.0f, 0x05080CFF);
+        float a = static_cast<float>(botCol & 0xFFu) / 255.0f;
+        fillStadium(x - bx, y - 1.0f, width + 2.0f * bx, height + 2.0f, scaleAlpha(0x05080CFFu, a));
         fillStadium(x, y, width, height, botCol);
         fillStadium(x + 0.8f * xs, y + 0.5f, width - 1.6f * xs, height * 0.72f, topCol);
-        fillStadium(x + width * 0.22f, y + height * 0.14f, width * 0.56f, height * 0.22f, 0xFFFFFF70);
+        fillStadium(x + width * 0.22f, y + height * 0.14f, width * 0.56f, height * 0.22f, scaleAlpha(0xFFFFFF70u, a));
     }
 
     void drawFrameBorder(float left43, float right43, float topY, float botY, float border, gfx::Rgba color)
@@ -198,12 +199,13 @@ namespace style {
         {
             gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, scaleAlpha(f.backdrop, alpha));
         }
+        float pa = alpha >= 0.99f ? 1.0f : (0.25f + 0.75f * alpha);
         float topY = f.topY + dy;
         float botY = f.botY + dy;
         float hdrBot = f.hdrBot + dy;
         float descTop = f.descTop > 0.0f ? (f.descTop + dy) : 0.0f;
         float footTop = f.footTop + dy;
-        drawFrameBorder(f.left43, f.right43, topY, botY, kLabBorder, kLabBorderColor);
+        drawFrameBorder(f.left43, f.right43, topY, botY, kLabBorder, scaleAlpha(kLabBorderColor, pa));
         float ms = menuScale();
         float inL43 = f.left43 + kLabBorder;
         float inTop = topY + kLabBorder;
@@ -213,33 +215,35 @@ namespace style {
         float bodyTop = hdrBot + kFibHair;
         float bodyEnd = descTop > 0.0f ? descTop : footTop;
 
-        gfx::fillGradV(bodyX, inTop, bodyW, hdrBot - inTop, kLabHeaderTop, kLabHeaderBot);
-        gfx::fillRect(bodyX, hdrBot, bodyW, kFibHair, kLabDivider);
-        gfx::fillGradV(bodyX, bodyTop, bodyW, bodyEnd - bodyTop, kLabBaseTop, kLabBaseBot);
+        gfx::fillGradV(bodyX, inTop, bodyW, hdrBot - inTop, scaleAlpha(kLabHeaderTop, pa), scaleAlpha(kLabHeaderBot, pa));
+        gfx::fillRect(bodyX, hdrBot, bodyW, kFibHair, scaleAlpha(kLabDivider, pa));
+        gfx::fillGradV(bodyX, bodyTop, bodyW, bodyEnd - bodyTop, scaleAlpha(kLabBaseTop, pa), scaleAlpha(kLabBaseBot, pa));
 #if defined(TM_MODULE_MENU) || !defined(__MWERKS__)
         // Menu modals supply descTop > 0.0f; MAIN modals currently pass descTop = 0.0f.
         if (descTop > 0.0f)
         {
-            gfx::fillRect(bodyX, descTop, bodyW, kFibHair, kLabDivider);
-            gfx::fillGradV(bodyX, descTop + kFibHair, bodyW, footTop - descTop - kFibHair, kLabDescTopCol,
-                           kLabDescBotCol);
+            gfx::fillRect(bodyX, descTop, bodyW, kFibHair, scaleAlpha(kLabDivider, pa));
+            gfx::fillGradV(bodyX, descTop + kFibHair, bodyW, footTop - descTop - kFibHair,
+                           scaleAlpha(kLabDescTopCol, pa), scaleAlpha(kLabDescBotCol, pa));
         }
 #endif
-        gfx::fillRect(bodyX, footTop, bodyW, kFibHair, kLabDivider);
-        gfx::fillGradV(bodyX, footTop + kFibHair, bodyW, inBot - footTop - kFibHair, kLabFooterTopCol,
-                       kLabFooterBotCol);
+        gfx::fillRect(bodyX, footTop, bodyW, kFibHair, scaleAlpha(kLabDivider, pa));
+        gfx::fillGradV(bodyX, footTop + kFibHair, bodyW, inBot - footTop - kFibHair,
+                       scaleAlpha(kLabFooterTopCol, pa), scaleAlpha(kLabFooterBotCol, pa));
         if (f.ribbonRight43 > 0.0f)
         {
-            drawHeaderRibbon(inL43, f.ribbonRight43, inTop, hdrBot - inTop, kLabTealTop, kLabTealBot);
+            drawHeaderRibbon(inL43, f.ribbonRight43, inTop, hdrBot - inTop, scaleAlpha(kLabTealTop, pa),
+                             scaleAlpha(kLabTealBot, pa));
         }
         if (title != NULL)
         {
             float titleScale = displayScaleForCap(kTypeHeading);
             float hdrMid = (inTop + hdrBot) * 0.5f;
+            gfx::Rgba tc = scaleAlpha(kLabActiveTabText, pa);
             gfx::displayText(mapX(inL43 + kFibPad, ms), displayYForCap(hdrMid - kTypeHeading * 0.5f, titleScale),
-                             title, kLabActiveTabText, kLabActiveTabText, titleScale, titleScale, 0.0f, 0);
+                             title, tc, tc, titleScale, titleScale, 0.0f, 0);
         }
-        gfx::fillRect(bodyX, inBot - kFibHair, bodyW, kFibHair, kLabBevelDark);
+        gfx::fillRect(bodyX, inBot - kFibHair, bodyW, kFibHair, scaleAlpha(kLabBevelDark, pa));
     }
 
     void drawValueArrows(float pillLeft43, float pillRight43, float rowY, float rowH, gfx::Rgba col)

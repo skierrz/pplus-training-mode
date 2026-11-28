@@ -263,8 +263,8 @@ namespace extra {
                 cellW = 1.2f;
             }
         }
-        float cellTop = repStrip ? (bar.y0 + 3.5f) : (bar.y0 + 2.0f);
-        float cellH = repStrip ? (bh - 7.0f) : (bh - 4.0f);
+        float cellTop = repStrip ? (bar.y0 + 3.0f) : (bar.y0 + 2.0f);
+        float cellH = repStrip ? (bh - 6.0f) : (bh - 4.0f);
 
         // Determine pointer position (continuous glide when fx->pointerPos >= 0, else integer pointerCell).
         bool drawPtr = false;
@@ -323,6 +323,12 @@ namespace extra {
             {
                 tick1X = tickEdge1 + 3.0f * xs;
             }
+            float minTickX = bar.x0 + 3.0f * xs;
+            float maxTickX = bar.x1 - 3.0f * xs;
+            if (tick0X < minTickX) tick0X = minTickX;
+            if (tick0X + tick0W > maxTickX) tick0X = maxTickX - tick0W;
+            if (tick1X < minTickX) tick1X = minTickX;
+            if (tick1X + tick1W > maxTickX) tick1X = maxTickX - tick1W;
             tick0X = i2f(f2i(tick0X + 0.5f));
             tick1X = i2f(f2i(tick1X + 0.5f));
         }
@@ -387,7 +393,7 @@ namespace extra {
         if (hasTicks)
         {
             float tPad = 3.0f * xs;
-            float tPillY = bar.y1 + 0.5f;
+            float tPillY = bar.y1 + 1.0f;
             float tPillH = 10.0f;
             gfx::fillRect(tickEdge0, bar.y1 - 2.0f, 2.0f * xs, 3.0f, kHudGreen);
             gfx::fillRect(tickEdge1 - 2.0f * xs, bar.y1 - 2.0f, 2.0f * xs, 3.0f, kHudGreen);
@@ -450,13 +456,13 @@ namespace extra {
 
         if (hasTicks)
         {
-            float tickCapY = bar.y1 + 1.5f;
+            float tickCapY = bar.y1 + 2.0f;
             float tickTy = ui::style::textYForCap(tickCapY, tickSc);
             drawShadowText(tick0X, tickTy, fx->tickStartLabel, kHudTextPrimary, tickSc);
             drawShadowText(tick1X, tickTy, fx->tickEndLabel, kHudTextPrimary, tickSc);
         }
 
-        Box out = {bar.x0, kKeyY, bar.x1, bar.y1 + 9.0f};
+        Box out = {bar.x0, kKeyY, bar.x1, hasTicks ? (bar.y1 + 11.0f) : (bar.y1 + 9.0f)};
         return out;
     }
 
@@ -504,13 +510,14 @@ namespace extra {
 
     static bool cpuIsPassiveDefault(const cpu::CpuOptions& o)
     {
-        // Untouched Lab defaults (cpu_options.cpp): Lab control, Stand behavior, Random DI,
+        // Untouched Lab defaults (cpu_options.cpp): Lab control, Stand behavior, Random/No DI,
         // no SDI/intangible/mash/adaptive/multi-reversal, shield not forced Always On,
         // and default counter slots (Ground=13 Jab, Air=1 Airdodge, Shield=1 Grab, or None=0).
         bool defCounters = (o.counterGround == 0 || o.counterGround == 13)
                            && (o.counterAir == 0 || o.counterAir == 1)
                            && (o.counterShield == 0 || o.counterShield == 1);
-        return o.control == cpu::kControlLab && o.behavior == cpu::kBehaviorStand && o.tdi == cpu::kTdiRandom
+        return o.control == cpu::kControlLab && o.behavior == cpu::kBehaviorStand
+               && (o.tdi == cpu::kTdiRandom || o.tdi == cpu::kTdiNone)
                && o.adaptiveMode == cpu::kAdaptiveOff && o.sdiAmount == 0 && o.intangible == cpu::kIntangibleOff
                && o.infiniteShields != cpu::kShieldsOn && o.grabEscape == cpu::kMashNone
                && o.clatterEscape == cpu::kMashNone && o.controlledBy == 0 && o.multiReversal == 0 && defCounters;
@@ -526,9 +533,19 @@ namespace extra {
         {
             return "CPU: Game AI";
         }
+        if (o.controlledBy != 0)
+        {
+            static const char* const kPortLabels[4] = {"CPU: Port 1", "CPU: Port 2", "CPU: Port 3", "CPU: Port 4"};
+            u8 p = o.controlledBy <= 4 ? static_cast<u8>(o.controlledBy - 1) : 0u;
+            return kPortLabels[p];
+        }
         if (o.adaptiveMode == cpu::kAdaptiveActive)
         {
             return "CPU: Adaptive";
+        }
+        if (o.adaptiveMode == cpu::kAdaptiveTrack)
+        {
+            return "CPU: Tracking";
         }
         if (o.behavior == cpu::kBehaviorShield)
         {
@@ -545,6 +562,10 @@ namespace extra {
         if (o.behavior == cpu::kBehaviorJump)
         {
             return "CPU: Jump";
+        }
+        if (o.intangible != cpu::kIntangibleOff)
+        {
+            return o.intangible == cpu::kIntangiblePassThrough ? "CPU: Intang" : "CPU: No KB";
         }
         if (o.tdi == cpu::kTdiSurvival)
         {
@@ -574,6 +595,18 @@ namespace extra {
             || (o.counterShield != 0 && o.counterShield != 1) || o.multiReversal != 0)
         {
             return "CPU: Counter";
+        }
+        if (o.sdiAmount != 0)
+        {
+            return "CPU: SDI";
+        }
+        if (o.grabEscape != cpu::kMashNone || o.clatterEscape != cpu::kMashNone)
+        {
+            return "CPU: Mash";
+        }
+        if (o.infiniteShields == cpu::kShieldsOn)
+        {
+            return "CPU: Inf Shield";
         }
         if (o.tdi == cpu::kTdiRandom)
         {

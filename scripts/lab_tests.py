@@ -2021,7 +2021,7 @@ def cmd_test_lab(rest):
                 cursor0 = nav.menu_cursor(emu)
                 behaviour0 = emu.u32(emu.ptr(emu.ptr(nav.IF_MANAGER) + nav.IF_TRAINING_MENU) + CPU_BEHAVIOUR)
                 shot("lab-pause-hint")
-                lab.open_menu(keep=True)
+                lab.open_menu()
                 emu.advance(10)
                 shot("lab-menu-top")
 
@@ -2384,8 +2384,9 @@ def cmd_test_lab(rest):
                 lab.open_menu()  # reopens with Draft C left rail still focused
 
                 step = "Start mode: OSD Menu scroll and toggle"
-                ps_row = lab.menu_nav_to("OSDs > Individual OSDs > Powershield")["row"]
+                lab.menu_nav_to("OSDs > Individual OSDs")
                 shot("restyle-osd-menu")
+                ps_row = lab.menu_select_row("Powershield")["row"]
                 lab.tap(["A"])
                 shot("restyle-unavailable-skipped")
                 on = lab.setting(SET_OSD_POWERSHIELD)
@@ -2397,7 +2398,7 @@ def cmd_test_lab(rest):
                 note(f"OSDs: live RAM nav landed on Powershield (row {ps_row})")
                 # Scroll to the last row of Individual OSDs (OSD_ROWS = 21 > VISIBLE_ROWS = 10).
                 # Visible row 0 (Act OoHitstun) has no descenders for glyph measurement.
-                lab.down(OSD_ROWS - 1 - ps_row)
+                lab.menu_select_row("P+ Tech OSD")
                 opened = shot("restyle-scrolled")
                 menu_check(note, closed, opened, xscale, "OSDs scrolled to bottom",
                            cursor_row=shots.VISIBLE_ROWS - 1, count=OSD_ROWS,

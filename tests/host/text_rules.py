@@ -1165,7 +1165,12 @@ def drill_hud_cpp(c, src):
                 cap = 21.0 if is_score else (13.0 if is_title else 10.5)
                 room = 351.0 if (is_score or is_title) else 160.0
                 buf = 28.0 if (is_score or is_title) else 24.0
-                expanded = (["Cancel Endurance Practice", "Float / Hover Practice"] if lit.text == "%s Practice"
+                expanded = (["%s Practice" % t for t in (
+                    "Ledgedash", "Wavedash", "L-Cancel", "Float / Hover", "Powershield",
+                    "RAR", "DACUS", "B-Reverse", "Cancel Endurance", "Movement Flow",
+                    "Reaction Lab", "Techchase Escape", "Recovery Sweetspot",
+                    "CC / ASDI-Down", "Snake C4 Recovery", "Break the Targets!")]
+                            if lit.text == "%s Practice"
                             else (["20-Rep Set Complete"] if lit.text == "%u-Rep Set Complete" else c.expand(lit, 2)))
                 for t in expanded:
                     c.item("fit", lit, t, scale_for_cap(cap), 0, room, 0.0)

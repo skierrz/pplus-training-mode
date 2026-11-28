@@ -289,14 +289,37 @@ namespace storage {
 
     static bool isQuickSetupPartialFile(const SettingsHead* head, const AreaEntry* entries, const AreaStats& stats)
     {
-        if (head->areaCount < 1 || head->areaCount > 3 || stats.copied != head->areaCount || stats.grown != 0)
+        if (head->areaCount < 1 || head->areaCount > 4 || stats.copied != head->areaCount || stats.grown != 0)
+        {
+            return false;
+        }
+        u32 mask = 0u;
+        for (u16 i = 0; i < head->areaCount; i++)
+        {
+            u8 id = entries[i].id;
+            if (id != kAreaGeneral && id != kAreaDisplay && id != kAreaOsd && id != kAreaCpu)
+            {
+                return false;
+            }
+            mask |= areaBit(id);
+        }
+        const u32 kBase3 = areaBit(kAreaGeneral) | areaBit(kAreaDisplay) | areaBit(kAreaOsd);
+        if ((mask & areaBit(kAreaCpu)) != 0u)
+        {
+            return head->areaCount == 4 && mask == (kBase3 | areaBit(kAreaCpu));
+        }
+        return (mask & areaBit(kAreaOsd)) != 0u;
+    }
+
+    static bool isSilentOsdPresetsUpgrade(const SettingsHead* head, const AreaEntry* entries, const AreaStats& stats)
+    {
+        if (stats.grown != 0 || stats.reset != 1)
         {
             return false;
         }
         for (u16 i = 0; i < head->areaCount; i++)
         {
-            u8 id = entries[i].id;
-            if (id != kAreaGeneral && id != kAreaDisplay && id != kAreaOsd)
+            if (entries[i].id == kAreaOsdPresets)
             {
                 return false;
             }
@@ -428,12 +451,13 @@ namespace storage {
                kNames[best], h->sequence, head->layout, stats.copied, stats.grown, stats.reset, stats.skipped);
         const AreaEntry* entries =
             reinterpret_cast<const AreaEntry*>(s_file + sizeof(FileHeader) + sizeof(SettingsHead));
-        if (isQuickSetupPartialFile(head, entries, stats))
+        if (isQuickSetupPartialFile(head, entries, stats) || isSilentOsdPresetsUpgrade(head, entries, stats))
         {
             s_state->force = 1;
         }
         else if (stats.grown + stats.reset > 0)
         {
+            s_state->force = 1;
             notice(kNoticeWarn, "Lab settings from an older version: new ones at defaults");
         }
     }

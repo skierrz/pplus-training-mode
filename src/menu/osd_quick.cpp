@@ -56,7 +56,7 @@ namespace osdQuick {
     };
     static const char* const kPositions[] = {"HUD", "Sides", "Top Left", "Top Right"};
     static const char* const kWho[] = {"Off", "P1", "CPU", "Both"};
-    static const char* const kFrameMeter[] = {"Off", "P1", "P1 + CPU"};
+    static const char* const kFrameMeter[] = {"Off", "P1 Top", "CPU Top"};
     static const char* const kTiming[] = {"Off", "All", "L-Cancel", "Wavedash", "Act-Out"};
     static const char* const kSparkle[] = {"Off", "Perfect Wavedash", "Shorthop", "Both"};
 
@@ -122,7 +122,7 @@ namespace osdQuick {
         "Draw attack, grab, shield, and hurtbox bubbles.",
         "Floating timing bar above fighters.",
         "Visual flash on Frame-1 Wavedash or Shorthop.",
-        "Open all 22 individual OSDs, Max OSDs, and Tolerance."
+        "Open all 20 individual OSDs, Max OSDs, and Tolerance."
     };
 #undef TM_QOFF
 #undef TM_DOFF
@@ -182,6 +182,30 @@ namespace osdQuick {
         out.timingMeter = main::kTimingMeterOff;
         out.preset = main::kOsdPresetEssentials;
         out.techSparkle = main::kTechSparkleWavedash;
+    }
+
+    void defaultCpuSettings(main::CpuSettings& out)
+    {
+        memset(&out, 0, sizeof(out));
+        out.options.control = cpu::kControlLab;
+        out.options.counterGround = 13;
+        out.options.counterAir = 1;
+        out.options.counterShield = 1;
+        out.options.infiniteShields = cpu::kShieldsUntilHit;
+        out.options.shieldHealth = cpu::kShieldFull;
+        for (int i = 0; i < 4; i++)
+        {
+            out.options.techChance[i] = 25;
+            out.options.getupChance[i] = 25;
+            out.options.revSlot2Weight[i] = 50;
+        }
+        out.options.advHit = 1;
+        out.options.advGround = 13;
+        out.options.advAir = 1;
+        out.options.advShield = 1;
+        out.options.recovery = cpu::kRecoveryPPlusAi;
+        out.options.autoLCancel = 1;
+        out.options.shieldTiming = cpu::kShieldTimingFullMove;
     }
 
     void defaultQuickSetupData(QuickSetupData& out)
@@ -361,12 +385,40 @@ namespace osdQuick {
     bool patchQuickSetupAreasInFile(const u8* inFile, u32 inSize, const QuickSetupData& data, u8* outFile,
                                     u32 outCap, u32 nextSeq, u32& outSize)
     {
-        const AreaPatchSpec patches[3] = {
+        bool hasCpuArea = false;
+        u32 tableOff = sizeof(FileHeader) + sizeof(SettingsHead);
+        if (inFile != NULL && inSize >= tableOff)
+        {
+            const SettingsHead* ihead = reinterpret_cast<const SettingsHead*>(inFile + sizeof(FileHeader));
+            if (validAreaTable(inFile, inSize, tableOff, ihead->areaCount))
+            {
+                const AreaEntry* inEntries = reinterpret_cast<const AreaEntry*>(inFile + tableOff);
+                for (u16 i = 0; i < ihead->areaCount; i++)
+                {
+                    if (inEntries[i].id == storage::kAreaCpu)
+                    {
+                        hasCpuArea = true;
+                        break;
+                    }
+                }
+            }
+        }
+        main::CpuSettings cpuDef;
+        AreaPatchSpec patches[4] = {
             {storage::kAreaGeneral, kAreaGen, kGeneralUsed, &data.general},
             {storage::kAreaDisplay, kAreaGen, kDisplayUsed, &data.display},
-            {storage::kAreaOsd, kAreaGen, kOsdUsed, &data.osd}
+            {storage::kAreaOsd, kAreaGen, kOsdUsed, &data.osd},
+            {storage::kAreaCpu, kAreaGen, static_cast<u16>(sizeof(main::CpuSettings)), &cpuDef}
         };
-        return patchAreasInFile(inFile, inSize, patches, 3, data.techTrackerOsd, outFile, outCap, nextSeq, outSize);
+        int patchCount = 3;
+        if (!hasCpuArea && data.techTrackerOsd != 0)
+        {
+            defaultCpuSettings(cpuDef);
+            cpuDef.options.techTrackerOsd = 1;
+            patchCount = 4;
+        }
+        return patchAreasInFile(inFile, inSize, patches, patchCount, data.techTrackerOsd, outFile, outCap, nextSeq,
+                                outSize);
     }
 
     bool patchOsdAreaInFile(const u8* inFile, u32 inSize, const OsdSettings& osd, u8* outFile, u32 outCap,
@@ -828,10 +880,25 @@ namespace osdQuick {
         if (r.source == kSrcOsd && r.offset == offsetof(OsdSettings, preset))
         {
             applyPresetMask(static_cast<u8>(next));
+            if (next >= main::kOsdPresetCustom1)
+            {
+                u32 slot = static_cast<u32>(next - main::kOsdPresetCustom1);
+                bool empty = slot >= main::kOsdCustomSlotCount
+                             || (s_osdPresets.customMask[slot] & main::kOsdCustomSavedBit) == 0u;
+                s_statusNote = empty ? "Custom slot empty (save in Lab Menu > OSDs)." : NULL;
+            }
+            else if (!s_newerOnCard && !s_olderLayoutOnCard)
+            {
+                s_statusNote = NULL;
+            }
         }
         else if (r.kind == kKindToggle)
         {
             s_data.osd.preset = main::kOsdPresetCustom;
+            if (!s_newerOnCard && !s_olderLayoutOnCard)
+            {
+                s_statusNote = NULL;
+            }
         }
         pushLive();
         s_dirty = true;
@@ -1117,7 +1184,24 @@ namespace osdQuick {
             }
             else
             {
-                valTxt = (v <= row.maxVal && row.labels != NULL) ? row.labels[v] : "?";
+                if (row.source == kSrcOsd && row.offset == offsetof(OsdSettings, preset)
+                    && v >= main::kOsdPresetCustom1 && v < main::kOsdPresetCount)
+                {
+                    u32 slot = static_cast<u32>(v - main::kOsdPresetCustom1);
+                    if ((s_osdPresets.customMask[slot] & main::kOsdCustomSavedBit) == 0u)
+                    {
+                        snprintf(buf, sizeof(buf), "Custom %u (Empty)", static_cast<unsigned>(slot + 1u));
+                        valTxt = buf;
+                    }
+                    else
+                    {
+                        valTxt = row.labels[v];
+                    }
+                }
+                else
+                {
+                    valTxt = (v <= row.maxVal && row.labels != NULL) ? row.labels[v] : "?";
+                }
             }
             gfx::Rgba valCol = on ? ((sel && !isHi) ? kLabGoldInk : kLabWhiteText) : kTextDisabled;
             drawFitText(pillCenter, ty, valTxt, valCol, rowScale, valMaxW, true);

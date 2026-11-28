@@ -124,7 +124,7 @@ namespace ui {
 
         float ss = scaleForCap(kTypeMeta);
         drawFitText(320.0f, textYForCap(144.0f + dy, ss), "Settings from an older build were found on SD.",
-                    kLabDescText, ss, 420.0f, true);
+                    kLabDescText, ss, w(384.0f), true);
 
         // 3 v1 Direction A slanted choice cards (Solo-Gold focused / dark-slate unselected).
         static const char* const kTitles[3] = {

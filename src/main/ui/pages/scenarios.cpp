@@ -126,6 +126,11 @@ namespace pages {
     static void practiceChanged() { main::extraScenarioCall(main::kScenarioPracticeChanged); }
 
     static bool practiceActive() { return main::extraLoaded() && practiceMenuState()->activeDrill != 0; }
+    static bool practiceModeVisible()
+    {
+        u8 id = practiceMenuState()->activeDrill;
+        return main::extraLoaded() && id >= 1u && id <= 8u;
+    }
 
 #pragma dont_inline on
     static bool practiceDrillIs(u8 id) { return main::extraLoaded() && practiceMenuState()->activeDrill == id; }
@@ -165,7 +170,7 @@ namespace pages {
         scenarioGrabActive, scenarioMultiHitActive, practiceActive, practicePsActive, practicePsProjActive,
         practiceLedgeActive, practiceLcActive, practiceFloatActive, practiceWdActive, comboTrainerRowVisible,
         scenarioComboLabActive, scenarioEditAirPoolActive, scenarioEditShieldPoolActive,
-        scenarioSnakeVisible, scenarioFloatDjcVisible
+        scenarioSnakeVisible, scenarioFloatDjcVisible, practiceModeVisible
     };
     static void (*const kScenCbs[])() = {
         NULL, main::extraScenarioChanged, main::extraScenarioResetNow, practiceChanged,
@@ -226,7 +231,7 @@ namespace pages {
         {kKindChoice, kScenFlagSH, SC_OFF(grabPctMode), TM_CHOICE_LO, 0, 1, 26, 1, 15, 0},
         {kKindChoice, kScenFlagSH, SC_OFF(multiHitMove), TM_CHOICE_LO, 0, 8, 27, 1, 16, 0},
         {kKindFunc,   kScenFlagHide, 0, 0, 0, 0, 0xFF, 2, 2, 0},
-        {kKindChoice, kScenFlagSH, PR_OFF(mode), TM_CHOICE_LO, 0, 2, 28, 3, 17, 0},
+        {kKindChoice, kScenFlagSH, PR_OFF(mode), TM_CHOICE_LO, 0, 2, 28, 3, 30, 0},
         {kKindChoice, kScenFlagSH, PR_OFF(psAttackMode), TM_CHOICE_LO, 0, 1, 29, 3, 18, 0},
         {kKindChoice, kScenFlagSH, PR_OFF(psHeight), TM_CHOICE_LO, 0, 4, 30, 3, 19, 0},
         {kKindChoice, kScenFlagSH, PR_OFF(psCadence), TM_CHOICE_LO, 1, 3, 31, 3, 18, 0},
@@ -392,7 +397,7 @@ namespace pages {
         TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, "Reset Now", NULL,
                main::extraScenarioResetNow, scenarioActive),
         // Active Tech Practice drill options (hidden unless a Tech Practice drill is running)
-        TM_PRAC_CHOICE("Practice Mode", mode, kPracticeModes, 3, 0, practiceActive),
+        TM_PRAC_CHOICE("Practice Mode", mode, kPracticeModes, 3, 0, practiceModeVisible),
         TM_PRAC_CHOICE("Attack Mode", psAttackMode, kPsAtkModes, 2, 0, practicePsActive),
         TM_PRAC_CHOICE("Shot Height", psHeight, kPsHeights, 5, 0, practicePsProjActive),
         TM_PRAC_CHOICE("Cadence", psCadence, kPsCadences, 4, 1, practicePsActive),

@@ -59,13 +59,10 @@ namespace gfx {
 
     void end()
     {
-        // Camera 0 is the main camera. Restore 1 TEV stage if our 2-stage
-        // crisp text TEV was left active; other 2D state is re-set by callers.
+        // Camera 0 is the main camera. Always restore 1 TEV stage on 2D exit so
+        // our 2-stage crisp text TEV can never leak even after forgetState().
 #ifdef __MWERKS__
-        if (s_state == kStateText)
-        {
-            GXSetNumTevStages(1);
-        }
+        GXSetNumTevStages(1);
 #endif
         s_camera = kMainCamera;
         s_state = kStateNone;

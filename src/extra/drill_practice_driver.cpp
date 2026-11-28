@@ -444,7 +444,7 @@ namespace extra {
         {
             for (int i = 0; i < game::kMaxFighters; i++)
             {
-                s_net->sub.psCpu[i].placed = 0u;
+                psCpuStateReset(s_net->sub.psCpu[i]);
             }
         }
         syncPracticeMenuFromCfg(*s_net);

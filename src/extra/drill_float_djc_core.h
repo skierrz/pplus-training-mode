@@ -89,7 +89,8 @@ namespace extra {
     enum FcOutcome {
         kFcNone = 0,
         kFcSuccess = 1,
-        kFcMissFullLag = 2
+        kFcMissFullLag = 2,
+        kFcMissLCancel = 3
     };
 
     enum DjcGrade {
@@ -454,7 +455,7 @@ namespace extra {
                 {
                     if (in.ftKind == kDrillFtGanondorf && in.airborne == 0 && e.airborne == 0)
                     {
-                        // Grounded Warlock Punch shares status 0x112; never grade as Dead Man's Float.
+                        // Grounded SpecialN redirects to Dead Man's Volley (0x117); never grade as Dead Man's Float.
                         clearFloatFlight(st);
                         st.groundedFloatStatus = true;
                     }
@@ -540,7 +541,17 @@ namespace extra {
                     }
                     else if (s == kFdStLandingAttackAir)
                     {
-                        recordFcOutcome(st, kFcMissFullLag, f, e.lCancel > 0);
+                        // FitGanon.pac SpecialNFuwa (0x1ce) exits 0x112 into normal Attack_Air (0x33)
+                        // with no float-cancel; landing in 0x18 succeeds if L-canceled and misses otherwise.
+                        if (in.ftKind == kDrillFtGanondorf)
+                        {
+                            bool lc = e.lCancel > 0;
+                            recordFcOutcome(st, lc ? kFcSuccess : kFcMissLCancel, f, lc);
+                        }
+                        else
+                        {
+                            recordFcOutcome(st, kFcMissFullLag, f, e.lCancel > 0);
+                        }
                         clearFloatFlight(st);
                     }
                     else if (s != kFdStAttackAir)

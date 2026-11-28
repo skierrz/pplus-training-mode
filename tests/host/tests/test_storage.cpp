@@ -2612,6 +2612,59 @@ TEST(settings_file, quick_setup_partial_file_boots_silently_without_notice)
     CHECK_EQ(static_cast<int>(main::kAdvanceL), static_cast<int>(main::settings().controls.advanceButton));
     storage::detach();
 
+    // defaultCpuSettings() must match main::resetSettings().cpu byte-for-byte.
+    main::resetSettings();
+    main::CpuSettings defCpu;
+    menu::osdQuick::defaultCpuSettings(defCpu);
+    CHECK(memcmp(&defCpu, &main::settings().cpu, sizeof(defCpu)) == 0);
+
+    // Fresh SD with P+ Tech OSD enabled persists kAreaCpu (4-area Quick Setup partial file) silently.
+    host::card::reset();
+    qd.techTrackerOsd = 1;
+    REQUIRE(menu::osdQuick::patchQuickSetupAreasInFile(NULL, 0, qd, file, sizeof(file), 6, sz));
+    host::card::put(kFileA, file, sz);
+    storage::noticeClear();
+    boot();
+    CHECK(!storage::noticeActive());
+    CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.techTrackerOsd));
+    CHECK_EQ(60, static_cast<int>(main::settings().cpu.options.shieldHealth));
+    storage::detach();
+
+    // Existing 16-area v2 save (missing only Area 17 kAreaOsdPresets) upgrades silently with force = 1.
+    host::card::reset();
+    Settings full16;
+    choose(full16);
+    memset(file, 0, sizeof(file));
+    {
+        storage::FileHeader* h16 = reinterpret_cast<storage::FileHeader*>(file);
+        storage::SettingsHead* hd16 = reinterpret_cast<storage::SettingsHead*>(file + sizeof(storage::FileHeader));
+        u32 at16 = sizeof(storage::FileHeader) + sizeof(storage::SettingsHead);
+        u16 ac16 = 0;
+        u32 mask16 = storage::kAllAreas & ~storage::areaBit(storage::kAreaOsdPresets);
+        u32 b16 = storage::writeAreas(file + at16, sizeof(file) - at16, at16, reinterpret_cast<const u8*>(&full16),
+                                      mask16, ac16);
+        REQUIRE(b16 > 0 && ac16 == 16);
+        hd16->areaCount = ac16;
+        hd16->layout = main::kSettingsVersion;
+        h16->magic = storage::kSettingsMagic;
+        h16->format = storage::kSettingsFormat;
+        h16->headerSize = sizeof(storage::FileHeader);
+        h16->size = at16 + b16;
+        h16->sequence = 7;
+        h16->checksum = storage::checksum(file + storage::kChecksumFrom, h16->size - storage::kChecksumFrom);
+        host::card::put(kFileA, file, h16->size);
+    }
+    storage::noticeClear();
+    u8* blk16 = boot();
+    CHECK(!storage::noticeActive());
+    CHECK_EQ(1, static_cast<int>(storage::blockState(blk16)->force));
+    closeMenu();
+    REQUIRE(host::card::has(kFileB));
+    CHECK_EQ(17, static_cast<int>(reinterpret_cast<const storage::SettingsHead*>(
+                                      host::card::data(kFileB) + sizeof(storage::FileHeader))
+                                      ->areaCount));
+    storage::detach();
+
     // Replacing kAreaOsd with kAreaCpu (outside {General, Display, Osd}) triggers the partial-file notice.
     host::card::reset();
     Settings custom;
