@@ -1,203 +1,192 @@
-# Training Mode for Project+
+<div align="center">
 
-Training Mode for Project+ is a Project+-first training lab plugin that expands
-Brawl's Training mode with a native P+/Brawl menu system, one-click practice
-scenarios, savestates, multi-slot input recording and playback, programmable CPU
-behavior, 44-fighter PPlusAI recovery, Combo Trainer, frame advance, hitbox
-heatmaps, grab/tether visualization, dual-stick DI prediction, fighter info
-panels, color overlays, live stage options, mid-session fighter swaps,
-per-fighter mechanics controls, and on-screen technique displays. It also folds
-in ProjectPunch's MIT-licensed training tools so both do not need to be
-installed side by side.
+<img src="docs/assets/logo.png" alt="Project+ Training Mode Mod (P+TMM) Logo" width="160" />
 
-## Installing
+# Project+ Training Mode Mod (P+TMM)
 
-**Into your own Project+ build: one file.** The whole mod is a single plugin
-file, `TrainingMode.rel`. Copy it into `Project+/pf/plugins/` on your Project+
-SD card (or virtual `sd.raw` image). Nothing else in the build is changed, and
-deleting the file removes the mod. See [docs/install.md](docs/install.md) for
-step-by-step Dolphin and Wii instructions.
+A free, open-source training lab plugin for **Project+ v3.2.1** that expands Brawl's Training mode with savestates, input recording, programmable CPUs, practice drills, frame data, and visualizers.
 
-This plugin cannot be installed alongside ProjectPunch; Project+ does not have
-the memory for both.
+[![Download Releases](https://img.shields.io/badge/Releases-Download-16A34A?style=for-the-badge&logo=github&logoColor=white)](https://github.com/skierrz/pplus-training-mode/releases)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/WHNtJd2KAJ)
+[![Project+ v3.2.1](https://img.shields.io/badge/Project%2B-v3.2.1-00B4A6?style=for-the-badge)](https://projectplusgame.com)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-3B82F6?style=for-the-badge)](LICENSE)
 
-## Requirements
+</div>
 
-- Project+ v3.2.1
-- Dolphin (primary tested environment; earlier pre-releases have booted and
-  saved on real Wii hardware, while newer additions are still Dolphin-tested
-  first)
-- Your own Super Smash Bros. Brawl (USA, RSBE01 rev 2) disc image
-- Offline play only; do not use in netplay
+> [!IMPORTANT]
+> **Discord Server:** Join the **[P+TMM Discord](https://discord.gg/WHNtJd2KAJ)** for test builds, bug reports, setup help, and shared `.tmr` recordings.
 
-## Using it
+> [!NOTE]
+> **AI Use and Credits:** P+TMM is developed with AI assistance and builds on years of foundational Project+ and Brawl modding work. Every feature is backed by Project+ 3.2.1 research, Wii GX UI design, automated Dolphin and Wii testing, and hands-on playtesting. [Read the full disclosure and credits](#ai-use-and-credits).
 
-When you enter Training's character select, the **Training Menu** opens over the
-select screen (hold X or Y on a GameCube controller while booting if you want
-Versus instead). Use **L / R** to switch sections (**All Modes**, **Offense**,
-**Defense**), launch **Training Lab** or any of the 10 preconfigured **Scenario
-Presets**, press **X** to open the **Recordings** browser for exported `.tmr`
-files, or press **B** to close the menu. Press **L+R** (Classic: L+R, Sideways
-Wii Remote: `- + B`, Nunchuk: C+Z) to bring it back.
+---
 
-GameCube controllers and Wii controllers (Sideways Wii Remote, Wii Remote +
-Nunchuk, and Classic Controller) work across both the Training Menu /
-Recordings browser and in-match lab controls (opening and navigating the lab
-menu, frame advance, savestates, and D-pad shortcuts).
+## Installation
 
-Once in a Training match, press **Start** (`+` on Wii controllers) to open the
-lab menu, and press it again to close. Switch between the **Category Rail** and
-**Top Tabs** layouts live under **Controls > Menu Style**. To keep Start for
-Brawl's Training pause menu, set **Controls > Menu Open** to **Z in Pause**,
-then open the lab menu from Brawl's pause menu (Z on GC/Nunchuk, ZL/ZR on
-Classic, `-` on Sideways).
+### Option 1: Prebuilt Dolphin / Packed SD (Recommended for Dolphin)
 
-Project+'s in-match Code Menu shortcut (`L+R+D-pad Down`) is disabled by default
-in Training so it does not collide with lab shortcuts. Enable **Controls > P+
-Code Menu Shortcut** to allow it in Training Lab. Main Menu access (**Versus >
-Codes**) and regular Versus matches are untouched.
+1. Download the prebuilt Dolphin package (or pre-packed `sd.raw`) from [Releases](https://github.com/skierrz/pplus-training-mode/releases) or the [P+TMM Discord](https://discord.gg/WHNtJd2KAJ).
+2. Extract it, point Dolphin at your Super Smash Bros. Brawl (USA, `RSBE01` rev 2) ISO, and launch Project+.
+
+### Option 2: Add to an Existing Project+ v3.2.1 Build (Dolphin or Wii)
+
+Download `TrainingMode.rel` from [Releases](https://github.com/skierrz/pplus-training-mode/releases) and copy it into `Project+/pf/plugins/` on your SD card.
+
+- **Dolphin (`sd.raw`):** Open **Config -> Wii -> SD Card Settings**, enable **Insert SD Card** and **Allow Writes to SD Card**, click **Unpack SD Card Now**, copy `TrainingMode.rel` into `Project+/pf/plugins/`, then click **Pack SD Card Now**.
+- **Wii:** Copy `TrainingMode.rel` directly into `Project+/pf/plugins/` on your SD card.
+
+Delete `TrainingMode.rel` to uninstall. No other files in your Project+ build are modified. See [docs/install.md](docs/install.md) for the full setup walkthrough.
+
+> **Note on ProjectPunch:** Project+ does not have enough memory to load P+TMM alongside [ProjectPunch](https://github.com/WispSSBM/ProjectPunch), so keep only one plugin in `Project+/pf/plugins/` at a time. P+TMM builds on Wisp's MIT-licensed ProjectPunch work (with Wisp's blessing) and carries over its core training tools (frame advance, ledgedash/GALINT HUD, color overlays, invisible techs, and frame advantage) so you keep those features when switching.
+
+### Requirements
+
+- **Project+ v3.2.1**
+- **Super Smash Bros. Brawl** (USA, `RSBE01` rev 2) disc image
+- **Dolphin** or **Wii** (Dolphin is the primary test target; Wii compatibility is actively maintained, but real Wii hardware is not yet thoroughly tested)
+- **Offline play only** (do not use on netplay)
+
+---
+
+## Controls
+
+GameCube, Classic Controller, Wii Remote + Nunchuk, and Sideways Wii Remote are all supported.
+
+### Character Select (Boot Menu)
+
+| Action | GameCube | Wii / Classic |
+|---|---|---|
+| Switch tabs (`Quick Start`, `Scenarios`, `Tech Practice`, `Minigames & Tech`) | `L` / `R` | `-` / `+` |
+| Open Quick Setup (overlays and OSD presets) | `Y` | `Z` (Nunchuk) / `- + A` (Sideways) |
+| Open Recordings Browser (`.tmr` files on SD) | `X` | `X` / `1` |
+| Close menu to CSS / Hold to exit to Solo menu | Tap `B` / Hold `B` | Tap / Hold `B` (`1` Sideways) |
+| Reopen Boot Menu from CSS | `L + R` | `L + R` / `C + Z` / `- + B` |
+
+### In-Match
+
+| Action | GameCube | Wii / Classic |
+|---|---|---|
+| Open / Close Lab Menu | `Start` | `+` |
+| Save / Load Savestate | Hold `D-Pad Right` / Tap `D-Pad Left` | Same |
+| Switch Drill Mode (`Free Practice` / `10-Rep` / `20-Rep`) | `L + D-Pad Up` | Same |
+| Reset highlighted option / Reset current page (in Lab Menu) | `X` / Double-tap `Y` | Same |
+
+- **Keep `Start` for Brawl's pause menu:** Set **Lab > Controls > Menu Open** to **Z in Pause**.
+- **P+ Code Menu shortcut (`L + R + D-Pad Down`):** Disabled by default inside Training to avoid shortcut conflicts. Re-enable it under **Lab > Controls > P+ Code Menu Shortcut**. Versus mode is unchanged.
+
+---
 
 ## Features
 
-- **Native P+/Brawl UI (CSS Training Menu & In-Match Lab Menu):**
-  - 3-section CSS launcher (**All Modes**, **Offense**, **Defense**) with
-    **Training Lab**, 10 practice presets, and the **Recordings** browser.
-  - Switchable **Category Rail** and **Top Tabs** in-match layouts across 7
-    categories (**Lab**, **Scenarios**, **CPU**, **Recording**, **Display**,
-    **OSDs**, **Stage & Cast**) with single-line option descriptions, live
-    controller button glyphs, and 4:3 + 16:9 CRT-safe layout.
-- **Scenarios & Combo Trainer:**
-  - 10 unified Project+ practice setups running directly on the lab engine:
-    **Combo Lab**, **Techchase**, **Edgeguard & Recovery**, **Shield
-    Pressure**, **OoS / Reversal**, **Shield Drop**, **Ledgetech**,
-    **Slide-Off**, **Grab Escape**, and **Multi-Hit SDI** (with automatic
-    resets and side flip; temporary preset overrides never overwrite your saved
-    SD settings).
-  - **Combo Trainer**: hitstun-drop auto-reset with `noclip` warps, fixed or
-    random reset position and damage, reset timer offset, offstage recovery
-    looping, and 7 named 3D floating state meters (Hitlag, Hitstun, Shieldstun,
-    DI, IASA, Ledge Intangibility, Intangibility).
-- **Savestates:**
-  - Hold D-pad Right to save, press D-pad Left to load.
-  - Works mid-attack, in hitlag, during grabs, on ledges, and with projectiles
-    or partners out (two players at most; Ice Climbers count as one).
-  - Supports adding random extra percent on load.
-- **Recording & Playback:**
-  - Record and play back inputs for both P1 and CPU across six slots each,
-    backed by a savestate for deterministic replay.
-  - **Start On Input** arming, weighted random slot selection, mirrored
-    playback, loop playback, auto restore, start paused, and live HMN/CPU
-    takeover or re-recording.
-  - **Slot Management > Modify Inputs**: edit individual frames (stick,
-    C-stick, analog triggers, and fighter buttons).
-  - **Frame Rewind**: step back frame by frame while Frame Advance holds a
-    playback.
-  - Export recordings to `/Project+/tm/` on the SD card and reload them from
-    the Training Menu.
-- **CPU Control, Recovery & Adaptive AI:**
-  - Behaviors: Stand, Shield, Crouch, Jump, Powershield, and Brawl Training AI
-    fallback.
-  - **44-Fighter PPlusAI Recovery**: pure C++ offstage recovery across all 8
-    Project+ recovery families (arc, glide, float, tether, charge, PK Thunder
-    orbit, and more).
-  - Counter actions on hit, on shield, in the air, and **On-Ledge** (`Cliff_Wait`)
-    with configurable frame delay, full P+ action lists, random pools,
-    playback-slot counters, and 10-hit **Per-Hit Counters** tables.
-  - Trajectory DI (`Random`, `In`, `Out`, `Survival`, `None`), Smash DI,
-    **Dual-Stick SDI**, and ASDI modeled on Project+'s rules.
-  - Tech and get-up options (including banana trips / `Slip_Wait`) with
-    independent weights, tech trap simulation, tech lockout timing, invisible
-    techs, tech sound cue, **Clatter Escape** (mash out of buries, sleep, and
-    freeze), and **Adaptive CPU** habit tracking.
-  - Infinite shields with configurable shield health (up to 60) and shield
-    angle, grab escape/release, Move CPU, Freeze CPU, and controller handoff.
-- **General & Controls:**
-  - Frame advance on L/Z/X/Y/R (hold past configurable delay to run at speed),
-    player and CPU percent set/lock, player infinite shields, game speed
-    (`1`, `5/6`, `2/3`, `1/2`, `1/4`), camera modes (`Normal`, `Zoom`, `Fixed`),
-    and move staling toggle.
-  - Configurable D-pad bindings, Frame Rewind button, Lab Menu open button,
-    Menu Style toggle, and P+ Code Menu shortcut toggle.
-- **Display, Overlays & Visualization:**
-  - Project+'s native hitboxes/hurtboxes (persisting during frame advance),
-    stage collision and ECBs, and toggles for Match HUD, Fighter Models, Stage
-    Model, Effects, and Debug Overlay.
-  - **Hitbox Heatmap & Reach Bounds**: persistent multi-frame attack coverage
-    with frame-age color bands, opacity control, and world-space reach bounds.
-  - **Grab / Tether / Item-Pickup Visualizer**: live 3D grabboxes, search/tether
-    zones, and item pickup areas for P1, CPU, or Both.
-  - **DI Display**: real-time launch trajectory preview during hitlag with
-    Project+ TDI, ASDI, SDI, Dual-Stick C-stick macro preview, stage collision
-    marks, and missed-tech slide or wall/ceiling bounce prediction.
-  - **Color Overlays**: per-state fighter tinting, hurtbox toggle, invisible
-    toggle, or sound cue for P1 and CPU (including the ProjectPunch preset).
-  - **Info Display**: up to 8 configurable rows per fighter across 3 sizes,
-    reading 34 live Brawl/P+ values including PSA **Actionable In**, **Can
-    Walljump**, and **Wall Cling**.
-  - **Ledgedash HUD**: per-frame phase bar, GALINT/ledge/angle summary adapted
-    from ProjectPunch, and P+ 5-ledge-grab intangibility limit tracking.
-- **On-Screen Displays (19 universal Smash/P+ OSDs):**
-  - Wavedash, L-Cancel, Act OoS, Dashback, Powershield, SDI Inputs, Tech
-    Lockout, Item Throw / Glide Toss, Boost Grab / DACUS, Act OoLag, Act
-    OoAirborne, Jump Cancel, Fastfall, Frame Advantage (shield and hit, with
-    PSA script lookahead on shield), Combo Counter, Grab Escape, Ledgedash
-    Info (with 5-grab limit warning), and Act OoHitstun.
-  - Configurable screen position (`HUD`, `Sides`, `Top Left`, `Top Right`),
-    advantage tolerance, and max visible messages.
-- **Stage & Cast:**
-  - **Mid-Session Fighter Swap**: swap P1 and CPU fighters and costumes (with
-    live stock-icon previews) without leaving the match.
-  - **Stage Options**: live hazards toggle, moving platform freeze/presets, and
-    Fountain of Dreams independent platform heights on supported stages.
-  - **Fighter RNG & Mechanics (17 fighters)**: Peach Turnip/F-Smash/Float, Luigi
-    Misfire, Mr. Game & Watch Judge/Oil Panic, Samus Charge/Beam/Air Bombs,
-    Mewtwo Shadow Ball/Hover, Lucario Aura/Sphere, Wario Waft, DK Giant Punch,
-    Ivysaur Solarbeam, R.O.B. Air Boosts/Gyro/Beam, Lucas Offense Up, Squirtle
-    Water Gun, Sheik Needles, King Dedede Waddle Toss, Snake Tranq/Cypher,
-    Ganondorf Float, and Ice Climbers Nana Throw.
-- **SD Card Persistence:**
-  - Lab settings save automatically to `/Project+/tm/` when closing the lab
-    menu and reload on the next boot. See [docs/files.md](docs/files.md).
+### Practice Modes and Drills
+Launch **Training Lab** for an open sandbox, or pick a ready setup from the 4-tab Boot Menu:
+- **Scenarios:** One-click setups for Combo Lab, Techchase, Edgeguard, Shield Pressure / OoS, Shield Drop, Ledgetech, Slide-Off, Grab Defense / Throw DI, Multi-Hit SDI, and CC / ASDI-Down. Scenario settings are temporary and never overwrite your saved SD config.
+- **Tech Practice:** Guided drills tracking live hit rate, streaks, SD-saved best streaks, and timing/angle/GALINT readouts (L-Cancel, Wavedash / Waveland, Ledgedash, Powershield, RAR, DACUS, B-Reverse / Wavebounce).
+- **Minigames & Character Trainers:** Break the Targets!, Float / Hover & DJC, and Snake C4 Recovery.
 
-See [docs/limitations.md](docs/limitations.md) for current limitations and what
-has been tested.
+### Savestates and Input Recording
+- **Savestates:** Save and load cleanly mid-attack, in hitlag, during grabs, on ledge, and with projectiles or Ice Climbers active. Supports optional random percent variance on load.
+- **6-Slot Recording (P1 and CPU):** Savestate-backed deterministic playback with **Start On Input**, weighted random slot playback, mirrored playback, looping, live takeover/re-record, per-frame input editing, Frame Rewind, and `.tmr` SD export/import (`/Project+/tm/`).
 
-## Development
+### Programmable CPU and Combo Trainer
+- **44-Fighter P+ AI Recovery:** Pure C++ offstage recovery covering all P+ recovery families.
+- **Counter Pools & Reversals:** Trigger counters on hit, on shield, in the air, or on ledge with custom delays, move pools, weighted Reversal Slots, 10-hit Per-Hit Counter tables, and Adaptive CPU habit tracking.
+- **DI, Techs & Combo Trainer:** P+ DI (including live 2D Custom stick aiming and Just Out), SDI, Dual-Stick SDI, ASDI, weighted tech/getup mixups, invisible techs, bury/stun mashing, and hitstun-drop Combo Trainer auto-resets.
 
-See [docs/building.md](docs/building.md) to build the mod and
-[docs/testing.md](docs/testing.md) for the host and Dolphin test suites.
+### Frame Data, Visualizers, and OSDs
+- **Live Frame Meter:** Dual-row timeline displaying startup, active strikes, active grabs, vulnerable lag, stun, intangibility/GALINT, and frame advantage, color-synced with the Ledgedash HUD and Floating Overhead Meters.
+- **Visualizers:** Native P+ hitboxes/hurtboxes (with Property and Priority color modes), Hitbox Heatmap with reach bounds, 3D Grab/Tether/Item-Pickup boxes, real-time DI trajectory preview, multi-controller Input Viewer, Color Overlays, 34-field Info Display, and a read-only PSA Debugger.
+- **20 On-Screen Displays:** Built-in presets (`Essentials`, `Movement`, `Defense`, `All Off`) plus 3 saveable **Custom 1-3** slots.
+- **Colorblind Mode:** Built-in **Display > Theme > Colorblind Mode** (`Off`, `Deuteran`, `Protan`, `Tritan`) across OSDs, Frame Meter, Ledgedash HUD, and Floating Meters.
 
-## Credits
+<details>
+<summary>Full list of 20 On-Screen Displays</summary>
 
-This mod stands on a lot of community work. [CREDITS.md](CREDITS.md) explains
-each source and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) holds the
-file-by-file record and licences. Key projects and contributors:
+- Wavedash / Waveland timing and angle
+- L-Cancel (with P+ ALC rule awareness)
+- Ledgedash / GALINT (with 5-ledgegrab limit tracking)
+- Powershield (physical, reflect, and Light->Hard)
+- Boost Grab and DACUS
+- Frame Advantage on Shield and on Hit (with PSA lookahead)
+- Act OoS, Act OoWait, Act OoAutocancel, and Act OoHitstun
+- Jump Cancel, Fastfall, and Dashback
+- Combo Counter, SDI Inputs, Tech Lockout, Mash Out, Item Throw / Glide Toss, and P+ Tech Tracker
 
-- **fudgepop01**, for [PPlusAI](https://github.com/fudgepop01/PPlusAI) and
-  SuperTraining (44-fighter recovery, Combo Trainer, Hitbox Heatmap, Adaptive
-  CPU, and frame-data structures), adapted with express permission.
-- **Wisp**, for [ProjectPunch](https://github.com/WispSSBM/ProjectPunch) (MIT
-  license), and **ilikepizza107** for the Partially Invisible Techs design.
-- **lil klon**, for his ProjectPunch dummy tools (Start On Input, On-Ledge
-  reversals) and P+ 3.2.1 notes, used with permission.
-- [Project+](https://projectplusgame.com) by the Project+ Development Team, and
-  code authors including **Eon** (hitbox/hurtbox and stage collision debug
-  drawing, L-cancel, airdodge, and Training codes) and **QuickLava**
-  ([PowerPC-Assembly-Functions](https://github.com/QuickLava/PowerPC-Assembly-Functions)).
-- **Sammi Husky**, for [Syriinge](https://github.com/Sammi-Husky/Syriinge),
-  [SyriingePluginTemplate](https://github.com/Sammi-Husky/SyriingePluginTemplate)
-  (MIT), and [BrawlHeaders](https://github.com/Sammi-Husky/BrawlHeaders).
-- The [Brawl decompilation](https://github.com/doldecomp/brawl) (CC0) and
-  [BrawlRE](https://github.com/BrawlRE/BrawlRE.github.io) (MIT).
-- [Brawl Online](https://brawlonline.net) (with sarahkittyy's OK) and
-  [Brawlback](https://github.com/Brawlback-Team).
+</details>
+
+### Stage, Cast, and Character Tools
+- **Mid-Match Swaps & Stage Control:** Switch fighters and costumes without leaving the match, toggle stage hazards, and control moving platforms (including Fountain of Dreams heights).
+- **Olimar Lab Kit & 18-Fighter RNG Controls:** Live B+D-Pad Pikmin pluck, 16 lineup presets, pull pools, maturity locks, Whistle/Lead tools, and dedicated RNG/resource controls for 18 fighters.
+- **4-Player & Offline VS Displays:** Full 4-player Training support plus optional read-only displays in Offline VS (with Assist Trophies off).
+
+<details>
+<summary>Supported character RNG and mechanics controls (18 fighters)</summary>
+
+Peach (Turnip, F-Smash, Float), Luigi (Misfire), Mr. Game & Watch (Judge, Oil Panic), Samus (Charge Shot, Beam, Air Bombs), Mewtwo (Shadow Ball, Hover), Lucario (Aura, Aura Sphere), Wario (Waft), Donkey Kong (Giant Punch), Ivysaur (Solarbeam), R.O.B. (Air Boosts, Gyro, Laser), Lucas (Offense Up), Squirtle (Water Gun), Sheik (Needles), King Dedede (Waddle Toss), Snake (Tranq, Cypher), Ganondorf (Float), Ice Climbers (Nana Throw), and Olimar (full Pikmin kit).
+
+</details>
+
+Settings and best streaks save automatically to `/Project+/tm/` on your SD card.
+
+---
+
+## Documentation
+
+| Guide | Covers |
+|---|---|
+| [docs/install.md](docs/install.md) | Dolphin, `sd.raw`, and Wii installation |
+| [docs/files.md](docs/files.md) | SD card `/Project+/tm/` file layout and save upgrades |
+| [docs/limitations.md](docs/limitations.md) | Current limitations and tested hardware |
+| [docs/building.md](docs/building.md) | Compiling from source (`Normal`, `PERF=1`, `STAGE4C=0`) |
+| [docs/testing.md](docs/testing.md) | Host unit tests and automated Dolphin suites |
+| [docs/internals.md](docs/internals.md) & [docs/internals-extra.md](docs/internals-extra.md) | Plugin architecture, hooks, and memory layout |
+
+### Quick Build
+
+Requires Metrowerks CodeWarrior 4.2 for Wii, devkitPro MSYS2, and Python 3.10.
+
+```bash
+make tools       # download CodeWarrior and elf2rel
+make -j4         # build build/TrainingMode.rel
+make check-host  # run host unit and layout tests
+```
+
+---
+
+## Community and Bug Reports
+
+- **Discord:** [Join the P+TMM Discord](https://discord.gg/WHNtJd2KAJ) for test builds, discussion, and support.
+- **Bug Reports:** Open a [GitHub Issue](https://github.com/skierrz/pplus-training-mode/issues) with the fighter, stage, settings, and steps to reproduce.
+
+---
+
+## AI Use and Credits
+
+### Development and AI Use
+
+P+TMM is developed with AI coding assistance under continuous human direction, review, and playtesting. AI tools are used to accelerate implementation and testing, while the architecture, game mechanics, and user experience follow standard software engineering and Project+ modding practices:
+
+- **Engineering and architecture:** The plugin is split across multiple Wii `.rel` modules to fit within Brawl's memory limits, keeps SD save formats backwards-compatible, and compiles with zero warnings across all build configurations (`Normal`, `PERF=1`, `STAGE4C=0`). Changes are verified with host unit tests, automated Dolphin gameplay suites, and strict Wii-compatibility checks (`MMU`, `LLE`, and heap fragmentation).
+- **Project+ 3.2.1 accuracy:** Frame windows, fighter states, memory addresses, and physics rules are verified against Project+ 3.2.1 source, Brawl disassembly, and live Dolphin runtime behavior rather than assumed from Melee.
+- **Game and systems design:** Scenarios, drills, recording tools, and CPU behaviors are structured around practical Project+ training workflows, including session-only scenario presets that do not overwrite saved SD settings, deterministic savestate-backed playback, and weighted counter pools.
+- **UI and UX design:** Menus and overlays are built natively for Wii GX hardware and 480i CRTs in both `16:9` and `4:3`, using standard Smash/P+ terminology, a unified action-state color system with colorblind modes, and controller-tested navigation.
+
+### Credits
+
+P+TMM builds on years of reverse engineering, tooling, and training-mod groundwork by the Project+ and Brawl modding community. See [CREDITS.md](CREDITS.md) for full details and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the file-by-file record and licenses.
+
+- **Wisp** - [ProjectPunch](https://github.com/WispSSBM/ProjectPunch) (MIT), the pioneering Project+ training plugin whose frame advance, ledgedash/GALINT tracking, frame advantage, overlays, and fighter-state tools P+TMM builds directly on (with Wisp's blessing), alongside **ilikepizza107** for Partially Invisible Techs.
+- **fudgepop01** - [PPlusAI](https://github.com/fudgepop01/PPlusAI) and SuperTraining, whose 44-fighter recovery framework, Combo Trainer, Hitbox Heatmap, Adaptive CPU, and PSA Inspector specification underpin major parts of P+TMM (adapted with express permission).
+- **lil klon** - ProjectPunch dummy tools (Start On Input, On-Ledge reversals, reversal slots) and Project+ 3.2.1 research notes, used with permission.
+- **Project+ Development Team & PMDT** - [Project+](https://projectplusgame.com), including **Eon**, **QuickLava** ([PowerPC-Assembly-Functions](https://github.com/QuickLava/PowerPC-Assembly-Functions)), **Magus**, **DukeItOut**, **Fracture17** ([ProjectMCodes](https://github.com/Fracture17/ProjectMCodes) symbol/code references), and **Kapedani**.
+- **Sammi Husky** - [Syriinge](https://github.com/Sammi-Husky/Syriinge), [SyriingePluginTemplate](https://github.com/Sammi-Husky/SyriingePluginTemplate) (MIT), and [BrawlHeaders](https://github.com/Sammi-Husky/BrawlHeaders), which make C++ plugins inside Brawl possible.
+- **[doldecomp/brawl](https://github.com/doldecomp/brawl)** (CC0) and **[BrawlRE](https://github.com/BrawlRE/BrawlRE.github.io)** (MIT) for reverse engineering and documenting Brawl's internals.
+- **[Brawl Online](https://brawlonline.net)** (with sarahkittyy's permission) and the **[Brawlback](https://github.com/Brawlback-Team)** team for rollback memory ranges, Dolphin tooling, and loader architecture research.
+
+---
 
 ## License
 
-Copyright (c) 2026 skier. The mod's own code is under the GNU General Public License v3.0 or
-later (`GPL-3.0-or-later`, [LICENSE](LICENSE)). Assets, text and routines copied, adapted or
-ported from other projects keep their own terms; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
-lists them file by file with their licences.
+Copyright (c) 2026 skier. Original code in this repository is licensed under **GPL-3.0-or-later** ([LICENSE](LICENSE)). Adapted and third-party components retain their respective licenses in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-This project isn't affiliated with any of the above, or with Nintendo. The repository
-contains no game data. You need your own copy of the game and your own Project+ build.
+This project is not affiliated with Project+, Brawl Online, Brawlback, or Nintendo. No game assets are included; you must provide your own copy of Super Smash Bros. Brawl and Project+.
