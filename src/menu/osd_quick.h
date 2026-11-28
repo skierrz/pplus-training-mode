@@ -4,10 +4,12 @@
 
 #include "main/settings.h"
 
-// Brawl-native quick OSD toggle screen opened from the Training Boot Menu
-// (Y on GC/Classic, Z on Nunchuk, -+A on Sideways Wii Remote). Patches
-// kAreaOsd in-place in settings-a/b.bin (preserving all other 15 areas with
-// zero clobber) and updates the live Settings block immediately.
+// Brawl-native CSS Y: Quick Setup screen opened from the Boot Menu (Y on
+// GC/Classic, Z on Nunchuk, -+A on Sideways Wii Remote). Shows 7 high-signal
+// rows + an All OSDs sub-view, patches {kAreaGeneral, kAreaDisplay, kAreaOsd}
+// (plus existing kAreaCpu techTrackerOsd) in settings-a/b.bin with zero clobber
+// of other areas, supports reading Custom 1..3 OSD presets via kAreaOsdPresets,
+// and updates the live Settings block when initialized.
 namespace tm {
 namespace menu {
 namespace osdQuick {
@@ -18,18 +20,28 @@ namespace osdQuick {
         u32 type; // gfPadType::PadType
     };
 
-    // Populates `out` with clean v2 Essentials OSD defaults (matching osd_menu.cpp).
-    void defaultOsdSettings(main::OsdSettings& out);
+    struct QuickSetupData {
+        main::GeneralSettings general;
+        main::DisplaySettings display;
+        main::OsdSettings osd;
+        s8 techTrackerOsd; // 0/1 when present, -1 to leave kAreaCpu untouched
+    };
 
-    // Pure host-testable in-place kAreaOsd patcher:
+    // Populates defaults matching in-match Lab pages (general / display / osd).
+    void defaultOsdSettings(main::OsdSettings& out);
+    void defaultQuickSetupData(QuickSetupData& out);
+
+    // Pure host-testable in-place Quick Setup patcher:
     // - When `inFile != NULL` (valid layout-2 settings file), copies every other
-    //   area's exact AreaEntry & payload bytes verbatim (zero clobber of the
-    //   other 15 areas!) and replaces/adds kAreaOsd with `osd`.
-    // - When `inFile == NULL` (no settings file on SD yet), builds a clean
-    //   layout-2 file holding kAreaOsd alone.
-    // Writes the sealed file (sequence = `nextSeq`, valid checksum) into
-    // `outFile` and sets `outSize`. Returns false if `outCap` is too small or
-    // `inFile` is malformed.
+    //   area verbatim and updates/inserts kAreaGeneral, kAreaDisplay, kAreaOsd
+    //   (plus updating existing kAreaCpu techTrackerOsd if present and >= 0).
+    // - When `inFile == NULL`, writes a valid 3-area partial Quick Setup file
+    //   ({kAreaGeneral, kAreaDisplay, kAreaOsd}) accepted silently by
+    //   settings_file::isQuickSetupPartialFile().
+    bool patchQuickSetupAreasInFile(const u8* inFile, u32 inSize, const QuickSetupData& data, u8* outFile,
+                                    u32 outCap, u32 nextSeq, u32& outSize);
+
+    // Single-area kAreaOsd patcher (kept for callers/tests updating OSDs alone).
     bool patchOsdAreaInFile(const u8* inFile, u32 inSize, const main::OsdSettings& osd, u8* outFile, u32 outCap,
                             u32 nextSeq, u32& outSize);
 

@@ -1109,7 +1109,7 @@ TEST(text_fit, drill_list)
             REQUIRE(runOf("Select") != NULL);
             REQUIRE(runOf("Back") != NULL);
             REQUIRE(runOf("Recordings") != NULL);
-            REQUIRE(runOf("Overlays") != NULL);
+            REQUIRE(runOf("Quick Setup") != NULL);
             REQUIRE(runOf("Section") != NULL);
             for (int k = 0; k < canvas::runs(); k++)
             {
@@ -1212,32 +1212,63 @@ TEST(text_fit, drill_list)
             CHECK(hintSeen[h]);
         }
 
-        // Also check Y: OSDs quick screen fits cleanly inside 5% CRT safe area across all 4 controller types.
+        // Also check Y: Quick Setup (and All OSDs sub-view) fits cleanly inside 5% CRT safe area across all 4 controller types.
         static const u32 kOsdCtrlTypes[4] = {gfPadType::GCC, gfPadType::WII_CLASSIC, gfPadType::WIIMOTE,
                                              gfPadType::NUNCHUK};
         for (int ct = 0; ct < 4; ct++)
         {
+            const game::PadMap& pmap = game::padMap(kOsdCtrlTypes[ct]);
             menu::osdQuick::open(0, kOsdCtrlTypes[ct]);
-            canvas::clear();
-            menu::osdQuick::draw();
-            CHECK(canvas::runs() >= 12);
-            for (int k = 0; k < canvas::runs(); k++)
+            for (int view = 0; view < 3; view++)
             {
-                const canvas::Run& run = canvas::run(k);
-                float kept = run.scaleX / (run.scaleY * xs);
-                if (kept < kMinSqueeze - 0.0005f)
+                if (view == 1)
                 {
-                    misfit("list-desc", "menu/osd_quick.cpp", run.text, "squeezed to %.0f%% on %s",
-                           kept * 100.0f, kAspectNames[a]);
+                    // Navigate down to row 7 (All OSDs) and open sub-view.
+                    menu::osdQuick::Input in = {0, 0, 0, 0, kOsdCtrlTypes[ct]};
+                    for (int s = 0; s < 7; s++)
+                    {
+                        in.held = pmap.down;
+                        menu::osdQuick::step(0, in);
+                        in.held = 0;
+                        menu::osdQuick::step(0, in);
+                    }
+                    in.pressed = pmap.confirm;
+                    menu::osdQuick::step(0, in);
                 }
-                float ctY = runCapTop(run);
-                float cbY = runCapBottom(run);
-                if (run.x < safeLeft - 0.05f || run.right > safeRight + 0.05f || ctY < safeTop - 0.05f
-                    || cbY > safeBottom + 0.05f)
+                else if (view == 2)
                 {
-                    misfit("list-desc", "menu/osd_quick.cpp", run.text,
-                           "leaves CRT safe area (%.1f..%.1f, %.1f..%.1f) on %s",
-                           run.x, run.right, ctY, cbY, kAspectNames[a]);
+                    // Scroll All OSDs sub-view to bottom (Max OSDs).
+                    menu::osdQuick::Input in = {0, 0, 0, 0, kOsdCtrlTypes[ct]};
+                    for (int s = 0; s < 21; s++)
+                    {
+                        in.held = pmap.down;
+                        menu::osdQuick::step(0, in);
+                        in.held = 0;
+                        menu::osdQuick::step(0, in);
+                    }
+                }
+                canvas::clear();
+                menu::osdQuick::draw();
+                CHECK(canvas::runs() >= 8);
+                CHECK(runOf(view == 0 ? "Quick Setup" : "All OSDs") != NULL);
+                for (int k = 0; k < canvas::runs(); k++)
+                {
+                    const canvas::Run& run = canvas::run(k);
+                    float kept = run.scaleX / (run.scaleY * xs);
+                    if (kept < kMinSqueeze - 0.0005f)
+                    {
+                        misfit("list-desc", "menu/osd_quick.cpp", run.text, "squeezed to %.0f%% on %s",
+                               kept * 100.0f, kAspectNames[a]);
+                    }
+                    float ctY = runCapTop(run);
+                    float cbY = runCapBottom(run);
+                    if (run.x < safeLeft - 0.05f || run.right > safeRight + 0.05f || ctY < safeTop - 0.05f
+                        || cbY > safeBottom + 0.05f)
+                    {
+                        misfit("list-desc", "menu/osd_quick.cpp", run.text,
+                               "leaves CRT safe area (%.1f..%.1f, %.1f..%.1f) on %s",
+                               run.x, run.right, ctY, cbY, kAspectNames[a]);
+                    }
                 }
             }
             menu::osdQuick::detach();

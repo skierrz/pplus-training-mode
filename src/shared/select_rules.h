@@ -17,6 +17,7 @@ namespace drills {
         kIconSheik = 0x0F,
         kIconMarth = 0x11,
         kIconFalco = 0x13,
+        kIconGanondorf = 0x14,
         kIconLucas = 0x19,
         kIconLucario = 0x20,
         kIconWolf = 0x25,
@@ -43,10 +44,10 @@ namespace drills {
             {kDrillFlowCourse, 1, {kIconEnd}, {kIconEnd}},
             {kDrillRecoverySweetspot, 1, {kIconEnd}, {kIconEnd}},
             {kDrillComboBreakRush, 1, {kIconEnd}, {kIconEnd}},
-            // Float / Hover & DJC: 2P (Target = CPU supported), P1 filtered.
+            // Float / Hover & DJC: 1P solo CSS trimming to 6 hover/DJC fighters (still spawns Target CPU).
             {kDrillHoverFloat,
-             0,
-             {kIconPeach, kIconMewtwo, kIconNess, kIconLucas, kIconYoshi, kIconEnd},
+             1,
+             {kIconPeach, kIconMewtwo, kIconGanondorf, kIconYoshi, kIconNess, kIconLucas, kIconEnd},
              {kIconEnd}},
             // Cancel Sprint (Endurance): 1P solo, 7 cancel-tech fighters.
             {kDrillCancelSprint,
@@ -113,6 +114,8 @@ namespace drills {
             return 19;
         case kIconFalco:
             return 21;
+        case kIconGanondorf:
+            return 22;
         case kIconLucas:
             return 27;
         case kIconLucario:

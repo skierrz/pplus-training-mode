@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "main/cpu/cpu_settings.h"
 #include "main/gfx/draw.h"
 #include "main/gfx/text.h"
 #include "main/storage/areas.h"
@@ -23,6 +24,9 @@
 namespace tm {
 namespace menu {
 namespace osdQuick {
+    using main::DisplaySettings;
+    using main::GeneralSettings;
+    using main::OsdPresetsSettings;
     using main::OsdSettings;
     using main::Settings;
     using storage::AreaEntry;
@@ -30,97 +34,106 @@ namespace osdQuick {
     using storage::SettingsHead;
 
     enum {
+        kGeneralUsed = offsetof(GeneralSettings, reserved),
+        kDisplayUsed = sizeof(DisplaySettings),
         kOsdUsed = offsetof(OsdSettings, reserved),
+        kOsdPresetsUsed = offsetof(OsdPresetsSettings, reserved),
         kCpuTechOsdOff = offsetof(main::CpuSettings, options.techTrackerOsd),
-        kRowOffTechTracker = 0xFF,
-        kOsdGen = 1,
+        kAreaGen = 1,
         kWaitMs = 3000,
         kStickDeadZone = 40,
         kVisibleRows = 9,
         kRepeatStart = ui::style::kRepeatStart,
         kRepeatEvery = ui::style::kRepeatEvery
     };
+    TM_STATIC_ASSERT(kGeneralUsed == 15, tm_osd_quick_general_used_bytes);
     TM_STATIC_ASSERT(kOsdUsed == 30, tm_osd_quick_used_bytes);
+    TM_STATIC_ASSERT(kOsdPresetsUsed == 12, tm_osd_quick_presets_used_bytes);
 
     static const char* const kNames[2] = {"settings-a.bin", "settings-b.bin"};
     static const char* const kPresets[main::kOsdPresetCount] = {
         "Custom", "Essentials", "Movement", "Defense", "All Off", "Custom 1", "Custom 2", "Custom 3"
     };
     static const char* const kPositions[] = {"HUD", "Sides", "Top Left", "Top Right"};
+    static const char* const kWho[] = {"Off", "P1", "CPU", "Both"};
+    static const char* const kFrameMeter[] = {"Off", "P1", "P1 + CPU"};
     static const char* const kTiming[] = {"Off", "All", "L-Cancel", "Wavedash", "Act-Out"};
     static const char* const kSparkle[] = {"Off", "Perfect Wavedash", "Shorthop", "Both"};
 
-    enum RowKind { kKindChoice = 0, kKindInt = 1, kKindToggle = 2 };
+    enum RowKind { kKindChoice = 0, kKindInt = 1, kKindToggle = 2, kKindSub = 3 };
+    enum DataSrc { kSrcOsd = 0, kSrcDisplay = 1, kSrcGeneral = 2, kSrcTechOsd = 3, kSrcNone = 4 };
 
     struct QuickRow {
         const char* name;
         u8 kind;
-        u8 offset; // offsetof(OsdSettings, field), or kRowOffTechTracker for cpu.options.techTrackerOsd
+        u8 source;
+        u8 offset;
         u8 minVal;
         u8 maxVal;
         const char* const* labels;
-        const char* help;
     };
 
 #define TM_QOFF(f) static_cast<u8>(offsetof(OsdSettings, f))
-    static const QuickRow kRows[] = {
-        {"OSD Preset",          kKindChoice, TM_QOFF(preset),              0, main::kOsdPresetCount - 1,   kPresets,
-         "Apply a curated bundle of on-screen displays (OSDs)."},
-        {"OSD Position",        kKindChoice, TM_QOFF(position),            0, osd::kPositionCount - 1,     kPositions,
-         "Where OSD notifications appear on screen during matches."},
-        {"Max OSDs",            kKindInt,    TM_QOFF(maxMessages),         1, osd::kPerPlayer,             NULL,
-         "Maximum simultaneous OSD messages stacked per player."},
-        {"Overhead Timing Bar", kKindChoice, TM_QOFF(timingMeter),         0, main::kTimingMeterCount - 1, kTiming,
-         "Floating bar over fighters for L-Cancel, Wavedash, or Act-Out."},
-        {"Tech Sparkle",        kKindChoice, TM_QOFF(techSparkle),         0, main::kTechSparkleCount - 1, kSparkle,
-         "Visual sparkle cue on Frame-1 Wavedashes or crisp Shorthops."},
-        {"P+ Tech OSD",         kKindToggle, kRowOffTechTracker,           0, 1,                           NULL,
-         "Show Project+ tech readouts (RAR, DACUS, B-Reverse, CC/ASDI)."},
-        {"Wavedash",            kKindToggle, TM_QOFF(wavedash),            0, 1,                           NULL,
-         "Show Wavedash timing frame and airdodge angle."},
-        {"L-Cancel",            kKindToggle, TM_QOFF(lCancel),             0, 1,                           NULL,
-         "Show L-Cancel timing window (1-7f) and success rate."},
-        {"Ledgedash Info",      kKindToggle, TM_QOFF(ledgedashInfo),       0, 1,                           NULL,
-         "Show GALINT (invincible frames actionable onstage) after ledge."},
-        {"Act OoS Frame",       kKindToggle, TM_QOFF(actOos),              0, 1,                           NULL,
-         "Show frames taken to act Out of Shield (OoS) after blockstun."},
-        {"Shield Advantage",    kKindToggle, TM_QOFF(frameAdvantage),      0, 1,                           NULL,
-         "Show +/- frame advantage when an attack hits a shield."},
-        {"Hit Advantage",       kKindToggle, TM_QOFF(frameAdvantageOnHit), 0, 1,                           NULL,
-         "Show +/- frame advantage when an attack connects on hit."},
-        {"Advantage Tolerance", kKindInt,    TM_QOFF(advantageTolerance),  0, 5,                           NULL,
-         "Frames of slack before Shield/Hit Advantage stops measuring."},
-        {"Dashback",            kKindToggle, TM_QOFF(dashback),            0, 1,                           NULL,
-         "Report direct dashback vs slow-turn frames."},
-        {"Powershield",         kKindToggle, TM_QOFF(powershield),         0, 1,                           NULL,
-         "Show 2-frame Powershield timing and early/buffered misses."},
-        {"Act OoLag",           kKindToggle, TM_QOFF(actOoLag),            0, 1,                           NULL,
-         "Show frames waited before acting out of landing or attack lag."},
-        {"Act OoAirborne",      kKindToggle, TM_QOFF(actOoAirborne),       0, 1,                           NULL,
-         "Show first-frame aerial or special timing after leaving ground."},
-        {"Act OoHitstun",       kKindToggle, TM_QOFF(actOoHitstun),        0, 1,                           NULL,
-         "Show frames waited before acting out of hitstun or tumble."},
-        {"Jump Cancel",         kKindToggle, TM_QOFF(jumpCancel),          0, 1,                           NULL,
-         "Show jump-cancel grab and up-smash timing frames."},
-        {"Fastfall Timing",     kKindToggle, TM_QOFF(fastfall),            0, 1,                           NULL,
-         "Show how many frames after apex you triggered fastfall."},
-        {"Boost Grab / DACUS",  kKindToggle, TM_QOFF(boostGrab),           0, 1,                           NULL,
-         "Show Dash Attack Cancelled Up Smash (DACUS) and Boost Grab frames."},
-        {"SDI Inputs",          kKindToggle, TM_QOFF(sdi),                 0, 1,                           NULL,
-         "Count Smash Directional Influence (SDI) shifts during hitlag."},
-        {"Tech Lockout",        kKindToggle, TM_QOFF(lockoutTimers),       0, 1,                           NULL,
-         "Warn when a tech press lands inside the 40-frame lockout window."},
-        {"Combo Counter",       kKindToggle, TM_QOFF(comboCounter),        0, 1,                           NULL,
-         "Show true-combo hit count and total damage dealt."},
-        {"Grab Escape",         kKindToggle, TM_QOFF(grabBreakout),        0, 1,                           NULL,
-         "Show grab mash breakout speed and frames spent grabbed."},
-        {"Item Throw",          kKindToggle, TM_QOFF(itemThrow),           0, 1,                           NULL,
-         "Show item throw and glide-toss execution timing."}
+#define TM_DOFF(f) static_cast<u8>(offsetof(DisplaySettings, f))
+#define TM_GOFF(f) static_cast<u8>(offsetof(GeneralSettings, f))
+
+    // Tight 7-row Quick Setup + All OSDs sub-view (zero scrolling on main open).
+    static const QuickRow kMainRows[] = {
+        {"OSD Preset",          kKindChoice, kSrcOsd,     TM_QOFF(preset),      0, main::kOsdPresetCount - 1,   kPresets},
+        {"OSD Position",        kKindChoice, kSrcOsd,     TM_QOFF(position),    0, osd::kPositionCount - 1,     kPositions},
+        {"Input Viewer",        kKindChoice, kSrcDisplay, TM_DOFF(inputViewer), 0, 3,                           kWho},
+        {"Frame Meter",         kKindChoice, kSrcGeneral, TM_GOFF(actionLog),   0, main::kActionLogTargetCount - 1, kFrameMeter},
+        {"Hitboxes",            kKindChoice, kSrcDisplay, TM_DOFF(hitboxes),    0, 3,                           kWho},
+        {"Overhead Timing Bar", kKindChoice, kSrcOsd,     TM_QOFF(timingMeter), 0, main::kTimingMeterCount - 1, kTiming},
+        {"Tech Sparkle",        kKindChoice, kSrcOsd,     TM_QOFF(techSparkle), 0, main::kTechSparkleCount - 1, kSparkle},
+        {"All OSDs",            kKindSub,    kSrcNone,    0,                    0, 0,                           NULL}
+    };
+
+    static const QuickRow kSubRows[] = {
+        {"P+ Tech OSD",         kKindToggle, kSrcTechOsd, 0,                              0, 1,              NULL},
+        {"Wavedash",            kKindToggle, kSrcOsd,     TM_QOFF(wavedash),              0, 1,              NULL},
+        {"L-Cancel",            kKindToggle, kSrcOsd,     TM_QOFF(lCancel),               0, 1,              NULL},
+        {"Ledgedash Info",      kKindToggle, kSrcOsd,     TM_QOFF(ledgedashInfo),         0, 1,              NULL},
+        {"Act OoS Frame",       kKindToggle, kSrcOsd,     TM_QOFF(actOos),                0, 1,              NULL},
+        {"Shield Advantage",    kKindToggle, kSrcOsd,     TM_QOFF(frameAdvantage),        0, 1,              NULL},
+        {"Hit Advantage",       kKindToggle, kSrcOsd,     TM_QOFF(frameAdvantageOnHit),   0, 1,              NULL},
+        {"Advantage Tolerance", kKindInt,    kSrcOsd,     TM_QOFF(advantageTolerance),    0, 5,              NULL},
+        {"Dashback",            kKindToggle, kSrcOsd,     TM_QOFF(dashback),              0, 1,              NULL},
+        {"Powershield",         kKindToggle, kSrcOsd,     TM_QOFF(powershield),           0, 1,              NULL},
+        {"Act OoLag",           kKindToggle, kSrcOsd,     TM_QOFF(actOoLag),              0, 1,              NULL},
+        {"Act OoAirborne",      kKindToggle, kSrcOsd,     TM_QOFF(actOoAirborne),         0, 1,              NULL},
+        {"Act OoHitstun",       kKindToggle, kSrcOsd,     TM_QOFF(actOoHitstun),          0, 1,              NULL},
+        {"Jump Cancel",         kKindToggle, kSrcOsd,     TM_QOFF(jumpCancel),            0, 1,              NULL},
+        {"Fastfall Timing",     kKindToggle, kSrcOsd,     TM_QOFF(fastfall),              0, 1,              NULL},
+        {"Boost Grab / DACUS",  kKindToggle, kSrcOsd,     TM_QOFF(boostGrab),             0, 1,              NULL},
+        {"SDI Inputs",          kKindToggle, kSrcOsd,     TM_QOFF(sdi),                   0, 1,              NULL},
+        {"Tech Lockout",        kKindToggle, kSrcOsd,     TM_QOFF(lockoutTimers),         0, 1,              NULL},
+        {"Combo Counter",       kKindToggle, kSrcOsd,     TM_QOFF(comboCounter),          0, 1,              NULL},
+        {"Grab Escape",         kKindToggle, kSrcOsd,     TM_QOFF(grabBreakout),          0, 1,              NULL},
+        {"Item Throw",          kKindToggle, kSrcOsd,     TM_QOFF(itemThrow),             0, 1,              NULL},
+        {"Max OSDs",            kKindInt,    kSrcOsd,     TM_QOFF(maxMessages),           1, osd::kPerPlayer, NULL}
+    };
+
+    static const char* const kMainHelp[] = {
+        "Apply Essentials, Movement, Defense, or Custom 1-3.",
+        "Where OSD notifications appear during matches.",
+        "Live GameCube stick and button overlays.",
+        "SF6-style frame activity timeline strip.",
+        "Draw attack, grab, shield, and hurtbox bubbles.",
+        "Floating timing bar above fighters.",
+        "Visual flash on Frame-1 Wavedash or Shorthop.",
+        "Open all 22 individual OSDs, Max OSDs, and Tolerance."
     };
 #undef TM_QOFF
-    enum { kRowCount = static_cast<int>(sizeof(kRows) / sizeof(kRows[0])) };
+#undef TM_DOFF
+#undef TM_GOFF
 
-    // Matches osd_menu.cpp's 19 OsdSettings toggle offsets (bit 19 is CPU techTrackerOsd).
+    enum {
+        kMainCount = static_cast<int>(sizeof(kMainRows) / sizeof(kMainRows[0])),
+        kSubCount = static_cast<int>(sizeof(kSubRows) / sizeof(kSubRows[0]))
+    };
+
+    // Matches osd_menu.cpp::kToggleOffsets[20] (bits 0..18 in OsdSettings, bit 19 in techTrackerOsd).
     static const u8 kPresetOffsets[19] = {
         static_cast<u8>(offsetof(OsdSettings, wavedash)),
         static_cast<u8>(offsetof(OsdSettings, lCancel)),
@@ -149,8 +162,6 @@ namespace osdQuick {
         0x00000u  // All Off
     };
 
-    static u8 s_techTrackerOsd = 0;
-
     void defaultOsdSettings(OsdSettings& out)
     {
         memset(&out, 0, sizeof(out));
@@ -173,19 +184,23 @@ namespace osdQuick {
         out.techSparkle = main::kTechSparkleWavedash;
     }
 
-    static void applyPreset(OsdSettings& osd, u8 preset)
+    void defaultQuickSetupData(QuickSetupData& out)
     {
-        if (preset == main::kOsdPresetCustom || preset > main::kOsdPresetAllOff)
-        {
-            return;
-        }
-        u32 mask = kPresetMasks[preset - 1];
-        u8* raw = reinterpret_cast<u8*>(&osd);
-        for (int i = 0; i < 19; i++)
-        {
-            raw[kPresetOffsets[i]] = static_cast<u8>((mask >> i) & 1u);
-        }
-        s_techTrackerOsd = static_cast<u8>((mask >> 19) & 1u);
+        memset(&out, 0, sizeof(out));
+        out.general.moveStaling = 1;
+        out.general.ledgeHud = 1;
+        out.general.ledgeGalint = 1;
+        out.general.ledgePanel = 1;
+        out.general.ledgeMaxFrames = 50;
+        out.general.playerInfiniteShields = cpu::kShieldsUntilHit;
+        out.display.hud = 1;
+        out.display.models = 3;
+        out.display.stageModel = 1;
+        out.display.effects = 1;
+        out.display.heatmapOpacity = 60;
+        out.display.heatmapColorFrames = 5;
+        defaultOsdSettings(out.osd);
+        out.techTrackerOsd = 0;
     }
 
     static bool validAreaTable(const u8* file, u32 size, u32 tableOff, u16 count)
@@ -205,8 +220,15 @@ namespace osdQuick {
         return true;
     }
 
-    bool patchOsdAreaInFile(const u8* inFile, u32 inSize, const OsdSettings& osd, u8* outFile, u32 outCap,
-                            u32 nextSeq, u32& outSize)
+    struct AreaPatchSpec {
+        u8 id;
+        u8 generation;
+        u16 used;
+        const void* data;
+    };
+
+    static bool patchAreasInFile(const u8* inFile, u32 inSize, const AreaPatchSpec* patches, int patchCount,
+                                 s8 techTrackerOsd, u8* outFile, u32 outCap, u32 nextSeq, u32& outSize)
     {
         outSize = 0;
         if (outFile == NULL || outCap < sizeof(FileHeader) + sizeof(SettingsHead))
@@ -218,52 +240,41 @@ namespace osdQuick {
         FileHeader* oh = reinterpret_cast<FileHeader*>(outFile);
         SettingsHead* ohead = reinterpret_cast<SettingsHead*>(outFile + sizeof(FileHeader));
 
-        if (inFile == NULL || inSize == 0)
+        bool seen[16];
+        memset(seen, 0, sizeof(seen));
+        u16 inCount = 0;
+        const AreaEntry* inEntries = NULL;
+        if (inFile != NULL && inSize > 0)
         {
-            u32 room = (kOsdUsed + 3u) & ~3u;
-            u32 total = tableOff + sizeof(AreaEntry) + room;
-            if (total > outCap)
+            if (inSize < tableOff)
             {
                 return false;
             }
-            AreaEntry* e = reinterpret_cast<AreaEntry*>(outFile + tableOff);
-            e->id = storage::kAreaOsd;
-            e->generation = kOsdGen;
-            e->used = kOsdUsed;
-            e->offset = tableOff + sizeof(AreaEntry);
-            memcpy(outFile + e->offset, &osd, kOsdUsed);
-            ohead->areaCount = 1;
-            ohead->layout = main::kSettingsVersion;
-            oh->magic = storage::kSettingsMagic;
-            oh->format = storage::kSettingsFormat;
-            oh->headerSize = sizeof(FileHeader);
-            oh->size = total;
-            oh->sequence = nextSeq;
-            oh->checksum = storage::checksum(outFile + storage::kChecksumFrom, total - storage::kChecksumFrom);
-            outSize = total;
-            return true;
-        }
-
-        if (inSize < tableOff)
-        {
-            return false;
-        }
-        const SettingsHead* ihead = reinterpret_cast<const SettingsHead*>(inFile + sizeof(FileHeader));
-        if (!validAreaTable(inFile, inSize, tableOff, ihead->areaCount))
-        {
-            return false;
-        }
-        const AreaEntry* inEntries = reinterpret_cast<const AreaEntry*>(inFile + tableOff);
-        bool hadOsd = false;
-        for (u16 i = 0; i < ihead->areaCount; i++)
-        {
-            if (inEntries[i].id == storage::kAreaOsd)
+            const SettingsHead* ihead = reinterpret_cast<const SettingsHead*>(inFile + sizeof(FileHeader));
+            if (!validAreaTable(inFile, inSize, tableOff, ihead->areaCount))
             {
-                hadOsd = true;
-                break;
+                return false;
+            }
+            inCount = ihead->areaCount;
+            inEntries = reinterpret_cast<const AreaEntry*>(inFile + tableOff);
+            for (u16 i = 0; i < inCount; i++)
+            {
+                for (int p = 0; p < patchCount; p++)
+                {
+                    if (inEntries[i].id == patches[p].id)
+                    {
+                        seen[p] = true;
+                    }
+                }
             }
         }
-        u16 outCount = static_cast<u16>(ihead->areaCount + (hadOsd ? 0u : 1u));
+
+        u16 extra = 0;
+        for (int p = 0; p < patchCount; p++)
+        {
+            if (!seen[p]) extra++;
+        }
+        u16 outCount = static_cast<u16>(inCount + extra);
         if (outCount > storage::kMaxAreas)
         {
             return false;
@@ -275,32 +286,35 @@ namespace osdQuick {
         }
         AreaEntry* outEntries = reinterpret_cast<AreaEntry*>(outFile + tableOff);
         u16 n = 0;
-        for (u16 i = 0; i < ihead->areaCount; i++)
+        for (u16 i = 0; i < inCount; i++)
         {
             const AreaEntry& src = inEntries[i];
-            if (src.id == storage::kAreaOsd)
+            int match = -1;
+            for (int p = 0; p < patchCount; p++)
             {
-                u32 room = (kOsdUsed + 3u) & ~3u;
-                if (at + room > outCap)
+                if (src.id == patches[p].id)
                 {
-                    return false;
+                    match = p;
+                    break;
                 }
-                outEntries[n].id = storage::kAreaOsd;
-                outEntries[n].generation = kOsdGen;
-                outEntries[n].used = kOsdUsed;
+            }
+            if (match >= 0)
+            {
+                const AreaPatchSpec& ps = patches[match];
+                u32 room = (static_cast<u32>(ps.used) + 3u) & ~3u;
+                if (at + room > outCap) return false;
+                outEntries[n].id = ps.id;
+                outEntries[n].generation = ps.generation;
+                outEntries[n].used = ps.used;
                 outEntries[n].offset = at;
-                memcpy(outFile + at, &osd, kOsdUsed);
+                memcpy(outFile + at, ps.data, ps.used);
                 at += room;
                 n++;
             }
             else
             {
-                // Copy every other area verbatim: zero clobber of the other 15 areas.
                 u32 room = (static_cast<u32>(src.used) + 3u) & ~3u;
-                if (at + room > outCap)
-                {
-                    return false;
-                }
+                if (at + room > outCap) return false;
                 outEntries[n].id = src.id;
                 outEntries[n].generation = src.generation;
                 outEntries[n].used = src.used;
@@ -309,22 +323,26 @@ namespace osdQuick {
                 {
                     memcpy(outFile + at, inFile + src.offset, src.used);
                 }
+                if (techTrackerOsd >= 0 && src.id == storage::kAreaCpu && src.generation == 1
+                    && src.used > kCpuTechOsdOff)
+                {
+                    outFile[at + kCpuTechOsdOff] = static_cast<u8>(techTrackerOsd ? 1u : 0u);
+                }
                 at += room;
                 n++;
             }
         }
-        if (!hadOsd)
+        for (int p = 0; p < patchCount; p++)
         {
-            u32 room = (kOsdUsed + 3u) & ~3u;
-            if (at + room > outCap)
-            {
-                return false;
-            }
-            outEntries[n].id = storage::kAreaOsd;
-            outEntries[n].generation = kOsdGen;
-            outEntries[n].used = kOsdUsed;
+            if (seen[p]) continue;
+            const AreaPatchSpec& ps = patches[p];
+            u32 room = (static_cast<u32>(ps.used) + 3u) & ~3u;
+            if (at + room > outCap) return false;
+            outEntries[n].id = ps.id;
+            outEntries[n].generation = ps.generation;
+            outEntries[n].used = ps.used;
             outEntries[n].offset = at;
-            memcpy(outFile + at, &osd, kOsdUsed);
+            memcpy(outFile + at, ps.data, ps.used);
             at += room;
             n++;
         }
@@ -340,31 +358,22 @@ namespace osdQuick {
         return true;
     }
 
-    static bool patchOsdAndCpuInFile(const u8* inFile, u32 inSize, const OsdSettings& osd, s8 techTrackerOsd,
-                                     u8* outFile, u32 outCap, u32 nextSeq, u32& outSize)
+    bool patchQuickSetupAreasInFile(const u8* inFile, u32 inSize, const QuickSetupData& data, u8* outFile,
+                                    u32 outCap, u32 nextSeq, u32& outSize)
     {
-        if (!patchOsdAreaInFile(inFile, inSize, osd, outFile, outCap, nextSeq, outSize))
-        {
-            return false;
-        }
-        if (techTrackerOsd >= 0 && outSize >= sizeof(FileHeader) + sizeof(SettingsHead))
-        {
-            SettingsHead* ohead = reinterpret_cast<SettingsHead*>(outFile + sizeof(FileHeader));
-            u32 tableOff = sizeof(FileHeader) + sizeof(SettingsHead);
-            AreaEntry* entries = reinterpret_cast<AreaEntry*>(outFile + tableOff);
-            for (u16 i = 0; i < ohead->areaCount; i++)
-            {
-                if (entries[i].id == storage::kAreaCpu && entries[i].generation == 1
-                    && entries[i].used > kCpuTechOsdOff)
-                {
-                    outFile[entries[i].offset + kCpuTechOsdOff] = static_cast<u8>(techTrackerOsd ? 1u : 0u);
-                    FileHeader* oh = reinterpret_cast<FileHeader*>(outFile);
-                    oh->checksum = storage::checksum(outFile + storage::kChecksumFrom, outSize - storage::kChecksumFrom);
-                    break;
-                }
-            }
-        }
-        return true;
+        const AreaPatchSpec patches[3] = {
+            {storage::kAreaGeneral, kAreaGen, kGeneralUsed, &data.general},
+            {storage::kAreaDisplay, kAreaGen, kDisplayUsed, &data.display},
+            {storage::kAreaOsd, kAreaGen, kOsdUsed, &data.osd}
+        };
+        return patchAreasInFile(inFile, inSize, patches, 3, data.techTrackerOsd, outFile, outCap, nextSeq, outSize);
+    }
+
+    bool patchOsdAreaInFile(const u8* inFile, u32 inSize, const OsdSettings& osd, u8* outFile, u32 outCap,
+                            u32 nextSeq, u32& outSize)
+    {
+        const AreaPatchSpec patch = {storage::kAreaOsd, kAreaGen, kOsdUsed, &osd};
+        return patchAreasInFile(inFile, inSize, &patch, 1, -1, outFile, outCap, nextSeq, outSize);
     }
 
     // ---- Runtime state (menu module) ----
@@ -377,8 +386,6 @@ namespace osdQuick {
 
     static storage::Job s_job;
     static u8 s_cardBuf[storage::kSettingsFileCap] __attribute__((aligned(32)));
-    // Heap-allocated in Heaps::Network so module unload after a kBusy timeout
-    // never frees active SDIO DMA memory.
     static u8* s_writeBuf = NULL;
     static u32 s_cardSize = 0;
     static u32 s_cardSeq = 0;
@@ -394,14 +401,17 @@ namespace osdQuick {
     static u32 s_pendingSize = 0;
 
     static bool s_open = false;
+    static bool s_subView = false;
     static bool s_dirty = false;
     static u32 s_type = gfPadType::GCC;
-    static int s_cursor = 0;
-    static int s_scroll = 0;
+    static int s_cursor[2] = {0, 0};
+    static int s_scroll[2] = {0, 0};
     static Repeat s_rep[4];
-    static OsdSettings s_osd;
+    static QuickSetupData s_data;
+    static OsdPresetsSettings s_osdPresets;
     static const char* s_statusNote = NULL;
 
+    // Strict settings block validation guard (shared/block_layout.h).
     static Settings* liveSettings()
     {
         u8* block = services().settings();
@@ -417,20 +427,44 @@ namespace osdQuick {
         return NULL;
     }
 
+    static void applyPresetMask(u8 preset)
+    {
+        if (preset == main::kOsdPresetCustom || preset >= main::kOsdPresetCount)
+        {
+            return;
+        }
+        u32 mask = 0u;
+        if (preset >= main::kOsdPresetCustom1)
+        {
+            u32 slot = static_cast<u32>(preset - main::kOsdPresetCustom1);
+            if (slot >= main::kOsdCustomSlotCount) return;
+            u32 saved = s_osdPresets.customMask[slot];
+            if ((saved & main::kOsdCustomSavedBit) == 0u)
+            {
+                return;
+            }
+            mask = saved & 0xFFFFFu;
+        }
+        else
+        {
+            mask = kPresetMasks[preset - 1];
+        }
+        u8* raw = reinterpret_cast<u8*>(&s_data.osd);
+        for (int i = 0; i < 19; i++)
+        {
+            raw[kPresetOffsets[i]] = static_cast<u8>((mask >> i) & 1u);
+        }
+        s_data.techTrackerOsd = static_cast<s8>((mask >> 19) & 1u);
+    }
+
     static int readCardSlot(int slot, u32& seq, u32& fileSize, u8* dst)
     {
         int status = 0;
         seq = 0;
         fileSize = 0;
-        if (s_jobStale || s_job.busy())
-        {
-            return storage::kMissing;
-        }
+        if (s_jobStale || s_job.busy()) return storage::kMissing;
         u8* buf = storage::allocReadBuffer(storage::kSettingsFileCap);
-        if (buf == NULL)
-        {
-            return storage::kNoMemory;
-        }
+        if (buf == NULL) return storage::kNoMemory;
         if (!s_job.read(kNames[slot], buf, sizeof(FileHeader)))
         {
             storage::freeReadBuffer(buf, storage::kOk, 0);
@@ -439,10 +473,7 @@ namespace osdQuick {
         int r = s_job.wait(kWaitMs, status);
         if (r != storage::kOk)
         {
-            if (r == storage::kBusy)
-            {
-                s_jobStale = true;
-            }
+            if (r == storage::kBusy) s_jobStale = true;
             storage::freeReadBuffer(buf, r, status);
             return r == storage::kBusy ? storage::kMissing : r;
         }
@@ -468,10 +499,7 @@ namespace osdQuick {
         r = s_job.wait(kWaitMs, status);
         if (r != storage::kOk)
         {
-            if (r == storage::kBusy)
-            {
-                s_jobStale = true;
-            }
+            if (r == storage::kBusy) s_jobStale = true;
             storage::freeReadBuffer(buf, r, status);
             return (r == storage::kMissing || r == storage::kBusy) ? storage::kCorrupt : r;
         }
@@ -513,10 +541,7 @@ namespace osdQuick {
             r = s_job.write(kNames[s_pendingSlot], s_writeBuf, s_pendingSize) ? s_job.wait(kWaitMs, status)
                                                                               : storage::kBusy;
         }
-        if (r == storage::kBusy)
-        {
-            s_jobStale = true;
-        }
+        if (r == storage::kBusy) s_jobStale = true;
         if (r == storage::kOk && s_writeBuf != NULL)
         {
             s_cardSlot = s_pendingSlot;
@@ -527,8 +552,6 @@ namespace osdQuick {
             storage::State* st = storage::blockState(services().settings());
             if (st != NULL && st->magic == storage::kStateMagic)
             {
-                // Keep alternating slot/sequence in sync; st->baseline is a full-settings
-                // checksum owned by settings_file.cpp (recomputed on next match save).
                 st->slot = s_cardSlot;
                 st->sequence = s_cardSeq;
             }
@@ -541,8 +564,8 @@ namespace osdQuick {
     static void loadFromCardAndLive()
     {
         finishPendingWrite();
-        defaultOsdSettings(s_osd);
-        s_techTrackerOsd = 0;
+        defaultQuickSetupData(s_data);
+        memset(&s_osdPresets, 0, sizeof(s_osdPresets));
         s_hasCard = false;
         s_cardSize = 0;
         s_cardSeq = 0;
@@ -599,46 +622,65 @@ namespace osdQuick {
                 const AreaEntry* entries = reinterpret_cast<const AreaEntry*>(s_cardBuf + tableOff);
                 for (u16 i = 0; i < head->areaCount; i++)
                 {
-                    if (entries[i].id == storage::kAreaOsd && entries[i].generation == kOsdGen)
+                    const AreaEntry& e = entries[i];
+                    if (e.generation != kAreaGen) continue;
+                    if (e.id == storage::kAreaGeneral)
                     {
-                        u32 n = entries[i].used < kOsdUsed ? entries[i].used : kOsdUsed;
-                        memcpy(&s_osd, s_cardBuf + entries[i].offset, n);
+                        u32 n = e.used < kGeneralUsed ? e.used : kGeneralUsed;
+                        memcpy(&s_data.general, s_cardBuf + e.offset, n);
                     }
-                    else if (entries[i].id == storage::kAreaCpu && entries[i].generation == 1
-                             && entries[i].used > kCpuTechOsdOff)
+                    else if (e.id == storage::kAreaDisplay)
                     {
-                        s_techTrackerOsd = s_cardBuf[entries[i].offset + kCpuTechOsdOff] != 0 ? 1u : 0u;
+                        u32 n = e.used < kDisplayUsed ? e.used : kDisplayUsed;
+                        memcpy(&s_data.display, s_cardBuf + e.offset, n);
+                    }
+                    else if (e.id == storage::kAreaOsd)
+                    {
+                        u32 n = e.used < kOsdUsed ? e.used : kOsdUsed;
+                        memcpy(&s_data.osd, s_cardBuf + e.offset, n);
+                    }
+                    else if (e.id == storage::kAreaOsdPresets)
+                    {
+                        u32 n = e.used < kOsdPresetsUsed ? e.used : kOsdPresetsUsed;
+                        memcpy(&s_osdPresets, s_cardBuf + e.offset, n);
+                    }
+                    else if (e.id == storage::kAreaCpu && e.used > kCpuTechOsdOff)
+                    {
+                        s_data.techTrackerOsd = s_cardBuf[e.offset + kCpuTechOsdOff] != 0 ? 1 : 0;
                     }
                 }
             }
         }
 
-        // Live Settings block wins whenever a match has already initialized it.
         Settings* live = liveSettings();
         if (live != NULL)
         {
-            memcpy(&s_osd, &live->osd, sizeof(OsdSettings));
-            s_techTrackerOsd = live->cpu.options.techTrackerOsd != 0 ? 1u : 0u;
+            s_data.general = live->general;
+            s_data.display = live->display;
+            s_data.osd = live->osd;
+            s_osdPresets = live->osdPresets;
+            s_data.techTrackerOsd = live->cpu.options.techTrackerOsd != 0 ? 1 : 0;
+        }
+    }
+
+    static void pushLive()
+    {
+        Settings* live = liveSettings();
+        if (live != NULL)
+        {
+            live->general = s_data.general;
+            live->display = s_data.display;
+            live->osd = s_data.osd;
+            live->cpu.options.techTrackerOsd = s_data.techTrackerOsd ? 1 : 0;
         }
     }
 
     static void flushChanges()
     {
-        if (!s_dirty)
-        {
-            return;
-        }
+        if (!s_dirty) return;
         s_dirty = false;
+        pushLive();
 
-        // 1. Update live Settings block immediately if initialized.
-        Settings* live = liveSettings();
-        if (live != NULL)
-        {
-            memcpy(&live->osd, &s_osd, sizeof(OsdSettings));
-            live->cpu.options.techTrackerOsd = s_techTrackerOsd;
-        }
-
-        // 2. Patch kAreaOsd in-place on SD (never clobbering v1 pending upgrade or newer save).
         if (s_newerOnCard || s_olderLayoutOnCard || s_phase != kIdle || s_jobStale || s_job.busy())
         {
             return;
@@ -658,9 +700,8 @@ namespace osdQuick {
             TM_LOG("osdquick: not saved: %s\n", storage::resultText(storage::kNoMemory));
             return;
         }
-        if (!patchOsdAndCpuInFile(s_hasCard ? s_cardBuf : NULL, s_hasCard ? s_cardSize : 0, s_osd,
-                                  static_cast<s8>(s_techTrackerOsd), s_writeBuf, storage::kSettingsFileCap, nextSeq,
-                                  outSz))
+        if (!patchQuickSetupAreasInFile(s_hasCard ? s_cardBuf : NULL, s_hasCard ? s_cardSize : 0, s_data,
+                                        s_writeBuf, storage::kSettingsFileCap, nextSeq, outSz))
         {
             storage::freeWriteBuffer(s_writeBuf, storage::kOk);
             TM_LOG("osdquick: patch failed\n");
@@ -679,97 +720,97 @@ namespace osdQuick {
 
     static int repeat(Repeat& r, bool down)
     {
-        if (!down)
-        {
-            r.held = 0;
-            return 0;
-        }
+        if (!down) { r.held = 0; return 0; }
         r.held++;
-        if (r.held == 1)
-        {
-            r.next = kRepeatStart + 1;
-            return 1;
-        }
-        if (r.held < r.next)
-        {
-            return 0;
-        }
+        if (r.held == 1) { r.next = kRepeatStart + 1; return 1; }
+        if (r.held < r.next) return 0;
         r.next = r.held + kRepeatEvery;
         return 1;
     }
 
-    static void keepVisible()
+    static const QuickRow* activeRows(int& outCount)
     {
-        if (s_cursor < s_scroll)
+        if (s_subView)
         {
-            s_scroll = s_cursor;
+            outCount = kSubCount;
+            return kSubRows;
         }
-        if (s_cursor >= s_scroll + kVisibleRows)
-        {
-            s_scroll = s_cursor - kVisibleRows + 1;
-        }
+        outCount = kMainCount;
+        return kMainRows;
     }
 
-    static bool rowEnabled(int idx)
+    static void keepVisible(int view)
     {
-        if (kRows[idx].offset == offsetof(OsdSettings, advantageTolerance))
+        if (s_cursor[view] < s_scroll[view]) s_scroll[view] = s_cursor[view];
+        if (s_cursor[view] >= s_scroll[view] + kVisibleRows) s_scroll[view] = s_cursor[view] - kVisibleRows + 1;
+    }
+
+    static bool rowEnabled(const QuickRow& r)
+    {
+        if (r.source == kSrcOsd && r.offset == offsetof(OsdSettings, advantageTolerance))
         {
-            return s_osd.frameAdvantage != 0 || s_osd.frameAdvantageOnHit != 0;
+            return s_data.osd.frameAdvantage != 0 || s_data.osd.frameAdvantageOnHit != 0;
         }
         return true;
     }
 
     static u8 readRowValue(const QuickRow& r)
     {
-        return r.offset == kRowOffTechTracker ? s_techTrackerOsd : reinterpret_cast<const u8*>(&s_osd)[r.offset];
+        switch (r.source)
+        {
+        case kSrcOsd: return reinterpret_cast<const u8*>(&s_data.osd)[r.offset];
+        case kSrcDisplay: return reinterpret_cast<const u8*>(&s_data.display)[r.offset];
+        case kSrcGeneral: return reinterpret_cast<const u8*>(&s_data.general)[r.offset];
+        case kSrcTechOsd: return s_data.techTrackerOsd ? 1 : 0;
+        default: return 0;
+        }
     }
 
     static void writeRowValue(const QuickRow& r, u8 v)
     {
-        if (r.offset == kRowOffTechTracker)
+        switch (r.source)
         {
-            s_techTrackerOsd = v;
+        case kSrcOsd: reinterpret_cast<u8*>(&s_data.osd)[r.offset] = v; break;
+        case kSrcDisplay: reinterpret_cast<u8*>(&s_data.display)[r.offset] = v; break;
+        case kSrcGeneral: reinterpret_cast<u8*>(&s_data.general)[r.offset] = v; break;
+        case kSrcTechOsd: s_data.techTrackerOsd = v ? 1 : 0; break;
+        default: break;
         }
-        else
+    }
+
+    static int activeIndividualOsdCount()
+    {
+        int n = s_data.techTrackerOsd ? 1 : 0;
+        const u8* raw = reinterpret_cast<const u8*>(&s_data.osd);
+        for (int i = 0; i < 19; i++)
         {
-            reinterpret_cast<u8*>(&s_osd)[r.offset] = v;
+            if (raw[kPresetOffsets[i]] != 0) n++;
         }
+        return n;
     }
 
     static bool quickRowHighlighted(const QuickRow& r, u8 v)
     {
-        if (r.kind == kKindToggle || r.offset == offsetof(OsdSettings, timingMeter)
-            || r.offset == offsetof(OsdSettings, techSparkle))
+        if (r.kind == kKindSub) return false;
+        if (r.kind == kKindToggle) return v != 0;
+        if (r.source == kSrcOsd)
         {
-            return v != 0;
-        }
-        if (r.offset == offsetof(OsdSettings, preset))
-        {
-            return v != main::kOsdPresetEssentials;
-        }
-        if (r.offset == offsetof(OsdSettings, position))
-        {
-            return v != osd::kPositionSides;
-        }
-        if (r.offset == offsetof(OsdSettings, maxMessages))
-        {
-            return v != 4;
-        }
-        if (r.offset == offsetof(OsdSettings, advantageTolerance))
-        {
-            return v != 1;
+            if (r.offset == offsetof(OsdSettings, preset)) return v != main::kOsdPresetEssentials;
+            if (r.offset == offsetof(OsdSettings, position)) return v != osd::kPositionSides;
+            if (r.offset == offsetof(OsdSettings, maxMessages)) return v != 4;
+            if (r.offset == offsetof(OsdSettings, advantageTolerance)) return v != 1;
         }
         return v != 0;
     }
 
-    static void adjustRow(int idx, int delta)
+    static void adjustRow(const QuickRow& r, int delta)
     {
-        if (s_newerOnCard || s_olderLayoutOnCard || !rowEnabled(idx))
+        if (r.kind == kKindSub) return;
+        if (s_newerOnCard || s_olderLayoutOnCard || !rowEnabled(r))
         {
             sound(game::kSoundError);
             return;
         }
-        const QuickRow& r = kRows[idx];
         int cur = readRowValue(r);
         int next = cur;
         if (r.kind == kKindToggle)
@@ -779,35 +820,20 @@ namespace osdQuick {
         else
         {
             next = cur + delta;
-            if (next < r.minVal)
-            {
-                next = r.minVal;
-            }
-            if (next > r.maxVal)
-            {
-                next = r.maxVal;
-            }
+            if (next < r.minVal) next = r.minVal;
+            if (next > r.maxVal) next = r.maxVal;
         }
-        if (next == cur)
-        {
-            return;
-        }
+        if (next == cur) return;
         writeRowValue(r, static_cast<u8>(next));
-        if (r.offset == offsetof(OsdSettings, preset))
+        if (r.source == kSrcOsd && r.offset == offsetof(OsdSettings, preset))
         {
-            applyPreset(s_osd, static_cast<u8>(next));
+            applyPresetMask(static_cast<u8>(next));
         }
         else if (r.kind == kKindToggle)
         {
-            s_osd.preset = main::kOsdPresetCustom;
+            s_data.osd.preset = main::kOsdPresetCustom;
         }
-        // Apply immediately to live Settings block too.
-        Settings* live = liveSettings();
-        if (live != NULL)
-        {
-            memcpy(&live->osd, &s_osd, sizeof(OsdSettings));
-            live->cpu.options.techTrackerOsd = s_techTrackerOsd;
-        }
+        pushLive();
         s_dirty = true;
         sound(game::kSoundMove);
     }
@@ -817,11 +843,12 @@ namespace osdQuick {
     void attach()
     {
         s_open = false;
+        s_subView = false;
         s_dirty = false;
         s_phase = kIdle;
         s_jobStale = s_job.busy();
-        s_cursor = 0;
-        s_scroll = 0;
+        s_cursor[0] = s_cursor[1] = 0;
+        s_scroll[0] = s_scroll[1] = 0;
         memset(s_rep, 0, sizeof(s_rep));
         s_statusNote = NULL;
         ui::style::modalAnimReset(s_anim);
@@ -832,16 +859,18 @@ namespace osdQuick {
         flushChanges();
         finishPendingWrite();
         s_open = false;
+        s_subView = false;
     }
 
     void open(int port, u32 controllerType)
     {
         loadFromCardAndLive();
         s_open = true;
+        s_subView = false;
         s_dirty = false;
         s_type = controllerType;
-        s_cursor = 0;
-        s_scroll = 0;
+        s_cursor[0] = s_cursor[1] = 0;
+        s_scroll[0] = s_scroll[1] = 0;
         memset(s_rep, 0, sizeof(s_rep));
         ui::style::modalAnimOpen(s_anim);
         gfx::forgetWidths();
@@ -864,55 +893,75 @@ namespace osdQuick {
 
     void step(int, const Input& in)
     {
-        if (!s_open)
-        {
-            return;
-        }
+        if (!s_open) return;
         s_type = in.type;
         const game::PadMap& map = game::padMap(in.type);
+        int view = s_subView ? 1 : 0;
+        int count = 0;
+        const QuickRow* rows = activeRows(count);
+
         bool up = (in.held & map.up) || in.stickY > kStickDeadZone;
         bool down = (in.held & map.down) || in.stickY < -kStickDeadZone;
         bool left = (in.held & game::kPadDLeft) || in.stickX < -kStickDeadZone;
         bool right = (in.held & game::kPadDRight) || in.stickX > kStickDeadZone;
-        if (repeat(s_rep[0], up && !down) && s_cursor > 0)
+        if (repeat(s_rep[0], up && !down) && s_cursor[view] > 0)
         {
-            s_cursor--;
-            keepVisible();
+            s_cursor[view]--;
+            keepVisible(view);
             sound(game::kSoundMove);
         }
-        if (repeat(s_rep[1], down && !up) && s_cursor + 1 < kRowCount)
+        if (repeat(s_rep[1], down && !up) && s_cursor[view] + 1 < count)
         {
-            s_cursor++;
-            keepVisible();
+            s_cursor[view]++;
+            keepVisible(view);
             sound(game::kSoundMove);
         }
+        const QuickRow& curRow = rows[s_cursor[view]];
         if (repeat(s_rep[2], left && !right))
         {
-            adjustRow(s_cursor, -1);
+            adjustRow(curRow, -1);
         }
         if (repeat(s_rep[3], right && !left))
         {
-            adjustRow(s_cursor, 1);
+            adjustRow(curRow, 1);
         }
         if ((in.pressed & map.confirm) != 0)
         {
-            if (kRows[s_cursor].kind == kKindToggle)
+            if (curRow.kind == kKindSub)
             {
-                adjustRow(s_cursor, 1);
+                s_subView = true;
+                s_cursor[1] = 0;
+                s_scroll[1] = 0;
+                s_anim.hasCursor = 0;
+                gfx::forgetWidths();
+                sound(game::kSoundConfirm);
+                return;
+            }
+            if (curRow.kind == kKindToggle)
+            {
+                adjustRow(curRow, 1);
             }
             else
             {
-                int cur = readRowValue(kRows[s_cursor]);
-                int next = cur >= kRows[s_cursor].maxVal ? kRows[s_cursor].minVal : cur + 1;
-                adjustRow(s_cursor, next - cur);
+                int cur = readRowValue(curRow);
+                int next = cur >= curRow.maxVal ? curRow.minVal : cur + 1;
+                adjustRow(curRow, next - cur);
             }
             return;
         }
         if ((in.pressed & map.back) != 0)
         {
+            if (s_subView)
+            {
+                s_subView = false;
+                s_anim.hasCursor = 0;
+                gfx::forgetWidths();
+                sound(game::kSoundBack);
+                return;
+            }
             flushChanges();
             s_open = false;
-            sound(game::kSoundMove); // internal sub-screen return to Boot Menu
+            sound(game::kSoundMove);
             TM_LOG("osdquick: closed\n");
         }
     }
@@ -923,16 +972,10 @@ namespace osdQuick {
         int status = 0;
         if (s_jobStale)
         {
-            if (s_job.poll(result, status))
-            {
-                s_jobStale = false;
-            }
+            if (s_job.poll(result, status)) s_jobStale = false;
             return;
         }
-        if (s_phase == kIdle || !s_job.poll(result, status))
-        {
-            return;
-        }
+        if (s_phase == kIdle || !s_job.poll(result, status)) return;
         if (s_phase == kFolder)
         {
             s_phase = kWrite;
@@ -954,8 +997,6 @@ namespace osdQuick {
             storage::State* st = storage::blockState(services().settings());
             if (st != NULL && st->magic == storage::kStateMagic)
             {
-                // Keep alternating slot/sequence in sync; st->baseline is a full-settings
-                // checksum owned by settings_file.cpp (recomputed on next match save).
                 st->slot = s_cardSlot;
                 st->sequence = s_cardSeq;
             }
@@ -972,15 +1013,11 @@ namespace osdQuick {
     {
         using namespace ui::style;
         float rowScale = scaleForCap(kLabRowCap);
-        if (gfx::lineHeight(rowScale) <= 0.0f)
-        {
-            return;
-        }
+        if (gfx::lineHeight(rowScale) <= 0.0f) return;
 
         float alpha = 1.0f;
         float dy = modalAnimStep(s_anim, alpha);
 
-        // Smoked-charcoal v1 Direction A modal panel (5% CRT safe, >= 2px scanlines).
         static const ModalFrame kFrame = {
             56.0f, 584.0f, 34.0f, 446.0f, 71.0f, 379.0f, 407.0f, 326.0f, kLabModalBackdrop
         };
@@ -991,7 +1028,7 @@ namespace osdQuick {
         const float bodyTop = kFrame.hdrBot + dy + kFibHair;
         const float descTop = kFrame.descTop + dy;
         const float footTop = kFrame.footTop + dy;
-        drawModalFrame(kFrame, "Quick Overlays", dy, alpha);
+        drawModalFrame(kFrame, s_subView ? "All OSDs" : "Quick Setup", dy, alpha);
 
         float hdrMid = (inTop + kFrame.hdrBot + dy) * 0.5f;
         const char* sub = s_statusNote != NULL ? s_statusNote : "Saves to SD on exit";
@@ -1002,10 +1039,15 @@ namespace osdQuick {
         drawFitText(cx(inR43 - kFibPad) - subDrawW, textYForCap(hdrMid - kTypeMeta * 0.5f, subScale), sub,
                     s_statusNote != NULL ? kLabFocusGold : kLabMutedText, subScale, subMax);
 
-        // 9 visible slanted rows matching menu.cpp (Solo-Gold focused / dark-slate unselected).
+        int view = s_subView ? 1 : 0;
+        int rowCount = 0;
+        const QuickRow* rows = activeRows(rowCount);
+        int cursor = s_cursor[view];
+        int scroll = s_scroll[view];
+
         const float rowH = 25.0f;
-        const float rowPitch = rowH + kFibTight; // 30 px (5 px = F5 gap)
-        const float rowTop = bodyTop + 20.0f;    // centers 9 rows (265 px) inside 73..379
+        const float rowPitch = rowH + kFibTight;
+        const float rowTop = bodyTop + 20.0f;
         const float hlLeft43 = inL43 + kFibGap;
         const float sbX43 = inR43 - kFibGap - kFibGap;
         const float hlRight43 = sbX43 - kFibTight;
@@ -1017,33 +1059,37 @@ namespace osdQuick {
         const float valMaxW = w(132.0f);
         float capOff = (rowH - kLabRowCap) * 0.5f;
 
-        for (int r = 0; r < kVisibleRows && s_scroll + r < kRowCount; r++)
+        for (int r = 0; r < kVisibleRows && scroll + r < rowCount; r++)
         {
             float y = rowTop + r * rowPitch;
             drawSlantBar(hlLeft43, hlRight43, y, rowH, false, kLabRowSlateTop, kLabRowSlateBot, kLabRowSlateEdge);
         }
-        if (s_cursor >= s_scroll && s_cursor < s_scroll + kVisibleRows)
+        if (cursor >= scroll && cursor < scroll + kVisibleRows)
         {
-            float targetY = (kFrame.hdrBot + kFibHair + 20.0f) + (s_cursor - s_scroll) * rowPitch;
+            float targetY = (kFrame.hdrBot + kFibHair + 20.0f) + (cursor - scroll) * rowPitch;
             float barY = modalAnimCursor(s_anim, targetY) + dy;
-            drawGoldBar(hlLeft43, hlRight43, barY, rowH, 8.5f, false, pillLeft43 + 4.5f);
+            const QuickRow& selRow = rows[cursor];
+            float stripeR = selRow.kind == kKindSub ? (hlRight43 - 18.0f) : (pillLeft43 + 4.5f);
+            drawGoldBar(hlLeft43, hlRight43, barY, rowH, 8.5f, false, stripeR);
         }
 
-        for (int r = 0; r < kVisibleRows && s_scroll + r < kRowCount; r++)
+        for (int r = 0; r < kVisibleRows && scroll + r < rowCount; r++)
         {
-            int idx = s_scroll + r;
-            const QuickRow& row = kRows[idx];
+            int idx = scroll + r;
+            const QuickRow& row = rows[idx];
             float y = rowTop + r * rowPitch;
-            bool sel = idx == s_cursor;
-            bool on = rowEnabled(idx);
+            bool sel = idx == cursor;
+            bool on = rowEnabled(row);
 
             u8 v = readRowValue(row);
             bool isHi = quickRowHighlighted(row, v);
-            drawValuePill(pillLeft43, pillRight43, y, rowH, isHi, on, sel);
-
-            if (sel && on)
+            if (row.kind != kKindSub)
             {
-                drawValueArrows(pillLeft43, pillRight43, y, rowH, isHi ? kLabFocusGold : kLabGoldInk);
+                drawValuePill(pillLeft43, pillRight43, y, rowH, isHi, on, sel);
+                if (sel && on)
+                {
+                    drawValueArrows(pillLeft43, pillRight43, y, rowH, isHi ? kLabFocusGold : kLabGoldInk);
+                }
             }
 
             float ty = textYForCap(y + capOff, rowScale);
@@ -1052,13 +1098,21 @@ namespace osdQuick {
 
             char buf[24];
             const char* valTxt = buf;
+            if (row.kind == kKindSub)
+            {
+                int cnt = activeIndividualOsdCount();
+                snprintf(buf, sizeof(buf), cnt > 0 ? "%d Active  >" : "All Off  >", cnt);
+                gfx::Rgba valCol = sel ? kLabGoldInk : kLabMutedText;
+                drawFitText(pillCenter, ty, valTxt, valCol, rowScale, valMaxW, true);
+                continue;
+            }
             if (row.kind == kKindToggle)
             {
                 valTxt = v != 0 ? "On" : "Off";
             }
             else if (row.kind == kKindInt)
             {
-                snprintf(buf, sizeof(buf), row.offset == offsetof(OsdSettings, advantageTolerance) ? "%uf" : "%u",
+                snprintf(buf, sizeof(buf), (row.source == kSrcOsd && row.offset == offsetof(OsdSettings, advantageTolerance)) ? "%uf" : "%u",
                          static_cast<unsigned>(v));
             }
             else
@@ -1069,26 +1123,24 @@ namespace osdQuick {
             drawFitText(pillCenter, ty, valTxt, valCol, rowScale, valMaxW, true);
         }
 
-        // Scrollbar.
-        drawScrollBarAt(sbX43, rowTop, (kVisibleRows - 1) * rowPitch + rowH, kRowCount, s_scroll, kVisibleRows,
+        drawScrollBarAt(sbX43, rowTop, (kVisibleRows - 1) * rowPitch + rowH, rowCount, scroll, kVisibleRows,
                         kLabDivider, kLabTealTop, kLabTealBot);
 
-        // Per-row 1-line help description bar above the footer.
-        const char* help = (s_cursor >= 0 && s_cursor < kRowCount && kRows[s_cursor].help != NULL)
-                               ? kRows[s_cursor].help
-                               : "Use D-Pad or Stick to toggle or cycle overlays.";
+        const char* help = (!s_subView && cursor >= 0 && cursor < kMainCount)
+                               ? kMainHelp[cursor]
+                               : "Toggle individual OSDs, Max OSDs, or Tolerance.";
         float hScale = scaleForCap(kTypeMeta);
         float hy = textYForCap(descTop + kFibHair + (footTop - descTop - kFibHair - kTypeMeta) * 0.5f, hScale);
         drawFitText(cx(inL43 + kFibPad), hy, help, kLabDescText, hScale, w(inR43 - inL43 - 2.0f * kFibPad));
 
-        // Glossy Brawl footer badges.
         const char* okGlyph = s_type == gfPadType::WIIMOTE ? "2" : "A";
         const char* backGlyph = s_type == gfPadType::WIIMOTE ? "1" : "B";
         float fy = footTop + kFibHair + (inBot - (footTop + kFibHair)) * 0.5f;
         float fx = cx(inL43 + kFibPad);
         u8 flags = kBadgeRound | kBadgeTightGap;
-        fx = drawFooterBadge(fx, fy, 17.0f, okGlyph, "Toggle / Cycle", kBtnA, flags);
-        const char* backLabel = (s_newerOnCard || s_olderLayoutOnCard) ? "Back" : "Back & Save";
+        const char* okLabel = rows[cursor].kind == kKindSub ? "Open" : "Toggle / Cycle";
+        fx = drawFooterBadge(fx, fy, 17.0f, okGlyph, okLabel, kBtnA, flags);
+        const char* backLabel = s_subView ? "Back" : ((s_newerOnCard || s_olderLayoutOnCard) ? "Back" : "Back & Save");
         drawFooterBadge(fx, fy, 17.0f, backGlyph, backLabel, kBtnB, flags);
     }
 }

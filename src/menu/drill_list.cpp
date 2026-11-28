@@ -24,6 +24,13 @@
 #include "shared/log.h"
 #include "shared/version.h"
 
+#ifndef TM_BOOT_CANCEL_ENDURANCE
+#define TM_BOOT_CANCEL_ENDURANCE 0
+#endif
+#ifndef TM_BOOT_EXTRA_CHALLENGES
+#define TM_BOOT_EXTRA_CHALLENGES 0
+#endif
+
 namespace tm {
 namespace menu {
 namespace list {
@@ -53,41 +60,40 @@ namespace list {
         const char* caption;
     };
 
-    // Row indices referenced by section tables below.
+    // Row indices referenced by section tables below (must stay 1:1 with kAllRows).
     enum {
         kIdxLab = 0,
-        kIdxLCancel = 1,
-        kIdxWavedash = 2,
-        kIdxLedgedash = 3,
-        kIdxComboLab = 4,
-        kIdxTechchase = 5,
-        kIdxEdgeguard = 6,
-        kIdxShieldPressure = 7,
-        kIdxOosReversal = 8,
-        kIdxPowershield = 9,
-        kIdxShieldDrop = 10,
-        kIdxLedgetech = 11,
-        kIdxSlideOff = 12,
-        kIdxGrabDefense = 13,
-        kIdxMultiHitSdi = 14,
-        kIdxRar = 15,
-        kIdxDacus = 16,
-        kIdxBReverse = 17,
-        kIdxFloatHover = 18,
-        kIdxCancelSprint = 19,
-        kIdxFlowCourse = 20,
-        kIdxReactionLab = 21,
-        kIdxTechchaseEscape = 22,
-        kIdxRecoverySweetspot = 23,
-        kIdxFloorhug = 24,
-        kIdxComboBreakRush = 25,
-        kIdxSnakeRecovery = 26,
-        kIdxRecordings = 27
+        kIdxLCancel,
+        kIdxWavedash,
+        kIdxLedgedash,
+        kIdxComboLab,
+        kIdxTechchase,
+        kIdxEdgeguard,
+        kIdxShieldPressure,
+        kIdxPowershield,
+        kIdxShieldDrop,
+        kIdxLedgetech,
+        kIdxSlideOff,
+        kIdxGrabDefense,
+        kIdxMultiHitSdi,
+        kIdxRar,
+        kIdxDacus,
+        kIdxBReverse,
+        kIdxFloatHover,
+        kIdxFloorhug,
+        kIdxComboBreakRush,
+        kIdxSnakeRecovery
+#if TM_BOOT_CANCEL_ENDURANCE
+        , kIdxCancelSprint
+#endif
+#if TM_BOOT_EXTRA_CHALLENGES
+        , kIdxFlowCourse
+        , kIdxReactionLab
+        , kIdxTechchaseEscape
+        , kIdxRecoverySweetspot
+#endif
     };
 
-    // Intuitive All Modes order: Training Lab -> Core Fundamentals ->
-    // Defensive & Situational -> P+ Advanced Tech -> P+ Challenges ->
-    // Character Trainers -> Browse Recordings.
     static const LauncherRow kAllRows[] = {
         {
             "Training Lab",
@@ -181,29 +187,16 @@ namespace list {
             "Press Start in-match to configure"
         },
         {
-            "Shield Pressure - Offense",
+            "Shield Pressure / OoS",
             kRowScenario,
             extra::kScenarioShieldPressure,
             {
-                "Pressure a shielding CPU armed",
-                "with Out of Shield (OoS) counters",
-                "and custom punish options."
+                "Attack a shielding CPU armed",
+                "with OoS counters, or defend",
+                "via Role: Offense / Defense."
             },
             "Any Fighter",
-            "Offense Role",
-            "Press Start in-match to configure"
-        },
-        {
-            "OoS Reversal - Defense",
-            kRowScenario,
-            static_cast<u8>(extra::kScenarioShieldPressure | 0x80u),
-            {
-                "Block CPU shield pressure and",
-                "punish Out of Shield (OoS) with",
-                "fast aerials, grabs, or Up-B."
-            },
-            "Any Fighter",
-            "Defense Role",
+            "Offense / Defense",
             "Press Start in-match to configure"
         },
         {
@@ -328,15 +321,55 @@ namespace list {
             kRowSkillDrill,
             drills::kDrillHoverFloat,
             {
-                "Practice Peach Float Cancels,",
-                "Mewtwo Hover Cancels, and",
-                "Double-Jump Cancels (DJC)."
+                "Practice Peach & Ganon Floats,",
+                "Mewtwo Hovers, and Double-Jump",
+                "Cancels (DJC)."
             },
-            "Peach/Mewtwo/DJC",
+            "6 Float / DJC Cast",
             "Free Practice",
             "In-match L + D-Up: Free / 10 / 20-Rep"
         },
         {
+            "CC / ASDI-Down",
+            kRowSkillDrill,
+            drills::kDrillFloorhug,
+            {
+                "Crouch Cancel (CC) & Auto Smash",
+                "DI Down (ASDI-Down): hold down",
+                "on grounded hits to counter fast."
+            },
+            "Any Fighter",
+            "Free / Set / 60s",
+            "In-match L + D-Up: Free / 10 / 20 / 60s"
+        },
+        {
+            "Break the Targets!",
+            kRowSkillDrill,
+            drills::kDrillComboBreakRush,
+            {
+                "Break Brawl targets across the",
+                "stage for x1-x8 chains in Timed",
+                "or Free mode."
+            },
+            "Any Fighter",
+            "Brawl Targets",
+            "In-match L + D-Up: Free / 30s / 60s"
+        },
+        {
+            "Snake C4 Recovery",
+            kRowSkillDrill,
+            drills::kDrillSnakeRecovery,
+            {
+                "Practice Snake's infinite Cypher",
+                "and C4 self-hit recovery chains",
+                "back to ledge from deep offstage."
+            },
+            "Snake Only",
+            "Free / Set / 60s",
+            "In-match L + D-Up: Free / 10 / 20 / 60s"
+        }
+#if TM_BOOT_CANCEL_ENDURANCE
+        , {
             "Cancel Practice: Endurance",
             kRowSkillDrill,
             drills::kDrillCancelSprint,
@@ -348,8 +381,10 @@ namespace list {
             "Cancel Fighters",
             "Free / Set / 60s",
             "In-match L + D-Up: Free / 10 / 20 / 60s"
-        },
-        {
+        }
+#endif
+#if TM_BOOT_EXTRA_CHALLENGES
+        , {
             "Movement Flow Course",
             kRowSkillDrill,
             drills::kDrillFlowCourse,
@@ -400,89 +435,35 @@ namespace list {
             "Any Fighter",
             "3D Ledge Guides",
             "In-match L + D-Up: Free / 10 / 20 / 60s"
-        },
-        {
-            "CC / ASDI-Down",
-            kRowSkillDrill,
-            drills::kDrillFloorhug,
-            {
-                "Crouch Cancel (CC) & Auto Smash",
-                "DI Down (ASDI-Down): hold down",
-                "on grounded hits to counter fast."
-            },
-            "Any Fighter",
-            "Free / Set / 60s",
-            "In-match L + D-Up: Free / 10 / 20 / 60s"
-        },
-        {
-            "Break the Targets!",
-            kRowSkillDrill,
-            drills::kDrillComboBreakRush,
-            {
-                "Break Brawl targets across the",
-                "stage for x1-x8 chains in Timed",
-                "or Free mode."
-            },
-            "Any Fighter",
-            "Brawl Targets",
-            "In-match L + D-Up: Free / 30s / 60s"
-        },
-        {
-            "Snake Infinite Recovery",
-            kRowSkillDrill,
-            drills::kDrillSnakeRecovery,
-            {
-                "Practice Snake's infinite Cypher",
-                "and C4 self-hit recovery chains",
-                "back to ledge from deep offstage."
-            },
-            "Recommended: Snake",
-            "Free / Set / 60s",
-            "In-match L + D-Up: Free / 10 / 20 / 60s"
-        },
-        {
-            "Browse Recordings",
-            kRowRecordings,
-            0,
-            {
-                "Load or delete exported .tmr",
-                "replays saved on your SD card.",
-                "Launches the matchup directly."
-            },
-            "SD Card",
-            ".tmr Replay",
-            "Loads match directly"
         }
+#endif
     };
 
-    static const u8 kAllModeIndices[] = {
-        kIdxLab,        kIdxLCancel,      kIdxWavedash,    kIdxLedgedash,  kIdxComboLab,
-        kIdxTechchase,  kIdxEdgeguard,    kIdxShieldPressure, kIdxOosReversal, kIdxPowershield,
-        kIdxShieldDrop, kIdxLedgetech,    kIdxSlideOff,    kIdxGrabDefense, kIdxMultiHitSdi,
-        kIdxRar,        kIdxDacus,        kIdxBReverse,    kIdxFloatHover,  kIdxCancelSprint,
-        kIdxFlowCourse, kIdxReactionLab,  kIdxTechchaseEscape, kIdxRecoverySweetspot, kIdxFloorhug,
-        kIdxComboBreakRush, kIdxSnakeRecovery, kIdxRecordings
+    // Locked 1.0 Boot Menu Architecture: 4 clean tabs, zero scrolling on default landing.
+    static const u8 kQuickStartIndices[] = {
+        kIdxLab, kIdxComboLab, kIdxTechchase, kIdxLCancel, kIdxWavedash, kIdxLedgedash
     };
-    static const u8 kOffenseIndices[] = {
-        kIdxComboLab, kIdxTechchase, kIdxEdgeguard, kIdxShieldPressure
+    static const u8 kScenariosIndices[] = {
+        kIdxComboLab,  kIdxTechchase,   kIdxEdgeguard, kIdxShieldPressure, kIdxShieldDrop,
+        kIdxLedgetech, kIdxSlideOff,    kIdxGrabDefense, kIdxMultiHitSdi,  kIdxFloorhug
     };
-    static const u8 kDefenseIndices[] = {
-        kIdxOosReversal, kIdxPowershield, kIdxShieldDrop, kIdxLedgetech,
-        kIdxSlideOff, kIdxGrabDefense, kIdxMultiHitSdi
-    };
-    // 7 universal single-page rows (zero scrolling; Float/Hover & DJC lives in Character Trainers).
     static const u8 kTechPracticeIndices[] = {
         kIdxLCancel, kIdxWavedash, kIdxLedgedash, kIdxPowershield,
-        kIdxRar, kIdxDacus, kIdxBReverse
+        kIdxRar,     kIdxDacus,    kIdxBReverse
     };
-    // 7 single-page rows (zero scrolling; kVisibleRows == 10).
-    static const u8 kChallengesIndices[] = {
-        kIdxCancelSprint, kIdxFlowCourse, kIdxReactionLab,
-        kIdxTechchaseEscape, kIdxRecoverySweetspot, kIdxFloorhug, kIdxComboBreakRush
-    };
-    // Character-specific P+ trainers.
-    static const u8 kCharTrainersIndices[] = {
-        kIdxSnakeRecovery, kIdxFloatHover
+    static const u8 kMinigamesTechIndices[] = {
+        kIdxComboBreakRush,
+        kIdxFloatHover,
+        kIdxSnakeRecovery
+#if TM_BOOT_CANCEL_ENDURANCE
+        , kIdxCancelSprint
+#endif
+#if TM_BOOT_EXTRA_CHALLENGES
+        , kIdxFlowCourse
+        , kIdxReactionLab
+        , kIdxTechchaseEscape
+        , kIdxRecoverySweetspot
+#endif
     };
 
     struct LauncherSection {
@@ -492,15 +473,12 @@ namespace list {
     };
 
     static const LauncherSection kSections[] = {
-        {"All Modes", kAllModeIndices, static_cast<int>(sizeof(kAllModeIndices) / sizeof(kAllModeIndices[0]))},
-        {"Offense", kOffenseIndices, static_cast<int>(sizeof(kOffenseIndices) / sizeof(kOffenseIndices[0]))},
-        {"Defense", kDefenseIndices, static_cast<int>(sizeof(kDefenseIndices) / sizeof(kDefenseIndices[0]))},
+        {"Quick Start", kQuickStartIndices, static_cast<int>(sizeof(kQuickStartIndices) / sizeof(kQuickStartIndices[0]))},
+        {"Scenarios", kScenariosIndices, static_cast<int>(sizeof(kScenariosIndices) / sizeof(kScenariosIndices[0]))},
         {"Tech Practice", kTechPracticeIndices,
          static_cast<int>(sizeof(kTechPracticeIndices) / sizeof(kTechPracticeIndices[0]))},
-        {"Challenges", kChallengesIndices,
-         static_cast<int>(sizeof(kChallengesIndices) / sizeof(kChallengesIndices[0]))},
-        {"Character Trainers", kCharTrainersIndices,
-         static_cast<int>(sizeof(kCharTrainersIndices) / sizeof(kCharTrainersIndices[0]))}
+        {"Minigames & Tech", kMinigamesTechIndices,
+         static_cast<int>(sizeof(kMinigamesTechIndices) / sizeof(kMinigamesTechIndices[0]))}
     };
     enum { kSectionCount = static_cast<int>(sizeof(kSections) / sizeof(kSections[0])) };
 
@@ -511,8 +489,8 @@ namespace list {
 
     using namespace ui::style;
 
-    // ---- Boot menu palette (shared Direction A smoked charcoal tokens from style.h) ----
-    static const gfx::Rgba kBackdropDim = kLabBackdropDim;
+    // ---- Boot menu palette (darker charcoal scrim covers CSS Max Combos cleanly) ----
+    static const gfx::Rgba kBackdropDim = 0x05080DF4u;
     static const gfx::Rgba kBannerTopCol = kLabTealTop;
     static const gfx::Rgba kBannerBotCol = kLabTealBot;
     static const gfx::Rgba kBannerSheen = kLabTealSheen;
@@ -1524,7 +1502,7 @@ namespace list {
         x = drawControlBadge(x, confirmGlyph, true, kLabBtnATop, kLabBtnABot, kLabBtnDarkText, "Select");
         x = drawControlBadge(x, backGlyph, true, kLabBtnBTop, kLabBtnBBot, kCardTitle, "Back");
         x = drawControlBadge(x, recGlyph, recRound, kBadgeImportTop, kBadgeImportBot, kLabBtnDarkText, "Recordings");
-        x = drawControlBadge(x, osdGlyph, osdRound, kBadgeOsdTop, kBadgeOsdBot, kLabBtnDarkText, "Overlays");
+        x = drawControlBadge(x, osdGlyph, osdRound, kBadgeOsdTop, kBadgeOsdBot, kLabBtnDarkText, "Quick Setup");
         drawControlBadge(x, sectionGlyph, false, kLabBtnLightTop, kLabBtnLightBot, kLabBtnDarkText, "Section");
     }
 
@@ -1613,7 +1591,7 @@ namespace list {
                 "TRAINING LAB",      "LEDGEDASH",         "WAVEDASH",      "L-CANCEL",
                 "FLOAT / HOVER",     "POWERSHIELD",       "RAR",           "DACUS",
                 "B-REVERSE",         "CANCEL PRACTICE: ENDURANCE", "MOVEMENT FLOW COURSE", "REACTION LAB",
-                "TECHCHASE ESCAPE",  "RECOVERY SWEETSPOT","CC / ASDI-DOWN","SNAKE RECOVERY",
+                "TECHCHASE ESCAPE",  "RECOVERY SWEETSPOT","CC / ASDI-DOWN","SNAKE C4 RECOVERY",
                 "TRAINING LAB",      "BREAK THE TARGETS!"
             };
             return kDrillTags[dr];

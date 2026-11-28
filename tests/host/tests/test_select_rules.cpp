@@ -104,24 +104,26 @@ TEST(select_rules, set_helpers_handle_any_single_multi_and_full_7_icon_sets)
     CHECK(!drills::setHas(sevenSet, 0x29)); // Random
 }
 
-TEST(select_rules, hover_float_is_2p_with_5_filtered_p1_icons_and_unrestricted_cpu)
+TEST(select_rules, hover_float_is_solo_with_6_filtered_p1_icons_including_ganondorf)
 {
     const drills::SelectRule* r = drills::selectRuleOf(drills::kDrillHoverFloat);
     REQUIRE(r != NULL);
     CHECK_EQ(static_cast<int>(drills::kDrillHoverFloat), static_cast<int>(r->drill));
-    // Keep 2P so Target = CPU works cleanly.
-    CHECK_EQ(0, static_cast<int>(r->solo));
+    // Solo CSS view trims P1 to the 6 hover/float/DJC fighters while addCpu spawns Target CPU.
+    CHECK_EQ(1, static_cast<int>(r->solo));
     CHECK(!drills::anyIcon(r->player));
     CHECK(drills::anyIcon(r->cpu));
     CHECK_EQ(static_cast<int>(drills::kIconEnd), drills::onlyIcon(r->player));
-    CHECK_EQ(5, countIcons(r->player));
+    CHECK_EQ(6, countIcons(r->player));
     CHECK_EQ(static_cast<int>(drills::kIconPeach), static_cast<int>(r->player[0]));
 
     CHECK(drills::setHas(r->player, drills::kIconPeach));
     CHECK(drills::setHas(r->player, drills::kIconMewtwo));
+    CHECK(drills::setHas(r->player, drills::kIconGanondorf));
+    CHECK(drills::setHas(r->player, drills::kIconYoshi));
     CHECK(drills::setHas(r->player, drills::kIconNess));
     CHECK(drills::setHas(r->player, drills::kIconLucas));
-    CHECK(drills::setHas(r->player, drills::kIconYoshi));
+    CHECK_EQ(22, drills::kindOfIcon(drills::kIconGanondorf));
 
     // Non-float/DJC fighters and Random are rejected for P1, allowed for CPU.
     static const int kRejected[] = {0x00, drills::kIconFox, drills::kIconFalco, drills::kIconWolf,

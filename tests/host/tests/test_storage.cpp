@@ -2585,3 +2585,59 @@ TEST(file_io, paths_checksum_and_listing)
     CHECK_EQ(storage::kOk, job.wait(10, status));
     CHECK(!host::card::has("one.tmr"));
 }
+
+TEST(settings_file, quick_setup_partial_file_boots_silently_without_notice)
+{
+    host::card::reset();
+    menu::osdQuick::QuickSetupData qd;
+    menu::osdQuick::defaultQuickSetupData(qd);
+    qd.general.actionLog = 2;
+    qd.display.inputViewer = 1;
+    qd.display.hitboxes = 3;
+    qd.osd.timingMeter = 2;
+
+    u8 file[storage::kSettingsFileCap];
+    u32 sz = 0;
+    REQUIRE(menu::osdQuick::patchQuickSetupAreasInFile(NULL, 0, qd, file, sizeof(file), 5, sz));
+    host::card::put(kFileA, file, sz);
+
+    storage::noticeClear();
+    boot();
+    CHECK(!storage::noticeActive());
+    CHECK_LOG("3 areas, 0 with new fields");
+    CHECK_EQ(2, static_cast<int>(main::settings().general.actionLog));
+    CHECK_EQ(1, static_cast<int>(main::settings().display.inputViewer));
+    CHECK_EQ(3, static_cast<int>(main::settings().display.hitboxes));
+    CHECK_EQ(2, static_cast<int>(main::settings().osd.timingMeter));
+    CHECK_EQ(static_cast<int>(main::kAdvanceL), static_cast<int>(main::settings().controls.advanceButton));
+    storage::detach();
+
+    // Replacing kAreaOsd with kAreaCpu (outside {General, Display, Osd}) triggers the partial-file notice.
+    host::card::reset();
+    Settings custom;
+    choose(custom);
+    memset(file, 0, sizeof(file));
+    storage::FileHeader* h = reinterpret_cast<storage::FileHeader*>(file);
+    storage::SettingsHead* head = reinterpret_cast<storage::SettingsHead*>(file + sizeof(storage::FileHeader));
+    u32 at = sizeof(storage::FileHeader) + sizeof(storage::SettingsHead);
+    u16 ac = 0;
+    u32 body = storage::writeAreas(file + at, sizeof(file) - at, at, reinterpret_cast<const u8*>(&custom),
+                                   storage::areaBit(storage::kAreaGeneral) | storage::areaBit(storage::kAreaDisplay)
+                                       | storage::areaBit(storage::kAreaCpu),
+                                   ac);
+    REQUIRE(body > 0 && ac == 3);
+    head->areaCount = ac;
+    head->layout = main::kSettingsVersion;
+    h->magic = storage::kSettingsMagic;
+    h->format = storage::kSettingsFormat;
+    h->headerSize = sizeof(storage::FileHeader);
+    h->size = at + body;
+    h->sequence = 6;
+    h->checksum = storage::checksum(file + storage::kChecksumFrom, h->size - storage::kChecksumFrom);
+    host::card::put(kFileA, file, h->size);
+
+    storage::noticeClear();
+    boot();
+    CHECK(storage::noticeActive());
+    storage::detach();
+}

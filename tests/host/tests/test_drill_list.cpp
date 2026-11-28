@@ -23,6 +23,7 @@
 #include "main/storage/areas.h"
 #include "main/storage/file_io.h"
 #include "main/storage/format.h"
+#include "main/ui/style.h"
 #include "menu/drill_list.h"
 #include "menu/game/select.h"
 #include "menu/game/training.h"
@@ -230,12 +231,12 @@ TEST(drill_list, any_connected_gcc_operates_list_when_port1_unplugged_and_wii_pa
     CHECK_EQ(0u, pads[1].m_buttonsCurrentFrame.bits); // GC pad hidden while list is open
     CHECK(!host::log::contains("drills: list closed"));
 
-    // Port 2 goes neutral, switches to Offense (R), then moves down to row 1 (Techchase).
+    // Port 2 goes neutral, switches to Scenarios (R), then moves down to row 1 (Techchase).
     setPadInput(pads[1], 0);
     stepFrame(pads);
     setPadInput(pads[1], game::kPadR);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: page Offense"));
+    CHECK(host::log::contains("drills: page Scenarios"));
     setPadInput(pads[1], 0);
     stepFrame(pads);
     setPadInput(pads[1], kDpadDown);
@@ -280,11 +281,11 @@ TEST(drill_list, active_owner_cannot_be_stolen_by_another_port)
     menu::list::attach();
     CHECK(host::log::contains("drills: list opened (auto) for port 1"));
 
-    // Neutral frame to clear wait-release on all ports, then switch to Offense (5 rows).
+    // Neutral frame to clear wait-release on all ports, then switch to Scenarios.
     stepFrame(pads);
     setPadInput(pads[0], game::kPadR);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: page Offense"));
+    CHECK(host::log::contains("drills: page Scenarios"));
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
@@ -495,12 +496,12 @@ TEST(drill_list, sideways_and_nunchuk_actions_reopen_and_selective_hiding)
     setPadInput(pads[4], 0);
     stepFrame(pads);
 
-    // Nunchuk A selects the highlighted row with stick held (down moves 0 -> 1 L-Cancel);
+    // Nunchuk A selects the highlighted row with stick held (down moves 0 -> 1 Combo Lab);
     // stick stays hidden until neutral.
     host::log::clear();
     setPadInput(pads[4], game::kPadA | game::kPadWiiA, 0, -80);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: list closed (L-Cancel)"));
+    CHECK(host::log::contains("drills: list closed (Combo Lab)"));
     CHECK_EQ(0u, pads[4].m_buttonsCurrentFrame.bits);
     CHECK_EQ(0, static_cast<int>(pads[4].m_stickY));
     setPadInput(pads[4], 0, 0, -80);
@@ -822,11 +823,11 @@ TEST(drill_list, per_controller_footer_and_browser_labels)
     menu::list::attach();
     stepFrame(pads); // neutral clears wait-release
 
-    // GC owner draws GC footer strip, All Modes section & L/R banner pills.
+    // GC owner draws GC footer strip, Quick Start section & L/R banner pills.
     host::canvas::clear();
     menu::list::onRender(0);
     CHECK(canvasDrew("Training Mode"));
-    CHECK(canvasDrew("All Modes"));
+    CHECK(canvasDrew("Quick Start"));
     CHECK(canvasDrew("L"));
     CHECK(canvasDrew("R"));
     CHECK(canvasDrew("A"));
@@ -836,7 +837,7 @@ TEST(drill_list, per_controller_footer_and_browser_labels)
     CHECK(canvasDrew("X"));
     CHECK(canvasDrew("Recordings"));
     CHECK(canvasDrew("Y"));
-    CHECK(canvasDrew("Overlays"));
+    CHECK(canvasDrew("Quick Setup"));
     CHECK(canvasDrew("L/R"));
     CHECK(canvasDrew("Section"));
 
@@ -929,38 +930,26 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     menu::list::attach();
     stepFrame(pads); // neutral clears wait-release
 
-    // Starts on Page 0 (All Modes, 27 rows: Lab -> Core Fundamentals ->
-    // Defensive & Situational -> P+ Advanced Tech -> P+ Challenges ->
-    // Character Trainers -> Browse Recordings).
+    // Starts on Page 0 (Quick Start, 6 zero-scroll rows:
+    // Training Lab -> Combo Lab -> Techchase -> L-Cancel -> Wavedash / Waveland -> Ledgedash).
     CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
 
-    // Step through All Modes (28 rows) and verify intuitive ordering & recommendation badges.
-    for (int i = 0; i < 27; i++)
+    for (int i = 0; i < 6; i++)
     {
         setPadInput(pads[0], kDpadDown);
         stepFrame(pads);
         setPadInput(pads[0], 0);
         stepFrame(pads);
     }
-    CHECK(host::log::contains("drills: row 1 L-Cancel"));
-    CHECK(host::log::contains("drills: row 2 Wavedash / Waveland"));
-    CHECK(host::log::contains("drills: row 3 Ledgedash"));
-    CHECK(host::log::contains("drills: row 4 Combo Lab"));
-    CHECK(host::log::contains("drills: row 8 OoS Reversal - Defense"));
-    CHECK(host::log::contains("drills: row 9 Powershield"));
-    CHECK(host::log::contains("drills: row 12 Slide-Off"));
-    CHECK(host::log::contains("drills: row 14 P+ Multi-Hit SDI"));
-    CHECK(host::log::contains("drills: row 15 RAR"));
-    CHECK(host::log::contains("drills: row 16 DACUS"));
-    CHECK(host::log::contains("drills: row 17 B-Reverse / Wavebounce"));
-    CHECK(host::log::contains("drills: row 18 Float / Hover & DJC"));
-    CHECK(host::log::contains("drills: row 19 Cancel Practice: Endurance"));
-    CHECK(host::log::contains("drills: row 25 Break the Targets!"));
-    CHECK(host::log::contains("drills: row 26 Snake Infinite Recovery"));
-    CHECK(host::log::contains("drills: row 27 Browse Recordings"));
+    CHECK(host::log::contains("drills: row 1 Combo Lab"));
+    CHECK(host::log::contains("drills: row 2 Techchase"));
+    CHECK(host::log::contains("drills: row 3 L-Cancel"));
+    CHECK(host::log::contains("drills: row 4 Wavedash / Waveland"));
+    CHECK(host::log::contains("drills: row 5 Ledgedash"));
+    CHECK(!host::log::contains("drills: row 6 "));
 
-    // Select row 27 (Browse Recordings) -> opens browser, B returns to Boot Menu.
-    setPadInput(pads[0], kButtonA);
+    // X footer action opens Recording Browser directly, and B returns to Boot Menu.
+    setPadInput(pads[0], game::kPadX);
     stepFrame(pads);
     CHECK(host::log::contains("browser: opened for port 1"));
     setPadInput(pads[0], 0);
@@ -971,14 +960,14 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
-    // GC R cycles: All Modes -> Offense -> Defense -> Tech Practice -> All Modes.
+    // GC R cycles: Quick Start -> Scenarios -> Tech Practice -> Minigames & Tech -> Quick Start.
     setPadInput(pads[0], game::kPadR);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: page Offense"));
+    CHECK(host::log::contains("drills: page Scenarios"));
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
-    // Move down to row 3 in Offense (Shield Pressure - Offense, presetId = 4) and select it.
+    // Move down to row 3 in Scenarios (unified Shield Pressure / OoS, presetId = 4) and select it.
     for (int i = 0; i < 3; i++)
     {
         setPadInput(pads[0], kDpadDown);
@@ -986,46 +975,58 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
         setPadInput(pads[0], 0);
         stepFrame(pads);
     }
-    CHECK(host::log::contains("drills: row 3 Shield Pressure - Offense"));
+    CHECK(host::log::contains("drills: row 3 Shield Pressure / OoS"));
     setPadInput(pads[0], kButtonA);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: scenario 4 (Shield Pressure - Offense) armed"));
-    CHECK(host::log::contains("drills: list closed (Shield Pressure - Offense)"));
+    CHECK(host::log::contains("drills: scenario 4 (Shield Pressure / OoS) armed"));
+    CHECK(host::log::contains("drills: list closed (Shield Pressure / OoS)"));
     CHECK_EQ(4, static_cast<int>(menu::session().pendingScenario));
     CHECK_EQ(1, static_cast<int>(menu::session().page));
     CHECK_EQ(3, static_cast<int>(menu::session().row));
     CHECK_EQ(1, static_cast<int>(menu::session().labChosen));
 
-    // Reopen with L+R: remembers Page 1 (Offense), Row 3 (Shield Pressure - Offense).
+    // Reopen with L+R: remembers Page 1 (Scenarios), Row 3 (Shield Pressure / OoS).
     setPadInput(pads[0], 0);
     stepFrame(pads);
     setPadInput(pads[0], game::kPadL | game::kPadR);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: list opened (L+R) for port 1, row 3 Shield Pressure - Offense"));
+    CHECK(host::log::contains("drills: list opened (L+R) for port 1, row 3 Shield Pressure / OoS"));
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
-    // Cycle R -> Defense (Page 2, 7 rows) and move to bottom row 6 (P+ Multi-Hit SDI, presetId = 9).
-    setPadInput(pads[0], game::kPadR);
-    stepFrame(pads);
-    CHECK(host::log::contains("drills: page Defense"));
-    setPadInput(pads[0], 0);
-    stepFrame(pads);
-    for (int i = 0; i < 6; i++)
+    // Verify rows 8..9 on Scenarios (P+ Multi-Hit SDI -> presetId = 9, then CC / ASDI-Down -> drill).
+    for (int i = 0; i < 5; i++)
     {
         setPadInput(pads[0], kDpadDown);
         stepFrame(pads);
         setPadInput(pads[0], 0);
         stepFrame(pads);
     }
-    CHECK(host::log::contains("drills: row 6 P+ Multi-Hit SDI"));
+    CHECK(host::log::contains("drills: row 8 P+ Multi-Hit SDI"));
     setPadInput(pads[0], kButtonA);
     stepFrame(pads);
     CHECK_EQ(9, static_cast<int>(menu::session().pendingScenario));
     CHECK(host::log::contains("drills: scenario 9 (P+ Multi-Hit SDI) armed"));
 
-    // Reopen, cycle R -> Tech Practice (Page 3) -> Challenges (Page 4) -> Character Trainers (Page 5)
-    // -> All Modes (Page 0), select row 0 (Training Lab) -> clears pendingScenario to 0!
+    // Reopen, select bottom row 9 (CC / ASDI-Down, kDrillFloorhug) -> verify row 9 arms floorhug.
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+    setPadInput(pads[0], game::kPadL | game::kPadR);
+    stepFrame(pads);
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+    setPadInput(pads[0], kDpadDown);
+    stepFrame(pads);
+    CHECK(host::log::contains("drills: row 9 CC / ASDI-Down"));
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+    setPadInput(pads[0], kButtonA);
+    stepFrame(pads);
+    CHECK_EQ(static_cast<int>(drills::kDrillFloorhug), static_cast<int>(menu::session().drill));
+    CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
+
+    // Reopen, cycle R -> Tech Practice (Page 2) -> Minigames & Tech (Page 3)
+    // -> Quick Start (Page 0), select row 0 (Training Lab) -> clears drill & pendingScenario!
     setPadInput(pads[0], 0);
     stepFrame(pads);
     setPadInput(pads[0], game::kPadL | game::kPadR);
@@ -1039,25 +1040,21 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
     stepFrame(pads);
     setPadInput(pads[0], game::kPadR);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: page Challenges"));
+    CHECK(host::log::contains("drills: page Minigames & Tech"));
     setPadInput(pads[0], 0);
     stepFrame(pads);
     setPadInput(pads[0], game::kPadR);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: page Character Trainers"));
-    setPadInput(pads[0], 0);
-    stepFrame(pads);
-    setPadInput(pads[0], game::kPadR);
-    stepFrame(pads);
-    CHECK(host::log::contains("drills: page All Modes"));
+    CHECK(host::log::contains("drills: page Quick Start"));
     setPadInput(pads[0], 0);
     stepFrame(pads);
     setPadInput(pads[0], kButtonA);
     stepFrame(pads);
     CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
+    CHECK_EQ(static_cast<int>(drills::kDrillNone), static_cast<int>(menu::session().drill));
     CHECK(host::log::contains("drills: list closed (Training Lab)"));
 
-    // Re-arm a scenario (Offense row 0 = Combo Lab, presetId = 1), then detach with exit code 1 vs 0.
+    // Re-arm a scenario (Scenarios row 0 = Combo Lab, presetId = 1), then detach with exit code 1 vs 0.
     setPadInput(pads[0], 0);
     stepFrame(pads);
     setPadInput(pads[0], game::kPadL | game::kPadR);
@@ -1104,13 +1101,13 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
 
         setPadInput(pads[4], kWiiCycles[c].nextBtn);
         stepFrame(pads);
-        CHECK(host::log::contains("drills: page Offense"));
+        CHECK(host::log::contains("drills: page Scenarios"));
         setPadInput(pads[4], 0);
         stepFrame(pads);
 
         setPadInput(pads[4], kWiiCycles[c].nextBtn);
         stepFrame(pads);
-        CHECK(host::log::contains("drills: page Defense"));
+        CHECK(host::log::contains("drills: page Tech Practice"));
         setPadInput(pads[4], 0);
         stepFrame(pads);
 
@@ -1121,7 +1118,7 @@ TEST(drill_list, scenarios_page_navigation_pending_handoff_and_section_cycling)
 
         setPadInput(pads[4], kWiiCycles[c].prevBtn);
         stepFrame(pads);
-        CHECK(host::log::contains("drills: page All Modes"));
+        CHECK(host::log::contains("drills: page Quick Start"));
         menu::list::detach();
     }
 }
@@ -1135,8 +1132,8 @@ TEST(drill_list, skill_drills_section_arms_drill_and_shows_personal_best)
     menu::list::attach();
     stepFrame(pads);
 
-    // 3x R from All Modes reaches Page 3 (Tech Practice, 8 single-page rows).
-    for (int p = 0; p < 3; p++)
+    // 2x R from Quick Start reaches Page 2 (Tech Practice, 7 zero-scroll rows).
+    for (int p = 0; p < 2; p++)
     {
         setPadInput(pads[0], game::kPadR);
         stepFrame(pads);
@@ -1167,7 +1164,7 @@ TEST(drill_list, skill_drills_section_arms_drill_and_shows_personal_best)
     CHECK_EQ(static_cast<int>(drills::kDrillLedgedash), static_cast<int>(menu::session().drill));
     CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
     CHECK_EQ(0, static_cast<int>(menu::session().drillRan));
-    CHECK_EQ(3, static_cast<int>(menu::session().page));
+    CHECK_EQ(2, static_cast<int>(menu::session().page));
     CHECK_EQ(2, static_cast<int>(menu::session().row));
 
     // Detach into match (exitCode == 1) preserves armed drill for extra/drill_hud.cpp.
@@ -1201,8 +1198,8 @@ TEST(drill_list, tech_practice_eight_rows_and_recommendation_badges)
     menu::list::attach();
     stepFrame(pads);
 
-    // Verify all 7 universal Tech Practice rows arm their exact DrillId on one page without scrolling.
-    for (int p = 0; p < 3; p++)
+    // Verify all 7 universal Tech Practice rows (Page 2) arm their exact DrillId on one page without scrolling.
+    for (int p = 0; p < 2; p++)
     {
         setPadInput(pads[0], game::kPadR);
         stepFrame(pads);
@@ -1240,17 +1237,17 @@ TEST(drill_list, tech_practice_eight_rows_and_recommendation_badges)
         stepFrame(pads);
     }
 
-    // Verify recommendation chips on Defense scenarios (Shield Drop, Ledgetech, Slide-Off).
+    // Verify recommendation chips on Scenarios (Shield Drop, Ledgetech, Slide-Off at rows 4..6).
     setPadInput(pads[0], game::kPadL | game::kPadR);
     stepFrame(pads);
     setPadInput(pads[0], 0);
     stepFrame(pads);
-    setPadInput(pads[0], game::kPadL); // Tech Practice -> Defense
+    setPadInput(pads[0], game::kPadL); // Tech Practice -> Scenarios
     stepFrame(pads);
     setPadInput(pads[0], 0);
     stepFrame(pads);
-    // Defense rows 2..4 are Shield Drop, Ledgetech, Slide-Off.
-    for (int s = 0; s < 2; s++)
+    // Scenarios rows 4..6 are Shield Drop, Ledgetech, Slide-Off.
+    for (int s = 0; s < 4; s++)
     {
         setPadInput(pads[0], kDpadDown);
         stepFrame(pads);
@@ -1433,8 +1430,33 @@ TEST(drill_list, y_quick_osds_patches_osd_area_in_place_without_clobbering_other
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
-    // Move down to row 2 (Max OSDs) and press Right (4 -> 5).
-    for (int i = 0; i < 2; i++)
+    // Edit main-view row 4 (Hitboxes: 0 -> 1), then enter All OSDs > (row 7), move to bottom (Max OSDs: 4 -> 5), back out and save.
+    for (int i = 0; i < 4; i++)
+    {
+        setPadInput(pads[0], kDpadDown);
+        stepFrame(pads);
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+    }
+    setPadInput(pads[0], game::kPadDRight);
+    stepFrame(pads);
+    CHECK_EQ(3, static_cast<int>(main::settings().display.hitboxes));
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+
+    for (int i = 0; i < 3; i++)
+    {
+        setPadInput(pads[0], kDpadDown);
+        stepFrame(pads);
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+    }
+    setPadInput(pads[0], kButtonA); // Enter All OSDs sub-view
+    stepFrame(pads);
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+
+    for (int i = 0; i < 21; i++)
     {
         setPadInput(pads[0], kDpadDown);
         stepFrame(pads);
@@ -1447,7 +1469,12 @@ TEST(drill_list, y_quick_osds_patches_osd_area_in_place_without_clobbering_other
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
-    // Press B to close Quick OSDs and flush to settings-b.bin (sequence 8).
+    // Press B to exit All OSDs back to Quick Setup main view, then B again to flush to settings-b.bin (sequence 8).
+    setPadInput(pads[0], kButtonB);
+    stepFrame(pads);
+    CHECK(menu::osdQuick::isOpen());
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
     setPadInput(pads[0], kButtonB);
     stepFrame(pads);
     CHECK(!menu::osdQuick::isOpen());
@@ -1516,8 +1543,31 @@ TEST(drill_list, y_quick_osds_blocks_edits_on_v1_and_newer_saves)
         CHECK(canvasDrew("Back"));
         CHECK(!canvasDrew("Back & Save"));
 
-        // Attempting to edit row 2 (Max OSDs) with Right or A must not mutate live settings.
-        for (int i = 0; i < 2; i++)
+        // Attempting to edit row 4 (Hitboxes) with Right or A, or Max OSDs in All OSDs, must not mutate live settings.
+        for (int i = 0; i < 4; i++)
+        {
+            setPadInput(pads[0], kDpadDown);
+            stepFrame(pads);
+            setPadInput(pads[0], 0);
+            stepFrame(pads);
+        }
+        setPadInput(pads[0], game::kPadDRight);
+        stepFrame(pads);
+        CHECK_EQ(0, static_cast<int>(main::settings().display.hitboxes));
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+        for (int i = 0; i < 3; i++)
+        {
+            setPadInput(pads[0], kDpadDown);
+            stepFrame(pads);
+            setPadInput(pads[0], 0);
+            stepFrame(pads);
+        }
+        setPadInput(pads[0], kButtonA); // Enter All OSDs sub-view
+        stepFrame(pads);
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+        for (int i = 0; i < 21; i++)
         {
             setPadInput(pads[0], kDpadDown);
             stepFrame(pads);
@@ -1535,7 +1585,12 @@ TEST(drill_list, y_quick_osds_blocks_edits_on_v1_and_newer_saves)
         setPadInput(pads[0], 0);
         stepFrame(pads);
 
-        // Closing with B writes nothing to SD.
+        // Close All OSDs -> Quick Setup -> Boot Menu; writes nothing to SD.
+        setPadInput(pads[0], kButtonB);
+        stepFrame(pads);
+        CHECK(menu::osdQuick::isOpen());
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
         setPadInput(pads[0], kButtonB);
         stepFrame(pads);
         CHECK(!menu::osdQuick::isOpen());
@@ -1550,6 +1605,114 @@ TEST(drill_list, y_quick_osds_blocks_edits_on_v1_and_newer_saves)
     }
 }
 
+TEST(drill_list, y_quick_setup_partial_save_and_custom_presets)
+{
+    // 1. patchQuickSetupAreasInFile(NULL, 0, ...) produces a valid 3-area partial file
+    //    ({kAreaGeneral, kAreaDisplay, kAreaOsd}) accepted silently by isQuickSetupPartialFile().
+    menu::osdQuick::QuickSetupData qd;
+    menu::osdQuick::defaultQuickSetupData(qd);
+    qd.general.actionLog = 2; // P1 + CPU
+    qd.display.inputViewer = 1; // P1
+    qd.display.hitboxes = 3; // Both
+    qd.osd.timingMeter = 1; // All
+
+    u8 partial[storage::kSettingsFileCap];
+    u32 partialSize = 0;
+    REQUIRE(menu::osdQuick::patchQuickSetupAreasInFile(NULL, 0, qd, partial, sizeof(partial), 5, partialSize));
+    REQUIRE(partialSize > sizeof(storage::FileHeader) + sizeof(storage::SettingsHead));
+    const storage::SettingsHead* phead =
+        reinterpret_cast<const storage::SettingsHead*>(partial + sizeof(storage::FileHeader));
+    CHECK_EQ(3, static_cast<int>(phead->areaCount));
+
+    main::resetSettings();
+    storage::AreaStats pstats;
+    REQUIRE(storage::readAreas(partial, partialSize, sizeof(storage::FileHeader) + sizeof(storage::SettingsHead),
+                               phead->areaCount, reinterpret_cast<u8*>(&main::settings()), storage::kAllAreas, pstats));
+    const storage::AreaEntry* pentries = reinterpret_cast<const storage::AreaEntry*>(
+        partial + sizeof(storage::FileHeader) + sizeof(storage::SettingsHead));
+    CHECK_EQ(static_cast<int>(storage::kAreaGeneral), static_cast<int>(pentries[0].id));
+    CHECK_EQ(static_cast<int>(storage::kAreaDisplay), static_cast<int>(pentries[1].id));
+    CHECK_EQ(static_cast<int>(storage::kAreaOsd), static_cast<int>(pentries[2].id));
+    CHECK_EQ(3u, pstats.copied);
+    CHECK_EQ(0u, pstats.grown);
+    CHECK_EQ(2, static_cast<int>(main::settings().general.actionLog));
+    CHECK_EQ(1, static_cast<int>(main::settings().display.inputViewer));
+    CHECK_EQ(3, static_cast<int>(main::settings().display.hitboxes));
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.timingMeter));
+
+    // 2. Patching a full 17-area file preserves kAreaControls + kAreaOsdPresets while updating techTrackerOsd in kAreaCpu.
+    main::settings().controls.advanceButton = main::kAdvanceZ;
+    main::settings().osdPresets.customMask[0] = (1u << 19) | (1u << 7) | main::kOsdCustomSavedBit; // P+ Tech OSD + Powershield
+    u8 fullFile[storage::kSettingsFileCap];
+    memset(fullFile, 0, sizeof(fullFile));
+    storage::FileHeader* fh = reinterpret_cast<storage::FileHeader*>(fullFile);
+    storage::SettingsHead* fhead = reinterpret_cast<storage::SettingsHead*>(fullFile + sizeof(storage::FileHeader));
+    u32 at = sizeof(storage::FileHeader) + sizeof(storage::SettingsHead);
+    u16 ac = 0;
+    u32 body = storage::writeAreas(fullFile + at, sizeof(fullFile) - at, at,
+                                   reinterpret_cast<const u8*>(&main::settings()), storage::kAllAreas, ac);
+    REQUIRE(body > 0 && ac == 17);
+    fhead->areaCount = ac;
+    fhead->layout = main::kSettingsVersion;
+    fh->magic = storage::kSettingsMagic;
+    fh->format = storage::kSettingsFormat;
+    fh->headerSize = sizeof(storage::FileHeader);
+    fh->size = at + body;
+    fh->sequence = 11;
+    fh->checksum = storage::checksum(fullFile + storage::kChecksumFrom, fh->size - storage::kChecksumFrom);
+
+    qd.techTrackerOsd = 1;
+    u8 patched[storage::kSettingsFileCap];
+    u32 patchedSize = 0;
+    REQUIRE(menu::osdQuick::patchQuickSetupAreasInFile(fullFile, fh->size, qd, patched, sizeof(patched), 12,
+                                                       patchedSize));
+    main::resetSettings();
+    const storage::SettingsHead* outHead =
+        reinterpret_cast<const storage::SettingsHead*>(patched + sizeof(storage::FileHeader));
+    CHECK_EQ(17, static_cast<int>(outHead->areaCount));
+    storage::AreaStats fstats;
+    REQUIRE(storage::readAreas(patched, patchedSize, at, outHead->areaCount,
+                               reinterpret_cast<u8*>(&main::settings()), storage::kAllAreas, fstats));
+    CHECK_EQ(17u, fstats.copied);
+    CHECK_EQ(static_cast<int>(main::kAdvanceZ), static_cast<int>(main::settings().controls.advanceButton));
+    CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.techTrackerOsd));
+    CHECK_EQ(main::settings().osdPresets.customMask[0], (1u << 19) | (1u << 7) | main::kOsdCustomSavedBit);
+
+    // 3. Selecting Custom 1 in Y: Quick Setup applies customMask[0] (Powershield + P+ Tech OSD).
+    host::fakes::reset();
+    host::card::reset();
+    main::loadSettings(host::fakes::block());
+    main::settings().osdPresets.customMask[0] = (1u << 19) | (1u << 7) | main::kOsdCustomSavedBit;
+    main::settings().osd.wavedash = 1;
+    main::settings().osd.powershield = 0;
+    main::settings().cpu.options.techTrackerOsd = 0;
+    gfPadStatus pads[iface::kPadCount];
+    initPads(pads, 1u << 0);
+    host::fakes::setMenuPort(0);
+    host::fakes::setTrainingSelectRunning(true);
+    menu::list::attach();
+    stepFrame(pads);
+    setPadInput(pads[0], game::kPadY);
+    stepFrame(pads);
+    REQUIRE(menu::osdQuick::isOpen());
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+    for (int i = main::kOsdPresetEssentials; i < main::kOsdPresetCustom1; i++)
+    {
+        setPadInput(pads[0], game::kPadDRight);
+        stepFrame(pads);
+        setPadInput(pads[0], 0);
+        stepFrame(pads);
+    }
+    CHECK_EQ(static_cast<int>(main::kOsdPresetCustom1), static_cast<int>(main::settings().osd.preset));
+    CHECK_EQ(0, static_cast<int>(main::settings().osd.wavedash));
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.powershield));
+    CHECK_EQ(1, static_cast<int>(main::settings().cpu.options.techTrackerOsd));
+    setPadInput(pads[0], kButtonB);
+    stepFrame(pads);
+    menu::list::detach();
+}
+
 TEST(drill_list, return_from_match_reopens_but_stage_select_back_stays_closed)
 {
     gfPadStatus pads[iface::kPadCount];
@@ -1559,7 +1722,7 @@ TEST(drill_list, return_from_match_reopens_but_stage_select_back_stays_closed)
     menu::list::attach();
     stepFrame(pads);
 
-    // Arm a scenario (Offense row 0 = Combo Lab, preset 1) -> list closes.
+    // Arm a scenario (Scenarios row 0 = Combo Lab, preset 1) -> list closes.
     setPadInput(pads[0], game::kPadR);
     stepFrame(pads);
     setPadInput(pads[0], 0);
@@ -1611,7 +1774,7 @@ TEST(drill_list, return_from_match_reopens_but_stage_select_back_stays_closed)
     menu::list::detach();
 }
 
-TEST(drill_list, challenges_and_character_trainers_tabs_arm_all_seven_and_show_snake_card)
+TEST(drill_list, minigames_and_tech_tab_and_locked_flags)
 {
     gfPadStatus pads[iface::kPadCount];
     initPads(pads, 1u << 0);
@@ -1620,54 +1783,26 @@ TEST(drill_list, challenges_and_character_trainers_tabs_arm_all_seven_and_show_s
     menu::list::attach();
     stepFrame(pads);
 
-    // L from All Modes wraps directly to Page 5 (Character Trainers, 1 row: Snake Infinite Recovery).
+    // L from Quick Start wraps directly to Page 3 (Minigames & Tech: 3 default rows).
     setPadInput(pads[0], game::kPadL);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: page Character Trainers"));
-    setPadInput(pads[0], 0);
-    stepFrame(pads);
-
-    menu::session().best[drills::kDrillSnakeRecovery] = 4;
-    host::canvas::clear();
-    menu::list::onRender(0);
-    CHECK(canvasDrew("Character Trainers"));
-    CHECK(canvasDrew("Snake Infinite Recovery"));
-    CHECK(canvasDrew("Practice Snake's infinite Cypher"));
-    CHECK(canvasDrew("Recommended: Snake"));
-    CHECK(canvasDrew("4"));
-
-    // Select Snake Infinite Recovery -> arms kDrillSnakeRecovery (15) and shows CSS mode pill.
-    setPadInput(pads[0], kButtonA);
-    stepFrame(pads);
-    CHECK_EQ(static_cast<int>(drills::kDrillSnakeRecovery), static_cast<int>(menu::session().drill));
-    CHECK_EQ(0, static_cast<int>(menu::session().pendingScenario));
-    CHECK_EQ(5, static_cast<int>(menu::session().page));
-    CHECK_EQ(0, static_cast<int>(menu::session().row));
-
-    host::canvas::clear();
-    menu::list::onRender(0);
-    CHECK(canvasDrew("SNAKE RECOVERY"));
-
-    // Reopen and press L -> Page 4 (Challenges, 7 rows arming IDs 9..14 + 17).
-    setPadInput(pads[0], 0);
-    stepFrame(pads);
-    setPadInput(pads[0], game::kPadL | game::kPadR);
-    stepFrame(pads);
-    setPadInput(pads[0], 0);
-    stepFrame(pads);
-    setPadInput(pads[0], game::kPadL);
-    stepFrame(pads);
-    CHECK(host::log::contains("drills: page Challenges"));
+    CHECK(host::log::contains("drills: page Minigames & Tech"));
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
     menu::session().best[drills::kDrillComboBreakRush] = 1250;
-    static const u8 kExpectedChallenges[7] = {
-        drills::kDrillCancelSprint,       drills::kDrillFlowCourse,        drills::kDrillReactionLab,
-        drills::kDrillTechchaseEscape,    drills::kDrillRecoverySweetspot, drills::kDrillFloorhug,
-        drills::kDrillComboBreakRush
+    host::canvas::clear();
+    menu::list::onRender(0);
+    CHECK(canvasDrew("Minigames & Tech"));
+    CHECK(canvasDrew("Break the Targets!"));
+    CHECK(canvasDrew("Brawl Targets"));
+    CHECK(canvasDrew("Best Score"));
+    CHECK(canvasDrew("1250"));
+
+    static const u8 kExpectedMinigames[3] = {
+        drills::kDrillComboBreakRush, drills::kDrillHoverFloat, drills::kDrillSnakeRecovery
     };
-    for (int r = 0; r < 7; r++)
+    for (int r = 0; r < 3; r++)
     {
         if (r > 0)
         {
@@ -1680,26 +1815,43 @@ TEST(drill_list, challenges_and_character_trainers_tabs_arm_all_seven_and_show_s
             setPadInput(pads[0], 0);
             stepFrame(pads);
         }
-        if (r == 4)
+        if (r == 1)
         {
             host::canvas::clear();
             menu::list::onRender(0);
-            CHECK(canvasDrew("3D Ledge Guides"));
+            CHECK(canvasDrew("Float / Hover & DJC"));
+            CHECK(canvasDrew("6 Float / DJC Cast"));
         }
-        if (r == 6)
+        if (r == 2)
         {
+            menu::session().best[drills::kDrillSnakeRecovery] = 4;
             host::canvas::clear();
             menu::list::onRender(0);
-            CHECK(canvasDrew("Brawl Targets"));
-            CHECK(canvasDrew("Best Score"));
-            CHECK(canvasDrew("1250"));
+            CHECK(canvasDrew("Snake C4 Recovery"));
+            CHECK(canvasDrew("Practice Snake's infinite Cypher"));
+            CHECK(canvasDrew("Snake Only"));
+            CHECK(canvasDrew("4"));
         }
         setPadInput(pads[0], kButtonA);
         stepFrame(pads);
-        CHECK_EQ(static_cast<int>(kExpectedChallenges[r]), static_cast<int>(menu::session().drill));
+        CHECK_EQ(static_cast<int>(kExpectedMinigames[r]), static_cast<int>(menu::session().drill));
         setPadInput(pads[0], 0);
         stepFrame(pads);
     }
+
+    host::canvas::clear();
+    menu::list::onRender(0);
+    CHECK(canvasDrew("SNAKE C4 RECOVERY"));
+
+    // Verify Minigames & Tech clamps at row 2 (3 default rows; extra challenges gated out).
+    setPadInput(pads[0], game::kPadL | game::kPadR);
+    stepFrame(pads);
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+    host::log::clear();
+    setPadInput(pads[0], kDpadDown);
+    stepFrame(pads);
+    CHECK(!host::log::contains("drills: row 3 "));
     menu::list::detach();
 }
 
@@ -1715,39 +1867,37 @@ TEST(drill_list, golden_ratio_list_to_card_proportions)
     for (int a = 0; a < 2; a++)
     {
         bool wide = (a == 1);
-        float xs = wide ? 0.75f : 1.0f;
         gfx::setWidescreen(wide);
+        float ms = ui::style::menuScale();
         host::canvas::clear();
         menu::list::onRender(0);
 
-        // Locate the right Details Card top border rect (W = 324 * xs, y = 94, H = 3)
-        // and the scrollbar track between list and card (x = 259..267 in 4:3).
+        // Locate the right Details Card top border rect (W = 324 * ms, y = 94, H = 3)
+        // and confirm zero-scroll tabs (Quick Start = 6 rows) omit the scrollbar track.
         float cardX0 = 0.0f, cardX1 = 0.0f;
-        float scrollX0 = 0.0f;
         bool foundCard = false, foundScroll = false;
         for (int i = 0; i < host::canvas::rects(); i++)
         {
             const host::canvas::Rect& r = host::canvas::rect(i);
-            if (!foundCard && r.x > 240.0f && r.y >= 93.0f && r.y <= 95.0f && r.width >= 320.0f * xs - 1.0f
+            if (!foundCard && r.x > 240.0f && r.y >= 93.0f && r.y <= 95.0f && r.width >= 320.0f * ms - 1.0f
                 && r.height >= 2.0f && r.height <= 4.0f)
             {
                 cardX0 = r.x;
                 cardX1 = r.x + r.width;
                 foundCard = true;
             }
-            if (!foundScroll && r.width >= 6.0f * xs - 0.5f && r.width <= 9.0f * xs + 0.5f && r.height >= 295.0f
+            if (r.width >= 6.0f * ms - 0.5f && r.width <= 9.0f * ms + 0.5f && r.height >= 295.0f
                 && r.height <= 310.0f)
             {
-                scrollX0 = r.x;
                 foundScroll = true;
             }
         }
         CHECK(foundCard);
-        CHECK(foundScroll);
-        // Left bar ends 3*xs before the scrollbar track; list starts at 36 in 4:3.
-        float barX0 = 320.0f + (36.0f - 320.0f) * xs;
-        float barX1 = scrollX0 - 3.0f * xs;
-        CHECK(barX1 < cardX0);
+        CHECK(!foundScroll);
+        // Left column spans 36..256 (card starts 24 px right of kColBarRight: 3px gap + 8px scroll slot + 13px gutter).
+        float barX0 = 320.0f + (36.0f - 320.0f) * ms;
+        float barX1 = cardX0 - 24.0f * ms;
+        CHECK(barX1 > barX0 + 215.0f * ms && barX1 < cardX0);
         float barW = barX1 - barX0;
         float cardW = cardX1 - cardX0;
         CHECK(cardW / barW >= 1.45f);
