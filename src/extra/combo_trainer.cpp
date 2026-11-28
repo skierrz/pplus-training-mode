@@ -25,6 +25,7 @@
 #include "main/gfx/draw.h"
 #include "main/settings.h"
 #include "main/storage/notice.h"
+#include "main/ui/state_colors.h"
 #include "shared/game/frame.h"
 #include "shared/game/mem.h"
 #include "shared/log.h"
@@ -534,28 +535,31 @@ namespace extra {
             float cy = top.m_y + 10.5f;
 
             // Main state bar (priority: shieldstun > hitlag > hitstun > timeUntilIASA).
+            // Unified Layer 2 valence palette: Hot Amber-Orange for Stun/Hitlag, Emerald for IASA.
+            u8 cbMode = ui::activeColorblindMode();
             static const u8 kMainBit[4] = {
                 main::kMeterShieldstun, main::kMeterHitlag, main::kMeterHitstun, main::kMeterIasa
             };
-            static const gfx::Rgba kMainCol[4] = {0x3898FFFF, 0x40D060FF, 0xFF9830FF, 0xD0D840FF};
+            static const u8 kMainState[4] = {
+                ui::kStateColorStun, ui::kStateColorStun, ui::kStateColorStun, ui::kStateColorActionable
+            };
             const float ratios[4] = {mv.shieldStunRatio, mv.hitlagRatio, mv.hitstunRatio, mv.iasaRatio};
             for (int mi = 0; mi < 4; mi++)
             {
                 if ((mv.activeMask & kMainBit[mi]) != 0)
                 {
-                    drawBar(cx, cy, 14.0f, 2.4f, ratios[mi], kMainCol[mi]);
+                    drawBar(cx, cy, 14.0f, 2.4f, ratios[mi], ui::stateColor(kMainState[mi], cbMode));
                     cy += 3.8f;
                     break;
                 }
             }
 
-            // Intangibility / Ledge Intangibility bar.
+            // Invincibility / Ledge Invincibility bar (Bright Ice-Aqua).
             if ((mv.activeMask & (main::kMeterLedgeIntang | main::kMeterIntang)) != 0)
             {
                 bool ledge = (mv.activeMask & main::kMeterLedgeIntang) != 0;
                 float ratio = ledge ? mv.ledgeIntangRatio : mv.intangRatio;
-                gfx::Rgba col = ledge ? 0x40D090FF : 0x58B8F0FF;
-                drawBar(cx, cy, 11.0f, 1.8f, ratio, col);
+                drawBar(cx, cy, 11.0f, 1.8f, ratio, ui::stateColor(ui::kStateColorGalint, cbMode));
                 cy += 3.0f;
             }
 

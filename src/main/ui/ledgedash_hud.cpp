@@ -11,6 +11,7 @@
 #include "main/ui/hud_layout.h"
 #include "main/ui/match_hud.h"
 #include "main/ui/menu.h"
+#include "main/ui/state_colors.h"
 #include "main/ui/style.h"
 #include "shared/game/scene.h"
 
@@ -26,16 +27,16 @@ namespace ui {
     static u8 s_seenDismissGen = 0;
     static s32 s_dismissedDone = game::kNoFrame;
 
-    // Neutral high-contrast per-phase cell colors.
-    static const gfx::Rgba kCellColors[game::kCellTypes] = {
-        0x888888D0, // ledge
-        0xE0C040D0, // fall
-        0x50C878D0, // jump
-        0x4890E0D0, // airdodge
-        0xE8E8E8D0, // landing
-        0xE05050D0, // attack
-        0xA070D0D0, // other
-        0x40D0C8D0  // GALINT
+    // Maps Ledgedash cell types to unified Layer 2 ActionStateColor tokens.
+    static const u8 kCellStates[game::kCellTypes] = {
+        kStateColorLedge,      // ledge
+        kStateColorDrop,       // fall / drop
+        kStateColorActionable, // jump
+        kStateColorDodge,      // airdodge
+        kStateColorLag,        // landing (flat matte dead ash-slate)
+        kStateColorStrike,     // attack
+        kStateColorLag,        // other
+        kStateColorGalint      // GALINT (ice-aqua)
     };
 
     bool ledgedashHudVisible()
@@ -116,6 +117,7 @@ namespace ui {
         gfx::Rgba outCol = style::scaleAlpha(style::kHudOutlineEdge, alpha);
         gfx::Rgba primCol = style::scaleAlpha(style::kHudTextPrimary, alpha);
         gfx::Rgba sheenCol = style::scaleAlpha(style::kHudCellSheen, alpha);
+        u8 cbMode = activeColorblindMode();
 
         // Zone 1: Bold calm-white swatch-legend row directly above bar (09-calm-ledgedash).
         if (g.ledgePanel)
@@ -156,7 +158,7 @@ namespace ui {
             {
                 gfx::fillRect(curX - 1.0f * xs, swY - 1.0f, swW + 2.0f * xs, layout::kKeySwatch + 2.0f, troughCol);
                 gfx::fillRect(curX, swY, swW, layout::kKeySwatch,
-                              style::scaleAlpha(kCellColors[kLegCells[i]] | 0xFFu, alpha));
+                              style::scaleAlpha(stateColor(kCellStates[kLegCells[i]], cbMode), alpha));
                 curX += (swW + swGap + lWidths[i] + itemGap) * ratio;
             }
             curX = lx0;
@@ -188,12 +190,12 @@ namespace ui {
         for (int k = 0; k < n; k++)
         {
             u8 type = static_cast<u8>(k < frames ? l.cells[first + k] : game::kCellGalint);
-            gfx::Rgba col = style::scaleAlpha(
-                (type < game::kCellTypes ? kCellColors[type] : kCellColors[game::kCellOther]) | 0xFFu, alpha);
+            u8 stCol = type < game::kCellTypes ? kCellStates[type] : static_cast<u8>(kStateColorLag);
+            gfx::Rgba col = style::scaleAlpha(stateColor(stCol, cbMode), alpha);
             float cx = bar.x0 + innerPadX + k * (cellW + gap);
             gfx::fillRect(cx, bar.y0 + 2.0f, cellW, cellH, col);
             // Physical lighting rule: landing lag stays flat matte; raised live cells get subtle top specular.
-            if (type != game::kCellLanding)
+            if (stCol != kStateColorLag)
             {
                 gfx::fillRect(cx, bar.y0 + 2.0f, cellW, 2.0f, sheenCol);
             }
@@ -227,10 +229,10 @@ namespace ui {
             char galintBuf[20];
             char ledgeBuf[16];
             char angleBuf[20];
-            gfx::Rgba galintCol = style::kHudRed;
+            gfx::Rgba galintCol = gradeColor(kGradeBad, cbMode);
             if (l.noXlu)
             {
-                galintCol = style::kHudWarn;
+                galintCol = gradeColor(kGradeOkay, cbMode);
                 if (l.grabCount > 5)
                 {
                     snprintf(galintBuf, sizeof(galintBuf), "None (%d/5)", l.grabCount);
@@ -242,7 +244,7 @@ namespace ui {
             }
             else
             {
-                galintCol = l.galint > 0 ? style::kHudGreen : style::kHudRed;
+                galintCol = gradeColor(l.galint > 0 ? kGradeGood : kGradeBad, cbMode);
                 snprintf(galintBuf, sizeof(galintBuf), l.galint > 0 ? "+%df" : "%df", l.galint);
             }
             snprintf(ledgeBuf, sizeof(ledgeBuf), "%df", l.ledgeFrames);

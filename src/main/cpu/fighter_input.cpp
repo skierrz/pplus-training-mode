@@ -33,6 +33,7 @@ namespace cpu {
         kStickY = 0x14,
         kTriggerL = 0x20,
         kTriggerR = 0x24,
+        kHumanPadFlag = 0x28,
         kFtInputMain = 0x0C,
         kFtInputSub = 0x10,
         kAiMgrSlotFlags = 0x84,
@@ -168,6 +169,19 @@ namespace cpu {
         if (game::isRam(input))
         {
             *reinterpret_cast<u8*>(reinterpret_cast<u32>(input) + kCpuType) = static_cast<u8>(type);
+        }
+    }
+
+    u8 humanPadFlag(const void* input)
+    {
+        return game::isRam(input) ? game::byteAt(input, kHumanPadFlag) : 0u;
+    }
+
+    void setHumanPadFlag(void* input, u8 flag)
+    {
+        if (game::isRam(input))
+        {
+            *reinterpret_cast<u8*>(reinterpret_cast<u32>(input) + kHumanPadFlag) = flag;
         }
     }
 }

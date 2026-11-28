@@ -8,8 +8,8 @@ namespace tm {
 namespace ui {
 namespace pages {
     enum {
-        kPageStringsRawBytes = 10891,
-        kPageStringsCompBytes = 4196
+        kPageStringsRawBytes = 10934,
+        kPageStringsCompBytes = 4218
     };
 
     enum PageStrOff {
@@ -164,27 +164,28 @@ namespace pages {
         kPs_thm_kMenuAccentLabels = 10075,
         kPs_thm_kInfoBgLabels = 10124,
         kPs_thm_kInfoAlphaLabels = 10184,
-        kPs_thm_names = 10219,
-        kPs_alt_kPressed = 10287,
-        kPs_alt_names = 10294,
-        kPs_sm_kPlayer = 10426,
-        kPs_sm_kSlot = 10433,
-        kPs_sm_names = 10475,
-        kPs_sc_names = 10568,
-        kPs_ac_kLogic = 10625,
-        kPs_ac_names = 10644,
-        kPs_ld_names = 10738,
-        kPs_fmt_d = 10781,
-        kPs_fmt_pd = 10784,
-        kPs_fmt_df = 10788,
-        kPs_fmt_pdf = 10792,
-        kPs_fmt_pct = 10797,
-        kPs_rev_act = 10802,
-        kPs_rev_dly = 10816,
-        kPs_rev_wgt = 10829,
-        kPs_rec_save = 10843,
-        kPs_rec_restore = 10858,
-        kPs_pool_nothing = 10876
+        kPs_thm_kColorblindLabels = 10219,
+        kPs_thm_names = 10246,
+        kPs_alt_kPressed = 10330,
+        kPs_alt_names = 10337,
+        kPs_sm_kPlayer = 10469,
+        kPs_sm_kSlot = 10476,
+        kPs_sm_names = 10518,
+        kPs_sc_names = 10611,
+        kPs_ac_kLogic = 10668,
+        kPs_ac_names = 10687,
+        kPs_ld_names = 10781,
+        kPs_fmt_d = 10824,
+        kPs_fmt_pd = 10827,
+        kPs_fmt_df = 10831,
+        kPs_fmt_pdf = 10835,
+        kPs_fmt_pct = 10840,
+        kPs_rev_act = 10845,
+        kPs_rev_dly = 10859,
+        kPs_rev_wgt = 10872,
+        kPs_rec_save = 10886,
+        kPs_rec_restore = 10901,
+        kPs_pool_nothing = 10919
     };
 
     void pageStringsAttach();

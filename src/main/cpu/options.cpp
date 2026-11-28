@@ -134,6 +134,7 @@ namespace cpu {
     static s8 s_savedPort[kMaxSlots];
     static s8 s_origPort[kMaxSlots];
     static u8 s_savedType[kMaxSlots];
+    static u8 s_savedHumanFlag[kMaxSlots];
 
     // Resolves a CPU player's live main aiInput on demand (never cached across
     // fighter re-creation or savestate loads): ftManager::getEntryId ->
@@ -184,6 +185,7 @@ namespace cpu {
             if (input != NULL)
             {
                 setCpuType(input, s_savedType[playerNo]);
+                setHumanPadFlag(input, s_savedHumanFlag[playerNo]);
             }
             s_portChanged[playerNo] = false;
             TM_LOG("cpu: P%d controller port back to %d, CPU type %d\n", playerNo + 1, s_savedPort[playerNo],
@@ -383,12 +385,17 @@ namespace cpu {
                 }
                 s_savedPort[who.playerNo] = s_origPort[who.playerNo];
                 s_savedType[who.playerNo] = static_cast<u8>(cpuType(who.input));
+                s_savedHumanFlag[who.playerNo] = humanPadFlag(who.input);
                 s_portChanged[who.playerNo] = true;
                 TM_LOG("cpu: P%d controlled by port %d\n", who.playerNo + 1, c.controlledBy);
             }
             game::trainingControllerSuppress(game::kControllerOwnerControlledBy, true);
             setControllerOf(who.playerNo, c.controlledBy);
             setCpuType(who.input, kCpuTypeControl);
+            // Enable P+ ButtonPresses.asm (0x80575C04) analog C-Stick & L/R
+            // capture into LA-Float[34..37] and pass hardware pad through untouched.
+            setHumanPadFlag(who.input, 1);
+            passThrough(who.slot);
             out = produced;
             reset();
             return true;

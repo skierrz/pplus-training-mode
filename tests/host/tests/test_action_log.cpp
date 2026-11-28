@@ -283,4 +283,43 @@ TEST(action_log, sf6_dual_strip_phase_classification_advantage_and_ring_wrap)
     {
         CHECK(sf6CellAt(sfTc, 1, i) != kSf6Stun);
     }
+
+    // Grab active-frame detection + dead matte whiff endlag:
+    // Catch (0x34): startup -> active grab (kSf6Grab, Magenta-Purple) -> vulnerable lag (kSf6Recovery, Dead Ash).
+    Sf6StripState sfGrab;
+    sf6ResetState(sfGrab);
+    s32 fg = 900;
+    sf6PushDualFrame(sfGrab, fg++, 0x34, false, false, false, kStatusWait, true, false, false, false, false, false);
+    sf6PushDualFrame(sfGrab, fg++, 0x34, false, false, false, kStatusWait, true, false, false, false, false, false);
+    sf6PushDualFrame(sfGrab, fg++, 0x34, false, false, false, kStatusWait, true, false, false, true, false, false);
+    sf6PushDualFrame(sfGrab, fg++, 0x34, false, false, false, kStatusWait, true, false, false, true, false, false);
+    sf6PushDualFrame(sfGrab, fg++, 0x34, false, false, false, kStatusWait, true, false, false, false, false, false);
+    CHECK_EQ(static_cast<int>(kSf6Startup), static_cast<int>(sf6CellKind(sf6CellAt(sfGrab, 0, 0))));
+    CHECK_EQ(static_cast<int>(kSf6Grab), static_cast<int>(sf6CellKind(sf6CellAt(sfGrab, 0, 2))));
+    CHECK_EQ(static_cast<int>(kSf6Grab), static_cast<int>(sf6CellKind(sf6CellAt(sfGrab, 0, 3))));
+    CHECK_EQ(static_cast<int>(kSf6Recovery), static_cast<int>(sf6CellKind(sf6CellAt(sfGrab, 0, 4))));
+    CHECK_EQ(0xCC4CF5FFu, sf6CellColor(sf6CellAt(sfGrab, 0, 2)));
+    CHECK_EQ(0x4C505EFFu, sf6CellColor(sf6CellAt(sfGrab, 0, 4)));
+
+    // Ledgedash XLU sync: Ledge (XLU) -> Drop (XLU) -> Jump (XLU) -> Airdodge (XLU) -> Land (XLU) -> GALINT -> Idle.
+    Sf6StripState sfLedge;
+    sf6ResetState(sfLedge);
+    s32 fl = 1000;
+    sf6PushDualFrame(sfLedge, fl++, kStatusCliffWait, false, false, false, kStatusWait, true, false, false, false, true, false);
+    sf6PushDualFrame(sfLedge, fl++, kStatusFall, false, false, false, kStatusWait, true, false, false, false, true, false);
+    sf6PushDualFrame(sfLedge, fl++, kStatusJumpAerial, false, false, false, kStatusWait, true, false, false, false, true, false);
+    sf6PushDualFrame(sfLedge, fl++, kStatusEscapeAir, false, false, false, kStatusWait, true, false, false, false, true, false);
+    sf6PushDualFrame(sfLedge, fl++, kStatusLandingFallSpecial, false, false, false, kStatusWait, true, false, false, false, true, false);
+    sf6PushDualFrame(sfLedge, fl++, kStatusWait, true, false, false, kStatusWait, true, false, false, false, true, false);
+    sf6PushDualFrame(sfLedge, fl++, kStatusWait, true, false, false, kStatusWait, true, false, false, false, false, false);
+    CHECK_EQ(static_cast<int>(kSf6Ledge), static_cast<int>(sf6CellKind(sf6CellAt(sfLedge, 0, 0))));
+    CHECK(sf6CellHasXlu(sf6CellAt(sfLedge, 0, 0)));
+    CHECK_EQ(static_cast<int>(kSf6LedgeDrop), static_cast<int>(sf6CellKind(sf6CellAt(sfLedge, 0, 1))));
+    CHECK(sf6CellHasXlu(sf6CellAt(sfLedge, 0, 1)));
+    CHECK_EQ(static_cast<int>(kSf6Jump), static_cast<int>(sf6CellKind(sf6CellAt(sfLedge, 0, 2))));
+    CHECK_EQ(static_cast<int>(kSf6Dodge), static_cast<int>(sf6CellKind(sf6CellAt(sfLedge, 0, 3))));
+    CHECK_EQ(static_cast<int>(kSf6Recovery), static_cast<int>(sf6CellKind(sf6CellAt(sfLedge, 0, 4))));
+    CHECK(sf6CellHasXlu(sf6CellAt(sfLedge, 0, 4)));
+    CHECK_EQ(static_cast<int>(kSf6Galint), static_cast<int>(sf6CellKind(sf6CellAt(sfLedge, 0, 5))));
+    CHECK_EQ(static_cast<int>(kSf6Empty), static_cast<int>(sf6CellKind(sf6CellAt(sfLedge, 0, 6))));
 }

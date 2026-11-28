@@ -111,6 +111,7 @@ NUMBERS = {
     ("lab.cpp", "L-Cancel (%d%%)\nMissed"): ["100"],
     ("lab.cpp", "L-Cancel (%d%%)\nAuto (Rule On)"): ["100"],
     ("lab.cpp", "L-Cancel (%d%%)\nFrame %d/7"): ["100", "7"],
+    ("lab.cpp", "DACUS\nFailed (+%df)"): ["11"],
     ("lab.cpp", "%s\nRate: %d%%"): [None, "100"],
     ("pplus_tech_tracker.cpp", "%s\nCount: %u"): [None, "999"],
     ("lab.cpp", "Wavedash: f%d\nAngle: %2.1f\n%s (%df)"): ["99", "90.0", None, "99"],
@@ -640,7 +641,7 @@ def info_display(c, src):
         c.take(lit)
 
 
-guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "30818151")
+guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "5fa280e4")
 
 
 def ledgedash_hud(c, src):

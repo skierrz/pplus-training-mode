@@ -4374,6 +4374,59 @@ def o_controlled_by_load_on(r):
     return res
 
 
+def o_controlled_by_shield_cstick(r):
+    """Port Control = Port 1 holding Shield (R) + C-Stick Left must continuously
+    buffer rolls repeatedly (identical to a human port) via P+ ButtonPresses.asm
+    LA-Float[34..37], and restore aiInput+0x28 when returned to Off."""
+    res = Result("Port Control Shield + C-Stick continuous buffer")
+    emu = r.emu
+    r.load("start", on())
+    emu.h.call("resume")
+    emu.advance(10)
+    en = r.g.entry(CPU)
+    ai_inp = r.g.inputs(en)[0]
+    m = r.g.modules(en["fighters"][en["active"]])
+    human_flag_before = emu.u8(ai_inp + 0x28)
+
+    cpu_page(r, CPU_ROWS["controlled by"], then=lambda lab_: lab_.tap(stick=LT.RIGHT))
+    if r.opt.get("controlledBy") != 1:
+        raise CpuError(f"Controlled By is {r.opt.get('controlledBy')}, expected 1")
+    emu.advance(15)
+    emu.wait_for("CPU Wait under Port Control", lambda: r.g.fighter(en)["status"] == STATUS["Wait"], 180, every=2)
+    emu.h.call("pause")
+    human_flag_during = emu.u8(ai_inp + 0x28)
+
+    # Hold R briefly to enter shield cleanly, then hold R + C-Stick Left for 95 frames.
+    emu.hold(0, buttons=["R"])
+    emu.h.call("frame_advance", n=8)
+    emu.hold(0, buttons=["R"], cstick=(20, 128))
+    roll_entries = 0
+    saw_cstick_la = False
+    prev_st = -1
+    for _ in range(95):
+        emu.h.call("frame_advance", n=1)
+        st = r.g.fighter(en)["status"]
+        cstick_x = emu.f32(m["floats"] + 34 * 4)
+        if abs(cstick_x) > 0.6:
+            saw_cstick_la = True
+        if st in (0x1F, 0x20) and prev_st not in (0x1F, 0x20):
+            roll_entries += 1
+        prev_st = st
+    emu.neutral(0)
+    emu.h.call("resume")
+    cpu_page(r, CPU_ROWS["controlled by"], then=lambda lab_: lab_.tap(stick=LT.LEFT))
+    emu.advance(10)
+    human_flag_after = emu.u8(ai_inp + 0x28)
+    res.row("Port Control holding Shield + C-Stick Left buffers >= 2 consecutive rolls",
+            ">= 2 rolls, LA-Float[34] active", f"{roll_entries} rolls, la={saw_cstick_la}",
+            roll_entries >= 2 and saw_cstick_la)
+    res.row("aiInput+0x28 human pad flag: before / during / after Off",
+            f"{human_flag_before} / 1 / {human_flag_before}",
+            f"{human_flag_before} / {human_flag_during} / {human_flag_after}",
+            human_flag_during == 1 and human_flag_after == human_flag_before)
+    return res
+
+
 def o_dash_through(r):
     """Counter Action (Ground) = Dash Through after one hit on Fox (FD):
     the CPU must dash through once and then be free (no retries, no repeated
@@ -6096,6 +6149,7 @@ SCENARIOS = [("c1", c1_shield), ("c2", c2_jump), ("c3", c3_sequence), ("c4", c4_
              ("move-freeze", o_move_freeze),
              ("controlled-by-load", o_controlled_by_load),
              ("controlled-by-load-on", o_controlled_by_load_on),
+             ("controlled-by-shield-cstick", o_controlled_by_shield_cstick),
              ("dash-through", o_dash_through),
              ("grab", o_grab), ("grab-airborne", o_grab_airborne),
              ("advanced", o_advanced), ("tech-wait", o_tech_wait), ("tech-trap", o_tech_trap),

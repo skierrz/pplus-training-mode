@@ -47,7 +47,7 @@ namespace osdQuick {
         kRepeatEvery = ui::style::kRepeatEvery
     };
     TM_STATIC_ASSERT(kGeneralUsed == 15, tm_osd_quick_general_used_bytes);
-    TM_STATIC_ASSERT(kOsdUsed == 30, tm_osd_quick_used_bytes);
+    TM_STATIC_ASSERT(kOsdUsed == 31, tm_osd_quick_used_bytes);
     TM_STATIC_ASSERT(kOsdPresetsUsed == 12, tm_osd_quick_presets_used_bytes);
 
     static const char* const kNames[2] = {"settings-a.bin", "settings-b.bin"};
@@ -182,6 +182,7 @@ namespace osdQuick {
         out.timingMeter = main::kTimingMeterOff;
         out.preset = main::kOsdPresetEssentials;
         out.techSparkle = main::kTechSparkleWavedash;
+        out.colorblindMode = main::kColorblindOff;
     }
 
     void defaultCpuSettings(main::CpuSettings& out)

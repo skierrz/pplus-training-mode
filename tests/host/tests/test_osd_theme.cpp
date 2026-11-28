@@ -21,6 +21,7 @@
 #include "main/ui/menu_theme_core.h"
 #include "main/ui/osd_theme_core.h"
 #include "main/ui/pages/pages.h"
+#include "main/ui/state_colors.h"
 #include "main/ui/style.h"
 
 using namespace tm;
@@ -184,19 +185,21 @@ TEST(osd_theme, display_theme_menu_navigation_and_descriptions)
     CHECK_EQ(static_cast<int>(ui::kKindMenu), static_cast<int>(displayPage.options[themeRow].kind));
     CHECK_EQ(static_cast<int>(ui::pages::P_THEME), static_cast<int>(displayPage.options[themeRow].max));
 
-    // Theme page has 5 choice rows with expected defaults (Theme v2).
+    // Theme page has 6 choice rows with expected defaults (Theme v2 + Colorblind Mode).
     CHECK_STR("Theme", themePage.title);
-    CHECK_EQ(5, static_cast<int>(themePage.count));
+    CHECK_EQ(6, static_cast<int>(themePage.count));
     CHECK_STR("OSD Background", themePage.options[0].name);
     CHECK_STR("OSD Opacity", themePage.options[1].name);
     CHECK_STR("Menu Accent", themePage.options[2].name);
     CHECK_STR("Info Background", themePage.options[3].name);
     CHECK_STR("Info Opacity", themePage.options[4].name);
+    CHECK_STR("Colorblind Mode", themePage.options[5].name);
     CHECK_EQ(static_cast<int>(main::kOsdBgTeal), static_cast<int>(main::settings().osd.bgColor));
     CHECK_EQ(static_cast<int>(main::kDefaultOsdAlpha), static_cast<int>(main::settings().osd.bgAlpha));
     CHECK_EQ(static_cast<int>(main::kMenuAccentTeal), static_cast<int>(main::settings().osd.menuAccent));
     CHECK_EQ(static_cast<int>(main::kInfoBgDefault), static_cast<int>(main::settings().osd.infoBgColor));
     CHECK_EQ(static_cast<int>(main::kInfoAlphaDefault), static_cast<int>(main::settings().osd.infoBgAlpha));
+    CHECK_EQ(static_cast<int>(main::kColorblindOff), static_cast<int>(main::settings().osd.colorblindMode));
 
     // Descriptions exist for Display > Theme and all 5 Theme rows.
     const char* displayThemeDesc = extra::optionDesc(ui::pages::P_DISPLAY, themeRow);
@@ -348,8 +351,9 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     CHECK_EQ(115u, offsetof(Settings, osd.timingMeter));
     CHECK_EQ(116u, offsetof(Settings, osd.preset));
     CHECK_EQ(117u, offsetof(Settings, osd.techSparkle));
+    CHECK_EQ(118u, offsetof(Settings, osd.colorblindMode));
     CHECK_EQ(22u, offsetof(main::OsdSettings, bgColor));
-    CHECK_EQ(30u, offsetof(main::OsdSettings, reserved));
+    CHECK_EQ(31u, offsetof(main::OsdSettings, reserved));
 
     // Boot clean and verify defaults.
     bootStorage();
@@ -361,8 +365,9 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     CHECK_EQ(static_cast<int>(main::kInfoAlphaDefault), static_cast<int>(main::settings().osd.infoBgAlpha));
     CHECK_EQ(static_cast<int>(main::kTimingMeterOff), static_cast<int>(main::settings().osd.timingMeter));
     CHECK_EQ(static_cast<int>(main::kTechSparkleWavedash), static_cast<int>(main::settings().osd.techSparkle));
+    CHECK_EQ(static_cast<int>(main::kColorblindOff), static_cast<int>(main::settings().osd.colorblindMode));
 
-    // Save custom Theme v2 + timing meter + tech sparkle + pre-existing OSD settings and verify round-trip.
+    // Save custom Theme v2 + timing meter + tech sparkle + colorblind mode + pre-existing OSD settings and verify round-trip.
     main::settings().osd.wavedash = 0;
     main::settings().osd.maxMessages = 3;
     main::settings().osd.bgColor = main::kOsdBgCrimson;
@@ -372,13 +377,14 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     main::settings().osd.infoBgAlpha = main::kInfoAlpha20;
     main::settings().osd.timingMeter = main::kTimingMeterAll;
     main::settings().osd.techSparkle = main::kTechSparkleBoth;
+    main::settings().osd.colorblindMode = main::kColorblindDeuteran;
     saveStorage();
     storage::detach();
 
     REQUIRE(host::card::has(kFileA));
     storage::AreaEntry* osdArea = findAreaEntry(kFileA, storage::kAreaOsd);
     REQUIRE(osdArea != NULL);
-    CHECK_EQ(30u, osdArea->used);
+    CHECK_EQ(31u, osdArea->used);
 
     bootStorage();
     CHECK_LOG("17 areas, 0 with new fields, 0 at defaults, 0 unknown");
@@ -391,6 +397,7 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     CHECK_EQ(static_cast<int>(main::kInfoAlpha20), static_cast<int>(main::settings().osd.infoBgAlpha));
     CHECK_EQ(static_cast<int>(main::kTimingMeterAll), static_cast<int>(main::settings().osd.timingMeter));
     CHECK_EQ(static_cast<int>(main::kTechSparkleBoth), static_cast<int>(main::settings().osd.techSparkle));
+    CHECK_EQ(static_cast<int>(main::kColorblindDeuteran), static_cast<int>(main::settings().osd.colorblindMode));
     storage::detach();
 
     // Simulate Theme v1 SD file where kAreaOsd had used == 24 (ending after bgAlpha):
@@ -453,4 +460,28 @@ TEST(osd_theme, sd_migration_from_22_byte_pre3_osd_area_and_round_trip)
     CHECK_EQ(static_cast<int>(main::kInfoAlpha100), static_cast<int>(main::settings().osd.infoBgAlpha));
     CHECK_EQ(static_cast<int>(main::kTimingMeterActOut), static_cast<int>(main::settings().osd.timingMeter));
     storage::detach();
+
+    // Verify Layer 1 & Layer 2 Colorblind Mode palettes are distinct across all 4 modes.
+    for (u8 m = 0; m < main::kColorblindCount; m++)
+    {
+        gfx::Rgba gGood = ui::gradeColor(ui::kGradeGood, m);
+        gfx::Rgba gOkay = ui::gradeColor(ui::kGradeOkay, m);
+        gfx::Rgba gBad = ui::gradeColor(ui::kGradeBad, m);
+        CHECK(gGood != gOkay && gOkay != gBad && gGood != gBad);
+
+        gfx::Rgba sStrike = ui::stateColor(ui::kStateColorStrike, m);
+        gfx::Rgba sGrab = ui::stateColor(ui::kStateColorGrab, m);
+        gfx::Rgba sLag = ui::stateColor(ui::kStateColorLag, m);
+        gfx::Rgba sStun = ui::stateColor(ui::kStateColorStun, m);
+        gfx::Rgba sGalint = ui::stateColor(ui::kStateColorGalint, m);
+        CHECK(sStrike != sGrab && sGrab != sLag && sStrike != sLag && sStun != sLag && sGalint != sLag);
+    }
+    CHECK_EQ(0x4C505EFFu, ui::stateColor(ui::kStateColorLag, main::kColorblindOff));
+    CHECK_EQ(0xF59824FFu, ui::stateColor(ui::kStateColorStun, main::kColorblindOff));
+    CHECK_EQ(0xCC4CF5FFu, ui::stateColor(ui::kStateColorGrab, main::kColorblindOff));
+    CHECK_EQ(0x6EF8F2FFu, ui::stateColor(ui::kStateColorGalint, main::kColorblindOff));
+    // Off remaps to exact identity; Deuteran remaps green/red to cyan/magenta.
+    CHECK_EQ(0x4ADE80FFu, ui::remapGradeColor(0x4ADE80FFu, main::kColorblindOff));
+    CHECK_EQ(0x33C4FFFFu, ui::remapGradeColor(0x4ADE80FFu, main::kColorblindDeuteran));
+    CHECK_EQ(0xE82A74FFu, ui::remapGradeColor(0xFF948AFFu, main::kColorblindDeuteran));
 }

@@ -62,7 +62,7 @@ namespace pages {
         kRecordingRowCount = 18,                      // 9 + 9 playback & positions
         kGeneralRowCount = 13,
         kControlsRowCount = 10,
-        kThemeRowCount = 5,
+        kThemeRowCount = 6,
         kAlterInputsRowCount = 16,
         kSlotManagementRowCount = 8,
         kSlotChancesRowCount = 14,                   // 7 P1 + 7 CPU

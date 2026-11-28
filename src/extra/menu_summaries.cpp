@@ -212,7 +212,8 @@ namespace extra {
         {
             if (s.osd.bgColor == main::kOsdBgTeal && s.osd.bgAlpha == main::kDefaultOsdAlpha
                 && s.osd.menuAccent == main::kMenuAccentTeal && s.osd.infoBgColor == main::kInfoBgDefault
-                && s.osd.infoBgAlpha == main::kInfoAlphaDefault)
+                && s.osd.infoBgAlpha == main::kInfoAlphaDefault
+                && s.osd.colorblindMode == main::kColorblindOff)
             {
                 return copyStr(buf, cap, "Default");
             }

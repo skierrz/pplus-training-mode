@@ -48,6 +48,9 @@ namespace game {
         kStatusDamage = 0x43,
         kStatusDamageFlyRoll = 0x46,
         kStatusDownDamage = 0x54,
+        kStatusCliffCatchMove = 0x73,
+        kStatusCliffCatch = 0x74,
+        kStatusCliffWait = 0x75,
         // Teetering at a ledge: Ottoto (its start) and Ottoto_Wait (its
         // loop), Melee's Ottotto and OttottoWait. From ft/fighter.h
         // (Fighter::Status::Kind); unchecked in game.

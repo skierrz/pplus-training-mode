@@ -10,13 +10,16 @@
 
 #include "extra/action_log_core.h"
 #include "extra/hud_draw.h"
+#include "extra/pplus_collision.h"
 #include "main/display/display.h"
+#include "main/game/body.h"
 #include "main/game/motion.h"
 #include "main/game/tracker.h"
 #include "main/gfx/draw.h"
 #include "main/gfx/text.h"
 #include "main/settings.h"
 #include "main/ui/hud_layout.h"
+#include "main/ui/state_colors.h"
 #include "main/ui/style.h"
 #include "shared/game/heap.h"
 #include "shared/game/mem.h"
@@ -62,6 +65,91 @@ namespace extra {
             for (u32 i = 0; i < parts; i++)
             {
                 if (m->m_collisionAttackModule->isAttack(i, false))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool collModHasActivePart(const void* mod, u32 slotOff, u32 renderFn, u32 partsOff, u32 collOff)
+        {
+            if (!game::isRam(mod))
+            {
+                return false;
+            }
+            const void* vt = reinterpret_cast<const void*>(game::wordAt(mod, 0));
+            if (!game::isRam(vt) || game::wordAt(vt, slotOff) != renderFn)
+            {
+                return false;
+            }
+            const void* parts = NULL;
+            const void* calls = NULL;
+            const void* coll = NULL;
+            int gCount = 0;
+            int limit = collOpenParts(mod, partsOff, collOff, parts, calls, coll, gCount);
+            for (int id = 0; id < limit; id++)
+            {
+                const void* part = collArrayAt(parts, calls, id);
+                if (game::isRam(part) && game::wordAt(part, 0) == kCollPartActive)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Checks m_collisionCatchModule (standard grabs) and m_collisionSearchModule
+        // during tether/grab statuses (0x34..0x3B, AirLasso 0x7F) so grabs split cleanly
+        // into Startup -> Active Grab (Magenta-Purple) -> Vulnerable Dead Ash Lag.
+        bool trackedHasActiveGrab(const game::Tracked* t)
+        {
+            if (t == NULL || t->fighter == NULL)
+            {
+                return false;
+            }
+            const soModuleEnumeration* m = game::fighterModules(t->fighter);
+            if (m == NULL)
+            {
+                return false;
+            }
+            if (collModHasActivePart(m->m_collisionCatchModule, kCollCatchSlotRenderDebug, kCollCatchRenderDebug,
+                                     kCollCatchParts, kCollCatchCollision))
+            {
+                return true;
+            }
+            int st = static_cast<int>(t->cur.status);
+            if ((st >= 0x34 && st <= 0x3B) || st == 0x7F)
+            {
+                return collModHasActivePart(m->m_collisionSearchModule, kCollSearchSlotRenderDebug,
+                                            kCollSearchRenderDebug, kCollSearchParts, kCollSearchCollision);
+            }
+            return false;
+        }
+
+        bool trackedHasXlu(const game::Tracked* t)
+        {
+            if (t == NULL || t->fighter == NULL)
+            {
+                return false;
+            }
+            game::Body body;
+            if (!game::readBody(t->fighter, body))
+            {
+                return false;
+            }
+            return body.intangible != 0 || body.xluFrames > 0 || body.invFrames > 0;
+        }
+
+        bool trackedSawLedgeEvent(const game::Tracked* t)
+        {
+            if (t == NULL)
+            {
+                return false;
+            }
+            for (int k = 0; k < t->eventCount; k++)
+            {
+                if (sf6IsLedgeStatus(t->events[k].status))
                 {
                     return true;
                 }
@@ -224,16 +312,23 @@ namespace extra {
         int st0 = topRow != NULL ? static_cast<int>(topRow->cur.status) : 0;
         bool act0 = topRow == NULL || topRow->cur.actionable != 0;
         bool hit0 = trackedHasActiveHitbox(topRow);
+        bool grab0 = trackedHasActiveGrab(topRow);
+        bool xlu0 = trackedHasXlu(topRow);
+        bool ledge0 = trackedSawLedgeEvent(topRow);
         bool stun0 = topRow != NULL
                      && sf6IsDefenderStun(st0, topRow->cur.hitstun, topRow->cur.shieldStun, topRow->cur.hitReceived,
                                           topRow->cur.shieldReceived);
         int st1 = botRow != NULL ? static_cast<int>(botRow->cur.status) : 0;
         bool act1 = botRow == NULL || botRow->cur.actionable != 0;
         bool hit1 = trackedHasActiveHitbox(botRow);
+        bool grab1 = trackedHasActiveGrab(botRow);
+        bool xlu1 = trackedHasXlu(botRow);
+        bool ledge1 = trackedSawLedgeEvent(botRow);
         bool stun1 = botRow != NULL
                      && sf6IsDefenderStun(st1, botRow->cur.hitstun, botRow->cur.shieldStun, botRow->cur.hitReceived,
                                           botRow->cur.shieldReceived);
-        sf6PushDualFrame(s_net->sf6, game::trackerFrame(), st0, act0, hit0, stun0, st1, act1, hit1, stun1);
+        sf6PushDualFrame(s_net->sf6, game::trackerFrame(), st0, act0, hit0, stun0, st1, act1, hit1, stun1,
+                         grab0, xlu0, ledge0, grab1, xlu1, ledge1);
         syncDebug(mode, slot);
     }
 
@@ -276,8 +371,13 @@ namespace extra {
         const float tagSc = ui::style::scaleForCap(9.5f);
         const float trackW = static_cast<float>(visibleCells) * cellPitch + (cellPitch - cellFillW);
 
-        // Pass 1: all quads (scrim card + frame strip cells + active-frame tick).
-        drawSmokedCard(ox, oy, bw, bh, xs);
+        // Pass 1: subtle translucent glass container + matte recessed troughs + semantic cells.
+        // Outer container gets a clean 2px white-alpha top bevel (nothing sits on top of it);
+        // cell troughs stay matte dark; Dead Ash Lag cells stay flat matte (zero sheen).
+        u8 cbMode = ui::activeColorblindMode();
+        gfx::Rgba xluCapCol = ui::stateColor(ui::kStateColorGalint, cbMode);
+        gfx::fillRect(ox, oy, bw, bh, 0x0C121B80u);
+        gfx::fillRect(ox, oy, bw, 2.0f, kHudCellSheen);
 
         for (int r = 0; r < 2; r++)
         {
@@ -285,32 +385,22 @@ namespace extra {
             for (int c = 0; c < visibleCells; c++)
             {
                 int src = startIdx + c;
-                u8 kind = (src < filled) ? sf6CellAt(sf, r, src) : static_cast<u8>(kSf6Empty);
+                u8 raw = (src < filled) ? sf6CellAt(sf, r, src) : static_cast<u8>(kSf6Empty);
+                u8 kind = sf6CellKind(raw);
+                bool hasXlu = sf6CellHasXlu(raw);
                 float cx = cellsX + static_cast<float>(c) * cellPitch;
-                gfx::Rgba cellCol = (kind == kSf6Empty) ? kHudCellEmpty : sf6CellColor(kind);
+                gfx::Rgba cellCol = sf6CellColor(raw, cbMode);
                 gfx::fillRect(cx, rowY[r], cellFillW, rowH, cellCol);
-                if (kind != kSf6Empty && kind != kSf6Gap)
+                if (hasXlu && kind != kSf6Galint)
                 {
+                    // Crisp 2.5px Bright Ice-Aqua top cap showing exact intangible/XLU frames.
+                    gfx::fillRect(cx, rowY[r], cellFillW, 2.5f, xluCapCol);
+                }
+                else if (kind != kSf6Empty && kind != kSf6Recovery)
+                {
+                    // Raised glossy live cells get subtle top specular; Dead Ash Lag & Empty stay flat matte.
                     gfx::fillRect(cx, rowY[r], cellFillW, 2.0f, kHudCellSheen);
                 }
-                if (kind == kSf6Gap)
-                {
-                    // Crisp 3.5-scanline bright yellow gap marker centered in the cell.
-                    gfx::fillRect(cx, rowY[r] + (rowH - 3.5f) * 0.5f, cellFillW, 3.5f, kHudGold);
-                }
-            }
-        }
-
-        // Bright yellow current-frame underline tick directly beneath newest filled column.
-        if (filled > 0)
-        {
-            int curCol = filled - 1 - startIdx;
-            if (curCol >= 0 && curCol < visibleCells)
-            {
-                float tickX = cellsX + static_cast<float>(curCol) * cellPitch;
-                float tickY = rowY[1] + rowH + 2.0f;
-                gfx::fillRect(tickX - 0.8f * xs, tickY - 0.5f, cellFillW + 1.6f * xs, 3.5f, kHudTroughBg);
-                gfx::fillRect(tickX, tickY, cellFillW, 2.5f, kHudGold);
             }
         }
 
@@ -337,20 +427,20 @@ namespace extra {
             if (adv > 0)
             {
                 snprintf(advBuf, sizeof(advBuf), "+%df", adv);
-                topCol = 0x6BFFB0FFu;
-                botCol = 0x24C068FFu;
+                topCol = ui::gradeColor(ui::kGradeGood, cbMode);
+                botCol = cbMode == main::kColorblindOff ? 0x24C068FFu : topCol;
             }
             else if (adv < 0)
             {
                 snprintf(advBuf, sizeof(advBuf), "%df", adv);
-                topCol = 0xFF847CFFu;
-                botCol = 0xD83232FFu;
+                topCol = ui::gradeColor(ui::kGradeBad, cbMode);
+                botCol = cbMode == main::kColorblindOff ? 0xD83232FFu : topCol;
             }
             else
             {
                 strcpy(advBuf, "0f");
-                topCol = 0xFFE866FFu;
-                botCol = 0xD89B00FFu;
+                topCol = ui::gradeColor(ui::kGradeOkay, cbMode);
+                botCol = cbMode == main::kColorblindOff ? 0xD89B00FFu : topCol;
             }
         }
         else

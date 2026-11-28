@@ -24,9 +24,7 @@
 namespace tm {
 namespace game {
     enum {
-        kStatusCliffCatchStart = 0x73,
-        kStatusCliffCatch = 0x74,
-        kStatusCliffWait = 0x75,
+        kStatusCliffCatchStart = kStatusCliffCatchMove,
         kStatusCliffJumpStart = 0x79,
         kStatusCliffJumpEnd = 0x7A,
         kStatusAttackHi4Start = 0x30,
@@ -127,9 +125,12 @@ namespace game {
         s32 press;
         bool pressRefused;
         s16 pressLeft;
-        // Boost grab: the frame the dash attack began; item throws: the
-        // frame the roll or airdodge began.
+        // Boost grab / DACUS: dash attack start frame + non-hitlag cancel tracking
+        // (matching P+ MoveDef/Misc.asm:565-572, RA-Basic[1] < 4 -> frames 2-3).
         s32 dashAttack;
+        u8 daHitlag;
+        u8 daNonHitlag;
+        u8 daMissSent;
         s32 dodge;
         // Grab breakout: grabbed since the frame before; the timer then.
         bool grabbed;
@@ -808,11 +809,21 @@ namespace game {
             if (s == kStatusAttackDash)
             {
                 w.dashAttack = f;
+                w.daHitlag = 0;
+                w.daNonHitlag = 1;
+                w.daMissSent = 0;
             }
             else if (prev == kStatusAttackDash && w.dashAttack != kNoFrame
                      && (s == kStatusCatchDash || s == kStatusAttackHi4Start))
             {
-                emit(kTechBoostGrab, t, i, f - w.dashAttack + 1, s == kStatusAttackHi4Start, 0, 0, 0.0f);
+                u8 flag = kBoostGrabDone;
+                if (s == kStatusAttackHi4Start)
+                {
+                    bool gatling = w.daHitlag != 0 || t.prev.hitlag > 0;
+                    flag = gatling ? static_cast<u8>(kDacusGatling) : static_cast<u8>(kDacusSuccess);
+                }
+                emit(kTechBoostGrab, t, i, f - w.dashAttack + 1, flag, 0, 0, 0.0f);
+                w.dashAttack = kNoFrame;
             }
             if (s == kStatusDown && w.pressRefused && f - w.press < kTechWindow)
             {
@@ -832,6 +843,28 @@ namespace game {
             {
                 w.guardArmed = false;
             }
+        }
+        // Detect late DACUS attempt (fresh Attack/Z/C-Stick-Up past the f2-3 cancel window).
+        if (w.dashAttack != kNoFrame && t.cur.status == kStatusAttackDash)
+        {
+            if (t.cur.hitlag > 0)
+            {
+                w.daHitlag = 1;
+            }
+            if (f > w.dashAttack && !(t.prev.hitlag > 0 && t.cur.hitlag > 0) && w.daNonHitlag < 250)
+            {
+                w.daNonHitlag++;
+            }
+            bool freshAttack = (b.buttons & 1u) != 0 && (w.prevBody.buttons & 1u) == 0;
+            if (!w.daMissSent && w.daNonHitlag >= 4 && w.daNonHitlag <= 14 && freshAttack && b.stickY >= 0.73f)
+            {
+                emit(kTechBoostGrab, t, i, static_cast<int>(w.daNonHitlag) - 3, kDacusFailed, 0, 0, 0.0f);
+                w.daMissSent = 1;
+            }
+        }
+        else if (t.cur.status != kStatusAttackDash)
+        {
+            w.dashAttack = kNoFrame;
         }
         // A slow turn missed the dashback if the stick reaches the dash
         // sensitivity after the turn's second frame, while it still turns.

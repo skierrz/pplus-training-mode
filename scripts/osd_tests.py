@@ -2185,7 +2185,11 @@ def sc_boostgrab(r, k, upsmash, name, off=False):
     if did != 6 + k:
         raise OsdError(f"{name}: {'up smash' if upsmash else 'grab'} on {did}, scripted {6 + k}")
     n = did - da + 1
-    r.expect_osd(name, text, 1, ID_BOOST_GRAB, ["DACUS" if upsmash else "Boost Grab", f"Frame {n}"])
+    if upsmash:
+        r.expect_osd(name, text, 1, ID_BOOST_GRAB, ["DACUS", "Success"])
+        r.check_color(r.shots[-1], 1, GREEN, name)
+    else:
+        r.expect_osd(name, text, 1, ID_BOOST_GRAB, ["Boost Grab", f"Frame {n}"])
     return n
 
 

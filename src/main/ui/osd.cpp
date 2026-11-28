@@ -19,6 +19,7 @@
 #include "main/settings.h"
 #include "main/ui/hud_layout.h"
 #include "main/ui/osd_theme_core.h"
+#include "main/ui/state_colors.h"
 #include "main/ui/style.h"
 #include "shared/game/scene.h"
 #include "shared/log.h"
@@ -395,6 +396,7 @@ namespace osd {
             gfx::fillRect(left, top, w, h, fadeA(t.bodyColor, a256));
         }
         gfx::Rgba outCol = fadeA(kOutline, a256);
+        u8 cbMode = ui::activeColorblindMode();
         // Centre the lines' capital-height block vertically inside the card (full crisp scale on exit).
         float block = (m.lines - 1) * kLinePitch + kTextCap;
         float capTop = top + (h - block) * 0.5f;
@@ -430,7 +432,7 @@ namespace osd {
             gfx::text(tx + xs, ty, m.text[i], outCol, sx, scale);
             gfx::text(tx, ty - 1.0f, m.text[i], outCol, sx, scale);
             gfx::text(tx, ty + 1.0f, m.text[i], outCol, sx, scale);
-            gfx::text(tx, ty, m.text[i], fadeA(m.color[i], a256), sx, scale);
+            gfx::text(tx, ty, m.text[i], fadeA(ui::remapGradeColor(m.color[i], cbMode), a256), sx, scale);
             y += kLinePitch;
         }
     }

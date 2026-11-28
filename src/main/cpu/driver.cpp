@@ -35,8 +35,9 @@ namespace cpu {
         u32 restores;
         u32 drivenTotal;
         bool attached;
-        int keepAi;    // keepAi: the slot whose frame leaves the AI on
-        int holdStill; // holdStill: the slot whose stick is not a flick
+        int keepAi;      // keepAi: the slot whose frame leaves the AI on
+        int holdStill;   // holdStill: the slot whose stick is not a flick
+        int passThrough; // passThrough: silence AI without overwriting pad triggers
     };
 #ifdef __MWERKS__
     static DriverNet* s_net = NULL;
@@ -58,6 +59,14 @@ namespace cpu {
         if (s_net != NULL)
         {
             s_net->holdStill = slot;
+        }
+    }
+
+    void passThrough(int slot)
+    {
+        if (s_net != NULL)
+        {
+            s_net->passThrough = slot;
         }
     }
 
@@ -229,9 +238,11 @@ namespace cpu {
         Frame out = produced;
         net.keepAi = -1;
         net.holdStill = -1;
+        net.passThrough = -1;
         bool wrote = s.source->next(who, produced, out);
         bool keep = net.keepAi == who.slot;
         bool still = wrote && net.holdStill == who.slot;
+        bool passthru = wrote && net.passThrough == who.slot;
         if (!wrote || keep)
         {
             // The source lets the game have this frame, or changes what
@@ -248,16 +259,19 @@ namespace cpu {
         {
             silence(s, who.slot);
         }
-        writeFrame(input, out);
-        if (still)
+        if (!passthru)
         {
-            holdStickStill(who.entryId, false, out);
+            writeFrame(input, out);
+            if (still)
+            {
+                holdStickStill(who.entryId, false, out);
+            }
         }
-        s.lastButtons = out.buttons;
+        s.lastButtons = passthru ? produced.buttons : out.buttons;
         s.driven++;
         net.drivenTotal++;
         // Nana's AI made her own frame when the AI is left on.
-        if ((s.flags & kWithNana) && !keep)
+        if ((s.flags & kWithNana) && !keep && !passthru)
         {
             s.nana = out;
             s.nanaReady = true;

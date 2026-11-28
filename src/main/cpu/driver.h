@@ -64,6 +64,9 @@ namespace cpu {
     // From a source's next() before it returns true: its stick counts as held
     // this frame (holdStickStill), with kWithNana for Nana too.
     void holdStill(int slot);
+    // From a source's next() before it returns true: silence the AI flag as
+    // normal but skip writeFrame() so hardware pad triggers/C-stick pass through.
+    void passThrough(int slot);
 
     // Buttons written to the slot's main input on the last driven frame (0 if
     // none): the game derives presses as held & ~previous.

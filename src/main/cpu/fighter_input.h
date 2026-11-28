@@ -65,5 +65,10 @@ namespace cpu {
     enum { kCpuTypeControl = 25 };
     int cpuType(const void* input);
     void setCpuType(void* input, int type);
+
+    // aiInput +0x28: human-pad flag checked by P+ ButtonPresses.asm (0x80575C04)
+    // before reading analog C-Stick and L/R triggers into LA-Float[34..37].
+    u8 humanPadFlag(const void* input);
+    void setHumanPadFlag(void* input, u8 flag);
 }
 }

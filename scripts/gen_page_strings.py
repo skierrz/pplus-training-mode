@@ -350,11 +350,11 @@ def collect_entries() -> list[tuple[str, bytes]]:
     )
     entries.append(("ctrl_names", _extract_host_option_names(ctrl, "kRows")))
 
-    # 12. theme.cpp: 5 label tables + 5 row names
+    # 12. theme.cpp: 6 label tables + 6 row names
     thm = PAGES_DIR / "theme.cpp"
     entries += _parse_labels_from_cpp(
         thm, "thm",
-        ["kOsdBgLabels", "kOsdAlphaLabels", "kMenuAccentLabels", "kInfoBgLabels", "kInfoAlphaLabels"]
+        ["kOsdBgLabels", "kOsdAlphaLabels", "kMenuAccentLabels", "kInfoBgLabels", "kInfoAlphaLabels", "kColorblindLabels"]
     )
     entries.append(("thm_names", _extract_host_option_names(thm, "kRows")))
 

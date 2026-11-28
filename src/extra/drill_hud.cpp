@@ -34,6 +34,7 @@
 #include "main/ui/hud_layout.h"
 #include "main/ui/menu.h"
 #include "main/ui/pages/scenarios.h"
+#include "main/ui/state_colors.h"
 #include "main/ui/style.h"
 #include "shared/game/mem.h"
 #include "shared/drill_session.h"
@@ -291,10 +292,28 @@ namespace extra {
             char val0[28];
             char val1[24];
             char val2[24];
+            u8 cbMode = ui::activeColorblindMode();
+            const gfx::Rgba cbGood = ui::gradeColor(ui::kGradeGood, cbMode);
+            const gfx::Rgba cbOkay = ui::gradeColor(ui::kGradeOkay, cbMode);
+            const gfx::Rgba cbBad = ui::gradeColor(ui::kGradeBad, cbMode);
+            const gfx::Rgba gradeLut[5] = {
+                kGradeCols[0],
+                cbMode == main::kColorblindOff ? kHudGold : cbGood,
+                cbGood,
+                cbBad,
+                cbOkay
+            };
+            const gfx::Rgba pipLut[5] = {
+                kPipCols[0],
+                cbMode == main::kColorblindOff ? kHudGold : cbGood,
+                cbGood,
+                cbBad,
+                cbOkay
+            };
             const char* lbl0 = "Result";
             const char* lbl1 = "Streak";
             const char* lbl2 = "Rate";
-            gfx::Rgba col0 = kGradeCols[g];
+            gfx::Rgba col0 = gradeLut[g];
 
             const char* fb = st.lastFeedback;
             bool wdTargetCue = (d == drills::kDrillWavedash && drillPracticeConfig().wdTargetZone != 0u);
@@ -451,10 +470,10 @@ namespace extra {
                 cellCount = 15 + hitlagExt;
                 for (int i = 0; i < cellCount; i++)
                 {
-                    if (i < 4) cells[i] = 0xDC4444FFu;
-                    else if (i < 4 + hitlagExt) cells[i] = 0x36DCE8FFu;
-                    else if (i < 11 + hitlagExt) cells[i] = 0x3CE890FFu;
-                    else cells[i] = 0xDC4444FFu;
+                    if (i < 4) cells[i] = cbBad;
+                    else if (i < 4 + hitlagExt) cells[i] = ui::stateColor(ui::kStateColorStun, cbMode);
+                    else if (i < 11 + hitlagExt) cells[i] = ui::stateColor(ui::kStateColorActionable, cbMode);
+                    else cells[i] = cbBad;
                 }
                 leftLbl = "Early";
                 rightLbl = "Late";
@@ -592,16 +611,16 @@ namespace extra {
             }
             else if (d == drills::kDrillLedgedash)
             {
-                static const gfx::Rgba kLedgeCols[8] = {
-                    0x8894A0E0u, 0xE0C040E0u, 0x50C878E0u, 0x4890E0E0u,
-                    0xE8EEF4E0u, 0xE05050E0u, 0xA070D0E0u, 0x40D8CCE0u
+                static const u8 kLedgeStates[8] = {
+                    ui::kStateColorLedge,      ui::kStateColorDrop,  ui::kStateColorActionable, ui::kStateColorDodge,
+                    ui::kStateColorLag,        ui::kStateColorStrike, ui::kStateColorLag,       ui::kStateColorGalint
                 };
-                legend[0].swatch = 0x8894A0FFu; legend[0].label = "Ledge";
-                legend[1].swatch = 0xE0C040FFu; legend[1].label = "Drop";
-                legend[2].swatch = 0x50C878FFu; legend[2].label = "Jump";
-                legend[3].swatch = 0x4890E0FFu; legend[3].label = "Dodge";
-                legend[4].swatch = 0xE8EEF4FFu; legend[4].label = "Land";
-                legend[5].swatch = 0x40D8CCFFu; legend[5].label = "GALINT";
+                legend[0].swatch = ui::stateColor(ui::kStateColorLedge, cbMode);      legend[0].label = "Ledge";
+                legend[1].swatch = ui::stateColor(ui::kStateColorDrop, cbMode);       legend[1].label = "Drop";
+                legend[2].swatch = ui::stateColor(ui::kStateColorActionable, cbMode); legend[2].label = "Jump";
+                legend[3].swatch = ui::stateColor(ui::kStateColorDodge, cbMode);      legend[3].label = "Dodge";
+                legend[4].swatch = ui::stateColor(ui::kStateColorLag, cbMode);        legend[4].label = "Land";
+                legend[5].swatch = ui::stateColor(ui::kStateColorGalint, cbMode);     legend[5].label = "GALINT";
                 legendCount = 6;
                 lbl0 = "GALINT";
                 lbl1 = "On Ledge";
@@ -626,18 +645,18 @@ namespace extra {
                     for (int i = 0; i < cellCount; i++)
                     {
                         u8 ty = i < frames ? r.cells[first + i] : static_cast<u8>(7);
-                        cells[i] = kLedgeCols[ty < 8 ? ty : 6];
+                        cells[i] = ui::stateColor(kLedgeStates[ty < 8 ? ty : 6], cbMode);
                     }
                     ptrCell = frames < cellCount ? frames : (cellCount - 1);
                     if (r.noXlu)
                     {
                         snprintf(val0, sizeof(val0), "None");
-                        col0 = kHudWarn;
+                        col0 = cbOkay;
                     }
                     else
                     {
                         snprintf(val0, sizeof(val0), r.galint > 0 ? "+%df" : "%df", static_cast<int>(r.galint));
-                        col0 = r.galint > 0 ? kHudGreen : kHudRed;
+                        col0 = r.galint > 0 ? cbGood : cbBad;
                     }
                     snprintf(val1, sizeof(val1), "%df", static_cast<int>(r.cliffWaitFrames));
                     if (r.airdodgeAngle > 0.0f)
@@ -668,7 +687,7 @@ namespace extra {
                 for (int i = 0; i < cellCount; i++)
                 {
                     u8 p = st.repPips[i];
-                    cells[i] = p == 0 ? kHudCellEmpty : kPipCols[p < 5 ? p : 0];
+                    cells[i] = p == 0 ? kHudCellEmpty : pipLut[p < 5 ? p : 0];
                 }
                 fx.isRepStrip = true;
                 fx.repTag = target > 0 ? "Reps" : "Streak";
@@ -743,7 +762,7 @@ namespace extra {
 
             // Zone 2: Panel B Right-Margin Quiet Translucent Stat Plate stacked cleanly under Option A GC controller.
             StatPlateRow rows[3];
-            rows[0].label = lbl0; rows[0].value = val0; rows[0].valueColor = col0;
+            rows[0].label = lbl0; rows[0].value = val0; rows[0].valueColor = ui::remapGradeColor(col0, cbMode);
             rows[1].label = lbl1; rows[1].value = val1; rows[1].valueColor = kHudTextValue;
             rows[2].label = lbl2; rows[2].value = val2; rows[2].valueColor = kHudTextValue;
             drawStatPlate(rows, 3, hudViewerColumnBottom(wide), wide, hudAlpha);

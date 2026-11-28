@@ -13,6 +13,7 @@
 #include "main/game/tracker.h"
 #include "main/gfx/draw.h"
 #include "main/settings.h"
+#include "main/ui/state_colors.h"
 #include "shared/game/mem.h"
 #include "shared/log.h"
 
@@ -219,26 +220,30 @@ namespace extra {
         const float kBarH = 2.6f;
         const float x0 = cx - kBarW * 0.5f;
         const float y0 = cy - kBarH * 0.5f;
+        const u8 cbMode = ui::activeColorblindMode();
 
-        // Crisp dark outer border + inner beveled dark slate backing (480i-safe thickness).
+        // Crisp dark outer border + inner matte dark slate backing (480i-safe thickness).
         u32 frameCol = v.isFlash ? 0xBBF7D0F0u : 0x060C12E8u;
         gfx::fillRect(x0 - 0.65f, y0 - 0.65f, kBarW + 1.30f, kBarH + 1.30f, frameCol);
         gfx::fillRect(x0, y0, kBarW, kBarH, 0x121C26DCu);
 
-        // Optional green target timing zone inside the active track.
+        // Optional actionable target timing zone inside the active track.
         if (v.hasZone != 0 && v.zoneEnd > v.zoneStart)
         {
             float zx = x0 + v.zoneStart * kBarW;
             float zw = (v.zoneEnd - v.zoneStart) * kBarW;
-            gfx::fillRect(zx, y0, zw, kBarH, 0x1E6B38B8u);
-            gfx::fillRect(zx, y0 + kBarH - 0.85f, zw, 0.85f, 0x4ADE80D0u);
+            u32 actCol = ui::stateColor(ui::kStateColorActionable, cbMode);
+            gfx::fillRect(zx, y0, zw, kBarH, (actCol & 0xFFFFFF00u) | 0x58u);
+            gfx::fillRect(zx, y0 + kBarH - 0.85f, zw, 0.85f, (actCol & 0xFFFFFF00u) | 0xD0u);
         }
 
         // Fill bar + subtle top sheen.
         if (v.ratio > 0.0f)
         {
             float fw = kBarW * (v.ratio > 1.0f ? 1.0f : v.ratio);
-            gfx::fillRect(x0, y0, fw, kBarH, v.fillColor);
+            u32 fill = v.isFlash ? ui::stateColor(ui::kStateColorActionable, cbMode)
+                                 : ui::remapGradeColor(v.fillColor, cbMode);
+            gfx::fillRect(x0, y0, fw, kBarH, fill);
             gfx::fillRect(x0, y0 + kBarH - 0.85f, fw, 0.85f, 0xFFFFFF40u);
         }
 

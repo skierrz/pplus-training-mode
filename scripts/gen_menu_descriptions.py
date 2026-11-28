@@ -395,6 +395,7 @@ TABLES = {
         "Choose the chrome accent palette for the in-match Training Lab.",
         "Choose the background color preset for Info Display panels.",
         "Adjust Info Display opacity with drop shadow at low values.",
+        "Adjusts OSD, Frame Meter, Ledgedash, and HUD colors for colorblindness.",
     ],
     "kReversalDesc": [
         "Enable weighted multi-slot reversals across all four triggers.",

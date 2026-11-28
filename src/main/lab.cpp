@@ -1807,7 +1807,22 @@ namespace lab {
         case game::kTechBoostGrab:
             if (o.boostGrab)
             {
-                postTechFrame(t, osd::kIdBoostGrab, osd::kWhite, t.flag ? "DACUS" : "Boost Grab");
+                if (t.flag == game::kBoostGrabDone)
+                {
+                    postTechFrame(t, osd::kIdBoostGrab, osd::kWhite, "Boost Grab");
+                }
+                else if (t.flag == game::kDacusSuccess)
+                {
+                    osd::post(t.player, osd::kIdBoostGrab, osd::kGreen, "DACUS\nSuccess");
+                }
+                else if (t.flag == game::kDacusGatling)
+                {
+                    osd::post(t.player, osd::kIdBoostGrab, osd::kGreen, "Gatling DACUS");
+                }
+                else
+                {
+                    osd::post(t.player, osd::kIdBoostGrab, osd::kRed, "DACUS\nFailed (+%df)", t.frame);
+                }
             }
             break;
         case game::kTechGrabBreakout:

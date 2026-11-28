@@ -35,6 +35,12 @@ namespace pages {
         TM_L("Smoked 80%") TM_L("0%") TM_L("20%") TM_L("40%") TM_L("60%") TM_L("80%") TM_L("100%")
     TM_LABELS_END
     TM_LABELS_ASSERT(kInfoAlphaLabels, main::kInfoAlphaCount, tm_info_alpha_labels_match);
+
+    // In main::ColorblindMode order (main/settings.h).
+    TM_LABELS_BEGIN(kColorblindLabels)
+        TM_L("Off") TM_L("Deuteran") TM_L("Protan") TM_L("Tritan")
+    TM_LABELS_END
+    TM_LABELS_ASSERT(kColorblindLabels, main::kColorblindCount, tm_colorblind_labels_match);
 #endif
 
 #ifdef __MWERKS__
@@ -42,18 +48,19 @@ namespace pages {
 
     void initThemePage(Option* buf)
     {
-        static const u16 kStrs[5] = {
+        static const u16 kStrs[6] = {
             kPs_thm_kOsdBgLabels, kPs_thm_kOsdAlphaLabels, kPs_thm_kMenuAccentLabels,
-            kPs_thm_kInfoBgLabels, kPs_thm_kInfoAlphaLabels
+            kPs_thm_kInfoBgLabels, kPs_thm_kInfoAlphaLabels, kPs_thm_kColorblindLabels
         };
-        static const RowSpec kSpecs[5] = {
+        static const RowSpec kSpecs[6] = {
             {kKindChoice, 0, TM_FIELD(osd.bgColor), TM_CHOICE_LO, main::kOsdBgTeal, main::kOsdBgColorCount - 1, 0, 0, 0, 0},
             {kKindChoice, 0, TM_FIELD(osd.bgAlpha), TM_CHOICE_LO, main::kDefaultOsdAlpha, main::kOsdAlphaMax, 1, 0, 0, 0},
             {kKindChoice, 0, TM_FIELD(osd.menuAccent), TM_CHOICE_LO, main::kMenuAccentTeal, main::kMenuAccentCount - 1, 2, 0, 0, 0},
             {kKindChoice, 0, TM_FIELD(osd.infoBgColor), TM_CHOICE_LO, main::kInfoBgDefault, main::kInfoBgColorCount - 1, 3, 0, 0, 0},
-            {kKindChoice, 0, TM_FIELD(osd.infoBgAlpha), TM_CHOICE_LO, main::kInfoAlphaDefault, main::kInfoAlphaCount - 1, 4, 0, 0, 0}
+            {kKindChoice, 0, TM_FIELD(osd.infoBgAlpha), TM_CHOICE_LO, main::kInfoAlphaDefault, main::kInfoAlphaCount - 1, 4, 0, 0, 0},
+            {kKindChoice, 0, TM_FIELD(osd.colorblindMode), TM_CHOICE_LO, main::kColorblindOff, main::kColorblindCount - 1, 5, 0, 0, 0}
         };
-        fillPageRows(kTheme, buf, 5, kSpecs, kPs_thm_names, kStrs, NULL, NULL, NULL);
+        fillPageRows(kTheme, buf, 6, kSpecs, kPs_thm_names, kStrs, NULL, NULL, NULL);
     }
 #else
     static const Option kRows[] = {
@@ -61,7 +68,8 @@ namespace pages {
         TM_CHOICE_P("OSD Opacity", osd.bgAlpha, kOsdAlphaLabels, main::kOsdAlphaMax + 1, main::kDefaultOsdAlpha, NULL),
         TM_CHOICE_P("Menu Accent", osd.menuAccent, kMenuAccentLabels, main::kMenuAccentCount, main::kMenuAccentTeal, NULL),
         TM_CHOICE_P("Info Background", osd.infoBgColor, kInfoBgLabels, main::kInfoBgColorCount, main::kInfoBgDefault, NULL),
-        TM_CHOICE_P("Info Opacity", osd.infoBgAlpha, kInfoAlphaLabels, main::kInfoAlphaCount, main::kInfoAlphaDefault, NULL)
+        TM_CHOICE_P("Info Opacity", osd.infoBgAlpha, kInfoAlphaLabels, main::kInfoAlphaCount, main::kInfoAlphaDefault, NULL),
+        TM_CHOICE_P("Colorblind Mode", osd.colorblindMode, kColorblindLabels, main::kColorblindCount, main::kColorblindOff, NULL)
     };
 
     extern const Page kTheme = TM_PAGE("Theme", kRows);

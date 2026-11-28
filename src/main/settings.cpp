@@ -129,6 +129,7 @@ namespace main {
             TM_CLAMP(stageOptions.fodRight, 0, kFodHeightCount - 1),
             TM_CLAMP(osd.preset, 0, kOsdPresetCount - 1),
             TM_CLAMP(osd.techSparkle, 0, kTechSparkleCount - 1),
+            TM_CLAMP(osd.colorblindMode, 0, kColorblindCount - 1),
             TM_CLAMP(cpu.options.tdi, 0, cpu::kTdiCount - 1),
             TM_CLAMP(cpu.options.shieldTiming, 0, cpu::kShieldTimingCount - 1),
             TM_CLAMP(comboTrainer.fixedDamageMode, 0, kComboDmgModeCount - 1),

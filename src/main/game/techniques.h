@@ -56,6 +56,7 @@ namespace game {
     enum { kDashbackFailed = 0, kDashbackDirect = 1, kDashbackSlowTurn = 2 };
     enum { kPowershieldEarly = 0, kPowershieldDone = 1, kPowershieldBuffered = 2 };
     enum { kLCancelMissed = 0, kLCancelHit = 1, kLCancelAuto = 2 };
+    enum { kBoostGrabDone = 0, kDacusSuccess = 1, kDacusGatling = 2, kDacusFailed = 3 };
 
     struct Technique {
         u8 kind;    // TechniqueKind

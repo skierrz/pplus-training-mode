@@ -152,9 +152,7 @@ namespace record {
         int side;
         virtual bool wants(const cpu::Owner& who);
         virtual bool next(const cpu::Owner& who, const cpu::Frame& produced, cpu::Frame& out);
-        virtual void released(const cpu::Owner&)
-        {
-        }
+        virtual void released(const cpu::Owner& who);
     };
 
     static TestBlock s_test;
@@ -708,8 +706,17 @@ namespace record {
         const SideState& s = s_side[side];
         if (s.pass)
         {
+            if (side == kCpu)
+            {
+                cpu::setHumanPadFlag(who.input, 1);
+            }
+            cpu::passThrough(who.slot);
             out = produced;
             return true;
+        }
+        if (side == kCpu && !controlledByActive())
+        {
+            cpu::setHumanPadFlag(who.input, 0);
         }
         Input in;
         if (s.neutral)
@@ -726,6 +733,14 @@ namespace record {
         out.y = in.y;
         writePp(who.entryId, in);
         return true;
+    }
+
+    void RecordSource::released(const cpu::Owner& who)
+    {
+        if (side == kCpu && !controlledByActive())
+        {
+            cpu::setHumanPadFlag(who.input, 0);
+        }
     }
 
     static void cancel(int side, bool takenOver, const char* why)

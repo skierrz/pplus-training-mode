@@ -18,6 +18,7 @@
 #include "main/settings.h"
 #include "main/ui/match_hud.h"
 #include "main/ui/pages/scenarios.h"
+#include "main/ui/state_colors.h"
 #include "main/ui/style.h"
 #include "shared/game/mem.h"
 #include "shared/game/scene.h"
@@ -367,19 +368,22 @@ namespace extra {
         }
 
         // Single matte dark recessed trough (zero background top sheen colliding with raised pips/cells).
+        u8 cbMode = ui::activeColorblindMode();
+        u32 lagRgb = ui::stateColor(ui::kStateColorLag, cbMode) & 0xFFFFFF00u;
         gfx::fillRect(bar.x0, bar.y0, bw, bh, troughCol);
         for (int k = 0; k < n; k++)
         {
             gfx::Rgba rawCol = (cells != NULL && k < count) ? cells[k] : kHudCellEmpty;
             bool isEmpty = (cells == NULL || k >= count
                             || (rawCol & 0xFFFFFF00u) == (kHudCellEmpty & 0xFFFFFF00u));
+            bool isMatteLag = !isEmpty && (rawCol & 0xFFFFFF00u) == lagRgb;
             gfx::Rgba col = ui::style::scaleAlpha(isEmpty ? rawCol : (rawCol | 0xFFu), alpha);
             float cx = bar.x0 + innerPadX + i2f(k) * (cellW + gap);
             if (repStrip)
             {
                 gfx::fillRect(cx - 1.0f * xs, cellTop - 1.0f, cellW + 2.0f * xs, cellH + 2.0f, troughCol);
                 gfx::fillRect(cx, cellTop, cellW, cellH, col);
-                if (!isEmpty)
+                if (!isEmpty && !isMatteLag)
                 {
                     gfx::fillRect(cx, cellTop, cellW, 2.0f, sheenCol);
                 }
@@ -387,7 +391,7 @@ namespace extra {
             else
             {
                 gfx::fillRect(cx, cellTop, cellW, cellH, col);
-                if (!isEmpty)
+                if (!isEmpty && !isMatteLag)
                 {
                     gfx::fillRect(cx, cellTop, cellW, 2.0f, sheenCol);
                 }

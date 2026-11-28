@@ -218,6 +218,15 @@ namespace main {
         kInfoAlphaCount
     };
 
+    // Display > Theme: Colorblind accessibility palette mode.
+    enum ColorblindMode {
+        kColorblindOff = 0,
+        kColorblindDeuteran,
+        kColorblindProtan,
+        kColorblindTritan,
+        kColorblindCount
+    };
+
     // OSDs > Overhead Timing Bar mode.
     enum TimingMeterMode {
         kTimingMeterOff = 0,
@@ -292,8 +301,9 @@ namespace main {
         u8 infoBgAlpha; // InfoAlpha (0..6, default kInfoAlphaDefault = 80%)
         u8 timingMeter; // TimingMeterMode (0..4, default kTimingMeterOff)
         u8 preset;      // OsdPreset (0..7, default kOsdPresetEssentials)
-        u8 techSparkle; // TechSparkleMode (0..3, default kTechSparkleWavedash)
-        u8 reserved[2];
+        u8 techSparkle;    // TechSparkleMode (0..3, default kTechSparkleWavedash)
+        u8 colorblindMode; // ColorblindMode (0..3, default kColorblindOff)
+        u8 reserved[1];
     };
 
     // CPU Options and its subpages (Tech, Advanced Counter).
@@ -643,6 +653,7 @@ namespace main {
     TM_STATIC_ASSERT(offsetof(Settings, osd.timingMeter) == 115, tm_settings_osd_timing_meter_at_115);
     TM_STATIC_ASSERT(offsetof(Settings, osd.preset) == 116, tm_settings_osd_preset_at_116);
     TM_STATIC_ASSERT(offsetof(Settings, osd.techSparkle) == 117, tm_settings_osd_tech_sparkle_at_117);
+    TM_STATIC_ASSERT(offsetof(Settings, osd.colorblindMode) == 118, tm_settings_osd_colorblind_at_118);
     TM_STATIC_ASSERT(offsetof(Settings, general.playerInfiniteShields) == 20, tm_settings_player_infinite_shields_at_20);
     TM_STATIC_ASSERT(offsetof(Settings, general.offlineVersus) == 21, tm_settings_offline_versus_at_21);
     TM_STATIC_ASSERT(offsetof(Settings, general.actionLog) == 22, tm_settings_action_log_at_22);

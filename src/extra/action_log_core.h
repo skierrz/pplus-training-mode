@@ -5,6 +5,7 @@
 #include <types.h>
 
 #include "main/game/status_ids.h"
+#include "main/ui/state_colors.h"
 
 // Pure host-testable Live State Strip (Action Log) ring buffer, state-class
 // classifier, and compact label formatter (zero Brawl headers).
@@ -21,15 +22,28 @@ namespace extra {
         kSf6Cells43 = 24
     };
 
-    // SF6-style per-frame combat phase for the dual frame strip.
+    // Per-frame combat & movement phase for the dual frame strip.
+    // Low 4 bits hold Sf6CellKind; bit 7 (kSf6XluBit) marks unactionable intangible
+    // frames so the renderer draws a crisp 2.5px Ice-Aqua XLU top cap.
     enum Sf6CellKind {
-        kSf6Empty = 0,    // idle / actionable
-        kSf6Startup = 1,  // attack startup / jumpsquat (teal)
-        kSf6Active = 2,   // active hitbox / grab (vivid crimson)
-        kSf6Recovery = 3, // non-actionable recovery / landing / dodge endlag (cool slate)
-        kSf6Stun = 4,     // hitstun / shieldstun / hitlag / grabbed (Solo-Gold)
-        kSf6Gap = 5,      // actionable frame during an active exchange gap (yellow bar)
+        kSf6Empty = 0,     // idle / actionable (dark trough)
+        kSf6Startup = 1,   // attack/grab startup / jumpsquat (Cobalt Sky-Blue)
+        kSf6Active = 2,    // active strike hitbox (Vivid Crimson Red)
+        kSf6Recovery = 3,  // unactionable lag / recovery / landing (Flat Matte Dead Ash-Slate)
+        kSf6Stun = 4,      // hitstun / shieldstun / hitlag / grabbed (Hot Amber-Orange)
+        kSf6Gap = 5,       // actionable advantage gap during exchange (Emerald Green)
+        kSf6Grab = 6,      // active grabbox / tether (Vivid Magenta-Purple)
+        kSf6Galint = 7,    // actionable + intangible / GALINT (Full Ice-Aqua)
+        kSf6Ledge = 8,     // ledge hang (Neutral Stone Gray)
+        kSf6LedgeDrop = 9, // ledge drop / fall off ledge (Warm Sand)
+        kSf6Dodge = 10,    // airdodge / evade (Indigo-Violet)
+        kSf6Jump = 11,     // ledge jump (Emerald Green, synced with Ledgedash HUD)
         kSf6CellKindCount
+    };
+
+    enum {
+        kSf6KindMask = 0x0Fu,
+        kSf6XluBit = 0x80u
     };
 
     struct Sf6StripState {
@@ -37,6 +51,7 @@ namespace extra {
         u8 head;                   // next write index in 0..kSf6MaxCells-1
         u8 filled;                 // 0..kSf6MaxCells
         u8 sawActive[2];
+        u8 fromLedge[2];           // 1 while executing a ledgedash sequence off ledge
         s16 prevStatus[2];
         s16 advantage;             // signed frame advantage (+ = P1 ahead, - = CPU ahead)
         u8 hasAdvantage;
@@ -126,15 +141,58 @@ namespace extra {
         return hitstun > 0 || shieldStun > 0 || hitReceived != 0 || shieldReceived != 0 || stunStatus;
     }
 
-    inline u8 sf6ClassifyCell(int status, bool actionable, bool activeHitbox, bool inStun, bool sawActive)
+    inline bool sf6IsLedgeStatus(int status)
     {
+        return status == game::kStatusCliffCatchMove || status == game::kStatusCliffCatch
+               || status == game::kStatusCliffWait;
+    }
+
+    inline bool sf6IsDodgeStatus(int status)
+    {
+        return status >= game::kStatusEscape && status <= game::kStatusEscapeAir;
+    }
+
+    inline u8 sf6CellKind(u8 raw)
+    {
+        return static_cast<u8>(raw & kSf6KindMask);
+    }
+
+    inline bool sf6CellHasXlu(u8 raw)
+    {
+        return (raw & kSf6XluBit) != 0;
+    }
+
+    inline u8 sf6ClassifyCell(int status, bool actionable, bool activeHitbox, bool inStun, bool sawActive,
+                              bool activeGrab = false, bool intangible = false, bool fromLedge = false)
+    {
+        u8 xluFlag = intangible ? static_cast<u8>(kSf6XluBit) : 0u;
         if (inStun)
         {
-            return kSf6Stun;
+            return static_cast<u8>(kSf6Stun | xluFlag);
         }
         if (activeHitbox)
         {
-            return kSf6Active;
+            return static_cast<u8>(kSf6Active | xluFlag);
+        }
+        if (activeGrab)
+        {
+            return static_cast<u8>(kSf6Grab | xluFlag);
+        }
+        if (sf6IsLedgeStatus(status))
+        {
+            return static_cast<u8>(kSf6Ledge | xluFlag);
+        }
+        if (sf6IsDodgeStatus(status))
+        {
+            return static_cast<u8>(kSf6Dodge | xluFlag);
+        }
+        if (fromLedge && (status == game::kStatusFall || status == 0x0F || status == 0x10))
+        {
+            return static_cast<u8>(kSf6LedgeDrop | xluFlag);
+        }
+        if (fromLedge && (status == game::kStatusJump || status == game::kStatusJumpAerial))
+        {
+            return static_cast<u8>(kSf6Jump | xluFlag);
         }
         if (!actionable)
         {
@@ -142,24 +200,31 @@ namespace extra {
             if ((cls == kStateAttack && !sawActive) || status == game::kStatusJumpSquat
                 || status == game::kStatusGuardOn)
             {
-                return kSf6Startup;
+                return static_cast<u8>(kSf6Startup | xluFlag);
             }
-            return kSf6Recovery;
+            return static_cast<u8>(kSf6Recovery | xluFlag);
         }
-        return kSf6Empty;
+        return intangible ? static_cast<u8>(kSf6Galint) : static_cast<u8>(kSf6Empty);
     }
 
-    inline u32 sf6CellColor(u8 kind)
+    inline u32 sf6CellColor(u8 rawCell, u8 cbMode = 0)
     {
-        static const u32 kCols[kSf6CellKindCount] = {
-            0x1E2A36DCu, // Empty (crisp visible dark slot well)
-            0x28D8ECFFu, // Startup (bright cyan-teal)
-            0xF43C4EFFu, // Active (vivid crimson)
-            0x7698BCFFu, // Recovery (clear steel-blue)
-            0xFFB824FFu, // Stun (rich Solo-Gold)
-            0x1E2A36DCu  // Gap (dark slot + yellow 3.5px center marker drawn on top)
+        static const u8 kMap[kSf6CellKindCount] = {
+            ui::kStateColorEmpty,      // kSf6Empty
+            ui::kStateColorStartup,    // kSf6Startup
+            ui::kStateColorStrike,     // kSf6Active
+            ui::kStateColorLag,        // kSf6Recovery (Flat Matte Dead Ash-Slate)
+            ui::kStateColorStun,       // kSf6Stun (Hot Amber-Orange)
+            ui::kStateColorActionable, // kSf6Gap (Emerald Green)
+            ui::kStateColorGrab,       // kSf6Grab (Vivid Magenta-Purple)
+            ui::kStateColorGalint,     // kSf6Galint (Bright Ice-Aqua)
+            ui::kStateColorLedge,      // kSf6Ledge (Neutral Stone Gray)
+            ui::kStateColorDrop,       // kSf6LedgeDrop (Warm Sand)
+            ui::kStateColorDodge,      // kSf6Dodge (Indigo-Violet)
+            ui::kStateColorActionable  // kSf6Jump (Emerald Green)
         };
-        return kCols[kind < kSf6CellKindCount ? kind : 0];
+        u8 kind = sf6CellKind(rawCell);
+        return ui::stateColor(kind < kSf6CellKindCount ? kMap[kind] : static_cast<u8>(ui::kStateColorEmpty), cbMode);
     }
 
     inline u8 sf6CellAt(const Sf6StripState& s, int row, int chronoIdx)
@@ -173,8 +238,33 @@ namespace extra {
         return s.cells[row][idx];
     }
 
+    inline void sf6UpdateLedgeTrack(u8& fromLedge, int status, bool actionable, bool ledgeEvent)
+    {
+        if (sf6IsLedgeStatus(status) || ledgeEvent)
+        {
+            fromLedge = 1;
+            return;
+        }
+        if (!fromLedge)
+        {
+            return;
+        }
+        bool keep = status == game::kStatusFall || status == 0x0F || status == 0x10
+                    || status == game::kStatusJump || status == game::kStatusJumpAerial
+                    || sf6IsDodgeStatus(status)
+                    || status == game::kStatusLandingFallSpecial || status == game::kStatusLanding
+                    || status == game::kStatusLandingLight;
+        if (!keep || (actionable && status != game::kStatusFall && status != 0x0F && status != 0x10
+                      && status != game::kStatusJump && status != game::kStatusJumpAerial))
+        {
+            fromLedge = 0;
+        }
+    }
+
     inline void sf6PushDualFrame(Sf6StripState& s, s32 frame, int st0, bool act0, bool hit0, bool stun0,
-                                 int st1, bool act1, bool hit1, bool stun1)
+                                 int st1, bool act1, bool hit1, bool stun1,
+                                 bool grab0 = false, bool xlu0 = false, bool ledgeEv0 = false,
+                                 bool grab1 = false, bool xlu1 = false, bool ledgeEv1 = false)
     {
         if (frame == s.lastFrame)
         {
@@ -193,13 +283,18 @@ namespace extra {
             s.prevStatus[1] = static_cast<s16>(st1);
         }
 
-        u8 c0 = sf6ClassifyCell(st0, act0, hit0, stun0, s.sawActive[0] != 0);
-        u8 c1 = sf6ClassifyCell(st1, act1, hit1, stun1, s.sawActive[1] != 0);
-        if (c0 == kSf6Active)
+        sf6UpdateLedgeTrack(s.fromLedge[0], st0, act0, ledgeEv0);
+        sf6UpdateLedgeTrack(s.fromLedge[1], st1, act1, ledgeEv1);
+
+        u8 c0 = sf6ClassifyCell(st0, act0, hit0, stun0, s.sawActive[0] != 0, grab0, xlu0, s.fromLedge[0] != 0);
+        u8 c1 = sf6ClassifyCell(st1, act1, hit1, stun1, s.sawActive[1] != 0, grab1, xlu1, s.fromLedge[1] != 0);
+        u8 k0 = sf6CellKind(c0);
+        u8 k1 = sf6CellKind(c1);
+        if (k0 == kSf6Active || k0 == kSf6Grab)
         {
             s.sawActive[0] = 1;
         }
-        if (c1 == kSf6Active)
+        if (k1 == kSf6Active || k1 == kSf6Grab)
         {
             s.sawActive[1] = 1;
         }
