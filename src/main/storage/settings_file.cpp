@@ -287,9 +287,30 @@ namespace storage {
 #pragma dont_inline reset
 #endif
 
+    static bool isSilentOsdGrowth(const SettingsHead* head, const AreaEntry* entries, const AreaStats& stats)
+    {
+        if (stats.grown == 0)
+        {
+            return true;
+        }
+        if (stats.grown != 1)
+        {
+            return false;
+        }
+        for (u16 i = 0; i < head->areaCount; i++)
+        {
+            if (entries[i].id == kAreaOsd)
+            {
+                return entries[i].used == offsetof(main::OsdSettings, colorblindMode);
+            }
+        }
+        return false;
+    }
+
     static bool isQuickSetupPartialFile(const SettingsHead* head, const AreaEntry* entries, const AreaStats& stats)
     {
-        if (head->areaCount < 1 || head->areaCount > 4 || stats.copied != head->areaCount || stats.grown != 0)
+        if (head->areaCount < 1 || head->areaCount > 4 || stats.copied != head->areaCount
+            || !isSilentOsdGrowth(head, entries, stats))
         {
             return false;
         }
@@ -311,11 +332,15 @@ namespace storage {
         return (mask & areaBit(kAreaOsd)) != 0u;
     }
 
-    static bool isSilentOsdPresetsUpgrade(const SettingsHead* head, const AreaEntry* entries, const AreaStats& stats)
+    static bool isSilentV2Upgrade(const SettingsHead* head, const AreaEntry* entries, const AreaStats& stats)
     {
-        if (stats.grown != 0 || stats.reset != 1)
+        if (!isSilentOsdGrowth(head, entries, stats) || stats.reset > 1)
         {
             return false;
+        }
+        if (stats.reset == 0)
+        {
+            return stats.grown == 1;
         }
         for (u16 i = 0; i < head->areaCount; i++)
         {
@@ -451,7 +476,7 @@ namespace storage {
                kNames[best], h->sequence, head->layout, stats.copied, stats.grown, stats.reset, stats.skipped);
         const AreaEntry* entries =
             reinterpret_cast<const AreaEntry*>(s_file + sizeof(FileHeader) + sizeof(SettingsHead));
-        if (isQuickSetupPartialFile(head, entries, stats) || isSilentOsdPresetsUpgrade(head, entries, stats))
+        if (isQuickSetupPartialFile(head, entries, stats) || isSilentV2Upgrade(head, entries, stats))
         {
             s_state->force = 1;
         }

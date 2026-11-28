@@ -15,7 +15,9 @@ namespace game {
         float vy;          // y change over the last frame
         float stickX;      // control stick, -1..1, right and up positive
         float stickY;
+        float cStickY;     // C-stick Y, -1..1 (LA-Float[35] / sub-stick)
         u32 buttons;       // ipPadButton bits held
+        u32 triggerButtons; // ipPadButton bits newly triggered this frame
         s32 xluFrames;     // body intangibility frames left (ledge, respawn)
         u8 intangible;     // the body's hurtboxes are invincible or intangible
         u8 fastfall;       // P+'s fastfall flag

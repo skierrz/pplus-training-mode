@@ -855,8 +855,13 @@ namespace game {
             {
                 w.daNonHitlag++;
             }
-            bool freshAttack = (b.buttons & 1u) != 0 && (w.prevBody.buttons & 1u) == 0;
-            if (!w.daMissSent && w.daNonHitlag >= 4 && w.daNonHitlag <= 14 && freshAttack && b.stickY >= 0.73f)
+            bool freshAttack = ((b.buttons & 1u) != 0 && (w.prevBody.buttons & 1u) == 0)
+                               || ((b.triggerButtons & 1u) != 0)
+                               || (((b.buttons & 1u) != 0) && ((b.triggerButtons & 8u) != 0));
+            bool freshCStickUp = (b.cStickY >= 0.73f && w.prevBody.cStickY < 0.73f)
+                                 || ((b.triggerButtons & 0x100u) != 0 && ((b.triggerButtons >> 6) & 3u) == 2u);
+            if (!w.daMissSent && w.daNonHitlag >= 4 && w.daNonHitlag <= 14
+                && ((freshAttack && b.stickY >= 0.73f) || freshCStickUp))
             {
                 emit(kTechBoostGrab, t, i, static_cast<int>(w.daNonHitlag) - 3, kDacusFailed, 0, 0, 0.0f);
                 w.daMissSent = 1;

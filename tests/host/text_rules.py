@@ -569,7 +569,7 @@ def menu_descriptions(c, src):
         c.take(lit)
 
 
-guard("main/ui/info_display.cpp", "drawSide", "ecc870b7")
+guard("main/ui/info_display.cpp", "drawSide", "9f20d00f")
 
 
 def info_display(c, src):
@@ -641,7 +641,7 @@ def info_display(c, src):
         c.take(lit)
 
 
-guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "5fa280e4")
+guard("main/ui/ledgedash_hud.cpp", "drawLedgedashHud", "700ce235")
 
 
 def ledgedash_hud(c, src):

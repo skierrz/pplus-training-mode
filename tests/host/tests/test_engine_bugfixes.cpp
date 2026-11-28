@@ -124,6 +124,8 @@ namespace {
         game::Technique lastDb;
         int comboCount;
         game::Technique lastCombo;
+        int dacusCount;
+        game::Technique lastDacus;
     };
     static EbSink s_ebSink;
 
@@ -143,6 +145,11 @@ namespace {
         {
             s_ebSink.comboCount++;
             s_ebSink.lastCombo = t;
+        }
+        else if (t.kind == game::kTechBoostGrab)
+        {
+            s_ebSink.dacusCount++;
+            s_ebSink.lastDacus = t;
         }
     }
 
@@ -466,4 +473,43 @@ TEST(engine_bugfixes, cpu_shield_lag_detects_zero_hitlag_and_shorter_hitlag_entr
                          && (c.hitlag > c.prevHitlag || c.prevStatus != game::kStatusGuardDamage);
         CHECK_EQ(c.want, shieldLag);
     }
+}
+
+TEST(engine_bugfixes, dacus_osd_detects_cstick_up_and_held_a_z_late_misses)
+{
+    EbUnit p1, p2;
+    setupEbWorld(p1, p2);
+
+    // 1. Late DACUS via C-Stick Up (stickY = 0, buttons = 0, cStickY = 1.0 on non-hitlag frame 5 -> +2f late).
+    fireStatus(p1, game::kStatusDash, 0x26, Situation_Ground); // AttackDash
+    stepEb();
+    for (int f = 0; f < 3; f++)
+    {
+        stepEb();
+    }
+    s_ebBody.cStickY = 1.0f;
+    stepEb();
+    CHECK_EQ(1, s_ebSink.dacusCount);
+    CHECK_EQ(static_cast<int>(game::kDacusFailed), static_cast<int>(s_ebSink.lastDacus.flag));
+    CHECK_EQ(2, static_cast<int>(s_ebSink.lastDacus.frame));
+
+    // Return to Wait to clear DashAttack tracking.
+    s_ebBody.cStickY = 0.0f;
+    fireStatus(p1, 0x26, game::kStatusWait, Situation_Ground);
+    stepEb();
+
+    // 2. Late DACUS via Held-A + Z + Up (buttons & 1 stays held across frames, triggerButtons & 8 fires on frame 4 -> +1f late).
+    s_ebBody.buttons = 1u;
+    s_ebBody.stickY = 0.9f;
+    fireStatus(p1, game::kStatusDash, 0x26, Situation_Ground);
+    stepEb();
+    stepEb();
+    stepEb();
+    s_ebBody.triggerButtons = 8u; // Z press while A is already held
+    stepEb();
+    CHECK_EQ(2, s_ebSink.dacusCount);
+    CHECK_EQ(static_cast<int>(game::kDacusFailed), static_cast<int>(s_ebSink.lastDacus.flag));
+    CHECK_EQ(1, static_cast<int>(s_ebSink.lastDacus.frame));
+
+    teardownEbWorld();
 }

@@ -91,6 +91,7 @@ namespace extra {
             u8 modalNewBestPop; // 1 B: 5..0f focal pop strictly on New Best! badge
             u8 prevMotionDrill; // 1 B: active drill id to snap pointer on drill switch
             u8 hudFade;         // 1 B: 0..5f smooth fade-in on drill attach/start/retry
+            u8 hudExitFade;     // 1 B: 9..0f smooth fade-out when exiting a live drill
             u8 waitRelease;
             u8 lastPadType;
             u8 fresh;
@@ -128,6 +129,7 @@ namespace extra {
             s_rt.ptrVisual = -1.0f;
             s_rt.hitFlashTimer = 0u;
             s_rt.hudFade = 0u;
+            s_rt.hudExitFade = 0u;
             if (clearModal)
             {
                 s_rt.modalAnim = 0u;
@@ -277,10 +279,9 @@ namespace extra {
             snprintf(out, outSize, "%s", fb);
         }
 
-        void drawLiveHud()
+        void drawLiveHud(const DrillHudState& st, float alphaOverride = -1.0f)
         {
             Runtime& s_rt = *s_rtPtr;
-            DrillHudState& st = s_rt.st;
             bool wide = gfx::widescreen();
             float xs = s_rt.xs;
             u8 d = st.activeDrill;
@@ -747,7 +748,11 @@ namespace extra {
             }
 
             float hudAlpha = 1.0f;
-            if (game::frozen())
+            if (alphaOverride >= 0.0f)
+            {
+                hudAlpha = alphaOverride;
+            }
+            else if (game::frozen())
             {
                 s_rt.hudFade = 5u;
             }
@@ -1303,7 +1308,10 @@ namespace extra {
                         else
                         {
                             drillHudCycleMode(st);
-                            ui::pages::practiceMenuState()->mode = st.mode < 3u ? st.mode : 0u;
+                            if (st.activeDrill >= 1u && st.activeDrill <= 8u)
+                            {
+                                ui::pages::practiceMenuState()->mode = st.mode < 3u ? st.mode : 0u;
+                            }
                             s_rt.synced = 0;
                             s_rt.releaseMask[i] |= game::kPadDUp;
 #if TM_STAGE4C
@@ -1413,12 +1421,29 @@ namespace extra {
     void drillHudDraw(const game::MatchState& match)
     {
         if (s_rtPtr == NULL || !match.running || match.paused || lab::menuOpen()
-            || !isValidSkillDrill(s_rtPtr->st.activeDrill) || gfx::lineHeight(0.5f) <= 0.0f)
+            || gfx::lineHeight(0.5f) <= 0.0f)
         {
             return;
         }
         Runtime& s_rt = *s_rtPtr;
         s_rt.xs = ui::layout::xsOf(gfx::widescreen());
+        if (!isValidSkillDrill(s_rt.st.activeDrill))
+        {
+            if (s_rt.hudExitFade > 0u && isValidSkillDrill(s_rt.modalSnap.activeDrill))
+            {
+                float a = easeOutCubic(i2f(s_rt.hudExitFade) * (1.0f / 9.0f));
+                drawLiveHud(s_rt.modalSnap, a);
+                if (!game::frozen())
+                {
+                    s_rt.hudExitFade--;
+                    if (s_rt.hudExitFade == 0u)
+                    {
+                        s_rt.modalSnap.activeDrill = 0u;
+                    }
+                }
+            }
+            return;
+        }
         if (s_rt.st.modalOpen)
         {
             // 8f smooth modal reveal; trigger 5f New Best! focal pop once on open.
@@ -1434,7 +1459,7 @@ namespace extra {
         }
         else
         {
-            drawLiveHud();
+            drawLiveHud(s_rt.st);
             // 4f fast modal exit fade (<= 0.65 * 8f) over live gameplay without blocking inputs.
             if (s_rt.modalAnim > 0u)
             {
@@ -1470,7 +1495,10 @@ namespace extra {
         }
         u8 clean = mode < kDrillModeCount ? mode : static_cast<u8>(kDrillModeFree);
         Runtime& s_rt = *s_rtPtr;
-        ui::pages::practiceMenuState()->mode = clean < 3u ? clean : 0u;
+        if (s_rt.st.activeDrill >= 1u && s_rt.st.activeDrill <= 8u)
+        {
+            ui::pages::practiceMenuState()->mode = clean < 3u ? clean : 0u;
+        }
         if (clean != s_rt.st.mode)
         {
             drillHudInitMode(s_rt.st, s_rt.st.activeDrill, s_rt.st.sessionBest, clean);
@@ -1490,8 +1518,15 @@ namespace extra {
             return;
         }
         Runtime& s_rt = *s_rtPtr;
+        bool wasLive = isValidSkillDrill(s_rt.st.activeDrill) && s_rt.st.modalOpen == 0;
+        DrillHudState prev = s_rt.st;
         unpauseIfNeeded(s_rt);
         resetMotionState(s_rt, true);
+        if (wasLive && !game::frozen())
+        {
+            s_rt.modalSnap = prev;
+            s_rt.hudExitFade = 9u;
+        }
         drillHudInit(s_rt.st, static_cast<u8>(drills::kDrillNone), 0u);
         drillPracticeSetActiveDrill(kPracticeDrillNone);
         ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();

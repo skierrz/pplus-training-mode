@@ -158,7 +158,7 @@ TABLES = {
         "Show how soon you acted after leaving hitstun or tumble.",
         "Report timing frames for jump-canceled grabs and up-smashes.",
         "Show how many frames after apex you triggered a fastfall.",
-        "Show timing for boost grabs and Dash-Attack Canceled Up Smash.",
+        "Show timing for boost grabs and Dash-Attack Canceled U-Smash.",
         "Count smash DI shifts completed during each hitlag window.",
         "Alert when an early tech press triggers the tech lockout timer.",
         "Show hit count and total damage when a true combo finishes.",

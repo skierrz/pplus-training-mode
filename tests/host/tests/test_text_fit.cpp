@@ -679,7 +679,7 @@ TEST(text_fit, lab_menu_pages)
             u8 row;
         };
         static const SumCase kCases[] = {
-            {ui::pages::P_GENERAL, 9},       // Controls ("Category Rail" / "Top Tabs")
+            {ui::pages::P_GENERAL, 8},       // Controls ("Category Rail" / "Top Tabs")
             {ui::pages::P_DISPLAY, 5},       // Boxes & Heatmap ("Grab Boxes" / "Stage Coll" / "2 Active")
             {ui::pages::P_DISPLAY, 6},       // Overlays & Meters ("4 Active")
             {ui::pages::P_DISPLAY, 7},       // Theme ("Brawl Navy" / "Custom")

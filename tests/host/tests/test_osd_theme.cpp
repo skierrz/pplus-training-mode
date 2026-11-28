@@ -310,10 +310,12 @@ TEST(osd_theme, menu_accent_palettes_and_info_theme_v2)
     // Out-of-range Menu Accent clamps safely to default Teal.
     CHECK_EQ(teal.headerTop, ui::menuPalette(99).headerTop);
 
-    // Info Display Theme: (0, 0) equals exact existing style::kInfoFill (0x121822CC).
+    // Info Display Theme: (0, 0) equals style::kHudPlateAlphaBg (0x0C121B6C) and stays 0x6C across backgrounds.
     ui::InfoThemeColors def = ui::resolveInfoTheme(main::kInfoBgDefault, main::kInfoAlphaDefault);
-    CHECK_EQ(ui::style::kInfoFill, def.fillColor);
+    CHECK_EQ(ui::style::kHudPlateAlphaBg, def.fillColor);
     CHECK_EQ(0u, def.shadowColor);
+    ui::InfoThemeColors defBlk = ui::resolveInfoTheme(main::kInfoBgBlack, main::kInfoAlphaDefault);
+    CHECK_EQ(0x080A0E6Cu, defBlk.fillColor);
 
     // 0% opacity disables fill rect and enables strong drop shadow; 20% enables medium shadow.
     ui::InfoThemeColors a0 = ui::resolveInfoTheme(main::kInfoBgTeal, main::kInfoAlpha0);

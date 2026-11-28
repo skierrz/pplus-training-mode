@@ -27,8 +27,11 @@ namespace game {
         kWorkStatus = 0x24,
         kWorkInts = 0xC,
         kWorkIntCount = 0x10,
+        kWorkFloats = 0x14,
+        kWorkFloatCount = 0x18,
         kWorkFlags = 0x1C,
         kWorkFlagCount = 0x20,
+        kLaCStickY = 35,
         kLCancelInt = 90,
         kExtraInfoInt = 180,
         kPowershieldWord = 3 // LA bit 96
@@ -105,8 +108,23 @@ namespace game {
 
         out.stickX = 0.0f;
         out.stickY = 0.0f;
+        out.cStickY = 0.0f;
         out.buttons = 0;
+        out.triggerButtons = 0;
         out.clatter = 0.0f;
+        const void* inst = work(m, kWorkInstance);
+        if (inst != NULL && kLaCStickY < wordAt(inst, kWorkFloatCount))
+        {
+            const float* floats = reinterpret_cast<const float*>(wordAt(inst, kWorkFloats));
+            if (isRam(floats))
+            {
+                float cy = floats[kLaCStickY];
+                if (cy >= -1.5f && cy <= 1.5f)
+                {
+                    out.cStickY = cy;
+                }
+            }
+        }
         soControllerModule* c = m->m_controllerModule;
         if (isRam(c))
         {
@@ -117,7 +135,16 @@ namespace game {
                 out.stickX = sx;
                 out.stickY = sy;
             }
+            if (out.cStickY == 0.0f)
+            {
+                float subY = c->getSubStickY();
+                if (subY >= -1.5f && subY <= 1.5f)
+                {
+                    out.cStickY = subY;
+                }
+            }
             out.buttons = c->getButton().m_mask;
+            out.triggerButtons = c->getTrigger().m_mask;
             out.clatter = c->getClatterTime(0);
         }
 

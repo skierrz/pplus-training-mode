@@ -2630,7 +2630,8 @@ TEST(settings_file, quick_setup_partial_file_boots_silently_without_notice)
     CHECK_EQ(60, static_cast<int>(main::settings().cpu.options.shieldHealth));
     storage::detach();
 
-    // Existing 16-area v2 save (missing only Area 17 kAreaOsdPresets) upgrades silently with force = 1.
+    // Existing 16-area v2 save with genuine pre-Commit-3 kAreaOsd.used == 30 (and missing Area 17)
+    // upgrades silently with force = 1 and zero older-version notice.
     host::card::reset();
     Settings full16;
     choose(full16);
@@ -2644,6 +2645,14 @@ TEST(settings_file, quick_setup_partial_file_boots_silently_without_notice)
         u32 b16 = storage::writeAreas(file + at16, sizeof(file) - at16, at16, reinterpret_cast<const u8*>(&full16),
                                       mask16, ac16);
         REQUIRE(b16 > 0 && ac16 == 16);
+        storage::AreaEntry* tbl16 = reinterpret_cast<storage::AreaEntry*>(file + at16);
+        for (u16 k = 0; k < ac16; k++)
+        {
+            if (tbl16[k].id == storage::kAreaOsd)
+            {
+                tbl16[k].used = static_cast<u8>(offsetof(main::OsdSettings, colorblindMode));
+            }
+        }
         hd16->areaCount = ac16;
         hd16->layout = main::kSettingsVersion;
         h16->magic = storage::kSettingsMagic;
@@ -2663,6 +2672,66 @@ TEST(settings_file, quick_setup_partial_file_boots_silently_without_notice)
     CHECK_EQ(17, static_cast<int>(reinterpret_cast<const storage::SettingsHead*>(
                                       host::card::data(kFileB) + sizeof(storage::FileHeader))
                                       ->areaCount));
+    storage::detach();
+
+    // Existing 17-area pre-Commit-3 v2 save (kAreaOsd.used == 30) also upgrades silently with force = 1.
+    host::card::reset();
+    memset(file, 0, sizeof(file));
+    {
+        storage::FileHeader* h17 = reinterpret_cast<storage::FileHeader*>(file);
+        storage::SettingsHead* hd17 = reinterpret_cast<storage::SettingsHead*>(file + sizeof(storage::FileHeader));
+        u32 at17 = sizeof(storage::FileHeader) + sizeof(storage::SettingsHead);
+        u16 ac17 = 0;
+        u32 b17 = storage::writeAreas(file + at17, sizeof(file) - at17, at17, reinterpret_cast<const u8*>(&full16),
+                                      storage::kAllAreas, ac17);
+        REQUIRE(b17 > 0 && ac17 == 17);
+        storage::AreaEntry* tbl17 = reinterpret_cast<storage::AreaEntry*>(file + at17);
+        for (u16 k = 0; k < ac17; k++)
+        {
+            if (tbl17[k].id == storage::kAreaOsd)
+            {
+                tbl17[k].used = static_cast<u8>(offsetof(main::OsdSettings, colorblindMode));
+            }
+        }
+        hd17->areaCount = ac17;
+        hd17->layout = main::kSettingsVersion;
+        h17->magic = storage::kSettingsMagic;
+        h17->format = storage::kSettingsFormat;
+        h17->headerSize = sizeof(storage::FileHeader);
+        h17->size = at17 + b17;
+        h17->sequence = 8;
+        h17->checksum = storage::checksum(file + storage::kChecksumFrom, h17->size - storage::kChecksumFrom);
+        host::card::put(kFileA, file, h17->size);
+    }
+    storage::noticeClear();
+    u8* blk17 = boot();
+    CHECK(!storage::noticeActive());
+    CHECK_EQ(1, static_cast<int>(storage::blockState(blk17)->force));
+    CHECK_EQ(static_cast<int>(main::kColorblindOff), static_cast<int>(main::settings().osd.colorblindMode));
+    storage::detach();
+
+    // Pre-Commit-3 Quick Setup partial save (kAreaOsd.used == 30) also loads silently.
+    host::card::reset();
+    REQUIRE(menu::osdQuick::patchQuickSetupAreasInFile(NULL, 0, qd, file, sizeof(file), 9, sz));
+    {
+        storage::SettingsHead* hdq = reinterpret_cast<storage::SettingsHead*>(file + sizeof(storage::FileHeader));
+        storage::AreaEntry* tblq =
+            reinterpret_cast<storage::AreaEntry*>(file + sizeof(storage::FileHeader) + sizeof(storage::SettingsHead));
+        for (u16 k = 0; k < hdq->areaCount; k++)
+        {
+            if (tblq[k].id == storage::kAreaOsd)
+            {
+                tblq[k].used = static_cast<u8>(offsetof(main::OsdSettings, colorblindMode));
+            }
+        }
+        storage::FileHeader* hq = reinterpret_cast<storage::FileHeader*>(file);
+        hq->checksum = storage::checksum(file + storage::kChecksumFrom, hq->size - storage::kChecksumFrom);
+        host::card::put(kFileA, file, sz);
+    }
+    storage::noticeClear();
+    u8* blkQ = boot();
+    CHECK(!storage::noticeActive());
+    CHECK_EQ(1, static_cast<int>(storage::blockState(blkQ)->force));
     storage::detach();
 
     // Replacing kAreaOsd with kAreaCpu (outside {General, Display, Osd}) triggers the partial-file notice.

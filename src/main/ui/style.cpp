@@ -51,10 +51,22 @@ namespace style {
     }
 
     static const float kStyleSlantTan = 0.445f; // ~24 deg stock P+ slant
+    static float s_barAlpha = 1.0f;
+
+    void setBarAlpha(float alpha)
+    {
+        s_barAlpha = alpha;
+    }
 
     void drawSlantBar(float x043, float x143, float y, float height, bool flushLeft, gfx::Rgba topCol,
                       gfx::Rgba botCol, gfx::Rgba edgeCol)
     {
+        if (s_barAlpha < 0.999f)
+        {
+            topCol = scaleAlpha(topCol, s_barAlpha);
+            botCol = scaleAlpha(botCol, s_barAlpha);
+            if (edgeCol != 0) edgeCol = scaleAlpha(edgeCol, s_barAlpha);
+        }
         float ms = menuScale();
         float slant = height * kStyleSlantTan;
         float x0Top = mapX(flushLeft ? x043 : (x043 + slant), ms);
@@ -104,6 +116,10 @@ namespace style {
     void drawDiagStripes(float rightTopX, float y0, float y1, float slantPx, float stripeW, float gap,
                          gfx::Rgba color)
     {
+        if (s_barAlpha < 0.999f)
+        {
+            color = scaleAlpha(color, s_barAlpha);
+        }
         float x1 = rightTopX;
         float x0 = x1 - stripeW;
         drawSlantGradV(x0, x0 - slantPx, x1, x1 - slantPx, y0, y1, color, color);
@@ -118,10 +134,13 @@ namespace style {
         float half = size * 0.58f;
         float sw = size * xs;
         float pad = 1.2f * xs;
-        gfx::fillTri(x - pad, cy - half - 1.5f, x - pad, cy + half + 1.5f, x + sw + 1.8f * xs, cy, 0x000000FF);
-        gfx::fillTri(x, cy - half, x, cy + half, x + sw, cy, 0xEE2218FF);
+        bool fade = s_barAlpha < 0.999f;
+        gfx::fillTri(x - pad, cy - half - 1.5f, x - pad, cy + half + 1.5f, x + sw + 1.8f * xs, cy,
+                     fade ? scaleAlpha(0x000000FFu, s_barAlpha) : 0x000000FFu);
+        gfx::fillTri(x, cy - half, x, cy + half, x + sw, cy,
+                     fade ? scaleAlpha(0xEE2218FFu, s_barAlpha) : 0xEE2218FFu);
         gfx::fillTri(x + 0.8f * xs, cy - half * 0.72f, x + 0.8f * xs, cy - 0.5f, x + sw * 0.68f, cy - 0.8f,
-                     0xFF7A66FF);
+                     fade ? scaleAlpha(0xFF7A66FFu, s_barAlpha) : 0xFF7A66FFu);
     }
 
     void fillStadium(float x, float y, float width, float height, gfx::Rgba color)
@@ -263,34 +282,15 @@ namespace style {
     float drawFooterBadge(float x, float cy, float badgeH, const char* glyph, const char* label, u8 theme, u8 flags,
                           gfx::Rgba labelCol)
     {
-        float xs = gfx::xScale();
-        bool dense = (flags & kBadgeDense) != 0;
-        float cap = dense ? kTypeMicro : kTypeMeta;
-        float scale = scaleForCap(cap);
-        float glyphW = gfx::textWidth(glyph, scale);
-        bool round = (flags & kBadgeRound) != 0;
-        float pillPad = (dense ? 6.0f : 10.0f) * xs;
-        float bw = round ? (badgeH * xs) : (glyphW + pillPad);
-        float minW = (round ? badgeH : (badgeH + 3.0f)) * xs;
-        if (bw < minW)
-        {
-            bw = minW;
-        }
-        const gfx::Rgba* tc = kBtnTheme[theme < 4 ? theme : 0];
-        drawGlossyPillBadge(x, cy - badgeH * 0.5f, bw, badgeH, tc[0], tc[1]);
-        float textY = textYForCap(cy - cap * 0.5f, scale);
-        gfx::text(x + (bw - glyphW) * 0.5f, textY, glyph, tc[2], scale);
-        float gap = (dense ? 3.5f : ((flags & kBadgeTightGap) ? kFibTight : kFibGap)) * xs;
-        float pad = (dense ? 5.5f : ((flags & kBadgeWidePad) ? (kFibPad + kFibGap) : kFibPad)) * xs;
-        float endX = gfx::text(x + bw + gap, textY, label, labelCol, scale);
-        return endX + pad;
+        FooterBadgeItem it = {glyph, label, theme, flags, labelCol};
+        return drawFooterBadges(x, cy, badgeH, &it, 1);
     }
 
-    void drawFooterBadges(float x, float cy, float badgeH, const FooterBadgeItem* items, int count)
+    float drawFooterBadges(float x, float cy, float badgeH, const FooterBadgeItem* items, int count)
     {
         if (count <= 0)
         {
-            return;
+            return x;
         }
         if (count > 8)
         {
@@ -342,6 +342,7 @@ namespace style {
             gfx::text(posX[i] + (pillW[i] - glyphW[i]) * 0.5f, textY, it.glyph, tc[2], scale);
             gfx::text(posX[i] + pillW[i] + gapArr[i], textY, it.label, it.labelCol, scale);
         }
+        return curX;
     }
 
     void drawFitText(float x, float y, const char* str, gfx::Rgba color, float scale, float maxW, bool centre)

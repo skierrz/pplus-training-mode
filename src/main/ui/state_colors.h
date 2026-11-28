@@ -72,19 +72,19 @@ namespace ui {
         {
             return c;
         }
+        static const u32 kSrc[13] = {
+            0x4ADE8000u, 0x4CE68800u, 0x3CE89000u, 0x22C55E00u,
+            0xFACC1500u, 0xFFE24A00u, 0xFFD30000u, 0xFFB84800u, 0xF59E0B00u,
+            0xFF948A00u, 0xFF665800u, 0xEF444400u, 0xDC444400u
+        };
         u32 rgb = c & 0xFFFFFF00u;
-        u32 a = c & 0xFFu;
-        if (rgb == 0x4ADE8000u || rgb == 0x4CE68800u || rgb == 0x3CE89000u || rgb == 0x22C55E00u)
+        for (int i = 0; i < 13; i++)
         {
-            return (gradeColor(kGradeGood, m) & 0xFFFFFF00u) | a;
-        }
-        if (rgb == 0xFACC1500u || rgb == 0xFFE24A00u || rgb == 0xFFD30000u || rgb == 0xFFB84800u || rgb == 0xF59E0B00u)
-        {
-            return (gradeColor(kGradeOkay, m) & 0xFFFFFF00u) | a;
-        }
-        if (rgb == 0xFF948A00u || rgb == 0xFF665800u || rgb == 0xEF444400u || rgb == 0xDC444400u)
-        {
-            return (gradeColor(kGradeBad, m) & 0xFFFFFF00u) | a;
+            if (rgb == kSrc[i])
+            {
+                u8 g = static_cast<u8>(i < 4 ? kGradeGood : (i < 9 ? kGradeOkay : kGradeBad));
+                return (gradeColor(g, m) & 0xFFFFFF00u) | (c & 0xFFu);
+            }
         }
         return c;
     }

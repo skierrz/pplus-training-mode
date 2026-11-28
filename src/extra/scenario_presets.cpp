@@ -990,6 +990,11 @@ namespace extra {
                 && (drillHudActiveId() != 0 || comboBreakRushActive()))
             {
                 drillHudDisable();
+                if (drills::Session* sess = drills::sessionIn(main::services().settings()))
+                {
+                    sess->drill = drills::kDrillNone;
+                    sess->drillRan = 0;
+                }
             }
             applyConfigAndPercents(s_state, NULL);
             net->pendingRevivalExit = (s_state.activePreset == kScenarioOff && wasRevival);
@@ -1027,12 +1032,8 @@ namespace extra {
             break;
         case main::kScenarioPracticeChanged:
             drillPracticeApplyMenu();
-            if (ui::pages::practiceMenuState()->activeDrill == drills::kDrillComboBreakRush)
-            {
-                u8 m = ui::pages::practiceMenuState()->mode;
-                comboBreakRushSetActive(static_cast<u8>(m < 3u ? (m + 1u) : 1u));
-            }
-            else
+            if (ui::pages::practiceMenuState()->activeDrill >= 1u
+                && ui::pages::practiceMenuState()->activeDrill <= 8u)
             {
                 drillHudSetMode(ui::pages::practiceMenuState()->mode);
             }

@@ -39,6 +39,22 @@ namespace ui {
         kStateColorGalint      // GALINT (ice-aqua)
     };
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
+    static void drawOutlined(float x, float y, const char* s, gfx::Rgba col, gfx::Rgba outCol, float sx, float sy,
+                             float xs)
+    {
+        gfx::text(x - xs, y, s, outCol, sx, sy);
+        gfx::text(x + xs, y, s, outCol, sx, sy);
+        gfx::text(x, y - 1.0f, s, outCol, sx, sy);
+        gfx::text(x, y + 1.0f, s, outCol, sx, sy);
+        gfx::text(x, y, s, col, sx, sy);
+    }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
+
     bool ledgedashHudVisible()
     {
         const game::Ledgedash& l = game::lastLedgedash();
@@ -166,11 +182,7 @@ namespace ui {
             for (int i = 0; i < 6; i++)
             {
                 float tx = curX + (swW + swGap) * ratio;
-                gfx::text(tx - xs, ly, kLegNames[i], outCol, sx, lScale);
-                gfx::text(tx + xs, ly, kLegNames[i], outCol, sx, lScale);
-                gfx::text(tx, ly - 1.0f, kLegNames[i], outCol, sx, lScale);
-                gfx::text(tx, ly + 1.0f, kLegNames[i], outCol, sx, lScale);
-                gfx::text(tx, ly, kLegNames[i], primCol, sx, lScale);
+                drawOutlined(tx, ly, kLegNames[i], primCol, outCol, sx, lScale, xs);
                 curX += (swW + swGap + lWidths[i] + itemGap) * ratio;
             }
         }
@@ -300,21 +312,13 @@ namespace ui {
                 float lw = gfx::textWidth(kRowLabels[r], lblSc);
                 float lx = pcx - lw * 0.5f;
                 float ly = style::textYForCap(ry + 3.0f, lblSc);
-                gfx::text(lx - xs, ly, kRowLabels[r], outCol, lblSc);
-                gfx::text(lx + xs, ly, kRowLabels[r], outCol, lblSc);
-                gfx::text(lx, ly - 1.0f, kRowLabels[r], outCol, lblSc);
-                gfx::text(lx, ly + 1.0f, kRowLabels[r], outCol, lblSc);
-                gfx::text(lx, ly, kRowLabels[r], lblCol, lblSc);
+                drawOutlined(lx, ly, kRowLabels[r], lblCol, outCol, lblSc, lblSc, xs);
 
                 float vw = gfx::textWidth(rowVals[r], valSc);
                 float sx = (vw > maxW && vw > 0.0f) ? (valSc * maxW / vw) : valSc;
                 float vx = pcx - (vw > maxW ? maxW : vw) * 0.5f;
                 float vy = style::textYForCap(ry + 16.0f, valSc);
-                gfx::text(vx - xs, vy, rowVals[r], outCol, sx, valSc);
-                gfx::text(vx + xs, vy, rowVals[r], outCol, sx, valSc);
-                gfx::text(vx, vy - 1.0f, rowVals[r], outCol, sx, valSc);
-                gfx::text(vx, vy + 1.0f, rowVals[r], outCol, sx, valSc);
-                gfx::text(vx, vy, rowVals[r], style::scaleAlpha(rowCols[r], alpha), sx, valSc);
+                drawOutlined(vx, vy, rowVals[r], style::scaleAlpha(rowCols[r], alpha), outCol, sx, valSc, xs);
             }
         }
     }

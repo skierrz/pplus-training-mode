@@ -86,7 +86,7 @@ namespace ui {
 
     // Indexed by main::InfoBgColor (main/settings.h).
     static const u32 kInfoBgPalette[main::kInfoBgColorCount] = {
-        0x121822u, // 0: Default (exact style::kInfoFill RGB)
+        0x111720u, // 0: Default (exact style::kHudPlateAlphaBg RGB)
         0x0F242Cu, // 1: P+ Teal
         0x101E3Au, // 2: Brawl Navy
         0x1A1A1Eu, // 3: Charcoal
@@ -95,9 +95,9 @@ namespace ui {
         0x281018u  // 6: Crimson
     };
 
-    // Indexed by main::InfoAlpha (main/settings.h): Default = 80% (0xCC).
+    // Indexed by main::InfoAlpha (main/settings.h): Default = Smoked 40% (0x6C, matching kHudPlateAlphaBg).
     static const u8 kInfoAlphaBytes[main::kInfoAlphaCount] = {
-        0xCCu, // 0: Default (80%)
+        0x6Cu, // 0: Default (Smoked 40%)
         0x00u, // 1: 0%
         0x33u, // 2: 20%
         0x66u, // 3: 40%

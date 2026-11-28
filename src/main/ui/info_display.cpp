@@ -634,9 +634,7 @@ namespace ui {
         u8 bgId = all.size ? all.osd.infoBgColor : static_cast<u8>(main::kInfoBgDefault);
         u8 alphaId = all.size ? all.osd.infoBgAlpha : static_cast<u8>(main::kInfoAlphaDefault);
         InfoThemeColors theme = resolveInfoTheme(bgId, alphaId);
-        gfx::Rgba fillCol = (bgId == main::kInfoBgDefault && alphaId == main::kInfoAlphaDefault)
-                                ? style::kHudPlateAlphaBg
-                                : theme.fillColor;
+        gfx::Rgba fillCol = theme.fillColor;
         // Quiet borderless Panel B smoked plate (zero outer wireframe border, zero title tab).
         if (fillCol != 0)
         {

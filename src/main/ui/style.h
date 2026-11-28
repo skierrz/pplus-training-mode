@@ -426,6 +426,9 @@ namespace style {
     void drawSlantBar(float x043, float x143, float y, float height, bool flushLeft, gfx::Rgba topCol,
                       gfx::Rgba botCol, gfx::Rgba edgeCol);
 
+    // Optional alpha multiplier applied uniformly to drawSlantBar/drawValuePill/drawGoldBar during pane slides.
+    void setBarAlpha(float alpha);
+
     // Slanted Solo-Gold focused row bar with red cursor triangle and optional "//" stripes.
     void drawGoldBar(float x043, float x143, float y, float h, float cursorSize, bool flushLeft = false,
                      float stripeRight43 = 0.0f);
@@ -477,8 +480,8 @@ namespace style {
         u8 flags;
         gfx::Rgba labelCol;
     };
-    // 2-pass batched footer strip: draws all glossy pills first, then all glyph/label text.
-    void drawFooterBadges(float x, float cy, float badgeH, const FooterBadgeItem* items, int count);
+    // 2-pass batched footer strip: draws all glossy pills first, then all glyph/label text; returns trailing x.
+    float drawFooterBadges(float x, float cy, float badgeH, const FooterBadgeItem* items, int count);
 
     // Horizontally squeezes `str` to fit within `maxW` (screen px) when needed.
     void drawFitText(float x, float y, const char* str, gfx::Rgba color, float scale, float maxW,

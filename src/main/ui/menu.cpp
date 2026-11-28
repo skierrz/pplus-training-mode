@@ -948,7 +948,6 @@ namespace ui {
                     if (state.railCursor < def.categoryCount)
                     {
                         switchCategory(def, state, state.railCursor, false);
-                        startPaneSlide(7, 1);
                         s_anim.hasScroll = 0;
                         sound = game::kSoundConfirm;
                     }
@@ -1886,6 +1885,7 @@ namespace ui {
 
     // 2-pass GX batched row content drawer:
     // passMode: 0 = settled, 1 = unfocused pass 1, 2 = focused scissor-lens pass 2.
+#pragma dont_inline on
     static void drawLabRowsLayer(const MenuDef& def, const MenuState& state, u8 pageId, const Page& p,
                                  const LabPaneGeom& g, const MenuPalette& pal, const int* visIdx, const int* visOrd,
                                  int visN, float rowTop, float scrollY, float sxOff, float nudgeOff, float scale,
@@ -1984,6 +1984,7 @@ namespace ui {
             }
         }
     }
+#pragma dont_inline reset
 
     void menuDraw(const MenuDef& def, MenuState& state)
     {
@@ -2186,13 +2187,11 @@ namespace ui {
 
             if (listVisible)
             {
-                gfx::Rgba rowTopC = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateTop, paneAlpha) : kLabRowSlateTop;
-                gfx::Rgba rowBotC = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateBot, paneAlpha) : kLabRowSlateBot;
-                gfx::Rgba rowEdgeC = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateEdge, paneAlpha) : kLabRowSlateEdge;
+                setBarAlpha(paneAlpha);
                 for (int r = 0; r < visN; r++)
                 {
                     float y = rowTop + static_cast<float>(visOrd[r]) * kLabRowPitch - drawScrollY;
-                    drawSlantBar(hlL, hlR, y, kLabRowH, false, rowTopC, rowBotC, rowEdgeC);
+                    drawSlantBar(hlL, hlR, y, kLabRowH, false, kLabRowSlateTop, kLabRowSlateBot, kLabRowSlateEdge);
                 }
                 if (lensActive)
                 {
@@ -2218,6 +2217,7 @@ namespace ui {
                     drawLabRowsLayer(def, state, pageId, p, g, pal, visIdx, visOrd, visN, rowTop, drawScrollY, sxOff,
                                      nudgeOff, scale, diPicking, 0, 0.0f, 0.0f, paneAlpha);
                 }
+                setBarAlpha(1.0f);
             }
             if (listClipped)
             {

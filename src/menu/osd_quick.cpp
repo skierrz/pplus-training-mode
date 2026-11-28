@@ -954,7 +954,8 @@ namespace osdQuick {
         s_scroll[0] = s_scroll[1] = 0;
         memset(s_rep, 0, sizeof(s_rep));
         ui::style::modalAnimOpen(s_anim);
-        startSlide(7, 1);
+        s_slideTick = s_slideMax = 0;
+        s_slideDir = 0;
         gfx::forgetWidths();
         TM_LOG("osdquick: opened for port %d\n", port + 1);
     }
@@ -1111,11 +1112,16 @@ namespace osdQuick {
                 continue;
             }
             const QuickRow& row = rows[idx];
+            bool sel = passMode == 2 ? true : (passMode == 0 && idx == cursor);
             if (row.kind == kKindSub)
             {
+                float midY = y + rowH * 0.5f;
+                float r = cx(pillRight43 - 10.0f);
+                gfx::Rgba cc = sel ? kLabGoldInk : kLabMutedText;
+                if (fade) cc = scaleAlpha(cc, paneAlpha);
+                gfx::fillTri(r - gw(5.0f), midY, r - gw(11.0f), midY - 4.0f, r - gw(11.0f), midY + 4.0f, cc);
                 continue;
             }
-            bool sel = passMode == 2 ? true : (passMode == 0 && idx == cursor);
             bool on = rowEnabled(row);
             bool isHi = quickRowHighlighted(row, readRowValue(row));
             drawValuePill(pillLeft43, pillRight43, y, rowH, isHi, on, sel);
@@ -1148,10 +1154,14 @@ namespace osdQuick {
             if (row.kind == kKindSub)
             {
                 int cnt = activeIndividualOsdCount();
-                snprintf(buf, sizeof(buf), cnt > 0 ? "%d Active  >" : "All Off  >", cnt);
+                snprintf(buf, sizeof(buf), cnt > 0 ? "%d Active" : "All Off", cnt);
                 gfx::Rgba valCol = sel ? kLabGoldInk : kLabMutedText;
                 if (fade) valCol = scaleAlpha(valCol, paneAlpha);
-                drawFitText(pillCenter, ty, valTxt, valCol, rowScale, valMaxW, true);
+                float tw = gfx::textWidth(buf, rowScale);
+                float maxW = valMaxW - gw(20.0f);
+                float sx = (tw > maxW && tw > 0.0f) ? (rowScale * maxW / tw) : rowScale;
+                if (tw > maxW) tw = maxW;
+                gfx::text(cx(pillRight43 - 25.0f) - tw, ty, buf, valCol, sx, rowScale);
                 continue;
             }
             if (row.kind == kKindToggle)
@@ -1298,13 +1308,11 @@ namespace osdQuick {
         }
         if (listVisible)
         {
-            gfx::Rgba rTop = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateTop, paneAlpha) : kLabRowSlateTop;
-            gfx::Rgba rBot = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateBot, paneAlpha) : kLabRowSlateBot;
-            gfx::Rgba rEdge = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateEdge, paneAlpha) : kLabRowSlateEdge;
+            setBarAlpha(paneAlpha);
             for (int idx = drawStart; idx < drawEnd; idx++)
             {
                 float y = rowTop + static_cast<float>(idx) * rowPitch - drawScrollY;
-                drawSlantBar(hlLeft43, hlRight43, y, rowH, false, rTop, rBot, rEdge);
+                drawSlantBar(hlLeft43, hlRight43, y, rowH, false, kLabRowSlateTop, kLabRowSlateBot, kLabRowSlateEdge);
             }
             if (hasBar && (barGliding || scrolling))
             {
@@ -1331,6 +1339,7 @@ namespace osdQuick {
                                    nameMaxW, pillLeft43, pillRight43, pillCenter, valMaxW, rowScale, capOff, 0, 0.0f,
                                    0.0f, paneAlpha);
             }
+            setBarAlpha(1.0f);
         }
         if (listClipped)
         {

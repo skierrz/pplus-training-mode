@@ -928,13 +928,12 @@ namespace browser {
         }
         if (listVisible && s_count > 0)
         {
-            gfx::Rgba rTop = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateTop, paneAlpha) : kLabRowSlateTop;
-            gfx::Rgba rBot = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateBot, paneAlpha) : kLabRowSlateBot;
-            gfx::Rgba rEdge = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateEdge, paneAlpha) : kLabRowSlateEdge;
+            setBarAlpha(paneAlpha);
             for (int idx = drawStart; idx < drawEnd; idx++)
             {
                 float y = kRowTop + static_cast<float>(idx) * kRowPitch - drawScrollY + dy;
-                drawSlantBar(hlLeft43, hlRight43, y, kRowBoxH, false, rTop, rBot, rEdge);
+                drawSlantBar(hlLeft43, hlRight43, y, kRowBoxH, false, kLabRowSlateTop, kLabRowSlateBot,
+                             kLabRowSlateEdge);
             }
             if (hasBar && (barGliding || scrolling))
             {
@@ -958,6 +957,7 @@ namespace browser {
                 drawBrowserRowsText(drawStart, drawEnd, dy, drawScrollY, hlLeft43, sxOff, scale, 0, 0.0f, 0.0f,
                                     paneAlpha);
             }
+            setBarAlpha(1.0f);
         }
         if (listClipped)
         {
@@ -1053,7 +1053,7 @@ namespace browser {
         }
 #endif
         modalAnimOpen(s_anim);
-        s_slideTick = 7;
+        s_slideTick = 0;
         gfx::forgetWidths();
         if (s_phase == kIdle || s_phase == kHeaders)
         {

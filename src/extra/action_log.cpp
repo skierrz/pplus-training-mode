@@ -360,8 +360,8 @@ namespace extra {
         // then text pass (P1/CPU tags and Brawl Display Font advantage readout).
         const float tagRight = ox + (wide ? 24.0f : 30.0f);
         const float cellsX = tagRight + 3.5f * xs;
-        const float rowH = 10.4f;
-        const float rowY[2] = {oy + 5.5f, oy + 5.5f + rowH + 3.0f};
+        const float rowH = 10.0f;
+        const float rowY[2] = {oy + 6.0f, oy + 19.0f};
         const bool swapCpu = (mode == main::kActionLogCpu);
         const char* topTag = s_net->topIsCpu ? "CPU" : (swapCpu ? "P2" : "P1");
         const char* botTag = s_net->botIsCpu ? "CPU" : (swapCpu ? "P1" : "P2");

@@ -32,7 +32,7 @@ namespace pages {
 
     // In main::InfoAlpha order (main/settings.h).
     TM_LABELS_BEGIN(kInfoAlphaLabels)
-        TM_L("Smoked 80%") TM_L("0%") TM_L("20%") TM_L("40%") TM_L("60%") TM_L("80%") TM_L("100%")
+        TM_L("Smoked 40%") TM_L("0%") TM_L("20%") TM_L("40%") TM_L("60%") TM_L("80%") TM_L("100%")
     TM_LABELS_END
     TM_LABELS_ASSERT(kInfoAlphaLabels, main::kInfoAlphaCount, tm_info_alpha_labels_match);
 

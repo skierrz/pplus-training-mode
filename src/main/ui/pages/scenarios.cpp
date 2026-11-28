@@ -126,7 +126,11 @@ namespace pages {
     static void practiceChanged() { main::extraScenarioCall(main::kScenarioPracticeChanged); }
 
     static bool practiceActive() { return main::extraLoaded() && practiceMenuState()->activeDrill != 0; }
-    static bool practiceModeVisible() { return practiceActive(); }
+    static bool practiceModeVisible()
+    {
+        u8 id = practiceMenuState()->activeDrill;
+        return main::extraLoaded() && id >= 1u && id <= 8u;
+    }
 
 #pragma dont_inline on
     static bool practiceDrillIs(u8 id) { return main::extraLoaded() && practiceMenuState()->activeDrill == id; }

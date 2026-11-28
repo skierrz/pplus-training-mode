@@ -3157,22 +3157,15 @@ TEST(lab_menu, commit5_ux_flow_slide_recording_preview_and_drill_rail)
     ui::MenuState st;
     ui::menuReset(menu, st);
 
-    // 1. Fresh open lands on left category rail; entering a submenu slides for 7f then settles at 0 scissors.
+    // 1. Fresh open lands on left category rail; moving rail -> Lab keeps already-visible rows settled (no replay).
     CHECK(st.railFocus);
     ui::MenuInput inA = {0, 0, 0, 0, true, false, false, false};
     ui::MenuInput inB = {0, 0, 0, 0, false, true, false, false};
     ui::MenuInput inDown = {0, 1, 0, 0, false, false, false, false};
-    ui::menuStep(menu, st, inA); // rail -> Lab (7f slide)
+    ui::menuStep(menu, st, inA); // rail -> Lab (focus handoff without pane entrance replay)
     CHECK(!st.railFocus);
     host::canvas::clear();
     ui::menuDraw(menu, st);
-    CHECK(host::canvas::scissorPushes() >= 1);
-    CHECK_EQ(0, host::canvas::scissorDepth());
-    for (int f = 0; f < 8; f++)
-    {
-        host::canvas::clear();
-        ui::menuDraw(menu, st);
-    }
     CHECK_EQ(0, host::canvas::scissorPushes());
     CHECK_EQ(0, host::canvas::scissorDepth());
 
@@ -3214,9 +3207,18 @@ TEST(lab_menu, commit5_ux_flow_slide_recording_preview_and_drill_rail)
     CHECK(menuCanvasDrew("Playback & Positions"));
     CHECK(strstr(extra::optionDesc(ui::pages::P_RECORDING, 0), "unlock input recording") != NULL);
 
-    // 3. Drill rail inside Break the Targets! never collapses to 1 lonely row.
-    ui::pages::practiceMenuState()->activeDrill = 17; // kDrillComboBreakRush
+    // 3. Drill rail inside Break the Targets! and Stage 4C never collapses to 1 lonely row,
+    //    and hides the 3-choice Practice Mode row on non-Stage-4A drills so timed/4-mode drills stay honest.
     const u8 scenPath[] = {ui::pages::P_SCENARIOS};
+    ui::pages::practiceMenuState()->activeDrill = 17; // kDrillComboBreakRush
+    REQUIRE(ui::menuJump(menu, st, scenPath, 1));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(menuCanvasDrew("Preset"));
+    CHECK(!menuCanvasDrew("Practice Mode"));
+    CHECK(menuCanvasDrew("Exit Drill"));
+
+    ui::pages::practiceMenuState()->activeDrill = 6; // kDrillRar (Stage 4A)
     REQUIRE(ui::menuJump(menu, st, scenPath, 1));
     host::canvas::clear();
     ui::menuDraw(menu, st);

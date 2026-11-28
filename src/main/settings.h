@@ -206,7 +206,7 @@ namespace main {
         kInfoBgColorCount
     };
 
-    // Display > Theme: Info Display background opacity presets (0 = 80% / 0xCC default).
+    // Display > Theme: Info Display background opacity presets (0 = 40% / 0x6C default).
     enum InfoAlpha {
         kInfoAlphaDefault = 0,
         kInfoAlpha0,
@@ -298,7 +298,7 @@ namespace main {
         u8 bgAlpha;     // 0..10 (0%..100% in 10% steps, default 4 = 40%)
         u8 menuAccent;  // MenuAccent (0..3, default kMenuAccentTeal)
         u8 infoBgColor; // InfoBgColor (0..6, default kInfoBgDefault)
-        u8 infoBgAlpha; // InfoAlpha (0..6, default kInfoAlphaDefault = 80%)
+        u8 infoBgAlpha; // InfoAlpha (0..6, default kInfoAlphaDefault = 40%)
         u8 timingMeter; // TimingMeterMode (0..4, default kTimingMeterOff)
         u8 preset;      // OsdPreset (0..7, default kOsdPresetEssentials)
         u8 techSparkle;    // TechSparkleMode (0..3, default kTechSparkleWavedash)
