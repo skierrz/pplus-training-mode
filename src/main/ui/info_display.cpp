@@ -634,7 +634,7 @@ namespace ui {
         u8 alphaId = all.size ? all.osd.infoBgAlpha : static_cast<u8>(main::kInfoAlphaDefault);
         InfoThemeColors theme = resolveInfoTheme(bgId, alphaId);
         gfx::Rgba fillCol = (bgId == main::kInfoBgDefault && alphaId == main::kInfoAlphaDefault)
-                                ? 0x111720A8u
+                                ? style::kHudPlateAlphaBg
                                 : theme.fillColor;
         // Quiet borderless Panel B smoked plate (zero outer wireframe border, zero title tab).
         if (fillCol != 0)
@@ -667,8 +667,11 @@ namespace ui {
                 float sx = textW > maxW && textW > 0.0f ? scale * maxW / textW : scale;
                 float tx = left + inset;
                 float ty = style::textYForCap(capTop + r * kPitch[size], scale);
-                gfx::Rgba shadowCol = theme.shadowColor != 0 ? theme.shadowColor : 0x000000DCu;
-                gfx::text(tx + xs, ty + 1.0f, buf, shadowCol, sx, scale);
+                gfx::Rgba outCol = theme.shadowColor != 0 ? theme.shadowColor : style::kHudOutlineEdge;
+                gfx::text(tx - xs, ty, buf, outCol, sx, scale);
+                gfx::text(tx + xs, ty, buf, outCol, sx, scale);
+                gfx::text(tx, ty - 1.0f, buf, outCol, sx, scale);
+                gfx::text(tx, ty + 1.0f, buf, outCol, sx, scale);
                 gfx::text(tx, ty, buf, built ? style::kText : style::kTextDisabled, sx, scale);
             }
         }

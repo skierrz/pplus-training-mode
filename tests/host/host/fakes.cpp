@@ -18,6 +18,7 @@
 #include "host/test.h"
 #include "main/cpu/view.h"
 #include "main/game/fighters.h"
+#include "main/game/freeze.h"
 #include "main/game/motion.h"
 #include "main/record/record.h"
 #include "main/services.h"
@@ -42,6 +43,7 @@ namespace fakes {
     static tm::game::Tracked s_tracked[tm::game::kMaxTracked];
     static int s_fighterCount = 0;
     static s32 s_trackerFrame = 0;
+    static bool s_frozen = false;
     static u8* s_block = NULL;
     static tm::game::MatchState s_match;
     static Recording s_recording;
@@ -81,6 +83,7 @@ namespace fakes {
         memset(s_tracked, 0, sizeof(s_tracked));
         s_fighterCount = 0;
         s_trackerFrame = 0;
+        s_frozen = false;
         s_block = NULL;
         s_osdCount = 0;
         s_osdPlayer = -1;
@@ -175,6 +178,11 @@ namespace fakes {
     void setTrackerFrame(s32 frame)
     {
         s_trackerFrame = frame;
+    }
+
+    void setFrozen(bool frozen)
+    {
+        s_frozen = frozen;
     }
 
     u8* block()
@@ -536,6 +544,12 @@ namespace game {
     const char* heapName(u32)
     {
         return "heap";
+    }
+
+    // src/main/game/freeze.cpp.
+    bool frozen()
+    {
+        return host::fakes::s_frozen;
     }
 
     // src/main/game/tracker.cpp.

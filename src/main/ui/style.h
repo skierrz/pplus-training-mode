@@ -220,20 +220,21 @@ namespace style {
     static const gfx::Rgba kLabBadgeOsdBot = 0x1C8B7EFF;
 
     // ---- Shared semantic HUD scrim and feedback tokens (live match + extra overlays) ----
-    static const gfx::Rgba kSmokedPlateBg = 0x0D131CC4u;
+    // Subtle P+-native airy transparency (~42% wash) paired with 4-way outlined text.
+    static const gfx::Rgba kSmokedPlateBg = 0x0D131C6Cu;
     static const gfx::Rgba kSmokedPlateEdge = 0x05080DE8u;
     static const gfx::Rgba kSmokedPlateSheen = 0xFFFFFF22u;
     static const gfx::Rgba kSmokedDivider = 0xFFFFFF38u;
-    static const gfx::Rgba kHudPlateAlphaBg = 0x111720A8u;
+    static const gfx::Rgba kHudPlateAlphaBg = 0x1117206Cu;
     static const gfx::Rgba kHudOutlineEdge = 0x04070CE8u;
     static const gfx::Rgba kHudOutlineHeavy = 0x04070CF8u;
     static const gfx::Rgba kHudShadow = 0x000000C8u;
     static const gfx::Rgba kHudTextPrimary = 0xF8FCFFFFu;
     static const gfx::Rgba kHudTextLabel = 0xC6D4E0FFu;
     static const gfx::Rgba kHudTextValue = 0xF4F8FCFFu;
-    static const gfx::Rgba kHudTroughBg = 0x05090FF4u;
-    static const gfx::Rgba kHudCellEmpty = 0x1E2C38C8u;
-    static const gfx::Rgba kHudCellSheen = 0xFFFFFF34u;
+    static const gfx::Rgba kHudTroughBg = 0x070B1298u;
+    static const gfx::Rgba kHudCellEmpty = 0x1E2C38B8u;
+    static const gfx::Rgba kHudCellSheen = 0xFFFFFF3Cu;
     static const gfx::Rgba kHudGold = 0xFFD300FFu;
     static const gfx::Rgba kHudYellow = 0xFFE24AFFu;
     static const gfx::Rgba kHudGreen = 0x4CE688FFu;

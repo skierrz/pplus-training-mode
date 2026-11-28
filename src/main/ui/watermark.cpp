@@ -9,22 +9,24 @@
 namespace tm {
 namespace ui {
     static const char kText[] = TM_VERSION_MARK;
-    static const gfx::Rgba kBack = 0x060E14B8;
-    static const gfx::Rgba kShadow = 0x000000E0;
+    static const gfx::Rgba kOutline = 0x000000F8;
 
     void drawWatermark()
     {
         // Keep at kTypeMicro (8.0 px CRT cap floor) inside y <= 456.0 (5% CRT safe,
-        // including 1 px shadow + descender room) while clearing actionLog (y <= 438).
+        // including 1 px outline + descender room) while clearing actionLog (y <= 438).
         const float cap = style::kTypeMicro;
         const float capTop = layout::kWatermarkCapTop - 1.0f;
         float scale = style::scaleForCap(cap);
         float width = style::boldWidth(kText, scale);
         float padX = style::w(style::kFibHair);
+        float xs = gfx::xScale();
         float x = layout::kWatermarkRight - padX - width;
         float y = style::textYForCap(capTop, scale);
-        gfx::fillRect(x - padX, capTop - 1.0f, width + 2.0f * padX, cap + 2.0f, kBack);
-        style::boldText(x + 1.0f, y + 1.0f, kText, kShadow, scale, scale);
+        style::boldText(x - xs, y, kText, kOutline, scale, scale);
+        style::boldText(x + xs, y, kText, kOutline, scale, scale);
+        style::boldText(x, y - 1.0f, kText, kOutline, scale, scale);
+        style::boldText(x, y + 1.0f, kText, kOutline, scale, scale);
         style::boldText(x, y, kText, 0xF2F7FBFF, scale, scale);
     }
 }

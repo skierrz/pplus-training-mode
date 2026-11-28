@@ -73,13 +73,16 @@ namespace extra {
     void drawSmokedPlate(float x, float y, float w, float h, gfx::Rgba bg = kSmokedPlateBg);
     // Smoked glass scrim card strictly within [x..x+w, y..y+h] with crisp 2px dark edge and subtle top sheen.
     void drawSmokedCard(float x, float y, float w, float h, float xs, gfx::Rgba bg = kSmokedPlateBg);
-    void drawPlateDivider(float x, float y, float w, float xs);
+    void drawPlateDivider(float x, float y, float w, float xs, float alpha = 1.0f);
 
     // Draws centered shadowed text sized to `cap` pixels around horizontal `cx`.
     void drawShadowCapCenter(float cx, float capY, const char* text, gfx::Rgba color, float cap, float maxW = 0.0f);
 
     // Draws crisp 4-way dark-outlined floating HUD text (zero muddy diagonal double-shadow).
-    void drawOutlinedText(float x, float y, const char* text, gfx::Rgba color, float sx, float sy);
+    void drawOutlinedText(float x, float y, const char* text, gfx::Rgba color, float sx, float sy,
+                          float alpha = 1.0f);
+    void drawOutlinedCapCenter(float cx, float capY, const char* text, gfx::Rgba color, float cap,
+                               float maxW = 0.0f, float alpha = 1.0f);
 
     // One key item for the calm white legend row above a timing/state bar.
     struct TimingLegendItem {
@@ -109,7 +112,7 @@ namespace extra {
     // Returns the total occupied bounding box for top-band registration.
     ui::layout::Box drawTimingBar(const gfx::Rgba* cells, int count, int pointerCell, const TimingLegendItem* legend,
                                   int legendCount, const char* caption, bool wide, const char* leftLabel = NULL,
-                                  const char* rightLabel = NULL, const TimingBarFx* fx = NULL);
+                                  const char* rightLabel = NULL, const TimingBarFx* fx = NULL, float alpha = 1.0f);
 
     // One metric row for a Panel B right-margin quiet smoked stat plate.
     struct StatPlateRow {
@@ -119,10 +122,10 @@ namespace extra {
     };
 
     // Unified Zone 2 Panel B Right-Margin Stat Plate:
-    //  - single quiet borderless smoked plate flush to x1 = 608 under Option A GC Controller
+    //  - single quiet borderless translucent plate flush to x1 = 608 under Option A GC Controller
     //  - faint 2px inset horizontal dividers between rows
     //  - dead-center muted-white labels above bold centered semantic values (>= 10.5 scanlines)
-    void drawStatPlate(const StatPlateRow* rows, int count, float aboveBottom, bool wide);
+    void drawStatPlate(const StatPlateRow* rows, int count, float aboveBottom, bool wide, float alpha = 1.0f);
 
     // Compact portrait-docked `CPU: <State>` tag (10.5 scanlines, y = 382..395)
     // drawn above the CPU portrait in Training Lab (hidden in Versus).

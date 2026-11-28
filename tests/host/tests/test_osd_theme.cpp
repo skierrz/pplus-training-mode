@@ -118,10 +118,10 @@ TEST(osd_theme, presets_opacity_track_darkening_and_drop_shadow)
         CHECK((dark & 0xFFu) < (rgb & 0xFFu));
 
         osd::ThemeColors tDef = osd::resolveTheme(c, main::kDefaultOsdAlpha);
-        CHECK_EQ((rgb << 8) | 204u, tDef.bodyColor);
+        CHECK_EQ((rgb << 8) | 102u, tDef.bodyColor);
         CHECK_EQ(dark, (tDef.trackColor >> 8) & 0xFFFFFFu);
-        CHECK((tDef.trackColor & 0xFFu) >= 204u);
-        CHECK_EQ(0x00000050u, tDef.shadowColor);
+        CHECK((tDef.trackColor & 0xFFu) >= 102u);
+        CHECK_EQ(0x00000090u, tDef.shadowColor);
     }
 
     // All 11 opacity steps (0%..100%) and always-on 1px drop-shadow whenever < 100%.

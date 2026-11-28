@@ -29,7 +29,7 @@ namespace osd {
     static const float kDigitsTop = 415.0f;
     static const float kHudGap = 39.0f; // floor 376 px: clears portrait-docked CPU tag (y 382..395) even during glide-in
 
-    static const float kBoxWidth = 124.0f;
+    static const float kBoxWidth = 96.0f;
     static const float kBoxHeight = 46.0f;
     static const float kBoxGap = 3.0f;
     static const float kPitch = kBoxHeight + kBoxGap; // 49.0 px vertical stack pitch
@@ -52,12 +52,10 @@ namespace osd {
     // edge and P2 to the outer right CRT-safe edge so Sides is visibly distinct
     // from HUD; in 3P/4P (> 2), Sides uses the four evenly spaced columns.
     // Unknown positions fall back to HUD.
-    // On 16:9 expand OSD card width slightly (0.86 vs 0.75) so cards breathe
-    // naturally on widescreen while staying compact, and pull 1v1 Sides gently
-    // inward (46 vs 32) into natural peripheral eye gravitation.
+    // Aspect-preserving OSD card width scale (matches gfx::xScale() on both 4:3 and 16:9).
     inline float widthScale(float xs)
     {
-        return xs < 1.0f ? 0.86f : 1.0f;
+        return xs;
     }
 
     inline StackPlace stackPlace(int position, int player, float xs, float floorY = 0.0f, float topY = 0.0f,

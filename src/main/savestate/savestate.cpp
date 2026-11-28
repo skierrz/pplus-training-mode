@@ -149,8 +149,8 @@ namespace savestate {
     static void saveFailed(Result r)
     {
         refusal(r == kErrTooBig ? "Save failed:\nno room beside\nthe recording"
-                                : (r == kErrNoRoom ? "Save failed:\nnot enough memory"
-                                                   : "Save failed:\nmemory unreadable"));
+                                : (r == kErrNoRoom ? "Save failed:\nout of memory"
+                                                   : "Save failed:\nmemory\nunreadable"));
     }
 
     // Nothing saved: plays the error sound alone without posting an OSD.
@@ -158,8 +158,8 @@ namespace savestate {
     {
         if (r == kErrMatch || r == kErrLayout || r == kErrResources || r == kErrChecksum)
         {
-            refusal(r == kErrMatch       ? "Load failed:\nfrom another match"
-                    : r == kErrLayout    ? "Load failed:\nmemory has moved"
+            refusal(r == kErrMatch       ? "Load failed:\nanother match"
+                    : r == kErrLayout    ? "Load failed:\nmemory moved"
                     : r == kErrResources ? "Load failed:\nfiles changed\nsince the save"
                                          : "Load failed:\nstate overwritten");
         }
@@ -528,13 +528,13 @@ namespace savestate {
                 }
                 else if (game::sameString(why, "transformation or Final Smash"))
                 {
-                    refusal(request == kSave ? "Cannot save:\nfighter transformed"
-                                             : "Cannot load:\nfighter transformed");
+                    refusal(request == kSave ? "Cannot save:\ntransformed"
+                                             : "Cannot load:\ntransformed");
                 }
                 else if (game::sameString(why, "unknown memory layout"))
                 {
-                    refusal(request == kSave ? "Cannot save:\nunknown game version"
-                                             : "Cannot load:\nunknown game version");
+                    refusal(request == kSave ? "Cannot save:\nunknown version"
+                                             : "Cannot load:\nunknown version");
                 }
                 if (request == kSave)
                 {
@@ -662,7 +662,7 @@ namespace savestate {
             TM_LOG("savestate: No. of CPUs raised: state cleared\n");
             if (!s_autoHeld || hadRecording)
             {
-                refusal("State cleared:\nmore than one CPU");
+                refusal("State cleared:\ntoo many CPUs");
             }
             s_autoHeld = false;
         }

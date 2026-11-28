@@ -2,6 +2,7 @@
 
 #include <cstdio>
 
+#include "main/game/freeze.h"
 #include "main/game/techniques.h"
 #include "main/game/tracker.h"
 #include "main/gfx/draw.h"
@@ -20,7 +21,7 @@ namespace tm {
 namespace ui {
     using main::settings;
 
-    enum { kLifetime = 300, kMaxCells = 64 };
+    enum { kLifetime = 300, kFadeInFrames = 5, kFadeOutFrames = 9, kMaxCells = 64 };
 
     static u8 s_seenDismissGen = 0;
     static s32 s_dismissedDone = game::kNoFrame;
@@ -51,8 +52,9 @@ namespace ui {
             return false;
         }
         s32 now = game::trackerFrame();
+        s32 limit = kLifetime + (game::frozen() ? 0 : kFadeOutFrames);
         return settings().general.ledgeHud && l.done != game::kNoFrame && now >= l.done
-               && now - l.done < kLifetime && l.count > 0;
+               && now - l.done < limit && l.count > 0;
     }
 
     int ledgedashCells()
@@ -85,12 +87,35 @@ namespace ui {
         {
             return;
         }
+        s32 now = game::trackerFrame();
+        s32 age = now - l.done;
+        float alpha = 1.0f;
+        if (!game::frozen())
+        {
+            if (age < kFadeInFrames)
+            {
+                alpha = style::easeOutCubic(static_cast<float>(age + 1) / static_cast<float>(kFadeInFrames));
+            }
+            else if (age >= kLifetime)
+            {
+                float u = 1.0f - static_cast<float>(age - kLifetime + 1) / static_cast<float>(kFadeOutFrames + 1);
+                if (u <= 0.0f)
+                {
+                    return;
+                }
+                alpha = u * u;
+            }
+        }
         bool wide = gfx::widescreen();
         float xs = layout::xsOf(wide);
         layout::Box bar = layout::frameBarBox(n, wide);
         float barW = bar.x1 - bar.x0;
         float barH = bar.y1 - bar.y0;
         float barCx = (bar.x0 + bar.x1) * 0.5f;
+        gfx::Rgba troughCol = style::scaleAlpha(style::kHudTroughBg, alpha);
+        gfx::Rgba outCol = style::scaleAlpha(style::kHudOutlineEdge, alpha);
+        gfx::Rgba primCol = style::scaleAlpha(style::kHudTextPrimary, alpha);
+        gfx::Rgba sheenCol = style::scaleAlpha(style::kHudCellSheen, alpha);
 
         // Zone 1: Bold calm-white swatch-legend row directly above bar (09-calm-ledgedash).
         if (g.ledgePanel)
@@ -129,9 +154,9 @@ namespace ui {
             float curX = lx0;
             for (int i = 0; i < 6; i++)
             {
-                gfx::fillRect(curX - 1.0f * xs, swY - 1.0f, swW + 2.0f * xs, layout::kKeySwatch + 2.0f,
-                              style::kHudTroughBg);
-                gfx::fillRect(curX, swY, swW, layout::kKeySwatch, kCellColors[kLegCells[i]] | 0xFFu);
+                gfx::fillRect(curX - 1.0f * xs, swY - 1.0f, swW + 2.0f * xs, layout::kKeySwatch + 2.0f, troughCol);
+                gfx::fillRect(curX, swY, swW, layout::kKeySwatch,
+                              style::scaleAlpha(kCellColors[kLegCells[i]] | 0xFFu, alpha));
                 curX += (swW + swGap + lWidths[i] + itemGap) * ratio;
             }
             curX = lx0;
@@ -139,18 +164,18 @@ namespace ui {
             for (int i = 0; i < 6; i++)
             {
                 float tx = curX + (swW + swGap) * ratio;
-                gfx::text(tx - xs, ly, kLegNames[i], style::kHudOutlineEdge, sx, lScale);
-                gfx::text(tx + xs, ly, kLegNames[i], style::kHudOutlineEdge, sx, lScale);
-                gfx::text(tx, ly - 1.0f, kLegNames[i], style::kHudOutlineEdge, sx, lScale);
-                gfx::text(tx, ly + 1.0f, kLegNames[i], style::kHudOutlineEdge, sx, lScale);
-                gfx::text(tx, ly, kLegNames[i], style::kHudTextPrimary, sx, lScale);
+                gfx::text(tx - xs, ly, kLegNames[i], outCol, sx, lScale);
+                gfx::text(tx + xs, ly, kLegNames[i], outCol, sx, lScale);
+                gfx::text(tx, ly - 1.0f, kLegNames[i], outCol, sx, lScale);
+                gfx::text(tx, ly + 1.0f, kLegNames[i], outCol, sx, lScale);
+                gfx::text(tx, ly, kLegNames[i], primCol, sx, lScale);
                 curX += (swW + swGap + lWidths[i] + itemGap) * ratio;
             }
         }
 
-        // Chunky individually dark-outlined chronological frame cells (09-calm-ledgedash).
+        // Chunky individually dark-outlined chronological frame cells in a matte dark trough.
         float barScale = wide ? 0.90f : 1.0f;
-        gfx::fillRect(bar.x0, bar.y0, barW, barH, style::kHudTroughBg);
+        gfx::fillRect(bar.x0, bar.y0, barW, barH, troughCol);
         float gap = layout::kCellGap * barScale;
         float innerPadX = 2.0f * barScale;
         float cellW = (barW - 2.0f * innerPadX - (n - 1) * gap) / n;
@@ -163,10 +188,15 @@ namespace ui {
         for (int k = 0; k < n; k++)
         {
             u8 type = static_cast<u8>(k < frames ? l.cells[first + k] : game::kCellGalint);
-            gfx::Rgba col = (type < game::kCellTypes ? kCellColors[type] : kCellColors[game::kCellOther]) | 0xFFu;
+            gfx::Rgba col = style::scaleAlpha(
+                (type < game::kCellTypes ? kCellColors[type] : kCellColors[game::kCellOther]) | 0xFFu, alpha);
             float cx = bar.x0 + innerPadX + k * (cellW + gap);
             gfx::fillRect(cx, bar.y0 + 2.0f, cellW, cellH, col);
-            gfx::fillRect(cx, bar.y0 + 2.0f, cellW, 2.0f, style::kHudCellSheen);
+            // Physical lighting rule: landing lag stays flat matte; raised live cells get subtle top specular.
+            if (type != game::kCellLanding)
+            {
+                gfx::fillRect(cx, bar.y0 + 2.0f, cellW, 2.0f, sheenCol);
+            }
         }
 
         // Bold black-outlined white upward pointer arrow (^) at first actionable frame.
@@ -186,11 +216,12 @@ namespace ui {
             float tipY = bar.y1 + 1.5f;
             float baseY = bar.y1 + 7.5f;
             gfx::fillTri(px, tipY - 0.5f, px - halfBase - outPad, baseY + 1.0f, px + halfBase + outPad,
-                         baseY + 1.0f, style::kHudOutlineHeavy);
-            gfx::fillTri(px, tipY, px - halfBase, baseY, px + halfBase, baseY, style::kLabWhiteText);
+                         baseY + 1.0f, style::scaleAlpha(style::kHudOutlineHeavy, alpha));
+            gfx::fillTri(px, tipY, px - halfBase, baseY, px + halfBase, baseY,
+                         style::scaleAlpha(style::kLabWhiteText, alpha));
         }
 
-        // Zone 2: Panel B single quiet smoked plate on right margin under Option A GC controller.
+        // Zone 2: Quiet borderless translucent plate on right margin under Option A GC controller.
         if (g.ledgePanel)
         {
             char galintBuf[20];
@@ -245,35 +276,43 @@ namespace ui {
             float ph = plate.y1 - plate.y0;
             float pcx = (plate.x0 + plate.x1) * 0.5f;
             float maxW = pw - 2.0f * style::kFibTight * xs;
-            // Pass 1: plate + dividers batched before text pass (zero GX quad<->text flushes).
-            gfx::fillRect(plate.x0, plate.y0, pw, ph, style::kHudPlateAlphaBg);
+            // Pass 1: subtle translucent plate + dividers batched before text pass (zero accent bars).
+            gfx::fillRect(plate.x0, plate.y0, pw, ph, style::scaleAlpha(style::kHudPlateAlphaBg, alpha));
+            gfx::Rgba divCol = style::scaleAlpha(style::kSmokedDivider, alpha);
             for (int r = 1; r < 3; r++)
             {
                 float ry = plate.y0 + 4.0f + r * layout::kDrillPlateRowH;
-                gfx::fillRect(plate.x0 + 8.0f * xs, ry - 1.0f, pw - 16.0f * xs, 2.0f, style::kSmokedDivider);
+                gfx::fillRect(plate.x0 + 8.0f * xs, ry - 1.0f, pw - 16.0f * xs, 2.0f, divCol);
             }
 
-            // Pass 2: labels and values.
+            // Pass 2: crisp 4-way outlined labels and values.
             static const char* const kRowLabels[3] = {"GALINT", "On Ledge", "Angle"};
             const char* rowVals[3] = {galintBuf, ledgeBuf, angleBuf};
             const gfx::Rgba rowCols[3] = {galintCol, style::kHudTextValue, style::kHudTextValue};
             float lblSc = style::scaleForCap(style::kTypeMeta);
             float valSc = style::scaleForCap(style::kTypeHeading);
+            gfx::Rgba lblCol = style::scaleAlpha(style::kHudTextLabel, alpha);
             for (int r = 0; r < 3; r++)
             {
                 float ry = plate.y0 + 4.0f + r * layout::kDrillPlateRowH;
                 float lw = gfx::textWidth(kRowLabels[r], lblSc);
                 float lx = pcx - lw * 0.5f;
                 float ly = style::textYForCap(ry + 3.0f, lblSc);
-                gfx::text(lx + xs, ly + 1.0f, kRowLabels[r], style::kHudShadow, lblSc);
-                gfx::text(lx, ly, kRowLabels[r], style::kHudTextLabel, lblSc);
+                gfx::text(lx - xs, ly, kRowLabels[r], outCol, lblSc);
+                gfx::text(lx + xs, ly, kRowLabels[r], outCol, lblSc);
+                gfx::text(lx, ly - 1.0f, kRowLabels[r], outCol, lblSc);
+                gfx::text(lx, ly + 1.0f, kRowLabels[r], outCol, lblSc);
+                gfx::text(lx, ly, kRowLabels[r], lblCol, lblSc);
 
                 float vw = gfx::textWidth(rowVals[r], valSc);
                 float sx = (vw > maxW && vw > 0.0f) ? (valSc * maxW / vw) : valSc;
                 float vx = pcx - (vw > maxW ? maxW : vw) * 0.5f;
                 float vy = style::textYForCap(ry + 16.0f, valSc);
-                gfx::text(vx + xs, vy + 1.0f, rowVals[r], style::kHudShadow, sx, valSc);
-                gfx::text(vx, vy, rowVals[r], rowCols[r], sx, valSc);
+                gfx::text(vx - xs, vy, rowVals[r], outCol, sx, valSc);
+                gfx::text(vx + xs, vy, rowVals[r], outCol, sx, valSc);
+                gfx::text(vx, vy - 1.0f, rowVals[r], outCol, sx, valSc);
+                gfx::text(vx, vy + 1.0f, rowVals[r], outCol, sx, valSc);
+                gfx::text(vx, vy, rowVals[r], style::scaleAlpha(rowCols[r], alpha), sx, valSc);
             }
         }
     }

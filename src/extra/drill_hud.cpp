@@ -89,6 +89,7 @@ namespace extra {
             u8 modalAnim;       // 1 B: 0..8f modal reveal (steps -2/f on exit -> 4f exit)
             u8 modalNewBestPop; // 1 B: 5..0f focal pop strictly on New Best! badge
             u8 prevMotionDrill; // 1 B: active drill id to snap pointer on drill switch
+            u8 hudFade;         // 1 B: 0..5f smooth fade-in on drill attach/start/retry
             u8 waitRelease;
             u8 lastPadType;
             u8 fresh;
@@ -125,6 +126,7 @@ namespace extra {
         {
             s_rt.ptrVisual = -1.0f;
             s_rt.hitFlashTimer = 0u;
+            s_rt.hudFade = 0u;
             if (clearModal)
             {
                 s_rt.modalAnim = 0u;
@@ -651,7 +653,7 @@ namespace extra {
                 else
                 {
                     cellCount = 16;
-                    for (int i = 0; i < cellCount; i++) cells[i] = 0x1E2C38C0u;
+                    for (int i = 0; i < cellCount; i++) cells[i] = kHudCellEmpty;
                     snprintf(val0, sizeof(val0), "Ready");
                     snprintf(val1, sizeof(val1), "--");
                     snprintf(val2, sizeof(val2), "--");
@@ -725,17 +727,28 @@ namespace extra {
                 s_rt.hitFlashTimer = 0u;
             }
 
-            drawTimingBar(cells, cellCount, ptrCell, legendCount > 0 ? legend : NULL, legendCount,
-                          legendCount == 0 ? caption : NULL, wide, leftLbl, rightLbl, &fx);
+            float hudAlpha = 1.0f;
+            if (game::frozen())
+            {
+                s_rt.hudFade = 5u;
+            }
+            else if (s_rt.hudFade < 5u)
+            {
+                s_rt.hudFade++;
+                hudAlpha = easeOutCubic(i2f(s_rt.hudFade) * 0.2f);
+            }
 
-            // Zone 2: Panel B Right-Margin Quiet Smoked Stat Plate stacked cleanly under Option A GC controller.
+            drawTimingBar(cells, cellCount, ptrCell, legendCount > 0 ? legend : NULL, legendCount,
+                          legendCount == 0 ? caption : NULL, wide, leftLbl, rightLbl, &fx, hudAlpha);
+
+            // Zone 2: Panel B Right-Margin Quiet Translucent Stat Plate stacked cleanly under Option A GC controller.
             StatPlateRow rows[3];
             rows[0].label = lbl0; rows[0].value = val0; rows[0].valueColor = col0;
             rows[1].label = lbl1; rows[1].value = val1; rows[1].valueColor = kHudTextValue;
             rows[2].label = lbl2; rows[2].value = val2; rows[2].valueColor = kHudTextValue;
-            drawStatPlate(rows, 3, hudViewerColumnBottom(wide), wide);
+            drawStatPlate(rows, 3, hudViewerColumnBottom(wide), wide, hudAlpha);
 
-            // Floating 2D TARGET label above the Wavedash floor target zone.
+            // Floating 2D TARGET label above the Wavedash floor target zone (de-boxed outlined text).
             if (wdTargetCue)
             {
                 const WdZoneState* wz = drillPracticeWdZone();
@@ -749,12 +762,8 @@ namespace extra {
                     float sy = sp.m_y;
                     if (sx >= 48.0f && sx <= 592.0f && sy >= 74.0f && sy <= 376.0f)
                     {
-                        const char* tag = "TARGET";
-                        float tw = gfx::textWidth(tag, kScales[0]);
-                        float pad = 5.0f * xs;
-                        float bw = tw + 2.0f * pad;
-                        drawSmokedPlate(sx - bw * 0.5f, sy - 7.0f, bw, 14.0f);
-                        label(sx, sy - 4.0f, tag, 0xFFD300FFu, kAlignCenter);
+                        drawOutlinedCapCenter(sx, sy - 4.0f, "TARGET", 0xFFD300FFu, ui::style::kTypeMicro, 0.0f,
+                                              hudAlpha);
                     }
                 }
             }

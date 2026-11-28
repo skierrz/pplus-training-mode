@@ -57,13 +57,10 @@ namespace extra {
 
     void drawSmokedPlate(float x, float y, float w, float h, gfx::Rgba bg)
     {
+        // Matte airy translucent backing plate: zero top accent/sheen bar colliding with text.
         if (w > 0.0f && h > 0.0f)
         {
             gfx::fillRect(x, y, w, h, bg);
-            if (h > 4.0f)
-            {
-                gfx::fillRect(x, y, w, 2.0f, kSmokedPlateSheen);
-            }
         }
     }
 
@@ -86,29 +83,45 @@ namespace extra {
         }
     }
 
-    void drawPlateDivider(float x, float y, float w, float xs)
+    void drawPlateDivider(float x, float y, float w, float xs, float alpha)
     {
         float inset = 8.0f * xs;
         if (w > 2.0f * inset)
         {
-            gfx::fillRect(x + inset, y, w - 2.0f * inset, 2.0f, kSmokedDivider);
+            gfx::fillRect(x + inset, y, w - 2.0f * inset, 2.0f, ui::style::scaleAlpha(kSmokedDivider, alpha));
         }
     }
 
-    void drawOutlinedText(float x, float y, const char* text, gfx::Rgba color, float sx, float sy)
+    void drawOutlinedText(float x, float y, const char* text, gfx::Rgba color, float sx, float sy, float alpha)
     {
         float dx = gfx::xScale();
-        const gfx::Rgba edge = kHudOutlineEdge;
+        const gfx::Rgba edge = ui::style::scaleAlpha(kHudOutlineEdge, alpha);
         gfx::text(x - dx, y, text, edge, sx, sy);
         gfx::text(x + dx, y, text, edge, sx, sy);
         gfx::text(x, y - 1.0f, text, edge, sx, sy);
         gfx::text(x, y + 1.0f, text, edge, sx, sy);
-        gfx::text(x, y, text, color, sx, sy);
+        gfx::text(x, y, text, ui::style::scaleAlpha(color, alpha), sx, sy);
+    }
+
+    void drawOutlinedCapCenter(float cx, float capY, const char* text, gfx::Rgba color, float cap, float maxW,
+                               float alpha)
+    {
+        float sc = ui::style::scaleForCap(cap);
+        float tw = gfx::textWidth(text, sc);
+        float sx = sc;
+        if (maxW > 0.0f && tw > maxW && tw > 0.0f)
+        {
+            sx = sc * maxW / tw;
+            tw = maxW;
+        }
+        float dx = cx - tw * 0.5f;
+        float dy = ui::style::textYForCap(capY, sc);
+        drawOutlinedText(dx, dy, text, color, sx, sc, alpha);
     }
 
     ui::layout::Box drawTimingBar(const gfx::Rgba* cells, int count, int pointerCell, const TimingLegendItem* legend,
                                   int legendCount, const char* caption, bool wide, const char* leftLabel,
-                                  const char* rightLabel, const TimingBarFx* fx)
+                                  const char* rightLabel, const TimingBarFx* fx, float alpha)
     {
         using namespace ui::layout;
         float xs = xsOf(wide);
@@ -334,10 +347,9 @@ namespace extra {
         }
 
         // ---- PASS 1: ALL QUADS & TRIANGLES (zero shape<->text GX flushes) ----
-        if (hasHeader)
-        {
-            drawSmokedCard(pillX0, pillY0, pillX1 - pillX0, pillH, xs);
-        }
+        // Headers float cleanly as 4-way outlined text above the matte recessed trough (zero boxed header card).
+        gfx::Rgba troughCol = ui::style::scaleAlpha(kHudTroughBg, alpha);
+        gfx::Rgba sheenCol = ui::style::scaleAlpha(kHudCellSheen, alpha);
         if (lCount > 0)
         {
             float curX = lx0;
@@ -346,59 +358,54 @@ namespace extra {
             {
                 if (legend[i].swatch != 0u)
                 {
-                    gfx::fillRect(curX - 1.2f * xs, swY - 1.2f, swW + 2.4f * xs, kKeySwatch + 2.4f, kHudTroughBg);
-                    gfx::fillRect(curX, swY, swW, kKeySwatch, legend[i].swatch | 0xFFu);
+                    gfx::fillRect(curX - 1.2f * xs, swY - 1.2f, swW + 2.4f * xs, kKeySwatch + 2.4f, troughCol);
+                    gfx::fillRect(curX, swY, swW, kKeySwatch, ui::style::scaleAlpha(legend[i].swatch | 0xFFu, alpha));
                     curX += (swW + swGap) * hdrRatio;
                 }
                 curX += (widths[i] + itemGap) * hdrRatio;
             }
         }
 
-        // Trough & cells (discrete compact streak pips for rep strips, chunky timing cells for timing bars).
-        if (repStrip)
-        {
-            drawSmokedCard(bar.x0, bar.y0, bw, bh, xs);
-        }
-        else
-        {
-            gfx::fillRect(bar.x0, bar.y0, bw, bh, kHudTroughBg);
-        }
+        // Single matte dark recessed trough (zero background top sheen colliding with raised pips/cells).
+        gfx::fillRect(bar.x0, bar.y0, bw, bh, troughCol);
         for (int k = 0; k < n; k++)
         {
-            gfx::Rgba col = (cells != NULL && k < count) ? (cells[k] | 0xFFu) : 0x243442FFu;
+            gfx::Rgba rawCol = (cells != NULL && k < count) ? cells[k] : kHudCellEmpty;
+            bool isEmpty = (cells == NULL || k >= count
+                            || (rawCol & 0xFFFFFF00u) == (kHudCellEmpty & 0xFFFFFF00u));
+            gfx::Rgba col = ui::style::scaleAlpha(isEmpty ? rawCol : (rawCol | 0xFFu), alpha);
             float cx = bar.x0 + innerPadX + i2f(k) * (cellW + gap);
             if (repStrip)
             {
-                gfx::fillRect(cx - 1.0f * xs, cellTop - 1.0f, cellW + 2.0f * xs, cellH + 2.0f, kHudTroughBg);
+                gfx::fillRect(cx - 1.0f * xs, cellTop - 1.0f, cellW + 2.0f * xs, cellH + 2.0f, troughCol);
                 gfx::fillRect(cx, cellTop, cellW, cellH, col);
-                if (cells != NULL && k < count && (cells[k] & 0xFFFFFF00u) != (kHudCellEmpty & 0xFFFFFF00u))
+                if (!isEmpty)
                 {
-                    gfx::fillRect(cx, cellTop, cellW, 2.0f, kHudCellSheen);
+                    gfx::fillRect(cx, cellTop, cellW, 2.0f, sheenCol);
                 }
             }
             else
             {
                 gfx::fillRect(cx, cellTop, cellW, cellH, col);
-                gfx::fillRect(cx, cellTop, cellW, 2.0f, kHudCellSheen);
+                if (!isEmpty)
+                {
+                    gfx::fillRect(cx, cellTop, cellW, 2.0f, sheenCol);
+                }
                 if (fx != NULL && fx->flashCell == k && fx->flashAlpha > 0.01f)
                 {
-                    u32 fa = static_cast<u32>(fx->flashAlpha * 185.0f);
+                    u32 fa = static_cast<u32>(fx->flashAlpha * 185.0f * alpha);
                     if (fa > 220u) fa = 220u;
                     gfx::fillRect(cx, cellTop, cellW, cellH, 0xFFF29A00u | fa);
                 }
             }
         }
 
-        // Scrim pills + crisp boundary ticks for green-window end markers ("7f" ... "1f").
+        // Crisp boundary ticks for green-window end markers ("7f" ... "1f") with floating outlined labels.
         if (hasTicks)
         {
-            float tPad = 3.0f * xs;
-            float tPillY = bar.y1 + 1.0f;
-            float tPillH = 10.0f;
-            gfx::fillRect(tickEdge0, bar.y1 - 2.0f, 2.0f * xs, 3.0f, kHudGreen);
-            gfx::fillRect(tickEdge1 - 2.0f * xs, bar.y1 - 2.0f, 2.0f * xs, 3.0f, kHudGreen);
-            drawSmokedPlate(tick0X - tPad, tPillY, tick0W + 2.0f * tPad, tPillH);
-            drawSmokedPlate(tick1X - tPad, tPillY, tick1W + 2.0f * tPad, tPillH);
+            gfx::Rgba tickCol = ui::style::scaleAlpha(kHudGreen, alpha);
+            gfx::fillRect(tickEdge0, bar.y1 - 2.0f, 2.0f * xs, 3.0f, tickCol);
+            gfx::fillRect(tickEdge1 - 2.0f * xs, bar.y1 - 2.0f, 2.0f * xs, 3.0f, tickCol);
         }
 
         // Bold black-outlined white upward pointer arrow (^) centered under `ptrPx`.
@@ -409,8 +416,9 @@ namespace extra {
             float tipY = bar.y1 + 1.5f;
             float baseY = bar.y1 + 7.5f;
             gfx::fillTri(ptrPx, tipY - 0.5f, ptrPx - halfBase - outPad, baseY + 1.0f, ptrPx + halfBase + outPad,
-                         baseY + 1.0f, kHudTroughBg);
-            gfx::fillTri(ptrPx, tipY, ptrPx - halfBase, baseY, ptrPx + halfBase, baseY, 0xFFFFFFFFu);
+                         baseY + 1.0f, ui::style::scaleAlpha(ui::style::kHudOutlineHeavy, alpha));
+            gfx::fillTri(ptrPx, tipY, ptrPx - halfBase, baseY, ptrPx + halfBase, baseY,
+                         ui::style::scaleAlpha(0xFFFFFFFFu, alpha));
         }
 
         // ---- PASS 2: ALL TEXT (single uninterrupted font pass) ----
@@ -419,22 +427,22 @@ namespace extra {
             float padX = 6.0f * xs;
             if (lw > 0.0f)
             {
-                drawOutlinedText(bar.x0 + padX, ty, leftLabel, kHudTextPrimary, hdrSx, sc);
+                drawOutlinedText(bar.x0 + padX, ty, leftLabel, kHudTextPrimary, hdrSx, sc, alpha);
             }
             if (cw > 0.0f)
             {
-                drawOutlinedText(barCx - cw * hdrRatio * 0.5f, ty, caption, kHudTextPrimary, hdrSx, sc);
+                drawOutlinedText(barCx - cw * hdrRatio * 0.5f, ty, caption, kHudTextPrimary, hdrSx, sc, alpha);
             }
             if (rw > 0.0f)
             {
-                drawOutlinedText(bar.x1 - padX - rw * hdrRatio, ty, rightLabel, kHudTextPrimary, hdrSx, sc);
+                drawOutlinedText(bar.x1 - padX - rw * hdrRatio, ty, rightLabel, kHudTextPrimary, hdrSx, sc, alpha);
             }
         }
         else if (hasRepHdr)
         {
             float padX = 6.0f * xs;
-            drawOutlinedText(pillX0 + padX, ty, caption, kHudTextPrimary, hdrSx, sc);
-            drawOutlinedText(pillX1 - padX - rw * hdrRatio, ty, fx->repTag, 0x8CE8D8FFu, hdrSx, sc);
+            drawOutlinedText(pillX0 + padX, ty, caption, kHudTextPrimary, hdrSx, sc, alpha);
+            drawOutlinedText(pillX1 - padX - rw * hdrRatio, ty, fx->repTag, 0x8CE8D8FFu, hdrSx, sc, alpha);
         }
         else if (lCount > 0)
         {
@@ -445,21 +453,21 @@ namespace extra {
                 {
                     curX += (swW + swGap) * hdrRatio;
                 }
-                drawOutlinedText(curX, ty, legend[i].label, kHudTextPrimary, hdrSx, sc);
+                drawOutlinedText(curX, ty, legend[i].label, kHudTextPrimary, hdrSx, sc, alpha);
                 curX += (widths[i] + itemGap) * hdrRatio;
             }
         }
         else if (hasHeader)
         {
-            drawOutlinedText(barCx - drawTotalW * 0.5f, ty, caption, kHudTextPrimary, hdrSx, sc);
+            drawOutlinedText(barCx - drawTotalW * 0.5f, ty, caption, kHudTextPrimary, hdrSx, sc, alpha);
         }
 
         if (hasTicks)
         {
             float tickCapY = bar.y1 + 2.0f;
             float tickTy = ui::style::textYForCap(tickCapY, tickSc);
-            drawShadowText(tick0X, tickTy, fx->tickStartLabel, kHudTextPrimary, tickSc);
-            drawShadowText(tick1X, tickTy, fx->tickEndLabel, kHudTextPrimary, tickSc);
+            drawOutlinedText(tick0X, tickTy, fx->tickStartLabel, kHudTextPrimary, tickSc, tickSc, alpha);
+            drawOutlinedText(tick1X, tickTy, fx->tickEndLabel, kHudTextPrimary, tickSc, tickSc, alpha);
         }
 
         Box out = {bar.x0, kKeyY, bar.x1, hasTicks ? (bar.y1 + 11.0f) : (bar.y1 + 9.0f)};
@@ -471,7 +479,7 @@ namespace extra {
         return game::trainingGameMode() && main::settings().display.hud != 0 && ui::matchHudCounterShown();
     }
 
-    void drawStatPlate(const StatPlateRow* rows, int count, float aboveBottom, bool wide)
+    void drawStatPlate(const StatPlateRow* rows, int count, float aboveBottom, bool wide, float alpha)
     {
         if (rows == NULL || count <= 0)
         {
@@ -485,25 +493,25 @@ namespace extra {
         float cx = (b.x0 + b.x1) * 0.5f;
         float maxW = bw - 2.0f * ui::style::kFibTight * xs;
 
-        // Pass 1: all quads (plate + row dividers).
-        drawSmokedPlate(b.x0, b.y0, bw, bh);
+        // Pass 1: all quads (matte airy translucent plate + row dividers, zero accent bars).
+        drawSmokedPlate(b.x0, b.y0, bw, bh, ui::style::scaleAlpha(kSmokedPlateBg, alpha));
         for (int i = 1; i < count; i++)
         {
             float ry = b.y0 + 4.0f + i2f(i) * kDrillPlateRowH;
-            drawPlateDivider(b.x0, ry - 1.5f, bw, xs);
+            drawPlateDivider(b.x0, ry - 1.5f, bw, xs, alpha);
         }
-        // Pass 2: all text.
+        // Pass 2: crisp 4-way outlined labels and values.
         for (int i = 0; i < count; i++)
         {
             float ry = b.y0 + 4.0f + i2f(i) * kDrillPlateRowH;
             if (rows[i].label != NULL && rows[i].label[0] != '\0')
             {
-                drawShadowCapCenter(cx, ry + 4.0f, rows[i].label, kHudTextLabel, 8.5f, maxW);
+                drawOutlinedCapCenter(cx, ry + 4.0f, rows[i].label, kHudTextLabel, 8.5f, maxW, alpha);
             }
             if (rows[i].value != NULL && rows[i].value[0] != '\0')
             {
                 gfx::Rgba vc = rows[i].valueColor != 0u ? rows[i].valueColor : kHudTextValue;
-                drawShadowCapCenter(cx, ry + 15.0f, rows[i].value, vc, 12.5f, maxW);
+                drawOutlinedCapCenter(cx, ry + 15.0f, rows[i].value, vc, 12.5f, maxW, alpha);
             }
         }
     }
@@ -656,10 +664,7 @@ namespace extra {
         float tw = gfx::textWidth(label, sc);
         float sx = (tw > maxW && tw > 0.0f) ? (sc * maxW / tw) : sc;
         float drawW = tw > maxW ? maxW : tw;
-        float pillW = drawW + 2.0f * padX;
-        if (pillW > bw) pillW = bw;
-        float pillX = (b.x0 + b.x1) * 0.5f - pillW * 0.5f;
-        drawSmokedCard(pillX, b.y0, pillW, bh, xs);
+        // Clean floating outlined tag above the CPU portrait (zero dark backing box).
         drawOutlinedText((b.x0 + b.x1) * 0.5f - drawW * 0.5f, ui::style::textYForCap(b.y0 + (bh - cap) * 0.5f, sc),
                          label, kHudTextPrimary, sx, sc);
     }

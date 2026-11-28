@@ -5,7 +5,6 @@
 #include "main/cpu/options.h"
 #include "main/cpu/view.h"
 #include "main/display/display.h"
-#include "main/game/freeze.h"
 #include "main/game/pad_inmatch.h"
 #include "main/lab.h"
 #include "main/record/record.h"
@@ -27,14 +26,6 @@
 // one of them to answer something moves it to fakes.cpp and gives it a
 // value to set.
 namespace tm {
-namespace game {
-    // src/main/game/freeze.cpp: frame advance never holds the game.
-    bool frozen()
-    {
-        return false;
-    }
-}
-
 namespace lab {
     // src/main/lab.cpp.
     void applyPercent(int)

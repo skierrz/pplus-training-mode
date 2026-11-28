@@ -40,8 +40,9 @@ namespace fakes {
     // A new fake fighter in the next free tracker slot: standing on the
     // ground, animation rate 1, nothing else set.
     FakeFighter& addFighter();
-    // The tracker's frame number (game::trackerFrame).
+    // The tracker's frame number (game::trackerFrame) and freeze state (game::frozen).
     void setTrackerFrame(s32 frame);
+    void setFrozen(bool frozen);
 
     // The stub's settings block (iface::kSettingsBlockSize bytes, zero at
     // the start of a test), as main::services().settings() hands it out.

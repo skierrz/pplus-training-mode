@@ -445,7 +445,6 @@ namespace {
         {"lab-4p", "4:3", "typical", "info-cpu", "osd-topleft-p3", "top spots"},
         {"lab-4p", "16:9", "*", "info-cpu", "osd-topleft-p3", "top spots"},
         {"lab-4p", "*", "most", "info-cpu", "osd-topleft-p4", "top spots"},
-        {"lab-4p", "4:3", "typical", "info-cpu", "osd-topright-p3", "top spots"},
         {"lab-4p", "16:9", "most", "info-cpu", "osd-topright-p3", "top spots"},
         {"lab-4p", "*", "most", "info-cpu", "osd-topright-p4", "top spots"},
         {"*", "4:3", "*", "info-hmn", "osd-topleft-p1", "top spots"},
@@ -461,7 +460,6 @@ namespace {
         {"*", "4:3", "*", "info-hmn", "osd-topright-p2", "top spots"},
         {"*", "16:9", "most", "info-hmn", "osd-topright-p2", "top spots"},
         {"lab-4p", "*", "most", "info-hmn", "osd-topright-p3", "top spots"},
-        {"lab-4p", "4:3", "typical", "info-hmn", "osd-topright-p3", "top spots"},
         {"lab-4p", "4:3", "most", "info-cpu", "osd-topleft-p3", "top spots"},
         {"lab-4p", "4:3", "most", "info-cpu", "osd-topright-p3", "top spots"},
         {"lab-ledgedash-hud", "*", "*", "ledge-bar", "osd-topleft-p1", "top spots"},
@@ -608,6 +606,45 @@ TEST(hud_layout, ledgedash_hud_dismisses_on_mode_switch_until_new_attempt)
     s_testLedgedash.done = 220;
     host::fakes::setTrackerFrame(220);
     CHECK(ui::hudLayoutLedgedashVisible());
+
+    // Smooth 5f fade-in, hold, and 9f fade-out (respecting game::frozen()).
+    gfx::setWidescreen(true);
+    gfx::forgetWidths();
+    canvas::clear();
+    ui::hudLayoutDrawLedgedashHud();
+    u32 alphaIn0 = canvas::rects() > 0 ? (canvas::rect(0).color & 0xFFu) : 0u;
+    host::fakes::setTrackerFrame(224);
+    canvas::clear();
+    ui::hudLayoutDrawLedgedashHud();
+    u32 alphaFull = canvas::rects() > 0 ? (canvas::rect(0).color & 0xFFu) : 0u;
+    CHECK(alphaIn0 > 0u && alphaIn0 < alphaFull);
+
+    // Fade-out spans frames 300..308 with monotonically decreasing alpha, then hides on frame 309.
+    u32 prevOut = alphaFull + 1u;
+    for (int f = 0; f < 9; f++)
+    {
+        host::fakes::setTrackerFrame(220 + 300 + f);
+        CHECK(ui::hudLayoutLedgedashVisible());
+        canvas::clear();
+        ui::hudLayoutDrawLedgedashHud();
+        REQUIRE(canvas::rects() > 0);
+        u32 a = canvas::rect(0).color & 0xFFu;
+        CHECK(a > 0u && a < prevOut);
+        prevOut = a;
+    }
+    host::fakes::setTrackerFrame(220 + 309);
+    CHECK(!ui::hudLayoutLedgedashVisible());
+
+    // During Frame Advance (game::frozen()), fade-in snaps to full alpha immediately and ends cleanly at kLifetime.
+    host::fakes::setFrozen(true);
+    host::fakes::setTrackerFrame(220);
+    canvas::clear();
+    ui::hudLayoutDrawLedgedashHud();
+    u32 alphaFrozen = canvas::rects() > 0 ? (canvas::rect(0).color & 0xFFu) : 0u;
+    CHECK_EQ(alphaFull, alphaFrozen);
+    host::fakes::setTrackerFrame(220 + 300);
+    CHECK(!ui::hudLayoutLedgedashVisible());
+    host::fakes::setFrozen(false);
 }
 
 TEST(hud_layout, every_piece_is_inside_the_room_kept_for_it)

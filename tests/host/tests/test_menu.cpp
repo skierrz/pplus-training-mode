@@ -3126,7 +3126,7 @@ TEST(menu_summaries, real_extra_submenu_summaries_fit_and_track_state)
     main::settings().cpu.options.sdiAmount = 0;
     main::settings().cpu.options.asdi = cpu::kAsdiAuto;
     // P_THEME returns "Custom" when only non-accent theme settings change.
-    main::settings().osd.bgAlpha = 4;
+    main::settings().osd.bgAlpha = 6;
     CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_THEME, buf, sizeof(buf)), "Custom") == 0);
     main::settings().osd.bgAlpha = main::kDefaultOsdAlpha;
     main::settings().cpu.options.techChance[0] = 50;

@@ -123,11 +123,11 @@ def squeeze_of(shot):
 
 
 def osd_width_scale(squeeze):
-    return 0.86 if squeeze < 1.0 else 1.0
+    return squeeze
 
 
 def osd_spot(position, player, squeeze, player_count=2):
-    half_w = 124.0 * osd_width_scale(squeeze) / 2
+    half_w = 96.0 * osd_width_scale(squeeze) / 2
     if position == POS_SIDES:
         if player_count <= 2 and player <= 2:
             margin = 46.0 if squeeze < 1.0 else 32.0
@@ -330,7 +330,7 @@ class Runner:
         path, w, h = shot
         im = Image.open(path).convert("RGB")
         sx, sy = w / 640.0, h / 480.0
-        half = 124.0 * osd_width_scale(squeeze_of(shot)) / 2
+        half = 96.0 * osd_width_scale(squeeze_of(shot)) / 2
         n = 0
         for y in range(int((cy - 23) * sy), int((cy + 23) * sy)):
             for x in range(int((cx - half + 4) * sx), int((cx + half - 4) * sx)):
@@ -1215,7 +1215,7 @@ def osd_body_mean_rgb(shot, player, position=POS_SIDES):
     im = Image.open(path).convert("RGB")
     sx, sy = w / 640.0, h / 480.0
     cx, cy = osd_spot(position, player, squeeze_of(shot))
-    half = 124.0 * osd_width_scale(squeeze_of(shot)) / 2
+    half = 96.0 * osd_width_scale(squeeze_of(shot)) / 2
     x0, x1 = int((cx - half + 3) * sx), int((cx - half + 14) * sx)
     y0, y1 = int((cy - 22) * sy), int((cy - 14) * sy)
     rs, gs, bs, n = 0, 0, 0, 0
@@ -1321,9 +1321,9 @@ def sc_osd_theme(r, name):
     emu.h.call("load_state", path=r.states["control"])
     lab.open_menu(keep=True)
     lab.menu_nav_to("Display > Theme > OSD Background")
-    if lab.setting(S_OSD_BG_COLOR) != 0 or lab.setting(S_OSD_BG_ALPHA) != 8:
+    if lab.setting(S_OSD_BG_COLOR) != 0 or lab.setting(S_OSD_BG_ALPHA) != 4:
         raise OsdError(f"{name}: Theme defaults ({lab.setting(S_OSD_BG_COLOR)}, {lab.setting(S_OSD_BG_ALPHA)}), "
-                       f"wanted (0, 8)")
+                       f"wanted (0, 4)")
     r.shots.append(emu.screenshot("osds-menu-theme"))
     lab.set_choice(S_OSD_BG_COLOR, 2)
     lab.menu_select_row("OSD Opacity")
@@ -1876,7 +1876,7 @@ def sc_dbljump(r, at, after, name):
     st = [x["m"]["status"] for x in rows]
     if st[dj] != JUMP_AERIAL or st[dj + after] != ATTACK_AIR or any(v != JUMP for v in st[js + 1:dj]):
         raise OsdError(f"{name}: statuses from the jump squat {[hex(v) for v in st[js:dj + after + 1]]}")
-    r.expect_osd(name, text, 1, ID_MISC, ["Double Jump (Jump)", f"Frame {dj - js}"])
+    r.expect_osd(name, text, 1, ID_MISC, ["DJ (Jump)", f"Frame {dj - js}"])
     r.expect_osd(name + "-aerial", text, 1, ID_ACT_OOAIRBORNE, ["Aerial (DJ)", f"Frame {after}"])
     return dj - js
 

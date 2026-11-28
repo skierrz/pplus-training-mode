@@ -1764,7 +1764,7 @@ namespace lab {
                 bool dj = (t.flag & game::kAirToJump) != 0;
                 osd::post(t.player, dj ? osd::kIdMiscellaneous : osd::kIdActOoAirborne, first ? osd::kGreen : osd::kRed,
                           "%s (%s)\nFrame %d",
-                          dj ? "Double Jump" : (t.flag & game::kAirSpecial) != 0 ? "Special" : "Aerial", kFrom[from],
+                          dj ? "DJ" : (t.flag & game::kAirSpecial) != 0 ? "Special" : "Aerial", kFrom[from],
                           t.frame);
             }
             break;
