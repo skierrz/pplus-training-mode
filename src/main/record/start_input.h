@@ -92,5 +92,25 @@ namespace record {
         clearSlot = isFreshRecord;
         return true;
     }
+
+    // Decides whether Start Paused should keep the match frozen on this pass.
+    // Releases the hold on live input or when Start Paused is turned off, and
+    // yields to lab transitions (Return to CSS, Training Menu pause injection,
+    // pause catch-up, fighter swaps, and modals) so they can never softlock.
+    inline bool shouldHoldStartPaused(bool holding, bool startPausedEnabled, bool liveInput, bool labBusy,
+                                      bool& releaseHold)
+    {
+        releaseHold = false;
+        if (!holding)
+        {
+            return false;
+        }
+        if (liveInput || !startPausedEnabled)
+        {
+            releaseHold = true;
+            return false;
+        }
+        return !labBusy;
+    }
 }
 }

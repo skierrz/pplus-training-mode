@@ -1657,18 +1657,17 @@ namespace record {
                 armRecordingIfNeeded();
             }
         }
-        if (s_holding)
+        bool releaseHold = false;
+        if (shouldHoldStartPaused(s_holding, settings().recording.startPaused != 0, live, lab::savestateBusy(),
+                                  releaseHold))
         {
-            if (live)
-            {
-                s_holding = false;
-                TM_LOG("record: Start Paused released by input\n");
-            }
-            else
-            {
-                game::setFrozen(true);
-                s_test.held++;
-            }
+            game::setFrozen(true);
+            s_test.held++;
+        }
+        else if (releaseHold)
+        {
+            s_holding = false;
+            TM_LOG("record: Start Paused released by %s\n", live ? "input" : "setting");
         }
         updateTest();
     }

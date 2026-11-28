@@ -482,3 +482,29 @@ TEST(record_slots, alter_inputs_frame_min_clamps_above_255)
     main::setExtraHooks(NULL);
     record::storageFree();
 }
+
+TEST(record_start_on_input, start_paused_yields_to_lab_exit_and_pause_transitions)
+{
+    bool release = false;
+
+    // Not holding: never freezes or releases.
+    CHECK(!record::shouldHoldStartPaused(false, true, false, false, release));
+    CHECK(!release);
+
+    // Holding in live match with no lab transition: keeps game frozen.
+    CHECK(record::shouldHoldStartPaused(true, true, false, false, release));
+    CHECK(!release);
+
+    // Holding while lab transition is active (Return to CSS, Z -> Training Menu,
+    // pause catch-up, fighter swap, modals): yields freeze without clearing hold.
+    CHECK(!record::shouldHoldStartPaused(true, true, false, true, release));
+    CHECK(!release);
+
+    // Live input releases the hold and does not freeze.
+    CHECK(!record::shouldHoldStartPaused(true, true, true, false, release));
+    CHECK(release);
+
+    // Turning Start Paused Off while holding releases the hold immediately.
+    CHECK(!record::shouldHoldStartPaused(true, false, false, false, release));
+    CHECK(release);
+}
