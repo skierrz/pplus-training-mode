@@ -59,11 +59,6 @@ namespace training {
     // normal layout.
     const char* startMatch(const MatchSetup& setup, int port, const Looks* looks = NULL);
 
-    // While Training's character select is running, exits cleanly back to
-    // Brawl's Solo menu (exit code 0 in sqTraining state 4 -> state 11).
-    // NULL on success, else why not (nothing was changed).
-    const char* exitToSolo();
-
     // While Training's character select is exiting toward the stage select
     // (exit code 1, sqTraining in state 4): writes `stage` into the selection
     // data and moves sqTraining to state 6 so the stage select is skipped and

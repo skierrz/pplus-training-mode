@@ -48,7 +48,7 @@ namespace pages {
 #pragma dont_inline on
     static bool presetRowVisible()
     {
-        return main::extraLoaded() && practiceMenuState()->activeDrill == 0;
+        return main::extraLoaded();
     }
 
     static bool editPoolActive(u8 presetId, u8 cat, bool fieldCond)
@@ -126,11 +126,7 @@ namespace pages {
     static void practiceChanged() { main::extraScenarioCall(main::kScenarioPracticeChanged); }
 
     static bool practiceActive() { return main::extraLoaded() && practiceMenuState()->activeDrill != 0; }
-    static bool practiceModeVisible()
-    {
-        u8 id = practiceMenuState()->activeDrill;
-        return main::extraLoaded() && id >= 1u && id <= 8u;
-    }
+    static bool practiceModeVisible() { return practiceActive(); }
 
 #pragma dont_inline on
     static bool practiceDrillIs(u8 id) { return main::extraLoaded() && practiceMenuState()->activeDrill == id; }
@@ -142,8 +138,14 @@ namespace pages {
     static bool practiceFloatActive() { return practiceDrillIs(4); }
     static bool practicePsActive() { return practiceDrillIs(5); }
     static bool practicePsProjActive() { return practiceDrillIs(5) && practiceMenuState()->psAttackMode == 0; }
-    static bool scenarioSnakeVisible() { return presetRowVisible() && main::extraSnakeP1(); }
-    static bool scenarioFloatDjcVisible() { return presetRowVisible() && main::extraFloatDjcP1(); }
+    static bool scenarioSnakeVisible()
+    {
+        return main::extraLoaded() && practiceMenuState()->activeDrill == 0 && main::extraSnakeP1();
+    }
+    static bool scenarioFloatDjcVisible()
+    {
+        return main::extraLoaded() && practiceMenuState()->activeDrill == 0 && main::extraFloatDjcP1();
+    }
     static void startSnakeDrill() { main::extraScenarioCall(main::kScenarioStartSnakeDrill); }
     static void startFloatDjcDrill() { main::extraScenarioCall(main::kScenarioStartFloatDjcDrill); }
     static void stopPracticeDrill() { main::extraScenarioCall(main::kScenarioStopDrill); }

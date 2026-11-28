@@ -90,10 +90,10 @@ def _run_all(emu, results, failures):
         results, failures, "lcancel-stays-2p",
         f"rule={rule} p1={p1 and p1['kind']} cpu={cpu and cpu['kind']} grid={len(nav.css_grid(emu))}",
     )
-    # B with P1 token in hand reopens Boot Menu cleanly.
-    n_b = DT.count(emu, r"\] drills: list opened \(B\)")
-    emu.press(0, ["B"], frames=4, after=10)
-    DT.wait_count(emu, "B to reopen Boot Menu from L-Cancel CSS", r"\] drills: list opened \(B\)", n_b + 1, 120)
+    # L+R reopens Boot Menu cleanly (B on CSS stays 100% native Brawl).
+    n_lr = DT.count(emu, r"\] drills: list opened \(L\+R\)")
+    emu.press(0, ["L", "R"], frames=4, after=10)
+    DT.wait_count(emu, "L+R to reopen Boot Menu from L-Cancel CSS", r"\] drills: list opened \(L\+R\)", n_lr + 1, 120)
     emu.advance(8)
 
     # 3. Float / Hover & DJC (Minigames & Tech row 1, drill 4):
@@ -205,10 +205,17 @@ def _run_all(emu, results, failures):
         results, failures, "snake-coin-pickup-locked",
         f"held={nav.css_area(emu, 0)['held']} char={hex(nav.css_area(emu, 0)['character'])}",
     )
-    # Single B on locked Snake CSS steps cleanly back to Boot Menu.
-    n_b = DT.count(emu, r"\] drills: list opened \(B\)")
+    # Tap B on locked Snake CSS stays natively on CSS (never hijacks Boot Menu); L+R reopens Boot Menu.
+    n_open = DT.count(emu, r"\] drills: list opened")
     emu.press(0, ["B"], frames=4, after=10)
-    DT.wait_count(emu, "single B reopens Boot Menu from locked Snake CSS", r"\] drills: list opened \(B\)", n_b + 1, 120)
+    _check(
+        DT.count(emu, r"\] drills: list opened") == n_open and nav.drill_list_state(emu) == "closed",
+        results, failures, "snake-css-b-native",
+        "tap B on locked Snake CSS stays native without hijacking Boot Menu",
+    )
+    n_lr = DT.count(emu, r"\] drills: list opened \(L\+R\)")
+    emu.press(0, ["L", "R"], frames=4, after=10)
+    DT.wait_count(emu, "L+R reopens Boot Menu from locked Snake CSS", r"\] drills: list opened \(L\+R\)", n_lr + 1, 120)
     emu.advance(8)
     # Re-confirm Snake (same rule -> NO rebuild) and start match -> verify addCpu fills CPU slot!
     _arm_row(emu, "Minigames & Tech", 2, expect_rebuild=False)

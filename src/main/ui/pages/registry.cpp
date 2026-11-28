@@ -55,12 +55,12 @@ namespace pages {
         kInfoRowCount = 20,                           // 10 P1 + 10 CPU
         kStageCastRowCount = 34,
         kScenariosRowCount = 58,
-        kDisplayRowCount = 28,                        // 10 display + 6 collision + 4 overlays/meters + 8 debug
+        kDisplayRowCount = 29,                        // 10 display + 6 collision + 5 overlays/meters + 8 debug
         kOsdMenuRowCount = 29,                        // 8 top + 21 individual OSDs
         kComboTrainerRowCount = 22,                   // 15 + 7 meters
         kTechOptionsRowCount = 18,                    // 9 + 9 mixup weights
         kRecordingRowCount = 18,                      // 9 + 9 playback & positions
-        kGeneralRowCount = 13,
+        kGeneralRowCount = 12,
         kControlsRowCount = 10,
         kThemeRowCount = 6,
         kAlterInputsRowCount = 16,

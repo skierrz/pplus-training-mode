@@ -589,16 +589,15 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
         CHECK(!(lab.options[i].kind == ui::kKindMenu && lab.options[i].max == ui::pages::P_OSD_MENU));
         CHECK(!(lab.options[i].name != NULL && strcmp(lab.options[i].name, "OSD Menu") == 0));
     }
-    REQUIRE(lab.count == 13);
+    REQUIRE(lab.count == 12);
     CHECK(strcmp(lab.options[3].name, "P1 Load Random %") == 0);
     CHECK_EQ(static_cast<u16>(offsetof(main::Settings, recording.randomPercent[0])), lab.options[3].offset);
-    CHECK(strcmp(lab.options[8].name, "Offline VS Displays") == 0);
+    CHECK(strcmp(lab.options[8].name, "Controls") == 0);
+    CHECK_EQ(ui::pages::P_CONTROLS, lab.options[8].max);
     CHECK((lab.options[8].flags & ui::kFlagTabsOnly) == 0);
-    CHECK(strcmp(lab.options[9].name, "Controls") == 0);
-    CHECK_EQ(ui::pages::P_CONTROLS, lab.options[9].max);
+    CHECK((lab.options[9].flags & ui::kFlagTabsOnly) != 0);
     CHECK((lab.options[10].flags & ui::kFlagTabsOnly) != 0);
     CHECK((lab.options[11].flags & ui::kFlagTabsOnly) != 0);
-    CHECK((lab.options[12].flags & ui::kFlagTabsOnly) != 0);
 
     const ui::Page& ctrls = ui::pages::kControls;
     CHECK(strcmp(ctrls.options[0].name, "Advance Button") == 0);
@@ -631,10 +630,11 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK(strcmp(coll.options[5].name, "Stage Collision") == 0);
 
     const ui::Page& ovl = ui::pages::kHudOverlays;
-    REQUIRE(ovl.count == 4);
+    REQUIRE(ovl.count == 5);
     CHECK(strcmp(ovl.options[0].name, "P1 Overlays") == 0);
     CHECK(strcmp(ovl.options[2].name, "Floating Meters") == 0);
     CHECK_EQ(ui::pages::P_COMBO_METERS, ovl.options[2].max);
+    CHECK(strcmp(ovl.options[4].name, "Offline VS Displays") == 0);
 
     const ui::Page& dbg = ui::pages::kDebug;
     REQUIRE(dbg.count == 8);
@@ -917,7 +917,7 @@ TEST(menu, bit_flag_toggles_default_and_preserve_sibling_bits)
     const ui::Page& combo = ui::pages::kComboTrainer;
     REQUIRE(combo.count == 15);
     const ui::Page& hudOvl = ui::pages::kHudOverlays;
-    REQUIRE(hudOvl.count == 4);
+    REQUIRE(hudOvl.count == 5);
     CHECK(hudOvl.options[2].name != NULL && strcmp(hudOvl.options[2].name, "Floating Meters") == 0);
     CHECK_EQ(ui::kKindMenu, hudOvl.options[2].kind);
     CHECK_EQ(ui::pages::P_COMBO_METERS, hudOvl.options[2].max);
@@ -1116,24 +1116,26 @@ TEST(lab_menu, rail_and_tabs_navigation_and_stage_cast_compaction)
     ui::MenuState st;
     ui::menuReset(menu, st);
 
-    // Default Draft C (Rail): opens directly in Lab options pane, depth 0.
+    // Default Draft C (Rail): fresh open lands on the left category rail, depth 0.
     CHECK_EQ(static_cast<int>(main::kMenuStyleRail), static_cast<int>(main::settings().controls.menuStyle));
     CHECK_EQ(ui::pages::P_GENERAL, ui::currentPage(st));
-    CHECK(!st.railFocus);
+    CHECK(st.railFocus);
+    CHECK_EQ(0, static_cast<int>(st.railCursor));
 
-    // B at depth 0 focuses left rail; B on rail returns false (caller decides close).
+    // B on rail returns false (closes menu); A enters category pane; B returns to rail.
     ui::MenuInput inB = {0, 0, 0, 0, false, true, false, false};
     ui::MenuInput inA = {0, 0, 0, 0, true, false, false, false};
     ui::MenuInput inDown = {0, 1, 0, 0, false, false, false, false};
     ui::MenuInput inNext = {0, 0, 0, 0, false, false, false, true};
     ui::MenuInput inPrev = {0, 0, 0, 0, false, false, true, false};
+    CHECK(!ui::menuStep(menu, st, inB));
+    CHECK(ui::menuStep(menu, st, inA));
+    CHECK(!st.railFocus);
     CHECK(ui::menuStep(menu, st, inB));
     CHECK(st.railFocus);
     CHECK_EQ(0, static_cast<int>(st.railCursor));
-    CHECK(!ui::menuStep(menu, st, inB));
 
-    // Scroll rail down to Stage & Cast (index 6); Right on the rail must NOT enter
-    // the options pane (prevents asymmetric Right-enter / Left-edits-value trap); A enters.
+    // Scroll rail down to Stage & Cast (index 6); both Right and A enter category rows.
     ui::MenuInput inRightRail = {0, 0, 0, 1, false, false, false, false};
     for (int i = 0; i < 6; i++)
     {
@@ -1142,6 +1144,8 @@ TEST(lab_menu, rail_and_tabs_navigation_and_stage_cast_compaction)
     CHECK_EQ(6, static_cast<int>(st.railCursor));
     CHECK_EQ(ui::pages::P_STAGE_CAST, ui::currentPage(st));
     CHECK(ui::menuStep(menu, st, inRightRail));
+    CHECK(!st.railFocus);
+    CHECK(ui::menuStep(menu, st, inB));
     CHECK(st.railFocus);
     CHECK(ui::menuStep(menu, st, inA));
     CHECK(!st.railFocus);
@@ -1214,11 +1218,13 @@ TEST(lab_menu, show_inactive_fighters_scoped_to_stage_cast_only)
     ui::menuStep(menu, st, inDown);
     CHECK_EQ(54, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
 
-    // Context-scoped Tab 1: when a Tech Practice drill is active, Preset and More Combo Options hide,
-    // leaving only the active drill's rows (Ledgedash: Practice Mode [44], Reset Ledge [48],
-    // Ledge Auto-Reset [49], Ledge Invuln [50]) plus Exit Drill [57].
+    // Context-scoped Tab 1: when a Tech Practice drill is active, Preset [0] stays accessible
+    // alongside the active drill's rows (Ledgedash: Practice Mode [44], Reset Ledge [48],
+    // Ledge Auto-Reset [49], Ledge Invuln [50]) plus Exit Drill [57] (never a 1-row desert).
     ui::pages::practiceMenuState()->activeDrill = 1;
     REQUIRE(ui::menuJump(menu, st, scenPath, 1));
+    CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::menuStep(menu, st, inDown);
     CHECK_EQ(44, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::menuStep(menu, st, inDown);
     CHECK_EQ(48, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
@@ -1411,26 +1417,27 @@ TEST(lab_menu, rail_hides_tabs_only_utilities_and_clamps_on_live_style_switch)
     ui::MenuInput inDown = {0, 1, 0, 0, false, false, false, false};
     ui::MenuInput noop = {0, 0, 0, 0, false, false, false, false};
 
-    // Draft C (Rail): Lab has 10 visible rows (0..9); rows 10..12 (kFlagTabsOnly) are omitted.
+    // Draft C (Rail): Lab has 9 visible rows (0..8); rows 9..11 (kFlagTabsOnly) are omitted.
     main::settings().controls.menuStyle = main::kMenuStyleRail;
+    st.railFocus = false;
     for (int i = 0; i < 15; i++)
     {
         ui::menuStep(menu, st, inDown);
     }
-    CHECK_EQ(9, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
+    CHECK_EQ(8, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
     host::canvas::clear();
     ui::menuDraw(menu, st);
-    CHECK(menuCanvasDrew("Offline VS Displays"));
+    CHECK(!menuCanvasDrew("Offline VS Displays"));
     CHECK(menuCanvasDrew("Controls"));
     CHECK(!menuCanvasDrew("Brawl Training Menu"));
 
-    // Live switch to Draft A (Tabs): all 13 rows appear including Reset / Brawl Training / Return to CSS.
+    // Live switch to Draft A (Tabs): all 12 rows appear including Reset / Brawl Training / Return to CSS.
     main::settings().controls.menuStyle = main::kMenuStyleTabs;
     for (int i = 0; i < 5; i++)
     {
         ui::menuStep(menu, st, inDown);
     }
-    CHECK_EQ(12, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
+    CHECK_EQ(11, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
     for (int f = 0; f < 8; f++)
     {
         host::canvas::clear();
@@ -1439,10 +1446,10 @@ TEST(lab_menu, rail_hides_tabs_only_utilities_and_clamps_on_live_style_switch)
     CHECK(menuCanvasDrew("Brawl Training Menu"));
     CHECK(menuCanvasDrew("Return to CSS"));
 
-    // Live switch back to Draft C (Rail) while row 12 is highlighted: cursor clamps cleanly to row 9.
+    // Live switch back to Draft C (Rail) while row 11 is highlighted: cursor clamps cleanly to row 8.
     main::settings().controls.menuStyle = main::kMenuStyleRail;
     ui::menuStep(menu, st, noop);
-    CHECK_EQ(9, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
+    CHECK_EQ(8, static_cast<int>(st.cursor[ui::pages::P_GENERAL]));
     (void)inUp;
     storage::detach();
 }
@@ -1567,7 +1574,7 @@ TEST(menu, compressed_option_descriptions_decode_all_pages_and_bounds)
     // Exact verbatim spot checks across shared and unique strings.
     CHECK(strcmp(extra::optionDesc(ui::pages::P_GENERAL, 0),
                  "Freeze gameplay and step one frame per advance press.") == 0);
-    CHECK(strcmp(extra::optionDesc(ui::pages::P_GENERAL, 11),
+    CHECK(strcmp(extra::optionDesc(ui::pages::P_GENERAL, 10),
                  "Switch directly to Brawl's built-in Training pause menu.") == 0);
     CHECK(strcmp(extra::optionDesc(ui::pages::P_STAGE_CAST, 33),
                  "Configure Olimar pull pool, maturity, lineup, whistle, and presets.") == 0);
@@ -1994,13 +2001,13 @@ TEST(lab_menu, stream1_cstick_live_di_aiming_and_display_lab_debug_structure)
     }
     CHECK_EQ(3, collVis);
 
-    // Display > Overlays & Meters exposes 4 overlay/HUD subpage entries.
-    static const char* const kExpectedOvl[4] = {
-        "P1 Overlays", "CPU Overlays", "Floating Meters", "Ledgedash HUD"
+    // Display > Overlays & Meters exposes 5 overlay/HUD entries (including Offline VS Displays).
+    static const char* const kExpectedOvl[5] = {
+        "P1 Overlays", "CPU Overlays", "Floating Meters", "Ledgedash HUD", "Offline VS Displays"
     };
     const ui::Page& ovl = ui::pages::kHudOverlays;
-    REQUIRE(ovl.count == 4);
-    for (int i = 0; i < 4; i++)
+    REQUIRE(ovl.count == 5);
+    for (int i = 0; i < 5; i++)
     {
         CHECK(strcmp(ovl.options[i].name, kExpectedOvl[i]) == 0);
     }
@@ -2188,6 +2195,7 @@ TEST(lab_menu, reset_option_and_page_via_menu_input_and_rail_and_footer_badges)
     ui::menuReset(menu, st);
 
     // Mutate P1 Damage and Game Speed on Lab (P_GENERAL).
+    st.railFocus = false;
     main::settings().general.playerPercent = 123;
     main::settings().general.gameSpeed = 2;
     main::settings().cpu.percent = 88;
@@ -2810,6 +2818,7 @@ TEST(lab_menu, scissor_highlight_lens_instant_edit_snap_and_smooth_scroll)
     ui::MenuState st;
     ui::menuReset(menu, st);
     main::settings().controls.menuStyle = main::kMenuStyleRail;
+    st.railFocus = false;
 
     // 1. Settled rest parity: 0 scissor pushes, balanced depth 0.
     host::canvas::clear();
@@ -3137,5 +3146,85 @@ TEST(menu_summaries, real_extra_submenu_summaries_fit_and_track_state)
     main::settings().cpu.options.multiReversal = 0;
     main::settings().display.heatmap = 0;
     main::settings().controls.menuStyle = main::kMenuStyleRail;
+    storage::detach();
+}
+
+TEST(lab_menu, commit5_ux_flow_slide_recording_preview_and_drill_rail)
+{
+    bootLab();
+    main::setExtraHooks(&kNoHooks);
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+
+    // 1. Fresh open lands on left category rail; entering a submenu slides for 7f then settles at 0 scissors.
+    CHECK(st.railFocus);
+    ui::MenuInput inA = {0, 0, 0, 0, true, false, false, false};
+    ui::MenuInput inB = {0, 0, 0, 0, false, true, false, false};
+    ui::MenuInput inDown = {0, 1, 0, 0, false, false, false, false};
+    ui::menuStep(menu, st, inA); // rail -> Lab (7f slide)
+    CHECK(!st.railFocus);
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(host::canvas::scissorPushes() >= 1);
+    CHECK_EQ(0, host::canvas::scissorDepth());
+    for (int f = 0; f < 8; f++)
+    {
+        host::canvas::clear();
+        ui::menuDraw(menu, st);
+    }
+    CHECK_EQ(0, host::canvas::scissorPushes());
+    CHECK_EQ(0, host::canvas::scissorDepth());
+
+    // Enter Controls (row 8) -> depth 1, 7f slide; exit via B -> depth 0, 5f slide -> settles at rest.
+    for (int i = 0; i < 8; i++)
+    {
+        ui::menuStep(menu, st, inDown);
+    }
+    ui::menuStep(menu, st, inA);
+    CHECK_EQ(1, static_cast<int>(st.depth));
+    CHECK_EQ(ui::pages::P_CONTROLS, ui::currentPage(st));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(host::canvas::scissorPushes() >= 1);
+    CHECK_EQ(0, host::canvas::scissorDepth());
+    ui::menuStep(menu, st, inB);
+    CHECK_EQ(0, static_cast<int>(st.depth));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(host::canvas::scissorPushes() >= 1);
+    for (int f = 0; f < 6; f++)
+    {
+        host::canvas::clear();
+        ui::menuDraw(menu, st);
+    }
+    CHECK_EQ(0, host::canvas::scissorPushes());
+
+    // 2. Recording before Save Positions: all core rows render visibly (disabled, NOT hidden).
+    host::fakes::recording().positions = false;
+    host::fakes::recording().rows = false;
+    const u8 recPath[] = {ui::pages::P_RECORDING};
+    REQUIRE(ui::menuJump(menu, st, recPath, 1));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(menuCanvasDrew("Save Positions"));
+    CHECK(menuCanvasDrew("P1 Mode"));
+    CHECK(menuCanvasDrew("CPU Mode"));
+    CHECK(menuCanvasDrew("Loop Playback"));
+    CHECK(menuCanvasDrew("Playback & Positions"));
+    CHECK(strstr(extra::optionDesc(ui::pages::P_RECORDING, 0), "unlock input recording") != NULL);
+
+    // 3. Drill rail inside Break the Targets! never collapses to 1 lonely row.
+    ui::pages::practiceMenuState()->activeDrill = 17; // kDrillComboBreakRush
+    const u8 scenPath[] = {ui::pages::P_SCENARIOS};
+    REQUIRE(ui::menuJump(menu, st, scenPath, 1));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(menuCanvasDrew("Preset"));
+    CHECK(menuCanvasDrew("Practice Mode"));
+    CHECK(menuCanvasDrew("Exit Drill"));
+    ui::pages::practiceMenuState()->activeDrill = 0;
+
+    main::setExtraHooks(NULL);
     storage::detach();
 }

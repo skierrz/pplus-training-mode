@@ -1027,7 +1027,15 @@ namespace extra {
             break;
         case main::kScenarioPracticeChanged:
             drillPracticeApplyMenu();
-            drillHudSetMode(ui::pages::practiceMenuState()->mode);
+            if (ui::pages::practiceMenuState()->activeDrill == drills::kDrillComboBreakRush)
+            {
+                u8 m = ui::pages::practiceMenuState()->mode;
+                comboBreakRushSetActive(static_cast<u8>(m < 3u ? (m + 1u) : 1u));
+            }
+            else
+            {
+                drillHudSetMode(ui::pages::practiceMenuState()->mode);
+            }
             break;
         case main::kScenarioStartSnakeDrill:
         case main::kScenarioStartFloatDjcDrill:

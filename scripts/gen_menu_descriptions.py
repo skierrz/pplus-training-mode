@@ -29,7 +29,6 @@ TABLES = {
         "Run match gameplay at full speed or slow-motion ratios.",
         "Switch between normal match camera, zoomed, or fixed view.",
         "Toggle P+ stale-move queue tracking for attack damage.",
-        "Show read-only OSDs, Info, Ledgedash HUD, and PSA in Offline VS.",
         "Configure frame advance, D-pad bindings, menu button, and style.",
         "Restore all Training Lab settings to default values.",
         DESC_TRAINING_MENU,
@@ -112,7 +111,7 @@ TABLES = {
         "Route another controller port directly into the CPU fighter.",
     ],
     "kRecordingDesc": [
-        "Save current fighter states or warp back to saved positions.",
+        "Save a starting savestate to unlock input recording, playback, and 6 slots.",
         "Set Player 1 to Off, Record, Playback, or Re-Record inputs.",
         "Choose which P1 input slot records or plays back (or Random).",
         "Control, record, or play back input slots on the CPU fighter.",
@@ -191,6 +190,7 @@ TABLES = {
         "Color-code CPU fighter states (lower rows override upper rows).",
         "Choose which 3D floating state meters render above fighters.",
         "Show ledgedash timeline bar and GALINT (ledge intangibility) readout.",
+        "Show read-only OSDs, Info, Ledgedash HUD, and PSA in Offline VS.",
     ],
     "kStageCastDesc": [
         "Swap P1 or CPU fighters and costumes mid-match without CSS.",

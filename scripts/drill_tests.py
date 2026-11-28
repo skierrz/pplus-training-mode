@@ -387,18 +387,22 @@ def run(emu, opts, taken, notes, state):
     emu.advance(10)
     if css_snapshot(emu) != before:
         raise nav.NavError(f"L+R moved the character select: {before} -> {css_snapshot(emu)}")
-    # Test natural B step-back from CSS (after recalling placed coin): A -> CSS,
-    # B recalls placed Mario token into hand, second B reopens Boot Menu.
-    emu.press(0, ["A"], frames=4, after=10)
-    wait_count(emu, "A (Training Lab) to close before CSS B check", r"\] drills: list closed \(Training Lab\)", 3, 120)
+    # Test Tap B on Boot Menu root -> cleanly closes to CSS; CSS B stays native Brawl (recalls coin, never hijacks Boot Menu); L+R reopens cleanly.
+    state["step"] = "Tap B on Boot Menu closes to CSS"
+    emu.press(0, ["B"], frames=4, after=10)
+    wait_count(emu, "Tap B on Boot Menu to close to CSS", r"\] drills: list closed \(B\)", 1, 120)
     emu.advance(15)
     if not nav.css_area(emu, 0)["held"]:
         emu.press(0, ["B"], frames=4, after=12)
         emu.wait_for("B to recall P1 token on CSS", lambda: nav.css_area(emu, 0)["held"], 60, every=2)
     emu.advance(10)
-    state["step"] = "B on CSS (empty coin) reopens Boot Menu"
+    state["step"] = "CSS B stays native Brawl; L+R reopens Boot Menu"
+    n_reopen = count(emu, r"\] drills: list opened")
     emu.press(0, ["B"], frames=4, after=10)
-    wait_count(emu, "B on CSS to reopen Boot Menu", r"\] drills: list opened \(B\) for port 1", 1, 120)
+    if count(emu, r"\] drills: list opened") != n_reopen:
+        raise nav.NavError("CSS B unexpectedly hijacked back to Boot Menu")
+    emu.press(0, ["L", "R"], frames=4, after=10)
+    wait_count(emu, "L+R on CSS to reopen Boot Menu", r"\] drills: list opened \(L\+R\) for port 1", 2, 120)
     emu.advance(10)
 
     # Arm a Scenario (Shield Pressure / OoS, preset 4) from Scenarios, verify backing
@@ -464,14 +468,15 @@ def run(emu, opts, taken, notes, state):
     check_quick_stages(emu, taken, notes, state)
     emu.wait_for("the list to open by itself", lambda: nav.drill_list_state(emu) == "open", 600, every=5)
     emu.advance(15)
-    # Natural Nintendo B hierarchy: B on Boot Menu exits cleanly to Solo menu.
-    state["step"] = "B on Boot Menu exits to Solo menu"
-    emu.press(0, ["B"], frames=4, after=10)
-    wait_count(emu, "B on Boot Menu to exit to Solo", r"\] drills: exiting to Solo \(B\)", 1, 120)
-    emu.wait_for("Solo menu after Boot Menu B", lambda: nav.scene(emu)[0] == "muMenuMain", 600, every=5)
+    # Hold B on Boot Menu root closes to CSS and forwards B to Brawl's native BACK hold gauge -> Solo menu.
+    state["step"] = "Hold B on Boot Menu triggers native CSS BACK hold gauge to Solo menu"
+    emu.hold(0, ["B"])
+    wait_count(emu, "Hold B forwarding to CSS BACK gauge", r"\] drills: hold B -> CSS BACK hold gauge", 1, 120)
+    emu.wait_for("Solo menu after native CSS BACK hold gauge", lambda: nav.scene(emu)[0] == "muMenuMain", 600, every=5)
+    emu.neutral(0)
     emu.advance(20)
     state["left_css"] = True
-    notes.append("natural B hierarchy: CSS B -> Boot Menu, Boot Menu B -> Solo menu (muMenuMain) ok")
+    notes.append("Boot Menu Tap B -> CSS, CSS B native Brawl, Boot Menu Hold B -> native CSS BACK gauge -> Solo (muMenuMain) ok")
 
 
 def analyse(log, opts, state):
@@ -1012,11 +1017,18 @@ def run_wii_only(emu, notes, state):
 
     state["step"] = "wii-only: sideways - alone unhidden, - + B reopens"
     check_sideways_reopen(emu, before, "wii-only")
-    state["step"] = "wii-only: sideways 1 on Boot Menu exits to Solo"
+    state["step"] = "wii-only: sideways 1 tap closes to CSS, hold 1 exits via native BACK gauge"
     wii_press(emu, {"wiimote": {"Buttons/1": 1}})
-    wait_count(emu, "sideways 1 to exit to Solo", r"\] drills: exiting to Solo \(1\)", 1, 120)
-    emu.wait_for("wii-only: Solo menu after sideways 1", lambda: nav.scene(emu)[0] == "muMenuMain", 600, every=5)
-    notes.append("wii-only (no GC): list auto-opened for port 5, sideways 2 entered Lab, '-' unhidden, '- + B' reopened, 1 exited to Solo")
+    wait_count(emu, "sideways 1 tap to close Boot Menu to CSS", r"\] drills: list closed \(1\)", 1, 120)
+    emu.advance(10)
+    if nav.drill_list_state(emu) != "closed":
+        raise nav.NavError("wii-only: list stayed open after sideways 1 tap")
+    check_sideways_reopen(emu, before, "wii-only-hold1")
+    emu.h.call("wiimote_input", index=0, wiimote={"Buttons/1": 1})
+    wait_count(emu, "sideways 1 hold to forward to CSS BACK gauge", r"\] drills: hold 1 -> CSS BACK hold gauge", 1, 120)
+    emu.wait_for("wii-only: Solo menu after sideways 1 hold", lambda: nav.scene(emu)[0] == "muMenuMain", 600, every=5)
+    emu.h.call("wiimote_input", index=0)
+    notes.append("wii-only (no GC): list auto-opened for port 5, sideways 2 entered Lab, '-' unhidden, '- + B' reopened, tap 1 closed, hold 1 exited via native BACK gauge")
     emu.h.call("wiimote_input", index=0, clear=True)
 
 
@@ -1176,8 +1188,8 @@ def run_wii_inmatch(emu, notes, state, taken):
     emu.advance(180)
     fighters = LT.Fighters(emu)
 
-    # 1. Start-mode Lab Menu (opens directly on Lab row 0 = Frame Advance) and
-    # jump-to-Training-pause on all 3 Wii types.
+    # 1. Start-mode Lab Menu (fresh open lands on left category rail; A enters Lab row 0 = Frame Advance)
+    # and jump-to-Training-pause on all 3 Wii types.
     for label, ext, ptype, ctrl, pause_jump in [
         ("classic", "classic", PAD_TYPE_CLASSIC, classic, classic["zl"]),
         ("nunchuk", "nunchuk", PAD_TYPE_NUNCHUK, nunchuk, nunchuk["z"]),
@@ -1189,6 +1201,8 @@ def run_wii_inmatch(emu, notes, state, taken):
         if label == "classic":
             emu.advance(8)
             taken.append(emu.screenshot("wii-lab-menu-classic"))
+            # Fresh open lands on left category rail; enter Lab pane once (remembered across close/reopen).
+            wii_press(emu, ctrl["confirm"], frames=10, after=12)
         # Toggle Frame Advance (Lab row 0) on then off without leaving Lab.
         n_fa_on = count(emu, r"\] lab: frame advance on")
         wii_press(emu, ctrl["confirm"], frames=10, after=12)
@@ -1208,8 +1222,8 @@ def run_wii_inmatch(emu, notes, state, taken):
     state["step"] = "wii-inmatch: switch Menu Open to Z in Pause"
     wii_set_extension(emu, "classic", PAD_TYPE_CLASSIC)
     wii_menu_open(emu, classic, "wii-inmatch: Classic open for Controls")
-    # Lab row 0 -> row 9 (Controls; row 8 is Offline VS Displays): 9 Downs, then A enters Controls.
-    for _ in range(9):
+    # Lab row 0 -> row 8 (Controls): 8 Downs, then A enters Controls.
+    for _ in range(8):
         wii_press(emu, classic["down"], frames=9, after=10)
     wii_press(emu, classic["confirm"], frames=9, after=10)
     # Controls row 0 -> row 7 (Menu Open): 7 Downs, then Left to switch Start (1) -> Z in Pause (0).

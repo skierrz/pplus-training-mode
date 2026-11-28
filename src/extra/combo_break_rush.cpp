@@ -535,6 +535,7 @@ namespace extra {
         {
             if (s_net->sess != NULL) s_net->sess->drillRan = 1;
             ui::pages::practiceMenuState()->activeDrill = static_cast<u8>(drills::kDrillComboBreakRush);
+            ui::pages::practiceMenuState()->mode = 0u;
             ensureTargetTex(*s_net);
             drillPracticeSetExternalStandby(true);
         }
@@ -576,6 +577,7 @@ namespace extra {
         if (clean != kRushOff)
         {
             ui::pages::practiceMenuState()->activeDrill = static_cast<u8>(drills::kDrillComboBreakRush);
+            ui::pages::practiceMenuState()->mode = static_cast<u8>(clean >= 1u && clean <= 3u ? (clean - 1u) : 0u);
             ensureTargetTex(*s_net);
             drillPracticeSetExternalStandby(true);
             if (queryStageGeometry(s_net->geom, false, true)) s_net->geomReady = 1;

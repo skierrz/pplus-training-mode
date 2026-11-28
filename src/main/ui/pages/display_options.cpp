@@ -58,7 +58,7 @@ namespace pages {
             NULL, main::extraLoaded, hitboxColorsEnabled, main::extraDiRow, diVectorEnabled, heatmapChildEnabled
         };
         const u8 kH = kFlagHideWhenDisabled;
-        static const RowSpec kSpecs[28] = {
+        static const RowSpec kSpecs[29] = {
             // P_DISPLAY (0..9)
             {kKindChoice, 0, TM_FIELD(general.actionLog), TM_CHOICE_LO, 0, 2, 0, 0, 1, 0},
             {kKindChoice, 0, TM_FIELD(display.inputViewer), TM_CHOICE_LO, 0, 3, 1, 0, 1, 0},
@@ -77,12 +77,13 @@ namespace pages {
             {kKindInt,    kH, TM_FIELD(display.heatmapColorFrames), 1, 5, 30, 5, 0, 5, 0},
             {kKindChoice, 0, TM_FIELD(display.grabVisualizer), TM_CHOICE_LO, 0, 3, 1, 0, 1, 0},
             {kKindToggle, 0, TM_FIELD(display.envCollision), 0, 0, 1, 0xFF, 0, 0, 0},
-            // P_HUD_OVERLAYS (16..19)
+            // P_HUD_OVERLAYS (16..20)
             {kKindMenu,   0, 0, 0, 0, P_HMN_OVERLAYS, 0xFF, 0, 0, 0},
             {kKindMenu,   0, 0, 0, 0, P_CPU_OVERLAYS, 0xFF, 0, 0, 0},
             {kKindMenu,   0, 0, 0, 0, P_COMBO_METERS, 0xFF, 0, 1, 0},
             {kKindMenu,   0, 0, 0, 0, P_LEDGEDASH_HUD, 0xFF, 0, 0, 0},
-            // P_DEBUG (20..27)
+            {kKindToggle, 0, TM_FIELD(general.offlineVersus), 0, 0, 1, 0xFF, 0, 0, 0},
+            // P_DEBUG (21..28)
             {kKindMenu,   0, 0, 0, 0, P_HMN_INFO, 0xFF, 0, 0, 0},
             {kKindMenu,   0, 0, 0, 0, P_CPU_INFO, 0xFF, 0, 0, 0},
             {kKindChoice, 0, TM_FIELD(display.psaInspector), TM_CHOICE_LO, 0, 2, 6, 0, 1, 0},
@@ -92,13 +93,13 @@ namespace pages {
             {kKindToggle, 0, TM_FIELD(display.stageModel), 0, 1, 1, 0xFF, 0, 0, 0},
             {kKindToggle, 0, TM_FIELD(display.effects), 0, 1, 1, 0xFF, 0, 0, 0}
         };
-        fillPageRows(kDisplayOptions, buf, 28, kSpecs, kPs_disp_names, kStrs, NULL, NULL, kDispGates);
+        fillPageRows(kDisplayOptions, buf, 29, kSpecs, kPs_disp_names, kStrs, NULL, NULL, kDispGates);
         kDisplayOptions.count = 10;
         kCollision.options = buf + 10;
         kCollision.count = 6;
         kHudOverlays.options = buf + 16;
-        kHudOverlays.count = 4;
-        kDebug.options = buf + 20;
+        kHudOverlays.count = 5;
+        kDebug.options = buf + 21;
         kDebug.count = 8;
     }
 #else
@@ -135,7 +136,8 @@ namespace pages {
         TM_MENU("P1 Overlays", P_HMN_OVERLAYS),
         TM_MENU("CPU Overlays", P_CPU_OVERLAYS),
         TM_MENU_IF("Floating Meters", P_COMBO_METERS, main::extraLoaded),
-        TM_MENU("Ledgedash HUD", P_LEDGEDASH_HUD)
+        TM_MENU("Ledgedash HUD", P_LEDGEDASH_HUD),
+        TM_TOGGLE("Offline VS Displays", general.offlineVersus, 0, NULL)
     };
 
     static const Option kDebugRows[] = {

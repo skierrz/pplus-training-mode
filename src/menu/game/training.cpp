@@ -243,32 +243,6 @@ namespace training {
         return NULL;
     }
 
-    static const Word kExitSoloPath[] = {
-        {0x806F154C, 0x3B40000B}, // li r26,11            exit sqTraining to Solo menu
-        {0x806F1628, 0x80110284}, // lwz r0,0x284(r17)    state 4: the exit code
-        {0x806F1644, 0x934F0008}, // stw r26,0x8(r15)     exit code 0 -> state 11
-        {0x807038C4, 0x806F1628}  // jump table, state 4
-    };
-
-    const char* exitToSolo()
-    {
-        for (u32 i = 0; i < sizeof(kExitSoloPath) / sizeof(kExitSoloPath[0]); i++)
-        {
-            if (*reinterpret_cast<const u32*>(kExitSoloPath[i].address) != kExitSoloPath[i].value)
-            {
-                return "sqTraining is not the expected code";
-            }
-        }
-        if (!selectRunning())
-        {
-            return "the character select is not running";
-        }
-        gfSceneManager* m = manager();
-        m->unk1 = 0;
-        m->processStep = kProcessExit;
-        return NULL;
-    }
-
     const char* skipStageSelect(u16 stage)
     {
         const char* why = checkStartPath();

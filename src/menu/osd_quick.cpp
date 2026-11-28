@@ -857,6 +857,16 @@ namespace osdQuick {
     }
 
     static ui::style::ModalAnim s_anim;
+    static u8 s_slideTick = 0;
+    static u8 s_slideMax = 0;
+    static s8 s_slideDir = 0;
+
+    static inline void startSlide(u8 frames, s8 dir)
+    {
+        s_slideTick = frames;
+        s_slideMax = frames;
+        s_slideDir = dir;
+    }
 
     static void adjustRow(const QuickRow& r, int delta)
     {
@@ -921,6 +931,8 @@ namespace osdQuick {
         memset(s_rep, 0, sizeof(s_rep));
         s_statusNote = NULL;
         ui::style::modalAnimReset(s_anim);
+        s_slideTick = s_slideMax = 0;
+        s_slideDir = 0;
     }
 
     void detach()
@@ -942,6 +954,7 @@ namespace osdQuick {
         s_scroll[0] = s_scroll[1] = 0;
         memset(s_rep, 0, sizeof(s_rep));
         ui::style::modalAnimOpen(s_anim);
+        startSlide(7, 1);
         gfx::forgetWidths();
         TM_LOG("osdquick: opened for port %d\n", port + 1);
     }
@@ -1003,6 +1016,7 @@ namespace osdQuick {
                 s_scroll[1] = 0;
                 s_anim.hasCursor = 0;
                 s_anim.hasScroll = 0;
+                startSlide(7, 1);
                 gfx::forgetWidths();
                 sound(game::kSoundConfirm);
                 return;
@@ -1026,6 +1040,7 @@ namespace osdQuick {
                 s_subView = false;
                 s_anim.hasCursor = 0;
                 s_anim.hasScroll = 0;
+                startSlide(5, -1);
                 gfx::forgetWidths();
                 sound(game::kSoundBack);
                 return;
@@ -1083,9 +1098,10 @@ namespace osdQuick {
     static void drawQuickRowsLayer(const QuickRow* rows, int drawStart, int drawEnd, int cursor, float rowTop,
                                    float rowH, float rowPitch, float scrollY, float nameX, float nameMaxW,
                                    float pillLeft43, float pillRight43, float pillCenter, float valMaxW, float rowScale,
-                                   float capOff, int passMode, float lensTop, float lensBot)
+                                   float capOff, int passMode, float lensTop, float lensBot, float paneAlpha)
     {
         using namespace ui::style;
+        bool fade = paneAlpha < 0.999f;
         // Sub-pass 1: value pills and arrows (quads/tris).
         for (int idx = drawStart; idx < drawEnd; idx++)
         {
@@ -1105,7 +1121,8 @@ namespace osdQuick {
             drawValuePill(pillLeft43, pillRight43, y, rowH, isHi, on, sel);
             if (sel && on)
             {
-                drawValueArrows(pillLeft43, pillRight43, y, rowH, isHi ? kLabFocusGold : kLabGoldInk);
+                gfx::Rgba ac = isHi ? kLabFocusGold : kLabGoldInk;
+                drawValueArrows(pillLeft43, pillRight43, y, rowH, fade ? scaleAlpha(ac, paneAlpha) : ac);
             }
         }
         // Sub-pass 2: labels and values (text).
@@ -1123,6 +1140,7 @@ namespace osdQuick {
             bool isHi = quickRowHighlighted(row, v);
             float ty = textYForCap(y + capOff, rowScale);
             gfx::Rgba nameCol = sel ? (on ? kLabGoldInk : kLabGoldInkMuted) : (on ? kText : kTextDisabled);
+            if (fade) nameCol = scaleAlpha(nameCol, paneAlpha);
             drawFitText(nameX, ty, row.name, nameCol, rowScale, nameMaxW);
 
             char buf[24];
@@ -1132,6 +1150,7 @@ namespace osdQuick {
                 int cnt = activeIndividualOsdCount();
                 snprintf(buf, sizeof(buf), cnt > 0 ? "%d Active  >" : "All Off  >", cnt);
                 gfx::Rgba valCol = sel ? kLabGoldInk : kLabMutedText;
+                if (fade) valCol = scaleAlpha(valCol, paneAlpha);
                 drawFitText(pillCenter, ty, valTxt, valCol, rowScale, valMaxW, true);
                 continue;
             }
@@ -1168,6 +1187,7 @@ namespace osdQuick {
                 }
             }
             gfx::Rgba valCol = on ? ((sel && !isHi) ? kLabGoldInk : kLabWhiteText) : kTextDisabled;
+            if (fade) valCol = scaleAlpha(valCol, paneAlpha);
             drawFitText(pillCenter, ty, valTxt, valCol, rowScale, valMaxW, true);
         }
     }
@@ -1211,12 +1231,29 @@ namespace osdQuick {
         const float rowH = 25.0f;
         const float rowPitch = rowH + kFibTight;
         const float rowTop = bodyTop + 20.0f;
-        const float hlLeft43 = inL43 + kFibGap;
+        float sxOff = 0.0f;
+        float paneAlpha = 1.0f;
+        if (s_slideTick > 0 && s_slideMax > 0)
+        {
+            float frac = static_cast<float>(s_slideMax + 1 - s_slideTick) / static_cast<float>(s_slideMax);
+            bool exitSlide = s_slideDir < 0;
+            float ease = exitSlide ? easeOutQuart(frac) : easeOutCubic(frac);
+            sxOff = snapPx(static_cast<float>(s_slideDir) * (1.0f - ease) * (exitSlide ? 10.0f : 14.0f));
+            float minA = exitSlide ? 0.55f : 0.45f;
+            paneAlpha = minA + (1.0f - minA) * ease;
+            s_slideTick--;
+            if (s_slideTick == 0)
+            {
+                sxOff = 0.0f;
+                paneAlpha = 1.0f;
+            }
+        }
+        const float hlLeft43 = inL43 + kFibGap + sxOff;
         const float sbX43 = inR43 - kFibGap - kFibGap;
-        const float hlRight43 = sbX43 - kFibTight;
+        const float hlRight43 = sbX43 - kFibTight + sxOff;
         const float nameX = cx(hlLeft43 + 26.0f);
         const float nameMaxW = w(257.0f);
-        const float pillLeft43 = 384.0f;
+        const float pillLeft43 = 384.0f + sxOff;
         const float pillRight43 = hlRight43;
         const float pillCenter = (cx(pillLeft43) + cx(pillRight43)) * 0.5f;
         const float valMaxW = w(132.0f);
@@ -1254,30 +1291,33 @@ namespace osdQuick {
         gfx::ScissorState listSc;
         bool listClipped = false;
         bool listVisible = true;
-        if (scrolling)
+        if (scrolling || sxOff != 0.0f)
         {
             listClipped = gfx::pushScissor(cx(inL43), bodyTop, cx(sbX43 - 2.0f), descTop, listSc);
             listVisible = listClipped;
         }
         if (listVisible)
         {
+            gfx::Rgba rTop = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateTop, paneAlpha) : kLabRowSlateTop;
+            gfx::Rgba rBot = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateBot, paneAlpha) : kLabRowSlateBot;
+            gfx::Rgba rEdge = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateEdge, paneAlpha) : kLabRowSlateEdge;
             for (int idx = drawStart; idx < drawEnd; idx++)
             {
                 float y = rowTop + static_cast<float>(idx) * rowPitch - drawScrollY;
-                drawSlantBar(hlLeft43, hlRight43, y, rowH, false, kLabRowSlateTop, kLabRowSlateBot, kLabRowSlateEdge);
+                drawSlantBar(hlLeft43, hlRight43, y, rowH, false, rTop, rBot, rEdge);
             }
             if (hasBar && (barGliding || scrolling))
             {
                 drawQuickRowsLayer(rows, drawStart, drawEnd, cursor, rowTop, rowH, rowPitch, drawScrollY, nameX,
                                    nameMaxW, pillLeft43, pillRight43, pillCenter, valMaxW, rowScale, capOff, 1, 0.0f,
-                                   0.0f);
+                                   0.0f, paneAlpha);
                 drawGoldBar(hlLeft43, hlRight43, barY, rowH, 8.5f, false, stripeR);
                 gfx::ScissorState lensSc;
                 if (gfx::pushScissor(0.0f, barY, 640.0f, barY + rowH, lensSc))
                 {
                     drawQuickRowsLayer(rows, drawStart, drawEnd, cursor, rowTop, rowH, rowPitch, drawScrollY, nameX,
                                        nameMaxW, pillLeft43, pillRight43, pillCenter, valMaxW, rowScale, capOff, 2,
-                                       barY, barY + rowH);
+                                       barY, barY + rowH, paneAlpha);
                     gfx::popScissor(lensSc);
                 }
             }
@@ -1289,7 +1329,7 @@ namespace osdQuick {
                 }
                 drawQuickRowsLayer(rows, drawStart, drawEnd, cursor, rowTop, rowH, rowPitch, drawScrollY, nameX,
                                    nameMaxW, pillLeft43, pillRight43, pillCenter, valMaxW, rowScale, capOff, 0, 0.0f,
-                                   0.0f);
+                                   0.0f, paneAlpha);
             }
         }
         if (listClipped)

@@ -275,8 +275,12 @@ TEST(wii_lab, classic_nunchuk_sideways_open_nav_close_and_pause_hints)
     CHECK(lab_uut::menuOpen());
     CHECK_EQ(0u, pads[4].m_buttonsCurrentFrame.bits); // hidden while open
 
-    // Neutral, move down 9 to Controls (row 8 is Offline VS Displays) and press A to enter Controls (depth 1).
-    for (int i = 0; i < 9; i++)
+    // Fresh open lands on the left category rail; press A to enter Lab, move down 8 to Controls, and press A (depth 1).
+    setPad(pads[4], 0);
+    stepBoth(pads);
+    setPad(pads[4], game::kPadA);
+    stepBoth(pads);
+    for (int i = 0; i < 8; i++)
     {
         setPad(pads[4], 0);
         stepBoth(pads);
@@ -577,14 +581,9 @@ TEST(wii_lab, z_in_pause_owner_disconnect_recovers_via_other_connected_port)
     stepBoth(pads);
     CHECK(lab_uut::menuOpen());
 
-    // Fresh non-close press hands ownership to port 1 without closing yet.
+    // Fresh non-close press hands ownership to port 1 without closing yet;
+    // since fresh open starts on Draft C left rail, single B closes Z-in-Pause menu.
     setPad(pads[0], game::kPadDDown);
-    stepBoth(pads);
-    CHECK(lab_uut::menuOpen());
-    // First B focuses Draft C rail, second B closes Z-in-Pause menu.
-    setPad(pads[0], 0);
-    stepBoth(pads);
-    setPad(pads[0], game::kPadB);
     stepBoth(pads);
     CHECK(lab_uut::menuOpen());
     setPad(pads[0], 0);

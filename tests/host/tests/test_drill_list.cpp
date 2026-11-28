@@ -254,7 +254,7 @@ TEST(drill_list, any_connected_gcc_operates_list_when_port1_unplugged_and_wii_pa
     stepFrame(pads);
     CHECK(host::log::contains("drills: row 0 "));
 
-    // Port 3 goes neutral (idle); port 4 claims ownership without closing, then closes with B.
+    // Port 3 goes neutral (idle); port 4 claims ownership without closing, then closes with tap B.
     setPadInput(pads[2], 0);
     setPadInput(pads[3], kButtonB);
     stepFrame(pads);
@@ -262,6 +262,8 @@ TEST(drill_list, any_connected_gcc_operates_list_when_port1_unplugged_and_wii_pa
     setPadInput(pads[3], 0);
     stepFrame(pads);
     setPadInput(pads[3], kButtonB);
+    stepFrame(pads);
+    setPadInput(pads[3], 0);
     stepFrame(pads);
     CHECK(host::log::contains("drills: list closed (B)"));
 
@@ -318,6 +320,8 @@ TEST(drill_list, active_owner_cannot_be_stolen_by_another_port)
     setPadInput(pads[1], 0);
     stepFrame(pads);
     setPadInput(pads[1], kButtonB);
+    stepFrame(pads);
+    setPadInput(pads[1], 0);
     stepFrame(pads);
     CHECK(host::log::contains("drills: list closed (B)"));
     menu::list::detach();
@@ -620,13 +624,12 @@ TEST(drill_list, draw_pending_shows_css_mode_pill_and_reopen_works)
     menu::list::attach();
     stepFrame(pads);
 
-    // Brawl-styled CSS mode pill shows active mode + controller-appropriate reopen badges.
+    // Brawl-styled CSS mode pill shows active mode + controller-appropriate reopen badge.
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK(host::canvas::runs() >= 4);
+    CHECK(host::canvas::runs() >= 3);
     CHECK(host::canvas::rects() >= 4);
     CHECK(canvasDrew("TRAINING LAB"));
-    CHECK(canvasDrew("B"));
     CHECK(canvasDrew("C+Z"));
     CHECK(canvasDrew("Modes"));
     CHECK(strcmp(menu::list::reopenHint(), "C+Z = Training Menu") == 0);
@@ -636,7 +639,6 @@ TEST(drill_list, draw_pending_shows_css_mode_pill_and_reopen_works)
     host::canvas::clear();
     menu::list::onRender(0);
     CHECK(canvasDrew("TRAINING LAB"));
-    CHECK(canvasDrew("1"));
     CHECK(canvasDrew("- + B"));
     CHECK(canvasDrew("Modes"));
     CHECK(strcmp(menu::list::reopenHint(), "- + B = Training Menu") == 0);
@@ -645,7 +647,6 @@ TEST(drill_list, draw_pending_shows_css_mode_pill_and_reopen_works)
     stepFrame(pads);
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK(canvasDrew("B"));
     CHECK(canvasDrew("L+R"));
     CHECK(canvasDrew("Modes"));
     CHECK(strcmp(menu::list::reopenHint(), "L+R = Training Menu") == 0);
@@ -655,7 +656,6 @@ TEST(drill_list, draw_pending_shows_css_mode_pill_and_reopen_works)
     stepFrame(pads);
     host::canvas::clear();
     menu::list::onRender(0);
-    CHECK(canvasDrew("B"));
     CHECK(canvasDrew("L+R"));
     CHECK(canvasDrew("Modes"));
     CHECK(strcmp(menu::list::reopenHint(), "L+R = Training Menu") == 0);
@@ -708,26 +708,26 @@ TEST(drill_list, wii_disconnect_clears_release_mask_and_stick_wait)
     menu::list::attach();
     stepFrame(pads); // neutral clears wait-release
 
-    // Close the list with B held and stick tilted: both stay hidden until released.
-    setPadInput(pads[4], game::kPadB | game::kPadWiiB, 0, -80);
+    // Close the list with A held and stick tilted: both stay hidden until released.
+    setPadInput(pads[4], game::kPadA | game::kPadWiiA, 0, -80);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: list closed (B)"));
+    CHECK(host::log::contains("drills: list closed ("));
     CHECK_EQ(0u, pads[4].m_buttonsCurrentFrame.bits);
     CHECK_EQ(0, static_cast<int>(pads[4].m_stickY));
 
     // Disconnect port 4 for one frame while release mask and stick wait are set.
     pads[4].m_error = gfPadError::NO_CONTROLLER;
     host::fakes::setPadConnected(4, false);
-    setPadInput(pads[4], game::kPadB | game::kPadWiiB, 0, -80);
+    setPadInput(pads[4], game::kPadA | game::kPadWiiA, 0, -80);
     stepFrame(pads);
 
     // Reconnect port 4 holding the same button and stick: neither mask nor stick
     // wait may have stuck across the disconnect.
     pads[4].m_error = gfPadError::NONE;
     host::fakes::setPadConnected(4, true);
-    setPadInput(pads[4], game::kPadB | game::kPadWiiB, 0, -80);
+    setPadInput(pads[4], game::kPadA | game::kPadWiiA, 0, -80);
     stepFrame(pads);
-    CHECK_EQ(static_cast<u32>(game::kPadB | game::kPadWiiB), pads[4].m_buttonsCurrentFrame.bits);
+    CHECK_EQ(static_cast<u32>(game::kPadA | game::kPadWiiA), pads[4].m_buttonsCurrentFrame.bits);
     CHECK_EQ(-80, static_cast<int>(pads[4].m_stickY));
     menu::list::detach();
 }
@@ -833,7 +833,7 @@ TEST(drill_list, per_controller_footer_and_browser_labels)
     CHECK(canvasDrew("A"));
     CHECK(canvasDrew("Select"));
     CHECK(canvasDrew("B"));
-    CHECK(canvasDrew("Back"));
+    CHECK(canvasDrew("Close"));
     CHECK(canvasDrew("X"));
     CHECK(canvasDrew("Recordings"));
     CHECK(canvasDrew("Y"));
@@ -1268,41 +1268,8 @@ TEST(drill_list, tech_practice_eight_rows_and_recommendation_badges)
     menu::list::detach();
 }
 
-TEST(drill_list, natural_b_hierarchy_boot_to_solo_and_css_coin_safe_back)
+TEST(drill_list, boot_b_tap_closes_and_hold_forwards_to_css_back_gauge)
 {
-    // Pure truth-table check of select::canBackFromCss().
-    menu::select::CssBackState st = {true, true, 1, 0, true, true, false, false};
-    CHECK(menu::select::canBackFromCss(st, 0));
-    CHECK(!menu::select::canBackFromCss(st, 1)); // wrong port
-    st.controllerPort = -1;
-    CHECK(menu::select::canBackFromCss(st, 4)); // unmapped port allowed (e.g. Wii)
-    st.controllerPort = 4;
-    CHECK(menu::select::canBackFromCss(st, 4));  // Wii P1 port match
-    CHECK(!menu::select::canBackFromCss(st, 0)); // GC P1 rejected when P1 is Wii P1
-    st.controllerPort = 0;
-    st.ownCoinPlaced = true;
-    CHECK(!menu::select::canBackFromCss(st, 0)); // B recalls P1's placed coin
-    st.ownCoinPlaced = false;
-    st.handHoldingOwn = false;
-    st.handHoldingAny = true;
-    CHECK(!menu::select::canBackFromCss(st, 0)); // dragging CPU's coin
-    st.handHoldingOwn = true;
-    st.anyDropdownOpen = true;
-    CHECK(!menu::select::canBackFromCss(st, 0)); // tag or CPU slider open
-    st.anyDropdownOpen = false;
-    st.playerKind = 0;
-    CHECK(!menu::select::canBackFromCss(st, 0)); // not human
-    st.playerKind = 1;
-    st.selectRunning = false;
-    CHECK(!menu::select::canBackFromCss(st, 0));
-
-    // Seed sqTraining::setNext exit-to-Solo words verified by training::exitToSolo().
-    host::mem::setWord(0x806F154Cu, 0x3B40000Bu);
-    host::mem::setWord(0x806F1628u, 0x80110284u);
-    host::mem::setWord(0x806F1644u, 0x934F0008u);
-    host::mem::setWord(0x807038C4u, 0x806F1628u);
-
-    // Live Boot Menu B exits cleanly to Solo (m->unk1 = 0, m->processStep = 2).
     gfPadStatus pads[iface::kPadCount];
     initPads(pads, 1u << 0);
     host::fakes::setMenuPort(0);
@@ -1310,41 +1277,49 @@ TEST(drill_list, natural_b_hierarchy_boot_to_solo_and_css_coin_safe_back)
     menu::list::attach();
     stepFrame(pads);
 
-    setPadInput(pads[0], kButtonB);
+    // 1. Tap B (< 14f held then released) on Boot Menu root cleanly closes to CSS
+    //    without leaking B to CSS.
+    for (int f = 0; f < 4; f++)
+    {
+        setPadInput(pads[0], kButtonB);
+        stepFrame(pads);
+        CHECK_EQ(0u, pads[0].m_buttonsCurrentFrame.bits);
+    }
+    CHECK(!host::log::contains("drills: list closed (B)"));
+    setPadInput(pads[0], 0);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: exiting to Solo (B)"));
-    CHECK_EQ(0u, gfSceneManager::getInstance()->unk1);
-    CHECK_EQ(2u, gfSceneManager::getInstance()->processStep);
-    CHECK_EQ(0, static_cast<int>(menu::session().labChosen));
-    menu::list::detach();
+    CHECK(host::log::contains("drills: list closed (B)"));
+    CHECK_EQ(1, static_cast<int>(menu::session().labChosen));
 
-    // CSS -> Boot Menu via B when coin/dropdown safety gate allows it.
-    host::fakes::reset();
+    // 2. On CSS, B is 100% native Brawl: pressing B does NOT hijack back to Boot Menu.
     host::log::clear();
-    initPads(pads, 1u << 0);
-    host::fakes::setMenuPort(0);
-    host::fakes::setTrainingSelectRunning(true);
-    menu::session().labChosen = 1;
-    menu::list::attach();
-    stepFrame(pads);
-
-    // Gate false (e.g. P1 coin placed): B passes through to CSS, does NOT reopen Boot Menu.
-    host::fakes::setCssCanBack(false);
     setPadInput(pads[0], kButtonB);
     stepFrame(pads);
-    CHECK(!host::log::contains("drills: list opened (B)"));
+    CHECK(!host::log::contains("drills: list opened"));
     CHECK_EQ(static_cast<u32>(kButtonB), pads[0].m_buttonsCurrentFrame.bits);
-    CHECK_EQ(0, host::fakes::cssBHoldCleared());
     setPadInput(pads[0], 0);
     stepFrame(pads);
 
-    // Gate true (no placed coin, no dropdown): B reopens Boot Menu, hides B, clears B-hold counter.
-    host::fakes::setCssCanBack(true);
+    // 3. Reopen via L+R, then Hold B (>= 14f) on Boot Menu root: closes Boot Menu and
+    //    leaves B unmasked so Brawl's native scSelctCharacter BACK hold gauge runs.
+    setPadInput(pads[0], game::kPadL | game::kPadR);
+    stepFrame(pads);
+    CHECK(host::log::contains("drills: list opened (L+R) for port 1"));
+    setPadInput(pads[0], 0);
+    stepFrame(pads);
+    host::log::clear();
+    for (int f = 0; f < 13; f++)
+    {
+        setPadInput(pads[0], kButtonB);
+        stepFrame(pads);
+        CHECK(!host::log::contains("drills: hold B -> CSS BACK hold gauge"));
+        CHECK_EQ(0u, pads[0].m_buttonsCurrentFrame.bits);
+    }
     setPadInput(pads[0], kButtonB);
     stepFrame(pads);
-    CHECK(host::log::contains("drills: list opened (B) for port 1"));
-    CHECK_EQ(0u, pads[0].m_buttonsCurrentFrame.bits);
-    CHECK_EQ(1, host::fakes::cssBHoldCleared());
+    CHECK(host::log::contains("drills: hold B -> CSS BACK hold gauge"));
+    CHECK(host::log::contains("drills: list closed (B)"));
+    CHECK_EQ(static_cast<u32>(kButtonB), pads[0].m_buttonsCurrentFrame.bits);
     menu::list::detach();
 }
 

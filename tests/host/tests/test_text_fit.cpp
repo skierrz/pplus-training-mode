@@ -1172,7 +1172,7 @@ TEST(text_fit, drill_list)
             REQUIRE(runOf(kFooterCases[c].osdGlyph) != NULL);
             REQUIRE(runOf(kFooterCases[c].sectionGlyph) != NULL);
             REQUIRE(runOf("Select") != NULL);
-            REQUIRE(runOf("Back") != NULL);
+            REQUIRE(runOf("Close") != NULL);
             REQUIRE(runOf("Recordings") != NULL);
             REQUIRE(runOf("Quick Setup") != NULL);
             REQUIRE(runOf("Section") != NULL);

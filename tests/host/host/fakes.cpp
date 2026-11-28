@@ -71,8 +71,6 @@ namespace fakes {
     static bool s_padConnected[tm::iface::kPadCount];
     static u32 s_padType[tm::iface::kPadCount];
     static bool s_trainingSelect = false;
-    static bool s_cssCanBack = false;
-    static int s_cssBHoldCleared = 0;
     static gfSceneManager* s_sceneManager = NULL;
     static u8* s_sequence = NULL;
     static gfScene* s_scene = NULL;
@@ -120,8 +118,6 @@ namespace fakes {
             s_padConfig->raw[0xB5 + i] = static_cast<u8>(i);
         }
         s_trainingSelect = false;
-        s_cssCanBack = false;
-        s_cssBHoldCleared = 0;
         s_sceneManager = mem::make<gfSceneManager>();
         s_sequence = static_cast<u8*>(mem::alloc(0x40, 8));
         s_scene = reinterpret_cast<gfScene*>(mem::alloc(0x40, 8));
@@ -438,19 +434,6 @@ namespace menu {
     {
         return main::services();
     }
-
-namespace select {
-    // src/menu/game/select.cpp: controlled by tests via host::fakes::setCssCanBack.
-    bool canBackToBootMenu(int)
-    {
-        return host::fakes::s_trainingSelect && host::fakes::s_cssCanBack;
-    }
-
-    void clearBHoldCounter()
-    {
-        host::fakes::s_cssBHoldCleared++;
-    }
-}
 }
 
 namespace cpu {
@@ -753,16 +736,6 @@ namespace fakes {
             s_sceneManager->processStep = 1;             // kProcessRunning
             s_sceneManager->unk1 = 0;
         }
-    }
-
-    void setCssCanBack(bool canBack)
-    {
-        s_cssCanBack = canBack;
-    }
-
-    int cssBHoldCleared()
-    {
-        return s_cssBHoldCleared;
     }
 }
 }

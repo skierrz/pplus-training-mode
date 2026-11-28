@@ -84,6 +84,7 @@ namespace browser {
     static u8* s_head = NULL;
     static u8* s_temp = NULL;
     static ModalAnim s_anim;
+    static u8 s_slideTick = 0;
 
     static float rowScale()
     {
@@ -764,9 +765,11 @@ namespace browser {
     }
 
     static void drawBrowserRowsText(int drawStart, int drawEnd, float dy, float drawScrollY, float hlLeft43,
-                                    float scale, int passMode, float lensTop, float lensBot)
+                                    float sxOff, float scale, int passMode, float lensTop, float lensBot,
+                                    float paneAlpha)
     {
         float capOffset = (kRowBoxH - kRowCap) * 0.5f;
+        bool fade = paneAlpha < 0.999f;
         char text[48];
         for (int idx = drawStart; idx < drawEnd; idx++)
         {
@@ -782,6 +785,11 @@ namespace browser {
             gfx::Rgba nameColor = selected ? (e.status == kReady ? kLabGoldInk : kLabGoldInkMuted)
                                            : (e.status == kReady ? kText : kTextDisabled);
             gfx::Rgba rightColor = selected ? kLabGoldInkMuted : kLabMutedText;
+            if (fade)
+            {
+                nameColor = scaleAlpha(nameColor, paneAlpha);
+                rightColor = scaleAlpha(rightColor, paneAlpha);
+            }
             char name[sizeof(text)];
             snprintf(name, sizeof(name), "%s", text);
             const char* right = text;
@@ -800,10 +808,10 @@ namespace browser {
                                                                                              : "Damaged"));
             }
             float rightW = gfx::textWidth(right, scale);
-            gfx::text(cx(kRowBoxRight) - 4.0f - rightW, y, right, rightColor, scale);
+            gfx::text(cx(kRowBoxRight + sxOff) - 4.0f - rightW, y, right, rightColor, scale);
             // Keep the matchup name clear of the cursor triangle and date/duration column.
             float nameX = cx(hlLeft43 + 26.0f);
-            float room = cx(kRowBoxRight) - 4.0f - rightW - 9.0f - nameX;
+            float room = cx(kRowBoxRight + sxOff) - 4.0f - rightW - 9.0f - nameX;
             if (room > 0.0f)
             {
                 drawFitText(nameX, y, name, nameColor, scale, room);
@@ -824,6 +832,21 @@ namespace browser {
         }
         float alpha = 1.0f;
         float dy = modalAnimStep(s_anim, alpha);
+        float sxOff = 0.0f;
+        float paneAlpha = 1.0f;
+        if (s_slideTick > 0)
+        {
+            float frac = static_cast<float>(8 - s_slideTick) / 7.0f;
+            float ease = easeOutCubic(frac);
+            sxOff = snapPx((1.0f - ease) * 14.0f);
+            paneAlpha = 0.45f + 0.55f * ease;
+            s_slideTick--;
+            if (s_slideTick == 0)
+            {
+                sxOff = 0.0f;
+                paneAlpha = 1.0f;
+            }
+        }
         drawBrowserPanel(dy, alpha);
         const float b = kLabBorder;
         const float inL43 = kPanelLeft + b;
@@ -834,8 +857,8 @@ namespace browser {
         const float hdrMid = (inTop + hdrBot) * 0.5f;
 
         int first = s_row / kPageRows * kPageRows;
-        const float hlLeft43 = inL43 + kFibGap;
-        const float hlRight43 = kScrollLeft - kFibTight;
+        const float hlLeft43 = inL43 + kFibGap + sxOff;
+        const float hlRight43 = kScrollLeft - kFibTight + sxOff;
         float targetScrollY = static_cast<float>(first) * kRowPitch;
         float scrollY = modalAnimScroll(s_anim, targetScrollY);
         bool scrolling = (scrollY < targetScrollY - 0.25f || scrollY > targetScrollY + 0.25f);
@@ -897,7 +920,7 @@ namespace browser {
         gfx::ScissorState listSc;
         bool listClipped = false;
         bool listVisible = true;
-        if (scrolling)
+        if (scrolling || sxOff != 0.0f)
         {
             listClipped = gfx::pushScissor(cx(inL43), kTitleBandBottom + dy, cx(kScrollLeft - 2.0f),
                                            kRowsBandBottom - kFibHair + dy, listSc);
@@ -905,21 +928,24 @@ namespace browser {
         }
         if (listVisible && s_count > 0)
         {
+            gfx::Rgba rTop = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateTop, paneAlpha) : kLabRowSlateTop;
+            gfx::Rgba rBot = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateBot, paneAlpha) : kLabRowSlateBot;
+            gfx::Rgba rEdge = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateEdge, paneAlpha) : kLabRowSlateEdge;
             for (int idx = drawStart; idx < drawEnd; idx++)
             {
                 float y = kRowTop + static_cast<float>(idx) * kRowPitch - drawScrollY + dy;
-                drawSlantBar(hlLeft43, hlRight43, y, kRowBoxH, false, kLabRowSlateTop, kLabRowSlateBot,
-                             kLabRowSlateEdge);
+                drawSlantBar(hlLeft43, hlRight43, y, kRowBoxH, false, rTop, rBot, rEdge);
             }
             if (hasBar && (barGliding || scrolling))
             {
-                drawBrowserRowsText(drawStart, drawEnd, dy, drawScrollY, hlLeft43, scale, 1, 0.0f, 0.0f);
+                drawBrowserRowsText(drawStart, drawEnd, dy, drawScrollY, hlLeft43, sxOff, scale, 1, 0.0f, 0.0f,
+                                    paneAlpha);
                 drawGoldBar(hlLeft43, hlRight43, barY, kRowBoxH, 8.0f);
                 gfx::ScissorState lensSc;
                 if (gfx::pushScissor(0.0f, barY, 640.0f, barY + kRowBoxH, lensSc))
                 {
-                    drawBrowserRowsText(drawStart, drawEnd, dy, drawScrollY, hlLeft43, scale, 2, barY,
-                                        barY + kRowBoxH);
+                    drawBrowserRowsText(drawStart, drawEnd, dy, drawScrollY, hlLeft43, sxOff, scale, 2, barY,
+                                        barY + kRowBoxH, paneAlpha);
                     gfx::popScissor(lensSc);
                 }
             }
@@ -929,7 +955,8 @@ namespace browser {
                 {
                     drawGoldBar(hlLeft43, hlRight43, barY, kRowBoxH, 8.0f);
                 }
-                drawBrowserRowsText(drawStart, drawEnd, dy, drawScrollY, hlLeft43, scale, 0, 0.0f, 0.0f);
+                drawBrowserRowsText(drawStart, drawEnd, dy, drawScrollY, hlLeft43, sxOff, scale, 0, 0.0f, 0.0f,
+                                    paneAlpha);
             }
         }
         if (listClipped)
@@ -1026,6 +1053,7 @@ namespace browser {
         }
 #endif
         modalAnimOpen(s_anim);
+        s_slideTick = 7;
         gfx::forgetWidths();
         if (s_phase == kIdle || s_phase == kHeaders)
         {
@@ -1062,6 +1090,7 @@ namespace browser {
         s_temp = NULL;
         s_startNow = false;
         modalAnimReset(s_anim);
+        s_slideTick = 0;
     }
 
     void detach()

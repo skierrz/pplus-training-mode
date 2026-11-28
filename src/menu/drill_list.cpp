@@ -43,7 +43,8 @@ namespace list {
         kStickDeadZone = 40,
         kRepeatStart = ui::style::kRepeatStart,
         kRepeatEvery = ui::style::kRepeatEvery,
-        kVisibleRows = 10
+        kVisibleRows = 10,
+        kBHoldFrames = 14 // hold >= 14f closes Boot Menu and forwards B to Brawl's native CSS BACK gauge
     };
 
     enum LauncherRowKind {
@@ -614,7 +615,7 @@ namespace list {
     static bool s_open = false;
     static bool s_starting = false;   // a recording match is being started
     static bool s_rebuilding = false; // the character select is being built again
-    static bool s_exiting = false;    // leaving CSS cleanly back to Solo menu
+    static u8 s_bHold = 0;            // frames back button held on Boot Menu root
     static int s_owner = 0;
     static int s_page = 0;
     static int s_row = 0;
@@ -770,6 +771,7 @@ namespace list {
     static void open(int port, const char* how)
     {
         s_open = true;
+        s_bHold = 0;
         s_owner = (port >= 0 && port < kPorts) ? port : 0;
         resetWaitRelease();
         s_page = session().page < kSectionCount ? session().page : 0;
@@ -800,6 +802,7 @@ namespace list {
     static void close(const char* why)
     {
         s_open = false;
+        s_bHold = 0;
         s_anim.openTick = 0;
         s_anim.closeTick = 5;
         s_anim.pillTick = 6;
@@ -923,6 +926,7 @@ namespace list {
                 }
                 u32 oldType = activeType();
                 s_owner = i;
+                s_bHold = 0;
                 s_waitRelease[s_owner] = true;
                 s_repeat[0].held = s_repeat[1].held = 0;
                 if (s_sys[s_owner].type != oldType)
@@ -960,6 +964,8 @@ namespace list {
             else if (!browser::isOpen())
             {
                 s_anim.modalExitTick = 4;
+                s_anim.slideX = -10.0f;
+                s_bHold = 0;
                 resetWaitRelease();
                 gfx::forgetWidths();
             }
@@ -976,6 +982,8 @@ namespace list {
             if (!osdQuick::isOpen())
             {
                 s_anim.modalExitTick = 4;
+                s_anim.slideX = -10.0f;
+                s_bHold = 0;
                 resetWaitRelease();
                 gfx::forgetWidths();
             }
@@ -983,7 +991,42 @@ namespace list {
         }
         if (!in.connected || s_waitRelease[s_owner])
         {
+            s_bHold = 0;
             s_repeat[0].held = s_repeat[1].held = 0;
+            return;
+        }
+        const game::PadMap& map = game::padMap(in.type);
+        if ((in.pressed & map.back) != 0)
+        {
+            s_bHold = 1;
+            return;
+        }
+        if (s_bHold > 0)
+        {
+            if ((in.held & map.back) != 0)
+            {
+                if (s_bHold < 255)
+                {
+                    s_bHold++;
+                }
+                if (s_bHold >= kBHoldFrames)
+                {
+                    // Hold B on Boot Menu root: close to CSS without hiding B so Brawl's
+                    // native scSelctCharacter BACK hold gauge fills cleanly to Solo.
+                    u32 backMask = map.back
+                                   | (in.type == gfPadType::WIIMOTE
+                                          ? game::kPadWii1
+                                          : (in.type == gfPadType::NUNCHUK ? game::kPadWiiB : 0u));
+                    close(map.backName);
+                    s_releaseMask[s_owner] &= ~backMask;
+                    sound(game::kSoundBack);
+                    TM_LOG("drills: hold %s -> CSS BACK hold gauge\n", map.backName);
+                }
+                return;
+            }
+            // Tap B (< kBHoldFrames, released) on Boot Menu root: cleanly close to CSS.
+            close(map.backName);
+            sound(game::kSoundBack);
             return;
         }
         if (osdQuickPressed(in))
@@ -993,7 +1036,6 @@ namespace list {
             resetWaitRelease();
             return;
         }
-        const game::PadMap& map = game::padMap(in.type);
         bool pagePrev = (in.pressed & map.pagePrev) != 0 && (in.held & map.pageNext) == 0;
         bool pageNext = (in.pressed & map.pageNext) != 0 && (in.held & map.pagePrev) == 0;
         if (pagePrev)
@@ -1017,27 +1059,6 @@ namespace list {
         if (moveDown)
         {
             moveRow(1);
-        }
-        if (in.pressed & map.back)
-        {
-            // Natural Nintendo B hierarchy: B on Boot Menu exits cleanly to Brawl's Solo menu.
-            const char* why = training::exitToSolo();
-            if (why == NULL)
-            {
-                s_open = false;
-                s_exiting = true;
-                session().pendingScenario = 0;
-                session().drill = drills::kDrillNone;
-                session().labChosen = 0;
-                remember();
-                holdBackHeld();
-                sound(game::kSoundBack);
-                TM_LOG("drills: exiting to Solo (%s)\n", map.backName);
-                return;
-            }
-            close(map.backName);
-            sound(game::kSoundBack);
-            return;
         }
         if (in.pressed & map.alt)
         {
@@ -1067,16 +1088,6 @@ namespace list {
             if (game::reopenPressed(map, s_sys[i].held, s_sys[i].pressed))
             {
                 open(i, map.reopenName);
-                holdBackHeld();
-                sound(game::kSoundOpen);
-                return;
-            }
-            // Natural B step-back from CSS to Boot Menu when P1 has no placed
-            // coin to recall, is not dragging CPU's coin, and no dropdown is open.
-            if ((s_sys[i].pressed & map.back) != 0 && select::canBackToBootMenu(i))
-            {
-                select::clearBHoldCounter();
-                open(i, map.backName);
                 holdBackHeld();
                 sound(game::kSoundOpen);
                 return;
@@ -1121,7 +1132,7 @@ namespace list {
 
     static void applyHiding(gfPadStatus* pads)
     {
-        bool all = s_open || s_starting || s_rebuilding || s_exiting;
+        bool all = s_open || s_starting || s_rebuilding;
         for (int i = 0; i < kPorts; i++)
         {
             if (all)
@@ -1137,7 +1148,7 @@ namespace list {
 
     static void handleTestRequest()
     {
-        if (s_test.request != 1 || s_starting || s_rebuilding || s_exiting)
+        if (s_test.request != 1 || s_starting || s_rebuilding)
         {
             return;
         }
@@ -1178,11 +1189,11 @@ namespace list {
                 }
             }
             handleTestRequest();
-            if (s_open && !s_starting && !s_exiting)
+            if (s_open && !s_starting)
             {
                 step();
             }
-            else if (!s_starting && !s_rebuilding && !s_exiting)
+            else if (!s_starting && !s_rebuilding)
             {
                 checkReopen();
             }
@@ -1569,7 +1580,7 @@ namespace list {
         };
         const BootBadge items[5] = {
             {type == gfPadType::WIIMOTE ? "2" : "A", true, kLabBtnATop, kLabBtnABot, kLabBtnDarkText, "Select"},
-            {type == gfPadType::WIIMOTE ? "1" : "B", true, kLabBtnBTop, kLabBtnBBot, kCardTitle, "Back"},
+            {type == gfPadType::WIIMOTE ? "1" : "B", true, kLabBtnBTop, kLabBtnBBot, kCardTitle, "Close"},
             {type == gfPadType::WIIMOTE ? "A" : (type == gfPadType::NUNCHUK ? "C" : "X"), true, kBadgeImportTop,
              kBadgeImportBot, kLabBtnDarkText, "Recordings"},
             {type == gfPadType::WIIMOTE ? "-+A" : (type == gfPadType::NUNCHUK ? "Z" : "Y"),
@@ -1723,13 +1734,6 @@ namespace list {
         float bScale = scaleForCap(kTypeMicro);
 
         float modeW = boldWidth(mode, scale);
-        float backGw = gfx::textWidth(map.backName, bScale);
-        float backBw = backGw + w(8.0f);
-        if (backBw < w(15.0f))
-        {
-            backBw = w(15.0f);
-        }
-        float slashW = gfx::textWidth("/", bScale);
         float reopGw = gfx::textWidth(map.reopenName, bScale);
         float reopBw = reopGw + w(8.0f);
         float modesW = boldWidth("Modes", scale);
@@ -1738,8 +1742,7 @@ namespace list {
         float divGap = w(7.0f);
         float divW = w(2.0f);
         float smGap = w(4.0f);
-        float fixedW = padX + divGap + divW + divGap + backBw + smGap + slashW + smGap + reopBw + smGap + modesW
-                       + padX;
+        float fixedW = padX + divGap + divW + divGap + reopBw + smGap + modesW + padX;
         float rightX = 604.0f;
         float minLeftX = 172.0f; // clear of CSS BACK & TRAINING chrome and inside 5% CRT safe
         float maxModeW = (rightX - minLeftX) - fixedW;
@@ -1777,13 +1780,6 @@ namespace list {
         gfx::fillRect(x, topY + 5.0f, divW, pillH - 10.0f, kLabDivider);
         x += divW + divGap;
 
-        drawGlossyPillBadge(x, badgeY, backBw, badgeH, kLabBtnBTop, kLabBtnBBot);
-        gfx::text(x + (backBw - backGw) * 0.5f, bty, map.backName, kCardTitle, bScale);
-        x += backBw + smGap;
-
-        gfx::text(x, bty, "/", kLabMutedText, bScale);
-        x += slashW + smGap;
-
         drawGlossyPillBadge(x, badgeY, reopBw, badgeH, kLabBtnLightTop, kLabBtnLightBot);
         gfx::text(x + (reopBw - reopGw) * 0.5f, bty, map.reopenName, kLabBtnDarkText, bScale);
         x += reopBw + smGap;
@@ -1796,10 +1792,6 @@ namespace list {
         browser::update();
         osdQuick::update();
         select::update();
-        if (s_exiting)
-        {
-            return;
-        }
         if (!s_open && !s_starting)
         {
             if (training::selectRunning())
@@ -1839,7 +1831,7 @@ namespace list {
         s_open = false;
         s_starting = false;
         s_rebuilding = false;
-        s_exiting = false;
+        s_bHold = 0;
         s_fresh = true;
         memset(&s_anim, 0, sizeof(s_anim));
         s_test.magic = kTestMagic;
@@ -1912,7 +1904,7 @@ namespace list {
         s_open = false;
         s_starting = false;
         s_rebuilding = false;
-        s_exiting = false;
+        s_bHold = 0;
     }
 }
 }

@@ -31,49 +31,6 @@ namespace select {
     // Leaves the select and builds it again (sqTraining's state 3, which
     // opened it). NULL on success, else why not (nothing was changed).
     const char* reopen();
-
-    // Pure snapshot of Training CSS coin & dropdown state used to gate B-back
-    // to the Boot Menu without interfering with coin recall, CPU coin dragging,
-    // or tag/CPU dropdowns.
-    struct CssBackState {
-        bool selectRunning;
-        bool areaValid;
-        int playerKind;       // muSelCharPlayerArea::m_playerKind (1 = Human)
-        int controllerPort;   // muSelCharPlayerArea::m_controllerNo (0..7, -1 = none)
-        bool handHoldingAny;  // hand->m_selCharCoin != NULL
-        bool handHoldingOwn;  // hand->m_selCharCoin == area->m_selCharCoin
-        bool ownCoinPlaced;   // coin->m_selCharHand == NULL (B recalls P1's coin)
-        bool anyDropdownOpen; // any player area's hand->m_mode != 0
-    };
-
-    inline bool canBackFromCss(const CssBackState& st, int port)
-    {
-        if (!st.selectRunning || !st.areaValid || st.playerKind != 1 || st.anyDropdownOpen)
-        {
-            return false;
-        }
-        if (st.controllerPort >= 0 && st.controllerPort != port)
-        {
-            return false;
-        }
-        if (st.ownCoinPlaced)
-        {
-            return false;
-        }
-        if (st.handHoldingAny && !st.handHoldingOwn)
-        {
-            return false;
-        }
-        return true;
-    }
-
-    // True when pressing B on `port` in Training CSS has no placed P1 coin to
-    // recall, is not dragging CPU's coin, and no tag/CPU dropdown is open.
-    bool canBackToBootMenu(int port);
-
-    // Zeroes muSelCharHand::m_bButtonCnt across CSS areas when B steps back to
-    // the Boot Menu so Brawl's hold-B-to-Solo gauge never fires underneath.
-    void clearBHoldCounter();
 }
 }
 }

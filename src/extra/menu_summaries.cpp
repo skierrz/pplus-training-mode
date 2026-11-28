@@ -112,6 +112,7 @@ namespace extra {
             if (countOverlayActive(s.overlay[1]) > 0) n++;
             if ((s.comboTrainer.enabledMeters & main::kMeterAll) != 0) n++;
             if (s.general.ledgeHud != 0) n++;
+            if (s.general.offlineVersus != 0) n++;
             return activeOrOff(buf, cap, n, "All Off");
         }
 

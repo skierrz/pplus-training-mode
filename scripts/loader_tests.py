@@ -852,23 +852,29 @@ def boot_offline_vs_readonly(backend):
         if emu.u8(settings_addr + 21) != 0:
             return f"general.offlineVersus was not 0 by default ({emu.u8(settings_addr + 21)})"
 
-        # Open Lab Menu via Start, navigate to Offline VS Displays (row 8,
-        # 8 Downs from row 0 in Rail mode), and toggle it ON.
+        # Open Lab Menu via Start (lands on left rail at Lab), navigate to
+        # Display (rail 4) > Overlays & Meters (row 7) > Offline VS Displays (row 4), and toggle ON.
         pos_menu = len(log)
         emu.press(0, ["START"], frames=3, after=8)
         emu.wait_for("Lab Menu open in Training",
                      lambda: "lab: menu opened by port 1 (Start)" in E.read_log(emu.log_path)[pos_menu:],
                      180, every=2)
-        for _ in range(8):
+        for _ in range(4):
+            emu.press(0, ["DDOWN"], frames=2, after=5)
+        emu.press(0, ["A"], frames=2, after=6)
+        for _ in range(5):
+            emu.press(0, ["DDOWN"], frames=2, after=5)
+        emu.press(0, ["A"], frames=2, after=6)
+        for _ in range(4):
             emu.press(0, ["DDOWN"], frames=2, after=5)
         emu.press(0, ["DRIGHT"], frames=2, after=6)
         if emu.u8(settings_addr + 21) != 1:
             return f"Offline VS Displays toggle did not set byte +21 to 1 (got {emu.u8(settings_addr + 21)})"
 
-        # Enable OSD Menu > Wavedash (rail 5 -> row 4) through the real menu.
-        emu.press(0, ["B"], frames=2, after=6)
-        for _ in range(5):
-            emu.press(0, ["DDOWN"], frames=2, after=5)
+        # Enable OSDs (rail 5) > Individual OSDs (row 0) > Wavedash (row 4) through the real menu.
+        emu.press(0, ["B"], frames=2, after=6)  # Overlays & Meters -> Display
+        emu.press(0, ["B"], frames=2, after=6)  # Display -> left rail (at Display = 4)
+        emu.press(0, ["DDOWN"], frames=2, after=5)  # rail 4 -> 5 (OSDs)
         emu.press(0, ["A"], frames=2, after=6)
         for _ in range(4):
             emu.press(0, ["DDOWN"], frames=2, after=5)
@@ -1004,13 +1010,20 @@ def boot_offline_vs_4p(backend):
             return "could not read settings block address from Training attach log"
         settings_addr = int(m_set.group(1), 16)
 
-        # Open Lab Menu via Start, enable Offline VS Displays (General row 8).
+        # Open Lab Menu via Start (lands on left rail at Lab), enable
+        # Display (rail 4) > Overlays & Meters (visible row 5) > Offline VS Displays (row 4).
         pos_menu = len(log)
         emu.press(0, ["START"], frames=3, after=8)
         emu.wait_for("Lab Menu open in Training",
                      lambda: "lab: menu opened by port 1 (Start)" in E.read_log(emu.log_path)[pos_menu:],
                      180, every=2)
-        for _ in range(8):
+        for _ in range(4):
+            emu.press(0, ["DDOWN"], frames=2, after=5)
+        emu.press(0, ["A"], frames=2, after=6)
+        for _ in range(5):
+            emu.press(0, ["DDOWN"], frames=2, after=5)
+        emu.press(0, ["A"], frames=2, after=6)
+        for _ in range(4):
             emu.press(0, ["DDOWN"], frames=2, after=5)
         emu.press(0, ["DRIGHT"], frames=2, after=6)
         if emu.u8(settings_addr + 21) != 1:
@@ -1018,7 +1031,8 @@ def boot_offline_vs_4p(backend):
 
         # Return to Training CSS -> Main Menu -> Versus -> Brawl (sqVsMelee).
         emu.press(0, ["B"], frames=2, after=6)
-        for _ in range(9):
+        emu.press(0, ["B"], frames=2, after=6)
+        for _ in range(5):  # rail 4 (Display) -> rail 9 (Return to CSS)
             emu.press(0, ["DDOWN"], frames=2, after=5)
         emu.press(0, ["A"], frames=2, after=6)
         emu.wait_for("Training CSS after Return to CSS",

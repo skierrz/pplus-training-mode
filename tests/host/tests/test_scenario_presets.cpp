@@ -689,12 +689,11 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK_EQ(static_cast<int>(kSlideStartKnockdown), static_cast<int>(clean.slideOffStart));
     CHECK_EQ(static_cast<int>(kEgResetStageSafe), static_cast<int>(clean.edgeguardReset));
 
-    // Lab (kGeneral) places Offline VS Displays at row 8 and Controls at row 9;
-    // Display exposes Frame Meter at row 0, Overlays & Meters (leading to Floating Meters) at row 7, Lab Debug at row 9.
+    // Lab (kGeneral) places Controls at row 8 (9 Rail rows, zero overflow);
+    // Display exposes Frame Meter at row 0, Overlays & Meters (5 rows incl. Offline VS Displays & Floating Meters) at row 7, Lab Debug at row 9.
     const ui::Page& gen = ui::pages::kGeneral;
-    REQUIRE(gen.count == 13);
-    CHECK(strcmp(gen.options[8].name, "Offline VS Displays") == 0);
-    CHECK(strcmp(gen.options[9].name, "Controls") == 0);
+    REQUIRE(gen.count == 12);
+    CHECK(strcmp(gen.options[8].name, "Controls") == 0);
     const ui::Page& disp = ui::pages::kDisplayOptions;
     REQUIRE(disp.count == 10);
     CHECK(strcmp(disp.options[0].name, "Frame Meter") == 0);
@@ -705,9 +704,10 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK(strcmp(disp.options[9].name, "Lab Debug") == 0);
     CHECK_EQ(ui::pages::P_DEBUG, disp.options[9].max);
     const ui::Page& hudOvl = ui::pages::kHudOverlays;
-    REQUIRE(hudOvl.count == 4);
+    REQUIRE(hudOvl.count == 5);
     CHECK(strcmp(hudOvl.options[2].name, "Floating Meters") == 0);
     CHECK_EQ(ui::pages::P_COMBO_METERS, hudOvl.options[2].max);
+    CHECK(strcmp(hudOvl.options[4].name, "Offline VS Displays") == 0);
     const ui::Page& scen = ui::pages::kScenarios;
     REQUIRE(scen.count == 58);
     CHECK(strcmp(scen.options[0].name, "Preset") == 0);

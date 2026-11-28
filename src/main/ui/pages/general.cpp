@@ -34,7 +34,7 @@ namespace pages {
             NULL, lab::frameAdvanceChanged, humanPercent, lab::resetAllPressed,
             lab::openTrainingMenu, lab::exitMatch
         };
-        static const RowSpec kSpecs[13] = {
+        static const RowSpec kSpecs[12] = {
             {kKindToggle, 0, TM_FIELD(general.frameAdvance), 0, 0, 1, 0xFF, 1, 0, 0},
             {kKindInt,    TM_HALF(general.playerPercent), TM_FIELD(general.playerPercent), 0, 0, 999, 0, 2, 0, 0},
             {kKindToggle, 0, TM_FIELD(general.lockPlayerPercent), 0, 0, 1, 0xFF, 2, 0, 0},
@@ -43,13 +43,12 @@ namespace pages {
             {kKindChoice, 0, TM_FIELD(general.gameSpeed), TM_CHOICE_LO, 0, 4, 2, 0, 0, 0},
             {kKindChoice, 0, TM_FIELD(general.cameraMode), TM_CHOICE_LO, 0, 2, 3, 0, 0, 0},
             {kKindToggle, 0, TM_FIELD(general.moveStaling), 0, 1, 1, 0xFF, 0, 0, 0},
-            {kKindToggle, 0, TM_FIELD(general.offlineVersus), 0, 0, 1, 0xFF, 0, 0, 0},
             {kKindMenu,   0, 0, 0, 0, P_CONTROLS, 0xFF, 0, 0, 0},
             {kKindFunc,   kFlagTabsOnly, 0, 0, 0, 0, 0xF0, 3, 0, 0},
             {kKindFunc,   kFlagTabsOnly, 0, 0, 0, 0, 0xFF, 4, 0, 0},
             {kKindFunc,   kFlagTabsOnly, 0, 0, 0, 0, 0xFF, 5, 0, 0}
         };
-        fillPageRows(kGeneral, buf, 13, kSpecs, kPs_gen_names, kStrs, kExtra, kCbs, NULL);
+        fillPageRows(kGeneral, buf, 12, kSpecs, kPs_gen_names, kStrs, kExtra, kCbs, NULL);
     }
 #else
     static const Option kRows[] = {
@@ -61,7 +60,6 @@ namespace pages {
         TM_CHOICE_P("Game Speed", general.gameSpeed, kGameSpeed, 5, 0, NULL),
         TM_CHOICE_P("Camera", general.cameraMode, kCamera, 3, 0, NULL),
         TM_TOGGLE("Move Staling", general.moveStaling, 1, NULL),
-        TM_TOGGLE("Offline VS Displays", general.offlineVersus, 0, NULL),
         TM_MENU("Controls", P_CONTROLS),
         TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagTabsOnly, 0, 0, 0, 0, "Reset Settings", lab::g_resetLabel,
                lab::resetAllPressed, NULL),

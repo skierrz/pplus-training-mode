@@ -218,18 +218,21 @@ TEST(stage6b_vs, training_mode_policy_unchanged)
     CHECK_EQ(static_cast<int>(policy::kExtraHeapAssist), static_cast<int>(policy::decideExtraHeap(in)));
 }
 
-TEST(stage6b_vs, general_page_appends_offline_vs_row_and_description)
+TEST(stage6b_vs, hud_overlays_page_appends_offline_vs_row_and_description)
 {
     const ui::Page& gen = ui::pages::kGeneral;
-    REQUIRE(gen.count == 13);
-    CHECK(strcmp(gen.options[8].name, "Offline VS Displays") == 0);
-    CHECK_EQ(static_cast<int>(ui::kKindToggle), static_cast<int>(gen.options[8].kind));
-    CHECK_EQ(0, static_cast<int>(gen.options[8].def));
-    CHECK_EQ(static_cast<u16>(offsetof(Settings, general.offlineVersus)), gen.options[8].offset);
-    CHECK((gen.options[8].flags & ui::kFlagTabsOnly) == 0);
-    CHECK(strcmp(gen.options[12].name, "Return to CSS") == 0);
+    REQUIRE(gen.count == 12);
+    CHECK(strcmp(gen.options[11].name, "Return to CSS") == 0);
 
-    const char* desc = extra::optionDesc(ui::pages::P_GENERAL, 8);
+    const ui::Page& ovl = ui::pages::kHudOverlays;
+    REQUIRE(ovl.count == 5);
+    CHECK(strcmp(ovl.options[4].name, "Offline VS Displays") == 0);
+    CHECK_EQ(static_cast<int>(ui::kKindToggle), static_cast<int>(ovl.options[4].kind));
+    CHECK_EQ(0, static_cast<int>(ovl.options[4].def));
+    CHECK_EQ(static_cast<u16>(offsetof(Settings, general.offlineVersus)), ovl.options[4].offset);
+    CHECK((ovl.options[4].flags & ui::kFlagTabsOnly) == 0);
+
+    const char* desc = extra::optionDesc(ui::pages::P_HUD_OVERLAYS, 4);
     REQUIRE(desc != NULL);
     CHECK(desc[0] != '\0');
 }

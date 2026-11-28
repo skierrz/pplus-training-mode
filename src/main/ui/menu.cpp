@@ -404,23 +404,31 @@ namespace ui {
     }
 
     // Budgeted 24-byte lab menu motion state (<= 28 B): 8f open, 4f non-blocking
-    // exit, chase60 gold bar glide & list scroll, 7f tab/subpage slide, 4f L/R value nudge.
+    // exit, chase60 gold bar glide & list scroll, 7f enter / 5f exit lateral slide + fade, 4f L/R nudge.
     struct MenuAnim {
         float barY;
-        float slideX;
         float scrollY;
         u8 openTick;
         u8 closeTick;
         u8 nudgeTick;
         s8 nudgeDir;
+        u8 slideTick;
+        u8 slideMax;
+        s8 slideDir;
         u8 lastPage;
         u8 lastDepth;
         u8 lastRail;
         u8 valid;
         u8 hasScroll;
-        u8 pad[3];
     };
     static MenuAnim s_anim;
+
+    static inline void startPaneSlide(u8 frames, s8 dir)
+    {
+        s_anim.slideTick = frames;
+        s_anim.slideMax = frames;
+        s_anim.slideDir = dir;
+    }
 
     void menuAnim(bool open)
     {
@@ -428,7 +436,9 @@ namespace ui {
         s_anim.closeTick = open ? 0 : 4;
         if (open)
         {
-            s_anim.slideX = 0.0f;
+            s_anim.slideTick = 0;
+            s_anim.slideMax = 0;
+            s_anim.slideDir = 0;
             s_anim.nudgeTick = 0;
             s_anim.valid = 0;
             s_anim.hasScroll = 0;
@@ -442,6 +452,7 @@ namespace ui {
         g_showInactiveRows = false;
         s_scratch[kShowInactiveScratchOffset] = 0;
         state.openStart = true;
+        state.railFocus = isRailStyle(def);
         state.stack[0] = def.categoryCount > 0 ? def.categoryPages[0] : 0;
         enterPage(state, def, state.stack[0]);
     }
@@ -884,7 +895,7 @@ namespace ui {
                 cat = static_cast<u8>((cat + 1) % def.categoryCount);
             }
             switchCategory(def, state, cat, false);
-            s_anim.slideX = in.prevCat ? -10.0f : 10.0f;
+            startPaneSlide(6, in.prevCat ? -1 : 1);
             s_anim.valid = 0;
             s_anim.hasScroll = 0;
             menuSound(game::kSoundMove);
@@ -930,13 +941,14 @@ namespace ui {
                 {
                     state.resetConfirmPage = 0;
                 }
-                if (in.a)
+                if (in.a || (in.right && state.railCursor < def.categoryCount))
                 {
                     state.resetConfirmPage = 0;
                     s_anim.valid = 0;
                     if (state.railCursor < def.categoryCount)
                     {
                         switchCategory(def, state, state.railCursor, false);
+                        startPaneSlide(7, 1);
                         s_anim.hasScroll = 0;
                         sound = game::kSoundConfirm;
                     }
@@ -1052,7 +1064,7 @@ namespace ui {
                     state.depth++;
                     state.stack[state.depth] = static_cast<u8>(o.max);
                     enterPage(state, def, o.max);
-                    s_anim.slideX = 10.0f;
+                    startPaneSlide(7, 1);
                     s_anim.hasScroll = 0;
                     sound = game::kSoundConfirm;
                 }
@@ -1118,7 +1130,7 @@ namespace ui {
                 state.cursor[left] = 0;
                 state.scroll[left] = 0;
                 state.depth--;
-                s_anim.slideX = -10.0f;
+                startPaneSlide(5, -1);
                 s_anim.valid = 0;
                 s_anim.hasScroll = 0;
                 u8 parentId = state.stack[state.depth];
@@ -1877,12 +1889,13 @@ namespace ui {
     static void drawLabRowsLayer(const MenuDef& def, const MenuState& state, u8 pageId, const Page& p,
                                  const LabPaneGeom& g, const MenuPalette& pal, const int* visIdx, const int* visOrd,
                                  int visN, float rowTop, float scrollY, float sxOff, float nudgeOff, float scale,
-                                 bool diPicking, int passMode, float lensTop, float lensBot)
+                                 bool diPicking, int passMode, float lensTop, float lensBot, float paneAlpha)
     {
         float hlR = g.hlRight + sxOff;
         float pilL = g.pillLeft + sxOff;
         float pilR = g.pillRight + sxOff;
         int cur = state.cursor[pageId];
+        bool fade = paneAlpha < 0.999f;
         char buf[32];
 
         // Sub-pass 1: all value pills, arrows, and submenu chevrons (pure quads/tris).
@@ -1907,15 +1920,15 @@ namespace ui {
                 if (selected && hasValue(o) && on)
                 {
                     bool nudged = (i == cur && nudgeOff != 0.0f);
-                    drawValueArrows(pilL, pilR, y, kLabRowH,
-                                    nudged ? kLabWhiteText : (isHi ? kLabFocusGold : kLabGoldInk));
+                    gfx::Rgba arrCol = nudged ? kLabWhiteText : (isHi ? kLabFocusGold : kLabGoldInk);
+                    drawValueArrows(pilL, pilR, y, kLabRowH, fade ? scaleAlpha(arrCol, paneAlpha) : arrCol);
                 }
             }
             else if (o.kind == kKindMenu)
             {
                 gfx::Rgba chevCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted)
                                              : (on ? pal.mutedText : kTextDisabled);
-                drawSubmenuChevron(hlR - 10.0f, y, chevCol);
+                drawSubmenuChevron(hlR - 10.0f, y, fade ? scaleAlpha(chevCol, paneAlpha) : chevCol);
             }
         }
 
@@ -1939,12 +1952,14 @@ namespace ui {
             bool hasVal = value != NULL && value[0] != '\0';
             float ty = textYForCap(y + capOffset, scale);
             gfx::Rgba nameCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted) : (on ? kText : kTextDisabled);
+            if (fade) nameCol = scaleAlpha(nameCol, paneAlpha);
             fitText(g.nameX + sxOff, ty, o.name, nameCol, scale, g.nameMaxW, false);
             if (hasVal)
             {
                 bool isHi = optionHighlighted(def, pageId, o);
                 gfx::Rgba valCol =
                     (on && !grey) ? ((selected && !isHi) ? kLabGoldInk : kLabWhiteText) : kTextDisabled;
+                if (fade) valCol = scaleAlpha(valCol, paneAlpha);
                 float valX = g.valCenter + sxOff + ((selected && i == cur) ? nudgeOff : 0.0f);
                 fitText(valX, ty, value, valCol, scale, g.valMaxW - 14.0f, true);
             }
@@ -1962,6 +1977,7 @@ namespace ui {
                     }
                     gfx::Rgba sumCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted)
                                                 : (on ? (hasOv ? pal.accentTop : pal.mutedText) : kTextDisabled);
+                    if (fade) sumCol = scaleAlpha(sumCol, paneAlpha);
                     gfx::text(cx(hlR - 25.0f) - textW, textYForCap(y + (kLabRowH - kTypeMeta) * 0.5f, sumScale), sum,
                               sumCol, sx, sumScale);
                 }
@@ -2000,11 +2016,24 @@ namespace ui {
             openDy = snapPx((1.0f - ot) * 6.0f);
             s_anim.openTick--;
         }
-        if (s_anim.slideX != 0.0f)
+        float sxOff = 0.0f;
+        float paneAlpha = 1.0f;
+        if (s_anim.slideTick > 0 && s_anim.slideMax > 0)
         {
-            s_anim.slideX = chase60(s_anim.slideX, 0.0f, 0.42f);
+            float frac = static_cast<float>(s_anim.slideMax + 1 - s_anim.slideTick) / static_cast<float>(s_anim.slideMax);
+            bool exitSlide = s_anim.slideDir < 0;
+            float ease = exitSlide ? easeOutQuart(frac) : easeOutCubic(frac);
+            float dist = exitSlide ? 10.0f : 14.0f;
+            sxOff = snapPx(static_cast<float>(s_anim.slideDir) * (1.0f - ease) * dist);
+            float minA = exitSlide ? 0.55f : 0.45f;
+            paneAlpha = minA + (1.0f - minA) * ease;
+            s_anim.slideTick--;
+            if (s_anim.slideTick == 0)
+            {
+                sxOff = 0.0f;
+                paneAlpha = 1.0f;
+            }
         }
-        float sxOff = s_anim.slideX;
         float nudgeOff = 0.0f;
         if (s_anim.nudgeTick > 0)
         {
@@ -2157,22 +2186,25 @@ namespace ui {
 
             if (listVisible)
             {
+                gfx::Rgba rowTopC = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateTop, paneAlpha) : kLabRowSlateTop;
+                gfx::Rgba rowBotC = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateBot, paneAlpha) : kLabRowSlateBot;
+                gfx::Rgba rowEdgeC = paneAlpha < 0.999f ? scaleAlpha(kLabRowSlateEdge, paneAlpha) : kLabRowSlateEdge;
                 for (int r = 0; r < visN; r++)
                 {
                     float y = rowTop + static_cast<float>(visOrd[r]) * kLabRowPitch - drawScrollY;
-                    drawSlantBar(hlL, hlR, y, kLabRowH, false, kLabRowSlateTop, kLabRowSlateBot, kLabRowSlateEdge);
+                    drawSlantBar(hlL, hlR, y, kLabRowH, false, rowTopC, rowBotC, rowEdgeC);
                 }
                 if (lensActive)
                 {
                     // Pass 1: unfocused rows, then gliding Gold Bar, then Pass 2 hardware scissor lens.
                     drawLabRowsLayer(def, state, pageId, p, g, pal, visIdx, visOrd, visN, rowTop, drawScrollY, sxOff,
-                                     nudgeOff, scale, diPicking, 1, 0.0f, 0.0f);
+                                     nudgeOff, scale, diPicking, 1, 0.0f, 0.0f, paneAlpha);
                     drawGoldBar(hlL, hlR, barDrawY, kLabRowH, 8.5f, false, stripeR);
                     gfx::ScissorState lensSc;
                     if (gfx::pushScissor(0.0f, barDrawY, 640.0f, barDrawY + kLabRowH, lensSc))
                     {
                         drawLabRowsLayer(def, state, pageId, p, g, pal, visIdx, visOrd, visN, rowTop, drawScrollY,
-                                         sxOff, nudgeOff, scale, diPicking, 2, barDrawY, barDrawY + kLabRowH);
+                                         sxOff, nudgeOff, scale, diPicking, 2, barDrawY, barDrawY + kLabRowH, paneAlpha);
                         gfx::popScissor(lensSc);
                     }
                 }
@@ -2184,7 +2216,7 @@ namespace ui {
                         drawGoldBar(hlL, hlR, barDrawY, kLabRowH, 8.5f, false, stripeR);
                     }
                     drawLabRowsLayer(def, state, pageId, p, g, pal, visIdx, visOrd, visN, rowTop, drawScrollY, sxOff,
-                                     nudgeOff, scale, diPicking, 0, 0.0f, 0.0f);
+                                     nudgeOff, scale, diPicking, 0, 0.0f, 0.0f, paneAlpha);
                 }
             }
             if (listClipped)
