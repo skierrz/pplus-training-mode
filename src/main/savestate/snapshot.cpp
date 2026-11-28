@@ -197,12 +197,17 @@ namespace savestate {
     TM_STATIC_ASSERT(kFixedCount == sizeof(kFixedLen) / sizeof(kFixedLen[0]), tm_fixed_lens_match);
 
     // Inside the ranges above but never copied: the four ranges the newest
-    // of Brawl Online's lists (gp-v29.json) excludes.
+    // of Brawl Online's lists (gp-v29.json) excludes, plus Project+ 3.2.1's
+    // SD stream / soundbank / SDHC state inside 0x805A7400..0x805A9400
+    // (FilePatchCode.asm:21,221-649,721-732,801-807;
+    // ReplacementSoundbankEngine.asm:26-33,79-81,245-350,447-489).
     static const Range kExcluded[] = {
         {0x80611F40, 0x20},  // GX FIFO ring tail
         {0x805B7660, 0x20},  // a thread stack's bottom
         {0x804A3E90, 0x578}, // nw4r::ef draw strategies
-        {0x805B5034, 0x20}   // frame buffer slot bookkeeping
+        {0x805B5034, 0x20},  // frame buffer slot bookkeeping
+        {0x805A7450, 0x900}, // P+ STREAM_FILES, SDStream*/THP* code, FPC_PATH, RSBE soundbank state
+        {0x805A9350, 0x4}    // P+ SDHC/SDXC/SDUC extension flag
     };
     TM_STATIC_ASSERT(sizeof(kExcluded) / sizeof(kExcluded[0]) <= kMaxExcluded, tm_excluded_fit);
 
