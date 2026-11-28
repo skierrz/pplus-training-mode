@@ -1299,6 +1299,7 @@ HANDLERS = [
     ("main/ui/menu.cpp", menu_cpp),
     ("main/ui/lab_menu.cpp", walked),
     ("extra/menu_descriptions.cpp", menu_descriptions),
+    ("extra/menu_summaries.cpp", walked),
     ("main/ui/info_display.cpp", info_display),
     ("main/ui/wall_info_core.h", wall_info_core_h),
     ("main/ui/ledgedash_hud.cpp", ledgedash_hud),

@@ -222,6 +222,13 @@ namespace extra {
                         fdIn.floatRem = work->getInt(kFdVarFloatFrames);
                     }
                 }
+                else if (ftKind == kDrillFtGanondorf)
+                {
+                    if (t->cur.status == kFdStSpecialN && fdIn.airborne != 0)
+                    {
+                        fdIn.floatRem = work->getInt(kFdVarGanonFloatCount);
+                    }
+                }
                 if (isDjcCapable(ftKind) && (t->cur.status == kFdStJumpAerial || t->cur.status == kFdStAttackAir))
                 {
                     fdIn.djcBit = work->isFlag(kFdVarDjcBit) ? 1 : 0;

@@ -30,6 +30,7 @@
 #include "extra/input_viewer.h"
 #include "extra/lab_tools.h"
 #include "extra/menu_descriptions.h"
+#include "extra/menu_summaries.h"
 #include "extra/olimar_lab.h"
 #include "extra/pplus_recovery.h"
 #include "extra/pplus_tech_tracker.h"
@@ -295,7 +296,7 @@ namespace extra {
         ui::infoWanted,    ui::infoStep,       ui::drawInfo,       ui::infoReset,
         ui::applyInfoPreset, inputViewerDraw,  drawColoredHitboxes, diCompassDraw,
         reversalSlotsPick, psaInspectorDraw,   onTimingAndPracticeDraw, onDrillHook,
-        osdTopStartYHook,  olimarLabAction,    NULL
+        osdTopStartYHook,  olimarLabAction,    menuSubmenuSummary
     };
 
     static bool attach(iface::Interface* iface)

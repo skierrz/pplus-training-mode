@@ -51,6 +51,7 @@
 #define TM_MODULE_MAIN 1
 
 #include "extra/menu_descriptions.h"
+#include "extra/menu_summaries.h"
 #include "extra/stage_options_logic.h"
 #include "host/canvas.h"
 #include "host/card.h"
@@ -587,6 +588,7 @@ TEST(text_fit, lab_menu_pages)
     descHooks.stageOptions = textFitYesCall;
     descHooks.fighterSwapRow = textFitYes;
     descHooks.optionDesc = extra::optionDesc;
+    descHooks.submenuSummary = extra::menuSubmenuSummary;
     main::setExtraHooks(&descHooks);
     ui::g_showInactiveRows = true;
 

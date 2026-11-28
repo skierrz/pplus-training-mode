@@ -156,7 +156,7 @@ namespace extra {
             "Tech Practice\0Ledgedash\0Wavedash\0L-Cancel\0Float / Hover\0"
             "Powershield\0RAR\0DACUS\0B-Reverse\0Cancel Endurance\0"
             "Movement Flow\0Reaction Lab\0Techchase Esc\0Sweetspot\0CC / ASDI-Down\0"
-            "Snake Recovery\0Techchase\0Break the Targets!";
+            "Snake C4 Recovery\0Techchase\0Break the Targets!";
         return drillNthStr(kNames, drillId < drills::kDrillIdCount ? drillId : 0);
     }
 

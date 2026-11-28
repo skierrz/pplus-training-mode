@@ -737,6 +737,7 @@ TEST(drill_hud, title_case_names_and_mode_labels)
     CHECK(strcmp(drillHudTitle(drills::kDrillPowershield), "Powershield") == 0);
     CHECK(strcmp(drillHudTitle(drills::kDrillCancelSprint), "Cancel Endurance") == 0);
     CHECK(strcmp(drillHudTitle(drills::kDrillFloorhug), "CC / ASDI-Down") == 0);
+    CHECK(strcmp(drillHudTitle(drills::kDrillSnakeRecovery), "Snake C4 Recovery") == 0);
     CHECK(strcmp(drillHudTitle(drills::kDrillComboBreakRush), "Break the Targets!") == 0);
     CHECK(strcmp(drillModeLabel(kDrillModeSet10), "10-REP") == 0);
     CHECK(strcmp(drillModeLabel(kDrillModeSet20), "20-REP") == 0);

@@ -26,6 +26,7 @@ namespace extra {
         kDrillFtYoshi = 0x04,
         kDrillFtNess = 0x0A,
         kDrillFtPeach = 0x0C,
+        kDrillFtGanondorf = 0x14,
         kDrillFtLucas = 0x1A,
         kDrillFtMewtwo = 0x26,
 
@@ -73,6 +74,7 @@ namespace extra {
         kFdVarPeachFloatUsed = 0x1200003E,    // LA-Bit[62]
         kFdVarMewtwoHoverActive = 0x12000061, // LA-Bit[97]
         kFdVarMewtwoHoverUsed = 0x12000073,   // LA-Bit[115]
+        kFdVarGanonFloatCount = 0x10000062,  // LA-Basic[98] (Dead Man's Float frames)
         kFdVarFloatFrames = 0x20000002,       // RA-Basic[2]
         kFdVarDjcBit = 0x22000021,            // RA-Bit[33]
 
@@ -176,6 +178,7 @@ namespace extra {
         // Float / Hover transient tracking.
         bool inFloat;
         bool isHover;
+        bool groundedFloatStatus;
         bool floatAerialActive;
         bool floatAerialVia33;
         bool droppedFloatAerial;
@@ -208,7 +211,7 @@ namespace extra {
 
     inline bool isFloatCapable(int ftKind)
     {
-        return ftKind == kDrillFtPeach || ftKind == kDrillFtMewtwo;
+        return ftKind == kDrillFtPeach || ftKind == kDrillFtMewtwo || ftKind == kDrillFtGanondorf;
     }
 
     inline bool isDjcCapable(int ftKind)
@@ -226,6 +229,10 @@ namespace extra {
         if (ftKind == kDrillFtMewtwo)
         {
             return kFdStMewtwoHover;
+        }
+        if (ftKind == kDrillFtGanondorf)
+        {
+            return kFdStSpecialN;
         }
         return -1;
     }
@@ -440,23 +447,33 @@ namespace extra {
                 }
             }
 
-            // --- Float / Hover Cancel detection (Peach 0x11E, Mewtwo 0x120) ---
+            // --- Float / Hover Cancel detection (Peach 0x11E, Mewtwo 0x120, Ganondorf airborne 0x112) ---
             if (canFloat)
             {
                 if (s == floatSt)
                 {
-                    st.inFloat = true;
-                    st.isHover = (in.ftKind == kDrillFtMewtwo);
-                    st.floatStartFrame = f;
-                    st.floatAerialStartFrame = kFdNoFrame;
-                    st.droppedFloatFrame = kFdNoFrame;
-                    st.floatAerialActive = false;
-                    st.floatAerialVia33 = false;
-                    st.droppedFloatAerial = false;
-                    st.floatAerialMotion = -1;
-                    st.floatDuration = 1;
-                    st.floatEntryY = in.y;
-                    st.minFloatY = in.y;
+                    if (in.ftKind == kDrillFtGanondorf && in.airborne == 0 && e.airborne == 0)
+                    {
+                        // Grounded Warlock Punch shares status 0x112; never grade as Dead Man's Float.
+                        clearFloatFlight(st);
+                        st.groundedFloatStatus = true;
+                    }
+                    else
+                    {
+                        st.groundedFloatStatus = false;
+                        st.inFloat = true;
+                        st.isHover = (in.ftKind == kDrillFtMewtwo);
+                        st.floatStartFrame = f;
+                        st.floatAerialStartFrame = kFdNoFrame;
+                        st.droppedFloatFrame = kFdNoFrame;
+                        st.floatAerialActive = false;
+                        st.floatAerialVia33 = false;
+                        st.droppedFloatAerial = false;
+                        st.floatAerialMotion = -1;
+                        st.floatDuration = 1;
+                        st.floatEntryY = in.y;
+                        st.minFloatY = in.y;
+                    }
                 }
                 else if (st.inFloat && prev == floatSt)
                 {
@@ -650,10 +667,17 @@ namespace extra {
             }
         }
 
-        // Frame-end updates while floating / hovering inside 0x11E (Peach) / 0x120 (Mewtwo).
+        // Frame-end updates while floating / hovering inside 0x11E (Peach), 0x120 (Mewtwo), or airborne 0x112 (Ganon).
         if (canFloat && in.status == floatSt)
         {
-            if (!st.inFloat)
+            if (in.ftKind == kDrillFtGanondorf && in.airborne == 0)
+            {
+                if (!st.inFloat)
+                {
+                    st.groundedFloatStatus = true;
+                }
+            }
+            else if (!st.inFloat && !st.groundedFloatStatus)
             {
                 // Fallback if already in float status without a start event.
                 st.inFloat = true;
@@ -663,7 +687,7 @@ namespace extra {
                 st.minFloatY = in.y;
                 st.floatDuration = 1;
             }
-            else
+            else if (st.inFloat)
             {
                 if (in.y < st.minFloatY)
                 {
@@ -691,10 +715,14 @@ namespace extra {
                 st.floatAerialMotion = -1;
             }
         }
-        else if (canFloat && st.inFloat && in.status != floatSt)
+        else if (canFloat && in.status != floatSt)
         {
-            // Left float status without a tracked event (e.g. abrupt reset).
-            clearFloatFlight(st);
+            if (st.inFloat)
+            {
+                // Left float status without a tracked event (e.g. abrupt reset).
+                clearFloatFlight(st);
+            }
+            st.groundedFloatStatus = false;
         }
 
         // Keep motionKind updated on float/dropped-float/DJC aerials if status event

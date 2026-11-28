@@ -1029,6 +1029,29 @@ namespace extra {
             drillPracticeApplyMenu();
             drillHudSetMode(ui::pages::practiceMenuState()->mode);
             break;
+        case main::kScenarioStartSnakeDrill:
+        case main::kScenarioStartFloatDjcDrill:
+        {
+            u8 targetDrill = (call == main::kScenarioStartSnakeDrill)
+                                 ? static_cast<u8>(drills::kDrillSnakeRecovery)
+                                 : static_cast<u8>(drills::kDrillHoverFloat);
+            if (ui::pages::scenarioMenuState()->preset != ui::pages::kPresetOff
+                || s_state.activePreset != kScenarioOff)
+            {
+                ui::pages::scenarioMenuState()->preset = ui::pages::kPresetOff;
+                scenarioPresetsCall(main::kScenarioChanged);
+            }
+            drillHudStartDrill(targetDrill);
+            break;
+        }
+        case main::kScenarioStopDrill:
+            drillHudDisable();
+            if (drills::Session* sess = drills::sessionIn(main::services().settings()))
+            {
+                sess->drill = drills::kDrillNone;
+                sess->drillRan = 0;
+            }
+            break;
         default:
             break;
         }

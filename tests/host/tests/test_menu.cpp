@@ -8,6 +8,7 @@
 #include <gf/gf_pad_status.h>
 
 #include "extra/menu_descriptions.h"
+#include "extra/menu_summaries.h"
 #include "host/canvas.h"
 #include "host/card.h"
 #include "host/fakes.h"
@@ -2920,5 +2921,49 @@ TEST(lab_menu, stream_b_custom_osd_slots_contextual_drills_depth2_and_summary_ho
     CHECK(menuCanvasDrew("TEST-SUM"));
 
     main::setExtraHooks(NULL);
+    storage::detach();
+}
+
+TEST(menu_summaries, real_extra_submenu_summaries_fit_and_track_state)
+{
+    bootLab();
+    char buf[20];
+    CHECK(extra::menuSubmenuSummary(ui::pages::P_CONTROLS, NULL, sizeof(buf)) == NULL);
+    CHECK(extra::menuSubmenuSummary(ui::pages::P_CONTROLS, buf, 0u) == NULL);
+
+    // Default state summaries.
+    const u8 defaultPages[] = {
+        ui::pages::P_CONTROLS,         ui::pages::P_COLLISION,      ui::pages::P_HUD_OVERLAYS,
+        ui::pages::P_THEME,            ui::pages::P_DEBUG,          ui::pages::P_OSD_INDIVIDUAL,
+        ui::pages::P_CPU_DI,           ui::pages::P_CPU_COUNTERS,   ui::pages::P_TECH,
+        ui::pages::P_TECH_WEIGHTS,     ui::pages::P_CPU_DEFENSE,    ui::pages::P_COUNTER_POOL,
+        ui::pages::P_ADVANCED_COUNTER, ui::pages::P_REVERSALS,      ui::pages::P_SLOTS,
+        ui::pages::P_REC_MANAGE,       ui::pages::P_COMBO_TRAINER,  ui::pages::P_OLIMAR
+    };
+    for (u32 i = 0; i < sizeof(defaultPages) / sizeof(defaultPages[0]); i++)
+    {
+        const char* s = extra::menuSubmenuSummary(defaultPages[i], buf, sizeof(buf));
+        REQUIRE(s != NULL);
+        CHECK(s[0] != '\0');
+        CHECK(strlen(s) <= 15u);
+    }
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_DEBUG, buf, sizeof(buf)), "Off") == 0);
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_CPU_DI, buf, sizeof(buf)), "Random") == 0);
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_TECH_WEIGHTS, buf, sizeof(buf)), "Default") == 0);
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_COLLISION, buf, sizeof(buf)), "Off") == 0);
+
+    // Overrides reflect live state accurately.
+    main::settings().controls.menuStyle = main::kMenuStyleTabs;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_CONTROLS, buf, sizeof(buf)), "Top Tabs") == 0);
+    main::settings().display.heatmap = 1;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_COLLISION, buf, sizeof(buf)), "Heatmap") == 0);
+    main::settings().cpu.options.techChance[0] = 50;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_TECH_WEIGHTS, buf, sizeof(buf)), "Custom") == 0);
+    main::settings().cpu.options.multiReversal = 1;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_REVERSALS, buf, sizeof(buf)), "On") == 0);
+    main::settings().cpu.options.techChance[0] = 25;
+    main::settings().cpu.options.multiReversal = 0;
+    main::settings().display.heatmap = 0;
+    main::settings().controls.menuStyle = main::kMenuStyleRail;
     storage::detach();
 }

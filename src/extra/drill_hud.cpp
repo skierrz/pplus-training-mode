@@ -983,6 +983,38 @@ namespace extra {
         TM_LOG("drillhud: debug block at %08x\n", &s_rt.debug);
     }
 
+    void drillHudStartDrill(u8 drillId)
+    {
+        if (s_rtPtr == NULL || !isValidSkillDrill(drillId))
+        {
+            return;
+        }
+        Runtime& s_rt = *s_rtPtr;
+        unpauseIfNeeded(s_rt);
+        comboBreakRushSetActive(kRushOff);
+        resetMotionState(s_rt, true);
+        u16 best = (s_rt.sess != NULL && drillId < drills::kBestSlots) ? s_rt.sess->best[drillId] : 0u;
+        drillHudInit(s_rt.st, drillId, best);
+        drillPracticeSetActiveDrill(drillId);
+        ui::pages::PracticeMenuState* pm = ui::pages::practiceMenuState();
+        pm->activeDrill = drillId < kPracticeDrillCount ? drillId : static_cast<u8>(drills::kDrillNone);
+        pm->mode = s_rt.st.mode < 3u ? s_rt.st.mode : 0u;
+        if (s_rt.sess != NULL)
+        {
+            s_rt.sess->drill = drillId;
+            s_rt.sess->drillRan = 1;
+        }
+#if TM_STAGE4C
+        if (isChallengeDrill(drillId))
+        {
+            challengeBackendsReset();
+        }
+#endif
+        s_rt.synced = 0;
+        ui::menuScratch()[ui::kLedgeDismissScratchOffset]++;
+        syncDebug();
+    }
+
     void drillHudDetach()
     {
         if (s_rtPtr == NULL)

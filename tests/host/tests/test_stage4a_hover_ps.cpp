@@ -69,11 +69,13 @@ TEST(stage4a_hover_ps, verified_fighter_kind_ids_and_debug_block_layout)
     CHECK_EQ(0x04, static_cast<int>(kDrillFtYoshi));
     CHECK_EQ(0x0A, static_cast<int>(kDrillFtNess));
     CHECK_EQ(0x0C, static_cast<int>(kDrillFtPeach));
+    CHECK_EQ(0x14, static_cast<int>(kDrillFtGanondorf));
     CHECK_EQ(0x1A, static_cast<int>(kDrillFtLucas));
     CHECK_EQ(0x26, static_cast<int>(kDrillFtMewtwo));
 
     CHECK(isFloatCapable(kDrillFtPeach));
     CHECK(isFloatCapable(kDrillFtMewtwo));
+    CHECK(isFloatCapable(kDrillFtGanondorf));
     CHECK(!isFloatCapable(kDrillFtLucas));
     CHECK(!isFloatCapable(0x00));
 
@@ -82,6 +84,7 @@ TEST(stage4a_hover_ps, verified_fighter_kind_ids_and_debug_block_layout)
     CHECK(isDjcCapable(kDrillFtPeach));
     CHECK(isDjcCapable(kDrillFtLucas));
     CHECK(isDjcCapable(kDrillFtMewtwo));
+    CHECK(!isDjcCapable(kDrillFtGanondorf));
     CHECK(!isDjcCapable(0x05)); // Kirby is not a DJC character
     CHECK(!isDjcCapable(0x00)); // Mario
 
@@ -775,4 +778,77 @@ TEST(stage4a_hover_ps, powershield_frame3_light_to_hard_non_ps_hit_is_buffered_n
     CHECK_EQ(static_cast<int>(kPsMissEarly), static_cast<int>(st.last.outcome));
     CHECK_EQ(-1, static_cast<int>(st.last.offsetFrames));
     CHECK_EQ(1u, st.stats.earlyMisses);
+}
+
+TEST(stage4a_hover_ps, ganondorf_dead_mans_float_cancel_and_grounded_warlock_punch_ignored)
+{
+    FloatDjcSlot st;
+    floatDjcResetAll(st);
+
+    // 1. Grounded Warlock Punch (status 0x112 with airborne == 0) even if drifting
+    // off a platform later must NOT be graded as Dead Man's Float.
+    FloatDjcInput in = makeFd(10, kDrillFtGanondorf, kFdStSpecialN, 0x1BE, 0, 0.0f, 0.0f);
+    addFdEv(in, kFdStWait, kFdStSpecialN, 0x00, 0, 0);
+    stepFloatDjc(in, st);
+    CHECK(!st.inFloat);
+    CHECK(st.groundedFloatStatus);
+
+    in = makeFd(15, kDrillFtGanondorf, kFdStSpecialN, 0x1BE, 1, 2.0f, -0.5f);
+    stepFloatDjc(in, st);
+    CHECK(!st.inFloat);
+
+    in = makeFd(20, kDrillFtGanondorf, kFdStLanding, 0x30, 0, 0.0f, -1.0f);
+    addFdEv(in, kFdStSpecialN, kFdStLanding, 0x1BE, 0, 0);
+    stepFloatDjc(in, st);
+    CHECK_EQ(0u, st.stats.fcAttempts);
+    CHECK_EQ(0u, st.stats.fcSuccesses);
+
+    // 2. Airborne Dead Man's Float (0x112, airborne == 1) -> AttackAir (0x33) -> Landing (0x16) = Float Cancel Success!
+    in = makeFd(30, kDrillFtGanondorf, kFdStSpecialN, 0x1BF, 1, 3.0f, 0.0f);
+    addFdEv(in, kFdStJump, kFdStSpecialN, 0x10, 0, 1);
+    stepFloatDjc(in, st);
+    CHECK(st.inFloat);
+    CHECK(!st.groundedFloatStatus);
+    CHECK(!st.isHover);
+
+    in = makeFd(35, kDrillFtGanondorf, kFdStAttackAir, 0x62, 1, 1.8f, -0.4f);
+    addFdEv(in, kFdStSpecialN, kFdStAttackAir, 0x1BF, 0, 1);
+    stepFloatDjc(in, st);
+    CHECK(!st.inFloat);
+    CHECK(st.floatAerialVia33);
+    CHECK_EQ(0x62, static_cast<int>(st.floatAerialMotion));
+
+    in = makeFd(38, kDrillFtGanondorf, kFdStLanding, 0x30, 0, 0.0f, -1.0f);
+    addFdEv(in, kFdStAttackAir, kFdStLanding, 0x62, 0, 0);
+    stepFloatDjc(in, st);
+    CHECK_EQ(static_cast<int>(kFcSuccess), static_cast<int>(st.last.fcOutcome));
+    CHECK_EQ(0, static_cast<int>(st.last.fcIsHover));
+    CHECK_EQ(1u, st.stats.fcAttempts);
+    CHECK_EQ(1u, st.stats.fcSuccesses);
+    CHECK_EQ(1u, st.stats.fcStreak);
+
+    // 3. Dropped Dead Man's Float -> Fall (0x0E) -> AttackAir (0x33) -> Landing_Attack_Air (0x18) = Full Lag Miss.
+    in = makeFd(50, kDrillFtGanondorf, kFdStSpecialN, 0x1BF, 1, 8.0f, 0.0f);
+    addFdEv(in, kFdStJump, kFdStSpecialN, 0x10, 0, 1);
+    stepFloatDjc(in, st);
+    CHECK(st.inFloat);
+
+    in = makeFd(54, kDrillFtGanondorf, kFdStFall, 0x19, 1, 7.2f, -0.6f);
+    addFdEv(in, kFdStSpecialN, kFdStFall, 0x1BF, 0, 1);
+    stepFloatDjc(in, st);
+    CHECK(!st.inFloat);
+    CHECK_EQ(54, st.droppedFloatFrame);
+
+    in = makeFd(56, kDrillFtGanondorf, kFdStAttackAir, 0x63, 1, 4.5f, -1.2f);
+    addFdEv(in, kFdStFall, kFdStAttackAir, 0x19, 0, 1);
+    stepFloatDjc(in, st);
+    CHECK(st.droppedFloatAerial);
+
+    in = makeFd(60, kDrillFtGanondorf, kFdStLandingAttackAir, 0x68, 0, 0.0f, -1.8f);
+    addFdEv(in, kFdStAttackAir, kFdStLandingAttackAir, 0x63, 0, 0);
+    stepFloatDjc(in, st);
+    CHECK_EQ(static_cast<int>(kFcMissFullLag), static_cast<int>(st.last.fcOutcome));
+    CHECK_EQ(2u, st.stats.fcAttempts);
+    CHECK_EQ(1u, st.stats.fcSuccesses);
+    CHECK_EQ(0u, st.stats.fcStreak);
 }

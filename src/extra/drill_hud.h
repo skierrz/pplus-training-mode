@@ -41,6 +41,7 @@ namespace extra {
     void drillHudDraw(const game::MatchState& match);
     u8 drillHudActiveId();
     bool drillHudModalOpen();
+    void drillHudStartDrill(u8 drillId);
     void drillHudSetMode(u8 mode);
     void drillHudDisable();
 
