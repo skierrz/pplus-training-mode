@@ -4,6 +4,7 @@
 //  3. Dashback SlowTurn.asm frame-2 gate (no bogus Slow Dashback after natural turn)
 //  4. Combo multi-hit same-frame status chains, slide-off Damage->DamageAir, pummel
 //  5. CPU shieldLag detection on 0-hitlag and shorter-hitlag shield transitions
+//  6. Hurtbox state 3 (None / disabled) never marks Body::intangible = 1
 #define TM_MODULE_MAIN 1
 
 #include <ft/ft_entry_manager.h>
@@ -19,10 +20,12 @@
 #include "host/test.h"
 #include "main/game/body.h"
 #include "main/game/fighters.h"
+#include "main/game/motion.h"
 #include "main/game/pad_inmatch.h"
 #include "main/game/status_ids.h"
 #include "main/game/techniques.h"
 #include "main/game/tracker.h"
+#include "shared/game/mem.h"
 
 extern ftEntryManager* g_ftEntryManager;
 extern ftManager* g_ftManager;
@@ -106,6 +109,28 @@ namespace {
 #undef readBody
 #undef tracked
 #undef trackerFrame
+
+namespace {
+    static bool eb_bodyReadMotion(Fighter*, tm::game::MotionInfo&)
+    {
+        return false;
+    }
+}
+
+// Compile the real body.cpp under test (hurtbox status and readBody paths).
+#define floatAt eb_bodyFloatAt
+#define instanceInt eb_bodyInstanceInt
+#define extraInfo eb_bodyExtraInfo
+#define readWorkValues eb_bodyReadWorkValues
+#define readBody eb_bodyReadBody
+#define readMotion eb_bodyReadMotion
+#include "main/game/body.cpp"
+#undef readMotion
+#undef readBody
+#undef readWorkValues
+#undef extraInfo
+#undef instanceInt
+#undef floatAt
 
 namespace {
     using namespace tm;
@@ -512,4 +537,78 @@ TEST(engine_bugfixes, dacus_osd_detects_cstick_up_and_held_a_z_late_misses)
     CHECK_EQ(1, static_cast<int>(s_ebSink.lastDacus.frame));
 
     teardownEbWorld();
+}
+
+TEST(engine_bugfixes, hurtbox_disabled_state_3_does_not_mark_body_intangible)
+{
+    // Direct check of Brawl soCollisionHitGroup::getTotalStatus (max(0, whole, global))
+    // across all 16 combinations of HitStatus {0=Normal, 1=Invincible, 2=Intangible, 3=None}.
+    for (u32 whole = 0; whole <= 3; whole++)
+    {
+        for (u32 global = 0; global <= 3; global++)
+        {
+            u32 total = whole > global ? whole : global;
+            u8 want = (total == 1 || total == 2) ? 1 : 0;
+            CHECK_EQ(static_cast<int>(want), static_cast<int>(game::hitGroupIntangible(whole, global)));
+        }
+    }
+    // Out-of-range and negative states never falsely mark intangible.
+    CHECK_EQ(0, static_cast<int>(game::hitGroupIntangible(4, 0)));
+    CHECK_EQ(0, static_cast<int>(game::hitGroupIntangible(0, 4)));
+    CHECK_EQ(0, static_cast<int>(game::hitGroupIntangible(0xFFFFFFFFu, 0)));
+    CHECK_EQ(1, static_cast<int>(game::hitGroupIntangible(0xFFFFFFFFu, 2)));
+
+    // End-to-end check through the real body.cpp readBody() over fake RAM structures.
+    host::fakes::FakeFighter& ff = host::fakes::addFighter();
+    u8* posture = static_cast<u8*>(host::mem::alloc(0x30, 8));
+    *reinterpret_cast<float*>(posture + 0x0C) = 12.5f; // pos.x
+    *reinterpret_cast<float*>(posture + 0x10) = 3.0f;  // pos.y
+    *reinterpret_cast<float*>(posture + 0x1C) = 2.0f;  // prevPos.y
+    ff.modules->m_postureModule = reinterpret_cast<soPostureModule*>(posture);
+
+    u8* hitMod = static_cast<u8*>(host::mem::alloc(0x60, 8));
+    u8* hitArray = static_cast<u8*>(host::mem::alloc(0x50, 8));
+    *reinterpret_cast<u32*>(hitMod + 0x58) = reinterpret_cast<u32>(hitArray);
+    u8* group = hitArray + 0x0C;
+    *reinterpret_cast<float*>(group + 0x08) = 12.5f; // m_posX matches posture pos.x
+    ff.modules->m_collisionHitModule = reinterpret_cast<soCollisionHitModule*>(hitMod);
+
+    struct BodyCase {
+        u32 whole;
+        u32 global;
+        u32 xlu;
+        u32 inv;
+        u8 wantIntangible;
+        s32 wantXlu;
+        u8 wantInv;
+    };
+    static const BodyCase kCases[] = {
+        {0, 0, 0, 0, 0, 0, 0},     // Normal
+        {1, 0, 0, 0, 1, 0, 0},     // Whole Invincible (move startup)
+        {2, 0, 0, 0, 1, 0, 0},     // Whole Intangible (spotdodge / roll / airdodge)
+        {3, 0, 0, 0, 0, 0, 0},     // Whole Disabled (None) -> MUST be 0
+        {0, 1, 0, 12, 1, 0, 12},   // Global Invincible
+        {0, 2, 31, 0, 1, 31, 0},   // Global Intangible (ledge / respawn)
+        {0, 3, 0, 0, 0, 0, 0},     // Global Disabled -> MUST be 0
+        {3, 1, 0, 10, 0, 0, 10},   // Disabled overrides Invincible
+        {3, 2, 15, 0, 0, 15, 0},   // Disabled overrides Intangible
+        {1, 2, 8, 300, 1, 8, 255}, // Invincible + Intangible + invFrames clamp
+        {2, 1, 0, 5, 1, 0, 5},     // Intangible + Invincible
+        {3, 3, 0, 0, 0, 0, 0}      // Both Disabled -> MUST be 0
+    };
+    for (u32 i = 0; i < sizeof(kCases) / sizeof(kCases[0]); i++)
+    {
+        const BodyCase& c = kCases[i];
+        *reinterpret_cast<u32*>(group + 0x1C) = c.whole;
+        *reinterpret_cast<u32*>(group + 0x20) = c.global;
+        *reinterpret_cast<u32*>(group + 0x24) = c.xlu;
+        *reinterpret_cast<u32*>(group + 0x28) = c.inv;
+
+        game::Body out;
+        memset(&out, 0xCC, sizeof(out));
+        CHECK(game::eb_bodyReadBody(ff.fighter, out));
+        CHECK_EQ(static_cast<int>(c.wantIntangible), static_cast<int>(out.intangible));
+        CHECK_EQ(c.wantXlu, out.xluFrames);
+        CHECK_EQ(static_cast<int>(c.wantInv), static_cast<int>(out.invFrames));
+    }
 }

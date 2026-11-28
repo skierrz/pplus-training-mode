@@ -3,7 +3,9 @@
 #include "main/game/body.h"
 
 #include <so/so_module_accesser.h>
+#ifdef __MWERKS__
 #include <so/controller/so_controller_module_impl.h>
+#endif
 
 #include "main/game/fighters.h"
 #include "main/game/motion.h"
@@ -94,6 +96,27 @@ namespace game {
         lCancel = instanceInt(m, kLCancelInt);
     }
 
+    // Brawl soCollisionHitGroup::getTotalStatus (0x8074D2F4) and ::update
+    // (0x8074CDEC) take max(0, m_whole, m_global). HitStatus values
+    // (updateGlobal 0x8074CF80, update 0x8074CE1C): 0 = Normal, 1 = Invincible,
+    // 2 = Intangible (XLU), 3 = None (hurtbox group disabled). State 3 disables
+    // hurtboxes rather than granting invincibility or intangibility.
+    static inline u8 hitGroupIntangible(u32 whole, u32 global)
+    {
+        s32 total = 0;
+        s32 w = static_cast<s32>(whole);
+        s32 g = static_cast<s32>(global);
+        if (w > total)
+        {
+            total = w;
+        }
+        if (g > total)
+        {
+            total = g;
+        }
+        return static_cast<u8>((total == 1 || total == 2) ? 1 : 0);
+    }
+
     bool readBody(Fighter* fighter, Body& out)
     {
         const soModuleEnumeration* m = fighterModules(fighter);
@@ -125,6 +148,7 @@ namespace game {
                 }
             }
         }
+#ifdef __MWERKS__
         soControllerModule* c = m->m_controllerModule;
         if (isRam(c))
         {
@@ -147,6 +171,7 @@ namespace game {
             out.triggerButtons = c->getTrigger().m_mask;
             out.clatter = c->getClatterTime(0);
         }
+#endif
 
         out.xluFrames = 0;
         out.invFrames = 0;
@@ -164,7 +189,7 @@ namespace game {
                     out.xluFrames = static_cast<s32>(wordAt(group, kGroupXlu));
                     u32 inv = wordAt(group, kGroupInvincible);
                     out.invFrames = static_cast<u8>(inv > 255 ? 255 : inv);
-                    out.intangible = (wordAt(group, kGroupWhole) != 0 || wordAt(group, kGroupGlobal) != 0) ? 1 : 0;
+                    out.intangible = hitGroupIntangible(wordAt(group, kGroupWhole), wordAt(group, kGroupGlobal));
                 }
             }
         }
