@@ -573,16 +573,16 @@ namespace storage {
         s_pendingSequence = h->sequence;
         s_pendingSlot = static_cast<u8>(s_state->slot ^ 1);
         s_pendingSize = size;
-        if (s_jobStale || s_job.busy())
+        if (s_jobStale || s_job.busy() || !s_job.makeFolder())
         {
-            s_again = true;
-            notice(kNoticeWarn, "Lab settings not saved: %s", resultText(kBusy));
-            return;
-        }
-        // The folder first (it exists after the first save; creating it again is harmless).
-        if (!s_job.makeFolder())
-        {
-            s_phase = kIdle;
+            if (s_jobStale || s_job.busy())
+            {
+                s_again = true;
+            }
+            else
+            {
+                s_phase = kIdle;
+            }
             notice(kNoticeWarn, "Lab settings not saved: %s", resultText(kBusy));
             return;
         }

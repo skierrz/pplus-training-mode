@@ -106,6 +106,8 @@ namespace pages {
 
     TM_STATIC_ASSERT(kPracticeScratchOffset >= kScenarioScratchOffset + sizeof(ScenarioMenuState),
                      tm_practice_scratch_after_scenarios);
+    TM_STATIC_ASSERT(kPracticeScratchOffset + sizeof(PracticeMenuState) <= kOsdSaveSlotScratchOffset,
+                     tm_practice_scratch_before_osd_save);
     TM_STATIC_ASSERT(kPracticeScratchOffset + sizeof(PracticeMenuState) <= kScratchBytes,
                      tm_practice_scratch_fits_menu_scratch);
 

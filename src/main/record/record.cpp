@@ -1053,50 +1053,6 @@ namespace record {
 
     // Slot chances: a slot that gets inputs takes an equal share, and one that
     // loses inputs returns its share to the remaining recorded slots.
-    static void rebalance(u8* chance, u32 enabled, int keep)
-    {
-        int count = 0;
-        int others = 0;
-        for (int i = 0; i < kSlotCount; i++)
-        {
-            if (!(enabled & (1u << i)))
-            {
-                chance[i] = 0;
-            }
-            else
-            {
-                count++;
-                others += i == keep ? 0 : chance[i];
-            }
-        }
-        if (count == 0)
-        {
-            return;
-        }
-        int left = 100 - (keep >= 0 ? chance[keep] : 0);
-        int given = 0;
-        int last = -1;
-        for (int i = 0; i < kSlotCount; i++)
-        {
-            if (!(enabled & (1u << i)) || i == keep)
-            {
-                continue;
-            }
-            int n = keep >= 0 ? count - 1 : count;
-            chance[i] = static_cast<u8>(others > 0 ? chance[i] * left / others : left / n);
-            given += chance[i];
-            last = i;
-        }
-        if (last >= 0)
-        {
-            chance[last] = static_cast<u8>(chance[last] + left - given);
-        }
-        else if (keep >= 0)
-        {
-            chance[keep] = 100;
-        }
-    }
-
     static void updateChances()
     {
         for (int side = 0; side < kSides; side++)
@@ -1131,7 +1087,7 @@ namespace record {
             {
                 chance[keep] = static_cast<u8>(100 / count);
             }
-            rebalance(chance, has, keep);
+            main::rebalanceWeights(chance, kSlotCount, has, keep);
         }
     }
 
@@ -2109,7 +2065,7 @@ namespace record {
     void chanceChanged(int side, int slot)
     {
         u8* chance = side == kHmn ? settings().recording.hmnChance : settings().recording.cpuChance;
-        rebalance(chance, s_hadInputs[side], slot);
+        main::rebalanceWeights(chance, kSlotCount, s_hadInputs[side], slot);
     }
 
     void deleteManagedSlotPressed()

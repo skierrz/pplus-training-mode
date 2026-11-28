@@ -717,5 +717,8 @@ namespace main {
     // Per-side views of the percent options (human: General, CPU: CPU Options).
     u16 percentSetting(int side);
     bool lockSetting(int side);
+
+    // Rebalances enabled weight entries in `chance[0..count)` to sum to 100 while preserving `keep`.
+    void rebalanceWeights(u8* chance, int count, u32 enabled, int keep);
 }
 }

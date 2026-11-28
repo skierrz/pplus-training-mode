@@ -511,9 +511,20 @@ TEST(olimar_lab, menu_submenu_visibility_scratch_sync_and_storage_roundtrip)
     CHECK_EQ(static_cast<int>(main::kStartSlotPurple),
              static_cast<int>(extra::olimarStartSlot(main::settings().fighterMechanics, 0)));
 
+    // Preset D-Up..Right (rows 18..21) stay hidden while D-Pad Mode != Lineup Presets (2).
+    CHECK((oli.options[18].flags & ui::kFlagHideWhenDisabled) != 0);
+    CHECK(oli.options[18].enabled != NULL && !oli.options[18].enabled());
+    st.cursor[ui::pages::P_OLIMAR] = 0; // Switch D-Pad Mode 1 -> 2 (Lineup Presets)
+    ui::menuStep(menu, st, inRight);
+    CHECK_EQ(static_cast<int>(main::kOlimarDpadPresets),
+             static_cast<int>(extra::olimarDpadMode(main::settings().fighterMechanics)));
+    CHECK(oli.options[18].enabled());
     st.cursor[ui::pages::P_OLIMAR] = 18; // Preset D-Up -> 6 (2Y + 2P)
     for (int k = 0; k < 6; k++) ui::menuStep(menu, st, inRight);
     CHECK_EQ(6, static_cast<int>(extra::olimarDpadPreset(main::settings().fighterMechanics, extra::kOliDirUp)));
+    st.cursor[ui::pages::P_OLIMAR] = 0; // Switch back to B+D-Pad Pluck (1); preset values persist
+    ui::menuStep(menu, st, inLeft);
+    CHECK(!oli.options[18].enabled());
 
     // Persist to SD card and reload from scratch on a clean boot.
     storage::settingsMenuClosed();

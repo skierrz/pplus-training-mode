@@ -474,12 +474,14 @@ TEST(reversals_tech, sd_migration_from_46_byte_cpu_options_and_round_trip)
     CHECK(strcmp(countersPage.options[11].name, "SHFFL Timing") == 0);
 
     const ui::Page& osdPage = ui::pages::kOsdMenu;
-    REQUIRE(osdPage.count == 26);
-    CHECK(strcmp(osdPage.options[4].name, "Tech Sparkle") == 0);
-    CHECK_EQ(static_cast<int>(main::kTechSparkleWavedash), static_cast<int>(osdPage.options[4].def));
-    CHECK(strcmp(osdPage.options[5].name, "P+ Tech OSD") == 0);
-    CHECK_EQ(ui::kKindToggle, osdPage.options[5].kind);
-    CHECK_EQ(0, osdPage.options[5].def);
+    REQUIRE(osdPage.count == 8);
+    CHECK(strcmp(osdPage.options[6].name, "Tech Sparkle") == 0);
+    CHECK_EQ(static_cast<int>(main::kTechSparkleWavedash), static_cast<int>(osdPage.options[6].def));
+    const ui::Page& osdIndiv = ui::pages::kOsdIndividual;
+    REQUIRE(osdIndiv.count == 21);
+    CHECK(strcmp(osdIndiv.options[20].name, "P+ Tech OSD") == 0);
+    CHECK_EQ(ui::kKindToggle, osdIndiv.options[20].kind);
+    CHECK_EQ(0, osdIndiv.options[20].def);
 
     // P_REVERSALS has 15 rows (including live Slot 1 primary readout) and every row has a description in extra.
     const ui::Page& revPage = ui::pages::kReversalSlots;

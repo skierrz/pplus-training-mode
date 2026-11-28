@@ -38,6 +38,7 @@ namespace ui {
     enum {
         kScratchBytes = 112,
         kShowInactiveScratchOffset = 32,
+        kOsdSaveSlotScratchOffset = 83,
         kLedgeDismissScratchOffset = 84,
         kDiPickActiveScratchOffset = 85,
         kCounterModeScratchOffset = 86,

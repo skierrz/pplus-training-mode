@@ -79,7 +79,7 @@ namespace pages {
             comboRandGroundEnabled, comboDamageSourceEnabled, comboFixedDmgEnabled, comboOptionEnabled,
             comboRecChildEnabled, main::extraLoaded
         };
-        static const RowSpec kCt[23] = {
+        static const RowSpec kCt[22] = {
             {kKindToggle, 0, TM_FIELD(comboTrainer.enabled), 0, 0, 1, 0xFF, 0, 1, 0},
             {kKindToggle, 0, TM_FIELD(comboTrainer.noclip), 0, 1, 1, 0xFF, 0, 2, 0},
             {kKindToggle, 0, TM_FIELD(comboTrainer.fixPosition), 0, 0, 1, 0xFF, 0, 3, 0},
@@ -95,7 +95,6 @@ namespace pages {
             {kKindInt,    kFlagSigned, TM_FIELD(comboTrainer.comboTimerAdjustment), -60, 0, 60, 4, 0, 4, 0},
             {kKindToggle, 0, TM_FIELD(comboTrainer.recoveryTrainer), 0, 0, 1, 0xFF, 0, 8, 0},
             {kKindChoice, kFlagHideWhenDisabled, TM_FIELD(comboTrainer.recoveryMixup), TM_CHOICE_LO, main::kRecMixupMixed, main::kRecMixupCount - 1, 5, 0, 9, 0},
-            {kKindMenu,   0, 0, 0, 0, P_COMBO_METERS, 0xFF, 0, 10, 0},
             {kKindToggle, kFlagBit, TM_FIELD(comboTrainer.enabledMeters), main::kMeterHitlag, 0, 1, 0xFF, 0, 10, 0},
             {kKindToggle, kFlagBit, TM_FIELD(comboTrainer.enabledMeters), main::kMeterHitstun, 0, 1, 0xFF, 0, 10, 0},
             {kKindToggle, kFlagBit, TM_FIELD(comboTrainer.enabledMeters), main::kMeterShieldstun, 0, 1, 0xFF, 0, 10, 0},
@@ -104,9 +103,9 @@ namespace pages {
             {kKindToggle, kFlagBit, TM_FIELD(comboTrainer.enabledMeters), main::kMeterLedgeIntang, 0, 1, 0xFF, 0, 10, 0},
             {kKindToggle, kFlagBit, TM_FIELD(comboTrainer.enabledMeters), main::kMeterIntang, 0, 1, 0xFF, 0, 10, 0}
         };
-        fillPageRows(kComboTrainer, buf, 23, kCt, kPs_ct_names, kStrs, NULL, NULL, kGates);
-        kComboTrainer.count = 16;
-        kComboMeters.options = buf + 16;
+        fillPageRows(kComboTrainer, buf, 22, kCt, kPs_ct_names, kStrs, NULL, NULL, kGates);
+        kComboTrainer.count = 15;
+        kComboMeters.options = buf + 15;
         kComboMeters.count = 7;
     }
 #else
@@ -137,8 +136,7 @@ namespace pages {
         TM_COMBO_INT("Timer Adjust", comboTrainer.comboTimerAdjustment, -60, 60, 0, "%+df", comboFixPosChildEnabled),
         TM_COMBO_TOGGLE("Recovery Trainer", comboTrainer.recoveryTrainer, 0, comboOptionEnabled),
         TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(comboTrainer.recoveryMixup), main::kRecMixupCount,
-                        main::kRecMixupMixed, "Recovery Mixup", kRecMixups, NULL, comboRecChildEnabled),
-        TM_MENU_IF("Floating Meters", P_COMBO_METERS, main::extraLoaded)
+                        main::kRecMixupMixed, "Recovery Mixup", kRecMixups, NULL, comboRecChildEnabled)
     };
 
     static const Option kMeterRows[] = {

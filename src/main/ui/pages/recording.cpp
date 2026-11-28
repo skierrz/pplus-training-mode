@@ -43,6 +43,7 @@ namespace pages {
 
 #ifdef __MWERKS__
     extern Page kRecording = {"Recording", NULL, 0, {0, 0, 0}};
+    extern Page kRecManage = {"Playback & Positions", NULL, 0, {0, 0, 0}};
     static Option* s_recRows = NULL;
 
     static bool saveRow()
@@ -73,28 +74,32 @@ namespace pages {
             record::loopRowsAvailable, record::positionsSaved, storage::exportAvailable
         };
         const u8 kH = kFlagHideWhenDisabled;
-        static const RowSpec kSpecs[19] = {
+        static const RowSpec kSpecs[18] = {
+            // P_RECORDING (0..8)
             {kKindFunc,   0,  0, 0, 0, 0, 0xFF, 1, 1, 0},
             {kKindChoice, kH, TM_FIELD(recording.hmnMode), TM_CHOICE_LO, 0, 3, 0, 2, 2, 0},
             {kKindChoice, kH, TM_FIELD(recording.hmnSlot), TM_CHOICE_LO, 1, 6, 1, 3, 2, 0},
             {kKindChoice, kH, TM_FIELD(recording.cpuMode), TM_CHOICE_LO, 0, 4, 2, 4, 3, 0},
             {kKindChoice, kH, TM_FIELD(recording.cpuSlot), TM_CHOICE_LO, 1, 6, 1, 3, 3, 0},
-            {kKindChoice, kH, TM_FIELD(recording.mirrored), TM_CHOICE_LO, 0, 2, 3, 5, 4, 0},
-            {kKindChoice, kH, TM_FIELD(recording.cpuCounter), TM_CHOICE_LO, 1, 4, 4, 0, 3, 0},
             {kKindToggle, kH, TM_FIELD(recording.loop), 0, 0, 1, 0xFF, 0, 5, 0},
             {kKindChoice, kH, TM_FIELD(recording.autoRestore), TM_CHOICE_LO, 0, 2, 5, 0, 5, 0},
+            {kKindMenu,   kH, 0, 0, 0, P_SLOTS, 0xFF, 0, 6, 0},
+            {kKindMenu,   kH, 0, 0, 0, P_REC_MANAGE, 0xFF, 0, 6, 0},
+            // P_REC_MANAGE (9..17)
+            {kKindChoice, kH, TM_FIELD(recording.mirrored), TM_CHOICE_LO, 0, 2, 3, 5, 4, 0},
+            {kKindChoice, kH, TM_FIELD(recording.cpuCounter), TM_CHOICE_LO, 1, 4, 4, 0, 3, 0},
             {kKindToggle, kH, TM_FIELD(recording.startPaused), 0, 0, 1, 0xFF, 0, 6, 0},
             {kKindChoice, kH, TM_FIELD(recording.takeover), TM_CHOICE_LO, 0, 2, 6, 0, 6, 0},
             {kKindToggle, kH, TM_FIELD(recording.startOnFirstInput), 0, 0, 1, 0xFF, 0, 6, 0},
             {kKindFunc,   kH, 0, 0, 0, 0, 0xFF, 6, 6, 0},
             {kKindFunc,   kH, 0, 0, 0, 0, 0xFF, 7, 6, 0},
             {kKindFunc,   kH, 0, 0, 0, 0, 0xF0, 8, 6, 0},
-            {kKindMenu,   kH, 0, 0, 0, P_SLOTS, 0xFF, 0, 6, 0},
-            {kKindMenu,   kH, 0, 0, 0, P_HMN_CHANCES, 0xFF, 0, 6, 0},
-            {kKindMenu,   kH, 0, 0, 0, P_CPU_CHANCES, 0xFF, 0, 6, 0},
             {kKindFunc,   kH, 0, 0, 0, 0, 0xFF, 9, 7, 0}
         };
-        fillPageRows(kRecording, buf, 19, kSpecs, kPs_rec_names, kStrs, kExtra, kCbs, kGates);
+        fillPageRows(kRecording, buf, 18, kSpecs, kPs_rec_names, kStrs, kExtra, kCbs, kGates);
+        kRecording.count = 9;
+        kRecManage.options = buf + 9;
+        kRecManage.count = 9;
     }
 
     void detachRecordingPage()
@@ -109,11 +114,16 @@ namespace pages {
         TM_REC_CHOICE("P1 Record Slot", recording.hmnSlot, kSlot, 7, 1, record::slotChanged, record::modeRowsAvailable),
         TM_REC_CHOICE("CPU Mode", recording.cpuMode, kCpuMode, 5, 0, record::cpuModeChanged, record::cpuRowsAvailable),
         TM_REC_CHOICE("CPU Record Slot", recording.cpuSlot, kSlot, 7, 1, record::slotChanged, record::cpuRowsAvailable),
+        TM_REC_TOGGLE("Loop Playback", recording.loop, 0, record::loopRowsAvailable),
+        TM_REC_CHOICE("Auto Restore", recording.autoRestore, kAutoRestore, 3, 0, NULL, record::loopRowsAvailable),
+        TM_REC_MENU("Slot Management & Chances", P_SLOTS, record::positionsSaved),
+        TM_REC_MENU("Playback & Positions", P_REC_MANAGE, record::positionsSaved)
+    };
+
+    static const Option kManageRows[] = {
         TM_REC_CHOICE("Mirrored Playback", recording.mirrored, kMirrored, 3, 0, record::mirroredChanged,
                       record::mirrorRowAvailable),
         TM_REC_CHOICE("CPU Counter", recording.cpuCounter, kCpuCounter, 5, 1, NULL, record::cpuRowsAvailable),
-        TM_REC_TOGGLE("Loop Playback", recording.loop, 0, record::loopRowsAvailable),
-        TM_REC_CHOICE("Auto Restore", recording.autoRestore, kAutoRestore, 3, 0, NULL, record::loopRowsAvailable),
         TM_REC_TOGGLE("Start Paused", recording.startPaused, 0, record::positionsSaved),
         TM_REC_CHOICE("Playback Takeover", recording.takeover, kTakeover, 3, 0, NULL, record::positionsSaved),
         TM_REC_TOGGLE("Start On Input", recording.startOnFirstInput, 0, record::positionsSaved),
@@ -121,9 +131,6 @@ namespace pages {
         TM_REC_FUNC("Prune Positions", record::prunePositions, record::positionsSaved),
         TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, "Delete Positions",
                record::g_deletePosLabel, record::deletePositionsPressed, record::positionsSaved),
-        TM_REC_MENU("Slot Management", P_SLOTS, record::positionsSaved),
-        TM_REC_MENU("P1 Slot Chances", P_HMN_CHANCES, record::positionsSaved),
-        TM_REC_MENU("CPU Slot Chances", P_CPU_CHANCES, record::positionsSaved),
         TM_REC_FUNC("Export Recording", storage::exportRecording, storage::exportAvailable)
     };
 
@@ -134,6 +141,7 @@ namespace pages {
     }
 
     extern const Page kRecording = TM_PAGE("Recording", kRows);
+    extern const Page kRecManage = TM_PAGE("Playback & Positions", kManageRows);
 #endif
 }
 }

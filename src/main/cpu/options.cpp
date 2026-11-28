@@ -896,11 +896,11 @@ namespace cpu {
 
         // A cue that starts has this frame, whatever the state.
         bool playingRec = false;
-        switch (cueNow(out, who, q) ? -1 : state)
+        if (!cueNow(out, who, q))
         {
-        case -1:
-            break;
-        case kIdle:
+            switch (state)
+            {
+            case kIdle:
             if (!main::extraScenarioCpuStep(who, v, f, out, lastButtons(slot)))
             {
                 idle(out, who);
@@ -1121,9 +1121,10 @@ namespace cpu {
                 revPicked = false;
             }
             break;
-        default:
-            state = kIdle;
-            break;
+            default:
+                state = kIdle;
+                break;
+            }
         }
         if (!playingRec && playSlot < 0 && !q.hold)
         {

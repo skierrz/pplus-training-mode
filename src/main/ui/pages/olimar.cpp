@@ -108,6 +108,11 @@ namespace pages {
         main::extraOlimarAction(main::kOlimarMoveLead, 0u, 0u);
     }
 
+    static bool olimarDpadPresets()
+    {
+        return olimarMenuState()->dpadMode == main::kOlimarDpadPresets;
+    }
+
 #ifdef __MWERKS__
     extern Page kOlimar = {"Olimar", NULL, 0, {0, 0, 0}};
 
@@ -121,6 +126,7 @@ namespace pages {
             NULL, olimarPullChanged, olimarScratchChanged, olimarAllMatChanged,
             olimarColorMatChanged, olimarMoveLeadPressed
         };
+        static bool (*const kGates[2])() = {NULL, olimarDpadPresets};
         const u16 kPullOff = TM_FIELD(fighterMechanics.olimarPullAndWhistle);
         static const RowSpec kSpecs[22] = {
             {kKindChoice, kFlagScratch, TM_OLI_SCR(dpadMode), TM_CHOICE_LO, 0, main::kOlimarDpadModeCount - 1, 0, 2, 0, 0},
@@ -141,12 +147,12 @@ namespace pages {
             {kKindChoice, kFlagScratch, TM_OLI_SCR(startSlot) + 1, TM_CHOICE_LO, 0, main::kOlimarStartSlotCount - 1, 3, 2, 0, 0},
             {kKindChoice, kFlagScratch, TM_OLI_SCR(startSlot) + 2, TM_CHOICE_LO, 0, main::kOlimarStartSlotCount - 1, 3, 2, 0, 0},
             {kKindChoice, kFlagScratch, TM_OLI_SCR(startSlot) + 3, TM_CHOICE_LO, 0, main::kOlimarStartSlotCount - 1, 3, 2, 0, 0},
-            {kKindChoice, kFlagScratch, TM_OLI_SCR(dpadPreset) + 0, TM_CHOICE_LO, 0, main::kOlimarPresetCount - 1, 4, 2, 0, 0},
-            {kKindChoice, kFlagScratch, TM_OLI_SCR(dpadPreset) + 1, TM_CHOICE_LO, 0, main::kOlimarPresetCount - 1, 4, 2, 0, 0},
-            {kKindChoice, kFlagScratch, TM_OLI_SCR(dpadPreset) + 2, TM_CHOICE_LO, 0, main::kOlimarPresetCount - 1, 4, 2, 0, 0},
-            {kKindChoice, kFlagScratch, TM_OLI_SCR(dpadPreset) + 3, TM_CHOICE_LO, 0, main::kOlimarPresetCount - 1, 4, 2, 0, 0}
+            {kKindChoice, kFlagScratch | kFlagHideWhenDisabled, TM_OLI_SCR(dpadPreset) + 0, TM_CHOICE_LO, 0, main::kOlimarPresetCount - 1, 4, 2, 1, 0},
+            {kKindChoice, kFlagScratch | kFlagHideWhenDisabled, TM_OLI_SCR(dpadPreset) + 1, TM_CHOICE_LO, 0, main::kOlimarPresetCount - 1, 4, 2, 1, 0},
+            {kKindChoice, kFlagScratch | kFlagHideWhenDisabled, TM_OLI_SCR(dpadPreset) + 2, TM_CHOICE_LO, 0, main::kOlimarPresetCount - 1, 4, 2, 1, 0},
+            {kKindChoice, kFlagScratch | kFlagHideWhenDisabled, TM_OLI_SCR(dpadPreset) + 3, TM_CHOICE_LO, 0, main::kOlimarPresetCount - 1, 4, 2, 1, 0}
         };
-        fillPageRows(kOlimar, buf, 22, kSpecs, kPs_oli_names, kStrs, NULL, kCbs, NULL);
+        fillPageRows(kOlimar, buf, 22, kSpecs, kPs_oli_names, kStrs, NULL, kCbs, kGates);
     }
 #else
     TM_LABELS_BEGIN(kOlimarDpadMode) TM_L("Off") TM_L("B+D-Pad Pluck") TM_L("Lineup Presets") TM_LABELS_END
@@ -175,6 +181,9 @@ namespace pages {
            bit, 1, 1, name, NULL, olimarPullChanged, NULL)
 #define TM_OLI_SCR_CHOICE(name, off, labels, count, cb)                                                        \
     TM_ROW_CHOICE_P(::tm::ui::kFlagScratch, off, count, 0, name, labels, cb, NULL)
+#define TM_OLI_PRESET_CHOICE(name, off)                                                                        \
+    TM_ROW_CHOICE_P(::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled, off, main::kOlimarPresetCount, 0,\
+                    name, kOlimarPresets, olimarScratchChanged, olimarDpadPresets)
 
     static const Option kRows[] = {
         TM_OLI_SCR_CHOICE("D-Pad Mode", TM_OLI_SCR(dpadMode), kOlimarDpadMode, main::kOlimarDpadModeCount, olimarScratchChanged),
@@ -195,13 +204,14 @@ namespace pages {
         TM_OLI_SCR_CHOICE("Start Slot 2", TM_OLI_SCR(startSlot) + 1, kOlimarStartSlot, main::kOlimarStartSlotCount, olimarScratchChanged),
         TM_OLI_SCR_CHOICE("Start Slot 3", TM_OLI_SCR(startSlot) + 2, kOlimarStartSlot, main::kOlimarStartSlotCount, olimarScratchChanged),
         TM_OLI_SCR_CHOICE("Start Slot 4", TM_OLI_SCR(startSlot) + 3, kOlimarStartSlot, main::kOlimarStartSlotCount, olimarScratchChanged),
-        TM_OLI_SCR_CHOICE("Preset D-Up", TM_OLI_SCR(dpadPreset) + 0, kOlimarPresets, main::kOlimarPresetCount, olimarScratchChanged),
-        TM_OLI_SCR_CHOICE("Preset D-Down", TM_OLI_SCR(dpadPreset) + 1, kOlimarPresets, main::kOlimarPresetCount, olimarScratchChanged),
-        TM_OLI_SCR_CHOICE("Preset D-Left", TM_OLI_SCR(dpadPreset) + 2, kOlimarPresets, main::kOlimarPresetCount, olimarScratchChanged),
-        TM_OLI_SCR_CHOICE("Preset D-Right", TM_OLI_SCR(dpadPreset) + 3, kOlimarPresets, main::kOlimarPresetCount, olimarScratchChanged)
+        TM_OLI_PRESET_CHOICE("Preset D-Up", TM_OLI_SCR(dpadPreset) + 0),
+        TM_OLI_PRESET_CHOICE("Preset D-Down", TM_OLI_SCR(dpadPreset) + 1),
+        TM_OLI_PRESET_CHOICE("Preset D-Left", TM_OLI_SCR(dpadPreset) + 2),
+        TM_OLI_PRESET_CHOICE("Preset D-Right", TM_OLI_SCR(dpadPreset) + 3)
     };
 #undef TM_OLI_BIT
 #undef TM_OLI_SCR_CHOICE
+#undef TM_OLI_PRESET_CHOICE
 
     extern const Page kOlimar = TM_PAGE("Olimar", kRows);
 #endif

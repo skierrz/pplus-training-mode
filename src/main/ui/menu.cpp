@@ -392,6 +392,10 @@ namespace ui {
         {
             pages::olimarSyncFromSettings();
         }
+        else if (id == pages::P_OSD_MENU)
+        {
+            pages::osdSyncSaveLabel();
+        }
         s_rail = isRailStyle(def);
         s_allowShowInactive = allowShowInactive(def, id);
         int first = nextRow(pageAt(def, id), -1, 1);
@@ -591,64 +595,88 @@ namespace ui {
             {
                 return -1;
             }
-            switch (targetPg)
+            struct ResetMap {
+                u8 page;
+                u8 act;
+            };
+            static const ResetMap kMap[14] = {
+                {pages::P_GENERAL, 1}, {pages::P_CONTROLS, 2}, {pages::P_CPU, 3},
+                {pages::P_CPU_COUNTERS, 4}, {pages::P_ADVANCED_COUNTER, 5},
+                {pages::P_OSD_MENU, 6}, {pages::P_OSD_INDIVIDUAL, 6},
+                {pages::P_STAGE_CAST, 7}, {pages::P_OLIMAR, 8},
+                {pages::P_RECORDING, 9}, {pages::P_SLOTS, 10}, {pages::P_REC_MANAGE, 10},
+                {pages::P_HMN_CHANCES, 11}, {pages::P_CPU_CHANCES, 12}
+            };
+            u8 act = 0;
+            for (int k = 0; k < 14; k++)
             {
-            case pages::P_GENERAL:
+                if (kMap[k].page == targetPg)
+                {
+                    act = kMap[k].act;
+                    break;
+                }
+            }
+            if (act == 1)
+            {
                 lab::frameAdvanceChanged();
                 lab::applyPercent(main::kSideHuman);
-                break;
-            case pages::P_CONTROLS:
+            }
+            else if (act == 2)
+            {
                 game::codeMenuSync();
-                break;
-            case pages::P_CPU:
+            }
+            else if (act == 3)
+            {
                 lab::applyPercent(main::kSideCpu);
                 cpu::controlledByChanged();
-                break;
-            case pages::P_CPU_COUNTERS:
-                main::settings().cpu.options.multiReversal = 0;
-                s_scratch[kCounterModeScratchOffset] = 0xFFu;
-                // fall through
-            case pages::P_ADVANCED_COUNTER:
+            }
+            else if (act == 4 || act == 5)
+            {
+                if (act == 4)
+                {
+                    main::settings().cpu.options.multiReversal = 0;
+                    s_scratch[kCounterModeScratchOffset] = 0xFFu;
+                }
                 cpu::advancedHitsDefaults(main::settings().cpuTables);
                 cpu::advancedHitChanged();
-                break;
-            case pages::P_OSD_MENU:
-                lab::osdSettingsChanged();
-                break;
-            case pages::P_STAGE_CAST:
-                main::extraStageOptionsChanged();
-                main::extraCharacterRng();
-                break;
-            case pages::P_OLIMAR:
-            {
-                main::FighterMechanicsSettings& fm = main::settings().fighterMechanics;
-                fm.olimarPikmin = 0;
-                fm.olimarMaturity = 0;
-                fm.olimarPullAndWhistle = main::kOlimarPullPoolAll;
-                fm.olimarColorMatAndMode = 0;
-                fm.olimarStartLineup = 0;
-                fm.olimarDpadPresets = 0;
-                pages::olimarSyncFromSettings();
-                main::extraCharacterRng();
-                break;
             }
-            case pages::P_RECORDING:
-                if (record::positionsSaved())
+            if (act == 6)
+            {
+                lab::osdSettingsChanged();
+                pages::osdSyncSaveLabel();
+            }
+            else if (act == 7 || act == 8)
+            {
+                if (act == 8)
+                {
+                    main::FighterMechanicsSettings& fm = main::settings().fighterMechanics;
+                    fm.olimarPikmin = 0;
+                    fm.olimarMaturity = 0;
+                    fm.olimarPullAndWhistle = main::kOlimarPullPoolAll;
+                    fm.olimarColorMatAndMode = 0;
+                    fm.olimarStartLineup = 0;
+                    fm.olimarDpadPresets = 0;
+                    pages::olimarSyncFromSettings();
+                }
+                else
+                {
+                    main::extraStageOptionsChanged();
+                }
+                main::extraCharacterRng();
+            }
+            else if (act == 9 || act == 10)
+            {
+                if (act == 9 && record::positionsSaved())
                 {
                     record::hmnModeChanged();
                     record::cpuModeChanged();
                     record::mirroredChanged();
                 }
-                // fall through
-            case pages::P_SLOTS:
                 record::clearDeleteConfirm();
-                break;
-            case pages::P_HMN_CHANCES:
-            case pages::P_CPU_CHANCES:
-                record::chanceChanged(targetPg == pages::P_HMN_CHANCES ? main::kSideHuman : main::kSideCpu, -1);
-                break;
-            default:
-                break;
+            }
+            else if (act >= 11)
+            {
+                record::chanceChanged(act == 11 ? main::kSideHuman : main::kSideCpu, -1);
             }
             return game::kSoundConfirm;
         }
@@ -711,7 +739,8 @@ namespace ui {
         {
             return (pageId == pages::P_CPU_COUNTERS && o.offset == kCounterModeScratchOffset) ? (v != 0) : (v != o.def);
         }
-        if ((pageId == pages::P_OSD_MENU || pageId == pages::P_COUNTER_POOL) && o.kind == kKindToggle)
+        if ((pageId == pages::P_OSD_MENU || pageId == pages::P_OSD_INDIVIDUAL || pageId == pages::P_COUNTER_POOL)
+            && o.kind == kKindToggle)
         {
             return v != 0;
         }
@@ -965,6 +994,10 @@ namespace ui {
             const Option& o = p.options[cur];
             bool on = active(o);
             int delta = in.right - in.left;
+            if (delta != 0 && on && hasValue(o))
+            {
+                s_activeRow = cur;
+            }
             bool valChanged = delta != 0 && on && hasValue(o) && change(def, o, delta);
             if (cur != from || valChanged)
             {
@@ -996,9 +1029,13 @@ namespace ui {
                     o.onChange();
                     sound = game::kSoundConfirm;
                 }
-                else if ((o.kind == kKindToggle || o.kind == kKindChoice) && change(def, o, 1, o.kind == kKindChoice))
+                else if (o.kind == kKindToggle || o.kind == kKindChoice)
                 {
-                    sound = game::kSoundMove;
+                    s_activeRow = cur;
+                    if (change(def, o, 1, o.kind == kKindChoice))
+                    {
+                        sound = game::kSoundMove;
+                    }
                 }
                 else if (isDamageOption(pageId, o))
                 {
@@ -1904,13 +1941,17 @@ namespace ui {
                 s_anim.lastRail = 0;
                 s_anim.lastPage = pageId;
                 s_anim.lastDepth = state.depth;
-                drawGoldBar(hlL, hlR, s_anim.barY + openDy, kLabRowH, 8.5f, false,
-                            selHasVal ? (pilL + 4.5f) : (hlR - 18.0f));
+                float stripeR = (so.kind == kKindMenu && main::extraLoaded())
+                                    ? 0.0f
+                                    : (selHasVal ? (pilL + 4.5f) : (hlR - 18.0f));
+                drawGoldBar(hlL, hlR, s_anim.barY + openDy, kLabRowH, 8.5f, false, stripeR);
             }
             drawLabScrollBar(totalVis, first, visRows, rowTop, scrollH, pal);
 
-            // Combined value pills, submenu dots/chevrons, and System Font row labels.
+            // Combined value pills, submenu summaries/dots/chevrons, and System Font row labels.
             float capOffset = (kLabRowH - kLabRowCap) * 0.5f;
+            float sumScale = scaleForCap(kTypeMeta);
+            float sumMaxW = ((hlR - 26.0f) - pilL) * menuScale();
             for (int r = 0; r < visN; r++)
             {
                 int i = visIdx[r];
@@ -1940,9 +1981,24 @@ namespace ui {
                 }
                 else if (o.kind == kKindMenu)
                 {
+                    const char* sum = main::extraSubmenuSummary(static_cast<u8>(o.max), buf, sizeof(buf));
+                    bool hasOv = pageHasOverride(def, o.max);
                     gfx::Rgba chevCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted)
                                                  : (on ? pal.mutedText : kTextDisabled);
-                    if (on && pageHasOverride(def, o.max))
+                    if (sum != NULL && sum[0] != '\0')
+                    {
+                        float textW = gfx::textWidth(sum, sumScale);
+                        float sx = (textW > sumMaxW && textW > 0.0f) ? (sumScale * sumMaxW / textW) : sumScale;
+                        if (textW > sumMaxW)
+                        {
+                            textW = sumMaxW;
+                        }
+                        gfx::Rgba sumCol = selected ? (on ? kLabGoldInk : kLabGoldInkMuted)
+                                                    : (on ? (hasOv ? pal.accentTop : pal.mutedText) : kTextDisabled);
+                        gfx::text(cx(hlR - 25.0f) - textW, textYForCap(y + (kLabRowH - kTypeMeta) * 0.5f, sumScale),
+                                  sum, sumCol, sx, sumScale);
+                    }
+                    else if (on && hasOv)
                     {
                         drawOverrideDot(hlR - 26.0f, y + kLabRowH * 0.5f, 5.0f, selected, false, pal);
                     }

@@ -42,48 +42,22 @@ namespace pages {
         return cpuLabControl() && main::settings().cpu.options.getup == cpu::kGetupRandom;
     }
 
-    // Rebalances four integer weights so their total remains 100.
-    static void rebalance(u8* chance, int changed)
+    static void rebalanceRow()
     {
-        int left = 100 - chance[changed];
-        int others = 0;
-        for (int i = 0; i < 4; i++)
+        int r = ui::activeRow();
+        if (r >= 0 && r < 4)
         {
-            others += i == changed ? 0 : chance[i];
+            main::rebalanceWeights(main::settings().cpu.options.techChance, 4, 0xFu, r);
         }
-        int given = 0;
-        int last = -1;
-        for (int i = 0; i < 4; i++)
+        else if (r >= 5 && r < 9)
         {
-            if (i == changed)
-            {
-                continue;
-            }
-            int share = others > 0 ? chance[i] * left / others : left / 3;
-            chance[i] = static_cast<u8>(share);
-            given += share;
-            last = i;
+            main::rebalanceWeights(main::settings().cpu.options.getupChance, 4, 0xFu, r - 5);
         }
-        chance[last] = static_cast<u8>(chance[last] + left - given);
     }
-
-#define TM_REBALANCE(fn, group, i)                       \
-    static void fn()                                     \
-    {                                                    \
-        rebalance(main::settings().cpu.options.group, i); \
-    }
-    TM_REBALANCE(tech0, techChance, 0)
-    TM_REBALANCE(tech1, techChance, 1)
-    TM_REBALANCE(tech2, techChance, 2)
-    TM_REBALANCE(tech3, techChance, 3)
-    TM_REBALANCE(getup0, getupChance, 0)
-    TM_REBALANCE(getup1, getupChance, 1)
-    TM_REBALANCE(getup2, getupChance, 2)
-    TM_REBALANCE(getup3, getupChance, 3)
-#undef TM_REBALANCE
 
 #ifdef __MWERKS__
     extern Page kTechOptions = {"Tech & Getup", NULL, 0, {0, 0, 0}};
+    extern Page kTechWeights = {"Mixup Weights", NULL, 0, {0, 0, 0}};
 
     void initTechOptionsPage(Option* buf)
     {
@@ -94,8 +68,8 @@ namespace pages {
         static bool (*const kGates[6])() = {
             NULL, cpuLabControl, techInvisActive, techNotMiss, techRandom, getupRandom
         };
-        static void (*const kCbs[9])() = {NULL, tech0, tech1, tech2, tech3, getup0, getup1, getup2, getup3};
-        static const RowSpec kTs[17] = {
+        static void (*const kCbs[2])() = {NULL, rebalanceRow};
+        static const RowSpec kTs[18] = {
             {kKindChoice, 0, TM_FIELD(cpu.options.tech), TM_CHOICE_LO, 0, 4, 0, 0, 1, 0},
             {kKindChoice, 0, TM_FIELD(cpu.options.getup), TM_CHOICE_LO, 0, 4, 1, 0, 1, 0},
             {kKindChoice, 0, TM_FIELD(techInvis.mode), TM_CHOICE_LO, 0, 3, 2, 0, 0, 0},
@@ -104,17 +78,21 @@ namespace pages {
             {kKindChoice, 0, TM_FIELD(cpu.options.techTrap), TM_CHOICE_LO, 0, 2, 4, 0, 3, 0},
             {kKindChoice, 0, TM_FIELD(cpu.options.techLockout), TM_CHOICE_LO, 0, 1, 5, 0, 3, 0},
             {kKindChoice, 0, TM_FIELD(techInvis.preTechDrift), TM_CHOICE_LO, 0, 5, 6, 0, 1, 0},
+            {kKindMenu,   0, 0, 0, 0, P_TECH_WEIGHTS, 0xFF, 0, 1, 0},
             {kKindInt,    0, TM_FIELD(cpu.options.techChance[0]), 0, 25, 100, 7, 1, 4, 0},
-            {kKindInt,    0, TM_FIELD(cpu.options.techChance[1]), 0, 25, 100, 7, 2, 4, 0},
-            {kKindInt,    0, TM_FIELD(cpu.options.techChance[2]), 0, 25, 100, 7, 3, 4, 0},
-            {kKindInt,    0, TM_FIELD(cpu.options.techChance[3]), 0, 25, 100, 7, 4, 4, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.techChance[1]), 0, 25, 100, 7, 1, 4, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.techChance[2]), 0, 25, 100, 7, 1, 4, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.techChance[3]), 0, 25, 100, 7, 1, 4, 0},
             {kKindInt,    0, TM_FIELD(cpu.options.missTechWait), 0, 0, 100, 7, 0, 1, 0},
-            {kKindInt,    0, TM_FIELD(cpu.options.getupChance[0]), 0, 25, 100, 7, 5, 5, 0},
-            {kKindInt,    0, TM_FIELD(cpu.options.getupChance[1]), 0, 25, 100, 7, 6, 5, 0},
-            {kKindInt,    0, TM_FIELD(cpu.options.getupChance[2]), 0, 25, 100, 7, 7, 5, 0},
-            {kKindInt,    0, TM_FIELD(cpu.options.getupChance[3]), 0, 25, 100, 7, 8, 5, 0}
+            {kKindInt,    0, TM_FIELD(cpu.options.getupChance[0]), 0, 25, 100, 7, 1, 5, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.getupChance[1]), 0, 25, 100, 7, 1, 5, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.getupChance[2]), 0, 25, 100, 7, 1, 5, 0},
+            {kKindInt,    0, TM_FIELD(cpu.options.getupChance[3]), 0, 25, 100, 7, 1, 5, 0}
         };
-        fillPageRows(kTechOptions, buf, 17, kTs, kPs_tech_names, kStrs, NULL, kCbs, kGates);
+        fillPageRows(kTechOptions, buf, 18, kTs, kPs_tech_names, kStrs, NULL, kCbs, kGates);
+        kTechOptions.count = 9;
+        kTechWeights.options = buf + 9;
+        kTechWeights.count = 9;
     }
 #else
 #define TM_CHANCE(name, f, onChange, enabled) \
@@ -131,19 +109,24 @@ namespace pages {
         TM_ROW_CHOICE_P(0, TM_FIELD(cpu.options.techTrap), 3, 0, "Tech Trap", kTechTrap, NULL, techNotMiss),
         TM_ROW_CHOICE_P(0, TM_FIELD(cpu.options.techLockout), 2, 0, "Tech Timing", kLockout, NULL, techNotMiss),
         TM_CPU_CHOICE_P("Pre-Tech Drift", techInvis.preTechDrift, kPreTechDriftLabels, 6, 0),
-        TM_CHANCE("Tech In Place %", cpu.options.techChance[0], tech0, techRandom),
-        TM_CHANCE("Tech Away %", cpu.options.techChance[1], tech1, techRandom),
-        TM_CHANCE("Tech Toward %", cpu.options.techChance[2], tech2, techRandom),
-        TM_CHANCE("Miss Tech %", cpu.options.techChance[3], tech3, techRandom),
+        TM_MENU_IF("Mixup Weights", P_TECH_WEIGHTS, cpuLabControl)
+    };
+
+    static const Option kWeightRows[] = {
+        TM_CHANCE("Tech In Place %", cpu.options.techChance[0], rebalanceRow, techRandom),
+        TM_CHANCE("Tech Away %", cpu.options.techChance[1], rebalanceRow, techRandom),
+        TM_CHANCE("Tech Toward %", cpu.options.techChance[2], rebalanceRow, techRandom),
+        TM_CHANCE("Miss Tech %", cpu.options.techChance[3], rebalanceRow, techRandom),
         TM_CPU_INT("Down Wait %", cpu.options.missTechWait, 0, 100, 0, "%d%%"),
-        TM_CHANCE("Stand %", cpu.options.getupChance[0], getup0, getupRandom),
-        TM_CHANCE("Roll Away %", cpu.options.getupChance[1], getup1, getupRandom),
-        TM_CHANCE("Roll Toward %", cpu.options.getupChance[2], getup2, getupRandom),
-        TM_CHANCE("Getup Attack %", cpu.options.getupChance[3], getup3, getupRandom)
+        TM_CHANCE("Stand %", cpu.options.getupChance[0], rebalanceRow, getupRandom),
+        TM_CHANCE("Roll Away %", cpu.options.getupChance[1], rebalanceRow, getupRandom),
+        TM_CHANCE("Roll Toward %", cpu.options.getupChance[2], rebalanceRow, getupRandom),
+        TM_CHANCE("Getup Attack %", cpu.options.getupChance[3], rebalanceRow, getupRandom)
     };
 #undef TM_CHANCE
 
     extern const Page kTechOptions = TM_PAGE("Tech & Getup", kRows);
+    extern const Page kTechWeights = TM_PAGE("Mixup Weights", kWeightRows);
 #endif
 }
 }

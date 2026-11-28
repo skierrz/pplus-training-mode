@@ -309,6 +309,7 @@ widest_status = widest(status_names)
 WORDS = {
     ("lab.cpp", "kFrom[t.b]"): array("main/lab.cpp", "kFrom"),
     ("lab.cpp", "kText[t.a]"): array("main/lab.cpp", "kText"),
+    ("lab.cpp", "title"): lambda sources: [l.text for l in sources["main/lab.cpp"].literals if l.name == "postTechFrame"],
     ("info_display.cpp", "name"): widest_status,
     ("info_display.cpp", "state"): widest_status,
     # A subaction's name is the game's; the row shows 20 characters of it.
@@ -517,6 +518,13 @@ def lab_page(c, src):
             pass  # walked
         elif re.search(r"\.name = ", lit.stmt):
             c.item("menu-name", lit, lit.text)
+        elif base == "osd_menu.cpp" and (lit.func == "osdSyncSaveLabel" or "s_osdSaveLabel" in lit.stmt):
+            if "%d" in lit.text:
+                c.item("menu-value", lit, "20 OSDs")
+                c.buffer(lit, "20 OSDs", 12.0)
+            else:
+                c.item("menu-value", lit, lit.text)
+                c.buffer(lit, lit.text, 12.0)
         elif base == "info_display.cpp" and lit.func == "infoValueLabel":
             pass  # "?" for a value that is not in the table
         else:
@@ -755,13 +763,14 @@ def lab_cpp(c, src):
         if lit.name == "gfx::textBox":
             # The hint beside the pause menu: right-aligned at kHintRight = 602, kTypeMicro 8.0 px cap.
             c.item("box", lit, lit.text, scale_for_cap(8.0), 520.0, 0.0)
-        elif lit.var in ("kFrom", "kText"):
+        elif lit.var in ("kFrom", "kText") or lit.name == "postTechFrame":
             pass  # words of the messages above
         elif lit.name == "strcpy" and "g_resetLabel" in lit.first:
             # The Reset All Settings row's value on the Main Menu (12 bytes).
             c.item("menu-value", lit, lit.text)
             c.buffer(lit, lit.text, 12.0)
-        elif (lit.name == "strcpy" and "g_diPickLabel" in lit.first) or "g_diPickLabel" in lit.stmt:
+        elif ((lit.name == "strcpy" and "g_diPickLabel" in lit.first) or "g_diPickLabel" in lit.stmt
+              or "lbl =" in lit.stmt):
             # The Pick DI Angle row's value on CPU > DI & SDI (16 bytes).
             c.item("menu-value", lit, lit.text)
             c.buffer(lit, lit.text, 16.0)

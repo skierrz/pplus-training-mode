@@ -131,10 +131,10 @@ namespace perf {
     };
 
 #ifdef TM_MODULE_STUB
-    extern const char* const kStubNames[kStubSections];
+    extern const char kStubNames[];
 #endif
 #ifdef TM_MODULE_MAIN
-    extern const char* const kMainNames[kMainSections];
+    extern const char kMainNames[];
 #endif
 
     void attach();
@@ -151,8 +151,8 @@ namespace perf {
     // Folds the frame's totals into each section's worst frame.
     void frameEnd();
 
-    // Logs the block's address and the section names (`names`, count entries).
-    void announce(const char* who, const char* const* names, u32 count);
+    // Logs the block's address and NUL-separated section names (`count` entries).
+    void announce(const char* who, const char* names, u32 count);
 
     class Scope {
     public:

@@ -605,22 +605,35 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK(strcmp(ctrls.options[2].name, "Rewind Button") == 0);
 
     const ui::Page& disp = ui::pages::kDisplayOptions;
-    REQUIRE(disp.count == 18);
+    REQUIRE(disp.count == 10);
     CHECK(strcmp(disp.options[0].name, "Frame Meter") == 0);
     CHECK(strcmp(disp.options[1].name, "Input Viewer") == 0);
     CHECK(strcmp(disp.options[2].name, "Hitboxes") == 0);
     CHECK(strcmp(disp.options[3].name, "Hitbox Colors") == 0);
     CHECK((disp.options[3].flags & ui::kFlagHideWhenDisabled) != 0);
-    CHECK(strcmp(disp.options[9].name, "DI Display") == 0);
-    CHECK(strcmp(disp.options[10].name, "DI Vector") == 0);
-    CHECK((disp.options[10].flags & ui::kFlagHideWhenDisabled) != 0);
-    CHECK(strcmp(disp.options[11].name, "Stage Collision") == 0);
-    CHECK(strcmp(disp.options[14].name, "Floating Meters") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_METERS, disp.options[14].max);
-    CHECK(strcmp(disp.options[16].name, "Theme") == 0);
-    CHECK_EQ(ui::pages::P_THEME, disp.options[16].max);
-    CHECK(strcmp(disp.options[17].name, "Lab Debug") == 0);
-    CHECK_EQ(ui::pages::P_DEBUG, disp.options[17].max);
+    CHECK(strcmp(disp.options[4].name, "DI Display") == 0);
+    CHECK(strcmp(disp.options[5].name, "DI Vector") == 0);
+    CHECK((disp.options[5].flags & ui::kFlagHideWhenDisabled) != 0);
+    CHECK(strcmp(disp.options[6].name, "Boxes & Heatmap") == 0);
+    CHECK_EQ(ui::pages::P_COLLISION, disp.options[6].max);
+    CHECK(strcmp(disp.options[7].name, "Overlays & Meters") == 0);
+    CHECK_EQ(ui::pages::P_HUD_OVERLAYS, disp.options[7].max);
+    CHECK(strcmp(disp.options[8].name, "Theme") == 0);
+    CHECK_EQ(ui::pages::P_THEME, disp.options[8].max);
+    CHECK(strcmp(disp.options[9].name, "Lab Debug") == 0);
+    CHECK_EQ(ui::pages::P_DEBUG, disp.options[9].max);
+
+    const ui::Page& coll = ui::pages::kCollision;
+    REQUIRE(coll.count == 6);
+    CHECK(strcmp(coll.options[0].name, "Hitbox Heatmap") == 0);
+    CHECK(strcmp(coll.options[4].name, "Grab / Tether Boxes") == 0);
+    CHECK(strcmp(coll.options[5].name, "Stage Collision") == 0);
+
+    const ui::Page& ovl = ui::pages::kHudOverlays;
+    REQUIRE(ovl.count == 4);
+    CHECK(strcmp(ovl.options[0].name, "P1 Overlays") == 0);
+    CHECK(strcmp(ovl.options[2].name, "Floating Meters") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_METERS, ovl.options[2].max);
 
     const ui::Page& dbg = ui::pages::kDebug;
     REQUIRE(dbg.count == 8);
@@ -648,15 +661,26 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK(strcmp(defP.options[defP.count - 1].name, "Status Mash") == 0);
 
     const ui::Page& osdP = ui::pages::kOsdMenu;
+    REQUIRE(osdP.count == 8);
     CHECK(strcmp(osdP.options[0].name, "OSD Preset") == 0);
-    CHECK(strcmp(osdP.options[4].name, "Tech Sparkle") == 0);
-    CHECK(strcmp(osdP.options[10].name, "Shield Advantage") == 0);
+    CHECK(strcmp(osdP.options[1].name, "Save Target") == 0);
+    CHECK(strcmp(osdP.options[2].name, "Save Current OSDs") == 0);
+    CHECK(strcmp(osdP.options[6].name, "Tech Sparkle") == 0);
+    CHECK(strcmp(osdP.options[7].name, "Individual OSDs") == 0);
+    CHECK_EQ(ui::pages::P_OSD_INDIVIDUAL, osdP.options[7].max);
+
+    const ui::Page& osdInd = ui::pages::kOsdIndividual;
+    REQUIRE(osdInd.count == 21);
+    CHECK(strcmp(osdInd.options[4].name, "Shield Advantage") == 0);
 
     const ui::Page& scen = ui::pages::kScenarios;
-    REQUIRE(scen.count == 55);
+    REQUIRE(scen.count == 58);
     CHECK(strcmp(scen.options[44].name, "Practice Mode") == 0);
     CHECK(strcmp(scen.options[54].name, "More Combo Options") == 0);
     CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[54].max);
+    CHECK(strcmp(scen.options[55].name, "Snake C4 Recovery") == 0);
+    CHECK(strcmp(scen.options[56].name, "Float / Hover & DJC") == 0);
+    CHECK(strcmp(scen.options[57].name, "Exit Drill") == 0);
 
     const ui::Page& sc = ui::pages::kStageCast;
     REQUIRE(sc.count == 34);
@@ -701,6 +725,11 @@ namespace {
     {
         return true;
     }
+    bool yesNoContextualCall(int call)
+    {
+        return call != main::kRngSnakeP1 && call != main::kRngFloatDjcP1;
+    }
+
     bool noRecovery(const cpu::Owner&, const cpu::View&, Fighter*, cpu::Frame&, u32)
     {
         return false;
@@ -881,14 +910,16 @@ TEST(menu, bit_flag_toggles_default_and_preserve_sibling_bits)
     ui::defaultAll(kBitMenu);
     CHECK_EQ(0xFD, static_cast<int>(bitBuf[0])); // B1 cleared, B0/B3 set, unmapped bits preserved
 
-    // Real lab menu Floating Meters subpage (P_COMBO_METERS).
+    // Floating Meters is on Display > Overlays & Meters (P_HUD_OVERLAYS -> P_COMBO_METERS).
     bootLab();
     const ui::MenuDef& menu = ui::labMenu();
     const ui::Page& combo = ui::pages::kComboTrainer;
-    REQUIRE(combo.count == 16);
-    CHECK(combo.options[15].name != NULL && strcmp(combo.options[15].name, "Floating Meters") == 0);
-    CHECK_EQ(ui::kKindMenu, combo.options[15].kind);
-    CHECK_EQ(ui::pages::P_COMBO_METERS, combo.options[15].max);
+    REQUIRE(combo.count == 15);
+    const ui::Page& hudOvl = ui::pages::kHudOverlays;
+    REQUIRE(hudOvl.count == 4);
+    CHECK(hudOvl.options[2].name != NULL && strcmp(hudOvl.options[2].name, "Floating Meters") == 0);
+    CHECK_EQ(ui::kKindMenu, hudOvl.options[2].kind);
+    CHECK_EQ(ui::pages::P_COMBO_METERS, hudOvl.options[2].max);
     CHECK_EQ(1, static_cast<int>(main::settings().comboTrainer.noclip));
     CHECK_EQ(static_cast<int>(main::kComboDmgCpu), static_cast<int>(main::settings().comboTrainer.fixedDamageMode));
 
@@ -937,8 +968,8 @@ TEST(menu, bit_flag_toggles_default_and_preserve_sibling_bits)
     main::setExtraHooks(&kNoHooks);
     ui::MenuState st;
     ui::menuReset(menu, st);
-    const u8 dispMeterPath[] = {ui::pages::P_DISPLAY, ui::pages::P_COMBO_METERS};
-    REQUIRE(ui::menuJump(menu, st, dispMeterPath, 2));
+    const u8 dispMeterPath[] = {ui::pages::P_DISPLAY, ui::pages::P_HUD_OVERLAYS, ui::pages::P_COMBO_METERS};
+    REQUIRE(ui::menuJump(menu, st, dispMeterPath, 3));
     CHECK_EQ(ui::pages::P_COMBO_METERS, ui::currentPage(st));
 
     ui::MenuInput pressA = {0, 0, 0, 0, true, false};
@@ -1173,7 +1204,7 @@ TEST(lab_menu, show_inactive_fighters_scoped_to_stage_cast_only)
     }
     CHECK(static_cast<int>(st.cursor[ui::pages::P_STAGE_CAST]) > 8);
 
-    // Scenarios MUST still compact hidden preset/drill rows (only Preset [0] and More Combo Options [54] visible).
+    // Scenarios MUST still compact hidden preset/drill rows (only Preset [0] and More Combo Options [54] visible here).
     const u8 scenPath[] = {ui::pages::P_SCENARIOS};
     REQUIRE(ui::menuJump(menu, st, scenPath, 1));
     CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
@@ -1184,7 +1215,7 @@ TEST(lab_menu, show_inactive_fighters_scoped_to_stage_cast_only)
 
     // Context-scoped Tab 1: when a Tech Practice drill is active, Preset and More Combo Options hide,
     // leaving only the active drill's rows (Ledgedash: Practice Mode [44], Reset Ledge [48],
-    // Ledge Auto-Reset [49], Ledge Invuln [50]).
+    // Ledge Auto-Reset [49], Ledge Invuln [50]) plus Exit Drill [57].
     ui::pages::practiceMenuState()->activeDrill = 1;
     REQUIRE(ui::menuJump(menu, st, scenPath, 1));
     CHECK_EQ(44, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
@@ -1195,7 +1226,9 @@ TEST(lab_menu, show_inactive_fighters_scoped_to_stage_cast_only)
     ui::menuStep(menu, st, inDown);
     CHECK_EQ(50, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(50, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    CHECK_EQ(57, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(57, static_cast<int>(st.cursor[ui::pages::P_SCENARIOS]));
     ui::pages::practiceMenuState()->activeDrill = 0;
 
     // CPU > Counters & Reversals: Counter Mode starts at Single Action (1), keeping Ground/Air/Shield
@@ -1545,7 +1578,7 @@ TEST(lab_menu, progressive_disclosure_hides_child_rows_until_parent_enabled)
     const ui::MenuDef& menu = ui::labMenu();
     ui::MenuInput inDown = {0, 1, 0, 0, false, false, false, false};
 
-    // 1. Display: Hitbox Colors, Heatmap Bounds/Opacity/Step, and DI Vector stay hidden until enabled.
+    // 1. Display: Hitbox Colors and DI Vector stay hidden until enabled; Boxes & Heatmap hides Heatmap children until enabled.
     ui::MenuState st;
     ui::menuReset(menu, st);
     const u8 dispPath[] = {ui::pages::P_DISPLAY};
@@ -1553,8 +1586,8 @@ TEST(lab_menu, progressive_disclosure_hides_child_rows_until_parent_enabled)
     main::settings().display.hitboxes = 0;
     main::settings().display.heatmap = 0;
     main::settings().general.diDisplay = 0;
-    // Row 0 Frame Meter -> 1 Input Viewer -> 2 Hitboxes -> 4 Hitbox Heatmap -> 8 Grab -> 9 DI Display -> 11 Stage Coll -> 12 P1 Overlays
-    static const int kDispCompact[] = {0, 1, 2, 4, 8, 9, 11, 12};
+    // Row 0 Frame Meter -> 1 Input Viewer -> 2 Hitboxes -> 4 DI Display -> 6 Boxes & Heatmap -> 7 Overlays & Meters -> 8 Theme -> 9 Lab Debug
+    static const int kDispCompact[] = {0, 1, 2, 4, 6, 7, 8, 9};
     CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_DISPLAY]));
     for (int i = 1; i < 8; i++)
     {
@@ -1566,6 +1599,16 @@ TEST(lab_menu, progressive_disclosure_hides_child_rows_until_parent_enabled)
     st.cursor[ui::pages::P_DISPLAY] = 2;
     ui::menuStep(menu, st, inDown);
     CHECK_EQ(3, static_cast<int>(st.cursor[ui::pages::P_DISPLAY]));
+
+    const u8 collPath[] = {ui::pages::P_DISPLAY, ui::pages::P_COLLISION};
+    REQUIRE(ui::menuJump(menu, st, collPath, 2));
+    CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_COLLISION]));
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(4, static_cast<int>(st.cursor[ui::pages::P_COLLISION])); // skips Heatmap Bounds/Opacity/Color Step
+    main::settings().display.heatmap = 1;
+    st.cursor[ui::pages::P_COLLISION] = 0;
+    ui::menuStep(menu, st, inDown);
+    CHECK_EQ(1, static_cast<int>(st.cursor[ui::pages::P_COLLISION]));
 
     // 2. CPU > DI & SDI: Pick DI Angle (row 1) hidden unless tdi==Custom; SDI rows (3..4) hidden while sdiAmount==0.
     const u8 diPath[] = {ui::pages::P_CPU, ui::pages::P_CPU_DI};
@@ -1591,18 +1634,18 @@ TEST(lab_menu, progressive_disclosure_hides_child_rows_until_parent_enabled)
     ui::menuStep(menu, st, inDown);
     CHECK_EQ(0, static_cast<int>(st.cursor[ui::pages::P_RECORDING]));
 
-    // 4. OSDs: Advantage Tolerance (row 12) hidden when Shield Advantage & Hit Advantage are both Off.
-    const u8 osdPath[] = {ui::pages::P_OSD_MENU};
-    REQUIRE(ui::menuJump(menu, st, osdPath, 1));
+    // 4. Individual OSDs: Advantage Tolerance (row 6) hidden when Shield Advantage & Hit Advantage are both Off.
+    const u8 osdIndivPath[] = {ui::pages::P_OSD_MENU, ui::pages::P_OSD_INDIVIDUAL};
+    REQUIRE(ui::menuJump(menu, st, osdIndivPath, 2));
     main::settings().osd.frameAdvantage = 0;
     main::settings().osd.frameAdvantageOnHit = 0;
-    st.cursor[ui::pages::P_OSD_MENU] = 11; // Hit Advantage
+    st.cursor[ui::pages::P_OSD_INDIVIDUAL] = 5; // Hit Advantage
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(13, static_cast<int>(st.cursor[ui::pages::P_OSD_MENU])); // skips row 12 Advantage Tolerance
+    CHECK_EQ(7, static_cast<int>(st.cursor[ui::pages::P_OSD_INDIVIDUAL])); // skips row 6 Advantage Tolerance
     main::settings().osd.frameAdvantage = 1;
-    st.cursor[ui::pages::P_OSD_MENU] = 11;
+    st.cursor[ui::pages::P_OSD_INDIVIDUAL] = 5;
     ui::menuStep(menu, st, inDown);
-    CHECK_EQ(12, static_cast<int>(st.cursor[ui::pages::P_OSD_MENU]));
+    CHECK_EQ(6, static_cast<int>(st.cursor[ui::pages::P_OSD_INDIVIDUAL]));
 
     // 5. Combo Trainer: Fixed Damage (row 11) hidden when Reset Damage == Use CPU %.
     const u8 comboPath[] = {ui::pages::P_SCENARIOS, ui::pages::P_COMBO_TRAINER};
@@ -1634,7 +1677,8 @@ TEST(lab_menu, ux9_osd_presets_reversal_slot1_and_random_percent_mirrors)
 
     // 1. OSD Preset: defaults to Essentials (all 6 core OSDs On, Max OSDs 4) and resets to Custom on manual edit.
     const u8 osdPath[] = {ui::pages::P_OSD_MENU};
-    REQUIRE(ui::menuJump(menu, st, osdPath, 1));
+    const u8 osdIndivPath[] = {ui::pages::P_OSD_MENU, ui::pages::P_OSD_INDIVIDUAL};
+    REQUIRE(ui::menuJump(menu, st, osdIndivPath, 2));
     CHECK_EQ(static_cast<int>(main::kOsdPresetEssentials), static_cast<int>(main::settings().osd.preset));
     CHECK_EQ(4, static_cast<int>(main::settings().osd.maxMessages));
     CHECK_EQ(1, static_cast<int>(main::settings().osd.wavedash));
@@ -1645,13 +1689,14 @@ TEST(lab_menu, ux9_osd_presets_reversal_slot1_and_random_percent_mirrors)
     CHECK_EQ(1, static_cast<int>(main::settings().osd.frameAdvantageOnHit));
     CHECK_EQ(0, static_cast<int>(main::settings().osd.fastfall));
 
-    // Manually toggling Wavedash (row 6) resets preset back to Custom.
-    st.cursor[ui::pages::P_OSD_MENU] = 6;
+    // Manually toggling Wavedash (P_OSD_INDIVIDUAL row 0) resets preset back to Custom.
+    st.cursor[ui::pages::P_OSD_INDIVIDUAL] = 0;
     ui::menuStep(menu, st, pressRight);
     CHECK_EQ(0, static_cast<int>(main::settings().osd.wavedash));
     CHECK_EQ(static_cast<int>(main::kOsdPresetCustom), static_cast<int>(main::settings().osd.preset));
 
-    // Stepping OSD Preset right from Custom re-applies Essentials.
+    // Stepping OSD Preset right from Custom on P_OSD_MENU re-applies Essentials.
+    REQUIRE(ui::menuJump(menu, st, osdPath, 1));
     st.cursor[ui::pages::P_OSD_MENU] = 0;
     ui::menuStep(menu, st, pressRight);
     CHECK_EQ(static_cast<int>(main::kOsdPresetEssentials), static_cast<int>(main::settings().osd.preset));
@@ -1905,14 +1950,13 @@ TEST(lab_menu, stream1_cstick_live_di_aiming_and_display_lab_debug_structure)
         CHECK(strcmp(di.options[i].name, "Custom DI Y") != 0);
     }
 
-    // Display default visible list is exact 13-row player-first order.
+    // Display default visible list is exact 8-row progressive-disclosure order.
     main::settings().display.hitboxes = 0;
     main::settings().display.heatmap = 0;
     main::settings().general.diDisplay = 0;
-    static const char* const kExpectedDisp[13] = {
-        "Frame Meter", "Input Viewer", "Hitboxes", "Hitbox Heatmap", "Grab / Tether Boxes",
-        "DI Display", "Stage Collision", "P1 Overlays", "CPU Overlays", "Floating Meters",
-        "Ledgedash HUD", "Theme", "Lab Debug"
+    static const char* const kExpectedDisp[8] = {
+        "Frame Meter", "Input Viewer", "Hitboxes", "DI Display",
+        "Boxes & Heatmap", "Overlays & Meters", "Theme", "Lab Debug"
     };
     const ui::Page& disp = ui::pages::kDisplayOptions;
     int vis = 0;
@@ -1922,12 +1966,40 @@ TEST(lab_menu, stream1_cstick_live_di_aiming_and_display_lab_debug_structure)
                       && disp.options[i].enabled != NULL && !disp.options[i].enabled();
         if (!hidden)
         {
-            REQUIRE(vis < 13);
+            REQUIRE(vis < 8);
             CHECK(strcmp(disp.options[i].name, kExpectedDisp[vis]) == 0);
             vis++;
         }
     }
-    CHECK_EQ(13, vis);
+    CHECK_EQ(8, vis);
+
+    // Display > Boxes & Heatmap exposes 3 default visible collision rows (Heatmap children stay hidden).
+    static const char* const kExpectedColl[3] = {"Hitbox Heatmap", "Grab / Tether Boxes", "Stage Collision"};
+    const ui::Page& coll = ui::pages::kCollision;
+    int collVis = 0;
+    for (int i = 0; i < coll.count; i++)
+    {
+        bool hidden = (coll.options[i].flags & ui::kFlagHideWhenDisabled) != 0
+                      && coll.options[i].enabled != NULL && !coll.options[i].enabled();
+        if (!hidden)
+        {
+            REQUIRE(collVis < 3);
+            CHECK(strcmp(coll.options[i].name, kExpectedColl[collVis]) == 0);
+            collVis++;
+        }
+    }
+    CHECK_EQ(3, collVis);
+
+    // Display > Overlays & Meters exposes 4 overlay/HUD subpage entries.
+    static const char* const kExpectedOvl[4] = {
+        "P1 Overlays", "CPU Overlays", "Floating Meters", "Ledgedash HUD"
+    };
+    const ui::Page& ovl = ui::pages::kHudOverlays;
+    REQUIRE(ovl.count == 4);
+    for (int i = 0; i < 4; i++)
+    {
+        CHECK(strcmp(ovl.options[i].name, kExpectedOvl[i]) == 0);
+    }
 
     // Display > Lab Debug exposes exact 8 debug/visual rows.
     static const char* const kExpectedDbg[8] = {
@@ -1948,7 +2020,9 @@ TEST(lab_menu, stream1_cstick_live_di_aiming_and_display_lab_debug_structure)
 TEST(lab_menu, stream1_combo_lab_inline_rows_on_scenarios)
 {
     bootLab();
-    main::setExtraHooks(&kNoHooks);
+    main::ExtraHooks noCtxHooks = kNoHooks;
+    noCtxHooks.characterRng = yesNoContextualCall;
+    main::setExtraHooks(&noCtxHooks);
     const ui::MenuDef& menu = ui::labMenu();
     ui::MenuState st;
     ui::menuReset(menu, st);
@@ -2126,8 +2200,8 @@ TEST(lab_menu, reset_option_and_page_via_menu_input_and_rail_and_footer_badges)
     CHECK_EQ(1, sounds(game::kSoundConfirm));
 
     // kFlagBit single-option reset on Floating Meters preserves sibling bits.
-    const u8 metersPath[] = {ui::pages::P_DISPLAY, ui::pages::P_COMBO_METERS};
-    REQUIRE(ui::menuJump(menu, st, metersPath, 2));
+    const u8 metersPath[] = {ui::pages::P_DISPLAY, ui::pages::P_HUD_OVERLAYS, ui::pages::P_COMBO_METERS};
+    REQUIRE(ui::menuJump(menu, st, metersPath, 3));
     main::settings().comboTrainer.enabledMeters = main::kMeterHitlag | main::kMeterHitstun | main::kMeterDi;
     st.cursor[ui::pages::P_COMBO_METERS] = 0; // Hitlag bit
     CHECK(ui::menuStep(menu, st, inResetOpt));
@@ -2577,27 +2651,31 @@ TEST(lab_menu, active_override_highlights_x_reset_gating_and_parent_override_dot
     ui::menuDraw(menu, st);
     CHECK(!menuCanvasDrew("Reset"));
 
-    // 3. OSDs page: Tech Sparkle (row 4) and Essentials toggles (Wavedash row 6, L-Cancel row 7)
-    //    highlight when active; config rows (OSD Position row 1, Max OSDs row 2) stay neutral at default.
+    // 3. OSDs page: Tech Sparkle (row 6) highlights on P_OSD_MENU while config rows (Save Target 1,
+    //    OSD Position 3, Max OSDs 4) stay neutral at default; Wavedash (0) and L-Cancel (1) highlight on P_OSD_INDIVIDUAL.
     const u8 osdPath[] = {ui::pages::P_OSD_MENU};
     REQUIRE(ui::menuJump(menu, st, osdPath, 1));
     host::canvas::clear();
     ui::menuDraw(menu, st);
-    CHECK(!rowPillIsGreen(1)); // OSD Position = Sides (default)
-    CHECK(!rowPillIsGreen(2)); // Max OSDs = 4 (default)
-    CHECK(rowPillIsGreen(4));  // Tech Sparkle = Perfect Wavedash (active aid)
-    CHECK(rowPillIsGreen(6));  // Wavedash = On (active OSD)
-    CHECK(rowPillIsGreen(7));  // L-Cancel = On (active OSD)
+    CHECK(!rowPillIsGreen(1)); // Save Target = Custom 1
+    CHECK(!rowPillIsGreen(3)); // OSD Position = Sides (default)
+    CHECK(!rowPillIsGreen(4)); // Max OSDs = 4 (default)
+    CHECK(rowPillIsGreen(6));  // Tech Sparkle = Perfect Wavedash (active aid)
 
     main::settings().osd.techSparkle = main::kTechSparkleOff;
     main::settings().osd.wavedash = 0;
     main::settings().osd.maxMessages = 6;
     host::canvas::clear();
     ui::menuDraw(menu, st);
-    CHECK(rowPillIsGreen(2));  // Max OSDs = 6 (!= def 4)
-    CHECK(!rowPillIsGreen(4)); // Tech Sparkle = Off (neutral)
-    CHECK(!rowPillIsGreen(6)); // Wavedash = Off (neutral)
-    CHECK(rowPillIsGreen(7));  // L-Cancel = On (still active)
+    CHECK(rowPillIsGreen(4));  // Max OSDs = 6 (!= def 4)
+    CHECK(!rowPillIsGreen(6)); // Tech Sparkle = Off (neutral)
+
+    const u8 osdIndivPath[] = {ui::pages::P_OSD_MENU, ui::pages::P_OSD_INDIVIDUAL};
+    REQUIRE(ui::menuJump(menu, st, osdIndivPath, 2));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(!rowPillIsGreen(0)); // Wavedash = Off (neutral)
+    CHECK(rowPillIsGreen(1));  // L-Cancel = On (still active)
 
     // 4. Parent override dots on Category Rail, Top Tabs, and kKindMenu submenu rows.
     main::resetSettings();
@@ -2611,13 +2689,13 @@ TEST(lab_menu, active_override_highlights_x_reset_gating_and_parent_override_dot
     CHECK(hasOverrideDotAt(166.0f, dispRailY));
     CHECK(!hasOverrideDotAt(166.0f, recRailY));
 
-    // Turn Ledgedash HUD Off -> Display rail dot clears; enable P1 Overlays Actionable -> both submenu row & rail dot return.
+    // Turn Ledgedash HUD Off -> Display rail dot clears; enable P1 Overlays Actionable -> Overlays & Meters row (vis 5) & rail dot return.
     main::settings().general.ledgeHud = 0;
     host::canvas::clear();
     ui::menuDraw(menu, st);
     CHECK(!hasOverrideDotAt(166.0f, dispRailY));
-    // P1 Overlays is visible row 7 on Display.
-    float p1OvRowY = ui::style::kRailRowTop + 7 * ui::style::kLabRowPitch + ui::style::kLabRowH * 0.5f;
+    // Overlays & Meters is visible row 5 on Display when Hitboxes & DI Display are Off.
+    float p1OvRowY = ui::style::kRailRowTop + 5 * ui::style::kLabRowPitch + ui::style::kLabRowH * 0.5f;
     CHECK(!hasOverrideDotAt(ui::style::kRailHlRight - 26.0f, p1OvRowY));
 
     main::settings().overlay[main::kSideHuman].groups[0] = 2; // Actionable = Green
@@ -2711,6 +2789,135 @@ TEST(lab_menu, active_override_highlights_x_reset_gating_and_parent_override_dot
     ui::menuDraw(menu, st);
     CHECK(rowPillIsGreen(0)); // Trajectory DI = In (active DI)
     CHECK(menuCanvasDrew("Reset"));
+
+    main::setExtraHooks(NULL);
+    storage::detach();
+}
+
+namespace {
+    int s_streamBScenarioCalls = 0;
+    int s_streamBLastScenarioCall = -1;
+    void recordScenarioCall(int call)
+    {
+        s_streamBScenarioCalls++;
+        s_streamBLastScenarioCall = call;
+    }
+
+    const char* testSummaryHook(u8 pageId, char* buf, u32 cap)
+    {
+        if (buf == NULL || cap == 0u)
+        {
+            return NULL;
+        }
+        buf[0] = '\0';
+        if (pageId == ui::pages::P_HUD_OVERLAYS)
+        {
+            snprintf(buf, cap, "TEST-SUM");
+            return buf;
+        }
+        return NULL;
+    }
+}
+
+TEST(lab_menu, stream_b_custom_osd_slots_contextual_drills_depth2_and_summary_hook)
+{
+    bootLab();
+    main::ExtraHooks hooks = kNoHooks;
+    hooks.scenarioCall = recordScenarioCall;
+    main::setExtraHooks(&hooks);
+    const ui::MenuDef& menu = ui::labMenu();
+    ui::MenuState st;
+    ui::menuReset(menu, st);
+
+    // 1. Custom 1..3 save / restore / anti-clobber on P_OSD_MENU.
+    const u8 osdPath[] = {ui::pages::P_OSD_MENU};
+    REQUIRE(ui::menuJump(menu, st, osdPath, 1));
+    CHECK(strcmp(static_cast<const char*>(ui::pages::kOsdMenu.options[2].data), "Empty") == 0);
+
+    // Turning OSD Preset onto an unsaved Custom 1 must NOT clobber current toggles.
+    ui::MenuInput inA = {0, 0, 0, 0, true, false, false, false};
+    ui::MenuInput inRight = {0, 0, 0, 1, false, false, false, false};
+    ui::MenuInput inLeft = {0, 0, 1, 0, false, false, false, false};
+    main::settings().osd.wavedash = 1;
+    main::settings().osd.fastfall = 1;
+    main::settings().osd.preset = main::kOsdPresetCustom;
+    ui::setOptionValue(menu, ui::pages::kOsdMenu.options[0], main::kOsdPresetCustom1);
+    ui::pages::kOsdMenu.options[0].onChange();
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.wavedash));
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.fastfall));
+
+    // Switch Save Target (row 1) to Custom 2 (index 1) and test Left back to Custom 1, then save Custom 2.
+    st.cursor[ui::pages::P_OSD_MENU] = 1;
+    CHECK(ui::menuStep(menu, st, inRight));
+    CHECK_EQ(1, static_cast<int>(ui::menuScratch()[ui::kOsdSaveSlotScratchOffset]));
+    CHECK(ui::menuStep(menu, st, inLeft));
+    CHECK_EQ(0, static_cast<int>(ui::menuScratch()[ui::kOsdSaveSlotScratchOffset]));
+    CHECK(ui::menuStep(menu, st, inRight));
+    st.cursor[ui::pages::P_OSD_MENU] = 2;
+    CHECK(ui::menuStep(menu, st, inA));
+    CHECK(strcmp(static_cast<const char*>(ui::pages::kOsdMenu.options[2].data), "7 OSDs") == 0);
+    CHECK_EQ(static_cast<int>(main::kOsdPresetCustom2), static_cast<int>(main::settings().osd.preset));
+
+    // Change preset to All Off, then select Custom 2 -> restores the exact 7 toggles!
+    ui::setOptionValue(menu, ui::pages::kOsdMenu.options[0], main::kOsdPresetAllOff);
+    ui::pages::kOsdMenu.options[0].onChange();
+    CHECK_EQ(0, static_cast<int>(main::settings().osd.wavedash));
+    CHECK_EQ(0, static_cast<int>(main::settings().osd.fastfall));
+    ui::setOptionValue(menu, ui::pages::kOsdMenu.options[0], main::kOsdPresetCustom2);
+    ui::pages::kOsdMenu.options[0].onChange();
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.wavedash));
+    CHECK_EQ(1, static_cast<int>(main::settings().osd.fastfall));
+    // Re-enter P_OSD_MENU after switching Save Target back to empty slot Custom 1 (0): label says "Empty".
+    ui::menuScratch()[ui::kOsdSaveSlotScratchOffset] = 0;
+    REQUIRE(ui::menuJump(menu, st, osdPath, 1));
+    CHECK(strcmp(static_cast<const char*>(ui::pages::kOsdMenu.options[2].data), "Empty") == 0);
+
+    // 2. Depth <= 2 check across every reachable page from the 7 top-level categories.
+    for (int cat = 0; cat < menu.categoryCount; cat++)
+    {
+        const ui::Page& top = *menu.pages[menu.categoryPages[cat]];
+        for (int r = 0; r < top.count; r++)
+        {
+            if (top.options[r].kind != ui::kKindMenu) continue;
+            const ui::Page& d1 = *menu.pages[top.options[r].max];
+            for (int r1 = 0; r1 < d1.count; r1++)
+            {
+                if (d1.options[r1].kind != ui::kKindMenu) continue;
+                const ui::Page& d2 = *menu.pages[d1.options[r1].max];
+                for (int r2 = 0; r2 < d2.count; r2++)
+                {
+                    CHECK(d2.options[r2].kind != ui::kKindMenu);
+                }
+            }
+        }
+    }
+
+    // 3. Contextual Snake C4 Recovery / Float / Hover & DJC / Exit Drill hooks on P_SCENARIOS.
+    s_streamBScenarioCalls = 0;
+    s_streamBLastScenarioCall = -1;
+    const u8 scenPath[] = {ui::pages::P_SCENARIOS};
+    REQUIRE(ui::menuJump(menu, st, scenPath, 1));
+    st.cursor[ui::pages::P_SCENARIOS] = 55;
+    CHECK(ui::menuStep(menu, st, inA));
+    CHECK_EQ(static_cast<int>(main::kScenarioStartSnakeDrill), s_streamBLastScenarioCall);
+    st.cursor[ui::pages::P_SCENARIOS] = 56;
+    CHECK(ui::menuStep(menu, st, inA));
+    CHECK_EQ(static_cast<int>(main::kScenarioStartFloatDjcDrill), s_streamBLastScenarioCall);
+    ui::pages::practiceMenuState()->activeDrill = 1;
+    st.cursor[ui::pages::P_SCENARIOS] = 57;
+    CHECK(ui::menuStep(menu, st, inA));
+    CHECK_EQ(static_cast<int>(main::kScenarioStopDrill), s_streamBLastScenarioCall);
+    ui::pages::practiceMenuState()->activeDrill = 0;
+
+    // 4. Live right-aligned submenuSummary hook renders text when present, and never fails when left aligned/blank.
+    main::ExtraHooks sumHooks = hooks;
+    sumHooks.submenuSummary = testSummaryHook;
+    main::setExtraHooks(&sumHooks);
+    const u8 dispPath[] = {ui::pages::P_DISPLAY};
+    REQUIRE(ui::menuJump(menu, st, dispPath, 1));
+    host::canvas::clear();
+    ui::menuDraw(menu, st);
+    CHECK(menuCanvasDrew("TEST-SUM"));
 
     main::setExtraHooks(NULL);
     storage::detach();

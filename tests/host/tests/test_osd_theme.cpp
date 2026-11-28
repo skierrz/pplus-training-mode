@@ -178,8 +178,8 @@ TEST(osd_theme, display_theme_menu_navigation_and_descriptions)
     const ui::Page& displayPage = *menu.pages[ui::pages::P_DISPLAY];
     const ui::Page& themePage = *menu.pages[ui::pages::P_THEME];
 
-    // Player-first Display places Theme at raw row 16 (visible row 11 at default).
-    const u8 themeRow = 16;
+    // Progressive-disclosure Display places Theme at raw row 8 (visible row 6 at default).
+    const u8 themeRow = 8;
     CHECK_STR("Theme", displayPage.options[themeRow].name);
     CHECK_EQ(static_cast<int>(ui::kKindMenu), static_cast<int>(displayPage.options[themeRow].kind));
     CHECK_EQ(static_cast<int>(ui::pages::P_THEME), static_cast<int>(displayPage.options[themeRow].max));

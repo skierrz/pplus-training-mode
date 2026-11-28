@@ -21,6 +21,50 @@ namespace main {
         return v > hi ? hi : v;
     }
 
+    void rebalanceWeights(u8* chance, int count, u32 enabled, int keep)
+    {
+        int active = 0;
+        int others = 0;
+        for (int i = 0; i < count; i++)
+        {
+            if (!(enabled & (1u << i)))
+            {
+                chance[i] = 0;
+            }
+            else
+            {
+                active++;
+                others += i == keep ? 0 : chance[i];
+            }
+        }
+        if (active == 0)
+        {
+            return;
+        }
+        int left = 100 - (keep >= 0 ? chance[keep] : 0);
+        int given = 0;
+        int last = -1;
+        for (int i = 0; i < count; i++)
+        {
+            if (!(enabled & (1u << i)) || i == keep)
+            {
+                continue;
+            }
+            int n = keep >= 0 ? active - 1 : active;
+            chance[i] = static_cast<u8>(others > 0 ? chance[i] * left / others : left / n);
+            given += chance[i];
+            last = i;
+        }
+        if (last >= 0)
+        {
+            chance[last] = static_cast<u8>(chance[last] + left - given);
+        }
+        else if (keep >= 0)
+        {
+            chance[keep] = 100;
+        }
+    }
+
     void sanitizeSettings(Settings& s)
     {
         cpu::CpuTables& t = s.cpuTables;

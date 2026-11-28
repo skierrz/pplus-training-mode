@@ -26,24 +26,24 @@ namespace perf {
     static Block* s_blockPtr = &s_block;
 #endif
 
-    // The sections' names, in the order of their enums, for the script.
+    // NUL-separated section names in the order of their enums (zero pointer relocs).
 #ifdef TM_MODULE_STUB
-    const char* const kStubNames[kStubSections] = {
-        "frame", "busy", "render", "pads_system", "pads_game", "fighter_pad", "fighter_input",
-        "top_to_game", "game_to_render", "render_to_top"};
+    const char kStubNames[] =
+        "frame\0busy\0render\0pads_system\0pads_game\0fighter_pad\0fighter_input\0"
+        "top_to_game\0game_to_render\0render_to_top";
 #endif
 #ifdef TM_MODULE_MAIN
-    const char* const kMainNames[kMainSections] = {
-        "tracker_handover", "tracker_step", "advantage", "frame_data", "techniques", "character_rng",
-        "savestate_render", "lab_render", "render3d", "di_draw", "heatmap_draw", "grab_viz_draw",
-        "osd_draw", "info_draw", "ledge_hud",
-        "menu_draw", "watermark", "debug_overlay", "record_hud", "extra_render", "match_hud",
-        "storage", "pads_damage", "pads_savestate", "pads_lab", "pads_record", "input_cpu",
-        "input_savestate", "input_lab", "input_record", "fighter_pad_lab", "save_capture",
-        "save_fingerprint", "save_wait_gpu", "save_write", "save_check", "save_measure_v3", "save_max_irq_off",
-        "load_restore", "load_fingerprint", "load_check", "load_wait_gpu", "load_copy", "load_flush",
-        "load_max_irq_off",
-        "n_rects", "n_texts", "n_chars", "n_widths", "n_logs"};
+    const char kMainNames[] =
+        "tracker_handover\0tracker_step\0advantage\0frame_data\0techniques\0character_rng\0"
+        "savestate_render\0lab_render\0render3d\0di_draw\0heatmap_draw\0grab_viz_draw\0"
+        "osd_draw\0info_draw\0ledge_hud\0"
+        "menu_draw\0watermark\0debug_overlay\0record_hud\0extra_render\0match_hud\0"
+        "storage\0pads_damage\0pads_savestate\0pads_lab\0pads_record\0input_cpu\0"
+        "input_savestate\0input_lab\0input_record\0fighter_pad_lab\0save_capture\0"
+        "save_fingerprint\0save_wait_gpu\0save_write\0save_check\0save_measure_v3\0save_max_irq_off\0"
+        "load_restore\0load_fingerprint\0load_check\0load_wait_gpu\0load_copy\0load_flush\0"
+        "load_max_irq_off\0"
+        "n_rects\0n_texts\0n_chars\0n_widths\0n_logs";
 #endif
 
     void attach()
@@ -127,7 +127,7 @@ namespace perf {
         s_blockPtr->frames++;
     }
 
-    void announce(const char* who, const char* const* names, u32 count)
+    void announce(const char* who, const char* names, u32 count)
     {
         if (s_blockPtr == NULL)
         {
@@ -139,20 +139,24 @@ namespace perf {
         // OSReport so long section lists never truncate at logf's 512-byte cap.
 #ifdef __MWERKS__
         OSReport("[" TM_PLUGIN_NAME "] perf: %s block at %08x, %u sections: ", who, s_blockPtr, count);
+        const char* p = names;
         for (u32 i = 0; i < count; i++)
         {
-            OSReport("%s ", names[i]);
+            OSReport("%s ", p);
+            while (*p++ != '\0') {}
         }
         OSReport("\n");
 #else
         char line[1024];
         u32 n = 0;
+        const char* p = names;
         for (u32 i = 0; i < count && n + 24 < sizeof(line); i++)
         {
-            for (const char* p = names[i]; *p != '\0' && n + 2 < sizeof(line); p++)
+            for (; *p != '\0' && n + 2 < sizeof(line); p++)
             {
                 line[n++] = *p;
             }
+            while (*p++ != '\0') {}
             line[n++] = ' ';
         }
         line[n] = '\0';

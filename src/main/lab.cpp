@@ -772,21 +772,18 @@ namespace lab {
                 float sx = 0.0f, sy = 0.0f;
                 game::mainStick(in.stickX, in.stickY, &sx, &sy);
                 applyStickToCustomDi(sx, sy, true);
-                if ((in.pressed & kButtonA) != 0)
+                bool pressA = (in.pressed & kButtonA) != 0;
+                if (pressA || (in.pressed & kButtonB) != 0)
                 {
+                    if (!pressA)
+                    {
+                        settings().cpuTables.customDiX = st.diPickSavedX;
+                        settings().cpuTables.customDiY = st.diPickSavedY;
+                    }
                     st.diPickActive = false;
                     ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
-                    strcpy(g_diPickLabel, "Locked");
-                    ui::menuSound(game::kSoundConfirm);
-                }
-                else if ((in.pressed & kButtonB) != 0)
-                {
-                    settings().cpuTables.customDiX = st.diPickSavedX;
-                    settings().cpuTables.customDiY = st.diPickSavedY;
-                    st.diPickActive = false;
-                    ui::menuScratch()[ui::kDiPickActiveScratchOffset] = 0;
-                    strcpy(g_diPickLabel, "C-Stick / A");
-                    ui::menuSound(game::kSoundMove);
+                    strcpy(g_diPickLabel, pressA ? "Locked" : "C-Stick / A");
+                    ui::menuSound(pressA ? game::kSoundConfirm : game::kSoundMove);
                 }
                 return;
             }
@@ -797,28 +794,29 @@ namespace lab {
             game::cStick(in.cStickX, in.cStickY, &cx, &cy);
             s8 aimX = settings().cpuTables.customDiX;
             s8 aimY = settings().cpuTables.customDiY;
+            const char* lbl = NULL;
+            bool soundLock = false;
             if (stickToCustomDi(cx, cy, false, aimX, aimY))
             {
                 int dx = aimX - st.diCstickLockX;
                 int dy = aimY - st.diCstickLockY;
                 if (st.diCstickLocked && dx * dx + dy * dy <= 100)
                 {
-                    strcpy(g_diPickLabel, "Locked");
+                    lbl = "Locked";
                 }
                 else
                 {
                     st.diCstickLocked = false;
                     settings().cpuTables.customDiX = aimX;
                     settings().cpuTables.customDiY = aimY;
-                    strcpy(g_diPickLabel, "Aiming...");
+                    lbl = "Aiming...";
                     if ((in.pressed & kButtonA) != 0 && net.menu.cursor[ui::pages::P_CPU_DI] == 1)
                     {
                         st.diCstickLocked = true;
                         st.diCstickLockX = aimX;
                         st.diCstickLockY = aimY;
-                        strcpy(g_diPickLabel, "Locked");
-                        ui::menuSound(game::kSoundConfirm);
-                        return;
+                        lbl = "Locked";
+                        soundLock = true;
                     }
                 }
             }
@@ -827,8 +825,17 @@ namespace lab {
                 st.diCstickLocked = false;
                 if (strcmp(g_diPickLabel, "Aiming...") == 0)
                 {
-                    strcpy(g_diPickLabel, "C-Stick / A");
+                    lbl = "C-Stick / A";
                 }
+            }
+            if (lbl != NULL)
+            {
+                strcpy(g_diPickLabel, lbl);
+            }
+            if (soundLock)
+            {
+                ui::menuSound(game::kSoundConfirm);
+                return;
             }
         }
         else
@@ -1603,6 +1610,17 @@ namespace lab {
         }
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
+    static osd::Message* postTechFrame(const game::Technique& t, osd::Id id, gfx::Rgba col, const char* title)
+    {
+        return osd::post(t.player, id, col, "%s\nFrame %d", title, t.frame);
+    }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
+
     // Technique OSD messages for the fighter they describe (human or CPU).
     static void onTechnique(const game::Technique& t)
     {
@@ -1649,29 +1667,26 @@ namespace lab {
         case game::kTechActOos:
             if (o.actOos)
             {
-                osd::post(t.player, osd::kIdActOos, first ? osd::kGreen : osd::kWhite, "OoS Action\nFrame %d",
-                          t.frame);
+                postTechFrame(t, osd::kIdActOos, first ? osd::kGreen : osd::kWhite, "OoS Action");
             }
             break;
         case game::kTechActOoLag:
             if (o.actOoLag)
             {
-                m = osd::post(t.player, osd::kIdActOoLag, osd::kWhite, "%s\nFrame %d",
-                              t.flag ? "Autocancel" : "Post-Lag", t.frame);
+                m = postTechFrame(t, osd::kIdActOoLag, osd::kWhite, t.flag ? "Autocancel" : "Post-Lag");
                 osd::lineColor(m, 1, first ? osd::kGreen : osd::kRed);
             }
             break;
         case game::kTechJumpCancel:
             if (o.jumpCancel)
             {
-                osd::post(t.player, osd::kIdJumpCancel, first ? osd::kGreen : osd::kRed, "Jump Cancel\nFrame %d",
-                          t.frame);
+                postTechFrame(t, osd::kIdJumpCancel, first ? osd::kGreen : osd::kRed, "Jump Cancel");
             }
             break;
         case game::kTechFastfall:
             if (o.fastfall)
             {
-                m = osd::post(t.player, osd::kIdFastfall, osd::kWhite, "Fastfall\nFrame %d", t.frame);
+                m = postTechFrame(t, osd::kIdFastfall, osd::kWhite, "Fastfall");
                 osd::lineColor(m, 1, first ? osd::kGreen : osd::kWhite);
             }
             break;
@@ -1784,15 +1799,13 @@ namespace lab {
         case game::kTechItemThrow:
             if (o.itemThrow)
             {
-                osd::post(t.player, osd::kIdItemThrow, osd::kWhite,
-                          t.flag ? "Air Item Throw\nFrame %d" : "Glide Toss\nFrame %d", t.frame);
+                postTechFrame(t, osd::kIdItemThrow, osd::kWhite, t.flag ? "Air Item Throw" : "Glide Toss");
             }
             break;
         case game::kTechBoostGrab:
             if (o.boostGrab)
             {
-                osd::post(t.player, osd::kIdBoostGrab, osd::kWhite, t.flag ? "DACUS\nFrame %d" : "Boost Grab\nFrame %d",
-                          t.frame);
+                postTechFrame(t, osd::kIdBoostGrab, osd::kWhite, t.flag ? "DACUS" : "Boost Grab");
             }
             break;
         case game::kTechGrabBreakout:
@@ -1813,8 +1826,7 @@ namespace lab {
         case game::kTechActOoHitstun:
             if (o.actOoHitstun)
             {
-                osd::post(t.player, osd::kIdActOoHitstun, first ? osd::kGreen : osd::kWhite, "Out of Hitstun\nFrame %d",
-                          t.frame);
+                postTechFrame(t, osd::kIdActOoHitstun, first ? osd::kGreen : osd::kWhite, "Out of Hitstun");
             }
             break;
         default:

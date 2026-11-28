@@ -54,24 +54,25 @@ namespace pages {
         kOverlayRowCount = 34,                        // 17 P1 + 17 CPU
         kInfoRowCount = 20,                           // 10 P1 + 10 CPU
         kStageCastRowCount = 34,
-        kScenariosRowCount = 55,
-        kOsdMenuRowCount = 26,
-        kComboTrainerRowCount = 23,                  // 16 + 7 meters
-        kTechOptionsRowCount = 17,
-        kRecordingRowCount = 19,
+        kScenariosRowCount = 58,
+        kDisplayRowCount = 28,                        // 10 display + 6 collision + 4 overlays/meters + 8 debug
+        kOsdMenuRowCount = 29,                        // 8 top + 21 individual OSDs
+        kComboTrainerRowCount = 22,                   // 15 + 7 meters
+        kTechOptionsRowCount = 18,                    // 9 + 9 mixup weights
+        kRecordingRowCount = 18,                      // 9 + 9 playback & positions
         kGeneralRowCount = 13,
         kControlsRowCount = 10,
         kThemeRowCount = 5,
         kAlterInputsRowCount = 16,
-        kSlotManagementRowCount = 6,
+        kSlotManagementRowCount = 8,
         kSlotChancesRowCount = 14,                   // 7 P1 + 7 CPU
         kAdvCounterRowCount = 8,
         kLedgedashHudRowCount = 4,
         kOlimarRowCount = 22,
         kDynRowTotal = kCpuAllRowCount + kOverlayRowCount + kInfoRowCount + kStageCastRowCount
-                       + kScenariosRowCount + kOsdMenuRowCount + kComboTrainerRowCount + kTechOptionsRowCount
-                       + kRecordingRowCount + kGeneralRowCount + kControlsRowCount + kThemeRowCount
-                       + kAlterInputsRowCount + kSlotManagementRowCount + kSlotChancesRowCount
+                       + kScenariosRowCount + kDisplayRowCount + kOsdMenuRowCount + kComboTrainerRowCount
+                       + kTechOptionsRowCount + kRecordingRowCount + kGeneralRowCount + kControlsRowCount
+                       + kThemeRowCount + kAlterInputsRowCount + kSlotManagementRowCount + kSlotChancesRowCount
                        + kAdvCounterRowCount + kLedgedashHudRowCount + kOlimarRowCount
     };
 
@@ -101,6 +102,7 @@ namespace pages {
         initInfoPages(p); p += kInfoRowCount;
         initStageCastPage(p); p += kStageCastRowCount;
         initScenariosPage(p); p += kScenariosRowCount;
+        initDisplayPages(p); p += kDisplayRowCount;
         initOsdMenuPage(p); p += kOsdMenuRowCount;
         initComboTrainerPages(p); p += kComboTrainerRowCount;
         initTechOptionsPage(p); p += kTechOptionsRowCount;
@@ -117,15 +119,14 @@ namespace pages {
 
     void pagesDetach()
     {
-        Page* const dyn[] = {&kCpuOptions, &kCpuDi, &kCpuCounters, &kCpuDefense, &kReversalSlots, &kCounterPool,
-                             &kAdvancedCounter, &kHmnOverlays, &kCpuOverlays, &kHmnInfo, &kCpuInfo, &kStageCast,
-                             &kScenarios, &kOsdMenu, &kComboTrainer, &kComboMeters, &kTechOptions, &kRecording,
-                             &kGeneral, &kControls, &kTheme, &kAlterInputs, &kSlotManagement, &kHmnChances,
-                             &kCpuChances, &kLedgedashHud, &kOlimar};
-        for (int i = 0; i < static_cast<int>(sizeof(dyn) / sizeof(dyn[0])); i++)
+        for (int i = 0; i < P_COUNT; i++)
         {
-            dyn[i]->options = NULL;
-            dyn[i]->count = 0;
+            if (i != P_FIGHTER_SWAP)
+            {
+                Page* pg = const_cast<Page*>(kPages[i]);
+                pg->options = NULL;
+                pg->count = 0;
+            }
         }
         detachCpuPages();
         detachStageCastPage();
@@ -142,7 +143,8 @@ namespace pages {
         &kStageCast,    &kControls,     &kDebug,          &kComboTrainer, &kComboMeters,   &kTechOptions,
         &kAdvancedCounter, &kSlotManagement, &kAlterInputs, &kHmnChances, &kCpuChances,    &kHmnOverlays,
         &kCpuOverlays,  &kHmnInfo,      &kCpuInfo,        &kLedgedashHud, &kFighterSwap, &kTheme,
-        &kReversalSlots, &kCpuDi,       &kCpuCounters,    &kCpuDefense,  &kCounterPool, &kOlimar
+        &kReversalSlots, &kCpuDi,       &kCpuCounters,    &kCpuDefense,  &kCounterPool, &kOlimar,
+        &kOsdIndividual, &kTechWeights, &kRecManage,      &kCollision,   &kHudOverlays
     };
 }
 }

@@ -45,10 +45,26 @@ namespace pages {
         return cpuLabControl() && main::extraLoaded();
     }
 
+#pragma dont_inline on
     static bool presetRowVisible()
     {
         return main::extraLoaded() && practiceMenuState()->activeDrill == 0;
     }
+
+    static bool editPoolActive(u8 presetId, u8 cat, bool fieldCond)
+    {
+        bool on = presetIs(presetId) && fieldCond;
+        if (on)
+        {
+            primePoolCategory(cat);
+        }
+        else
+        {
+            clearPoolCategoryPrime(cat);
+        }
+        return on;
+    }
+#pragma dont_inline reset
 
     static bool comboTrainerRowVisible()
     {
@@ -69,17 +85,8 @@ namespace pages {
     static bool scenarioComboLabActive() { return presetIs(kPresetComboLab); }
     static bool scenarioEditAirPoolActive()
     {
-        bool on = scenarioComboLabActive()
-                  && main::settings().comboTrainer.postHitstunEscape == main::kComboEscapeCustomPool;
-        if (on)
-        {
-            primePoolCategory(cpu::kListAir);
-        }
-        else
-        {
-            clearPoolCategoryPrime(cpu::kListAir);
-        }
-        return on;
+        return editPoolActive(kPresetComboLab, cpu::kListAir,
+                              main::settings().comboTrainer.postHitstunEscape == main::kComboEscapeCustomPool);
     }
     static bool scenarioTechchaseActive() { return presetIs(kPresetTechchase); }
     static bool scenarioTechInvisDelayActive()
@@ -102,17 +109,9 @@ namespace pages {
     }
     static bool scenarioEditShieldPoolActive()
     {
-        bool on = scenarioShieldOffenseActive()
-                  && presetFieldEq(kPresetShieldPressure, offsetof(ScenarioMenuState, oosAction), 7, true);
-        if (on)
-        {
-            primePoolCategory(cpu::kListShield);
-        }
-        else
-        {
-            clearPoolCategoryPrime(cpu::kListShield);
-        }
-        return on;
+        return editPoolActive(kPresetShieldPressure, cpu::kListShield,
+                              scenarioShieldOffenseActive()
+                                  && presetFieldEq(kPresetShieldPressure, offsetof(ScenarioMenuState, oosAction), 7, true));
     }
     static bool scenarioShieldDefenseActive()
     {
@@ -138,6 +137,11 @@ namespace pages {
     static bool practiceFloatActive() { return practiceDrillIs(4); }
     static bool practicePsActive() { return practiceDrillIs(5); }
     static bool practicePsProjActive() { return practiceDrillIs(5) && practiceMenuState()->psAttackMode == 0; }
+    static bool scenarioSnakeVisible() { return presetRowVisible() && main::extraSnakeP1(); }
+    static bool scenarioFloatDjcVisible() { return presetRowVisible() && main::extraFloatDjcP1(); }
+    static void startSnakeDrill() { main::extraScenarioCall(main::kScenarioStartSnakeDrill); }
+    static void startFloatDjcDrill() { main::extraScenarioCall(main::kScenarioStartFloatDjcDrill); }
+    static void stopPracticeDrill() { main::extraScenarioCall(main::kScenarioStopDrill); }
 
 #ifdef __MWERKS__
     static const u16 kScenLblOffs[42] = {
@@ -160,13 +164,15 @@ namespace pages {
         scenarioShieldDefenseActive, scenarioLedgetechActive, scenarioShieldDropActive, scenarioSlideOffActive,
         scenarioGrabActive, scenarioMultiHitActive, practiceActive, practicePsActive, practicePsProjActive,
         practiceLedgeActive, practiceLcActive, practiceFloatActive, practiceWdActive, comboTrainerRowVisible,
-        scenarioComboLabActive, scenarioEditAirPoolActive, scenarioEditShieldPoolActive
+        scenarioComboLabActive, scenarioEditAirPoolActive, scenarioEditShieldPoolActive,
+        scenarioSnakeVisible, scenarioFloatDjcVisible
     };
     static void (*const kScenCbs[])() = {
-        NULL, main::extraScenarioChanged, main::extraScenarioResetNow, practiceChanged
+        NULL, main::extraScenarioChanged, main::extraScenarioResetNow, practiceChanged,
+        startSnakeDrill, startFloatDjcDrill, stopPracticeDrill
     };
     enum {
-        kScenRows = 55,
+        kScenRows = 58,
         kScenFlagHide = ::tm::ui::kFlagHideWhenDisabled,
         kScenFlagSH = ::tm::ui::kFlagScratch | ::tm::ui::kFlagHideWhenDisabled
     };
@@ -230,7 +236,10 @@ namespace pages {
         {kKindChoice, kScenFlagSH, PR_OFF(lcancelTarget), TM_CHOICE_LO, 1, 3, 34, 3, 21, 0},
         {kKindChoice, kScenFlagSH, PR_OFF(floatDjcTarget), TM_CHOICE_LO, 1, 3, 34, 3, 22, 0},
         {kKindToggle, kScenFlagSH, PR_OFF(wdTargetZone), 0, 0, 1, 0xFF, 3, 23, 0},
-        {kKindMenu,   kScenFlagHide, 0, 0, 0, P_COMBO_TRAINER, 0xFF, 0, 24, 0}
+        {kKindMenu,   kScenFlagHide, 0, 0, 0, P_COMBO_TRAINER, 0xFF, 0, 24, 0},
+        {kKindFunc,   kScenFlagHide, 0, 0, 0, 0, 0xFF, 4, 28, 0},
+        {kKindFunc,   kScenFlagHide, 0, 0, 0, 0, 0xFF, 5, 29, 0},
+        {kKindFunc,   kScenFlagHide, 0, 0, 0, 0, 0xFF, 6, 17, 0}
     };
 #undef SC_OFF
 #undef PR_OFF
@@ -394,7 +403,13 @@ namespace pages {
         TM_PRAC_CHOICE("Target", floatDjcTarget, kPracticeTargets, 4, 1, practiceFloatActive),
         TM_PRAC_TOGGLE("Target Zone", wdTargetZone, 0, practiceWdActive),
         TM_ROW(::tm::ui::kKindMenu, ::tm::ui::kFlagHideWhenDisabled, 0, 0, P_COMBO_TRAINER, 0, "More Combo Options",
-               NULL, NULL, comboTrainerRowVisible)
+               NULL, NULL, comboTrainerRowVisible),
+        TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, "Snake C4 Recovery",
+               NULL, startSnakeDrill, scenarioSnakeVisible),
+        TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, "Float / Hover & DJC",
+               NULL, startFloatDjcDrill, scenarioFloatDjcVisible),
+        TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, "Exit Drill",
+               NULL, stopPracticeDrill, practiceActive)
     };
 #undef TM_PRAC_TOGGLE
 #undef TM_PRAC_CHOICE

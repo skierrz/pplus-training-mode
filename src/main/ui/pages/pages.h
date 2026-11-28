@@ -41,6 +41,11 @@ namespace pages {
         P_CPU_DEFENSE,
         P_COUNTER_POOL,
         P_OLIMAR,
+        P_OSD_INDIVIDUAL,
+        P_TECH_WEIGHTS,
+        P_REC_MANAGE,
+        P_COLLISION,
+        P_HUD_OVERLAYS,
         P_COUNT
     };
     enum { kCategoryCount = 7 };
@@ -56,11 +61,11 @@ namespace pages {
     extern TM_PAGE_QUAL Page kScenarios;
     extern TM_PAGE_QUAL Page kCpuOptions;
     extern TM_PAGE_QUAL Page kRecording;
-    extern const Page kDisplayOptions;
+    extern TM_PAGE_QUAL Page kDisplayOptions;
     extern TM_PAGE_QUAL Page kOsdMenu;
     extern TM_PAGE_QUAL Page kStageCast;
     extern TM_PAGE_QUAL Page kControls;
-    extern const Page kDebug;
+    extern TM_PAGE_QUAL Page kDebug;
     extern TM_PAGE_QUAL Page kComboTrainer;
     extern TM_PAGE_QUAL Page kComboMeters;
     extern TM_PAGE_QUAL Page kTechOptions;
@@ -82,6 +87,13 @@ namespace pages {
     extern TM_PAGE_QUAL Page kCpuDefense;
     extern TM_PAGE_QUAL Page kCounterPool;
     extern TM_PAGE_QUAL Page kOlimar;
+    extern TM_PAGE_QUAL Page kOsdIndividual;
+    extern TM_PAGE_QUAL Page kTechWeights;
+    extern TM_PAGE_QUAL Page kRecManage;
+    extern TM_PAGE_QUAL Page kCollision;
+    extern TM_PAGE_QUAL Page kHudOverlays;
+
+    void osdSyncSaveLabel();
 
 #ifdef __MWERKS__
     struct RowSpec {
@@ -111,6 +123,7 @@ namespace pages {
     void initStageCastPage(Option* buf);
     void detachStageCastPage();
     void initScenariosPage(Option* buf);
+    void initDisplayPages(Option* buf);
     void initOsdMenuPage(Option* buf);
     void initComboTrainerPages(Option* buf);
     void initTechOptionsPage(Option* buf);

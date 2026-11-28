@@ -416,7 +416,7 @@ TEST(dual_stick_di, settings_layout_menu_row_and_storage_round_trip)
     CHECK_EQ(480u, sizeof(main::Settings));
 
     // Dual-Stick SDI lives on CPU > DI & SDI (P_CPU_DI, row 4); counters live on P_CPU_COUNTERS;
-    // P+ Tech OSD lives on P_OSD_MENU (row 5).
+    // Tech Sparkle lives on P_OSD_MENU (row 6); P+ Tech OSD lives on P_OSD_INDIVIDUAL (row 20).
     const ui::Page& diPage = ui::pages::kCpuDi;
     REQUIRE(diPage.count == 6);
     CHECK(strcmp(diPage.options[4].name, "Dual-Stick SDI") == 0);
@@ -435,9 +435,11 @@ TEST(dual_stick_di, settings_layout_menu_row_and_storage_round_trip)
     CHECK(strcmp(cntPage.options[11].name, "SHFFL Timing") == 0);
 
     const ui::Page& osdPage = ui::pages::kOsdMenu;
-    REQUIRE(osdPage.count == 26);
-    CHECK(strcmp(osdPage.options[4].name, "Tech Sparkle") == 0);
-    CHECK(strcmp(osdPage.options[5].name, "P+ Tech OSD") == 0);
+    REQUIRE(osdPage.count == 8);
+    CHECK(strcmp(osdPage.options[6].name, "Tech Sparkle") == 0);
+    const ui::Page& osdIndiv = ui::pages::kOsdIndividual;
+    REQUIRE(osdIndiv.count == 21);
+    CHECK(strcmp(osdIndiv.options[20].name, "P+ Tech OSD") == 0);
 
     host::card::reset();
     bootStorage();

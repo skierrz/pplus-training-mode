@@ -690,20 +690,26 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK_EQ(static_cast<int>(kEgResetStageSafe), static_cast<int>(clean.edgeguardReset));
 
     // Lab (kGeneral) places Offline VS Displays at row 8 and Controls at row 9;
-    // Display exposes Frame Meter at row 0, Floating Meters at row 14, and Lab Debug at row 17.
+    // Display exposes Frame Meter at row 0, Overlays & Meters (leading to Floating Meters) at row 7, Lab Debug at row 9.
     const ui::Page& gen = ui::pages::kGeneral;
     REQUIRE(gen.count == 13);
     CHECK(strcmp(gen.options[8].name, "Offline VS Displays") == 0);
     CHECK(strcmp(gen.options[9].name, "Controls") == 0);
     const ui::Page& disp = ui::pages::kDisplayOptions;
-    REQUIRE(disp.count == 18);
+    REQUIRE(disp.count == 10);
     CHECK(strcmp(disp.options[0].name, "Frame Meter") == 0);
-    CHECK(strcmp(disp.options[14].name, "Floating Meters") == 0);
-    CHECK_EQ(ui::pages::P_COMBO_METERS, disp.options[14].max);
-    CHECK(strcmp(disp.options[17].name, "Lab Debug") == 0);
-    CHECK_EQ(ui::pages::P_DEBUG, disp.options[17].max);
+    CHECK(strcmp(disp.options[6].name, "Boxes & Heatmap") == 0);
+    CHECK_EQ(ui::pages::P_COLLISION, disp.options[6].max);
+    CHECK(strcmp(disp.options[7].name, "Overlays & Meters") == 0);
+    CHECK_EQ(ui::pages::P_HUD_OVERLAYS, disp.options[7].max);
+    CHECK(strcmp(disp.options[9].name, "Lab Debug") == 0);
+    CHECK_EQ(ui::pages::P_DEBUG, disp.options[9].max);
+    const ui::Page& hudOvl = ui::pages::kHudOverlays;
+    REQUIRE(hudOvl.count == 4);
+    CHECK(strcmp(hudOvl.options[2].name, "Floating Meters") == 0);
+    CHECK_EQ(ui::pages::P_COMBO_METERS, hudOvl.options[2].max);
     const ui::Page& scen = ui::pages::kScenarios;
-    REQUIRE(scen.count == 55);
+    REQUIRE(scen.count == 58);
     CHECK(strcmp(scen.options[0].name, "Preset") == 0);
     CHECK_EQ(kScenarioCount - 1, scen.options[0].max);
     CHECK(strcmp(scen.options[3].name, "Post-Hitstun") == 0);
@@ -743,6 +749,9 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     CHECK(strcmp(scen.options[53].name, "Target Zone") == 0);
     CHECK(strcmp(scen.options[54].name, "More Combo Options") == 0);
     CHECK_EQ(ui::pages::P_COMBO_TRAINER, scen.options[54].max);
+    CHECK(strcmp(scen.options[55].name, "Snake C4 Recovery") == 0);
+    CHECK(strcmp(scen.options[56].name, "Float / Hover & DJC") == 0);
+    CHECK(strcmp(scen.options[57].name, "Exit Drill") == 0);
 }
 
 TEST(scenario_presets, multi_hit_sdi_ignores_attacker_hitlag)

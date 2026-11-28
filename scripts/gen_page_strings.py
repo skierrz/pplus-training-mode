@@ -276,25 +276,41 @@ def collect_entries() -> list[tuple[str, bytes]]:
     entries.append(("cpu_ctr_names", _extract_host_option_names(cpu, "kCounterRows")))
     entries.append(("cpu_def_names", _extract_host_option_names(cpu, "kDefenseRows")))
 
-    # 4. osd_menu.cpp: 4 label tables + 19 toggle names
+    # 4. osd_menu.cpp: 5 label tables + 8+21 row names
     osd = PAGES_DIR / "osd_menu.cpp"
-    entries += _parse_labels_from_cpp(osd, "osd", ["kPosition", "kTimingMeter", "kOsdPresets", "kTechSparkle"])
-    osd_names = _extract_host_option_names(osd, "kRows").split(b"\x00")[:-1]
-    # 19 toggles = rows 6..11 (6) + rows 13..25 (13) (skipping row 12 Advantage Tolerance)
-    osd_toggles = osd_names[6:12] + osd_names[13:26]
-    entries.append(("osd_toggle_names", b"".join(x + b"\x00" for x in osd_toggles)))
+    entries += _parse_labels_from_cpp(
+        osd, "osd", ["kPosition", "kTimingMeter", "kOsdPresets", "kOsdSaveTargets", "kTechSparkle"]
+    )
+    entries.append(
+        ("osd_names", _extract_host_option_names(osd, "kRows") + _extract_host_option_names(osd, "kIndivRows"))
+    )
 
-    # 5. combo_trainer.cpp: 4 label tables + 16+7 row names
+    # 4b. display_options.cpp: 5 label tables + 10+6+4+8 row names
+    disp = PAGES_DIR / "display_options.cpp"
+    entries += _parse_labels_from_cpp(
+        disp, "disp", ["kWho", "kPsaTargets", "kFrameMeterModes", "kHitboxColors", "kDiVectors"]
+    )
+    entries.append((
+        "disp_names",
+        _extract_host_option_names(disp, "kRows")
+        + _extract_host_option_names(disp, "kCollisionRows")
+        + _extract_host_option_names(disp, "kHudOverlaysRows")
+        + _extract_host_option_names(disp, "kDebugRows"),
+    ))
+
+    # 5. combo_trainer.cpp: 4 label tables + 15+7 row names
     ct = PAGES_DIR / "combo_trainer.cpp"
     entries += _parse_labels_from_cpp(ct, "ct", ["kResetDamageMode", "kResetDelays", "kPostEscapes", "kRecMixups"])
     entries.append(("ct_names", _extract_host_option_names(ct, "kRows") + _extract_host_option_names(ct, "kMeterRows")))
 
-    # 6. tech_options.cpp: 6 label tables + 17 row names
+    # 6. tech_options.cpp: 6 label tables + 9+9 row names
     tech = PAGES_DIR / "tech_options.cpp"
     entries += _parse_labels_from_cpp(
         tech, "tech", ["kTechInvisLabels", "kPreTechDriftLabels", "kTech", "kGetUp", "kTechTrap", "kLockout"]
     )
-    entries.append(("tech_names", _extract_host_option_names(tech, "kRows")))
+    entries.append(
+        ("tech_names", _extract_host_option_names(tech, "kRows") + _extract_host_option_names(tech, "kWeightRows"))
+    )
 
     # 7. info_display.cpp (pages): kValues + kPresets + kSizes + 10 row names
     info = PAGES_DIR / "info_display.cpp"
@@ -312,12 +328,14 @@ def collect_entries() -> list[tuple[str, bytes]]:
         "Short Hop", "IASA", "Shield Stun"
     ])))
 
-    # 9. recording.cpp: 7 label tables + 19 row names
+    # 9. recording.cpp: 7 label tables + 9+9 row names
     rec = PAGES_DIR / "recording.cpp"
     entries += _parse_labels_from_cpp(
         rec, "rec", ["kHmnMode", "kCpuMode", "kSlot", "kMirrored", "kCpuCounter", "kAutoRestore", "kTakeover"]
     )
-    entries.append(("rec_names", _extract_host_option_names(rec, "kRows")))
+    entries.append(
+        ("rec_names", _extract_host_option_names(rec, "kRows") + _extract_host_option_names(rec, "kManageRows"))
+    )
 
     # 10. general.cpp: 3 label tables + 13 row names
     gen = PAGES_DIR / "general.cpp"
