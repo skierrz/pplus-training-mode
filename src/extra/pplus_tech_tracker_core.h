@@ -704,6 +704,14 @@ namespace extra {
         return false;
     }
 
+    // Returns true when a tracked fighter slot should feed the P+ Tech Tracker
+    // and its per-player OSD stack: skips AI partner sub-fighters (such as Nana)
+    // so they cannot double-count or double-post onto the leader's player slot.
+    inline bool techTrackerEligibleSlot(bool used, u8 partner, int playerNo)
+    {
+        return used && partner == 0 && playerNo >= 0 && playerNo < kTechTrackerMaxPlayers;
+    }
+
     // Steps one finished frame for one fighter against its data-driven
     // FighterTechDef. Returns true on a newly completed signature tech (sets
     // `outLabel` to the table label and updates `stats`).

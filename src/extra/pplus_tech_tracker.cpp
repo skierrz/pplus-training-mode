@@ -103,11 +103,8 @@ namespace extra {
         for (int i = 0; i < game::kMaxTracked; i++)
         {
             const game::Tracked* t = game::tracked(i);
-            if (t == NULL || !t->used || t->cur.frame != f || !game::isRam(t->fighter))
-            {
-                continue;
-            }
-            if (t->playerNo < 0 || t->playerNo >= kTechTrackerMaxPlayers)
+            if (t == NULL || !techTrackerEligibleSlot(t->used, t->partner, t->playerNo)
+                || t->cur.frame != f || !game::isRam(t->fighter))
             {
                 continue;
             }

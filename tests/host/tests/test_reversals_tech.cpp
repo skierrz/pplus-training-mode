@@ -587,3 +587,20 @@ TEST(reversals_tech, sd_migration_from_46_byte_cpu_options_and_round_trip)
     }
     storage::detach();
 }
+
+TEST(reversals_tech, partner_slot_excluded_from_pplus_tech_osd)
+{
+    // Main fighter slots (Popo or solo Sopo, partner == 0) in valid player range are tracked.
+    CHECK(techTrackerEligibleSlot(true, 0, 0));
+    CHECK(techTrackerEligibleSlot(true, 0, 3));
+
+    // AI partner sub-fighter (Nana, partner == 1) sharing the leader's playerNo MUST be excluded
+    // so P+ Tech OSD never double-counts or double-posts onto Popo's OSD stack.
+    CHECK(!techTrackerEligibleSlot(true, 1, 0));
+    CHECK(!techTrackerEligibleSlot(true, 1, 1));
+
+    // Unused or out-of-range player slots are excluded.
+    CHECK(!techTrackerEligibleSlot(false, 0, 0));
+    CHECK(!techTrackerEligibleSlot(true, 0, -1));
+    CHECK(!techTrackerEligibleSlot(true, 0, kTechTrackerMaxPlayers));
+}
