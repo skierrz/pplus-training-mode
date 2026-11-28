@@ -313,7 +313,7 @@ class Game:
     def _extra_read(self, m):
         e = self.emu
         out = {"tilt": None, "mash": None, "kb": None, "psbit": 0, "psdrop": 0, "reflect": False,
-               "lcancel": s32(e.read(m["ints"] + 90 * 4, 4), 0)}
+               "sstun": 0, "lcancel": s32(e.read(m["ints"] + 90 * 4, 4), 0)}
         la, sw = struct.unpack(">2I", e.read(m["work"] + 0x20, 8))
         if e.is_ram(la):
             la_bits, la_n = struct.unpack(">2I", e.read(la + 0x1C, 8))
@@ -326,6 +326,9 @@ class Game:
                 # RA-Basic[3]: set to IC-Basic[23079] (5) only on the RA-Basic[1] > 0
                 # powershield branch of GuardDamage (both Fighter.pac and FitYoshi.pac).
                 out["psdrop"] = e.u32(sw_ints + 12)
+            if sw_in > 5 and e.is_ram(sw_ints):
+                # RA-Basic[5]: shield stun frames left while in GuardDamage.
+                out["sstun"] = s32(e.read(sw_ints + 20, 4), 0)
             if e.is_ram(sw_fl):
                 out["tilt"] = struct.unpack(">2f", e.read(sw_fl + 0x10, 8))
             if sw_bn > 0 and e.is_ram(sw_bits):
@@ -6127,6 +6130,500 @@ def o_shield_timing_multihit(r):
     return res
 
 
+def o_wall_tech_gate(r):
+    """Wall-tech trigger spoofing gates:
+    1) Hanging on ledge (onCliff) must not spoof guard trigger counters.
+    2) Recovering airborne over the stage (hasFloor) must not spoof.
+    3) Tech: Random with 100% miss weight [0, 0, 0, 100] must not spoof.
+    4) Active techFrom lockout window must gate spoofing until expired."""
+    res = Result("Wall tech trigger spoofing gates")
+    en = r.g.entry(CPU)
+
+    def read_triggers():
+        ft = en["fighters"][en["active"]]
+        acc = r.emu.u32(ft + 0x60)
+        cm = r.emu.u32(r.emu.u32(acc + 0xD8) + 0x5C)
+        b = r.emu.read(cm + 0x8E, 4)
+        return (b[0], b[1]), (b[2], b[3])
+
+    def is_spoofed(trig):
+        if not trig:
+            return False
+        i3, i4 = trig
+        return (i3[0] >= 40 and i3[1] < 20) or (i4[0] >= 40 and i4[1] < 20)
+
+    def start_rec_then(opts, on_step, frames=170):
+        r.load("near", opts, percent=50)
+        m = {"hit1": None, "moved": False, "rec": None}
+        ex = {}
+
+        def each(i, rows):
+            if i == 0:
+                r.emu.hold(0, buttons=["A"], stick=DSMASH)
+            elif i == 5:
+                r.emu.neutral(0)
+            if len(rows) >= 2:
+                a, b = rows[-2][CPU], rows[-1][CPU]
+                k = len(rows) - 1
+                if m["hit1"] is None and b["hitlag"] > a["hitlag"] and b["status"] in HIT:
+                    m["hit1"] = k
+                if m["hit1"] is not None and not m["moved"] and b["hitlag"] == 0:
+                    m["moved"] = True
+                    put_cpu(r, en, 95.0, 60.0)
+                    r.emu.h.call("write_mem", addr=kb_addr(r, en), hex=struct.pack(">ff", 0.0, 1.0).hex())
+                if m["moved"] and m["rec"] is None and r.g.ai_flag(en["slot"]) == 1:
+                    m["rec"] = k
+                on_step(i, k, a, b, rows, m, ex)
+
+        rows = r.record(frames, players=(CPU, P1), each=each)
+        r.emu.neutral(0)
+        return rows, m, ex
+
+    # 1) onCliff: run Fox off FD's right edge with Tech=None so it grabs the
+    # right ledge (Cliff_Catch / Cliff_Wait), then switch to Tech=In Place on
+    # ledge -> must never spoof while hanging on ledge.
+    r.load("near", on(tech=TECH["None"], techTrap=0, recovery=RECOVERY["Game"]), percent=0)
+    put_cpu(r, en, 78.0, 0.0)
+    r.drv.play(CPU, [(0, 1.0, 0.0, 40)], ai_off=True)
+    cliff_ex = {"air": None, "cliff": None, "cliff_frames": 0, "trig": None}
+
+    def each_cliff(i, rows):
+        if not rows:
+            return
+        b = rows[-1][CPU]
+        k = len(rows) - 1
+        if cliff_ex["air"] is None and b["air"]:
+            cliff_ex["air"] = k
+            r.drv.stop()
+            post = r.g.modules(en["fighters"][en["active"]])["posture"]
+            put_cpu(r, en, 88.0, -8.0)
+            r.emu.h.call("write_mem", addr=post + FACING, hex=struct.pack(">f", -1.0).hex())
+        if 0x73 <= b["status"] <= 0x7B:
+            if cliff_ex["cliff"] is None:
+                cliff_ex["cliff"] = k
+                r.opt.set(tech=TECH["In Place"])
+            cliff_ex["cliff_frames"] += 1
+            if cliff_ex["cliff_frames"] == 3:
+                cliff_ex["trig"] = read_triggers()
+
+    c_rows = r.record(100, players=(CPU, P1), each=each_cliff)
+    r.drv.stop()
+    res.note(f"onCliff: ex={cliff_ex}, statuses={statuses(c_rows)[:12]}")
+    res.row("hanging on ledge (onCliff): no wall-tech trigger spoof",
+            "cliff reached, neither idx3 nor idx4 spoofed",
+            f"cliff={cliff_ex['cliff']}, trig={cliff_ex['trig']}",
+            cliff_ex["cliff"] is not None and cliff_ex["trig"] is not None and not is_spoofed(cliff_ex["trig"]))
+
+    # 2) Onstage hasFloor while recovering: start offstage recovery with Tech=None,
+    # move Fox airborne over center stage while recovering stays active, enable
+    # Tech=In Place -> must not spoof over stage floor.
+    def step_onstage(i, k, a, b, rows, m, ex):
+        if m["rec"] is not None and "placed" not in ex and k == m["rec"] + 2:
+            put_cpu(r, en, 20.0, 55.0)
+            r.opt.set(tech=TECH["In Place"])
+            ex["placed"] = k
+        if "placed" in ex and "trig" not in ex and k == ex["placed"] + 4:
+            ex["trig"] = read_triggers()
+            ex["air"] = b["air"]
+            ex["x"] = b["x"]
+            ex["ai"] = r.g.ai_flag(en["slot"])
+
+    _, m2, ex2 = start_rec_then(on(tech=TECH["None"], techTrap=0, recovery=RECOVERY["Game"]), step_onstage)
+    res.note(f"onstage recovering: rec={m2['rec']}, ex={ex2}")
+    res.row("recovering airborne over stage (hasFloor): no wall-tech trigger spoof",
+            "airborne onstage with AI active, neither idx3 nor idx4 spoofed",
+            f"x={ex2.get('x')}, air={ex2.get('air')}, ai={ex2.get('ai')}, trig={ex2.get('trig')}",
+            "trig" in ex2 and ex2.get("air") and abs(ex2.get("x", 999.0)) < 60.0
+            and ex2.get("ai") == 1 and not is_spoofed(ex2["trig"]))
+
+    # 3) 100%-miss Tech: Random ([0, 0, 0, 100]) offstage recovery -> must not spoof.
+    def step_miss_rand(i, k, a, b, rows, m, ex):
+        if m["rec"] is not None and "trig" not in ex and k == m["rec"] + 4:
+            ex["trig"] = read_triggers()
+
+    _, m3, ex3 = start_rec_then(
+        on(tech=TECH["Random"], techChance=[0, 0, 0, 100], techTrap=0, recovery=RECOVERY["Game"]),
+        step_miss_rand)
+    res.note(f"Tech Random 100% miss: rec={m3['rec']}, trig={ex3.get('trig')}")
+    res.row("recovering offstage with Tech=Random [0,0,0,100]: no wall-tech trigger spoof",
+            "rec active, neither idx3 nor idx4 spoofed",
+            f"rec={m3['rec']}, trig={ex3.get('trig')}",
+            m3["rec"] is not None and "trig" in ex3 and not is_spoofed(ex3["trig"]))
+
+    # 4) Active techFrom lockout: a tumble re-hit with Tech Trap=Earliest sets
+    # techFrom = hit2 + 17; switching Tech Trap to Off and moving offstage into
+    # recovery while now < techFrom must NOT spoof until techFrom expires.
+    r.load("near", on(tech=TECH["None"], techTrap=0, recovery=RECOVERY["Off"]), percent=50)
+    f0 = r.g.fighter(en)
+    hx, hy = f0["x"], f0["y"] + HOLD_ABOVE
+    m4 = {"hit1": None, "press2": None, "hit2": None, "free2": None, "rec": None,
+          "trig_locked": None, "trig_after": None}
+
+    def each_techfrom(i, rows):
+        if i == 0:
+            r.emu.hold(0, buttons=["A"], stick=DSMASH)
+        if len(rows) >= 2:
+            a, b = rows[-2][CPU], rows[-1][CPU]
+            k = len(rows) - 1
+            if b["hitlag"] > a["hitlag"]:
+                if m4["hit1"] is None:
+                    m4["hit1"] = k
+                elif m4["hit2"] is None and m4["press2"] is not None:
+                    m4["hit2"] = k
+            if m4["hit1"] is not None and m4["hit2"] is None and b["hitlag"] == 0:
+                put_cpu(r, en, hx, hy)
+                if m4["press2"] is None and k > m4["hit1"] + 10 and rows[-1][P1]["status"] == STATUS["Wait"]:
+                    # Enable Tech Trap=Earliest right before fireball hits tumbling Fox (low hitstun < 17f).
+                    r.opt.set(tech=TECH["In Place"], techTrap=1)
+                    r.opt.cpu_percent(0, True)
+                    r.emu.hold(0, buttons=["B"])
+                    m4["press2"] = i
+            if m4["hit2"] is not None and m4["free2"] is None and b["hitlag"] == 0:
+                m4["free2"] = k
+                r.opt.set(tech=TECH["In Place"], techTrap=0, recovery=RECOVERY["Game"])
+                put_cpu(r, en, 95.0, 75.0)
+                r.emu.h.call("write_mem", addr=kb_addr(r, en), hex=struct.pack(">ff", 0.0, 0.5).hex())
+            if m4["free2"] is not None and m4["rec"] is None and r.g.ai_flag(en["slot"]) == 1:
+                m4["rec"] = k
+            if m4["rec"] is not None and m4["trig_locked"] is None and k < m4["hit2"] + 17 and k >= m4["rec"] + 1:
+                m4["trig_locked"] = (k - m4["hit2"], read_triggers())
+            if m4["rec"] is not None and m4["trig_after"] is None and k == m4["hit2"] + 21:
+                m4["trig_after"] = (k - m4["hit2"], read_triggers())
+        if i == 5 or (m4["press2"] is not None and i == m4["press2"] + 3):
+            r.emu.neutral(0)
+
+    r.record(190, players=(CPU, P1), each=each_techfrom)
+    r.emu.neutral(0)
+    res.note(f"techFrom lockout: {m4}")
+    locked_ok = m4["trig_locked"] is not None and not is_spoofed(m4["trig_locked"][1])
+    after_ok = m4["trig_after"] is not None and is_spoofed(m4["trig_after"][1])
+    res.row("active techFrom window gates spoof until expiry",
+            "unspoofed while < +17, spoofed by +21",
+            f"locked={m4['trig_locked']}, after={m4['trig_after']}",
+            locked_ok and after_ok)
+    return res
+
+
+def o_savestate_rebase(r):
+    """Savestate timestamp rebasing in optionsLoaded():
+    1) A delayed cue saved 28 frames before its start frame must still wait ~28
+       frames after advancing 65 frames and quick-loading (not fire on frame 1).
+    2) Cue::start age (at - start) must stay preserved across quick-save/load.
+    3) lastPress tech lockout saved right after a guard press must remain intact
+       after advancing 60 frames and quick-loading."""
+    res = Result("Savestate timestamp rebasing")
+    emu = r.emu
+    en = r.g.entry(CPU)
+
+    def quick_save():
+        pos = len(emu.log_text())
+        emu.hold(0, ["DRIGHT"])
+        emu.advance(14)
+        emu.neutral(0)
+        emu.wait_for("quick save", lambda: re.search(r"savestate: saved frame \d+", emu.log_text()[pos:]),
+                     120, every=2)
+
+    def quick_load_and_record(n_frames):
+        emu.h.call("pause")
+        pos = len(emu.log_text())
+        emu.hold(0, ["DLEFT"])
+        loaded = False
+        for f in range(12):
+            if f == 2:
+                emu.neutral(0)
+            emu.h.call("frame_advance", n=1)
+            if re.search(r"savestate: loaded frame \d+", emu.log_text()[pos:]):
+                loaded = True
+                break
+        emu.neutral(0)
+        if not loaded:
+            raise CpuError("quick load did not fire")
+        rows = r.record(n_frames, players=(CPU, P1))
+        return rows
+
+    # 1) Delayed Cue::frame across quick-save + advance + quick-load.
+    r.load("start", on(), percent=0)
+    emu.h.call("resume")
+    emu.advance(10)
+    # Wait for save lockout / neutral state, then cue Jab 40 frames ahead, save ~10f later.
+    r.cue.op(CueBlock.CUE, lst=LIST_GROUND, index=JAB_INDEX, delay=40)
+    emu.advance(2)
+    st_pre = r.cue.status()
+    quick_save()
+    st_save = r.cue.status()
+    # Let the first timeline finish the Jab and advance well past original q.frame.
+    pre_rows = r.record(50, players=(CPU, P1))
+    pre_atk = first(pre_rows, 0, lambda x: x[CPU]["status"] == STATUS["Attack"])
+    emu.h.call("resume")
+    emu.advance(40)  # total +90 frames past save; clears 30f save lockout too
+    post_rows = quick_load_and_record(50)
+    post_atk = first(post_rows, 0, lambda x: x[CPU]["status"] == STATUS["Attack"])
+    st_post = r.cue.status()
+    res.note(f"delayed cue: st_pre={st_pre}, st_save={st_save}, pre_atk={pre_atk}, "
+             f"post_atk={post_atk}, st_post={st_post}")
+    res.row("delayed Jab cue fires at same offset after quick load",
+            f"row ~{pre_atk} (within 1f, >= 15f after load)",
+            f"pre={pre_atk}, post={post_atk}",
+            pre_atk is not None and post_atk is not None and pre_atk >= 15
+            and abs(post_atk - pre_atk) <= 1)
+
+    # 2) Cue::start age preserved across quick-save + advance + quick-load.
+    # At this point the Jab cue finished (`Done`); trigger RELEASE op to stamp
+    # current trackerFrame in `at`, save, advance 65f, load, stamp `at` again.
+    emu.h.call("resume")
+    emu.advance(10)
+    r.cue.op(CueBlock.RELEASE)
+    emu.advance(2)
+    st_done_before = r.cue.status()
+    age_save = st_done_before["at"] - st_done_before["start"]
+    quick_save()
+    emu.advance(65)
+    quick_load_and_record(2)
+    r.cue.op(CueBlock.RELEASE)
+    emu.h.call("resume")
+    emu.advance(2)
+    st_done_after = r.cue.status()
+    age_load = st_done_after["at"] - st_done_after["start"]
+    res.note(f"cue start age: before={st_done_before}, age_save={age_save}, "
+             f"after={st_done_after}, age_load={age_load}")
+    res.row("completed cue start age preserved across quick load (+65f elapsed)",
+            f"age ~{age_save} (+4..18f elapsed, not +65f)",
+            f"save_age={age_save}, load_age={age_load}, start {st_done_before['start']}->{st_done_after['start']}",
+            st_done_after["state"] == "Done" and st_done_after["start"] > st_done_before["start"] + 40
+            and abs(age_load - age_save) <= 25)
+
+    # 3) lastPress tech lockout preserved across quick-save + advance + quick-load:
+    # Raise shield briefly (sets lastPress), save 2f later, advance 60f, quick-load,
+    # then drop Fox in tumble to land ~20f later (inside Brawl's 40f lockout).
+    # With rebased lastPress, options.cpp knows lockout is active and must NOT log
+    # a wasted guard press during the first 35f after load.
+    r.load("near", on(behavior=BEHAVIOR["Shield"], tech=TECH["None"]), percent=50)
+    emu.h.call("resume")
+    emu.advance(2)  # Guard_On sets lastPress
+    r.opt.set(behavior=BEHAVIOR["Stand"], tech=TECH["In Place"], techLockout=1)
+    quick_save()
+    emu.advance(65)
+    emu.h.call("pause")
+    pos_ql = len(emu.log_text())
+    emu.hold(0, ["DLEFT"])
+    for f in range(12):
+        if f == 2:
+            emu.neutral(0)
+        emu.h.call("frame_advance", n=1)
+        if re.search(r"savestate: loaded frame \d+", emu.log_text()[pos_ql:]):
+            break
+    emu.neutral(0)
+    pos_log = len(emu.log_text())
+
+    def each_dsmash(i, rows):
+        if i == 0:
+            r.emu.hold(0, buttons=["A"], stick=DSMASH)
+        elif i == 4:
+            r.emu.neutral(0)
+        if len(rows) >= 2 and rows[-1][CPU]["hitlag"] == 0 and rows[-2][CPU]["hitlag"] > 0:
+            # Short arc landing ~12f later (well inside the 40f lockout from saved Guard_On).
+            put_cpu(r, en, rows[-1][CPU]["x"], 6.0)
+            r.emu.h.call("write_mem", addr=kb_addr(r, en), hex=struct.pack(">ff", 0.4, -0.5).hex())
+
+    t_rows = r.record(40, players=(CPU, P1), each=each_dsmash)
+    r.emu.neutral(0)
+    tech_logs = re.findall(r"cpu: P2 tech \d+: guard -?\d+ frames before the predicted landing, frame \d+",
+                           emu.log_text()[pos_log:])
+    hit_t = first(t_rows, 0, lambda x: x[CPU]["status"] in HIT)
+    land_t = first(t_rows, (hit_t or 0) + 1, lambda x: not x[CPU]["air"] and x[CPU]["status"] not in FLYING) if hit_t else None
+    land_st = sname(t_rows[land_t][CPU]["status"]) if land_t is not None else None
+    res.note(f"lastPress rebase: hit={hit_t}, land={land_t} ({land_st}), tech_logs={tech_logs}")
+    res.row("saved guard press lockout respected after +65f quick load",
+            "lands in Down with 0 premature tech press logs",
+            f"land={land_st} at {land_t}, tech_logs={len(tech_logs)}",
+            hit_t is not None and land_t is not None and land_st == "Down" and len(tech_logs) == 0)
+    return res
+
+
+def o_powershield_clear(r):
+    """Perfect Shield stale counter cleanup:
+    1) Grabbed while powershield hold is active (1..5): after grounded mash-out
+       to Wait, CPU must NOT raise a phantom Guard_On with no incoming attack.
+    2) Hit while powershield > 0: powershield clears so CPU returns cleanly to
+       Wait without phantom shield or skipped powershield frame."""
+    res = Result("Perfect Shield state clear on grab/hit")
+    en = r.g.entry(CPU)
+
+    # 1) Fireball approaches Fox from afar (-35 -> +25) so Mario finishes
+    # Neutral-B well before the fireball reaches Fox. Probe the exact Guard_On
+    # frame g0, then warp Mario beside Fox and press Z at g0 - 7 so Catch
+    # connects right as incomingHit sets powershield=1 (before reflect).
+    # Fox mashes out grounded -> CaptureCut -> Wait. No attack follows.
+    r.load("start", on(behavior=BEHAVIOR["Perfect Shield"], counterShield=0), percent=0)
+    put_fighter(r, r.g.entry(P1), -35.0, 0.0)
+    put_fighter(r, en, 25.0, 0.0)
+
+    def fire_probe(i, rows):
+        if i == 2:
+            r.emu.hold(0, buttons=["B"])
+        elif i == 5:
+            r.emu.neutral(0)
+
+    p_rows = r.record(90, players=(CPU, P1), each=fire_probe)
+    r.emu.neutral(0)
+    g0 = first(p_rows, 0, lambda x: x[CPU]["status"] == STATUS["Guard_On"])
+    if g0 is None:
+        raise CpuError(f"fireball probe never triggered Guard_On: {statuses(p_rows)[:8]}")
+    res.note(f"fireball probe: Guard_On at {g0}, P1 status at {g0 - 7}: {sname(p_rows[g0 - 7][P1]['status'])}")
+
+    r.load("start", on(behavior=BEHAVIOR["Perfect Shield"], counterShield=0,
+                       grabEscape=MASH["Perfect"], grabRelease=0), percent=0)
+    put_fighter(r, r.g.entry(P1), -35.0, 0.0)
+    put_fighter(r, en, 25.0, 0.0)
+    st = {"grabbed": None, "cut": None, "wait": None}
+    pos = len(r.emu.log_text())
+
+    def each_grab(i, rows):
+        if i == 2:
+            r.emu.hold(0, buttons=["B"])
+        elif i == 5:
+            r.emu.neutral(0)
+        elif i == g0 - 7:
+            put_fighter(r, r.g.entry(P1), rows[-1][CPU]["x"] - 7.5, 0.0)
+            r.emu.hold(0, buttons=["Z"])
+        elif i == g0 - 3:
+            r.emu.neutral(0)
+        if rows:
+            cs = rows[-1][CPU]["status"]
+            k = len(rows) - 1
+            if st["grabbed"] is None and 0x3D <= cs <= 0x3F:
+                st["grabbed"] = k
+            if st["grabbed"] is not None and st["cut"] is None and cs == 0x40:
+                st["cut"] = k
+            if st["cut"] is not None and st["wait"] is None and cs == STATUS["Wait"]:
+                st["wait"] = k
+
+    rows = r.record(200, players=(CPU, P1), each=each_grab, extras=True)
+    r.emu.neutral(0)
+    ps_logs = [s.strip() for s in PS_LOG.findall(r.emu.log_text()[pos:])]
+    guard_before = first(rows, 0, lambda x: x[CPU]["status"] == STATUS["Guard_On"])
+    phantom = None
+    if st["cut"] is not None:
+        phantom = first(rows, st["cut"], lambda x: x[CPU]["status"] in (STATUS["Guard_On"], STATUS["Guard"]))
+    res.note(f"PS grab: guard_before={guard_before}, st={st}, phantom={phantom}, "
+             f"logs={ps_logs[:3]}, statuses={statuses(rows)[:16]}")
+    res.row("grabbed during Perfect Shield hold: zero phantom Guard_On after release",
+            "PS triggered before/on grab, grabbed -> CaptureCut, no Guard after release",
+            f"ps_logs={len(ps_logs)}, grab={st['grabbed']}, cut={st['cut']}, phantom={phantom}",
+            len(ps_logs) >= 1 and st["grabbed"] is not None and st["cut"] is not None and phantom is None)
+    return res
+
+
+def o_shield_multihit_stun(r):
+    """Multi-hit shield registration (prevShieldStun) and OOS Counter Delay:
+    1) Verify OOS Grab Counter Delay 0 / 1 / 5 exact frames (+0 / +1 / +5).
+    2) Verify consecutive multi-hit shield stun refresh increments hits even
+       when Guard_Damage continues with hitlag <= prevHitlag."""
+    res = Result("Multi-hit shieldStun & OOS delay")
+
+    # 1) Exact OOS Grab Counter Delay 0, 1, 5.
+    got = {}
+    for d in (0, 1, 5):
+        drows, dstun, dend = shield_run(r, on(behavior=BEHAVIOR["Shield"], counterShield=1, counterDelay=d))
+        catch = first(drows, dstun, lambda x: x[CPU]["status"] == STATUS["Catch"]) if dstun is not None else None
+        got[d] = (dstun, dend, catch, None if catch is None or dstun is None else catch - dstun)
+        res.note(f"OOS Grab delay {d}: stun={dstun}, end={dend}, Catch={catch} (+{got[d][3]})")
+    d1 = got[1][3] - got[0][3] if got[0][3] is not None and got[1][3] is not None else None
+    d5 = got[5][3] - got[0][3] if got[0][3] is not None and got[5][3] is not None else None
+    res.row("OOS Grab Counter Delay 1 and 5 vs 0: exact +1 and +5 frames",
+            "+1 / +5", f"+{d1} / +{d5}", d1 == 1 and d5 == 5)
+
+    # 2) Multi-hit shield: P1 Mario Down-B (Mario Tornado) against shielding Fox
+    # (also log Mario SH Dair) to verify consecutive Guard_Damage hits with
+    # shieldStun refresh increment `hits` for Per-Hit Counters.
+    for mv_name, move_fn in (
+        ("Down-B", lambda i, rows: (r.emu.hold(0, buttons=["B"], stick=(128, 0)) if i == 25 else
+                                    (r.emu.neutral(0) if i == 28 else
+                                     (r.emu.hold(0, buttons=["B"]) if i in (32, 36, 40, 44) else
+                                      (r.emu.neutral(0) if i in (34, 38, 42, 46) else None))))),
+        ("SH Dair", lambda i, rows: (r.emu.hold(0, buttons=["X"]) if i == 25 else
+                                     (r.emu.neutral(0) if i == 26 else
+                                      (r.emu.hold(0, buttons=["A"], stick=(128, 0)) if i == 29 else
+                                       (r.emu.neutral(0) if i == 32 else None))))),
+    ):
+        r.load("near", on(behavior=BEHAVIOR["Shield"], infiniteShields=SHIELDS["On"], shieldHealth=60,
+                          counterShield=0, shieldTiming=SHIELD_TIMING["First Gap"]), percent=0)
+        tbl = bytearray([1])
+        for h_idx in range(10):
+            if h_idx < 3:
+                tbl += bytes([1, 0, 0, 0, 0, 0, 0])  # Disable hits 1..3
+            else:
+                tbl += bytes([2, 0, 0, SHIELD_ACTIONS["Grab"], 0, 0, 0])  # Custom Grab hit 4+
+        r.emu.h.call("write_mem", addr=r.opt.base + SET_CPU_TABLES, hex=tbl.hex())
+        pos = len(r.emu.log_text())
+        rows = r.record(110, players=(CPU, P1), each=move_fn, extras=True)
+        r.emu.neutral(0)
+        gd_rows = [(k, rows[k][CPU]["hitlag"], rows[k]["x"]["sstun"])
+                   for k in range(25, len(rows)) if rows[k][CPU]["status"] == STATUS["Guard_Damage"]]
+        stun_jumps_no_hl = 0
+        for idx in range(1, len(gd_rows)):
+            k0, hl0, ss0 = gd_rows[idx - 1]
+            k1, hl1, ss1 = gd_rows[idx]
+            if k1 == k0 + 1 and ss1 > ss0 and hl1 <= hl0:
+                stun_jumps_no_hl += 1
+        c_logs = [ln for ln in r.emu.log_text()[pos:].splitlines() if "cpu: P2 counter" in ln]
+        catch = first(rows, 25, lambda x: x[CPU]["status"] == STATUS["Catch"])
+        res.note(f"Mario {mv_name}: gd_rows={gd_rows[:30]}, jumps_hl<=prev={stun_jumps_no_hl}, "
+                 f"catch={catch}, logs={c_logs}")
+    res.row("Multi-hit shield stun refresh triggers counter",
+            "Catch after multi-hit shield", f"catch={catch}, jumps={stun_jumps_no_hl}",
+            catch is not None)
+    return res
+
+
+def o_shield_multihit_aura(r):
+    """Multi-hit shield stun refresh with zero/non-increasing hitlag
+    (Lucario Aura Sphere charge on Fox shield): consecutive Guard_Damage hits
+    where v.hitlag <= prevHitlag and v.shieldStun > prevShieldStun must still
+    increment `hits` for Per-Hit Counters."""
+    res = Result("Multi-hit shieldStun (Lucario Aura)")
+    r.load("near", on(behavior=BEHAVIOR["Shield"], infiniteShields=SHIELDS["On"], shieldHealth=60,
+                      counterShield=0, shieldTiming=SHIELD_TIMING["First Gap"]), percent=0)
+    # Disable hits 1..3, Custom Grab on hit 4+.
+    tbl = bytearray([1])
+    for h_idx in range(10):
+        if h_idx < 3:
+            tbl += bytes([1, 0, 0, 0, 0, 0, 0])
+        else:
+            tbl += bytes([2, 0, 0, SHIELD_ACTIONS["Grab"], 0, 0, 0])
+    r.emu.h.call("write_mem", addr=r.opt.base + SET_CPU_TABLES, hex=tbl.hex())
+    pos = len(r.emu.log_text())
+
+    def aura(i, rows):
+        if i == 15:
+            put_fighter(r, r.g.entry(P1), rows[-1][CPU]["x"] - 5.0, 0.0)
+            r.emu.hold(0, buttons=["B"])
+        elif i == 55:
+            r.emu.neutral(0)
+        if 16 <= i <= 55 and rows:
+            if rows[-1][CPU]["x"] - rows[-1][P1]["x"] > 6.0:
+                put_fighter(r, r.g.entry(P1), rows[-1][CPU]["x"] - 5.0, 0.0)
+    rows = r.record(110, players=(CPU, P1), each=aura, extras=True)
+    r.emu.neutral(0)
+    gd_rows = [(k, rows[k][CPU]["hitlag"], rows[k]["x"]["sstun"])
+               for k in range(15, len(rows)) if rows[k][CPU]["status"] == STATUS["Guard_Damage"]]
+    stun_jumps_no_hl = 0
+    for idx in range(1, len(gd_rows)):
+        k0, hl0, ss0 = gd_rows[idx - 1]
+        k1, hl1, ss1 = gd_rows[idx]
+        if k1 == k0 + 1 and ss1 > ss0 and hl1 <= hl0:
+            stun_jumps_no_hl += 1
+    c_logs = [ln for ln in r.emu.log_text()[pos:].splitlines() if "cpu: P2 counter" in ln]
+    catch = first(rows, 15, lambda x: x[CPU]["status"] == STATUS["Catch"])
+    res.note(f"Lucario Aura: gd_rows={gd_rows[:35]}, jumps_hl<=prev={stun_jumps_no_hl}, "
+             f"catch={catch}, logs={c_logs[:8]}")
+    res.row("Lucario Aura charge (hitlag <= prev, shieldStun > prev) increments hits to Grab",
+            "jumps_hl<=prev >= 2 and Catch",
+            f"jumps={stun_jumps_no_hl}, catch={catch}, logs={len(c_logs)}",
+            stun_jumps_no_hl >= 2 and catch is not None)
+    return res
+
+
 MEASURE = [("oos-probe", m_oos_probe)]
 
 SCENARIOS = [("c1", c1_shield), ("c2", c2_jump), ("c3", c3_sequence), ("c4", c4_stick), ("c5", c5_silence),
@@ -6159,6 +6656,8 @@ SCENARIOS = [("c1", c1_shield), ("c2", c2_jump), ("c3", c3_sequence), ("c4", c4_
              ("throw-behavior", o_throw_behavior), ("counter-tumble", o_counter_tumble),
              ("after-tech-counter", o_after_tech_counter),
              ("auto-lcancel", o_auto_lcancel), ("shffl-timing", o_shffl_timing), ("ffl-air", o_ffl_air),
+             ("wall-tech-gate", o_wall_tech_gate), ("savestate-rebase", o_savestate_rebase),
+             ("powershield-clear", o_powershield_clear), ("shield-multihit-stun", o_shield_multihit_stun),
              ("oos-techniques", o_oos_techniques), ("finish", o_finish)]
 # Run in a second match, against an Ice Climbers CPU.
 NANA = ("nana", o_nana)
@@ -6177,6 +6676,7 @@ TECH_INVIS_MARIO = ("tech-invis-mario", o_tech_invis)
 TECH_INVIS_SHEIK = ("tech-invis-sheik", o_tech_invis_sheik)
 AUTO_LCANCEL_TETHER = ("auto-lcancel-tether", o_auto_lcancel_tether)
 SHIELD_TIMING_MULTIHIT = ("shield-timing-multihit", o_shield_timing_multihit)
+SHIELD_MULTIHIT_AURA = ("shield-multihit-aura", o_shield_multihit_aura)
 # The P+ character techniques against characters that have them, and Wolf.
 OOS_OTHERS = [(f"oos-techniques-{c}", o_oos_techniques) for c in ("wolf", "ness", "lucas", "peach", "mewtwo", "ganondorf", "yoshi")]
 # Projectile / thrown-item powershield scenarios in their own matches.
@@ -6193,7 +6693,7 @@ PS_CHARS = [
     (("powershield-jigglypuff-mario", make_ps_char("Mario fireball", (-25.0, 25.0), 120)), "mario", "jigglypuff"),
 ]
 # The scenarios of the other matches that start from the hit states.
-FROM_HIT_STATES = [THROW_LAYDOWN[0], TECH_SLIP[0], TECH_INVIS_MARIO[0], AIR_JUMP_FLY[0], SHIELD_TIMING_MULTIHIT[0]] + [name for name, _ in OOS_OTHERS]
+FROM_HIT_STATES = [THROW_LAYDOWN[0], TECH_SLIP[0], TECH_INVIS_MARIO[0], AIR_JUMP_FLY[0], SHIELD_TIMING_MULTIHIT[0], SHIELD_MULTIHIT_AURA[0]] + [name for name, _ in OOS_OTHERS]
 
 # Shard units in the order cmd_test_cpu plays them.
 # MEASURE scenarios run only with --only and are left out.
@@ -6207,6 +6707,7 @@ SHARD_UNITS = (
     + [TECH_INVIS_SHEIK[0]]
     + [AUTO_LCANCEL_TETHER[0]]
     + [SHIELD_TIMING_MULTIHIT[0]]
+    + [SHIELD_MULTIHIT_AURA[0]]
     + [TECH_INVIS_MARIO[0]]
 )
 # Seconds per scenario (for --shard balancing; unlisted scenarios take the mean).
@@ -6224,6 +6725,8 @@ SECONDS = {
     "percent-lock": 4,
     "throw-behavior": 20, "counter-tumble": 25, "after-tech-counter": 12,
     "auto-lcancel": 18, "shffl-timing": 20, "ffl-air": 16, "auto-lcancel-tether": 20,
+    "wall-tech-gate": 20, "savestate-rebase": 18, "powershield-clear": 12, "shield-multihit-stun": 14,
+    "shield-multihit-aura": 16,
     "oos-techniques": 25, "finish": 3,
     "nana": 8, "tech-stage": 47, "place-platforms": 17, "tech-ray-edge": 20, "air-jump-fly": 20,
     "throw-laydown": 20, "tech-slip": 35,
@@ -6345,6 +6848,7 @@ def cmd_test_cpu(rest):
                 others += [(TECH_INVIS_SHEIK, "mario", "zelda", "final_destination")]
                 others += [(AUTO_LCANCEL_TETHER, "mario", "link", "final_destination")]
                 others += [(SHIELD_TIMING_MULTIHIT, "meta_knight", "fox", "final_destination")]
+                others += [(SHIELD_MULTIHIT_AURA, "lucario", "fox", "final_destination")]
                 others += [(TECH_INVIS_MARIO, "mario", "mario", "final_destination")]
                 for (name, fn), p1, cpu, stage in others:
                     if not wanted(name):
