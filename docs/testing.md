@@ -1,126 +1,138 @@
 # Testing
 
-The plugin has two test suites:
+Project+ Training Mode Mod (`P+TMM`) has three verification layers:
 
-1. **Host tests (`make check-host`)**: compile selected C++ sources natively
-   with Visual Studio's 32-bit compiler (`cl`) against stand-in headers and run
-   in under a second with no emulator.
-2. **Dolphin tests (`make test-*`)**: run Project+ 3.2.1 in Brawl Online's
-   Dolphin build with its automation harness, driving menus and matches with
-   scripted inputs and checking memory, logs, and screenshots.
+1. **Release readiness gate (`make verify-release`):** builds all three configurations (`Normal`, `PERF=1`, `STAGE4C=0`) enforcing zero warnings and every memory budget (including `PERF=1` `main` headroom `>= 512 B`), runs `make check-host`, verifies all generated tables (`scripts/gen_*.py --check`), and runs the public repository hygiene scan.
+2. **Host tests (`make check-host`):** compiles pure logic, UI, storage, layout, and text-fit modules natively with Visual Studio's 32-bit C++ compiler (`cl`) and executes in under a second with no emulator.
+3. **Dolphin integration tests (`make test-*`):** runs Project+ v3.2.1 in Brawl Online's Dolphin build via its automation harness, driving menus and matches with scripted inputs and checking RAM, OSReport logs, and screenshots.
 
-Everything runs from a project-only Dolphin user folder, so your normal
-Dolphin settings, saves and SD card are never touched.
+All Dolphin tests run inside an isolated project-only Dolphin user directory so your normal Dolphin settings, saves, and SD cards are never touched. Never run two Dolphin test targets simultaneously against the same `DOLPHIN_USER` directory.
 
-## What you need (Dolphin tests)
+## Release Readiness Gate
 
-- A Dolphin build that runs Project+ (Brawl Online's build with `--harness-port`).
-- Your Brawl disc image (NTSC-U, RSBE01 rev 2).
-- The Project+ release's Offline Launcher DOL and its SD card image (`sd.raw`).
-- Python 3.8 or newer (standard library + Pillow for screenshot checks).
+Run this before committing or cutting a release:
+
+```sh
+make verify-release
+```
+
+Pass `VERIFY_RELEASE_ARGS="--clean"` for a clean rebuild of all three configurations, or `VERIFY_RELEASE_ARGS="--host-dump path/to/mem1.bin"` to include real-RAM host tests.
+
+## Host Tests (`make check-host`)
+
+`make check-host` runs:
+
+1. All four generator freshness checks (`gen_psa_opcodes.py`, `gen_page_strings.py`, `gen_menu_descriptions.py`, `gen_status_names.py` with `--check`).
+2. `tests/host/test_pack_rel.py` (packed `.rel` writer/reader and far-call trampoline checks).
+3. `tests/host/build.py`, which compiles `MOD_SOURCES` plus `tests/host/host/*.cpp` and `tests/host/tests/*.cpp` with 32-bit `cl` into `build/host/host_tests.exe` and runs every host test suite.
+
+Key host coverage:
+
+- **Menu, settings, and credits:** row bounds/defaults/alignment, `Option::desc == NULL` in `main` (descriptions live in `extra/menu_descriptions.cpp`), per-option/page/area resets, session-only vs. persistent fields, clamping, disabled/hidden row skipping, scrolling, random-input fuzzing, and the shared Credits modal (`test_menu.cpp`, `test_settings_reset.cpp`, `test_credits.cpp`).
+- **Storage, bests, and recordings:** dual-slot alternation, checksum/bounds refusal, v1 -> v2 upgrade modal and silent v2 upgrades, oversized `kNewer` protection, area extension/generation resets, sequence wraparound, and `.tmr` validation (`test_storage.cpp`, `test_bests.cpp`).
+- **Layout, themes, and text fit:** 5% CRT safe-area containment across 4:3 and 16:9, HUD non-overlap, Colorblind Mode and OSD theme palettes, Frame Meter classification, and checking every drawn string literal in `src/` against Brawl's font metrics (`test_hud_layout.cpp`, `test_osd_place.cpp`, `test_osd_theme.cpp`, `test_action_log.cpp`, `test_text_fit.cpp`, `text_rules.py`).
+- **Core gameplay and extra logic:** PSA script walking and opcode decoding, overlay and tech invisibility rules, CPU actions/techs/SHFFL/reversals/Wave 2 state-machine helpers, PPlusAI recovery, Combo Trainer, Hitbox Heatmap, Grab Visualizer, Scenario Presets, Fighter Swap, Stage Options, Olimar Lab Kit, Character RNG, Fighter Mechanics, offline Versus load policy, Code Menu patching, REL loader safety, and engine bugfix regressions (`test_frame_data.cpp`, `test_psa_inspector.cpp`, `test_cpu_*.cpp`, `test_pplus_recovery.cpp`, `test_combo_trainer.cpp`, `test_olimar_lab.cpp`, `test_stage6b_vs.cpp`, `test_engine_bugfixes.cpp`, `test_loader.cpp`, `test_hook.cpp`, and more).
+- **4-controller support (8-port GC + Wii):** button mapping, hot-swap/disconnect recovery, slow-mo press latching, and per-controller prompts across GameCube, Classic, Nunchuk, and Sideways Wii Remote (`test_drill_list.cpp`, `test_wii_lab.cpp`, `test_wii_savestate.cpp`, `test_wii_display.cpp`).
+
+Useful flags:
+
+- `HOST_ARGS="--only PATTERN"` to filter tests
+- `HOST_ARGS="--log"` to print diagnostic details
+- `HOST_ARGS="--dump PATH"` or `HOST_DUMP=PATH` to run memory-dump tests against a captured game RAM dump
+
+## Dolphin Test Prerequisites and Setup
+
+To run `make test-*` targets locally:
+
+- Brawl Online's Dolphin build supporting `--harness-port`.
+- Your NTSC-U Brawl disc image (`RSBE01` rev 2).
+- The Project+ v3.2.1 Offline Launcher DOL and SD card image (`sd.raw`).
+- Python 3.8 or newer (standard library plus Pillow for screenshot verification).
 - About 5 GB of free disk space for `SD_FOLDER` and `SD_IMAGE`.
 
-## Setup
+Setup:
 
-1. Copy `local.mk.example` to `local.mk` and fill in the emulator section.
-   Paths may contain spaces; write them unquoted, with forward slashes. Keep
-   `DOLPHIN_USER`, `SD_FOLDER` and `SD_IMAGE` outside the repo.
-2. Extract the SD card into a folder once:
+1. Copy `local.mk.example` to `local.mk` and fill in the emulator paths (unquoted, forward slashes, kept outside the repository).
+2. Extract the SD image once:
 
    ```sh
    make sd-folder
    ```
 
-## Targets
+## Dolphin Targets
+
+### Core, Lifecycle, and Hygiene
 
 | Command | Effect |
 |---------|--------|
-| `make check-host` | PC logic, layout, text-fit, storage, frame-data, Code Menu, Wii pad, and loader tests (no emulator) |
-| `make install` | build and copy `TrainingMode.rel` into `SD_FOLDER`'s `pf/plugins` |
-| `make run` | install and launch Dolphin interactively on a writable SD copy (`sd-run.raw`) |
-| `make test-load` | unattended boot: stub loads, hooks install, packed modules verify, no match module loaded |
-| `make test-match` | play into a Training match and out again: match/extra load, watermark draws, clean unload back to heap baseline |
-| `make test-stress` | multiple back-to-back Training matches across characters, checking heap baselines and tracker observers |
-| `make test-reject KIND=...` | install deliberately broken plugin files and expect clean rejection |
-| `make test-lab` | drive the lab menu, info display, percent locks, D-pad bindings, frame advance, match timer, and Exit |
-| `make test-displays` | scripted attacks verifying fighter trackers and on-hit/on-shield frame advantage against memory |
-| `make test-osds` | scripted techniques verifying OSDs, Ledgedash HUD, color overlays, and tech invisibility against memory |
-| `make test-drills` | Training Menu launcher on CSS, direct match starts, and character select handling |
-| `make test-cpu` | CPU options (behaviors, DI/SDI/ASDI, tech/get-up, counters, shields, grab escape, Move/Freeze CPU) |
-| `make test-display` | Display Options (Match HUD, Hitboxes, Fighter Models, Stage Collision, Stage Model, Effects) and General Camera/Speed/Staling |
-| `make test-controls` | Frame Advance across all button bindings (ensuring button never leaks to fighter while chords pass through) |
-| `make test-di` | compare DI Display predicted trajectories, stage contacts, slides, and bounces against real fighter motion |
-| `make test-frames` | compare PSA frame data (`Act In` and shield advantage lookahead) against actual actionable frames |
-| `make test-savestate` | save/load determinism, replays, D-pad bindings, refusals, and multi-character sweeps (`SAVESTATE_ARGS`) |
-| `make test-record` | input recording, playback, slot weights, mirrored playback, Modify Inputs, and Frame Rewind (`RECORD_ARGS`) |
-| `make test-big-file` | verify ranged SD loading on a 1 MiB padded `.rel` file |
-| `make test-extra-heaps` | verify `OverlayFighter3` and `OverlayFighter4` stay empty and `AssistFigureResource` holds only `extra` across Kirby copies, Assist Trophy/Poke Ball/Smash Ball spawns, items, and 3 CPUs |
-| `make test-fighter-sets` | verify Code Menu 3rd- and 4th-character loads both succeed cleanly with `extra` in `AssistFigureResource` |
-| `make test-storage` | multi-boot writable SD tests for settings persistence, bests, export/import, browser, and locked card |
-| `make test-card CARD=...` | validate a ready-made `sd.raw` image end to end |
-| `make test-sounds` | verify menu sound requests across Training Menu, Recordings browser, and lab menu |
-| `make test-rng` | verify Character RNG for Peach (turnips/fsmash), Mr. Game & Watch (Judge), and Luigi (misfire) |
-| `make test-fighter-mechanics` | verify per-fighter charge, resource, float, and Waddle Toss overrides across supported fighters |
-| `make test-stage-options` | verify live stage hazards, platform freeze/presets, and Fountain of Dreams heights across stages |
-| `make test-recovery-combo` | verify 44-fighter PPlusAI offstage recovery and Combo Trainer resets and floating meters |
-| `make test-scenarios` | verify all 10 unified Scenario Presets, auto-resets, side flip, and SD snapshot isolation |
-| `make test-fighter-swap` | verify mid-session fighter and costume swaps, cleanup barriers, and post-swap savestates |
-| `make test-grab-visualizer` | verify 3D grab, search/tether, and item-pickup collision overlays |
-| `make test-match-hud` | verify Brawl's native match timer across lab matches, pause, HUD toggles, and savestates |
-| `make test-code-menu` | verify P+ Code Menu shortcut blocking by default and live toggling via Controls |
-| `make test-charges` | verify fighter charge/resource preservation across savestates |
-| `make test-boot` | verify boot shortcuts, multi-port Training Menu hand-over, and Versus exclusion |
-| `make test-perf` | measure emulated Wii per-frame timings across overlays, savestates, and recording (`PERF=1`) |
-| `make test-harness` | verify batched harness reads equal unbatched reads |
-| `make match-compare` | pixel-compare a default plugin match against a plugin-free baseline outside watermark/overlay rects |
+| `make install` | Build and copy `TrainingMode.rel` into `SD_FOLDER`'s `pf/plugins/` |
+| `make run` | Install and launch Dolphin interactively on a writable SD copy (`sd-run.raw`) |
+| `make test-load` | Unattended boot: stub loads, hooks install, packed modules verify, no match module loaded |
+| `make test-match` | Enter and exit a Training match: match/extra load, watermark draws, clean unload back to heap baseline |
+| `make test-stress` | Back-to-back Training matches across characters checking heap baselines and tracker observers (`STRESS_ARGS`) |
+| `make test-reject KIND=...` | Install broken plugin files (`badversion`, `corrupt`, `truncated`) and verify clean rejection |
+| `make test-big-file` | Verify ranged SD loading on a 1 MiB padded `.rel` file |
+| `make test-boot` | Boot shortcuts, multi-port Training Menu hand-over, and Versus exclusion (`BOOT_ARGS`) |
+| `make test-extra-heaps` | Verify `OverlayFighter3`/`OverlayFighter4` stay free and `AssistFigureResource` holds only `extra` (`EXTRA_HEAPS_ARGS`) |
+| `make test-fighter-sets` | Verify Code Menu 3rd- and 4th-fighter loads succeed with `extra` in `AssistFigureResource` |
+| `make test-storage` | Multi-boot writable SD tests for settings persistence, bests, export/import, browser, and locked card (`STORAGE_ARGS`) |
+| `make test-card CARD=...` | Validate a ready-made `sd.raw` image end to end (`CARD_ARGS`) |
+| `make test-sounds` | Verify menu sound requests across Boot Menu, Recordings browser, and Lab Menu |
+| `make test-harness` | Verify batched harness reads equal unbatched reads (`HARNESS_ARGS`) |
+| `make match-compare` | Pixel-compare a default plugin match against a plugin-free baseline outside overlay regions |
 
-## Host tests (`make check-host`)
+### Gameplay, CPU, Savestates, and Recording
 
-`tests/host/build.py` compiles the pure-logic and UI/storage sources listed in
-`MOD_SOURCES` with 32-bit `cl` against stand-in headers (`tests/host/include/`)
-and fake game objects (`tests/host/host/`), then runs `build/host/host_tests.exe`.
+| Command | Effect |
+|---------|--------|
+| `make test-lab` | Drive the Lab Menu, Info Display, percent locks, D-Pad bindings, Frame Advance, timer, and Exit (`LAB_ARGS`) |
+| `make test-displays` | Scripted attacks verifying fighter trackers and on-hit/on-shield frame advantage (`DISPLAYS_ARGS`) |
+| `make test-osds` | Scripted techniques verifying OSDs, Ledgedash HUD, color overlays, and tech invisibility (`OSDS_ARGS`) |
+| `make test-drills` | Boot Menu launcher on CSS, direct match launches, and character select handling (`DRILLS_ARGS`) |
+| `make test-select` | Character/stage selection rules and costume handling (`SELECT_ARGS`) |
+| `make test-cpu` | CPU behaviors, DI/SDI/ASDI, tech/get-up, counters, shields, grab escape, and Move/Freeze CPU (`CPU_ARGS`) |
+| `make test-controls` | Frame Advance across all button bindings, verifying clean fighter input suppression (`CONTROLS_ARGS`) |
+| `make test-di` | Compare DI Display predicted trajectories, slides, and bounces against real fighter motion (`DI_ARGS`) |
+| `make test-frames` | Compare PSA frame data (`Act In` and shield advantage lookahead) against actual actionable frames (`FRAMES_ARGS`) |
+| `make test-savestate` | Save/load determinism, replays, D-Pad bindings, refusals, and multi-character sweeps (`SAVESTATE_ARGS`) |
+| `make test-charges` | Verify fighter charge and resource preservation across savestates (`CHARGES_ARGS`) |
+| `make test-record` | Recording, playback, slot weights, mirrored playback, Alter Inputs, and Frame Rewind (`RECORD_ARGS`) |
+| `make test-rng` | Peach turnip/forward smash, Mr. Game & Watch Judge, and Luigi Misfire (`RNG_ARGS`) |
+| `make test-fighter-mechanics` | Per-fighter charge, resource, float, Waddle Toss, and Nana Throw overrides (`FIGHTER_MECH_ARGS`) |
+| `make test-stage-options` | Live hazards, platform freeze/presets, and Fountain of Dreams heights (`STAGE_OPTIONS_ARGS`) |
+| `make test-recovery-combo` | 44-fighter PPlusAI recovery and Combo Trainer resets and floating meters (`RECOVERY_COMBO_ARGS`) |
+| `make test-scenarios` | Unified Scenario Presets, auto-resets, side flip, and SD snapshot isolation (`SCENARIOS_ARGS`) |
+| `make test-fighter-swap` | Mid-session fighter and costume swaps, cleanup barriers, and post-swap savestates (`FIGHTER_SWAP_ARGS`) |
+| `make test-match-hud` | Brawl's native match timer across lab matches, pause, HUD toggles, and savestates (`MATCH_HUD_ARGS`) |
+| `make test-code-menu` | Project+ Code Menu shortcut blocking by default and live toggling (`CODE_MENU_ARGS`) |
 
-Key coverage:
+### Visuals, Inspection, Drills, and Stage Suites
 
-- **Menu & settings (`test_menu.cpp`, `test_settings_reset.cpp`):** every row's
-  bounds/alignment/default, keeping inline `Option::desc` NULL (descriptions
-  live in `extra/menu_descriptions.cpp`), per-area/page/option resets,
-  persistence vs session-only fields, clamping, disabled/hidden row skipping,
-  scrolling, and random-input fuzzing.
-- **Storage & recordings (`test_storage.cpp`, `test_bests.cpp`):** dual-slot
-  settings/bests alternation, checksum/bounds refusal, newer-version safety,
-  area extension and generation reset, slot encoding, and `.tmr` export/import
-  validation.
-- **Layout & text fit (`test_hud_layout.cpp`, `test_osd_place.cpp`,
-  `test_text_fit.cpp`, `text_rules.py`):** 5% CRT safe-area containment,
-  non-overlap across 4:3 and 16:9 scenes, native 640x480 OSD placement, and
-  verifying every string literal in `src/` fits its box/buffer with Brawl's
-  font metrics (guarded by function token checksums in `text_rules.py`).
-- **Core gameplay logic (`test_frame_data.cpp`, `test_overlay_pick.cpp`,
-  `test_cpu_actions.cpp`, `test_cpu_tech.cpp`, `test_player_shields.cpp`,
-  `test_character_rng.cpp`, `test_code_menu.cpp`, `test_training_damage.cpp`,
-  `test_tracker_swap.cpp`, `test_loader.cpp`, `test_hook.cpp`):** PSA script
-  walking, overlay selection and tech invisibility rules, P+ CPU actions/techs,
-  Code Menu patching, and REL loader safety.
-- **8-port GC & Wii controllers (`test_drill_list.cpp`, `test_wii_lab.cpp`,
-  `test_wii_savestate.cpp`, `test_wii_display.cpp`):** controller-type button
-  mapping, hot-swap/disconnect recovery, slow-mo press latching, and
-  per-controller prompts across GC, Classic, Nunchuk, and Sideways Wii Remote.
+| Command | Effect |
+|---------|--------|
+| `make test-display` | Display Options (HUD, Hitboxes, Models, Stage Collision, Stage Model, Effects) and General Camera/Speed/Staling (`DISPLAY_ARGS`) |
+| `make test-grab-visualizer` | 3D grab, search/tether, and item-pickup collision overlays (`GRAB_VIZ_ARGS`) |
+| `make test-psa-inspector` | Live PSA AnimCmd 11-thread & FSM Inspector in 16:9 and 4:3 (`PSA_ARGS`) |
+| `make test-hud-theme-meter` | Unified Frame Meter, Colorblind Mode, HUD themes, and v2 settings persistence (`HUD_THEME_METER_ARGS`) |
+| `make test-stage3d` | Start On Input, CC hitstun, and Hitbox Heatmap (`STAGE3D_ARGS`) |
+| `make test-stage3f` | On-Ledge options, clatter escape, and Adaptive CPU (`STAGE3F_ARGS`) |
+| `make test-stage5d` | Ledge 5-grab, wall info rows, and Nana Throw (`STAGE5D_ARGS`) |
+| `make test-stage4a-core` | Core movement skill drill engines (`STAGE4A_CORE_ARGS`) |
+| `make test-stage4a-hover-ps` | Float/Hover/DJC and Powershield drill engines (`STAGE4A_HOVER_PS_ARGS`) |
+| `make test-stage4a-pplus-tech` | P+ tech drill engines such as RAR and DACUS (`STAGE4A_PPLUS_TECH_ARGS`) |
+| `make test-skill-drills-ui` | Boot Menu and Drill HUD visual/UI flows (`SKILL_DRILLS_UI_ARGS`) |
+| `make STAGE4C=1 test-stage4c` | Stage 4C challenges and character trainers (`STAGE4C_ARGS`, requires `STAGE4C=1`) |
+| `make test-overnight-tools` | Visual inspection of Live Input Viewer, Hitbox Colors, and DI Vector tools (`OVERNIGHT_TOOLS_ARGS`) |
 
-Pass `HOST_ARGS="--only PATTERN"` to filter tests, `HOST_ARGS="--log"` to
-print diagnostic logs, or `HOST_ARGS="--dump PATH"` to run memory-dump tests
-against a real game RAM dump.
+### Strict Wii Compatibility, Performance, and Torture Suites
 
-## Frame-exact input (`scripts/plugin_input.py`)
+| Command | Effect |
+|---------|--------|
+| `make test-wii-strict` | Strict Wii-compatibility checks: MMU enabled, Fastmem off, non-JIT CPU core, DSP LLE, and 4-player MEM2 heap checks (`WII_STRICT_ARGS`) |
+| `make PERF=1 test-perf` | Emulated Wii per-frame CPU and render benchmarks across overlays, savestates, and recording (`PERF_ARGS`, requires `PERF=1`) |
+| `make test-torture` | 11-category live Dolphin stress and torture suite (`TORTURE_ARGS`, e.g. `--bucket 1..4` or `--case <name>`) |
 
-Harness pad input has roughly 1 frame of latency. Timing-sensitive tests write
-frame-exact scripts directly into the match module's script control block
-(`src/main/cpu/script_source.*`) so an input scheduled for driven frame `N`
-acts on exact game frame `N`.
+## Harness Architecture Notes
 
-## Batched harness reads (`scripts/harness.py`)
-
-Dolphin's automation harness processes pipelined requests in order against a
-paused frame. `Emu.watch()`, `Emu.step()`, `Emu.trace()`, and
-`Emu.advance_until()` batch memory reads alongside `frame_advance` to keep
-frame-by-frame tests fast and deterministic.
+- **Frame-exact scripted input (`scripts/plugin_input.py`):** Harness pad injection has roughly 1 frame of latency. Timing-sensitive tests write frame-exact scripts directly into the match module's script control block (`src/main/cpu/script_source.*`) so an input scheduled for frame `N` executes on exact game frame `N`.
+- **Batched reads (`scripts/harness.py`):** Dolphin's automation harness processes pipelined requests in order on a paused frame. `Emu.watch()`, `Emu.step()`, `Emu.trace()`, and `Emu.advance_until()` batch memory reads alongside `frame_advance` to keep frame-by-frame tests fast and deterministic.

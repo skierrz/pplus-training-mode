@@ -1,168 +1,73 @@
-# Known limitations
+# Known Limitations
 
-This page lists what the mod can't do, what it only does in part, and what
-hasn't been checked yet.
+This page documents what Project+ Training Mode Mod (`P+TMM`) cannot do, what is supported only in part, and what has not been exhaustively tested yet.
 
-## Where it runs
+## Platform and Compatibility
 
-- **Dolphin-first testing.** Automated testing runs in Dolphin. Earlier
-  pre-releases booted, ran savestates, recorded inputs, and saved to SD on real
-  Wii hardware, but this pre-release's newest features have not yet been
-  benchmarked on console. Savestates copy about 5 MB of memory each way (a
-  little more for Kirby), and real-hardware frame-time measurements remain to
-  be collected.
-- **Offline only.** The mod changes how the game runs frame by frame, so don't
-  load it for netplay.
-- **Not alongside ProjectPunch.** Project+ doesn't have the memory for both.
-  This mod folds in ProjectPunch's core training tools.
-- **Project+ v3.2.1 only.** The mod reads the game's memory at fixed places.
-  Another version of Project+, or another Brawl mod, would need its own build.
+- **Dolphin primary; Wii hardware testing status.** Automated testing runs in Dolphin, including a strict Wii-compatibility gate (`make test-wii-strict` with MMU enabled, Fastmem disabled, non-JIT CPU core, DSP LLE, and 4-player MEM2 heap checks) alongside real-Wii safety measures (cache-tiled savestate restores with periodic IRQ yields and `OSDisableScheduler`, plus `Heaps::Network`-allocated async SD DMA buffers). Earlier pre-releases booted, ran savestates, recorded inputs, and saved to SD on real Wii hardware, but the newest `pre4` features and frame times have not yet been thoroughly benchmarked on physical Wii hardware.
+- **Offline only.** `P+TMM` modifies frame-by-frame gameplay execution and must not be loaded for netplay. As a safety guard, the stub refuses to load the match or extra modules whenever Project+ Netplay (`NETBOOST.GCT` or the Netplay VSync patch) or Replay playback is active.
+- **Not alongside ProjectPunch.** Project+ does not have enough free memory for both training plugins to run simultaneously. `P+TMM` folds in ProjectPunch's core training tools (with Wisp's blessing) so you only need one training plugin.
+- **Project+ v3.2.1 only.** The mod hooks and reads fixed addresses in NTSC-U Super Smash Bros. Brawl (`RSBE01` rev 2) running Project+ v3.2.1. Other Project+ versions or Brawl mods require their own build.
 
-## Training matches
+## Training and Offline Versus Matches
 
-- **No Final Smashes.** Project+ refuses to hand out a Final Smash when one of
-  the game's memory areas is in use, and the mod keeps part of itself there
-  during Training. Project+ isn't played with Final Smashes, so this is left
-  as it is.
-- **No Assist Trophies in Training.** Assist Trophy preloading is disabled in
-  Training while the mod is loaded because `AssistFigureResource` holds the
-  mod's extra module (unlocking all four distinct characters in 4-player
-  Training via Code Menu or Fighter Swap), and Mr. Resetti would otherwise take
-  the memory area (`FighterTechqniq`) used for input recording. In opted-in
-  local offline Versus with Assist Trophies enabled, the mod leaves
-  `AssistFigureResource` free for the game.
-- **Items are barely tested.** The mod doesn't stop items working (other than
-  Assist Trophies in Training), but almost none of the tests use them.
+- **No Final Smashes.** Project+ declines to grant Final Smashes while certain memory regions are in use, and `P+TMM` uses one of them during Training.
+- **No Assist Trophies in Training.** Assist Trophy preloading is disabled in Training while `P+TMM` is loaded because `AssistFigureResource` holds the mod's `extra` module (leaving all four fighter heap sets free for 4-player Training, Code Menu character changes, and Fighter Swap), and Mr. Resetti would otherwise claim `FighterTechqniq` (used for input recording). In opted-in local offline Versus with Assist Trophies turned on, `P+TMM` leaves `AssistFigureResource` free for Brawl and loads the `main` match module only.
+- **Items are lightly tested.** Aside from Assist Trophies in Training, items are not blocked, but automated tests cover only character-owned items (turnips, bombs, grenades, bananas, and similar).
 
 ## Stage Options
 
-- **Dynamic stages only.** Live **Stage Options** (under **Stage & Cast**)
-  enable automatically on stages with live hazard or moving-platform controls
-  (such as Fountain of Dreams, Smashville, Green Hill Zone, Dream Land, Luigi's
-  Mansion, and Delfino's Secret). On static stages like Final Destination, the
-  Stage Options rows are hidden unless **Show Inactive** is toggled on.
+- **Dynamic stages only.** Live **Stage Options** (under **Stage & Cast**) appear automatically on stages with supported live hazard or moving-platform controls: Fountain of Dreams, Dream Land, Smashville, Green Hill Zone, Dead Line, Luigi's Mansion, Delfino's Secret, Yoshi's Story, Yoshi's Island (Brawl), and other stages with animated moving collision platforms. On static stages such as Final Destination, Stage Options rows stay hidden unless **Show Inactive Fighters** is toggled on.
 
 ## Savestates
 
-- **Two players at most.** Savestates work in a match with two players. Ice
-  Climbers count as one player, so even Ice Climbers against Ice Climbers
-  works. Saving is refused in a match with more than two players.
-- **Zelda and Sheik can't save after changing.** Once Zelda has turned into
-  Sheik, or Sheik into Zelda, in a match, saving is refused while the changed
-  character is out. A state saved before the change can't be loaded again
-  either, not even after changing back. This holds for you and for the CPU.
-  Picking Sheik on the character select works normally.
-- **A state belongs to the match it was saved in.** It can't be carried to
-  another match, and it isn't written to the SD card. A load is also refused
-  if the game has loaded or freed a file since the save, because the state
-  would no longer fit.
-- **Saving feedback.** Holding D-pad Right saves once (brief tinted screen
-  flash + confirm sound; flash omitted in Frame Advance). Loading plays the
-  back sound. A refused save or load plays the error sound, and structural
-  refusals (more than one CPU, transformed fighter, no room beside a
-  recording's state, file loaded since save) also post a red OSD message.
-- **Sound isn't part of a state.** Music and sound effects carry on from
-  wherever they were when you load.
+- **Two players at most.** Savestates work in 1v1 Training matches (Ice Climbers count as one player, so Ice Climbers vs. Ice Climbers is supported). Saving is refused when more than two fighter entries are active.
+- **Zelda and Sheik cannot save after transforming.** Once Zelda transforms into Sheik (or Sheik into Zelda) during a match, saving is refused while the transformed fighter is active, and any state saved before the transformation cannot be loaded again (even after transforming back). This applies to both HMN and CPU. Selecting Sheik directly on the character select screen works normally.
+- **States belong to the current match.** Savestates live in RAM, cannot carry across matches, and are not written to the SD card. Loading is refused if the game has loaded or freed an archive file since the save, because restored pointers would no longer match.
+- **Savestate feedback.** Holding D-Pad Right saves once with a confirm sound and a brief tinted flash (flash omitted during Frame Advance). Loading plays the back sound. A refused save or load plays the error sound, and structural refusals (more than one CPU, transformed fighter, no room beside a recording's state, or a file loaded since the save) also post a red OSD message.
+- **Audio is not saved.** Music and sound effects continue from their live playback positions when a state is loaded.
 
 ## Recording
 
-- **One minute per slot.** A slot holds up to 3,600 frames.
-- **Recordings last for the match.** They're gone when the match ends unless
-  you export them.
-- **An imported recording isn't an exact copy of the original moment.** Import
-  puts both fighters back at their saved positions with their percent, facing
-  and shield, and playback is exact from there. It doesn't bring back the
-  original match's random numbers, stale moves, items, projectiles or charges,
-  and a fighter saved in the air starts standing in the air.
+- **One minute per slot.** Each of the 6 HMN slots and 6 CPU slots holds up to 3,600 frames.
+- **Session lifetime unless exported.** Recordings clear when the match ends unless you export them to `.tmr` files on SD.
+- **Imported recordings are placement starts, not full savestates.** Importing restores both fighters' positions, facing, percent, and shield, and replays recorded inputs deterministically from that start. It does not restore the original match's RNG state, stale-move queues, items, projectiles, or fighter charges; a fighter exported in the air starts in the air and falls from there.
 
 ## DI Display
 
-The line is worked out from Project+'s own rules, and in free flight it
-matched where the fighter really went to within a thousandth of a unit in
-testing. Past that, a few things are approximate or left out:
+The predicted trajectory uses Project+'s own knockback, gravity, ASDI, and DI equations and matched real free-flight motion to within a thousandth of a unit in testing. Known approximations:
 
-- **The landing mark can be a frame early or late.** Where your feet are
-  depends on your animation, and the line doesn't follow the animation.
-- **A ceiling you only graze can be missed.**
-- **The dashed line assumes you don't tech.** It follows a slide along the
-  floor and a bounce off an upright wall or a level ceiling, and it stops at
-  slopes and corners, where the bounce depends on details the line doesn't
-  track. In testing a slide ended within a unit of the real one and a ceiling
-  bounce stayed within two units.
-- **Not predicted:** wind, moving platforms, and anything that hits you later.
-- **For a CPU using Project+'s Random DI**, only the no-DI path is drawn,
-  since the direction isn't known until the game picks it.
-- **Project+'s own Draw DI is switched off** while the DI Display is on,
-  because the two interfere with each other.
+- **Landing marks can be off by a frame.** Exact foot height depends on the active animation, which the predictor does not play back.
+- **Grazed ceilings can be missed.**
+- **Post-contact dashed lines assume no tech.** Floor slides and bounces off upright walls or level ceilings are traced; slopes and corners stop the line because their bounce depends on details the predictor does not model. In testing, floor slides ended within one unit and ceiling bounces within two units of real motion.
+- **Not modeled:** Wind, moving platforms, and follow-up hits.
+- **CPU Random DI:** When a CPU uses Project+'s built-in Random DI, only the no-DI path is drawn because the angle is not chosen until launch.
+- **Project+ Draw DI:** Project+'s built-in Draw DI is switched off while `P+TMM`'s DI Display is active so the two do not conflict.
 
-## Stage & Cast (Fighter RNG & Mechanics)
+## Stage & Cast (Fighter RNG and Mechanics)
 
-- **17 supported fighters.** Under **Stage & Cast**, rows for Peach, Luigi,
-  Mr. Game & Watch, Samus, Mewtwo, Lucario, Wario, Donkey Kong, Ivysaur,
-  R.O.B., Lucas, Squirtle, Sheik, King Dedede, Snake, Ganondorf, and Ice
-  Climbers (Nana Throw) appear automatically when that fighter is in the match
-  (toggle **Show Inactive** to browse all rows).
-- **Luigi's misfire isn't one roll per side special in Project+.** A count
-  decides it: each side special that doesn't misfire counts up, and the
-  seventh misfires. Standing still draws the count again at random every
-  frame, and so does a misfire. Always and Never move the count to one side of
-  the seventh; Default leaves it alone. If you store the misfire while
-  charging, that side special stays a normal one under Always.
-- **Mr. Game & Watch's Judge looks one number ahead in Project+.** Each Judge
-  shows the number drawn at the one before, and that draw never repeats either
-  of the last two. When you go back to Default, the next Judge still shows the
-  number you had chosen; the draws are random again after that.
-- **Peach's forward smash isn't random in Project+.** The golf club, the
-  frying pan and the tennis racket come in turn, and Default leaves that
-  alone. When you go back to Default, the turn carries on from the weapon you
-  had chosen.
-- **Checked with one Peach as the player and one as the CPU,** using the
-  emulator's savestates, the lab's savestate and a recording's playback. Not
-  yet checked: more than one CPU.
+- **18 supported fighters.** Under **Stage & Cast**, rows for Peach, Luigi, Mr. Game & Watch, Samus, Mewtwo, Lucario, Wario, Donkey Kong, Ivysaur, R.O.B., Lucas, Squirtle, Sheik, King Dedede, Snake, Ganondorf, Ice Climbers (Nana Throw), plus the dedicated **Olimar** submenu appear automatically when that fighter is in the match. Toggle **Show Inactive Fighters** to browse all rows regardless of the current matchup.
+- **Luigi's Misfire.** Project+ tracks a counter across Side Specials: each non-misfire increments it, the seventh misfires, and standing still or misfiring re-rolls the count. `Always` and `Never` position the counter around that threshold; `Default` leaves it alone. Storing a misfire while charging still fires a normal Side Special on that release under `Always`.
+- **Mr. Game & Watch's Judge.** Project+ pre-rolls the next Judge number during the previous Judge and never repeats either of the last two numbers. Returning to `Default` leaves one queued number before normal rolls resume.
+- **Peach's Forward Smash.** Project+ cycles Golf Club, Frying Pan, and Tennis Racket deterministically rather than randomly. Returning to `Default` continues the cycle from the weapon you last forced.
+- **Multi-CPU RNG:** Character RNG was verified in 1v1 matches (player and CPU) across emulator savestates, lab savestates, and recording playback, not with multiple simultaneous CPUs.
 
-## Menu sounds
+## Menu Sounds
 
-- **Checked by what the game is asked to play, not by ear.** The tests run
-  without sound. They check that every press asks the game for the right one
-  of its menu sounds and that the game accepts it.
+- **Verified via sound-request instrumentation.** Automated tests run muted and verify that each menu press requests the expected Brawl menu sound ID and that the game accepts the request.
 
-## CPU options
+## CPU Options
 
-- **Invisible tech animations use a fixed window** (get-up window adapted from
-  ProjectPunch, ground techs using P+'s per-character distinguishable frame).
-- **Perfect Shield misses point-blank attacks whose hitbox first appears on
-  the hit frame** (such as a close-range jab), because it only checks hitboxes
-  that are already active.
-- **Perfect Shield cannot react to true frame-1 hitboxes** (such as Shine or
-  Rest), which land on the same frame the move begins with no earlier frame to
-  predict them.
-- **Perfect Shield can guard a sharply bouncing or arcing projectile as an
-  ordinary shield rather than a powershield**, because the prediction extends
-  its last frame of motion in a straight line.
+- **Invisible tech animations use a fixed window.** Ground techs use Project+'s per-character first distinguishable frame; get-up and slip get-up windows are adapted from ProjectPunch.
+- **Perfect Shield timing limits:**
+  - Cannot react to true frame-1 hitboxes (such as Shine or Rest), which hit on the same frame the move begins.
+  - Misses point-blank attacks whose hitbox first appears on the exact hit frame (such as a close-range jab), because it inspects already-active hitboxes.
+  - Can guard a sharply bouncing or arcing projectile as a normal shield rather than a powershield, because projectile prediction extrapolates one frame of motion linearly.
 
-## What has been tested
+## Testing Scope
 
-Most tests use Mario and Fox on Final Destination, with Battlefield for
-platforms. The mod reads its rules from the game for whichever character is on
-screen, so other characters and stages should behave, but they haven't each
-been checked.
+Most automated gameplay tests run Mario and Fox on Final Destination, with Battlefield for platforms. Because `P+TMM` reads parameters and collision data live from the game for whichever fighter and stage are loaded, other fighters and stages follow the same rules, though not every combination has an individual test case.
 
-Savestates have had the widest check. Every character was tried as your
-character on Final Destination: aerials, specials at several delays, thrown
-items and full charges, with projectiles, items and partners out (Nana,
-Pikmin, grenades, bombs, boomerangs, arrows, turnips, bananas and more, and
-Kirby with a copied ability). After each load the game played on exactly as
-the first time, apart from Zelda and Sheik changing (above). Thirty characters
-were also tried as the CPU.
+Savestates have the broadest roster coverage: every fighter was tested as the player on Final Destination across aerials, specials, items, projectiles, charges, and partners (including Nana, Pikmin, grenades, bombs, boomerangs, arrows, turnips, bananas, and Kirby copy abilities), plus 30 fighters as the CPU. Multi-stage savestate determinism was checked across Battlefield, Dream Land, Pokemon Stadium 2, Yoshi's Story, and seven additional dynamic/hazard stages (on Smashville, the Town Hall clock reads live system time after a load).
 
-Other stages: Battlefield, Dream Land, Pokemon Stadium 2 and Yoshi's Story
-matched exactly with Mario, Ice Climbers and Link (and one run with Peach on
-three of them). Seven more stages picked for moving parts or hazards got two
-quick checks each with Mario: five matched exactly, and two differed only in
-the stage's own sound, which isn't part of a state. On Smashville the Town
-Hall clock in the background shows the real time, so after a load it shows the
-current time and not the time of the save; nothing else on the stage
-differed.
-
-Not checked at all: Nana apart from Popo, the game's own AI driving the CPU,
-and items that aren't a character's own.
+Not yet verified in automated tests: Nana acting independently of Popo, Brawl's native AI driving the CPU alongside all lab tools, and non-character stage/crate items.
