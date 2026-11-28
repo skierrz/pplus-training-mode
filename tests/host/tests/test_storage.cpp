@@ -3171,3 +3171,217 @@ TEST(settings_file, detach_flushes_pending_second_save_and_handles_timeout)
     CHECK_EQ(46, static_cast<int>(main::settings().general.ledgeMaxFrames));
     storage::detach();
 }
+
+// Deterministic adversarial host fuzzing across settings_file, bests_file,
+// osd_quick, and recording_file/browser: zero-byte, 1..31-byte truncated,
+// random garbage, oversized (> cap) current and future v99, malformed AreaEntry
+// tables (overlapping/out-of-bounds/count=0xFFFF), and mismatched CRCs.
+TEST(storage_fuzz, hostile_sd_fuzz_settings_bests_quick_and_recording)
+{
+    // Simple deterministic PRNG (xorshift32) so failures are 100% reproducible.
+    struct Rng {
+        u32 s;
+        u32 next()
+        {
+            u32 x = s;
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            s = x;
+            return x;
+        }
+        void fill(u8* dst, u32 n)
+        {
+            for (u32 i = 0; i < n; i++)
+            {
+                dst[i] = static_cast<u8>(next() & 0xFFu);
+            }
+        }
+    } rng = {0x9E3779B9u};
+
+    static u8 buf[2048];
+    const char* kBestsA = "bests-a.bin";
+    const char* kBestsB = "bests-b.bin";
+    u8 block[iface::kSettingsBlockSize];
+
+    // 1. Zero-byte and 1..31 byte truncated files in settings-a/b and bests-a/b.
+    const u32 truncSizes[] = {0u, 1u, 4u, 15u, 16u, 23u, 31u, 32u, 39u};
+    for (u32 i = 0; i < sizeof(truncSizes) / sizeof(truncSizes[0]); i++)
+    {
+        u32 sz = truncSizes[i];
+        rng.fill(buf, sz);
+        host::card::reset();
+        host::card::put(kFileA, buf, sz);
+        host::card::put(kFileB, buf, sz > 0 ? sz - 1 : 0);
+        host::card::put(kBestsA, buf, sz);
+        host::card::put(kBestsB, buf, sz > 0 ? sz - 1 : 0);
+
+        boot();
+        CHECK_EQ(1, static_cast<int>(main::settings().general.moveStaling));
+        // Mutating a setting after corrupt/truncated boot must cleanly re-save!
+        main::settings().general.moveStaling = 0;
+        storage::settingsMenuClosed();
+        frames(8);
+        storage::detach();
+        CHECK(host::card::has(kFileA) || host::card::has(kFileB));
+
+        memset(block, 0, sizeof(block));
+        drills::Session* s = menu::attachSession(block);
+        REQUIRE(s != NULL);
+        CHECK_EQ(0, static_cast<int>(s->cardNewer));
+        menu::bests::detach();
+
+        memset(block, 0, sizeof(block));
+        menu::osdQuick::attach();
+        menu::osdQuick::open(0, gfPadType::GCC);
+        menu::osdQuick::detach();
+        CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
+        CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
+    }
+
+    // 2. 32 random-garbage payloads of varied lengths (32..2048 B) across settings, bests, and osdQuick.
+    for (int trial = 0; trial < 32; trial++)
+    {
+        u32 sz = 32u + (rng.next() % 1984u);
+        rng.fill(buf, sz);
+        // On half the trials, stamp valid magic + valid checksum over garbage body to exercise parser bounds!
+        if ((trial & 1) != 0 && sz >= 64u)
+        {
+            storage::FileHeader* h = reinterpret_cast<storage::FileHeader*>(buf);
+            h->magic = (trial & 2) ? storage::kSettingsMagic : 0x544D4246u;
+            h->format = (trial % 6 == 1) ? 99u : 1u;
+            h->headerSize = sizeof(storage::FileHeader);
+            h->size = sz;
+            h->sequence = static_cast<u32>(trial + 1);
+            h->checksum = storage::checksum(buf + storage::kChecksumFrom, sz - storage::kChecksumFrom);
+        }
+        host::card::reset();
+        host::card::put(kFileA, buf, sz);
+        host::card::put(kBestsA, buf, sz);
+        boot();
+        storage::detach();
+
+        memset(block, 0, sizeof(block));
+        menu::attachSession(block);
+        menu::bests::detach();
+
+        memset(block, 0, sizeof(block));
+        menu::osdQuick::attach();
+        menu::osdQuick::open(0, gfPadType::GCC);
+        menu::osdQuick::detach();
+        CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
+        CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
+    }
+
+    // 3. Malformed AreaEntry tables (count = 0xFFFF, offset = 0xFFFFFFFF, overflow used, misaligned).
+    struct BadAreaCase {
+        u16 areaCount;
+        u8 id;
+        u16 used;
+        u32 offset;
+    };
+    const BadAreaCase badCases[] = {
+        {0xFFFFu, 1u, 15u, 48u},
+        {1u, 1u, 15u, 0xFFFFFFFFu},
+        {1u, 1u, 0xFFFFu, 48u},
+        {1u, 1u, 15u, 85u}, // 85 + 15 = 100 > size (96)
+        {1u, 1u, 1u, 96u},  // past end of file (96)
+        {storage::kMaxAreas + 1, 1u, 15u, 48u},
+    };
+    for (u32 c = 0; c < sizeof(badCases) / sizeof(badCases[0]); c++)
+    {
+        memset(buf, 0, 128);
+        storage::FileHeader* h = reinterpret_cast<storage::FileHeader*>(buf);
+        h->magic = storage::kSettingsMagic;
+        h->format = storage::kSettingsFormat;
+        h->headerSize = sizeof(storage::FileHeader);
+        h->size = 96u;
+        h->sequence = 1u;
+        storage::SettingsHead* sh = reinterpret_cast<storage::SettingsHead*>(buf + sizeof(storage::FileHeader));
+        sh->areaCount = badCases[c].areaCount;
+        sh->layout = main::kSettingsVersion;
+        storage::AreaEntry* ae = reinterpret_cast<storage::AreaEntry*>(buf + sizeof(storage::FileHeader)
+                                                                       + sizeof(storage::SettingsHead));
+        ae->id = badCases[c].id;
+        ae->generation = 1u;
+        ae->used = badCases[c].used;
+        ae->offset = badCases[c].offset;
+        h->checksum = storage::checksum(buf + storage::kChecksumFrom, h->size - storage::kChecksumFrom);
+
+        host::card::reset();
+        host::card::put(kFileA, buf, 96u);
+        boot();
+        CHECK_EQ(1, static_cast<int>(main::settings().general.moveStaling));
+        storage::detach();
+        CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
+    }
+
+    // 4. Future v99 settings (both oversized > cap AND layout=99) are NEVER clobbered by save or Quick Setup.
+    enum { kBigV99 = storage::kSettingsFileCap + 256 };
+    u8 bigV99[kBigV99];
+    rng.fill(bigV99, kBigV99);
+    storage::FileHeader* vh = reinterpret_cast<storage::FileHeader*>(bigV99);
+    memset(vh, 0, sizeof(storage::FileHeader));
+    vh->magic = storage::kSettingsMagic;
+    vh->format = 99u;
+    vh->headerSize = sizeof(storage::FileHeader);
+    vh->size = kBigV99;
+    vh->sequence = 50u;
+    vh->checksum = storage::checksum(bigV99 + storage::kChecksumFrom, kBigV99 - storage::kChecksumFrom);
+
+    host::card::reset();
+    host::card::put(kFileA, bigV99, kBigV99);
+    boot();
+    int writesBefore = host::card::writes();
+    main::settings().general.moveStaling = 0;
+    storage::settingsMenuClosed();
+    frames(8);
+    storage::detach();
+    CHECK_EQ(writesBefore, host::card::writes());
+    CHECK(!host::card::has(kFileB));
+    CHECK(memcmp(bigV99, host::card::data(kFileA), kBigV99) == 0);
+
+    // 5. Hostile .tmr recordings in the browser (zero-byte, truncated, random garbage, bad CRC, v99, oversized).
+    host::card::reset();
+    host::card::put("00-zero.tmr", buf, 0u);
+    rng.fill(buf, 24u);
+    host::card::put("01-trunc.tmr", buf, 24u);
+    rng.fill(buf, 256u);
+    host::card::put("02-garbage.tmr", buf, 256u);
+    // Valid-magic future v99 recording header (>= kRecordingMinBytes).
+    enum { kTmrBufLen = 256 };
+    TM_STATIC_ASSERT(kTmrBufLen >= storage::kRecordingMinBytes, tm_fuzz_tmr_min_len);
+    memset(buf, 0, kTmrBufLen);
+    storage::FileHeader* rh = reinterpret_cast<storage::FileHeader*>(buf);
+    rh->magic = storage::kRecordingMagic;
+    rh->format = 99u;
+    rh->headerSize = sizeof(storage::FileHeader);
+    rh->size = kTmrBufLen;
+    rh->checksum = storage::checksum(buf + storage::kChecksumFrom, kTmrBufLen - storage::kChecksumFrom);
+    host::card::put("03-v99.tmr", buf, kTmrBufLen);
+    // Mismatched CRC current-format recording (>= kRecordingMinBytes so CRC check is reached).
+    rh->format = storage::kRecordingFormat;
+    rh->checksum = storage::checksum(buf + storage::kChecksumFrom, kTmrBufLen - storage::kChecksumFrom) ^ 0x12345678u;
+    host::card::put("04-badcrc.tmr", buf, kTmrBufLen);
+    // Oversized recording claiming size past the card file length / recording buffer.
+    static u8 bigTmr[160 * 1024];
+    rng.fill(bigTmr, sizeof(bigTmr));
+    storage::FileHeader* bh = reinterpret_cast<storage::FileHeader*>(bigTmr);
+    memset(bh, 0, sizeof(storage::FileHeader));
+    bh->magic = storage::kRecordingMagic;
+    bh->format = storage::kRecordingFormat;
+    bh->headerSize = sizeof(storage::FileHeader);
+    bh->size = sizeof(bigTmr);
+    bh->checksum = storage::checksum(bigTmr + storage::kChecksumFrom, sizeof(bigTmr) - storage::kChecksumFrom);
+    host::card::put("05-oversized.tmr", bigTmr, sizeof(bigTmr));
+
+    menu::browser::attach();
+    menu::browser::open(0, gfPadType::GCC);
+    for (int f = 0; f < 40; f++)
+    {
+        menu::browser::update();
+    }
+    menu::browser::detach();
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
+}

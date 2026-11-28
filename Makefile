@@ -290,7 +290,7 @@ endif
 .PHONY: all clean tools negative sd-folder install run test-load test-match test-stress \
         test-reject test-lab test-displays test-osds test-drills test-cpu test-recovery-combo test-stage3f test-scenarios \
         test-display test-controls test-di test-frames test-savestate test-record test-storage \
-        test-card test-extra-heaps test-fighter-sets test-fighter-sets-no-extra test-fighter-swap test-big-file test-sounds test-rng test-fighter-mechanics test-stage-options test-stage3d test-stage5d test-stage4a-core test-stage4a-hover-ps test-stage4a-pplus-tech test-stage4c test-grab-visualizer test-psa-inspector test-hud-theme-meter test-match-hud test-code-menu test-boot test-harness test-perf match-baseline \
+        test-card test-extra-heaps test-fighter-sets test-fighter-sets-no-extra test-fighter-swap test-big-file test-sounds test-rng test-fighter-mechanics test-stage-options test-stage3d test-stage5d test-stage4a-core test-stage4a-hover-ps test-stage4a-pplus-tech test-stage4c test-grab-visualizer test-psa-inspector test-hud-theme-meter test-match-hud test-code-menu test-boot test-harness test-perf test-wii-strict test-torture match-baseline \
         match-compare check-host verify-release
 
 all: $(BUILT_REL)
@@ -661,6 +661,10 @@ test-harness: install
 # Strict Wii-compat verification (MMU, no-Fastmem, non-JIT CPUCore, DSP LLE, 4P MEM2 heap).
 test-wii-strict: install
 	$(Q)$(EMU) test-wii-strict $(REL) $(WII_STRICT_ARGS)
+
+# 11-category live Dolphin torture & stress suite (TORTURE_ARGS, e.g. --bucket 1 or --case <name>).
+test-torture: install
+	$(Q)$(EMU) test-torture $(REL) $(TORTURE_ARGS)
 
 KIND ?= badversion
 test-reject: install negative

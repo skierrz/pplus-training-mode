@@ -29,6 +29,8 @@ usage: emu.py sd-folder
        emu.py test-match-hud REL [--only NAME ...] [--aspect 16:9|4:3]
        emu.py test-code-menu REL [--only NAME ...] [--aspect 16:9|4:3] [--list]
        emu.py test-harness REL [--bench] [--dual-core]
+       emu.py test-wii-strict REL [--only NAME ...] [--list] [--interpreter] [--shots]
+       emu.py test-torture REL [--bucket 1..4] [--case NAME ...] [--list] [--keep-going]
        emu.py compare-shots A.png B.png
        emu.py self-check
 
@@ -39,7 +41,8 @@ test-controls in control_tests.py, test-di in di_tests.py, test-frames in
 frame_tests.py, test-savestate in savestate_tests.py, test-record in
 record_tests.py, test-storage in storage_tests.py, test-card in card_tests.py,
 test-sounds in sound_tests.py, test-rng in rng_tests.py,
-match_hud_tests.py, test-harness in harness_tests.py.
+match_hud_tests.py, test-harness in harness_tests.py, test-wii-strict in
+wii_strict_tests.py, test-torture in torture_tests.py.
 
 Settings come from environment variables (the Makefile exports them from
 local.mk), so paths with spaces need no shell quoting:
@@ -1836,6 +1839,9 @@ def main():
     if cmd == "test-wii-strict" and rest:
         import wii_strict_tests
         return wii_strict_tests.cmd_test_wii_strict(rest)
+    if cmd == "test-torture" and rest:
+        import torture_tests
+        return torture_tests.cmd_test_torture(rest)
     raise SystemExit(__doc__)
 
 
