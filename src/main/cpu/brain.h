@@ -30,6 +30,36 @@ namespace cpu {
         }
         return now >= techFrom && now - lastPress >= techGap;
     }
+
+    // Frame number that the next game step's Brain::next() will observe from
+    // game::trackerFrame(), accounting for owed render hand-over and pending
+    // savestate hand-over frames (docs/internals.md, "Frame hand-over").
+    inline s32 nextTrackerStep(s32 frame, bool owed, bool pending)
+    {
+        return frame + (owed ? 1 : 0) + (pending ? 1 : 0);
+    }
+
+    // Rebases a non-negative tracker frame timestamp across a savestate load;
+    // negative sentinels (-1000, kCueAsap/-1) are preserved untouched.
+    inline void rebaseFrame(s32& frame, s32 delta)
+    {
+        if (frame >= 0)
+        {
+            frame += delta;
+        }
+    }
+
+    inline void rebaseCueFrames(u8 state, s32& frame, s32& start, s32 delta)
+    {
+        if (state != kCueNone)
+        {
+            rebaseFrame(frame, delta);
+            if (state >= kCueRunning)
+            {
+                rebaseFrame(start, delta);
+            }
+        }
+    }
 }
 }
 

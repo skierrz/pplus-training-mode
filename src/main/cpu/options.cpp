@@ -1157,6 +1157,7 @@ namespace cpu {
     struct Saved {
         Brain brains[kMaxSlots];
         u32 rng;
+        s32 savedFrame;
         bool moving;
         int moverPlayer;
         bool freezeRequest;
@@ -1188,6 +1189,11 @@ namespace cpu {
 #pragma dont_inline reset
 #endif
 
+    static s32 nextStepFrame()
+    {
+        return nextTrackerStep(game::trackerFrame(), game::trackerFrameOwed(), game::trackerFramePending());
+    }
+
     void optionsSaved(int which)
     {
         if (s_brains == NULL || s_saved == NULL)
@@ -1203,6 +1209,7 @@ namespace cpu {
         memcpy(c.savedPort, s_savedPort, sizeof(s_savedPort));
         memcpy(c.savedType, s_savedType, sizeof(s_savedType));
         c.rng = s_rng;
+        c.savedFrame = nextStepFrame();
         c.moving = s_moving;
         c.moverPlayer = s_mover.playerNo;
         c.freezeRequest = s_freezeRequest;
@@ -1231,9 +1238,15 @@ namespace cpu {
             return;
         }
         const Saved& c = s_saved[which & 1];
+        const s32 delta = nextStepFrame() - c.savedFrame;
+        memcpy(s_aux->cues, c.cues, sizeof(s_aux->cues));
         for (int i = 0; i < kMaxSlots; i++)
         {
             copyBrainState(s_brains[i], c.brains[i]);
+            rebaseFrame(s_brains[i].lastPress, delta);
+            rebaseFrame(s_brains[i].techFrom, delta);
+            Cue& q = s_aux->cues[i];
+            rebaseCueFrames(q.state, q.frame, q.start, delta);
         }
         s_rng = c.rng;
         s_moving = c.moving;
@@ -1241,7 +1254,6 @@ namespace cpu {
         s_freezeRequest = c.freezeRequest;
         memcpy(g_moveCpuLabel, c.moveLabel, sizeof(c.moveLabel));
         memcpy(g_freezeCpuLabel, c.freezeLabel, sizeof(c.freezeLabel));
-        memcpy(s_aux->cues, c.cues, sizeof(s_aux->cues));
         bool want = opts().control == kControlLab && opts().controlledBy != 0;
         for (int i = 0; i < kMaxSlots; i++)
         {
