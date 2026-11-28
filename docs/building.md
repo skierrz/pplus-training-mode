@@ -137,7 +137,7 @@ All sources live under `src/` in namespace `tm` (with sub-namespaces per subsyst
 | `src/main/cpu/` | Single-TU CPU brain (`brain.h`, `options.cpp`, `options_di_sdi.hpp`, `options_tech.hpp`, `options_counters.hpp`), action tables, tech/DI/SDI/SHFFL/clatter/ledge logic, and scripted input source |
 | `src/main/display/` | Scene layer toggles, stale-move clearing, game speed, camera modes, and P+ hitbox/collision `renderDebug` callers (`debug_draw.cpp`) |
 | `src/main/gfx/` | 2D GX shapes, hardware scissoring (`pushScissor`/`popScissor`), GX state reset, and Brawl font rendering |
-| `src/main/ui/` | Table-driven Lab Menu engine (`menu.*`, `lab_menu.*`), native styling (`style.*`), two-layer semantic & Colorblind Mode palettes (`state_colors.h`), HUD layout, Info Display (`info_display.cpp`, compiled into `extra`), barless FIFO OSDs (`osd.cpp`), Ledgedash HUD, v1->v2 Update Saved Settings modal, Brawl match timer, and watermark |
+| `src/main/ui/` | Table-driven Lab Menu engine (`menu.*`, `lab_menu.*`), native styling (`style.*`), two-layer semantic & Colorblind Mode palettes (`state_colors.h`), HUD layout, Info Display (`info_display.cpp`, compiled into `extra`), compact FIFO OSDs (`osd.cpp`), Ledgedash HUD, v1->v2 Update Saved Settings modal, Brawl match timer, and watermark |
 | `src/main/ui/pages/` | Lab Menu pages (one file per page, registered in `registry.cpp`) |
 | `src/main/record/` | 6-slot HMN/CPU input recording, playback, Start On Input, weighted random slots, mirroring, Frame Rewind, and seekbar HUD |
 | `src/main/savestate/` | In-match RAM savestate snapshot/restore with real-Wii cache-tiled IRQ-yielding copy and verification tracing |

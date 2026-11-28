@@ -24,7 +24,7 @@ A free, open-source training lab plugin for **Project+ v3.2.1** that expands Bra
 </p>
 
 <p align="center">
-  <img src="docs/assets/inmatch_hud_and_frame_meter.png" alt="In-Match Battlefield Capture Showing Compact Barless FIFO OSDs and Unified Frame Meter" width="100%" />
+  <img src="docs/assets/inmatch_hud_and_frame_meter.png" alt="In-Match Battlefield Capture Showing Compact FIFO OSDs and Unified Frame Meter" width="100%" />
 </p>
 
 ---
@@ -113,7 +113,7 @@ Launch **Training Lab** for an open sandbox, or pick a ready setup from the 4-ta
 
 - **Unified Frame Meter (`Display > Frame Meter`):** Dual-row SF6-style live timeline (`P1 Top` / `CPU Top`) displaying startup, active strikes, active grabs/tethers, vulnerable lag/recovery/landing, stun/hitlag, intangibility/GALINT, and signed frame advantage, color-synced with the Ledgedash HUD and Floating Meters.
 - **Visualizers:** Native P+ hitboxes/hurtboxes (with **Default**, **Property**, and **Priority** color modes), **Hitbox Heatmap** with reach bounds, 3D **Grab / Tether Boxes**, real-time **DI Display** trajectory preview, multi-controller **Input Viewer**, **Color Overlays** (including the **Standard (PPunch)** preset), 34-field **Info Display** (up to 8 rows per fighter), and a read-only **PSA Debugger** (11-thread & FSM Inspector).
-- **20 Barless FIFO On-Screen Displays:** Compact chronological FIFO cards with smooth stack glide and fade-out, built-in presets (**Essentials**, **Movement**, **Defense**, **All Off**), and 3 saveable **Custom 1-3** slots.
+- **20 FIFO On-Screen Displays:** Compact chronological FIFO cards with a 3px bottom lifetime countdown bar, smooth stack glide and fade-out, built-in presets (**Essentials**, **Movement**, **Defense**, **All Off**), and 3 saveable **Custom 1-3** slots.
 - **Colorblind Mode:** Built-in **Display > Theme > Colorblind Mode** (`Off`, `Deuteran`, `Protan`, `Tritan`) across OSDs, Frame Meter, Ledgedash HUD, Drill HUDs, and Floating Meters.
 
 <details>

@@ -93,7 +93,7 @@ namespace {
             appendStr(out, cap, "\n");
         }
         appendStr(out, cap, TM_CREDITS_LICENSE "\n");
-        appendStr(out, cap, TM_CREDITS_HINT_SCROLL " " TM_CREDITS_HINT_CLOSE);
+        appendStr(out, cap, TM_CREDITS_BTN_DPAD " " TM_CREDITS_HINT_SCROLL " " TM_CREDITS_HINT_CLOSE);
     }
 
     static common::CreditsModalState s_mockCredits;
@@ -148,7 +148,7 @@ TEST(credits, verbatim_attributions_and_clean_hygiene)
     CHECK(std::strstr(all, "Project+ Training Mode Mod (P+TMM)") != NULL);
     CHECK(std::strstr(all, "v1.0.1-pre4 | discord.gg/WHNtJd2KAJ") != NULL);
     CHECK(std::strstr(all, "GPL-3.0-or-later | github.com/skierrz/pplus-training-mode") != NULL);
-    CHECK(std::strstr(all, "D-Pad/Stick: Scroll") != NULL);
+    CHECK(std::strstr(all, "D-Pad Scroll Close") != NULL);
 
     // All 9 mandatory attributions verbatim.
     CHECK(std::strstr(all, "skier") != NULL);

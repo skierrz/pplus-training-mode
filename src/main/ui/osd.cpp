@@ -25,8 +25,9 @@
 #include "shared/log.h"
 
 // Per-player append-only FIFO OSD stacks rendered with crisp 4-way outlined text
-// over a subtle translucent wash (zero decorative bars), easeOutCubic stack
-// glide transitions, and smooth 4-frame fade-out. Geometry lives in osd_place.h.
+// over a subtle translucent wash and a 3px bottom lifetime countdown bar,
+// easeOutCubic stack glide transitions, and smooth 4-frame fade-out.
+// Placement geometry lives in osd_place.h.
 namespace tm {
 namespace osd {
     enum {
@@ -34,10 +35,12 @@ namespace osd {
         kGlideFrames = 7,
         kExitFrames = 4
     };
+    static const float kStrip = 3.0f;
     static const float kTextCap = 9.0f;
     static const float kLinePitch = 13.5f;
     // 4 px margin each side inside the compact 96 px card; wider lines scale down.
     static const float kTextWidth = 88.0f;
+    static const gfx::Rgba kBar = ui::style::kLabTealTop;
     static const gfx::Rgba kOutline = 0x000000E8u;
 
     static int s_position = kPositionSides;
@@ -380,7 +383,7 @@ namespace osd {
             {
                 top = minTop;
                 h = bottom - top;
-                if (h <= 4.0f)
+                if (h <= kStrip + 2.0f)
                 {
                     return;
                 }
@@ -391,20 +394,32 @@ namespace osd {
                 hasPrevBot = true;
             }
         }
+        float barY = top + h - kStrip;
         if (t.bodyColor != 0)
         {
-            gfx::fillRect(left, top, w, h, fadeA(t.bodyColor, a256));
+            gfx::fillRect(left, top, w, h - kStrip, fadeA(t.bodyColor, a256));
+            gfx::fillRect(left, barY, w, kStrip, fadeA(t.trackColor, a256));
+        }
+        float life = age < kLifetime ? 1.0f - static_cast<float>(age) / kLifetime : 0.0f;
+        if (life > 0.0f)
+        {
+            float barW = w * life;
+            if (t.bodyColor == 0)
+            {
+                gfx::fillRect(left + xs, barY + 1.0f, barW, kStrip, fadeA(kOutline, a256));
+            }
+            gfx::fillRect(left, barY, barW, kStrip, fadeA(kBar, a256));
         }
         gfx::Rgba outCol = fadeA(kOutline, a256);
         u8 cbMode = ui::activeColorblindMode();
-        // Centre the lines' capital-height block vertically inside the card (full crisp scale on exit).
+        // Centre the lines' capital-height block vertically inside the card body (above the 3px timer bar).
         float block = (m.lines - 1) * kLinePitch + kTextCap;
-        float capTop = top + (h - block) * 0.5f;
+        float capTop = top + (h - kStrip - block) * 0.5f;
         float y = ui::style::textYForCap(capTop, scale);
         for (int i = 0; i < m.lines; i++)
         {
             float lineCapTop = capTop + i * kLinePitch;
-            if (h < kBoxHeight - 0.5f && (lineCapTop < top + 1.0f || lineCapTop + kTextCap > bottom - 1.0f))
+            if (h < kBoxHeight - 0.5f && (lineCapTop < top + 1.0f || lineCapTop + kTextCap > barY - 1.0f))
             {
                 y += kLinePitch;
                 continue;

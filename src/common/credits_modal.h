@@ -2,11 +2,6 @@
 
 #include <gf/gf_pad_status.h>
 #include <types.h>
-#ifdef __MWERKS__
-#include <GX/GXGeometry.h>
-#include <GX/GXHardware.h>
-#include <GX/GXTransform.h>
-#endif
 
 #include "main/gfx/draw.h"
 #include "main/gfx/text.h"
@@ -15,15 +10,16 @@
 #include "shared/game/pad_bits.h"
 
 // Native Wii GX scrollable Credits modal shared by extra (in-match Lab Menu)
-// and menu (CSS Boot Menu). Header-only, C++03, zero heap, compact PPC size.
-// String literals are defined via preprocessor macros to keep shared copy in
-// one place and avoid duplicate literal tables across host scans.
+// and menu (CSS Boot Menu). Reuses style.cpp's native P+ modal frame, slanted
+// teal header ribbon, scrollbar, and glossy vector footer badges with clean
+// typographic credit rows (zero nested cards, zero vertical accent stripes).
 
-#define TM_CREDITS_RIBBON      "CREDITS"
+#define TM_CREDITS_RIBBON      "Credits"
 #define TM_CREDITS_TITLE       "Project+ Training Mode Mod (P+TMM)"
 #define TM_CREDITS_SUBTITLE    "v1.0.1-pre4 | discord.gg/WHNtJd2KAJ"
 #define TM_CREDITS_LICENSE     "GPL-3.0-or-later | github.com/skierrz/pplus-training-mode"
-#define TM_CREDITS_HINT_SCROLL "D-Pad/Stick: Scroll"
+#define TM_CREDITS_BTN_DPAD    "D-Pad"
+#define TM_CREDITS_HINT_SCROLL "Scroll"
 #define TM_CREDITS_HINT_CLOSE  "Close"
 #define TM_CREDITS_BTN_B       "B"
 #define TM_CREDITS_BTN_1       "1"
@@ -71,33 +67,43 @@ namespace common {
         kCreditsEntryCount = 9
     };
 
-    // Modal frame layout in 4:3 coordinates (inside 5% CRT safe area 32..608 x 24..456).
-    static const float kCreditsInL43 = 55.0f;
-    static const float kCreditsInR43 = 585.0f;
-    static const float kCreditsViewTopY = 88.0f;
-    static const float kCreditsViewBotY = 384.0f;
-    static const float kCreditsCardL43 = 67.0f;
-    static const float kCreditsCardW43 = 494.0f;
-    static const float kCreditsTextX43 = 78.0f;
-    static const float kCreditsTextMaxW43 = 474.0f;
-    static const float kCreditsScrollL43 = 569.0f;
-    static const float kCreditsScrollW43 = 8.0f;
+    // Modal frame layout in 4:3 coordinates matching osd_quick.cpp (56..584 x 34..446,
+    // well inside the 5% 480i CRT safe area 32..608 x 24..456).
+    static const float kCreditsLeft43 = 56.0f;
+    static const float kCreditsRight43 = 584.0f;
+    static const float kCreditsTopY = 34.0f;
+    static const float kCreditsBotY = 446.0f;
+    static const float kCreditsHdrBot = 71.0f;   // 34 px (kFibBandH) native header
+    static const float kCreditsMetaTop = 73.0f;  // + 2 px divider
+    static const float kCreditsMetaBot = 94.0f;  // 21 px (kFibRowH) meta band (matches Lab crumb bar)
+    static const float kCreditsViewTopY = 96.0f; // + 2 px divider
+    static const float kCreditsViewBotY = 379.0f;
+    static const float kCreditsFootTop = 407.0f; // 26 px license strip + 2 px divider -> 34 px footer
+    static const float kCreditsRibbonR43 = 188.0f;
 
-    static const float kCreditsCardH1 = 41.0f;
-    static const float kCreditsCardH2 = 54.0f;
-    static const float kCreditsCardGap = 6.0f;
-    static const float kCreditsTopPad = 8.0f;
-    static const float kCreditsBotPad = 10.0f;
-    // Precomputed content height: 8 + 6*41 + 3*54 + 8*6 + 10 = 474.0 px; viewH = 296.0 px.
-    static const float kCreditsContentH = 474.0f;
-    static const float kCreditsMaxScroll = 178.0f;
+    static const float kCreditsInL43 = 59.0f;
+    static const float kCreditsInR43 = 581.0f;
+    static const float kCreditsTextX43 = 75.0f;
+    static const float kCreditsScrollL43 = 565.0f;
+    static const float kCreditsTextMaxW43 = 480.0f;
+    static const float kCreditsRuleW43 = 480.0f;
 
-    static const float kCreditsTitleCap = 10.5f;
-    static const float kCreditsSubCap = 9.0f;
-    static const float kCreditsNameCap = 10.5f;
-    static const float kCreditsRoleCap = 9.0f;
-    static const float kCreditsLicCap = 9.0f;
-    static const float kCreditsHintCap = 9.0f;
+    // Open typographic vertical rhythm (tight inside each credit, generous between credits).
+    static const float kCreditsTopPad = 12.0f;
+    static const float kCreditsBotPad = 14.0f;
+    static const float kCreditsLeadStep = 59.0f;   // skier (2 lines + section breath + 2px divider)
+    static const float kCreditsRow1H = 24.0f;      // name (10.5) + gap (4.5) + role1 (9.0)
+    static const float kCreditsRow2H = 37.0f;      // + role2 (13.0 pitch)
+    static const float kCreditsRowGap = 16.0f;     // generous vertical separation w/ centered 2px hairline
+    // Content height: 12 + 59 + 2*(37+16) + 5*(24+16) + 24 + 14 = 415.0 px; viewH = 283.0 px.
+    static const float kCreditsContentH = 415.0f;
+    static const float kCreditsMaxScroll = 132.0f;
+
+    static const float kCreditsTitleCap = ui::style::kTypeBody;
+    static const float kCreditsSubCap = ui::style::kTypeMeta;
+    static const float kCreditsNameCap = ui::style::kTypeBody;
+    static const float kCreditsRoleCap = ui::style::kTypeMeta;
+    static const float kCreditsLicCap = ui::style::kTypeMeta;
 
     struct CreditsModalState {
         float targetScroll;
@@ -165,96 +171,6 @@ namespace common {
 #ifdef __MWERKS__
 #pragma dont_inline on
 #endif
-#if defined(TM_MODULE_MENU) || !defined(__MWERKS__)
-    static inline gfx::Rgba creditsAlpha(gfx::Rgba c, float a) { return ui::style::scaleAlpha(c, a); }
-    static inline float creditsSnap(float v) { return ui::style::snapPx(v); }
-    static inline float creditsChase(float cur, float target, float a) { return ui::style::chase60(cur, target, a); }
-    typedef gfx::ScissorState CreditsScissor;
-    static inline bool creditsPushScissor(float x0, float y0, float x1, float y1, CreditsScissor& saved)
-    {
-        return gfx::pushScissor(x0, y0, x1, y1, saved);
-    }
-    static inline void creditsPopScissor(const CreditsScissor& saved) { gfx::popScissor(saved); }
-#else
-    static gfx::Rgba creditsAlpha(gfx::Rgba c, float a)
-    {
-        if (a >= 0.999f) return c;
-        if (a <= 0.0f) return c & 0xFFFFFF00u;
-        u32 na = static_cast<u32>(static_cast<float>(c & 0xFFu) * a + 0.5f);
-        if (na > 255u) na = 255u;
-        return (c & 0xFFFFFF00u) | na;
-    }
-
-    static float creditsSnap(float v)
-    {
-        return v >= 0.0f ? static_cast<float>(static_cast<int>(v + 0.5f))
-                         : static_cast<float>(static_cast<int>(v - 0.5f));
-    }
-
-    static float creditsChase(float cur, float target, float alpha)
-    {
-        float d = target - cur;
-        return (d > -0.2f && d < 0.2f) ? target : (cur + d * alpha);
-    }
-
-    struct CreditsScissor {
-        u32 x, y, w, h;
-    };
-
-    static bool creditsPushScissor(float x0, float y0, float x1, float y1, CreditsScissor& saved)
-    {
-        GXGetScissor(&saved.x, &saved.y, &saved.w, &saved.h);
-        f32 vp[6];
-        GXGetViewportv(vp);
-        float vx = vp[2] > 0.0f ? vp[0] : 0.0f;
-        float vy = vp[3] > 0.0f ? vp[1] : 0.0f;
-        float vw = vp[2] > 0.0f ? vp[2] : 640.0f;
-        float vh = vp[3] > 0.0f ? vp[3] : 480.0f;
-        float fx0 = vx + x0 * (vw / 640.0f);
-        float fy0 = vy + y0 * (vh / 480.0f);
-        float fx1 = vx + x1 * (vw / 640.0f);
-        float fy1 = vy + y1 * (vh / 480.0f);
-        int px0 = fx0 <= 0.0f ? 0 : static_cast<int>(fx0 + 0.5f);
-        int py0 = fy0 <= 0.0f ? 0 : static_cast<int>(fy0 + 0.5f);
-        int px1 = fx1 <= 0.0f ? 0 : static_cast<int>(fx1 + 0.5f);
-        int py1 = fy1 <= 0.0f ? 0 : static_cast<int>(fy1 + 0.5f);
-        int sx0 = static_cast<int>(saved.x);
-        int sy0 = static_cast<int>(saved.y);
-        int sx1 = sx0 + static_cast<int>(saved.w);
-        int sy1 = sy0 + static_cast<int>(saved.h);
-        if (px0 < sx0) px0 = sx0;
-        if (py0 < sy0) py0 = sy0;
-        if (px1 > sx1) px1 = sx1;
-        if (py1 > sy1) py1 = sy1;
-        if (px1 <= px0 || py1 <= py0) return false;
-        GXSetScissor(static_cast<u32>(px0), static_cast<u32>(py0), static_cast<u32>(px1 - px0),
-                     static_cast<u32>(py1 - py0));
-        return true;
-    }
-
-    static void creditsPopScissor(const CreditsScissor& saved)
-    {
-        GXSetScissor(saved.x, saved.y, saved.w, saved.h);
-    }
-#endif
-
-    static void creditsGrad(float x43, float y, float w43, float h, gfx::Rgba topCol, gfx::Rgba botCol, float a)
-    {
-        gfx::fillGradV(ui::style::cx(x43), y, ui::style::w(w43), h, creditsAlpha(topCol, a), creditsAlpha(botCol, a));
-    }
-
-    static void creditsFitText(float x43, float capTop, const char* str, gfx::Rgba col, float cap, float maxW43,
-                               float a, bool rightAlign)
-    {
-        float scale = ui::style::scaleForCap(cap);
-        float tw = gfx::textWidth(str, scale);
-        float limit = ui::style::w(maxW43);
-        float sx = (tw > limit && tw > 0.0f) ? (scale * limit / tw) : scale;
-        if (tw > limit) tw = limit;
-        float x = ui::style::cx(x43) - (rightAlign ? tw : 0.0f);
-        gfx::text(x, ui::style::textYForCap(capTop, scale), str, creditsAlpha(col, a), sx, scale);
-    }
-
     // Steps 60fps scrolling and close handling. Returns a game::kSound* id or -1.
     static int creditsModalStep(CreditsModalState& st, u32 held, u32 pressed, s8 stickY, u8 ctrlType)
     {
@@ -295,7 +211,7 @@ namespace common {
             if (st.targetScroll < 0.0f) st.targetScroll = 0.0f;
             else if (st.targetScroll > kCreditsMaxScroll) st.targetScroll = kCreditsMaxScroll;
         }
-        st.visualScroll = creditsChase(st.visualScroll, st.targetScroll, 0.35f);
+        st.visualScroll = ui::style::chase60(st.visualScroll, st.targetScroll, 0.35f);
         if (st.visualScroll < 0.0f) st.visualScroll = 0.0f;
         else if (st.visualScroll > kCreditsMaxScroll) st.visualScroll = kCreditsMaxScroll;
         return -1;
@@ -308,6 +224,7 @@ namespace common {
             return;
         }
 
+        using namespace ui::style;
         float alpha = 1.0f;
         float dy = 0.0f;
         if (st.open)
@@ -317,7 +234,7 @@ namespace common {
                 float u = 1.0f - static_cast<float>(9 - st.enterTick) / 8.0f;
                 float ease = 1.0f - u * u * u;
                 alpha = 0.25f + 0.75f * ease;
-                dy = creditsSnap((1.0f - ease) * 6.0f);
+                dy = snapPx((1.0f - ease) * 6.0f);
                 st.enterTick--;
             }
         }
@@ -326,7 +243,7 @@ namespace common {
             float u = 1.0f - static_cast<float>(5 - st.exitTick) / 4.0f;
             float ease = 1.0f - u * u * u * u;
             alpha = 1.0f - ease;
-            dy = creditsSnap(ease * 4.0f);
+            dy = snapPx(ease * 4.0f);
             st.exitTick--;
         }
         if (alpha <= 0.01f)
@@ -334,143 +251,132 @@ namespace common {
             return;
         }
 
-        using namespace ui::style;
         float pa = alpha >= 0.99f ? 1.0f : (0.25f + 0.75f * alpha);
 
-        // 1. Backdrop + compact table-driven Direction A modal chrome.
-        gfx::fillRect(0.0f, 0.0f, 640.0f, 480.0f, creditsAlpha(kLabModalBackdropHeavy, alpha));
-        struct Band {
-            float x, y, w, h;
-            gfx::Rgba top, bot;
+        // 1. Native P+ modal frame (slanted teal header ribbon + // stripes + smoked charcoal body).
+        // descTop = 0.0f so MENU and EXTRA render identically; license band is drawn explicitly below.
+        static const ModalFrame kFrame = {
+            kCreditsLeft43, kCreditsRight43, kCreditsTopY, kCreditsBotY, kCreditsHdrBot, 0.0f, kCreditsFootTop,
+            kCreditsRibbonR43, kLabModalBackdropHeavy
         };
-        static const Band kBands[16] = {
-            {52.0f,  30.0f, 536.0f,   3.0f, kLabBorderColor,  kLabBorderColor},
-            {52.0f, 443.0f, 536.0f,   3.0f, kLabBorderColor,  kLabBorderColor},
-            {52.0f,  33.0f,   3.0f, 410.0f, kLabBorderColor,  kLabBorderColor},
-            {585.0f, 33.0f,   3.0f, 410.0f, kLabBorderColor,  kLabBorderColor},
-            {55.0f,  33.0f, 530.0f,  30.0f, kLabHeaderTop,    kLabHeaderBot},
-            {55.0f,  33.0f, 118.0f,  30.0f, kLabTealTop,      kLabTealBot},
-            {169.0f, 33.0f,   4.0f,  30.0f, kLabTealSheen,    kLabTealSheen},
-            {55.0f,  63.0f, 530.0f,  23.0f, 0x0C1118F2u,      0x0C1118F2u},
-            {55.0f,  63.0f,   4.0f,  23.0f, kLabTealTop,      kLabTealTop},
-            {55.0f,  86.0f, 530.0f,   2.0f, kLabDivider,      kLabDivider},
-            {55.0f,  88.0f, 530.0f, 296.0f, kLabBaseTop,      kLabBaseBot},
-            {55.0f, 384.0f, 530.0f,   2.0f, kLabDivider,      kLabDivider},
-            {55.0f, 386.0f, 530.0f,  25.0f, kLabDescTopCol,   kLabDescBotCol},
-            {55.0f, 411.0f, 530.0f,   2.0f, kLabDivider,      kLabDivider},
-            {55.0f, 413.0f, 530.0f,  30.0f, kLabFooterTopCol, kLabFooterBotCol},
-            {55.0f, 441.0f, 530.0f,   2.0f, kLabBevelDark,    kLabBevelDark}
-        };
-        for (int b = 0; b < 16; b++)
-        {
-            creditsGrad(kBands[b].x, kBands[b].y + dy, kBands[b].w, kBands[b].h, kBands[b].top, kBands[b].bot, pa);
-        }
+        drawModalFrame(kFrame, TM_CREDITS_RIBBON, dy, alpha);
 
-        // 2. Header text (ribbon tag + title + subtitle).
-        float ribScale = displayScaleForCap(12.5f);
-        gfx::Rgba ribInk = creditsAlpha(kLabActiveTabText, pa);
-        gfx::displayText(cx(67.0f), displayYForCap(41.75f + dy, ribScale), TM_CREDITS_RIBBON, ribInk, ribInk,
-                         ribScale, ribScale, 0.0f, 0);
-        creditsFitText(573.0f, 42.75f + dy, TM_CREDITS_TITLE, kLabWhiteText, kCreditsTitleCap, 392.0f, pa, true);
-        creditsFitText(69.0f, 70.0f + dy, TM_CREDITS_SUBTITLE, kLabDescText, kCreditsSubCap, 502.0f, pa, false);
+        float bodyX = cx(kCreditsInL43);
+        float bodyW = w(kCreditsInR43 - kCreditsInL43);
 
-        // 3. Hardware scissor-clipped scrollable credit cards.
+        // 2. Sub-header meta strip (21 px, matching Lab subpage breadcrumb band; zero accent stripes)
+        //    + license description band (26 px, matching Quick Setup / Lab description band).
+        gfx::fillGradV(bodyX, kCreditsMetaTop + dy, bodyW, kCreditsMetaBot - kCreditsMetaTop,
+                       scaleAlpha(kLabRailTop, pa), scaleAlpha(kLabRailBot, pa));
+        gfx::fillRect(bodyX, kCreditsMetaBot + dy, bodyW, kFibHair, scaleAlpha(kLabDivider, pa));
+
+        gfx::fillRect(bodyX, kCreditsViewBotY + dy, bodyW, kFibHair, scaleAlpha(kLabDivider, pa));
+        gfx::fillGradV(bodyX, kCreditsViewBotY + kFibHair + dy, bodyW,
+                       kCreditsFootTop - (kCreditsViewBotY + kFibHair), scaleAlpha(kLabDescTopCol, pa),
+                       scaleAlpha(kLabDescBotCol, pa));
+
+        // 3. Header right title + sub-header version/Discord line.
+        float hdrMid = (kCreditsTopY + kLabBorder + kCreditsHdrBot) * 0.5f + dy;
+        float titleScale = scaleForCap(kCreditsTitleCap);
+        float titleMaxW = w(kCreditsInR43 - kCreditsRibbonR43 - kFibPad - 6.0f);
+        float titleW = gfx::textWidth(TM_CREDITS_TITLE, titleScale);
+        float titleDrawW = titleW > titleMaxW ? titleMaxW : titleW;
+        drawFitText(cx(kCreditsInR43 - kFibPad) - titleDrawW, textYForCap(hdrMid - kCreditsTitleCap * 0.5f, titleScale),
+                    TM_CREDITS_TITLE, scaleAlpha(kLabTitleBot, pa), titleScale, titleMaxW);
+
+        float subScale = scaleForCap(kCreditsSubCap);
+        float metaMid = (kCreditsMetaTop + kCreditsMetaBot) * 0.5f + dy;
+        drawFitText(cx(kCreditsInL43 + kFibPad), textYForCap(metaMid - kCreditsSubCap * 0.5f, subScale),
+                    TM_CREDITS_SUBTITLE, scaleAlpha(kLabMutedText, pa), subScale, w(496.0f));
+
+        // 4. Hardware scissor-clipped open typographic credits list (batched: rules pass, then text pass).
         float viewTop = kCreditsViewTopY + dy;
         float viewBot = kCreditsViewBotY + dy;
         float diff = st.targetScroll - st.visualScroll;
-        float drawScroll = (diff > -0.25f && diff < 0.25f) ? creditsSnap(st.targetScroll) : st.visualScroll;
+        float drawScroll = (diff > -0.25f && diff < 0.25f) ? snapPx(st.targetScroll) : st.visualScroll;
 
-        CreditsScissor sc;
-        if (creditsPushScissor(cx(kCreditsInL43), viewTop, cx(kCreditsInR43), viewBot, sc))
+        gfx::ScissorState sc;
+        if (gfx::pushScissor(bodyX, viewTop, cx(kCreditsScrollL43 - 2.0f), viewBot, sc))
         {
             const CreditsEntry* entries = creditsEntries();
-            // Pass 1: plates + left accent bars; Pass 2: text.
-            for (int pass = 0; pass < 2; pass++)
+            float tx = cx(kCreditsTextX43);
+            float maxW = w(kCreditsTextMaxW43);
+            float ruleW = w(kCreditsRuleW43);
+            float nameScale = scaleForCap(kCreditsNameCap);
+            float roleScale = scaleForCap(kCreditsRoleCap);
+
+            // Pass 1: clean CRT-safe 2px horizontal separators (stronger divider below Lead Maintainer).
+            float y = viewTop + kCreditsTopPad - drawScroll;
+            for (int i = 0; i < kCreditsEntryCount; i++)
             {
-                float y = viewTop + kCreditsTopPad - drawScroll;
-                for (int i = 0; i < kCreditsEntryCount; i++)
+                bool twoLine = entries[i].role2 != NULL;
+                float step = i == 0 ? kCreditsLeadStep : ((twoLine ? kCreditsRow2H : kCreditsRow1H) + kCreditsRowGap);
+                if (i + 1 < kCreditsEntryCount)
                 {
-                    float ch = entries[i].role2 != NULL ? kCreditsCardH2 : kCreditsCardH1;
-                    if (y + ch > viewTop - 2.0f && y < viewBot + 2.0f)
+                    float ruleY = i == 0 ? (y + 47.0f) : (y + (twoLine ? kCreditsRow2H : kCreditsRow1H) + 7.0f);
+                    if (ruleY + kFibHair > viewTop && ruleY < viewBot)
                     {
-                        if (pass == 0)
-                        {
-                            creditsGrad(kCreditsCardL43, y, kCreditsCardW43, ch, 0x1A222EE0u, 0x121822E0u, pa);
-                            creditsGrad(kCreditsCardL43, y + ch - 2.0f, kCreditsCardW43, 2.0f, 0x080C12E8u,
-                                        0x080C12E8u, pa);
-                            gfx::Rgba acc = i == 0 ? kLabFocusGold : kLabTealTop;
-                            creditsGrad(kCreditsCardL43, y, 4.0f, ch, acc, acc, pa);
-                        }
-                        else
-                        {
-                            creditsFitText(kCreditsTextX43, y + 6.0f, entries[i].name,
-                                           i == 0 ? kLabFocusGold : kLabWhiteText, kCreditsNameCap,
-                                           kCreditsTextMaxW43, pa, false);
-                            creditsFitText(kCreditsTextX43, y + 22.0f, entries[i].role1, kLabDescText,
-                                           kCreditsRoleCap, kCreditsTextMaxW43, pa, false);
-                            if (entries[i].role2 != NULL)
-                            {
-                                creditsFitText(kCreditsTextX43, y + 35.0f, entries[i].role2, kLabDescText,
-                                               kCreditsRoleCap, kCreditsTextMaxW43, pa, false);
-                            }
-                        }
+                        gfx::Rgba ruleCol = i == 0 ? kLabDivider : 0x283444B0u;
+                        gfx::fillRect(tx, snapPx(ruleY), ruleW, kFibHair, scaleAlpha(ruleCol, pa));
                     }
-                    y += ch + kCreditsCardGap;
                 }
+                y += step;
             }
+
+            // Pass 2: crisp names + slate-tinted roles.
+            y = viewTop + kCreditsTopPad - drawScroll;
+            for (int i = 0; i < kCreditsEntryCount; i++)
+            {
+                bool twoLine = entries[i].role2 != NULL;
+                float bodyH = twoLine ? kCreditsRow2H : kCreditsRow1H;
+                float step = i == 0 ? kCreditsLeadStep : (bodyH + kCreditsRowGap);
+                if (y + bodyH > viewTop - 2.0f && y < viewBot + 2.0f)
+                {
+                    gfx::Rgba nameCol = scaleAlpha(i == 0 ? kLabFocusGold : kLabWhiteText, pa);
+                    gfx::Rgba roleCol = scaleAlpha(i == 0 ? kLabDescText : kLabMutedText, pa);
+                    drawFitText(tx, textYForCap(y, nameScale), entries[i].name, nameCol, nameScale, maxW);
+                    drawFitText(tx, textYForCap(y + 15.0f, roleScale), entries[i].role1, roleCol, roleScale, maxW);
+                    if (twoLine)
+                    {
+                        drawFitText(tx, textYForCap(y + 28.0f, roleScale), entries[i].role2, roleCol, roleScale, maxW);
+                    }
+                }
+                y += step;
+            }
+
+            // Soft edge fades when scrollable content extends past top/bottom.
+            float fadeW = cx(kCreditsScrollL43 - 4.0f) - bodyX;
             if (drawScroll > 1.0f)
             {
-                creditsGrad(55.0f, viewTop, 512.0f, 14.0f, 0x10151CE8u, 0x10151C00u, pa);
+                gfx::fillGradV(bodyX, viewTop, fadeW, 14.0f, scaleAlpha(0x131921E8u, pa), 0x13192100u);
             }
             if (drawScroll < kCreditsMaxScroll - 1.0f)
             {
-                creditsGrad(55.0f, viewBot - 14.0f, 512.0f, 14.0f, 0x0D111700u, 0x0D1117E8u, pa);
+                gfx::fillGradV(bodyX, viewBot - 14.0f, fadeW, 14.0f, 0x0D111700u, scaleAlpha(0x0D1117E8u, pa));
             }
-            creditsPopScissor(sc);
+            gfx::popScissor(sc);
         }
 
-        // 4. Right-edge scroll track, proportional thumb, and overflow arrows.
-        float trackTop = viewTop + 14.0f;
-        float trackH = 268.0f;
-        float thumbH = 167.0f;
-        float ratio = drawScroll / kCreditsMaxScroll;
-        float thumbY = trackTop + (trackH - thumbH) * ratio;
-        creditsGrad(kCreditsScrollL43, trackTop, kCreditsScrollW43, trackH, 0x222C3AE0u, 0x222C3AE0u, pa);
-        creditsGrad(kCreditsScrollL43, thumbY, kCreditsScrollW43, thumbH, kLabTealTop, kLabTealBot, pa);
-        float midX = cx(573.0f);
-        float triR = gw(3.5f);
-        gfx::Rgba arrCol = creditsAlpha(kLabTealTop, pa);
-        if (drawScroll > 1.0f)
-        {
-            gfx::fillTri(midX, viewTop + 5.0f, midX - triR, viewTop + 10.0f, midX + triR, viewTop + 10.0f, arrCol);
-        }
-        if (drawScroll < kCreditsMaxScroll - 1.0f)
-        {
-            gfx::fillTri(midX, viewBot - 5.0f, midX - triR, viewBot - 10.0f, midX + triR, viewBot - 10.0f, arrCol);
-        }
+        // 5. Native shared scrollbar (matching Lab Menu & Quick Setup).
+        drawScrollBarFloat(kCreditsScrollL43, viewTop + kFibGap, (viewBot - viewTop) - 2.0f * kFibGap,
+                           static_cast<int>(kCreditsContentH), drawScroll,
+                           static_cast<int>(kCreditsViewBotY - kCreditsViewTopY), scaleAlpha(kLabDivider, pa),
+                           scaleAlpha(kLabTealTop, pa), scaleAlpha(kLabTealBot, pa));
 
-        // 5. Footer text: license & repo + controls hint.
-        creditsFitText(69.0f, 394.0f + dy, TM_CREDITS_LICENSE, kLabDescText, kCreditsLicCap, 502.0f, pa, false);
-        float hintMidY = 428.0f + dy;
-        creditsFitText(69.0f, hintMidY - 4.5f, TM_CREDITS_HINT_SCROLL, kLabMutedText, kCreditsHintCap, 240.0f, pa,
-                       false);
+        // 6. License strip + unified glossy vector footer badges (matching Lab Menu, Quick Setup & Settings Modal).
+        float licScale = scaleForCap(kCreditsLicCap);
+        float licMid = (kCreditsViewBotY + kFibHair + kCreditsFootTop) * 0.5f + dy;
+        drawFitText(cx(kCreditsInL43 + kFibPad), textYForCap(licMid - kCreditsLicCap * 0.5f, licScale),
+                    TM_CREDITS_LICENSE, scaleAlpha(kLabDescText, pa), licScale, w(496.0f));
 
+        float footMid = (kCreditsFootTop + kFibHair + (kCreditsBotY - kLabBorder)) * 0.5f + dy;
         const char* closeBtn = st.ctrlType == gfPadType::WIIMOTE ? TM_CREDITS_BTN_1 : TM_CREDITS_BTN_B;
-        float hintScale = scaleForCap(kCreditsHintCap);
-        float closeW = gfx::textWidth(TM_CREDITS_HINT_CLOSE, hintScale);
-        float btnW = gw(16.0f);
-        float closeX = cx(571.0f) - closeW;
-        float badgeX = closeX - gw(6.0f) - btnW;
-        float badgeY = hintMidY - 8.0f;
-        float rimX = gw(1.5f);
-        gfx::fillRect(badgeX - rimX, badgeY - 1.5f, btnW + 2.0f * rimX, 19.0f, creditsAlpha(kLabBorderColor, pa));
-        gfx::fillGradV(badgeX, badgeY, btnW, 16.0f, creditsAlpha(kLabBtnBTop, pa), creditsAlpha(kLabBtnBBot, pa));
-
-        float glyphScale = scaleForCap(kTypeMicro);
-        gfx::text(badgeX + (btnW - gfx::textWidth(closeBtn, glyphScale)) * 0.5f,
-                  textYForCap(hintMidY - 4.0f, glyphScale), closeBtn, creditsAlpha(kLabWhiteText, pa), glyphScale);
-        gfx::text(closeX, textYForCap(hintMidY - 4.5f, hintScale), TM_CREDITS_HINT_CLOSE,
-                  creditsAlpha(kLabWhiteText, pa), hintScale);
+        gfx::Rgba footInk = scaleAlpha(kLabMutedText, pa);
+        FooterBadgeItem foot[2] = {
+            {TM_CREDITS_BTN_DPAD, TM_CREDITS_HINT_SCROLL, kBtnLight, kBadgeTightGap | kBadgeWidePad, footInk},
+            {closeBtn, TM_CREDITS_HINT_CLOSE, kBtnB, kBadgeRound | kBadgeTightGap, footInk}
+        };
+        drawFooterBadges(cx(kCreditsInL43 + kFibPad), footMid, 17.0f, foot, 2);
     }
 #ifdef __MWERKS__
 #pragma dont_inline reset
