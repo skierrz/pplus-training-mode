@@ -9,15 +9,15 @@
 namespace tm {
 namespace cpu {
     // Pure CPU state-machine helpers shared with host unit tests.
-    inline bool shieldHitRefreshed(int status, int hitlag, int prevHitlag, int shieldStun, int prevShieldStun,
-                                   int prevStatus)
+    static inline bool shieldHitRefreshed(int status, int hitlag, int prevHitlag, int shieldStun, int prevShieldStun,
+                                          int prevStatus)
     {
         return status == game::kStatusGuardDamage
                && (hitlag > prevHitlag || shieldStun > prevShieldStun || prevStatus != game::kStatusGuardDamage);
     }
 
-    inline bool canSpoofWallTech(bool onCliff, bool hasFloor, const CpuOptions& c, s32 now, s32 lastPress,
-                                 s32 techFrom, s32 techGap)
+    static inline bool canSpoofWallTech(bool onCliff, bool hasFloor, const CpuOptions& c, s32 now, s32 lastPress,
+                                        s32 techFrom, s32 techGap)
     {
         if (onCliff || hasFloor || c.tech == kTechNone || c.techTrap != kTrapOff)
         {
@@ -34,14 +34,14 @@ namespace cpu {
     // Frame number that the next game step's Brain::next() will observe from
     // game::trackerFrame(), accounting for owed render hand-over and pending
     // savestate hand-over frames (docs/internals.md, "Frame hand-over").
-    inline s32 nextTrackerStep(s32 frame, bool owed, bool pending)
+    static inline s32 nextTrackerStep(s32 frame, bool owed, bool pending)
     {
         return frame + (owed ? 1 : 0) + (pending ? 1 : 0);
     }
 
     // Rebases a non-negative tracker frame timestamp across a savestate load;
     // negative sentinels (-1000, kCueAsap/-1) are preserved untouched.
-    inline void rebaseFrame(s32& frame, s32 delta)
+    static inline void rebaseFrame(s32& frame, s32 delta)
     {
         if (frame >= 0)
         {
@@ -49,7 +49,7 @@ namespace cpu {
         }
     }
 
-    inline void rebaseCueFrames(u8 state, s32& frame, s32& start, s32 delta)
+    static inline void rebaseCueFrames(u8 state, s32& frame, s32& start, s32 delta)
     {
         if (state != kCueNone)
         {
@@ -61,7 +61,7 @@ namespace cpu {
         }
     }
 
-    inline void resetActionState(int& state, bool& shieldKind, int& powershield, int nextState)
+    static inline void resetActionState(int& state, bool& shieldKind, int& powershield, int nextState)
     {
         state = nextState;
         shieldKind = false;
@@ -446,14 +446,14 @@ namespace cpu {
         void counter(Frame& out, const Owner& who);
         bool takeable(const Action* a, bool airNow, bool fresh) const;
         bool cueNow(Frame& out, const Owner& who, Cue& q);
-        void applyAutoLCancel(Frame& out);
+        void applyAutoLCancel(Frame& out, const CpuOptions& c);
         void start(Frame& out, const Action* a);
         void startPlay(Frame& out, int recording);
 
         bool started() const { return counterActionStarted(v.status, shieldKind); }
 
-        void grabbed(Frame& out);
-        void clatter(Frame& out);
+        void grabbed(Frame& out, const CpuOptions& c);
+        void clatter(Frame& out, const CpuOptions& c);
         void unfreeze(const Owner& who);
         bool tools(const Owner& who, const Frame& produced, Frame& out);
         bool stepLedge(Frame& out, const Owner& who, const CpuOptions& c, bool busy);

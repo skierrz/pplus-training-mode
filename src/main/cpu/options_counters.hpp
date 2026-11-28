@@ -292,9 +292,8 @@ namespace cpu {
 
     // Injects a fresh Guard press during active non-IASA AttackAir (0x33)
     // when approaching landing to trigger P+'s 7-frame L-Cancel window.
-    inline void Brain::applyAutoLCancel(Frame& out)
+    inline void Brain::applyAutoLCancel(Frame& out, const CpuOptions& c)
     {
-        const CpuOptions& c = opts();
         if (c.autoLCancel == 0 || v.status != game::kStatusAttackAirFirst || !v.air)
         {
             return;
@@ -380,9 +379,8 @@ namespace cpu {
     // configured share of frames. Airborne holds Y >= 0.635 (param 3141,
     // MoveDef/Grabs.asm:42-47) while swinging X past 0.5 (clatter param 3204,
     // 0x8076568C) so stick clatter still fires on mash frames.
-    inline void Brain::grabbed(Frame& out)
+    inline void Brain::grabbed(Frame& out, const CpuOptions& c)
     {
-        const CpuOptions& c = opts();
         bool airborne = c.grabRelease == kReleaseAirborne;
         if (airborne)
         {
@@ -420,9 +418,8 @@ namespace cpu {
 
     // Clatter Escape: same alternating button + horizontal stick mash cadence
     // as Grab Escape for Bury, Ice, FuraFura, and Sleep (Damage_Song).
-    inline void Brain::clatter(Frame& out)
+    inline void Brain::clatter(Frame& out, const CpuOptions& c)
     {
-        const CpuOptions& c = opts();
         u32 btn = 0;
         float sx = 0.0f, sy = 0.0f;
         if (stepClatterMash(c.clatterEscape, v.status, v.hitlag, lastButtons(slot), cpuRndBelow(100), mashFlip, btn,

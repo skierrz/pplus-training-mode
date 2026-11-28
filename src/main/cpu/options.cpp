@@ -214,7 +214,7 @@ namespace cpu {
 
     // ---- cues and holds (cue.h) ---------------------------------------------------
 
-    static void cueTest(int playerNo)
+    static void cueTest(int playerNo, s32 now)
     {
         if (s_aux == NULL)
         {
@@ -225,7 +225,6 @@ namespace cpu {
         {
             return;
         }
-        s32 now = game::trackerFrame();
         if (b.generation != b.seen)
         {
             b.seen = b.generation;
@@ -680,12 +679,13 @@ namespace cpu {
             return true;
         }
         // A hit the recording handed over: the options have the CPU again.
+        const s32 now = game::trackerFrame();
         Handed& hand = s_aux->handed[who.playerNo & 3];
         bool handed = false;
         bool handedCounter = false;
         if (hand.frame != game::kNoFrame)
         {
-            s32 age = game::trackerFrame() - hand.frame;
+            s32 age = now - hand.frame;
             if (age >= 0 && age <= kHandFrames && !grabbedStatus(v.status))
             {
                 handed = true;
@@ -706,7 +706,7 @@ namespace cpu {
         bool newHit = handed
                       || (havePrev && (damageLag || shieldLag || v.hitstun > prevHitstun) && !grabbedStatus(v.status));
         Cue& q = s_aux->cues[who.playerNo & 3];
-        cueTest(who.playerNo);
+        cueTest(who.playerNo, now);
 
         if (!v.air && v.hitstun == 0 && v.hitlag == 0)
         {
@@ -753,7 +753,7 @@ namespace cpu {
                 if (tumbleStatus(prevStatus) && c.techTrap != kTrapOff)
                 {
                     trapPress = c.techTrap == kTrapLatest;
-                    techFrom = game::trackerFrame() + kTechGap - kTrapEarly;
+                    techFrom = now + kTechGap - kTrapEarly;
                 }
                 state = kHit;
                 shieldKind = false;
@@ -869,7 +869,7 @@ namespace cpu {
             bool hasFloor = !v.air || groundBetween(f, v.x, v.y + 4.0f, 0.0f, -kRayDown, floorY);
             if (onCliff || (v.air && (!hasFloor || recovering)))
             {
-                if (canSpoofWallTech(onCliff, hasFloor, c, game::trackerFrame(), lastPress, techFrom, kTechGap))
+                if (canSpoofWallTech(onCliff, hasFloor, c, now, lastPress, techFrom, kTechGap))
                 {
                     spoofWallTechTrigger(f);
                 }
@@ -934,7 +934,7 @@ namespace cpu {
         case kGrabbed:
             if (grabbedStatus(v.status))
             {
-                grabbed(out);
+                grabbed(out, c);
             }
             else if (v.status == kStatusCaptureCut || v.status == kStatusCaptureJump)
             {
@@ -959,7 +959,7 @@ namespace cpu {
         case kClatter:
             if (c.clatterEscape != kMashNone && isClatterStatus(v.status))
             {
-                clatter(out);
+                clatter(out, c);
             }
             else
             {
@@ -1134,11 +1134,11 @@ namespace cpu {
         }
         if (!playingRec && playSlot < 0 && !q.hold)
         {
-            applyAutoLCancel(out);
+            applyAutoLCancel(out, c);
         }
         if ((out.buttons & kGuard) != 0 && (lastButtons(slot) & kGuard) == 0)
         {
-            lastPress = game::trackerFrame();
+            lastPress = now;
         }
         // A hit or a grab took the CPU out of the cue's action.
         if (q.state == kCueRunning && state != kAfter)
@@ -1203,10 +1203,10 @@ namespace cpu {
         for (int i = 0; i < kMaxSlots; i++)
         {
             copyBrainState(c.brains[i], s_brains[i]);
+            c.portChanged[i] = s_portChanged[i];
+            c.savedPort[i] = s_savedPort[i];
+            c.savedType[i] = s_savedType[i];
         }
-        memcpy(c.portChanged, s_portChanged, sizeof(s_portChanged));
-        memcpy(c.savedPort, s_savedPort, sizeof(s_savedPort));
-        memcpy(c.savedType, s_savedType, sizeof(s_savedType));
         c.rng = s_rng;
         c.savedFrame = nextStepFrame();
         c.moving = s_moving;
@@ -1217,17 +1217,13 @@ namespace cpu {
         memcpy(c.cues, s_aux->cues, sizeof(s_aux->cues));
     }
 
-    static inline void applyControlledPort(int i, s8 savedPort, u8 savedType, int ctrlPort)
+    static inline void applyControlledPort(int i, s8 savedPort, u8 savedType, int ctrlPort, void* input)
     {
         s_savedPort[i] = savedPort;
         s_savedType[i] = savedType;
         s_portChanged[i] = true;
         setControllerOf(i, ctrlPort);
-        void* input = liveCpuInput(i);
-        if (input != NULL)
-        {
-            setCpuType(input, kCpuTypeControl);
-        }
+        setCpuType(input, kCpuTypeControl);
     }
 
     void optionsLoaded(int which)
@@ -1238,7 +1234,14 @@ namespace cpu {
         }
         const Saved& c = s_saved[which & 1];
         const s32 delta = nextStepFrame() - c.savedFrame;
+        s_rng = c.rng;
+        s_moving = c.moving;
+        s_mover.playerNo = c.moverPlayer;
+        s_freezeRequest = c.freezeRequest;
+        memcpy(g_moveCpuLabel, c.moveLabel, sizeof(c.moveLabel));
+        memcpy(g_freezeCpuLabel, c.freezeLabel, sizeof(c.freezeLabel));
         memcpy(s_aux->cues, c.cues, sizeof(s_aux->cues));
+        int ctrlPort = opts().control == kControlLab ? opts().controlledBy : 0;
         for (int i = 0; i < kMaxSlots; i++)
         {
             copyBrainState(s_brains[i], c.brains[i]);
@@ -1246,34 +1249,29 @@ namespace cpu {
             rebaseFrame(s_brains[i].techFrom, delta);
             Cue& q = s_aux->cues[i];
             rebaseCueFrames(q.state, q.frame, q.start, delta);
-        }
-        s_rng = c.rng;
-        s_moving = c.moving;
-        s_mover.playerNo = c.moverPlayer;
-        s_freezeRequest = c.freezeRequest;
-        memcpy(g_moveCpuLabel, c.moveLabel, sizeof(c.moveLabel));
-        memcpy(g_freezeCpuLabel, c.freezeLabel, sizeof(c.freezeLabel));
-        bool want = opts().control == kControlLab && opts().controlledBy != 0;
-        for (int i = 0; i < kMaxSlots; i++)
-        {
             void* input = liveCpuInput(i);
-            if (want && input != NULL)
+            if (ctrlPort != 0 && input != NULL)
             {
-                if (c.portChanged[i])
-                {
-                    applyControlledPort(i, c.savedPort[i], c.savedType[i], opts().controlledBy);
-                }
-                else
+                s8 sp = c.savedPort[i];
+                u8 st = c.savedType[i];
+                bool apply = c.portChanged[i];
+                if (!apply)
                 {
                     int curType = cpuType(input);
                     if (curType >= 0 && curType != kCpuTypeControl)
                     {
-                        applyControlledPort(i, s_origPort[i], static_cast<u8>(curType), opts().controlledBy);
+                        sp = s_origPort[i];
+                        st = static_cast<u8>(curType);
+                        apply = true;
                     }
-                    else
-                    {
-                        s_portChanged[i] = false;
-                    }
+                }
+                if (apply)
+                {
+                    applyControlledPort(i, sp, st, ctrlPort, input);
+                }
+                else
+                {
+                    s_portChanged[i] = false;
                 }
             }
             else if (c.portChanged[i])
