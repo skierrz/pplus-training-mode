@@ -35,8 +35,11 @@
 #include "main/ui/osd_place.h"
 #include "main/ui/pages/cpu_rows.h"
 #include "main/ui/settings_modal.h"
+#include "menu/bests_file.h"
 #include "menu/browser.h"
 #include "menu/osd_quick.h"
+#include "menu/session.h"
+#include "shared/drill_session.h"
 #include "shared/game/pad_map.h"
 
 using namespace tm;
@@ -2762,4 +2765,296 @@ TEST(settings_file, quick_setup_partial_file_boots_silently_without_notice)
     boot();
     CHECK(storage::noticeActive());
     storage::detach();
+}
+
+// Future-format settings files can legitimately exceed kSettingsFileCap:
+// preserve kNewer and h->sequence so callers never misclassify them as
+// corrupt or clobber the SD slot with an older schema.
+TEST(settings_file, oversized_newer_format_preserves_sequence_and_never_clobbers)
+{
+    Settings defaults, chosen;
+    saveChosen(defaults, chosen);
+    storage::detach();
+    u32 origSize = host::card::size(kFileA);
+    u8 older[1024];
+    REQUIRE(origSize <= sizeof(older));
+    header(kFileA)->sequence = 10;
+    reseal(kFileA);
+    memcpy(older, host::card::data(kFileA), origSize);
+
+    // Build an oversized future-format file (larger than kSettingsFileCap).
+    enum { kBigSize = storage::kSettingsFileCap + 128 };
+    u8 big[kBigSize];
+    memset(big, 0x5A, sizeof(big));
+    storage::FileHeader* bh = reinterpret_cast<storage::FileHeader*>(big);
+    memset(bh, 0, sizeof(storage::FileHeader));
+    bh->magic = storage::kSettingsMagic;
+    bh->format = storage::kSettingsFormat + 1;
+    bh->headerSize = sizeof(storage::FileHeader);
+    bh->size = kBigSize;
+    bh->sequence = 42;
+    bh->checksum = storage::checksum(big + storage::kChecksumFrom, kBigSize - storage::kChecksumFrom);
+
+    // 1. Lone oversized future-format file in slot A: kNewer + sequence 42, read-only.
+    host::card::reset();
+    host::card::put(kFileA, big, kBigSize);
+    u8* block = boot();
+    CHECK_LOG("storage: settings files: a made by a newer version (42), b file not found (0)");
+    CHECK_LOG("storage: notice: Lab settings are from a newer version: not used");
+    CHECK_EQ(42u, storage::blockState(block)->sequence);
+    CHECK_EQ(1, static_cast<int>(storage::blockState(block)->newerOnCard));
+    CHECK_SETTINGS(defaults, main::settings());
+    int writes = host::card::writes();
+    main::settings().general.ledgeHud = 0;
+    closeMenu();
+    storage::settingsReset();
+    closeMenu();
+    CHECK_EQ(writes, host::card::writes());
+    CHECK(!host::card::has(kFileB));
+    CHECK_EQ(static_cast<u32>(kBigSize), host::card::size(kFileA));
+    CHECK(memcmp(big, host::card::data(kFileA), kBigSize) == 0);
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
+    storage::detach();
+
+    // 2. Dual-slot downgrade: valid current-format slot A (seq 10) + oversized newer slot B (seq 11).
+    bh->sequence = 11;
+    bh->checksum = storage::checksum(big + storage::kChecksumFrom, kBigSize - storage::kChecksumFrom);
+    host::card::reset();
+    host::card::put(kFileA, older, origSize);
+    host::card::put(kFileB, big, kBigSize);
+    block = boot();
+    CHECK_LOG("storage: settings files: a done (10), b made by a newer version (11)");
+    CHECK_LOG("storage: notice: Lab settings are from a newer version: not used");
+    CHECK_EQ(11u, storage::blockState(block)->sequence);
+    CHECK_EQ(1, static_cast<int>(storage::blockState(block)->newerOnCard));
+    CHECK_SETTINGS(defaults, main::settings());
+    writes = host::card::writes();
+    main::settings().general.ledgeHud = 0;
+    closeMenu();
+    CHECK_EQ(writes, host::card::writes());
+    CHECK(memcmp(older, host::card::data(kFileA), origSize) == 0);
+    CHECK(memcmp(big, host::card::data(kFileB), kBigSize) == 0);
+    storage::detach();
+
+    // 3. Truncated oversized future-format slot B (on-disk length < header size) is still kCorrupt.
+    bh->sequence = 12;
+    host::card::reset();
+    host::card::put(kFileA, older, origSize);
+    host::card::put(kFileB, big, 64);
+    block = boot();
+    CHECK_LOG("storage: settings files: a done (10), b the file is damaged (0)");
+    CHECK_EQ(10u, storage::blockState(block)->sequence);
+    CHECK_EQ(0, static_cast<int>(storage::blockState(block)->newerOnCard));
+    CHECK_SETTINGS(afterReboot(chosen, defaults), main::settings());
+    storage::detach();
+
+    // 4. Future-format file with size < sizeof(FileHeader) still returns kCorrupt.
+    u8 tiny[64];
+    memset(tiny, 0, sizeof(tiny));
+    storage::FileHeader* th = reinterpret_cast<storage::FileHeader*>(tiny);
+    th->magic = storage::kSettingsMagic;
+    th->format = storage::kSettingsFormat + 1;
+    th->headerSize = sizeof(storage::FileHeader);
+    th->size = sizeof(storage::FileHeader) - 4;
+    th->sequence = 99;
+    host::card::reset();
+    host::card::put(kFileA, tiny, sizeof(tiny));
+    block = boot();
+    CHECK_LOG("storage: settings files: a the file is damaged (0), b file not found (0)");
+    CHECK_LOG("storage: notice: Lab settings file damaged: defaults used");
+    CHECK_EQ(0u, storage::blockState(block)->sequence);
+    CHECK_EQ(0, static_cast<int>(storage::blockState(block)->newerOnCard));
+    storage::detach();
+}
+
+// Bests and Quick Setup readers also preserve kNewer + sequence when a
+// future-format file exceeds their local buffer cap, preventing SD clobber.
+TEST(settings_file, bests_and_osd_quick_oversized_newer_format_preserves_sequence_and_never_clobbers)
+{
+    // ---- Part A: bests_file.cpp (kCap == 320) ----
+    const char kBestsA[] = "bests-a.bin";
+    const char kBestsB[] = "bests-b.bin";
+    const u32 kBestsMagic = 0x544D4246;
+    enum { kBigBestsSize = 384 };
+
+    menu::bests::detach();
+    host::card::reset();
+    u8* block = host::fakes::block();
+    memset(block, 0, iface::kSettingsBlockSize);
+    drills::Session* s = menu::attachSession(block);
+    s->best[7] = 6;
+    menu::attachSession(block);
+    for (int i = 0; i < 4; i++)
+    {
+        menu::bests::update();
+    }
+    menu::bests::detach();
+    REQUIRE(host::card::has(kBestsA));
+    header(kBestsA)->sequence = 10;
+    reseal(kBestsA);
+    u32 origBestsSz = host::card::size(kBestsA);
+    u8 olderBests[128];
+    REQUIRE(origBestsSz <= sizeof(olderBests));
+    memcpy(olderBests, host::card::data(kBestsA), origBestsSz);
+
+    u8 bigBests[kBigBestsSize];
+    memset(bigBests, 0x33, sizeof(bigBests));
+    storage::FileHeader* bbh = reinterpret_cast<storage::FileHeader*>(bigBests);
+    memset(bbh, 0, sizeof(storage::FileHeader));
+    bbh->magic = kBestsMagic;
+    bbh->format = 2;
+    bbh->headerSize = sizeof(storage::FileHeader);
+    bbh->size = kBigBestsSize;
+    bbh->sequence = 11;
+    bbh->checksum = storage::checksum(bigBests + storage::kChecksumFrom, kBigBestsSize - storage::kChecksumFrom);
+
+    // Dual-slot downgrade: valid format-1 bests-a (seq 10) + oversized format-2 bests-b (seq 11).
+    host::card::put(kBestsB, bigBests, kBigBestsSize);
+    host::log::clear();
+    memset(block, 0, iface::kSettingsBlockSize);
+    s = menu::attachSession(block);
+    CHECK_LOG("bests: files: a done (10), b made by a newer version (11)");
+    CHECK_EQ(11u, s->cardSequence);
+    CHECK_EQ(1, static_cast<int>(s->cardNewer));
+    CHECK_EQ(0, s->best[7]);
+    int writes = host::card::writes();
+    s->best[7] = 25;
+    menu::attachSession(block);
+    for (int i = 0; i < 4; i++)
+    {
+        menu::bests::update();
+    }
+    menu::bests::detach();
+    CHECK_EQ(writes, host::card::writes());
+    CHECK_LOG("bests: not saved: newer format on the card");
+    CHECK(memcmp(olderBests, host::card::data(kBestsA), origBestsSz) == 0);
+    CHECK(memcmp(bigBests, host::card::data(kBestsB), kBigBestsSize) == 0);
+
+    // Lone oversized future-format bests-a (seq 25): preserved, never clobbered.
+    bbh->sequence = 25;
+    bbh->checksum = storage::checksum(bigBests + storage::kChecksumFrom, kBigBestsSize - storage::kChecksumFrom);
+    host::card::reset();
+    host::card::put(kBestsA, bigBests, kBigBestsSize);
+    host::log::clear();
+    memset(block, 0, iface::kSettingsBlockSize);
+    s = menu::attachSession(block);
+    CHECK_LOG("bests: files: a made by a newer version (25), b file not found (0)");
+    CHECK_EQ(25u, s->cardSequence);
+    CHECK_EQ(1, static_cast<int>(s->cardNewer));
+    writes = host::card::writes();
+    s->best[7] = 12;
+    menu::attachSession(block);
+    for (int i = 0; i < 4; i++)
+    {
+        menu::bests::update();
+    }
+    menu::bests::detach();
+    CHECK_EQ(writes, host::card::writes());
+    CHECK(!host::card::has(kBestsB));
+    CHECK(memcmp(bigBests, host::card::data(kBestsA), kBigBestsSize) == 0);
+
+    // Future-format bests with size < sizeof(FileHeader) still returns kCorrupt.
+    bbh->size = sizeof(storage::FileHeader) - 4;
+    host::card::reset();
+    host::card::put(kBestsA, bigBests, 64);
+    host::log::clear();
+    memset(block, 0, iface::kSettingsBlockSize);
+    s = menu::attachSession(block);
+    CHECK_LOG("bests: files: a the file is damaged (0), b file not found (0)");
+    CHECK_EQ(0u, s->cardSequence);
+    CHECK_EQ(0, static_cast<int>(s->cardNewer));
+    menu::bests::detach();
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
+
+    // ---- Part B: osd_quick.cpp (kSettingsFileCap == 768) ----
+    Settings defaults, chosen;
+    saveChosen(defaults, chosen);
+    storage::detach();
+    u32 origSetSz = host::card::size(kFileA);
+    u8 olderSet[1024];
+    REQUIRE(origSetSz <= sizeof(olderSet));
+    header(kFileA)->sequence = 10;
+    reseal(kFileA);
+    memcpy(olderSet, host::card::data(kFileA), origSetSz);
+
+    enum { kBigSetSize = storage::kSettingsFileCap + 128 };
+    u8 bigSet[kBigSetSize];
+    memset(bigSet, 0x6C, sizeof(bigSet));
+    storage::FileHeader* qh = reinterpret_cast<storage::FileHeader*>(bigSet);
+    memset(qh, 0, sizeof(storage::FileHeader));
+    qh->magic = storage::kSettingsMagic;
+    qh->format = storage::kSettingsFormat + 1;
+    qh->headerSize = sizeof(storage::FileHeader);
+    qh->size = kBigSetSize;
+    qh->sequence = 11;
+    qh->checksum = storage::checksum(bigSet + storage::kChecksumFrom, kBigSetSize - storage::kChecksumFrom);
+
+    // Dual-slot downgrade: valid slot A (seq 10) + oversized newer slot B (seq 11).
+    host::card::reset();
+    host::card::put(kFileA, olderSet, origSetSz);
+    host::card::put(kFileB, bigSet, kBigSetSize);
+    memset(block, 0, iface::kSettingsBlockSize);
+    menu::osdQuick::attach();
+    menu::osdQuick::open(0, gfPadType::GCC);
+    REQUIRE(menu::osdQuick::isOpen());
+    writes = host::card::writes();
+    // Attempt to adjust row 0 (OSD Preset) and exit with B: must stay read-only and never write.
+    menu::osdQuick::Input pressRight = {game::kPadDRight, game::kPadDRight, 0, 0, static_cast<u32>(gfPadType::GCC)};
+    menu::osdQuick::Input pressB = {game::kPadB, game::kPadB, 0, 0, static_cast<u32>(gfPadType::GCC)};
+    menu::osdQuick::step(0, pressRight);
+    menu::osdQuick::step(0, pressB);
+    for (int i = 0; i < 4; i++)
+    {
+        menu::osdQuick::update();
+    }
+    menu::osdQuick::detach();
+    CHECK(!menu::osdQuick::isOpen());
+    CHECK_EQ(writes, host::card::writes());
+    CHECK(memcmp(olderSet, host::card::data(kFileA), origSetSz) == 0);
+    CHECK(memcmp(bigSet, host::card::data(kFileB), kBigSetSize) == 0);
+
+    // Lone oversized future-format slot A (seq 30): Quick Setup stays read-only and never writes slot B.
+    qh->sequence = 30;
+    qh->checksum = storage::checksum(bigSet + storage::kChecksumFrom, kBigSetSize - storage::kChecksumFrom);
+    host::card::reset();
+    host::card::put(kFileA, bigSet, kBigSetSize);
+    memset(block, 0, iface::kSettingsBlockSize);
+    menu::osdQuick::attach();
+    menu::osdQuick::open(0, gfPadType::GCC);
+    writes = host::card::writes();
+    menu::osdQuick::step(0, pressRight);
+    menu::osdQuick::step(0, pressB);
+    for (int i = 0; i < 4; i++)
+    {
+        menu::osdQuick::update();
+    }
+    menu::osdQuick::detach();
+    CHECK_EQ(writes, host::card::writes());
+    CHECK(!host::card::has(kFileB));
+    CHECK(memcmp(bigSet, host::card::data(kFileA), kBigSetSize) == 0);
+
+    // Truncated oversized future-format slot B paired with valid slot A (seq 10) is kCorrupt,
+    // so Quick Setup falls back to slot A and saves edits to slot B as seq 11.
+    qh->sequence = 12;
+    host::card::reset();
+    host::card::put(kFileA, olderSet, origSetSz);
+    host::card::put(kFileB, bigSet, 64);
+    memset(block, 0, iface::kSettingsBlockSize);
+    menu::osdQuick::attach();
+    menu::osdQuick::open(0, gfPadType::GCC);
+    writes = host::card::writes();
+    menu::osdQuick::step(0, pressRight);
+    menu::osdQuick::step(0, pressB);
+    for (int i = 0; i < 4; i++)
+    {
+        menu::osdQuick::update();
+    }
+    menu::osdQuick::detach();
+    CHECK_EQ(writes + 1, host::card::writes());
+    CHECK_EQ(11u, header(kFileB)->sequence);
+    CHECK_EQ(storage::kSettingsFormat, header(kFileB)->format);
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
+    CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
 }

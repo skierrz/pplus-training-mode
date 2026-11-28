@@ -237,7 +237,26 @@ namespace storage {
             }
             u32 minSize = r == kNewer ? sizeof(FileHeader) : (sizeof(FileHeader) + sizeof(SettingsHead));
             u32 size = h->size;
-            if (size > kFileCap || size < minSize || !s_job.read(kNames[slot], buf, size))
+            if (size < minSize)
+            {
+                r = kCorrupt;
+                goto out;
+            }
+            if (size > kFileCap)
+            {
+                if (r == kNewer)
+                {
+                    int onCard = fileSize(kNames[slot]);
+                    if (onCard >= 0 && static_cast<u32>(onCard) >= size)
+                    {
+                        sequence = h->sequence;
+                        goto out;
+                    }
+                }
+                r = kCorrupt;
+                goto out;
+            }
+            if (!s_job.read(kNames[slot], buf, size))
             {
                 r = kCorrupt;
                 goto out;

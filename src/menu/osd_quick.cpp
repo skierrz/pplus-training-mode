@@ -539,8 +539,23 @@ namespace osdQuick {
         }
         u32 minSz = r == storage::kNewer ? sizeof(FileHeader) : (sizeof(FileHeader) + sizeof(SettingsHead));
         u32 sz = h->size;
-        if (sz > storage::kSettingsFileCap || sz < minSz)
+        if (sz < minSz)
         {
+            storage::freeReadBuffer(buf, storage::kOk, 0);
+            return storage::kCorrupt;
+        }
+        if (sz > storage::kSettingsFileCap)
+        {
+            if (r == storage::kNewer)
+            {
+                int onCard = storage::fileSize(kNames[slot]);
+                if (onCard >= 0 && static_cast<u32>(onCard) >= sz)
+                {
+                    seq = h->sequence;
+                    storage::freeReadBuffer(buf, storage::kOk, 0);
+                    return storage::kNewer;
+                }
+            }
             storage::freeReadBuffer(buf, storage::kOk, 0);
             return storage::kCorrupt;
         }

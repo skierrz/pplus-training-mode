@@ -87,15 +87,27 @@ namespace bests {
         }
         bool isNewer = (r == storage::kNewer);
         u32 size = h->size;
-        if (size > kCap)
-        {
-            storage::freeReadBuffer(buf, storage::kOk, 0);
-            return isNewer ? storage::kCorrupt : storage::kTooBig;
-        }
         if (size < (isNewer ? sizeof(FileHeader) : static_cast<u32>(kHeadBytes)))
         {
             storage::freeReadBuffer(buf, storage::kOk, 0);
             return storage::kCorrupt;
+        }
+        if (size > kCap)
+        {
+            if (isNewer)
+            {
+                int onCard = storage::fileSize(kNames[slot]);
+                if (onCard >= 0 && static_cast<u32>(onCard) >= size)
+                {
+                    sequence = h->sequence;
+                    storage::freeReadBuffer(buf, storage::kOk, 0);
+                    return storage::kNewer;
+                }
+                storage::freeReadBuffer(buf, storage::kOk, 0);
+                return storage::kCorrupt;
+            }
+            storage::freeReadBuffer(buf, storage::kOk, 0);
+            return storage::kTooBig;
         }
         if (!s_job.read(kNames[slot], buf, size))
         {
