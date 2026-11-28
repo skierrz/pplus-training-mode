@@ -5,7 +5,7 @@ Runs and validates:
   1. All 3 build configurations (Normal, PERF=1, STAGE4C=0):
      - zero MWCC/MWLD compiler or linker warnings
      - stub, match, menu, extra, and load temp buffer footprints within budget
-     - PERF=1 match headroom >= --min-perf-main-headroom (default 256 B)
+     - PERF=1 match headroom >= --min-perf-main-headroom (default 512 B)
      - packed build/TrainingMode.rel size and SHA-256
   2. Host unit tests (make check-host), passing HOST_DUMP when provided.
   3. All generator freshness checks (scripts/gen_*.py --check).
@@ -336,8 +336,8 @@ def main():
     ap.add_argument(
         "--min-perf-main-headroom",
         type=int,
-        default=256,
-        help="Minimum required PERF=1 match headroom in bytes (default: 256).",
+        default=512,
+        help="Minimum required PERF=1 match headroom in bytes (default: 512).",
     )
     ap.add_argument(
         "--host-dump",

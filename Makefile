@@ -194,7 +194,7 @@ PACK    := scripts/pack-rel.py
 rwildcard = $(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 SHARED_SRCS := $(sort $(call rwildcard,src/shared,*.cpp))
 STUB_SRCS   := $(sort $(call rwildcard,src/stub,*.cpp)) $(SHARED_SRCS)
-INFO_EXTRA_SRCS := src/main/ui/info_display.cpp
+INFO_EXTRA_SRCS := src/main/ui/info_display.cpp src/main/game/status_names.cpp
 MAIN_MOVED_SRCS :=
 MAIN_SRCS   := $(filter-out $(INFO_EXTRA_SRCS),$(sort $(call rwildcard,src/main,*.cpp))) $(MAIN_MOVED_SRCS) $(SHARED_SRCS)
 # The menu module draws with the main module's 2D helpers and reads the SD

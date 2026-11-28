@@ -195,21 +195,6 @@ def generate_cpp():
 // Fighter::Status::Kind (lib/BrawlHeaders ft/fighter.h) with underscores
 // dropped. Stored as Canonical Huffman + LZSS and decompressed once into Heaps::Network.
 namespace tm {{
-#ifdef __MWERKS__
-namespace extra {{
-#pragma force_active on
-    bool decompressHuffLzss(const u8* src, char* dst, u32 rawLen)
-    {{
-        return decompressHuffLzssImpl(src, dst, rawLen);
-    }}
-
-    bool indexPackedStrings(const char* text, u32 len, u16* offsets, u32 count)
-    {{
-        return indexPackedStringsImpl(text, len, offsets, count);
-    }}
-#pragma force_active reset
-}}
-#endif
 namespace game {{
     enum {{
         kRawBytes = {len(raw)},

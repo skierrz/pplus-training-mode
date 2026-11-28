@@ -6,6 +6,19 @@
 #include "shared/game/heap.h"
 
 namespace tm {
+namespace extra {
+#pragma force_active on
+    bool decompressHuffLzss(const u8* src, char* dst, u32 rawLen)
+    {
+        return decompressHuffLzssImpl(src, dst, rawLen);
+    }
+
+    bool indexPackedStrings(const char* text, u32 len, u16* offsets, u32 count)
+    {
+        return indexPackedStringsImpl(text, len, offsets, count);
+    }
+#pragma force_active reset
+}
 namespace ui {
 namespace pages {
     // Compressed lab menu page strings (4190 B vs 10925 B raw).
