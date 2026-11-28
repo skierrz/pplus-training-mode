@@ -384,10 +384,22 @@ $(BUILD)/main/%.o: src/%.cpp Makefile | $(MWCC)
 	$(Q)$(MWCC) $(COMPACT_CXXFLAGS) -DTM_MODULE_MAIN=1 -MMD -gccdep $(INCLUDES) -c $< -o $@
 	$(Q)$(FIXDEPS)
 
-$(BUILD)/menu/%.o: src/%.cpp Makefile | $(MWCC)
+$(BUILD)/menu/shared/global_chain.o: src/shared/global_chain.cpp Makefile | $(MWCC)
 	@echo "c++     $< (menu)"
 	@mkdir -p $(@D)
 	$(Q)$(MWCC) $(CXXFLAGS) -DTM_MODULE_MENU=1 -MMD -gccdep $(INCLUDES) -c $< -o $@
+	$(Q)$(FIXDEPS)
+
+$(BUILD)/menu/menu/rel.o: src/menu/rel.cpp Makefile | $(MWCC)
+	@echo "c++     $< (menu)"
+	@mkdir -p $(@D)
+	$(Q)$(MWCC) $(CXXFLAGS) -DTM_MODULE_MENU=1 -MMD -gccdep $(INCLUDES) -c $< -o $@
+	$(Q)$(FIXDEPS)
+
+$(BUILD)/menu/%.o: src/%.cpp Makefile | $(MWCC)
+	@echo "c++     $< (menu)"
+	@mkdir -p $(@D)
+	$(Q)$(MWCC) $(COMPACT_CXXFLAGS) -DTM_MODULE_MENU=1 -MMD -gccdep $(INCLUDES) -c $< -o $@
 	$(Q)$(FIXDEPS)
 
 $(BUILD)/extra/shared/global_chain.o: src/shared/global_chain.cpp Makefile | $(MWCC)

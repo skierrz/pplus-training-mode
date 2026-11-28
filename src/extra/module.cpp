@@ -14,6 +14,7 @@
 #include "extra/character_rng.h"
 #include "extra/combo_break_rush.h"
 #include "extra/combo_trainer.h"
+#include "extra/credits_modal.h"
 #include "extra/di_display.h"
 #include "extra/di_picker_core.h"
 #include "extra/drill_core_engines.h"
@@ -52,6 +53,7 @@
 #include "main/settings.h"
 #include "main/ui/hud_layout.h"
 #include "main/ui/info_display.h"
+#include "main/ui/pages/pages.h"
 #include "main/ui/settings_modal.h"
 #include "shared/game/scene.h"
 #include "shared/log.h"
@@ -126,7 +128,8 @@ namespace extra {
         bool drawLog = !modalUp && !match.paused && !lab::menuOpen()
                        && main::settings().general.actionLog != main::kActionLogOff;
         bool drawCpuTag = !s_vsReadOnly && !modalUp && !match.paused && !lab::menuOpen() && match.training;
-        if (drawDrill || drawAdap || drawScen || drawRush || drawLog || drawCpuTag)
+        bool drawCredits = creditsModalVisible();
+        if (drawDrill || drawAdap || drawScen || drawRush || drawLog || drawCpuTag || drawCredits)
         {
             gfx::begin();
             if (drawDrill)
@@ -152,6 +155,10 @@ namespace extra {
             if (drawCpuTag)
             {
                 drawCpuStatusTag(match, lab::menuOpen());
+            }
+            if (drawCredits)
+            {
+                creditsModalDraw();
             }
             gfx::end();
         }
@@ -284,6 +291,15 @@ namespace extra {
         return bits;
     }
 
+    static const char* onOptionDesc(u8 pageId, u8 row)
+    {
+        if (pageId == ui::pages::P_COUNT && row == 10u)
+        {
+            return creditsMenuDesc();
+        }
+        return optionDesc(pageId, row);
+    }
+
     static const main::ExtraHooks kHooks = {
         onRender,          alterRow,           alterEdited,        diDraw,
         diReset,           diHideDrawDi,       framesUntilActionable, onFrame,
@@ -292,11 +308,11 @@ namespace extra {
         heatmapDraw,       heatmapReset,       adaptiveCpuBias,    adaptiveCpuReset,
         scenarioPresetsCall, onCpuStep,        scenarioPresetsSavedView, grabVizDraw,
         fighterSwapRow,    fighterSwapChanged, fighterSwapApply,   fighterSwapBusy,
-        optionDesc,        uiAssetsDrawPageOverlay,
+        onOptionDesc,      uiAssetsDrawPageOverlay,
         ui::infoWanted,    ui::infoStep,       ui::drawInfo,       ui::infoReset,
         ui::applyInfoPreset, inputViewerDraw,  drawColoredHitboxes, diCompassDraw,
         reversalSlotsPick, psaInspectorDraw,   onTimingAndPracticeDraw, onDrillHook,
-        osdTopStartYHook,  olimarLabAction,    menuSubmenuSummary
+        osdTopStartYHook,  olimarLabAction,    menuSubmenuSummary, creditsModalHook
     };
 
     static bool attach(iface::Interface* iface)
@@ -314,6 +330,7 @@ namespace extra {
             heatmapAttach();
             psaInspectorAttach();
             actionLogAttach();
+            creditsModalAttach();
             ui::infoReset();
             main::setExtraHooks(&kHooks);
             TM_LOG("extra: attached (read-only VS) v%s\n", main::kModule.buildVersion);
@@ -351,6 +368,7 @@ namespace extra {
         drillHudAttach();
         comboBreakRushAttach();
         actionLogAttach();
+        creditsModalAttach();
         main::setExtraHooks(&kHooks);
         TM_LOG("extra: attached next to match module v%s\n", main::kModule.buildVersion);
         return true;
@@ -360,6 +378,7 @@ namespace extra {
     {
         if (s_vsReadOnly)
         {
+            creditsModalDetach();
             actionLogDetach();
             psaInspectorDetach();
             heatmapDetach();
@@ -370,6 +389,7 @@ namespace extra {
             TM_LOG("extra: detaching\n");
             return;
         }
+        creditsModalDetach();
         actionLogDetach();
         comboBreakRushDetach();
         drillHudDetach();

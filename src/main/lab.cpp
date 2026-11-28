@@ -684,6 +684,7 @@ namespace lab {
         {
             return;
         }
+        main::extraCredits(main::kCreditsForceClose);
         MatchPadState& st = s_net->st;
         st.open = false;
         s_net->menu.resetConfirmPage = 0;
@@ -710,6 +711,14 @@ namespace lab {
     {
         LabNet& net = *s_net;
         MatchPadState& st = net.st;
+        if (main::extraCredits(main::kCreditsStep,
+                               (static_cast<u32>(st.owner) < kPorts && st.sys[st.owner].connected)
+                                   ? &st.sys[st.owner]
+                                   : NULL)
+            != 0u)
+        {
+            return;
+        }
         if (st.openStart && firstPadPort(st.sys, 0) >= 0)
         {
             TM_LOG("lab: menu closed with Start\n");

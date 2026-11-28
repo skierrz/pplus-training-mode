@@ -118,6 +118,15 @@ namespace main {
         // Olimar Lab Kit (extra/olimar_lab.h): OlimarAction + D-pad held/pressed masks.
         void (*olimarAction)(u32 action, u32 dpadHeld, u32 dpadPressed);
         const char* (*submenuSummary)(u8 targetPageId, char* buf, u32 cap);
+        // Native Wii GX Credits modal (extra/credits_modal.h).
+        u32 (*creditsHook)(u32 op, const MenuPad* pad);
+    };
+
+    enum CreditsOp {
+        kCreditsAvailable = 0,
+        kCreditsOpen = 1,
+        kCreditsStep = 2,
+        kCreditsForceClose = 3
     };
 
     enum OlimarAction {
@@ -330,5 +339,7 @@ namespace main {
     u32 extraDrill(u32 phase, gfPadStatus* pads);
     // TopLeft/TopRight OSD start Y stepped below active extra overlays (0 when extra absent).
     float extraOsdTopStartY(bool isTopRight);
+    // In-match Credits modal single-entrypoint dispatch (0 when extra absent).
+    u32 extraCredits(u32 op, const MenuPad* pad = NULL);
 }
 }

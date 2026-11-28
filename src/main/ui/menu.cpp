@@ -512,6 +512,17 @@ namespace ui {
 #endif
     }
 
+#ifdef __MWERKS__
+#pragma dont_inline on
+#endif
+    static int railUtilCount(const MenuDef& def)
+    {
+        return def.utilityCount + ((isLabMenu(def) && main::extraCredits(main::kCreditsAvailable) != 0u) ? 1 : 0);
+    }
+#ifdef __MWERKS__
+#pragma dont_inline reset
+#endif
+
     static bool resettableOption(const Option& o)
     {
         return stored(o) && (o.flags & kFlagScratch) == 0 && active(o);
@@ -911,7 +922,7 @@ namespace ui {
                 menuSound(game::kSoundMove);
                 return true;
             }
-            int totalRail = def.categoryCount + def.utilityCount;
+            int totalRail = def.categoryCount + railUtilCount(def);
             if (totalRail > 0)
             {
                 if (state.railCursor >= totalRail)
@@ -957,6 +968,11 @@ namespace ui {
                         if (u >= 0 && u < def.utilityCount && def.utilities[u].onSelect != NULL)
                         {
                             def.utilities[u].onSelect();
+                            sound = game::kSoundConfirm;
+                        }
+                        else if (u == def.utilityCount)
+                        {
+                            main::extraCredits(main::kCreditsOpen | (static_cast<u32>(state.controllerType) << 8));
                             sound = game::kSoundConfirm;
                         }
                     }
@@ -1485,7 +1501,7 @@ namespace ui {
     static bool railUtilityFocused(const MenuDef& def, const MenuState& state)
     {
         return isRailStyle(def) && state.railFocus && state.railCursor >= def.categoryCount
-               && state.railCursor < def.categoryCount + def.utilityCount;
+               && state.railCursor < def.categoryCount + railUtilCount(def);
     }
 
     static void drawDescStrip(const MenuDef& def, const MenuState& state, u8 pageId, int cur, const Page& p,
@@ -1692,19 +1708,22 @@ namespace ui {
             fitText(kRailTextX, textYForCap(y + capOff, railScale), pageTitle(def, def.categoryPages[i]), col,
                     railScale, kRailTextMaxW, false);
         }
-        for (u8 u = 0; u < def.utilityCount; u++)
+        u8 uCount = static_cast<u8>(railUtilCount(def));
+        float uScale = scaleForCap(kTypeMeta);
+        for (u8 u = 0; u < uCount; u++)
         {
-            float y = kRailUtilTop + u * kRailItemPitch;
-            if (mode == 2 && (y + kRailItemH <= lensTop || y >= lensBot))
+            float y = 276.0f + u * 20.0f;
+            if (mode == 2 && (y + 18.0f <= lensTop || y >= lensBot))
             {
                 continue;
             }
-            bool confirming = def.utilities[u].label != NULL && def.utilities[u].label[0] != '\0';
+            bool isCred = (u == def.utilityCount);
+            bool confirming = !isCred && def.utilities[u].label != NULL && def.utilities[u].label[0] != '\0';
             bool focused = (mode == 2) || (mode == 0 && state.railFocus && state.railCursor == def.categoryCount + u);
-            const char* label = confirming ? def.utilities[u].label : def.utilities[u].name;
+            const char* label = isCred ? "Credits" : (confirming ? def.utilities[u].label : def.utilities[u].name);
             gfx::Rgba col = focused ? (confirming ? kLabConfirmInkOnGold : kLabGoldInk)
                                     : (confirming ? kLabFocusGold : pal.mutedText);
-            fitText(kRailTextX, textYForCap(y + capOff, railScale), label, col, railScale, kRailTextMaxW, false);
+            fitText(kRailTextX, textYForCap(y + 4.5f, uScale), label, col, uScale, kRailTextMaxW, false);
         }
     }
 
@@ -1731,6 +1750,7 @@ namespace ui {
         float itemRight = kLabInnerLeft + railW - kFibTight;
         bool railGliding = false;
         float railBarY = 0.0f;
+        float railBarH = kRailItemH;
         if (!state.railFocus && state.category < def.categoryCount)
         {
             drawSlantBar(kLabInnerLeft, itemRight, kRailItemTop + state.category * kRailItemPitch, kRailItemH, true,
@@ -1738,16 +1758,17 @@ namespace ui {
         }
         if (state.railFocus)
         {
-            float targetY = state.railCursor < def.categoryCount
-                                ? (kRailItemTop + state.railCursor * kRailItemPitch)
-                                : (kRailUtilTop + (state.railCursor - def.categoryCount) * kRailItemPitch);
+            bool onUtil = state.railCursor >= def.categoryCount;
+            railBarH = onUtil ? 18.0f : kRailItemH;
+            float targetY = !onUtil ? (kRailItemTop + state.railCursor * kRailItemPitch)
+                                    : (276.0f + (state.railCursor - def.categoryCount) * 20.0f);
             s_anim.barY = (!s_anim.valid || s_anim.lastRail == 0) ? targetY : chase60(s_anim.barY, targetY, 0.52f);
             s_anim.valid = s_anim.lastRail = 1;
             railGliding = (s_anim.barY < targetY - 0.25f || s_anim.barY > targetY + 0.25f);
             railBarY = railGliding ? s_anim.barY : snapPx(targetY);
             if (!railGliding)
             {
-                drawGoldBar(kLabInnerLeft, itemRight, railBarY, kRailItemH, 8.0f, true, itemRight - kFibTight);
+                drawGoldBar(kLabInnerLeft, itemRight, railBarY, railBarH, 7.5f, true, itemRight - kFibTight);
             }
         }
 
@@ -1760,7 +1781,8 @@ namespace ui {
         }
         else
         {
-            const char* hdr = utilFoc ? def.utilities[state.railCursor - def.categoryCount].name
+            int u = state.railCursor - def.categoryCount;
+            const char* hdr = utilFoc ? (u < def.utilityCount ? def.utilities[u].name : "Credits")
                                       : pageTitle(def, state.stack[0]);
             fitDisplay(kLabInnerLeft + kFibPad, headerMid - kTypeHeading * 0.5f, hdr, pal.activeTabText, kTypeHeading,
                        ribbonMaxW, 0);
@@ -1773,11 +1795,11 @@ namespace ui {
         if (railGliding)
         {
             drawRailLabels(def, state, pal, 1, 0.0f, 0.0f);
-            drawGoldBar(kLabInnerLeft, itemRight, railBarY, kRailItemH, 8.0f, true, itemRight - kFibTight);
+            drawGoldBar(kLabInnerLeft, itemRight, railBarY, railBarH, 7.5f, true, itemRight - kFibTight);
             gfx::ScissorState sc;
-            if (gfx::pushScissor(0.0f, railBarY, 640.0f, railBarY + kRailItemH, sc))
+            if (gfx::pushScissor(0.0f, railBarY, 640.0f, railBarY + railBarH, sc))
             {
-                drawRailLabels(def, state, pal, 2, railBarY, railBarY + kRailItemH);
+                drawRailLabels(def, state, pal, 2, railBarY, railBarY + railBarH);
                 gfx::popScissor(sc);
             }
         }
@@ -2123,14 +2145,15 @@ namespace ui {
             s_anim.lastPage = pageId;
             s_anim.lastDepth = state.depth;
             // Flat right-pane action prompt (no nested bordered card, no repeated title/description).
-            const MenuAction& act = def.utilities[state.railCursor - def.categoryCount];
-            bool confirming = act.label != NULL && act.label[0] != '\0';
+            int u = state.railCursor - def.categoryCount;
+            bool isCred = (u == def.utilityCount);
+            bool confirming = !isCred && def.utilities[u].label != NULL && def.utilities[u].label[0] != '\0';
             const CtrlSpec& cs = ctrlSpec(state.controllerType);
             float paneCenter = (kRailPaneLeft + kLabInnerRight) * 0.5f;
             float midY = (kRailBodyTop + kLabDescTop) * 0.5f;
             gfx::Rgba ruleCol = confirming ? kLabFocusGold : pal.divider;
             fillBox(paneCenter - 48.0f, midY - 26.0f, 96.0f, kFibHair, ruleCol);
-            const char* prompt = confirming ? "Confirm Reset" : act.name;
+            const char* prompt = confirming ? "Confirm Reset" : (isCred ? "Credits" : def.utilities[u].name);
             float approxW = gw(18.0f + kFibTight) + gfx::textWidth(prompt, scaleForCap(kTypeMeta));
             drawFooterBadge(cx(paneCenter) - approxW * 0.5f, midY, 18.0f, cs.txtA, prompt, kBtnA,
                             kBadgeRound | kBadgeTightGap, confirming ? kLabFocusGold : kText);

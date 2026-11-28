@@ -7,6 +7,7 @@
 #include <GX/GXHardware.h>
 #endif
 
+#include "common/credits_modal.h"
 #include "extra/scenario_presets_core.h"
 #include "main/gfx/draw.h"
 #include "main/gfx/text.h"
@@ -616,6 +617,7 @@ namespace list {
     static bool s_starting = false;   // a recording match is being started
     static bool s_rebuilding = false; // the character select is being built again
     static u8 s_bHold = 0;            // frames back button held on Boot Menu root
+    static common::CreditsModalState s_credits;
     static int s_owner = 0;
     static int s_page = 0;
     static int s_row = 0;
@@ -899,6 +901,28 @@ namespace list {
         return false;
     }
 
+    static bool creditsPressed(const Raw& in)
+    {
+        if (in.type == gfPadType::GCC)
+        {
+            return (in.pressed & game::kPadZ) != 0;
+        }
+        if (in.type == gfPadType::WII_CLASSIC)
+        {
+            return (in.pressed & (game::kPadStart | game::kPadClassicPlus)) != 0;
+        }
+        if (in.type == gfPadType::NUNCHUK)
+        {
+            return (in.pressed & game::kPadWii1) != 0;
+        }
+        if (in.type == gfPadType::WIIMOTE)
+        {
+            return (in.held & game::kPadWiiMinus) != 0 && (in.held & game::kPadWii2) != 0
+                   && (in.pressed & (game::kPadWiiMinus | game::kPadWii2)) != 0;
+        }
+        return false;
+    }
+
     static void step()
     {
         for (int i = 0; i < kPorts; i++)
@@ -940,6 +964,10 @@ namespace list {
                 if (osdQuick::isOpen())
                 {
                     osdQuick::setControllerType(s_sys[s_owner].type);
+                }
+                if (s_credits.open)
+                {
+                    s_credits.ctrlType = static_cast<u8>(s_sys[s_owner].type);
                 }
                 TM_LOG("drills: list handed to port %d\n", s_owner + 1);
                 break;
@@ -989,6 +1017,27 @@ namespace list {
             }
             return;
         }
+        if (s_credits.open)
+        {
+            if (!in.connected || s_waitRelease[s_owner])
+            {
+                return;
+            }
+            int snd = common::creditsModalStep(s_credits, in.held, in.pressed, in.stickY, static_cast<u8>(in.type));
+            if (snd >= 0)
+            {
+                sound(snd);
+            }
+            if (!s_credits.open)
+            {
+                s_anim.modalExitTick = 0;
+                s_bHold = 0;
+                resetWaitRelease();
+                gfx::forgetWidths();
+                TM_LOG("drills: credits closed\n");
+            }
+            return;
+        }
         if (!in.connected || s_waitRelease[s_owner])
         {
             s_bHold = 0;
@@ -1034,6 +1083,14 @@ namespace list {
             sound(game::kSoundConfirm);
             osdQuick::open(s_owner, in.type);
             resetWaitRelease();
+            return;
+        }
+        if (creditsPressed(in))
+        {
+            sound(game::kSoundConfirm);
+            common::creditsModalOpen(s_credits, static_cast<u8>(in.type));
+            resetWaitRelease();
+            TM_LOG("drills: credits opened\n");
             return;
         }
         bool pagePrev = (in.pressed & map.pagePrev) != 0 && (in.held & map.pageNext) == 0;
@@ -1123,6 +1180,10 @@ namespace list {
                     if (osdQuick::isOpen())
                     {
                         osdQuick::setControllerType(type);
+                    }
+                    if (s_credits.open)
+                    {
+                        s_credits.ctrlType = static_cast<u8>(type);
                     }
                 }
             }
@@ -1578,7 +1639,7 @@ namespace list {
             gfx::Rgba topCol, botCol, fg;
             const char* label;
         };
-        const BootBadge items[5] = {
+        const BootBadge items[6] = {
             {type == gfPadType::WIIMOTE ? "2" : "A", true, kLabBtnATop, kLabBtnABot, kLabBtnDarkText, "Select"},
             {type == gfPadType::WIIMOTE ? "1" : "B", true, kLabBtnBTop, kLabBtnBBot, kCardTitle, "Close"},
             {type == gfPadType::WIIMOTE ? "A" : (type == gfPadType::NUNCHUK ? "C" : "X"), true, kBadgeImportTop,
@@ -1586,40 +1647,48 @@ namespace list {
             {type == gfPadType::WIIMOTE ? "-+A" : (type == gfPadType::NUNCHUK ? "Z" : "Y"),
              type != gfPadType::WIIMOTE, kBadgeOsdTop, kBadgeOsdBot, kLabBtnDarkText, "Quick Setup"},
             {(type == gfPadType::WIIMOTE || type == gfPadType::NUNCHUK) ? "-/+" : "L/R", false, kLabBtnLightTop,
-             kLabBtnLightBot, kLabBtnDarkText, "Section"}
+             kLabBtnLightBot, kLabBtnDarkText, "Section"},
+            {type == gfPadType::WIIMOTE ? "-+2"
+                                        : (type == gfPadType::NUNCHUK ? "1"
+                                                                      : (type == gfPadType::WII_CLASSIC ? "+" : "Z")),
+             type == gfPadType::NUNCHUK || type == gfPadType::WII_CLASSIC,
+             type == gfPadType::GCC ? kLabBtnZTop : kLabBtnLightTop,
+             type == gfPadType::GCC ? kLabBtnZBot : kLabBtnLightBot,
+             type == gfPadType::GCC ? kCardTitle : kLabBtnDarkText, "Credits"}
         };
-        float glyphScale = scaleForCap(kBadgeCap);
-        float labelScale = scaleForCap(kBadgeLabelCap);
-        float posX[5], badgeW[5], glyphW[5];
+        float badgeH = 16.0f;
+        float glyphScale = scaleForCap(kTypeMicro);
+        float labelScale = scaleForCap(kTypeMicro);
+        float posX[6], badgeW[6], glyphW[6];
         float curX = cx(kColLeft);
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 6; i++)
         {
             float gwPx = gfx::textWidth(items[i].glyph, glyphScale);
             float lwPx = gfx::textWidth(items[i].label, labelScale);
-            float bw = items[i].round ? gw(kBadgeH) : (gwPx + gw(10.0f));
-            float minW = items[i].round ? gw(kBadgeH) : gw(kBadgeH + 4.0f);
+            float bw = items[i].round ? gw(badgeH) : (gwPx + gw(10.0f));
+            float minW = items[i].round ? gw(badgeH) : gw(badgeH + 4.0f);
             if (bw < minW) bw = minW;
             posX[i] = curX;
             badgeW[i] = bw;
             glyphW[i] = gwPx;
-            curX += bw + gw(kFibTight) + lwPx + gw(kFibPad);
+            curX += bw + gw(kFibTight) + lwPx + gw(10.0f);
         }
-        float badgeY = kStripCenterY - kBadgeH * 0.5f;
-        for (int i = 0; i < 5; i++)
+        float badgeY = kStripCenterY - badgeH * 0.5f;
+        for (int i = 0; i < 6; i++)
         {
             if (items[i].round)
             {
-                drawGlossyRoundBadge(posX[i] + badgeW[i] * 0.5f, kStripCenterY, kBadgeH * 0.5f, items[i].topCol,
+                drawGlossyRoundBadge(posX[i] + badgeW[i] * 0.5f, kStripCenterY, badgeH * 0.5f, items[i].topCol,
                                      items[i].botCol);
             }
             else
             {
-                drawGlossyPillBadge(posX[i], badgeY, badgeW[i], kBadgeH, items[i].topCol, items[i].botCol);
+                drawGlossyPillBadge(posX[i], badgeY, badgeW[i], badgeH, items[i].topCol, items[i].botCol);
             }
         }
-        float gy = textYForCap(kStripCenterY - kBadgeCap * 0.5f, glyphScale);
-        float ly = textYForCap(kStripCenterY - kBadgeLabelCap * 0.5f, labelScale);
-        for (int i = 0; i < 5; i++)
+        float gy = textYForCap(kStripCenterY - kTypeMicro * 0.5f, glyphScale);
+        float ly = textYForCap(kStripCenterY - kTypeMicro * 0.5f, labelScale);
+        for (int i = 0; i < 6; i++)
         {
             gfx::text(posX[i] + (badgeW[i] - glyphW[i]) * 0.5f, gy, items[i].glyph, items[i].fg, glyphScale);
             gfx::text(posX[i] + badgeW[i] + gw(kFibTight), ly, items[i].label, kText, labelScale);
@@ -1817,6 +1886,11 @@ namespace list {
         {
             osdQuick::draw();
         }
+        else if (common::creditsModalVisible(s_credits))
+        {
+            draw();
+            common::creditsModalDraw(s_credits);
+        }
         else
         {
             draw();
@@ -1833,6 +1907,7 @@ namespace list {
         s_rebuilding = false;
         s_bHold = 0;
         s_fresh = true;
+        common::creditsModalReset(s_credits);
         memset(&s_anim, 0, sizeof(s_anim));
         s_test.magic = kTestMagic;
         s_test.request = 0;
@@ -1900,6 +1975,7 @@ namespace list {
         }
         osdQuick::detach();
         browser::detach();
+        common::creditsModalReset(s_credits);
         TM_LOG("drills: detached, exit code %d\n", code);
         s_open = false;
         s_starting = false;

@@ -72,16 +72,39 @@ namespace main {
         {
             typedef void (*Fn)();
             Fn fn = *reinterpret_cast<const Fn*>(reinterpret_cast<const u8*>(s_hooks) + off);
-            if (fn != NULL) fn();
+            if (fn != NULL)
+            {
+                fn();
+            }
         }
     }
 
     static bool callBool(u32 off)
     {
-        if (s_hooks == NULL) return false;
-        typedef bool (*Fn)();
-        Fn fn = *reinterpret_cast<const Fn*>(reinterpret_cast<const u8*>(s_hooks) + off);
-        return fn != NULL && fn();
+        if (s_hooks != NULL)
+        {
+            typedef bool (*Fn)();
+            Fn fn = *reinterpret_cast<const Fn*>(reinterpret_cast<const u8*>(s_hooks) + off);
+            if (fn != NULL)
+            {
+                return fn();
+            }
+        }
+        return false;
+    }
+
+    static bool callBoolInt(u32 off, int arg)
+    {
+        if (s_hooks != NULL)
+        {
+            typedef bool (*Fn)(int);
+            Fn fn = *reinterpret_cast<const Fn*>(reinterpret_cast<const u8*>(s_hooks) + off);
+            if (fn != NULL)
+            {
+                return fn(arg);
+            }
+        }
+        return false;
     }
 
     static void callMatch(u32 off, const game::MatchState& match)
@@ -90,7 +113,10 @@ namespace main {
         {
             typedef void (*Fn)(const game::MatchState&);
             Fn fn = *reinterpret_cast<const Fn*>(reinterpret_cast<const u8*>(s_hooks) + off);
-            if (fn != NULL) fn(match);
+            if (fn != NULL)
+            {
+                fn(match);
+            }
         }
     }
 
@@ -100,33 +126,55 @@ namespace main {
         {
             typedef void (*Fn)(const game::MatchState&, bool);
             Fn fn = *reinterpret_cast<const Fn*>(reinterpret_cast<const u8*>(s_hooks) + off);
-            if (fn != NULL) fn(match, menuOpen);
+            if (fn != NULL)
+            {
+                fn(match, menuOpen);
+            }
         }
     }
 
     void extraRender(u32 renderCall, const game::MatchState& match)
     {
-        if (s_hooks != NULL && s_hooks->render != NULL) s_hooks->render(renderCall, match);
+        if (s_hooks != NULL && s_hooks->render != NULL)
+        {
+            s_hooks->render(renderCall, match);
+        }
     }
 
     bool extraAlterRow() { return callBool(offsetof(ExtraHooks, alterRow)); }
     void extraAlterEdited() { callVoid(offsetof(ExtraHooks, alterEdited)); }
     bool extraLoaded() { return s_hooks != NULL; }
 
-    static bool rngCall(int call)
+    static bool rngCall(int call) { return callBoolInt(offsetof(ExtraHooks, characterRng), call); }
+    static bool stageCall(int call) { return callBoolInt(offsetof(ExtraHooks, stageOptions), call); }
+
+    static void callInt(u32 off, int arg)
     {
-        return s_hooks != NULL && s_hooks->characterRng != NULL && s_hooks->characterRng(call);
+        if (s_hooks != NULL)
+        {
+            typedef void (*Fn)(int);
+            Fn fn = *reinterpret_cast<const Fn*>(reinterpret_cast<const u8*>(s_hooks) + off);
+            if (fn != NULL)
+            {
+                fn(arg);
+            }
+        }
     }
 
-    static bool stageCall(int call)
+    static void callBoolArg(u32 off, bool arg)
     {
-        return s_hooks != NULL && s_hooks->stageOptions != NULL && s_hooks->stageOptions(call);
+        if (s_hooks != NULL)
+        {
+            typedef void (*Fn)(bool);
+            Fn fn = *reinterpret_cast<const Fn*>(reinterpret_cast<const u8*>(s_hooks) + off);
+            if (fn != NULL)
+            {
+                fn(arg);
+            }
+        }
     }
 
-    void extraScenarioCall(int call)
-    {
-        if (s_hooks != NULL && s_hooks->scenarioCall != NULL) s_hooks->scenarioCall(call);
-    }
+    void extraScenarioCall(int call) { callInt(offsetof(ExtraHooks, scenarioCall), call); }
 #ifdef __MWERKS__
 #pragma dont_inline reset
 #endif
@@ -185,10 +233,7 @@ namespace main {
         callMatch(offsetof(ExtraHooks, diDraw), match);
     }
     void extraDiReset() { callVoid(offsetof(ExtraHooks, diReset)); }
-    void extraDiHideDrawDi(bool hide)
-    {
-        if (s_hooks != NULL && s_hooks->diHideDrawDi != NULL) s_hooks->diHideDrawDi(hide);
-    }
+    void extraDiHideDrawDi(bool hide) { callBoolArg(offsetof(ExtraHooks, diHideDrawDi), hide); }
 
     void extraHeatmapDraw(const game::MatchState& match) { callMatch(offsetof(ExtraHooks, heatmapDraw), match); }
     void extraHeatmapReset() { callVoid(offsetof(ExtraHooks, heatmapReset)); }
@@ -197,41 +242,54 @@ namespace main {
     int extraActIn(Fighter* fighter, int* how)
     {
         *how = kActNone;
-        return s_hooks != NULL && s_hooks->actIn != NULL ? s_hooks->actIn(fighter, how) : -1;
+        if (s_hooks != NULL && s_hooks->actIn != NULL)
+        {
+            return s_hooks->actIn(fighter, how);
+        }
+        return -1;
     }
 
     void extraFrameData() { callVoid(offsetof(ExtraHooks, frameData)); }
 
     bool extraAdvantageMeasured(const game::Advantage& r)
     {
-        return s_hooks != NULL && s_hooks->advantageMeasured != NULL && s_hooks->advantageMeasured(r);
+        if (s_hooks != NULL && s_hooks->advantageMeasured != NULL)
+        {
+            return s_hooks->advantageMeasured(r);
+        }
+        return false;
     }
 
     bool extraShieldHoldFullMove(int defenderPlayerNo, int defenderEntryId, const cpu::View& v, bool newHit)
     {
-        return s_hooks != NULL && s_hooks->shieldHoldFullMove != NULL
-               && s_hooks->shieldHoldFullMove(defenderPlayerNo, defenderEntryId, v, newHit);
+        if (s_hooks != NULL && s_hooks->shieldHoldFullMove != NULL)
+        {
+            return s_hooks->shieldHoldFullMove(defenderPlayerNo, defenderEntryId, v, newHit);
+        }
+        return false;
     }
 
     bool extraPPlusRecovery(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons)
     {
-        return s_hooks != NULL && s_hooks->pplusRecovery != NULL
-               && s_hooks->pplusRecovery(who, v, f, out, lastButtons);
+        if (s_hooks != NULL && s_hooks->pplusRecovery != NULL)
+        {
+            return s_hooks->pplusRecovery(who, v, f, out, lastButtons);
+        }
+        return false;
     }
 
-    void extraPPlusRecoveryReset(int slot)
-    {
-        if (s_hooks != NULL && s_hooks->pplusRecoveryReset != NULL) s_hooks->pplusRecoveryReset(slot);
-    }
+    void extraPPlusRecoveryReset(int slot) { callInt(offsetof(ExtraHooks, pplusRecoveryReset), slot); }
 
     void extraComboDraw(const game::MatchState& match) { callMatch(offsetof(ExtraHooks, comboDraw), match); }
     void extraComboReset() { callVoid(offsetof(ExtraHooks, comboReset)); }
 
     int extraAdaptiveBias(int cpuPlayerNo, int list, bool inCounter, float opponentDist, bool commit)
     {
-        return s_hooks != NULL && s_hooks->adaptiveBias != NULL
-                   ? s_hooks->adaptiveBias(cpuPlayerNo, list, inCounter, opponentDist, commit)
-                   : -1;
+        if (s_hooks != NULL && s_hooks->adaptiveBias != NULL)
+        {
+            return s_hooks->adaptiveBias(cpuPlayerNo, list, inCounter, opponentDist, commit);
+        }
+        return -1;
     }
 
     void extraAdaptiveReset() { callVoid(offsetof(ExtraHooks, adaptiveReset)); }
@@ -240,13 +298,19 @@ namespace main {
 
     bool extraScenarioCpuStep(const cpu::Owner& who, const cpu::View& v, Fighter* f, cpu::Frame& out, u32 lastButtons)
     {
-        return s_hooks != NULL && s_hooks->scenarioCpuStep != NULL
-               && s_hooks->scenarioCpuStep(who, v, f, out, lastButtons);
+        if (s_hooks != NULL && s_hooks->scenarioCpuStep != NULL)
+        {
+            return s_hooks->scenarioCpuStep(who, v, f, out, lastButtons);
+        }
+        return false;
     }
 
     void extraScenarioSavedView(Settings& out)
     {
-        if (s_hooks != NULL && s_hooks->scenarioSavedView != NULL) s_hooks->scenarioSavedView(out);
+        if (s_hooks != NULL && s_hooks->scenarioSavedView != NULL)
+        {
+            s_hooks->scenarioSavedView(out);
+        }
     }
 
     bool extraFighterSwapRow() { return callBool(offsetof(ExtraHooks, fighterSwapRow)); }
@@ -256,25 +320,26 @@ namespace main {
 
     const char* extraOptionDesc(u8 pageId, u8 row)
     {
-        return s_hooks != NULL && s_hooks->optionDesc != NULL ? s_hooks->optionDesc(pageId, row) : NULL;
+        if (s_hooks != NULL && s_hooks->optionDesc != NULL)
+        {
+            return s_hooks->optionDesc(pageId, row);
+        }
+        return NULL;
     }
 
     void extraDrawPageOverlay(u8 pageId, bool railMode)
     {
-        if (s_hooks != NULL && s_hooks->drawPageOverlay != NULL) s_hooks->drawPageOverlay(pageId, railMode);
+        if (s_hooks != NULL && s_hooks->drawPageOverlay != NULL)
+        {
+            s_hooks->drawPageOverlay(pageId, railMode);
+        }
     }
 
     bool extraInfoWanted() { return callBool(offsetof(ExtraHooks, infoWanted)); }
-    void extraInfoStep(bool previousRan)
-    {
-        if (s_hooks != NULL && s_hooks->infoStep != NULL) s_hooks->infoStep(previousRan);
-    }
+    void extraInfoStep(bool previousRan) { callBoolArg(offsetof(ExtraHooks, infoStep), previousRan); }
     void extraInfoDraw() { callVoid(offsetof(ExtraHooks, infoDraw)); }
     void extraInfoReset() { callVoid(offsetof(ExtraHooks, infoReset)); }
-    void extraInfoApplyPreset(int side)
-    {
-        if (s_hooks != NULL && s_hooks->infoApplyPreset != NULL) s_hooks->infoApplyPreset(side);
-    }
+    void extraInfoApplyPreset(int side) { callInt(offsetof(ExtraHooks, infoApplyPreset), side); }
 
     void extraInputViewerDraw(const game::MatchState& match, bool menuOpen)
     {
@@ -283,7 +348,11 @@ namespace main {
 
     bool extraDrawColoredHitboxes(Fighter* fighter)
     {
-        return s_hooks != NULL && s_hooks->drawColoredHitboxes != NULL && s_hooks->drawColoredHitboxes(fighter);
+        if (s_hooks != NULL && s_hooks->drawColoredHitboxes != NULL)
+        {
+            return s_hooks->drawColoredHitboxes(fighter);
+        }
+        return false;
     }
 
     void extraDiCompassDraw(const game::MatchState& match, bool menuOpen)
@@ -293,8 +362,11 @@ namespace main {
 
     bool extraReversalPick(int trigger, int fighterKind, u32 roll, int& outAction, int& outDelay)
     {
-        return s_hooks != NULL && s_hooks->reversalPick != NULL
-               && s_hooks->reversalPick(trigger, fighterKind, roll, outAction, outDelay);
+        if (s_hooks != NULL && s_hooks->reversalPick != NULL)
+        {
+            return s_hooks->reversalPick(trigger, fighterKind, roll, outAction, outDelay);
+        }
+        return false;
     }
 
     void extraPsaInspectorDraw(const game::MatchState& match, bool menuOpen)
@@ -309,12 +381,29 @@ namespace main {
 
     u32 extraDrill(u32 phase, gfPadStatus* pads)
     {
-        return s_hooks != NULL && s_hooks->drillHook != NULL ? s_hooks->drillHook(phase, pads) : 0u;
+        if (s_hooks != NULL && s_hooks->drillHook != NULL)
+        {
+            return s_hooks->drillHook(phase, pads);
+        }
+        return 0u;
     }
 
     float extraOsdTopStartY(bool isTopRight)
     {
-        return s_hooks != NULL && s_hooks->osdTopStartY != NULL ? s_hooks->osdTopStartY(isTopRight) : 0.0f;
+        if (s_hooks != NULL && s_hooks->osdTopStartY != NULL)
+        {
+            return s_hooks->osdTopStartY(isTopRight);
+        }
+        return 0.0f;
+    }
+
+    u32 extraCredits(u32 op, const MenuPad* pad)
+    {
+        if (s_hooks != NULL && s_hooks->creditsHook != NULL)
+        {
+            return s_hooks->creditsHook(op, pad);
+        }
+        return 0u;
     }
 }
 }
