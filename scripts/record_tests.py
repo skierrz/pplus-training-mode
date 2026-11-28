@@ -1650,7 +1650,7 @@ def s_edit(r):
     lab.find_settings()
     emu.h.call("resume")
     rec_menu_open(lab)
-    lab.menu_nav_to("Recording > Slot Management > Alter Inputs > Frame")
+    lab.menu_nav_to("Recording > Slot Management & Chances > Alter Inputs > Frame")
     pos = len(emu.log_text())
     for _ in range(EDIT_JUMP_T):
         lab.tap(stick=LT.RIGHT)
@@ -1991,8 +1991,8 @@ def set_controlled_by_menu(lab, target, before_close=None):
 
 
 def resave_positions_menu(lab, rec):
-    """From Recording, select Re-Save Positions."""
-    lab.menu_select_row("Re-Save Positions")
+    """From Recording > Playback & Positions, select Re-Save Positions."""
+    lab.menu_nav_to("Recording > Playback & Positions > Re-Save Positions")
     lab.tap(["A"])
 
 
@@ -2309,9 +2309,9 @@ def s_quick_load_after_end(r):
     # Second variant: quick save mid-playback, take over CPU playback, then D-pad left.
     emu.h.call("resume")
     rec_menu_open(lab)
-    lab.menu_select_row("Playback Takeover")
+    lab.menu_nav_to("Recording > Playback & Positions > Playback Takeover")
     lab.set_choice(SET_REC + REC["takeover"], TAKEOVER["CPU"])
-    lab.menu_select_row("Restore Positions")
+    lab.menu_nav_to("Recording > Restore Positions")
     pos_tk = lab.log_pos()
     lab.tap(["A"])
     lab.close_menu()
@@ -2353,9 +2353,9 @@ def s_quick_load_after_end(r):
     # Clean up Recording settings.
     emu.h.call("resume")
     rec_menu_open(lab)
-    lab.menu_select_row("Playback Takeover")
+    lab.menu_nav_to("Recording > Playback & Positions > Playback Takeover")
     lab.set_choice(SET_REC + REC["takeover"], TAKEOVER["HMN"])
-    lab.menu_select_row("CPU Mode")
+    lab.menu_nav_to("Recording > CPU Mode")
     lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Off"])
     lab.close_menu()
     emu.advance(10)
@@ -2409,7 +2409,7 @@ def s_quick_load_holding(r):
     rec_menu_open(lab)
     lab.menu_select_row("CPU Mode")
     lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Playback"])
-    lab.menu_select_row("Start Paused")
+    lab.menu_nav_to("Recording > Playback & Positions > Start Paused")
     lab.set_choice(SET_REC + REC["startPaused"], 1)
     lab.menu_select_row("Playback Takeover")
     lab.set_choice(SET_REC + REC["takeover"], TAKEOVER["None"])
@@ -2502,11 +2502,11 @@ def s_quick_load_holding(r):
     emu.h.call("resume")
     emu.press(0, ["X"], frames=3, after=5)
     rec_menu_open(lab)
-    lab.menu_select_row("Start Paused")
+    lab.menu_nav_to("Recording > Playback & Positions > Start Paused")
     lab.set_choice(SET_REC + REC["startPaused"], 0)
     lab.menu_select_row("Playback Takeover")
     lab.set_choice(SET_REC + REC["takeover"], TAKEOVER["HMN"])
-    lab.menu_select_row("CPU Mode")
+    lab.menu_nav_to("Recording > CPU Mode")
     lab.set_choice(SET_REC + REC["cpuMode"], CPU_MODE["Off"])
     lab.close_menu()
     emu.advance(10)
@@ -2629,12 +2629,12 @@ def _set_rec_cpu_state(lab, rec, cpu_mode, takeover, slot, cpu_counter=None, res
         lab.menu_select_row("CPU Record Slot")
         lab.set_choice(SET_REC + REC["cpuSlot"], slot)
     if cpu_counter is not None and rec.get("cpuCounter") != cpu_counter:
-        lab.menu_select_row("CPU Counter")
+        lab.menu_nav_to("Recording > Playback & Positions > CPU Counter")
         lab.set_choice(SET_REC + REC["cpuCounter"], cpu_counter)
     if rec.get("takeover") != takeover:
-        lab.menu_select_row("Playback Takeover")
+        lab.menu_nav_to("Recording > Playback & Positions > Playback Takeover")
         lab.set_choice(SET_REC + REC["takeover"], takeover)
-    lab.menu_select_row("CPU Mode")
+    lab.menu_nav_to("Recording > CPU Mode")
     pos = lab.log_pos()
     if cpu_mode != CPU_MODE["Off"]:
         lab.set_choice(SET_REC + REC["cpuMode"], cpu_mode)

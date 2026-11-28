@@ -562,7 +562,7 @@ def overlay_wait(r, value, shot, load=True):
     # steps through the colours.
     nav.pause_training(e)
     lab.open_menu(keep=True)
-    lab.menu_nav_to("Display > P1 Overlays > Wait")
+    lab.menu_nav_to("Display > Overlays & Meters > P1 Overlays > Wait")
     lab.set_choice(S_OVERLAY_HMN + 1 + GROUP_WAIT, value)
     r.shot(shot)
     lab.close_menu()

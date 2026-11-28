@@ -370,13 +370,13 @@ class Runner:
         lab.menu_nav_to("OSDs > OSD Position")
         if lab.setting(SET_OSD_POSITION) != 1:
             raise DisplayError(f"OSD Position is {lab.setting(SET_OSD_POSITION)}, wanted the default Sides")
-        lab.menu_select_row("Shield Advantage")
+        self.shots.append(emu.screenshot("displays-menu-osds"))
+        lab.menu_nav_to("OSDs > Individual OSDs > Shield Advantage")
         lab.toggle_on(SET_ON_SHIELD)
         lab.menu_select_row("Hit Advantage")
         lab.toggle_on(SET_ON_HIT)
         if lab.setting(SET_TOLERANCE) != 1:
             raise DisplayError(f"Advantage Tolerance is {lab.setting(SET_TOLERANCE)}, wanted the default 1")
-        self.shots.append(emu.screenshot("displays-menu-osds"))
         lab.menu_nav_to("Display > Lab Debug > Debug Overlay")
         lab.toggle_on(LT.SET_OVERLAY)
         lab.close_menu()

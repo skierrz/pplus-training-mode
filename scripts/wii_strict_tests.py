@@ -249,7 +249,7 @@ def run_strict_4p_heap_frag(rel):
             emu.h.call("resume")
             nav.pause_training(emu)
             lab.open_menu()
-            lab.menu_nav_to("Recording > Export Recording")
+            lab.menu_nav_to("Recording > Playback & Positions > Export Recording")
             pos_exp = lab.log_pos()
             lab.tap(["A"])
             ST.wait_line(emu, "strict-4p export", r"storage: exported \S+", pos_exp, 300)

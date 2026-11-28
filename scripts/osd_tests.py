@@ -2398,18 +2398,18 @@ def menu_setup(r):
     preset ProjectPunch (screenshots of each page)."""
     lab, emu = r.lab, r.emu
     lab.open_menu(keep=True)
-    lab.menu_nav_to("OSDs > Wavedash")
+    lab.menu_nav_to("OSDs > Individual OSDs > Wavedash")
     for key in sorted(OSD_ROWS, key=OSD_ROWS.get):
         lab.menu_select_row(OSD_LABELS[key])
         lab.toggle_on(S_OSD[key])
     r.shots.append(emu.screenshot("osds-menu-osd"))
-    lab.menu_nav_to("Display > Ledgedash HUD > Enable")
+    lab.menu_nav_to("Display > Overlays & Meters > Ledgedash HUD > Enable")
     lab.toggle_on(S_LEDGE_HUD)
     for offset, want in ((S_LEDGE_MAX, 50), (S_LEDGE_GALINT, 1), (S_LEDGE_PANEL, 1)):
         if lab.setting(offset) != want:
             raise OsdError(f"Ledgedash HUD default at +{offset}: {lab.setting(offset)}, wanted {want}")
     r.shots.append(emu.screenshot("osds-menu-ledgedash-hud"))
-    lab.menu_nav_to("Display > P1 Overlays > Preset")
+    lab.menu_nav_to("Display > Overlays & Meters > P1 Overlays > Preset")
     lab.set_choice(S_OVERLAY[0], 1)
     groups = [lab.setting(S_OVERLAY[0] + 1 + g) for g in range(17)]
     want = [0] * 17

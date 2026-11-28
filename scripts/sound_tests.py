@@ -104,39 +104,33 @@ def run(emu, s, state):
     DT.wait_count(emu, "the launcher to open by itself", r"\[{name}\] drills: list opened \(auto\)", 1, 300)
     emu.advance(40)
 
-    state["step"] = "6-section boot launcher (All Modes / Offense / Defense / Tech Practice / Challenges / Character Trainers)"
+    state["step"] = "4-tab boot launcher (Quick Start / Scenarios / Tech Practice / Minigames & Tech)"
     s.expect("menu", "launcher: opening by itself", lambda: None, [])
     if s.since(0):
         raise SoundError(f"sounds before any press: {s.since(0)}")
-    # Page 0 ("All Modes"): row 0 = Training Lab, row 1 = L-Cancel.
+    # Page 0 ("Quick Start"): row 0 = Training Lab, row 1 = Combo Lab.
     s.expect("menu", "launcher: stick up on the first row", lambda: press(stick=UP), [])
-    s.expect("menu", "launcher: down to L-Cancel", lambda: press(stick=DOWN), [MOVE])
+    s.expect("menu", "launcher: down to Combo Lab", lambda: press(stick=DOWN), [MOVE])
     s.expect("menu", "launcher: back up to Training Lab", lambda: press(stick=UP), [MOVE])
-    # Switch sections with R: All Modes -> Offense (4 rows) -> Defense -> Tech Practice -> Challenges -> Character Trainers -> All Modes.
-    s.expect("menu", "launcher: R to Offense page", lambda: press(["R"]), [MOVE])
-    if DT.last_page(emu) != "Offense":
-        raise SoundError(f"expected Offense after R, got {DT.last_page(emu)!r}")
-    s.moves("menu", "launcher: down to bottom of Offense (row 3)",
-            lambda: [press(stick=DOWN) for _ in range(3)], lambda pos: 3)
-    s.expect("menu", "launcher: stick down on the last row of Offense", lambda: press(stick=DOWN), [])
-    s.expect("menu", "launcher: R to Defense page", lambda: press(["R"]), [MOVE])
-    if DT.last_page(emu) != "Defense":
-        raise SoundError(f"expected Defense after R, got {DT.last_page(emu)!r}")
+    # Switch sections with R: Quick Start -> Scenarios (10 rows) -> Tech Practice -> Minigames & Tech -> Quick Start.
+    s.expect("menu", "launcher: R to Scenarios page", lambda: press(["R"]), [MOVE])
+    if DT.last_page(emu) != "Scenarios":
+        raise SoundError(f"expected Scenarios after R, got {DT.last_page(emu)!r}")
+    s.moves("menu", "launcher: down to bottom of Scenarios (row 9)",
+            lambda: [press(stick=DOWN) for _ in range(9)], lambda pos: 9)
+    s.expect("menu", "launcher: stick down on the last row of Scenarios", lambda: press(stick=DOWN), [])
     s.expect("menu", "launcher: R to Tech Practice page", lambda: press(["R"]), [MOVE])
     if DT.last_page(emu) != "Tech Practice":
         raise SoundError(f"expected Tech Practice after R, got {DT.last_page(emu)!r}")
-    s.expect("menu", "launcher: R to Challenges page", lambda: press(["R"]), [MOVE])
-    if DT.last_page(emu) != "Challenges":
-        raise SoundError(f"expected Challenges after R, got {DT.last_page(emu)!r}")
-    s.expect("menu", "launcher: R to Character Trainers page", lambda: press(["R"]), [MOVE])
-    if DT.last_page(emu) != "Character Trainers":
-        raise SoundError(f"expected Character Trainers after R, got {DT.last_page(emu)!r}")
-    s.expect("menu", "launcher: R wraps to All Modes page", lambda: press(["R"]), [MOVE])
-    if DT.last_page(emu) != "All Modes":
-        raise SoundError(f"expected All Modes after R wrap, got {DT.last_page(emu)!r}")
+    s.expect("menu", "launcher: R to Minigames & Tech page", lambda: press(["R"]), [MOVE])
+    if DT.last_page(emu) != "Minigames & Tech":
+        raise SoundError(f"expected Minigames & Tech after R, got {DT.last_page(emu)!r}")
+    s.expect("menu", "launcher: R wraps to Quick Start page", lambda: press(["R"]), [MOVE])
+    if DT.last_page(emu) != "Quick Start":
+        raise SoundError(f"expected Quick Start after R wrap, got {DT.last_page(emu)!r}")
 
-    s.expect("menu", "launcher: Y opens Quick OSDs", lambda: press(["Y"]), [CONFIRM])
-    s.expect("menu", "Quick OSDs: B returns to launcher", lambda: press(["B"]), [MOVE])
+    s.expect("menu", "launcher: Y opens Quick Setup", lambda: press(["Y"]), [CONFIRM])
+    s.expect("menu", "Quick Setup: B returns to launcher", lambda: press(["B"]), [MOVE])
     s.expect("menu", "launcher: X opens the browser", lambda: press(["X"]), [CONFIRM])
     if not re.search(r"\] browser: 0 recording\(s\) listed", emu.log_text()):
         raise SoundError("the browser lists recordings: this test expects none on the card")

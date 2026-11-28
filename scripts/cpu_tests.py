@@ -2324,11 +2324,11 @@ def o_menu(r):
     lab.tap(stick=LT.RIGHT)
     behavior = r.opt.get("behavior")
     shot = emu.screenshot("cpu-menu-options")[0]
-    lab.menu_nav_to("CPU > Tech & Getup > Tech In Place %")
+    lab.menu_nav_to("CPU > Tech & Getup > Mixup Weights > Tech In Place %")
     lab.tap(stick=LT.RIGHT)
     chances = [r.opt.emu.u8(r.opt.base + SET_CPU + CPU_FIELDS["techChance"] + k) for k in range(4)]
     shot2 = emu.screenshot("cpu-menu-tech")[0]
-    lab.back_to_main(2)
+    lab.back_to_main(3)
     lab.close_menu()
     nav.resume_training(emu)
     emu.advance(20)

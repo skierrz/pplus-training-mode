@@ -81,7 +81,7 @@ def last_page(emu):
     if pages:
         return pages[-1].strip()
     if re.search(r"\] drills: list opened .*?, row 0 Training Lab", tail):
-        return "All Modes"
+        return "Quick Start"
     raise nav.NavError("no drill list page in the log for this visit")
 
 
@@ -153,87 +153,77 @@ def shot(emu, taken, name):
 
 
 def check_list_screens(emu, taken, notes):
-    """4-section boot menu (All Modes: 19 rows, Offense: 5 rows, Defense: 7
-    rows, Tech Practice: 8 rows), section switching, scrolling + key repeat,
-    Recordings browser (X), Quick OSDs (Y), and the character select left
+    """4-tab zero-scroll boot menu (Quick Start: 6 rows, Scenarios: 10 rows,
+    Tech Practice: 7 rows, Minigames & Tech: 3 rows), section switching,
+    Recordings browser (X), Quick Setup (Y), and the character select left
     alone under it."""
     emu.advance(40)
     path = shot(emu, taken, "drills-list-top")
     hi0, c0 = row_highlighted(path, 0)
     hi1, c1 = row_highlighted(path, 1)
-    notes.append(f"first screenshot (All Modes, row 0 Training Lab): row 0 {c0}, row 1 {c1}")
+    notes.append(f"first screenshot (Quick Start, row 0 Training Lab): row 0 {c0}, row 1 {c1}")
     if not hi0 or hi1:
         raise nav.NavError(f"the highlight is not on Training Lab alone (row 0 {c0}, row 1 {c1})")
 
     before = css_snapshot(emu)
-    # On All Modes (Page 0, 19 rows), step down to row 1 (L-Cancel).
+    # On Quick Start (Page 0, 6 rows), step down to row 1 (Combo Lab).
     n = count(emu, r"\] drills: row ")
     emu.press(0, ["DDOWN"], frames=4, after=10)
-    wait_count(emu, "row 1 (L-Cancel)", r"\] drills: row ", n + 1, 90)
+    wait_count(emu, "row 1 (Combo Lab)", r"\] drills: row ", n + 1, 90)
     if last_row(emu) != 1:
-        raise nav.NavError(f"expected row 1 after Down on All Modes, at {last_row(emu)}")
+        raise nav.NavError(f"expected row 1 after Down on Quick Start, at {last_row(emu)}")
     path = shot(emu, taken, "drills-list-row1")
     hi0, c0 = row_highlighted(path, 0)
     hi1, c1 = row_highlighted(path, 1)
     if hi0 or not hi1:
-        raise nav.NavError(f"the highlight is not on L-Cancel alone (row 0 {c0}, row 1 {c1})")
+        raise nav.NavError(f"the highlight is not on Combo Lab alone (row 0 {c0}, row 1 {c1})")
 
-    # Hold Down with key repeat to row 27 (Browse Recordings, scrolled by 18 -> visible row 9)
-    # and verify bottom clamp.
+    # Hold Down with key repeat to row 5 (Ledgedash) and verify bottom clamp.
     emu.hold(0, stick=DOWN)
-    emu.advance(230)
+    emu.advance(80)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 27:
-        raise nav.NavError(f"Down repeat did not reach bottom All Modes row 27, at {last_row(emu)}")
+    if last_row(emu) != 5:
+        raise nav.NavError(f"Down repeat did not reach bottom Quick Start row 5, at {last_row(emu)}")
     emu.hold(0, stick=DOWN)
     emu.advance(20)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 27:
-        raise nav.NavError(f"Down at bottom row moved off row 27 to {last_row(emu)}")
-    path = shot(emu, taken, "drills-list-all-bottom")
+    if last_row(emu) != 5:
+        raise nav.NavError(f"Down at bottom row moved off row 5 to {last_row(emu)}")
+    path = shot(emu, taken, "drills-list-quick-bottom")
+    hi5, c5 = row_highlighted(path, 5)
+    hi4, c4 = row_highlighted(path, 4)
+    if not hi5 or hi4:
+        raise nav.NavError(f"the highlight is not on Quick Start row 5 alone (row 4 {c4}, row 5 {c5})")
+
+    # Switch to Scenarios (Page 1, 10 rows: Combo Lab .. CC / ASDI-Down), check top and bottom clamp.
+    go_to_page(emu, "Scenarios", "R")
+    emu.advance(10)
+    path = shot(emu, taken, "drills-list-scenarios-top")
+    hi0, c0 = row_highlighted(path, 0)
+    hi1, c1 = row_highlighted(path, 1)
+    if not hi0 or hi1:
+        raise nav.NavError(f"the highlight is not on Scenarios row 0 alone (row 0 {c0}, row 1 {c1})")
+    emu.hold(0, stick=DOWN)
+    emu.advance(100)
+    emu.neutral(0)
+    emu.advance(10)
+    if last_row(emu) != 9:
+        raise nav.NavError(f"Down repeat did not reach bottom Scenarios row 9, at {last_row(emu)}")
+    emu.hold(0, stick=DOWN)
+    emu.advance(20)
+    emu.neutral(0)
+    emu.advance(10)
+    if last_row(emu) != 9:
+        raise nav.NavError(f"Down at bottom Scenarios row moved off row 9 to {last_row(emu)}")
+    path = shot(emu, taken, "drills-list-scenarios-bottom")
     hi9, c9 = row_highlighted(path, 9)
     hi8, c8 = row_highlighted(path, 8)
     if not hi9 or hi8:
-        raise nav.NavError(f"the highlight is not on visible row 9 alone (row 8 {c8}, row 9 {c9})")
+        raise nav.NavError(f"the highlight is not on Scenarios row 9 alone (row 8 {c8}, row 9 {c9})")
 
-    # Switch to Offense (Page 1, 4 rows: Combo Lab .. Shield Pressure - Offense), check top and bottom clamp.
-    go_to_page(emu, "Offense", "R")
-    emu.advance(10)
-    path = shot(emu, taken, "drills-list-offense-top")
-    hi0, c0 = row_highlighted(path, 0)
-    hi1, c1 = row_highlighted(path, 1)
-    if not hi0 or hi1:
-        raise nav.NavError(f"the highlight is not on Offense row 0 alone (row 0 {c0}, row 1 {c1})")
-    emu.hold(0, stick=DOWN)
-    emu.advance(50)
-    emu.neutral(0)
-    emu.advance(10)
-    if last_row(emu) != 3:
-        raise nav.NavError(f"Down repeat did not reach bottom Offense row 3, at {last_row(emu)}")
-    emu.hold(0, stick=DOWN)
-    emu.advance(20)
-    emu.neutral(0)
-    emu.advance(10)
-    if last_row(emu) != 3:
-        raise nav.NavError(f"Down at bottom Offense row moved off row 3 to {last_row(emu)}")
-    path = shot(emu, taken, "drills-list-offense-bottom")
-    hi3, c3 = row_highlighted(path, 3)
-    hi2, c2 = row_highlighted(path, 2)
-    if not hi3 or hi2:
-        raise nav.NavError(f"the highlight is not on Offense row 3 alone (row 2 {c2}, row 3 {c3})")
-
-    # Switch to Defense (Page 2, 7 rows: OoS Reversal - Defense .. P+ Multi-Hit SDI).
-    go_to_page(emu, "Defense", "R")
-    emu.advance(10)
-    path = shot(emu, taken, "drills-list-defense")
-    hi0, c0 = row_highlighted(path, 0)
-    hi1, c1 = row_highlighted(path, 1)
-    if not hi0 or hi1:
-        raise nav.NavError(f"the highlight is not on Defense row 0 alone (row 0 {c0}, row 1 {c1})")
-
-    # Switch to Tech Practice (Page 3, 7 single-page rows: L-Cancel .. B-Reverse).
+    # Switch to Tech Practice (Page 2, 7 zero-scroll rows: L-Cancel .. B-Reverse / Wavebounce).
     go_to_page(emu, "Tech Practice", "R")
     emu.advance(10)
     path = shot(emu, taken, "drills-list-tech-practice")
@@ -248,29 +238,21 @@ def check_list_screens(emu, taken, notes):
     if last_row(emu) != 6:
         raise nav.NavError(f"Down repeat did not reach bottom Tech Practice row 6, at {last_row(emu)}")
 
-    # Switch to Challenges (Page 4, 7 rows) and Character Trainers (Page 5, 1 row), then wrap to All Modes.
-    go_to_page(emu, "Challenges", "R")
+    # Switch to Minigames & Tech (Page 3, 3 default rows), then wrap to Quick Start.
+    go_to_page(emu, "Minigames & Tech", "R")
     emu.advance(10)
-    path = shot(emu, taken, "drills-list-challenges")
+    path = shot(emu, taken, "drills-list-minigames")
     hi0, c0 = row_highlighted(path, 0)
     hi1, c1 = row_highlighted(path, 1)
     if not hi0 or hi1:
-        raise nav.NavError(f"the highlight is not on Challenges row 0 alone (row 0 {c0}, row 1 {c1})")
+        raise nav.NavError(f"the highlight is not on Minigames & Tech row 0 alone (row 0 {c0}, row 1 {c1})")
     emu.hold(0, stick=DOWN)
-    emu.advance(70)
+    emu.advance(40)
     emu.neutral(0)
     emu.advance(10)
-    if last_row(emu) != 6:
-        raise nav.NavError(f"Down repeat did not reach bottom Challenges row 6, at {last_row(emu)}")
-
-    go_to_page(emu, "Character Trainers", "R")
-    emu.advance(10)
-    path = shot(emu, taken, "drills-list-character-trainers")
-    hi0, c0 = row_highlighted(path, 0)
-    hi1, c1 = row_highlighted(path, 1)
-    if not hi0 or hi1:
-        raise nav.NavError(f"the highlight is not on Character Trainers row 0 alone (row 0 {c0}, row 1 {c1})")
-    go_to_page(emu, "All Modes", "R")
+    if last_row(emu) != 2:
+        raise nav.NavError(f"Down repeat did not reach bottom Minigames & Tech row 2, at {last_row(emu)}")
+    go_to_page(emu, "Quick Start", "R")
     emu.advance(10)
 
     # Inputs that would act on the character select: none may reach it.
@@ -419,16 +401,16 @@ def run(emu, opts, taken, notes, state):
     wait_count(emu, "B on CSS to reopen Boot Menu", r"\] drills: list opened \(B\) for port 1", 1, 120)
     emu.advance(10)
 
-    # Arm a Scenario (Shield Pressure / OoS, preset 4) from Offense, verify backing
+    # Arm a Scenario (Shield Pressure / OoS, preset 4) from Scenarios, verify backing
     # out of Stage Select with B keeps the list closed and preserves the armed
     # scenario, then start the match and confirm extra/scenario_presets.cpp
     # auto-activates it on match load.
-    state["step"] = "Scenario auto-activation from boot menu (Shield Pressure - Offense)"
-    go_to_page(emu, "Offense", "R")
+    state["step"] = "Scenario auto-activation from boot menu (Shield Pressure / OoS)"
+    go_to_page(emu, "Scenarios", "R")
     go_to_row(emu, 3)
-    n_armed = count(emu, r"\] drills: scenario 4 \(Shield Pressure - Offense\) armed")
+    n_armed = count(emu, r"\] drills: scenario 4 \(Shield Pressure / OoS\) armed")
     emu.press(0, ["A"], frames=4, after=10)
-    wait_count(emu, "Shield Pressure - Offense armed", r"\] drills: scenario 4 \(Shield Pressure - Offense\) armed", n_armed + 1, 120)
+    wait_count(emu, "Shield Pressure / OoS armed", r"\] drills: scenario 4 \(Shield Pressure / OoS\) armed", n_armed + 1, 120)
     # Stage Select -> B -> CSS must NOT reopen the boot list.
     state["step"] = "Stage Select back to CSS keeps boot list closed"
     nav.choose_on_css(emu, "mario", "fox")
@@ -459,12 +441,12 @@ def run(emu, opts, taken, notes, state):
     notes.append(f"Scenario handoff ok: Shield Pressure / OoS (preset={active_preset}, resets={reset_count})")
     nav.finish_training(emu)
     state["visits"] += 1
-    wait_count(emu, "the list to reopen on remembered Shield Pressure - Offense row after scenario match",
-               r"\] drills: list opened \(auto\) for port 1, row 3 Shield Pressure - Offense", 1, 300)
+    wait_count(emu, "the list to reopen on remembered Shield Pressure / OoS row after scenario match",
+               r"\] drills: list opened \(auto\) for port 1, row 3 Shield Pressure / OoS", 1, 300)
     emu.advance(10)
-    n_all = count(emu, r"\] drills: page All Modes")
+    n_all = count(emu, r"\] drills: page Quick Start")
     emu.press(0, ["L"], frames=4, after=10)
-    wait_count(emu, "L to return to All Modes page", r"\] drills: page All Modes", n_all + 1, 120)
+    wait_count(emu, "L to return to Quick Start page", r"\] drills: page Quick Start", n_all + 1, 120)
 
     for cycle in range(opts.cycles):
         state["step"] = f"quick match, cycle {cycle + 1}"
@@ -628,11 +610,11 @@ def check_wii_controller(emu, state, notes, label, ext, pad_type, controls, expe
 
     before = css_snapshot(emu)
 
-    # Switch to Offense, move down a row and back up, then return to All Modes.
+    # Switch to Scenarios, move down a row and back up, then return to Quick Start.
     state["step"] = f"wii ({label}): switch page and move rows"
-    n_page = count(emu, r"\] drills: page Offense")
+    n_page = count(emu, r"\] drills: page Scenarios")
     wii_press(emu, controls["page_next"])
-    wait_count(emu, f"{label} to open Offense page", r"\] drills: page Offense", n_page + 1, 90)
+    wait_count(emu, f"{label} to open Scenarios page", r"\] drills: page Scenarios", n_page + 1, 90)
     n_row = count(emu, r"\] drills: row ")
     wii_press(emu, controls["down"])
     wait_count(emu, f"{label} to move down a row", r"\] drills: row ", n_row + 1, 90)
@@ -641,9 +623,9 @@ def check_wii_controller(emu, state, notes, label, ext, pad_type, controls, expe
     wait_count(emu, f"{label} to move back to row 0", r"\] drills: row ", n_row + 1, 90)
     if last_row(emu) != 0:
         raise nav.NavError(f"{label}: expected row 0, at {last_row(emu)}")
-    n_page = count(emu, r"\] drills: page All Modes")
+    n_page = count(emu, r"\] drills: page Quick Start")
     wii_press(emu, controls["page_prev"])
-    wait_count(emu, f"{label} to return to All Modes page", r"\] drills: page All Modes", n_page + 1, 90)
+    wait_count(emu, f"{label} to return to Quick Start page", r"\] drills: page Quick Start", n_page + 1, 90)
 
     # Open and leave the recordings browser.
     state["step"] = f"wii ({label}): open and leave recordings browser"
@@ -967,9 +949,9 @@ def run_wii_with_gc(emu, notes, state):
 
     # GameCube port 1 still works while a Wii pad is connected.
     state["step"] = "wii+gc: GC port 1 works with Wii pad connected"
-    n_page = count(emu, r"\] drills: page Offense")
+    n_page = count(emu, r"\] drills: page Scenarios")
     emu.press(0, ["R"], frames=3, after=6)
-    wait_count(emu, "GC port 1 to switch to Offense with Wii pad connected", r"\] drills: page Offense",
+    wait_count(emu, "GC port 1 to switch to Scenarios with Wii pad connected", r"\] drills: page Scenarios",
                n_page + 1, 90)
     n_row = count(emu, r"\] drills: row ")
     emu.press(0, ["DDOWN"], frames=3, after=6)
@@ -977,9 +959,9 @@ def run_wii_with_gc(emu, notes, state):
     n_row = count(emu, r"\] drills: row ")
     emu.press(0, ["DUP"], frames=3, after=6)
     wait_count(emu, "GC port 1 to move back to row 0", r"\] drills: row ", n_row + 1, 90)
-    n_page = count(emu, r"\] drills: page All Modes")
+    n_page = count(emu, r"\] drills: page Quick Start")
     emu.press(0, ["L"], frames=3, after=6)
-    wait_count(emu, "GC port 1 to return to All Modes", r"\] drills: page All Modes", n_page + 1, 90)
+    wait_count(emu, "GC port 1 to return to Quick Start", r"\] drills: page Quick Start", n_page + 1, 90)
     notes.append("wii+gc: GC port 1 navigated list while Classic Controller was connected")
 
     # Exercise Classic (takes over from GC), sideways Wii Remote, and Nunchuk.

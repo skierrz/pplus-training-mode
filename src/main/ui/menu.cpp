@@ -84,7 +84,7 @@ namespace ui {
 
     static int visibleRowLimit(const MenuDef& def, const MenuState& state)
     {
-        return (def.categoryCount > 0 && state.depth > 0) ? kLabSubVisibleRows : kLabVisibleRows;
+        return (isTabsStyle(def) && state.depth > 0) ? kLabSubVisibleRows : kLabVisibleRows;
     }
 
     int currentPage(const MenuState& state)

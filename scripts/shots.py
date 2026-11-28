@@ -431,7 +431,8 @@ def panel_edges(closed, opened):
 
 
 def check_menu(closed_path, open_path, xscale, cursor_row, count, disabled_rows=(), off_box_row=None,
-               on_box_row=None, scroll=0, cursor_box=True, tol_px=2.0, tol_colour=10, name_row=0):
+               on_box_row=None, scroll=0, cursor_box=True, tol_px=2.0, tol_colour=10, name_row=0,
+               subpage=False):
     """Compares an open lab menu with the same frame closed. `cursor_row` is
     the highlighted visible row, `count` the page's rows, `disabled_rows`
     visible rows drawn muted, `off_box_row` / `on_box_row` visible rows with
@@ -459,8 +460,11 @@ def check_menu(closed_path, open_path, xscale, cursor_row, count, disabled_rows=
     add("border colour", BORDER, p, close(p, BORDER, tol_colour))
 
     # Sample header, rail, and right-pane gutters guaranteed free of text and highlights.
+    # Depth >= 1 widens the rail header ribbon from 292 to 472; TM_VERSION_MARK starts at ~487 in 16:9 (~497 in 4:3),
+    # leaving the clean charcoal gutter at 474..484.
+    title_rect = (474, 34, 484, 58) if subpage else (340, 34, 440, 58)
     for name, top_c, bot_c, band_y, want_alpha, rect in (
-        ("title band", TITLE_TOP, TITLE_BOT, TITLE_Y, TITLE_ALPHA, (340, 34, 440, 58)),
+        ("title band", TITLE_TOP, TITLE_BOT, TITLE_Y, TITLE_ALPHA, title_rect),
         ("rail band", RAIL_TOP, RAIL_BOT, RAIL_Y, RAIL_ALPHA, (44, 356, 190, 364)),
         ("rows band", ROWS_TOP, ROWS_BOT, ROWS_Y, BAND_ALPHA, (581, 250, 584, 348)),
     ):

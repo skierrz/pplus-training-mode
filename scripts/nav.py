@@ -358,7 +358,7 @@ def select_rule(emu):
 
 
 def _drill_list_on_training_lab(emu):
-    """True when the open boot menu is on All Modes row 0 (Training Lab)."""
+    """True when the open boot menu is on Quick Start row 0 (Training Lab)."""
     log = emu.log_text()
     attached = log.rfind("] menu: attached")
     if attached < 0:
@@ -368,11 +368,11 @@ def _drill_list_on_training_lab(emu):
     if not hits:
         return False
     last = hits[-1].group(1)
-    return last == "page All Modes" or last.endswith(", row 0 Training Lab") or last == "row 0 Training Lab"
+    return last == "page Quick Start" or last.endswith(", row 0 Training Lab") or last == "row 0 Training Lab"
 
 
 def close_drill_list(emu, timeout_frames=300, port=0):
-    """On Training's character select: enter Training Lab (All Modes, row 0)
+    """On Training's character select: enter Training Lab (Quick Start, row 0)
     with A on `port` to dismiss the boot menu to CSS if it is open.
     Returns True if it was open."""
     state = emu.wait_for("the drill list's state in the log", lambda: drill_list_state(emu), timeout_frames,
@@ -380,7 +380,7 @@ def close_drill_list(emu, timeout_frames=300, port=0):
     if state != "open":
         return False
     # If the boot menu reopened on another section or row (e.g. after a
-    # Scenario or Tech Practice match), cycle R to All Modes (which resets
+    # Scenario or Tech Practice match), cycle R to Quick Start (which resets
     # cursor to row 0 Training Lab) before confirming with A.
     for _ in range(5):
         if _drill_list_on_training_lab(emu):

@@ -6,15 +6,14 @@ select rules (src/shared/select_rules.h, src/menu/game/select.cpp):
 Runs headless (Null video backend) by default; checks through real controller
 inputs:
   1. L-Cancel stays 2P unrestricted (43 icons, no CSS rebuild).
-  2. Float / Hover & DJC (drill 4): 2P (43 icons), P1 filtered to
-     {Peach, Mewtwo, Ness, Lucas, Yoshi} (Fox refused with error sound,
-     Mewtwo clone 0x2E accepted), CPU unrestricted (Fox accepted).
-  3. Cancel Sprint (drill 9): 1P solo, grid cut to 7 icons
-     (Fox, Falco, Wolf, Mewtwo, Lucario, Ness, Lucas), Mewtwo selectable,
-     L+R reopens Boot Menu cleanly.
-  4. Snake Infinite Recovery (drill 15): 1P solo, grid cut to 1 icon (Snake),
-     P1 coin locked, costume cycling via X still works, single B reopens
-     Boot Menu cleanly, Start enters match with addCpu filling CPU slot.
+  2. Float / Hover & DJC (drill 4, Minigames & Tech row 1): 1P solo, grid cut
+     to 6 icons (Peach, Mewtwo, Ganondorf, Yoshi, Ness, Lucas), Peach preset,
+     Ganondorf & Mewtwo selectable, Start spawns Target CPU cleanly.
+  3. Cancel Sprint (drill 9): verified gated behind TM_BOOT_CANCEL_ENDURANCE=0
+     (or tested live when present).
+  4. Snake C4 Recovery (drill 15, Minigames & Tech row 2): 1P solo, grid cut
+     to 1 icon (Snake), P1 coin locked, costume cycling via X still works,
+     single B reopens Boot Menu cleanly, Start enters match with addCpu.
   5. Ledgedash (drill 1): strictly solo 1P with full 43-icon grid, then
      switching back to Training Lab restores 2P CSS with valid CPU panel.
   6. High-costume reset: finishing a match on Mario alt 7 then entering a
@@ -32,6 +31,7 @@ import loader_tests as L  # noqa: E402
 import nav  # noqa: E402
 from harness import HarnessError, Timeout  # noqa: E402
 
+FLOAT_DJC_GRID = [0x0D, 0x05, 0x14, 0x2E, 0x0B, 0x19]
 CANCEL_SPRINT_GRID = [0x07, 0x13, 0x25, 0x2E, 0x20, 0x0B, 0x19]
 
 
@@ -96,19 +96,19 @@ def _run_all(emu, results, failures):
     DT.wait_count(emu, "B to reopen Boot Menu from L-Cancel CSS", r"\] drills: list opened \(B\)", n_b + 1, 120)
     emu.advance(8)
 
-    # 3. Float / Hover & DJC (Character Trainers row 1, drill 4):
-    #    2P (43 icons), P1 preset Peach (0x0D), Fox refused for P1, Mewtwo (0x2E) accepted,
-    #    CPU unrestricted (Fox accepted for CPU).
-    _arm_row(emu, "Character Trainers", 1, expect_rebuild=True)
+    # 3. Float / Hover & DJC (Minigames & Tech row 1, drill 4):
+    #    1P solo, grid cut to 6 icons [Peach, Mewtwo, Ganondorf, Yoshi, Ness, Lucas],
+    #    P1 preset Peach (0x0D), Ganondorf & Mewtwo selectable, Start spawns Target CPU.
+    _arm_row(emu, "Minigames & Tech", 1, expect_rebuild=True)
     rule = nav.select_rule(emu)
     p1, cpu = nav.css_area(emu, 0), nav.css_area(emu, 1)
     grid = nav.css_grid(emu)
     _check(
-        rule is not None and rule["drill"] == 4 and rule["areas"] == 2 and rule["p1"] == 0x0D and rule["locked"] == 0
-        and len(grid) == 43 and p1 is not None and p1["character"] == 0x0D
-        and cpu is not None and cpu["kind"] == 2 and cpu["character"] in nav.CSS_NAME,
-        results, failures, "hover-float-2p-setup",
-        f"rule={rule} grid={len(grid)} p1={p1 and hex(p1['character'])} cpu={cpu and hex(cpu['character'])}",
+        rule is not None and rule["drill"] == 4 and rule["areas"] == 1 and rule["p1"] == 0x0D
+        and rule["locked"] == 0 and grid == FLOAT_DJC_GRID and p1 is not None
+        and p1["character"] == 0x0D and cpu is None,
+        results, failures, "hover-float-solo-6-grid",
+        f"rule={rule} grid={[hex(x) for x in grid]} p1={p1 and hex(p1['character'])} cpu={cpu}",
     )
     # First B recalls P1's placed Peach coin into hand (does NOT reopen Boot Menu).
     n_b = DT.count(emu, r"\] drills: list opened \(B\)")
@@ -119,75 +119,62 @@ def _run_all(emu, results, failures):
         results, failures, "hover-float-first-b-recalls-coin",
         "first B recalled placed P1 coin without reopening Boot Menu",
     )
-    # Hover and attempt drop on Fox (disallowed for P1): must be dead (character 40) and refused!
-    fx, fy = nav.icon_pos(emu, "fox")
-    nav.steer(
-        emu, "P1 hand onto disallowed Fox", lambda: nav._hand_xy(emu), fx, fy,
-        lambda: (a := nav.css_area(emu, 0)) is not None and abs(a["x"] - fx) < 0.8 and abs(a["y"] - fy) < 0.8,
-    )
-    emu.advance(6)
-    n_ref = DT.count(emu, r"\] select: coin drop refused")
-    emu.press(0, ["A"], frames=4, after=10)
-    DT.wait_count(emu, "Fox drop refusal", r"\] select: coin drop refused", n_ref + 1, 60)
-    p1_after_fox = nav.css_area(emu, 0)
-    _check(
-        p1_after_fox["held"] and p1_after_fox["character"] == 40,
-        results, failures, "hover-float-fox-refused",
-        f"held={p1_after_fox['held']} char={p1_after_fox['character']}",
-    )
-    # Drop P1 coin on Mewtwo (0x2E, P+ clone): must succeed!
+    # Drop P1 coin on Mewtwo (0x2E, P+ clone), then Ganondorf (0x14): both must succeed!
     nav._drop_p1_token(emu, "mewtwo")
     _check(
         not nav.css_area(emu, 0)["held"] and nav.css_area(emu, 0)["character"] == 0x2E,
         results, failures, "hover-float-mewtwo-allowed",
         f"p1={hex(nav.css_area(emu, 0)['character'])}",
     )
-    # Move CPU coin to Fox (disallowed for P1, allowed for CPU)!
-    cpu_now = nav.CSS_NAME[nav.css_area(emu, 1)["character"]]
-    if cpu_now != "fox":
-        nav._pick_up_token(emu, cpu_now, 1)
-        nav._drop_cpu_token(emu, "fox")
-    _check(
-        not nav.css_area(emu, 1)["held"] and nav.css_area(emu, 1)["character"] == 0x07,
-        results, failures, "hover-float-cpu-unrestricted",
-        f"cpu={hex(nav.css_area(emu, 1)['character'])}",
-    )
-    # Recall P1 coin (first B), then second B reopens Boot Menu.
     emu.press(0, ["B"], frames=4, after=12)
     emu.wait_for("B recalls Mewtwo coin", lambda: nav.css_area(emu, 0)["held"], 60, every=2)
-    emu.press(0, ["B"], frames=4, after=10)
-    DT.wait_count(emu, "second B reopens Boot Menu", r"\] drills: list opened \(B\)", n_b + 1, 120)
-    emu.advance(8)
-
-    # 4. Cancel Sprint (Challenges row 0, drill 9):
-    #    1P solo, grid cut to 7 icons, Mewtwo (0x2E) selectable, L+R reopens Boot Menu.
-    _arm_row(emu, "Challenges", 0, expect_rebuild=True)
-    rule = nav.select_rule(emu)
-    grid = nav.css_grid(emu)
-    p1, cpu = nav.css_area(emu, 0), nav.css_area(emu, 1)
+    setup = nav.start_training_match(emu, "ganondorf", None, stage="final_destination")
     _check(
-        rule is not None and rule["drill"] == 9 and rule["areas"] == 1 and rule["locked"] == 0
-        and grid == CANCEL_SPRINT_GRID and p1 is not None and p1["character"] == 0x07 and cpu is None,
-        results, failures, "cancel-sprint-solo-7-grid",
-        f"rule={rule} grid={[hex(x) for x in grid]} p1={p1 and hex(p1['character'])} cpu={cpu}",
+        setup["players"][0]["kind"] == 22 and setup["players"][0]["state"] == 0
+        and setup["players"][1]["state"] == 1,
+        results, failures, "hover-float-ganondorf-and-addcpu",
+        f"players={setup['players'][:2]}",
     )
-    emu.press(0, ["B"], frames=4, after=12)
-    emu.wait_for("B recalls Fox coin on Cancel Sprint", lambda: nav.css_area(emu, 0)["held"], 60, every=2)
-    nav._drop_p1_token(emu, "mewtwo")
-    _check(
-        not nav.css_area(emu, 0)["held"] and nav.css_area(emu, 0)["character"] == 0x2E,
-        results, failures, "cancel-sprint-mewtwo-pick",
-        f"p1={hex(nav.css_area(emu, 0)['character'])}",
-    )
-    n_lr = DT.count(emu, r"\] drills: list opened \(L\+R\)")
-    emu.press(0, ["L", "R"], frames=4, after=10)
-    DT.wait_count(emu, "L+R reopens Boot Menu from Cancel Sprint", r"\] drills: list opened \(L\+R\)", n_lr + 1, 120)
-    emu.advance(8)
+    emu.advance(20)
+    nav.finish_training(emu)
+    emu.wait_for("Boot Menu reopened after Float/DJC Ganondorf match",
+                 lambda: nav.drill_list_state(emu) == "open", 300, every=5)
+    emu.advance(15)
 
-    # 5. Snake Infinite Recovery (Character Trainers row 0, drill 15):
+    # 4. Cancel Sprint (hidden by default TM_BOOT_CANCEL_ENDURANCE=0; verify gated or test live).
+    DT.go_to_page(emu, "Minigames & Tech", "R")
+    DT.go_to_row(emu, 2)
+    emu.press(0, ["DDOWN"], frames=4, after=8)
+    if DT.last_row(emu) == 3:
+        _arm_row(emu, "Minigames & Tech", 3, expect_rebuild=True)
+        rule = nav.select_rule(emu)
+        grid = nav.css_grid(emu)
+        p1, cpu = nav.css_area(emu, 0), nav.css_area(emu, 1)
+        _check(
+            rule is not None and rule["drill"] == 9 and rule["areas"] == 1 and rule["locked"] == 0
+            and grid == CANCEL_SPRINT_GRID and p1 is not None and p1["character"] == 0x07 and cpu is None,
+            results, failures, "cancel-sprint-solo-7-grid",
+            f"rule={rule} grid={[hex(x) for x in grid]} p1={p1 and hex(p1['character'])} cpu={cpu}",
+        )
+        emu.press(0, ["B"], frames=4, after=12)
+        emu.wait_for("B recalls Fox coin on Cancel Sprint", lambda: nav.css_area(emu, 0)["held"], 60, every=2)
+        nav._drop_p1_token(emu, "mewtwo")
+        _check(
+            not nav.css_area(emu, 0)["held"] and nav.css_area(emu, 0)["character"] == 0x2E,
+            results, failures, "cancel-sprint-mewtwo-pick",
+            f"p1={hex(nav.css_area(emu, 0)['character'])}",
+        )
+        n_lr = DT.count(emu, r"\] drills: list opened \(L\+R\)")
+        emu.press(0, ["L", "R"], frames=4, after=10)
+        DT.wait_count(emu, "L+R reopens Boot Menu from Cancel Sprint", r"\] drills: list opened \(L\+R\)", n_lr + 1, 120)
+        emu.advance(8)
+    else:
+        results.append(("cancel-sprint-gated", "default TM_BOOT_CANCEL_ENDURANCE=0 clamps Minigames & Tech at 3 rows"))
+
+    # 5. Snake C4 Recovery (Minigames & Tech row 2, drill 15):
     #    1P solo, 1-icon grid [0x26], P1 locked (locked == 1), costume X works,
     #    single B reopens Boot Menu, and Start launches match cleanly.
-    _arm_row(emu, "Character Trainers", 0, expect_rebuild=True)
+    _arm_row(emu, "Minigames & Tech", 2, expect_rebuild=True)
     rule = nav.select_rule(emu)
     grid = nav.css_grid(emu)
     p1, cpu = nav.css_area(emu, 0), nav.css_area(emu, 1)
@@ -224,7 +211,7 @@ def _run_all(emu, results, failures):
     DT.wait_count(emu, "single B reopens Boot Menu from locked Snake CSS", r"\] drills: list opened \(B\)", n_b + 1, 120)
     emu.advance(8)
     # Re-confirm Snake (same rule -> NO rebuild) and start match -> verify addCpu fills CPU slot!
-    _arm_row(emu, "Character Trainers", 0, expect_rebuild=False)
+    _arm_row(emu, "Minigames & Tech", 2, expect_rebuild=False)
     setup = nav.start_training_match(emu, "snake", "snake", stage="final_destination", p1_costume=2)
     _check(
         setup["players"][0]["kind"] == 0x2A and setup["players"][0]["state"] == 0
@@ -253,7 +240,7 @@ def _run_all(emu, results, failures):
     emu.press(0, ["L", "R"], frames=4, after=10)
     DT.wait_count(emu, "L+R from Ledgedash CSS", r"\] drills: list opened \(L\+R\)", n_lr + 1, 120)
     emu.advance(8)
-    _arm_row(emu, "All Modes", 0, expect_rebuild=True)
+    _arm_row(emu, "Quick Start", 0, expect_rebuild=True)
     rule = nav.select_rule(emu)
     p1, cpu = nav.css_area(emu, 0), nav.css_area(emu, 1)
     _check(
@@ -274,7 +261,7 @@ def _run_all(emu, results, failures):
     nav.finish_training(emu)
     emu.wait_for("Boot Menu after Mario alt 7 match", lambda: nav.drill_list_state(emu) == "open", 300, every=5)
     emu.advance(15)
-    _arm_row(emu, "Character Trainers", 0, expect_rebuild=True)
+    _arm_row(emu, "Minigames & Tech", 2, expect_rebuild=True)
     p1 = nav.css_area(emu, 0)
     _check(
         p1 is not None and p1["character"] == 0x26 and p1["costume"] == 0,

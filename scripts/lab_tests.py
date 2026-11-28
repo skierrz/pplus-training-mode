@@ -91,10 +91,10 @@ CPU_PERCENT_ROW, CPU_LOCK_ROW = 0, 1
 CPU_DEFENSE_ROW, CPU_SHIELD_HEALTH_ROW = 8, 1
 INFO_PRESET, INFO_SIZE = 0, 1
 CONTROLS_MENU_BUTTON, CONTROLS_CODE_MENU, CONTROLS_MENU_STYLE = 7, 8, 9
-OSD_POWERSHIELD = 14  # visible row at default (OSD Preset=Essentials; Advantage Tolerance visible at 12)
-OSD_ROWS = 26         # visible OSD rows at default (all 26 rows visible under Essentials defaults)
-DISPLAY_DEBUG = 12    # visible Display row at default (Lab Debug is the 13th/last row)
-DISPLAY_ROWS = 13     # visible Display rows at default (Frame Meter .. Lab Debug)
+OSD_POWERSHIELD = 8   # visible row in OSDs > Individual OSDs at default
+OSD_ROWS = 21         # visible Individual OSDs rows at default (Wavedash .. P+ Tech OSD)
+DISPLAY_DEBUG = 7     # visible Display row at default (Lab Debug is last visible row)
+DISPLAY_ROWS = 8      # visible Display rows at default (Frame Meter .. Lab Debug; Hitbox Colors & DI Vector hidden until enabled)
 DEBUG_HMN_INFO, DEBUG_CPU_INFO, DEBUG_OVERLAY_ROW = 0, 1, 3  # Display > Lab Debug: P1 Info, CPU Info, PSA, Debug Overlay
 PRESETS = {"none": 0, "state": 1, "ledge": 2, "damage": 3, "debug": 4}
 SIZES = {"small": 0, "medium": 1, "large": 2}
@@ -2384,22 +2384,25 @@ def cmd_test_lab(rest):
                 lab.open_menu()  # reopens with Draft C left rail still focused
 
                 step = "Start mode: OSD Menu scroll and toggle"
-                ps_row = lab.menu_nav_to("OSDs > Powershield")["row"]
+                ps_row = lab.menu_nav_to("OSDs > Individual OSDs > Powershield")["row"]
                 shot("restyle-osd-menu")
                 lab.tap(["A"])
                 shot("restyle-unavailable-skipped")
                 on = lab.setting(SET_OSD_POWERSHIELD)
                 lab.tap(["A"])
                 if on != 1 or lab.setting(SET_OSD_POWERSHIELD) != 0:
-                    raise LabError(f"menu_nav_to OSDs > Powershield landed on row {ps_row}, A set Powershield to {on}")
+                    raise LabError(
+                        f"menu_nav_to OSDs > Individual OSDs > Powershield landed on row {ps_row}, "
+                        f"A set Powershield to {on}")
                 note(f"OSDs: live RAM nav landed on Powershield (row {ps_row})")
-                # Scroll to the last row of OSDs (OSD_ROWS > VISIBLE_ROWS).
-                # Visible row 0 (Act OoAirborne) has no descenders for glyph measurement.
+                # Scroll to the last row of Individual OSDs (OSD_ROWS = 21 > VISIBLE_ROWS = 10).
+                # Visible row 0 (Act OoHitstun) has no descenders for glyph measurement.
                 lab.down(OSD_ROWS - 1 - ps_row)
                 opened = shot("restyle-scrolled")
                 menu_check(note, closed, opened, xscale, "OSDs scrolled to bottom",
                            cursor_row=shots.VISIBLE_ROWS - 1, count=OSD_ROWS,
-                           scroll=OSD_ROWS - shots.VISIBLE_ROWS, cursor_box=True, name_row=0)
+                           scroll=OSD_ROWS - shots.VISIBLE_ROWS, cursor_box=True, name_row=0,
+                           subpage=True)
                 c0 = sim_clock(lab, human) + sim_clock(lab, cpu)
                 emu.advance(40)
                 c1 = sim_clock(lab, human) + sim_clock(lab, cpu)

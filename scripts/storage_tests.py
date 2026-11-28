@@ -101,8 +101,8 @@ AREA_AT = {1: 8, 2: 24, 3: 40, 4: 56, 5: 72, 6: 88, 7: 120, 8: 184, 9: 248, 10: 
 AREA_COUNT = len(AREA_AT)
 AREA_GENERAL, AREA_CONTROLS, AREA_OSD = 1, 2, 6
 SETTINGS_MAGIC, RECORDING_MAGIC = 0x544D5346, 0x544D5246
-# OSD Menu rows (src/main/ui/pages/osd_menu.cpp).
-OSD_WAVEDASH, OSD_LCANCEL, OSD_ACT_OOS = 6, 7, 9
+# Individual OSDs page rows (src/main/ui/pages/osd_menu.cpp).
+OSD_WAVEDASH, OSD_LCANCEL, OSD_ACT_OOS = 0, 1, 3
 CONTROLS_HOLD_DELAY = 1
 AREA_CPU = 7
 
@@ -398,7 +398,7 @@ def menu_changes(emu, lab, base, res, ctx):
     tap_until(lab, "cameraMode", base, PERSISTED["cameraMode"], LT.RIGHT)
     lab.menu_select_row("Move Staling")
     lab.toggle_off(SET["moveStaling"])
-    lab.menu_nav_to("OSDs > Wavedash")
+    lab.menu_nav_to("OSDs > Individual OSDs > Wavedash")
     lab.toggle_on(SET["wavedash"])
     lab.menu_select_row("L-Cancel")
     lab.toggle_on(SET["lCancel"])
@@ -489,7 +489,7 @@ def s_save(emu, ctx):
     emu.h.call("resume")
     nav.pause_training(emu)
     lab.open_menu(keep=True)
-    lab.menu_nav_to("Recording > Export Recording")
+    lab.menu_nav_to("Recording > Playback & Positions > Export Recording")
     pos = lab.log_pos()
     lab.tap(["A"])
     m = wait_line(emu, "the export", r"storage: (exported (\S+) \((\d+) bytes\)|export \S+ failed[^\r\n]*)", pos)
@@ -563,7 +563,7 @@ def s_load(emu, ctx):
     res.row("session-only settings at their defaults", SESSION_DEFAULTS, got, got == SESSION_DEFAULTS)
     nav.pause_training(emu)
     lab.open_menu(keep=True)
-    lab.menu_nav_to("OSDs > OSD Preset")
+    lab.menu_nav_to("OSDs > Individual OSDs > Wavedash")
     emu.advance(10)
     path = emu.screenshot("storage-osd-menu-loaded")[0]
     ctx["shots"].append(path)
@@ -572,7 +572,7 @@ def s_load(emu, ctx):
     res.row("OSD Menu on screen: Wavedash, L-Cancel On; Act OoS Off", "green, green, not green",
             {k: v[1] for k, v in boxes.items()},
             boxes[OSD_WAVEDASH][0] and boxes[OSD_LCANCEL][0] and not boxes[OSD_ACT_OOS][0])
-    lab.back_to_main(1)
+    lab.back_to_main(2)
     pos = lab.log_pos()
     lab.close_menu()
     emu.advance(30)
@@ -660,7 +660,7 @@ def s_locked(emu, ctx):
     base = lab.find_settings()
     nav.pause_training(emu)
     lab.open_menu(keep=True)
-    lab.menu_nav_to("OSDs > Act OoS Frame")
+    lab.menu_nav_to("OSDs > Individual OSDs > Act OoS Frame")
     lab.toggle_on(SET["actOos"])
     pos = lab.log_pos()
     lab.close_menu()
@@ -679,7 +679,7 @@ def s_locked(emu, ctx):
     emu.h.call("resume")
     nav.pause_training(emu)
     lab.open_menu(keep=True)
-    lab.menu_nav_to("Recording > Export Recording")
+    lab.menu_nav_to("Recording > Playback & Positions > Export Recording")
     pos = lab.log_pos()
     lab.tap(["A"])
     m = wait_line(emu, "the export refusal", r"storage: notice: (Export[^\r\n]*)", pos, 120)
@@ -939,7 +939,7 @@ def s_errors(emu, ctx):
             f"{w.group(0) if w else 'no write'}, files {'unchanged' if unchanged else 'changed'}",
             w is None and unchanged)
     lab.open_menu(keep=True)
-    lab.menu_nav_to("OSDs > Wavedash")
+    lab.menu_nav_to("OSDs > Individual OSDs > Wavedash")
     lab.toggle_off(SET["wavedash"])
     pos = lab.log_pos()
     lab.close_menu()
@@ -985,7 +985,7 @@ def _save_and_export_recording(emu, lab, res, label):
     emu.h.call("resume")
     nav.pause_training(emu)
     lab.open_menu(keep=True)
-    lab.menu_nav_to("Recording > Export Recording")
+    lab.menu_nav_to("Recording > Playback & Positions > Export Recording")
     pos = lab.log_pos()
     lab.tap(["A"])
     m = wait_line(emu, f"{label} export", r"storage: (exported (\S+) \((\d+) bytes\)|export \S+ failed[^\r\n]*)", pos)

@@ -88,7 +88,7 @@ namespace pages {
             {kKindChoice, 0, TM_FIELD(display.psaInspector), TM_CHOICE_LO, 0, 2, 6, 0, 1, 0},
             {kKindToggle, 0, TM_FIELD(display.debugOverlay), 0, 0, 1, 0xFF, 0, 0, 0},
             {kKindToggle, 0, TM_FIELD(display.hud), 0, 1, 1, 0xFF, 0, 0, 0},
-            {kKindChoice, 0, TM_FIELD(display.models), TM_CHOICE_LO, 0, 3, 1, 0, 0, 0},
+            {kKindChoice, 0, TM_FIELD(display.models), TM_CHOICE_LO, 3, 3, 1, 0, 0, 0},
             {kKindToggle, 0, TM_FIELD(display.stageModel), 0, 1, 1, 0xFF, 0, 0, 0},
             {kKindToggle, 0, TM_FIELD(display.effects), 0, 1, 1, 0xFF, 0, 0, 0}
         };

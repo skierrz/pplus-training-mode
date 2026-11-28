@@ -162,13 +162,7 @@ def shot_while_paused(emu, name):
 def open_theme_page(emu, lab):
     """Opens the Lab Menu with Start and navigates to Display > Theme."""
     tap(emu, ["Start"], hold=3, settle=12)
-    # Category Rail starts on Lab (0) -> press R four times to reach Display (4).
-    for _ in range(4):
-        tap(emu, ["R"], hold=3, settle=10)
-    # On Display, Theme is visible row 11 (below Ledgedash HUD).
-    for _ in range(11):
-        tap(emu, ["DDOWN"], hold=2, settle=4)
-    tap(emu, ["A"], hold=3, settle=12)
+    lab.menu_nav_to("Display > Theme > OSD Background")
 
 
 def sample_header_rgb(png_path):

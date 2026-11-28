@@ -259,9 +259,10 @@ class Runner:
         tail = log[log.rfind("] menu: attached"):]
         pages = re.findall(r"\] drills: page ([^\r\n]+)", tail)
         page_patterns = {
+            "Quick Start": r"(?:Training Lab|Combo Lab|Techchase|L-Cancel|Wavedash|Ledgedash)",
+            "Scenarios": r"(?:Combo Lab|Techchase|Edgeguard|Shield Pressure|Shield Drop|Ledgetech|Slide-Off|Grab Defense|Multi-Hit SDI|CC / ASDI-Down)",
             "Tech Practice": r"(?:L-Cancel|Wavedash|Ledgedash|Powershield|RAR|DACUS|B-Reverse)",
-            "Challenges": r"(?:Cancel Practice: Endurance|Movement Flow Course|Situational Reaction|Universal Techchase|Universal Recovery|CC / ASDI-Down|Break the Targets!)",
-            "Character Trainers": r"(?:Float|Snake Infinite Recovery)",
+            "Minigames & Tech": r"(?:Break the Targets!|Float / Hover|Snake C4 Recovery)",
         }
         pat = page_patterns.get(page_name, "")
         already = (pages and pages[-1].strip() == page_name) or (
@@ -655,60 +656,51 @@ def sc_challenges_hud(t):
     def step(n=1):
         e.h.call("frame_advance", n=n)
 
-    def run_recovery_sweetspot(aspect):
+    def run_hover_float(aspect):
         tag = "16x9" if aspect == "16:9" else "4x3"
         p1, _cpu, tmdh = t.arm_skill_drill_and_enter(
-            4, 13, "fox", "mario", aspect=aspect, page_name="Challenges"
+            1, 4, "peach", "fox", aspect=aspect, page_name="Minigames & Tech"
         )
         p1_ptr = p1["fighter"]
-        S4C.walk_p1_to(e, p1_ptr, 80.0, face_dir=-1.0)
         e.h.call("pause")
         step(2)
         d0 = read_tmdh(e, tmdh)
         t.check(
-            d0["magic"] == TMDH_MAGIC and d0["activeDrill"] == 13 and d0["drawCalls"] > 0,
-            f"recovery-sweetspot-init-{tag}",
+            d0["magic"] == TMDH_MAGIC and d0["activeDrill"] == 4 and d0["drawCalls"] > 0,
+            f"hover-float-init-{tag}",
             f"drill={d0['activeDrill']} draws={d0['drawCalls']}",
         )
-        # Jump off right edge, fall below lip, double-jump into sweetspot with 3D GX ledge guides live.
-        e.hold(0, ["X"], stick=S4C.RIGHT)
-        step(3)
-        e.hold(0, stick=S4C.RIGHT)
-        for _ in range(45):
-            sf = S4C.read_fighter(e, p1_ptr)
-            if sf["air"] and sf["x"] > 96.0:
+        # Ground-level Peach Float Cancel: Down + X -> Float (0x11E) -> A (float aerial) -> release X -> Landing.
+        e.hold(0, ["X"], stick=S4C.DOWN)
+        for _ in range(25):
+            if S4C.read_fighter(e, p1_ptr)["status"] == 0x11E:
                 break
             step(1)
+        e.hold(0, ["X"], stick=S4C.NEUTRAL)
+        step(2)
+        e.hold(0, ["X", "A"], stick=S4C.NEUTRAL)
+        step(2)
         e.neutral(0)
         for _ in range(45):
-            sf = S4C.read_fighter(e, p1_ptr)
-            if sf["y"] < -24.0:
+            st = S4C.read_fighter(e, p1_ptr)["status"]
+            if st in (0x16, 0x17, 0x00) and read_tmdh(e, tmdh)["repsHit"] >= 1:
                 break
             step(1)
-        e.hold(0, ["X"], stick=S4C.LEFT)
-        step(4)
-        e.hold(0, stick=S4C.LEFT)
-        for _ in range(65):
-            sf = S4C.read_fighter(e, p1_ptr)
-            if sf["status"] == 0x75 or (not sf["air"] and sf["status"] not in (0x73, 0x74)):
-                break
-            step(1)
-        e.neutral(0)
         step(4)
         d1 = read_tmdh(e, tmdh)
         t.check(
             d1["repsDone"] >= 1 and d1["repsHit"] >= 1,
-            f"recovery-sweetspot-rep-{tag}",
+            f"hover-float-rep-{tag}",
             f"reps={d1['repsDone']} hit={d1['repsHit']} streak={d1['streak']}",
         )
-        t.snap_live_hud(f"hud-recovery-sweetspot-{tag}")
+        t.snap_live_hud(f"hud-hover-float-{tag}")
         e.h.call("resume")
         nav.finish_training(e)
 
     def run_snake_recovery(aspect):
         tag = "16x9" if aspect == "16:9" else "4x3"
         p1, _cpu, tmdh = t.arm_skill_drill_and_enter(
-            0, 15, "snake", "fox", aspect=aspect, page_name="Character Trainers"
+            2, 15, "snake", "fox", aspect=aspect, page_name="Minigames & Tech"
         )
         p1_ptr = p1["fighter"]
         S4C.walk_p1_to(e, p1_ptr, 80.0, face_dir=1.0)
@@ -770,7 +762,7 @@ def sc_challenges_hud(t):
     def run_floorhug_metaknight(aspect):
         tag = "16x9" if aspect == "16:9" else "4x3"
         p1, cpu, tmdh = t.arm_skill_drill_and_enter(
-            5, 14, "meta_knight", "fox", aspect=aspect, page_name="Challenges"
+            9, 14, "meta_knight", "fox", aspect=aspect, page_name="Scenarios"
         )
         p1_ptr = p1["fighter"]
         cpu_ptr = cpu["fighter"]
@@ -835,37 +827,36 @@ def sc_challenges_hud(t):
         e.h.call("resume")
         nav.finish_training(e)
 
-    # 1. Boot Menu Challenges (7 rows incl. Combo-Break Rush) & Character Trainers (1 row) in 16:9.
+    # 1. Boot Menu Minigames & Tech (3 rows) & Scenarios row 9 (CC / ASDI-Down) in 16:9.
     LT.set_aspect(e, "16:9", lambda _m: None)
-    t.ensure_page_open("Challenges")
-    DT.go_to_row(e, 6)
-    t.check(DT.last_row(e) == 6, "boot-challenges-7-rows", f"reached row {DT.last_row(e)} on Challenges")
-    DT.go_to_row(e, 4)
+    t.ensure_page_open("Minigames & Tech")
+    DT.go_to_row(e, 2)
+    t.check(DT.last_row(e) == 2, "boot-minigames-3-rows", f"reached row {DT.last_row(e)} on Minigames & Tech")
     e.advance(8)
-    t.snap("boot-challenges-16x9")
+    t.snap("boot-minigames-tech-16x9")
 
-    t.ensure_page_open("Character Trainers")
+    t.ensure_page_open("Scenarios")
+    DT.go_to_row(e, 9)
+    t.check(DT.last_row(e) == 9, "boot-scenarios-cc-row9", f"reached row {DT.last_row(e)} on Scenarios")
     e.advance(8)
-    t.snap("boot-char-trainers-16x9")
+    t.snap("boot-scenarios-cc-16x9")
 
-    # 2. Live 16:9 runs: Recovery Sweetspot (3D GX guides), Snake Infinite Recovery, Floorhug (Meta Knight).
-    run_recovery_sweetspot("16:9")
+    # 2. Live 16:9 runs: Float / Hover & DJC, Snake C4 Recovery, CC / ASDI-Down (Meta Knight).
+    run_hover_float("16:9")
     run_snake_recovery("16:9")
     run_floorhug_metaknight("16:9")
 
-    # 3. Switch to genuine 4:3 BEFORE entering CSS so Boot Menu draws in true 4:3 (xs = 1.0).
+    # 3. Genuine 4:3 Boot Menu + Live HUD checks.
     LT.set_aspect(e, "4:3", lambda _m: None)
-    # Trigger fresh menu attach in 4:3 by quick-entering/exiting or opening Challenges after CSS reload:
-    # Note: nav.finish_training at end of run_floorhug_metaknight already returned to CSS in 16:9;
-    # run_recovery_sweetspot("4:3") will reload Training CSS in 4:3 on exit, so capture 4:3 Boot Menu right after!
-    run_recovery_sweetspot("4:3")
-    t.ensure_page_open("Challenges")
-    DT.go_to_row(e, 4)
+    run_hover_float("4:3")
+    t.ensure_page_open("Minigames & Tech")
+    DT.go_to_row(e, 2)
     e.advance(8)
-    t.snap("boot-challenges-4x3")
-    t.ensure_page_open("Character Trainers")
+    t.snap("boot-minigames-tech-4x3")
+    t.ensure_page_open("Scenarios")
+    DT.go_to_row(e, 9)
     e.advance(8)
-    t.snap("boot-char-trainers-4x3")
+    t.snap("boot-scenarios-cc-4x3")
 
     run_snake_recovery("4:3")
     run_floorhug_metaknight("4:3")
