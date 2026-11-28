@@ -1,5 +1,24 @@
 #pragma once
 
+#include <types.h>
+
+#include "main/cpu/cpu_settings.h"
+#include "main/cpu/cue.h"
+#include "main/game/status_ids.h"
+
+namespace tm {
+namespace cpu {
+    // Pure CPU state-machine helpers shared with host unit tests.
+    inline bool shieldHitRefreshed(int status, int hitlag, int prevHitlag, int shieldStun, int prevShieldStun,
+                                   int prevStatus)
+    {
+        return status == game::kStatusGuardDamage
+               && (hitlag > prevHitlag || shieldStun > prevShieldStun || prevStatus != game::kStatusGuardDamage);
+    }
+}
+}
+
+#ifndef TM_CPU_BRAIN_PURE_ONLY
 #ifndef TM_OPTIONS_CPP_INTERNAL
 #error "Include from main/cpu/options.cpp only"
 #endif
@@ -255,7 +274,7 @@ namespace cpu {
         bool shieldKind; // the counter follows a hit on shield
         int hits;        // hits taken since the CPU was last idle
         bool havePrev;
-        int prevHitlag, prevHitstun, prevStatus;
+        int prevHitlag, prevHitstun, prevShieldStun, prevStatus;
         bool prevDamageHitlag;
         float prevVy;
         bool prevAir;
@@ -390,3 +409,4 @@ namespace cpu {
     };
 }
 }
+#endif // !TM_CPU_BRAIN_PURE_ONLY

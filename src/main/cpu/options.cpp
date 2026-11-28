@@ -356,6 +356,7 @@ namespace cpu {
         prevHitlag = v.hitlag;
         prevDamageHitlag = v.damageHitlag;
         prevHitstun = v.hitstun;
+        prevShieldStun = v.shieldStun;
         prevStatus = v.status;
         prevVy = v.vy;
         prevAir = v.air;
@@ -702,8 +703,7 @@ namespace cpu {
         // also has isDamage() false (0x80840690) and keys on Guard_Damage.
         // Pummels while held and hits under Intangibility are not counted.
         bool damageLag = v.damageHitlag && (v.hitlag > prevHitlag || !prevDamageHitlag) && !noReaction;
-        bool shieldLag = v.status == game::kStatusGuardDamage
-                         && (v.hitlag > prevHitlag || prevStatus != game::kStatusGuardDamage);
+        bool shieldLag = shieldHitRefreshed(v.status, v.hitlag, prevHitlag, v.shieldStun, prevShieldStun, prevStatus);
         bool newHit = handed
                       || (havePrev && (damageLag || shieldLag || v.hitstun > prevHitstun) && !grabbedStatus(v.status));
         Cue& q = s_aux->cues[who.playerNo & 3];
