@@ -179,7 +179,7 @@ namespace extra {
         u8 target = drillModeTargetReps(st.mode);
         if (d == drills::kDrillLCancel && st.alcNotice)
         {
-            snprintf(out, sz, "Auto L-Cancel On");
+            snprintf(out, sz, "ALC Rule On");
             return;
         }
         if (d == drills::kDrillWavedash && target > 0)
@@ -329,7 +329,7 @@ namespace extra {
             "GRAB %d/5 (NO INVULN)\0" // 1
             "GALINT %df (VULN)\0"     // 2
             "TOURNEY WINNER\0"        // 3
-            "LEDGESLIP / SD\0"        // 4
+            "SD\0"                    // 4
             "NO AIRDODGE\0"           // 5
             "LEDGE GETUP\0"           // 6
             "PERFECT f1\0"            // 7
@@ -339,7 +339,7 @@ namespace extra {
             "UPWARD DODGE\0"          // 11
             "ZAIR / TETHER\0"         // 12
             "L-CANCEL f%d/7\0"        // 13
-            "AUTO L-CANCEL ON\0"      // 14
+            "ALC RULE ON\0"           // 14
             "AUTOCANCELED\0"          // 15
             "EARLY -%df\0"            // 16
             "LATE +%df\0"             // 17
@@ -365,7 +365,7 @@ namespace extra {
             "TURNAROUND B\0"          // 37
             "B-REVERSE\0"             // 38
             "WAVEBOUNCE\0"            // 39
-            "PICK PEACH/MEWTWO/DJC\0" // 40
+            "PICK FLOAT / DJC CAST\0" // 40
             "PERFECT CANCEL f1\0"     // 41
             "CANCEL f%d\0"            // 42
             "CANCEL MISS\0"           // 43
@@ -378,16 +378,16 @@ namespace extra {
             "SWEETSPOT +%df\0"        // 50
             "HIGH OVERSHOOT\0"        // 51
             "SD / MISSED LEDGE\0"     // 52
-            "CC / ASDI-DN -%df\0"     // 53
+            "CC / ASDI-DOWN -%df\0"   // 53
             "ASDI-DOWN TECH\0"        // 54
-            "BROKEN TUMBLE\0"         // 55
-            "MISSED ASDI-DN\0"        // 56
+            "CAN'T CC (TUMBLE)\0"     // 55
+            "MISSED ASDI-DOWN\0"      // 56
             "TRUE PUNISH!\0"          // 57
             "C4 REFRESH x%d\0"        // 58
             "NADE REFRESH x%d\0"      // 59
             "SELF-HIT x%d\0"          // 60
             "RECOVERED x%d\0"         // 61
-            "PICK SPACIE/PK/M2/LUC\0" // 62
+            "PICK CANCEL CAST\0"      // 62
             "PICK SNAKE";             // 63
 
         int msg = -1;

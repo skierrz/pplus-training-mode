@@ -1656,19 +1656,19 @@ class InfoProbe:
                 px, py = int(px * r), int(py * r)
             ks = f32r(0.010325)
             lx, ly = (max(-1.0, min(1.0, f32r(v * ks))) for v in (px, py))
-            out["Stick (Pad)"] = f"Stick (Pad): ({lx:+.4f} , {ly:+.4f})"
+            out["Stick (Raw)"] = f"Stick (Raw): ({lx:+.4f},{ly:+.4f})"
             kc = f32r(0.011775)
             cxs, cys = (max(-1.0, min(1.0, f32r(v * kc))) for v in (cx, cy))
-            out["C-Stick (Pad)"] = f"C-Stick (Pad): ({cxs:+.4f} , {cys:+.4f})"
-            out["Trig (Pad)"] = f"Trig (Pad): ({f32r(p[4] / 255.0):+.2f},{f32r(p[5] / 255.0):+.2f})"
+            out["C-Stick (Raw)"] = f"C-Stick (Raw): ({cxs:+.4f},{cys:+.4f})"
+            out["Trig (Raw)"] = f"Trig (Raw): ({f32r(p[4] / 255.0):+.2f},{f32r(p[5] / 255.0):+.2f})"
         impl = e.ptr(u32(mods, 0x5C) + 0x18)
         if impl is not None:
             c = e.read(impl, 0x3C)
             x, y = f32(c, 8), f32(c, 0xC)
             if abs(x) > 1.5 or abs(y) > 1.5:
                 x = y = 0.0
-            out["Stick (Eng)"] = f"Stick (Eng): ({x:+.4f} , {y:+.4f})"
-            out["Trig (Eng)"] = f"Trig (Eng): ({f32(c, 0x38):+.3f})"
+            out["Stick (Game)"] = f"Stick (Game): ({x:+.4f},{y:+.4f})"
+            out["Trig (Game)"] = f"Trig (Game): ({f32(c, 0x38):+.3f})"
         out["Ledgegrab Timer"] = f"Ledgegrab Timer: {self.la(mods, 2)}"
         xlu, inv, whole = self.body_group(mods, st["x"])
         left = max(xlu, inv)
@@ -1691,7 +1691,7 @@ class InfoProbe:
             grip = next((self.clatter(self.lab.f.modules(o)) for o in others
                          if self.lab.f.state(o)["status"] in CAPTURED), None)
         g = grip or 0.0
-        out["Grip Strength"] = (lambda t: abs(float(t.split(": ")[1]) - g) <= 0.51, f"{g:.2f}")
+        out["Grab Release"] = (lambda t: abs(float(t.split(": ")[1]) - g) <= 0.51, f"{g:.2f}")
         out["Walljumps"] = f"Walljumps: {self.la(mods, 3)}"
         coll = self.coll_status(mods)
         if coll is not None:
@@ -1937,8 +1937,8 @@ class InfoOnly(Exception):
 
 
 # Values the scenario must change (the velocity check counts as one).
-INFO_CHANGING = ["Stick (Pad)", "Stick (Eng)", "C-Stick (Pad)", "Trig (Pad)", "Trig (Eng)", "Vel (Self)", "Vel (KB)",
-                 "Shield Health", "Jumps", "ECB Lock", "Intangibility", "Ledgegrab Timer", "Grip Strength",
+INFO_CHANGING = ["Stick (Raw)", "Stick (Game)", "C-Stick (Raw)", "Trig (Raw)", "Trig (Game)", "Vel (Self)", "Vel (KB)",
+                 "Shield Health", "Jumps", "ECB Lock", "Intangibility", "Ledgegrab Timer", "Grab Release",
                  "ECB Bottom", "Walljumps", "Coll"]
 
 

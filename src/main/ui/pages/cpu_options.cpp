@@ -68,10 +68,10 @@ namespace pages {
     // Indexed to match cpu/actions.cpp action tables.
     extern const char* kCounterGround[kCounterGroundSize] = {
         TM_L("None") TM_L("Spotdodge") TM_L("Shield") TM_L("Grab") TM_L("Up B") TM_L("Side B Toward")
-        TM_L("Down B") TM_L("Neutral B") TM_L("Up Smash") TM_L("Down Smash") TM_L("Forward Smash")
-        TM_L("Roll Away") TM_L("Roll Toward") TM_L("Jab") TM_L("Forward Tilt") TM_L("Up Tilt") TM_L("Down Tilt")
+        TM_L("Down B") TM_L("Neutral B") TM_L("U-Smash") TM_L("D-Smash") TM_L("F-Smash")
+        TM_L("Roll Away") TM_L("Roll Toward") TM_L("Jab") TM_L("F-Tilt") TM_L("U-Tilt") TM_L("D-Tilt")
         TM_L("Dash Attack") TM_L("Short Hop") TM_L("Full Hop") TM_L("Wavedash Away") TM_L("Wavedash Toward")
-        TM_L("Wavedash Down") TM_L("Dash Back") TM_L("Dash Through") TM_PLAY_SLOT_LABELS_P TM_L("Side B Away")
+        TM_L("Wavedash Down") TM_L("Dashback") TM_L("Dash Through") TM_PLAY_SLOT_LABELS_P TM_L("Side B Away")
         TM_L("Roll Random") TM_L("SH Nair") TM_L("SH Fair") TM_L("SH Bair") TM_L("SH Uair") TM_L("SH Dair")
         TM_L("Random Custom") TM_L("Random") TM_DJC_LABELS_P TM_FLOAT_LABELS_P TM_SHFFL_LABELS_P
         TM_L("Custom Pool")
@@ -87,8 +87,8 @@ namespace pages {
     extern const char* kCounterShield[kCounterShieldSize] = {
         TM_L("None") TM_L("Grab") TM_L("Short Hop") TM_L("Full Hop") TM_L("Spotdodge") TM_L("Roll Away")
         TM_L("Roll Toward") TM_L("Up B") TM_L(DROPPED "Side B Away") TM_L(DROPPED "Side B Toward")
-        TM_L("Down B") TM_L(DROPPED "Neutral B") TM_L("Up Smash") TM_L(DROPPED "Down Smash")
-        TM_L(DROPPED "Forward Smash") TM_L("SH Nair") TM_L("SH Fair") TM_L("SH Bair") TM_L("SH Uair")
+        TM_L("Down B") TM_L(DROPPED "Neutral B") TM_L("U-Smash") TM_L(DROPPED "D-Smash")
+        TM_L(DROPPED "F-Smash") TM_L("SH Nair") TM_L("SH Fair") TM_L("SH Bair") TM_L("SH Uair")
         TM_L("SH Dair") TM_L("Wavedash Away") TM_L(DROPPED "Shield Drop")
         TM_PLAY_SLOT_LABELS_P TM_L("Wavedash Toward") TM_L("Wavedash Down") TM_L("Roll Random")
         TM_L("Random Custom") TM_L("Random") TM_DJC_LABELS_P TM_FLOAT_LABELS_P TM_SHFFL_LABELS_P
@@ -155,7 +155,7 @@ namespace pages {
     TM_LABELS_BEGIN(kGrabEscape) TM_L("None") TM_L("Medium") TM_L("High") TM_L("Max") TM_LABELS_END
     TM_LABELS_BEGIN(kGrabRelease) TM_L("Grounded") TM_L("Airborne") TM_LABELS_END
     TM_LABELS_BEGIN(kControlledBy) TM_L("None") TM_L("Port 1") TM_L("Port 2") TM_L("Port 3") TM_L("Port 4") TM_LABELS_END
-    TM_LABELS_BEGIN(kRecovery) TM_L("Game AI") TM_L("PPlusAI") TM_L("Off") TM_LABELS_END
+    TM_LABELS_BEGIN(kRecovery) TM_L("Game AI") TM_L("P+ AI") TM_L("Off") TM_LABELS_END
     TM_LABELS_BEGIN(kLedgeOption) TM_L("Default") TM_L("Neutral") TM_L("Roll") TM_L("Attack") TM_L("Jump") TM_L("Drop") TM_L("Random") TM_LABELS_END
     TM_LABELS_BEGIN(kAdaptiveMode) TM_L("Off") TM_L("Track") TM_L("Adaptive") TM_LABELS_END
     TM_LABELS_BEGIN(kShfflTiming) TM_L("Frame-Perfect") TM_L("Early") TM_L("Normal") TM_L("Late") TM_L("Random") TM_LABELS_END
@@ -444,7 +444,7 @@ namespace pages {
 
     // CPU > DI & SDI (P_CPU_DI)
     static const Option kDiRows[] = {
-        TM_CPU_CHOICE_P("Trajectory DI", cpu.options.tdi, kTdiLabels, cpu::kTdiCount, 0),
+        TM_CPU_CHOICE_P("DI", cpu.options.tdi, kTdiLabels, cpu::kTdiCount, 0),
         TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, "Pick DI Angle",
                lab::g_diPickLabel, lab::toggleDiStickPicker, cpuCustomDiActive),
         TM_CPU_INT("SDI Inputs", cpu.options.sdiAmount, 0, 7, 0, "%d"),
@@ -492,9 +492,9 @@ namespace pages {
                "Shield Health", "%d", NULL, cpuShieldHealthActive),
         TM_CPU_CHOICE_P("Shield Tilt", cpu.options.shieldAngle, kShieldAngle, 5, 0),
         TM_CPU_TOGGLE("No Knockback", cpu.options.intangible, 0),
-        TM_CPU_CHOICE_P("Grab Mash", cpu.options.grabEscape, kGrabEscape, 4, 0),
-        TM_CPU_CHOICE_P("Grab Release", cpu.options.grabRelease, kGrabRelease, 2, 0),
-        TM_CPU_CHOICE_P("Status Mash", cpu.options.clatterEscape, kGrabEscape, 4, cpu::kMashNone)
+        TM_CPU_CHOICE_P("CPU Mashing", cpu.options.grabEscape, kGrabEscape, 4, 0),
+        TM_CPU_CHOICE_P("Grab Release Type", cpu.options.grabRelease, kGrabRelease, 2, 0),
+        TM_CPU_CHOICE_P("Bury / Stun Mash", cpu.options.clatterEscape, kGrabEscape, 4, cpu::kMashNone)
     };
 
 #undef TM_CPU_FUNC
@@ -995,7 +995,7 @@ namespace pages {
         TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Reset Pool", "Reset", resetActivePool, poolPageActive),
         TM_ROW(::tm::ui::kKindFunc, 0, 0, 0, 0, 0, "Clear Pool", "Clear", clearActivePool, poolPageActive),
         // Ground Pool (53 entries; indices match kGround in actions.cpp)
-        TM_POOL_BIT(0, 0, 0, "Nothing (Wait)", poolCat0),
+        TM_POOL_BIT(0, 0, 0, "Do Nothing", poolCat0),
         TM_POOL_BIT(0, 1, 1, "Spotdodge", poolCat0),
         TM_POOL_BIT(0, 2, 1, "Shield", poolCat0),
         TM_POOL_BIT(0, 3, 1, "Grab", poolCat0),
@@ -1004,23 +1004,23 @@ namespace pages {
         TM_POOL_BIT(0, 32, 0, "Side B Away", poolCat0),
         TM_POOL_BIT(0, 6, 0, "Down B", poolCat0),
         TM_POOL_BIT(0, 7, 0, "Neutral B", poolCat0),
-        TM_POOL_BIT(0, 8, 0, "Up Smash", poolCat0),
-        TM_POOL_BIT(0, 9, 0, "Down Smash", poolCat0),
-        TM_POOL_BIT(0, 10, 0, "Forward Smash", poolCat0),
+        TM_POOL_BIT(0, 8, 0, "U-Smash", poolCat0),
+        TM_POOL_BIT(0, 9, 0, "D-Smash", poolCat0),
+        TM_POOL_BIT(0, 10, 0, "F-Smash", poolCat0),
         TM_POOL_BIT(0, 11, 1, "Roll Away", poolCat0),
         TM_POOL_BIT(0, 12, 1, "Roll Toward", poolCat0),
         TM_POOL_BIT(0, 33, 0, "Roll Random", poolCat0),
         TM_POOL_BIT(0, 13, 1, "Jab", poolCat0),
-        TM_POOL_BIT(0, 14, 1, "Forward Tilt", poolCat0),
-        TM_POOL_BIT(0, 15, 1, "Up Tilt", poolCat0),
-        TM_POOL_BIT(0, 16, 1, "Down Tilt", poolCat0),
+        TM_POOL_BIT(0, 14, 1, "F-Tilt", poolCat0),
+        TM_POOL_BIT(0, 15, 1, "U-Tilt", poolCat0),
+        TM_POOL_BIT(0, 16, 1, "D-Tilt", poolCat0),
         TM_POOL_BIT(0, 17, 0, "Dash Attack", poolCat0),
         TM_POOL_BIT(0, 18, 1, "Short Hop", poolCat0),
         TM_POOL_BIT(0, 19, 0, "Full Hop", poolCat0),
         TM_POOL_BIT(0, 20, 1, "Wavedash Away", poolCat0),
         TM_POOL_BIT(0, 21, 0, "Wavedash Toward", poolCat0),
         TM_POOL_BIT(0, 22, 0, "Wavedash Down", poolCat0),
-        TM_POOL_BIT(0, 23, 1, "Dash Back", poolCat0),
+        TM_POOL_BIT(0, 23, 1, "Dashback", poolCat0),
         TM_POOL_BIT(0, 24, 0, "Dash Through", poolCat0),
         TM_POOL_BIT(0, 34, 0, "SH Nair", poolCat0),
         TM_POOL_BIT(0, 35, 0, "SH Fair", poolCat0),
@@ -1049,7 +1049,7 @@ namespace pages {
         TM_POOL_BIT(0, 29, 0, "Slot 5", poolCat0),
         TM_POOL_BIT(0, 30, 0, "Slot 6", poolCat0),
         // Air Pool (29 entries; indices match kAir in actions.cpp)
-        TM_POOL_BIT(1, 0, 0, "Nothing (Wait)", poolCat1),
+        TM_POOL_BIT(1, 0, 0, "Do Nothing", poolCat1),
         TM_POOL_BIT(1, 1, 1, "Airdodge", poolCat1),
         TM_POOL_BIT(1, 2, 1, "Jump Away", poolCat1),
         TM_POOL_BIT(1, 3, 1, "Jump Toward", poolCat1),
@@ -1079,7 +1079,7 @@ namespace pages {
         TM_POOL_BIT(1, 24, 0, "Slot 5", poolCat1),
         TM_POOL_BIT(1, 25, 0, "Slot 6", poolCat1),
         // Shield Pool (40 entries; indices match kShieldList in actions.cpp)
-        TM_POOL_BIT(2, 0, 0, "Nothing (Wait)", poolCat2),
+        TM_POOL_BIT(2, 0, 0, "Do Nothing", poolCat2),
         TM_POOL_BIT(2, 1, 1, "Grab", poolCat2),
         TM_POOL_BIT(2, 2, 1, "Short Hop", poolCat2),
         TM_POOL_BIT(2, 3, 0, "Full Hop", poolCat2),
@@ -1089,7 +1089,7 @@ namespace pages {
         TM_POOL_BIT(2, 31, 0, "Roll Random", poolCat2),
         TM_POOL_BIT(2, 7, 1, "Up B", poolCat2),
         TM_POOL_BIT(2, 10, 0, "Down B", poolCat2),
-        TM_POOL_BIT(2, 12, 1, "Up Smash", poolCat2),
+        TM_POOL_BIT(2, 12, 1, "U-Smash", poolCat2),
         TM_POOL_BIT(2, 15, 1, "SH Nair", poolCat2),
         TM_POOL_BIT(2, 16, 1, "SH Fair", poolCat2),
         TM_POOL_BIT(2, 17, 0, "SH Bair", poolCat2),

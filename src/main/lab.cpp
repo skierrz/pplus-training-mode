@@ -1603,12 +1603,12 @@ namespace lab {
         if (r.shield)
         {
             osd::post(r.attackerPlayer, osd::kIdFrameAdvantage, osd::frameAdvantageColor(r.value),
-                      "Shield Adv.\n%+d f", r.value);
+                      "Shield Adv.\n%+df", r.value);
         }
         else
         {
             osd::post(r.attackerPlayer, osd::kIdFrameAdvantageHit, osd::frameAdvantageColor(r.value),
-                      "Hit Adv.\n%+d f", r.value);
+                      "Hit Adv.\n%+df", r.value);
         }
     }
 
@@ -1648,7 +1648,7 @@ namespace lab {
                 int rate = t.b > 0 ? t.a * 100 / t.b : 0;
                 if (t.flag == game::kLCancelAuto)
                 {
-                    m = osd::post(t.player, osd::kIdLCancel, osd::kWhite, "L-Cancel (%d%%)\nAuto (Rule On)", rate);
+                    m = osd::post(t.player, osd::kIdLCancel, osd::kWhite, "L-Cancel (%d%%)\nALC Rule On", rate);
                     osd::lineColor(m, 1, osd::kYellow);
                 }
                 else
@@ -1669,13 +1669,13 @@ namespace lab {
         case game::kTechActOos:
             if (o.actOos)
             {
-                postTechFrame(t, osd::kIdActOos, first ? osd::kGreen : osd::kWhite, "OoS Action");
+                postTechFrame(t, osd::kIdActOos, first ? osd::kGreen : osd::kWhite, "Act OoS");
             }
             break;
         case game::kTechActOoLag:
             if (o.actOoLag)
             {
-                m = postTechFrame(t, osd::kIdActOoLag, osd::kWhite, t.flag ? "Autocancel" : "Post-Lag");
+                m = postTechFrame(t, osd::kIdActOoLag, osd::kWhite, t.flag ? "Act OoAutocancel" : "Act OoWait");
                 osd::lineColor(m, 1, first ? osd::kGreen : osd::kRed);
             }
             break;
@@ -1709,11 +1709,11 @@ namespace lab {
             {
                 if (t.frame == game::kNoValue && t.b > 5)
                 {
-                    osd::post(t.player, osd::kIdGalint, osd::kRed, "Ledge Limit\nGrab %d/5", t.b);
+                    osd::post(t.player, osd::kIdGalint, osd::kRed, "Ledgegrab Limit\nGrab %d/5", t.b);
                 }
                 else
                 {
-                    osd::post(t.player, osd::kIdCliffwait, t.flag ? osd::kGreen : osd::kRed, "Ledge Hang\n%d Frames",
+                    osd::post(t.player, osd::kIdCliffwait, t.flag ? osd::kGreen : osd::kRed, "Ledge Hang\n%df",
                               t.frame);
                 }
             }
@@ -1747,7 +1747,7 @@ namespace lab {
             }
             else if (o.ledgedashInfo && t.frame >= -24)
             {
-                osd::post(t.player, osd::kIdGalint, t.frame > 0 ? osd::kGreen : osd::kRed, "GALINT\n%+d Frames",
+                osd::post(t.player, osd::kIdGalint, t.frame > 0 ? osd::kGreen : osd::kRed, "GALINT\n%+df",
                           t.frame);
             }
             break;
@@ -1831,11 +1831,11 @@ namespace lab {
                 if (t.flag != 0)
                 {
                     osd::post(t.player, osd::kIdGrabBreakout, t.frame <= t.a + 3 ? osd::kGreen : osd::kWhite,
-                              "Grab Escape\nFrames %d / %d\n%.1f / frame", t.frame, t.a, t.angle);
+                              "Mash Out\n%d/%df (%.1f/f)", t.frame, t.a, t.angle);
                 }
                 else
                 {
-                    osd::post(t.player, osd::kIdGrabBreakout, osd::kWhite, "Grab Escape\nTimer: %d\n%.1f / frame", t.a,
+                    osd::post(t.player, osd::kIdGrabBreakout, osd::kWhite, "Mash Out\n%df (%.1f/f)", t.a,
                               t.angle);
                 }
             }
@@ -1843,7 +1843,7 @@ namespace lab {
         case game::kTechActOoHitstun:
             if (o.actOoHitstun)
             {
-                postTechFrame(t, osd::kIdActOoHitstun, first ? osd::kGreen : osd::kWhite, "Out of Hitstun");
+                postTechFrame(t, osd::kIdActOoHitstun, first ? osd::kGreen : osd::kWhite, "Act OoHitstun");
             }
             break;
         default:

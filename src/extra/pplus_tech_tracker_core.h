@@ -140,8 +140,8 @@ namespace extra {
         static const char kLabels[] =
             "RAR Bair\0DK RAR Bair\0Bomb AGT\0Zair / Tether\0DJC Aerial\0B-Reverse\0"
             "JC Shine\0Wavedash\0DACUS\0Float Cancel\0Waveland\0Float Aerial\0"
-            "Glide Cancel\0Tether\0Banana AGT\0Withdraw JC\0Tether / Zair\0Aura Cancel\0"
-            "Quick Draw JC\0Gyro AGT\0Hover Cancel\0Wall Climb\0Snake DACUS\0Spin Dash JC";
+            "Glide Cancel\0Zair / Tether\0Banana AGT\0Withdraw JC\0Zair / Tether\0ASC\0"
+            "Quick Draw JC\0Gyro AGT\0Hover Cancel\0Wall Climb\0DACUS\0Spin Dash JC";
         static FighterTechDef s_def;
         for (int i = 0; i < kTechTrackerRosterCount; i++)
         {
@@ -207,14 +207,14 @@ namespace extra {
             {0x16, kTechGlideCancel, kTtStGlideStart,  kTtStAttackAir,          0,  0, "Glide Cancel"},
             {0x17, kTechGlideCancel, kTtStGlideStart,  kTtStAttackAir,          0,  0, "Glide Cancel"},
             {0x18, kTechTetherZair,  kTtStAirLasso,    kTtStAirLassoHang,       0,  0, "Zair / Tether"},
-            {0x19, kTechTetherZair,  kTtStAirLasso,    kTtStAirLassoHang,       0,  0, "Tether"},
+            {0x19, kTechTetherZair,  kTtStAirLasso,    kTtStAirLassoHang,       0,  0, "Zair / Tether"},
             {0x1A, kTechDjc,         kTtStJumpAerial,  kTtStAttackAir,          0,  0, "DJC Aerial"},
             {0x1B, kTechAgt,         kTtStEscapeAir,   kTtStItemThrow,          0,  0, "Banana AGT"},
             {0x1D, kTechGlideCancel, kTtStGlideStart,  kTtStAttackAir,          0,  0, "Glide Cancel"},
             {0x1E, kTechSpecialJc,   kTtStSpecialS,    kTtStJumpSquat,          0,  0, "Withdraw JC"},
-            {0x1F, kTechTetherZair,  kTtStAirLasso,    kTtStAirLassoHang,       0,  0, "Tether / Zair"},
+            {0x1F, kTechTetherZair,  kTtStAirLasso,    kTtStAirLassoHang,       0,  0, "Zair / Tether"},
             {0x20, kTechDacus,       kTtStAttackDash,  kTtStAttackHi4Start,     0,  0, "DACUS"},
-            {0x21, kTechSpecialJc,   kTtStSpecialHi,   kTtStAttackAir,          0,  0, "Aura Cancel"},
+            {0x21, kTechSpecialJc,   kTtStSpecialHi,   kTtStAttackAir,          0,  0, "ASC"},
             {0x22, kTechSpecialJc,   kTtStSpecialS,    kTtStJumpSquat,          0,  0, "Quick Draw JC"},
             {0x23, kTechAgt,         kTtStEscapeAir,   kTtStItemThrow,          0,  0, "Gyro AGT"},
             {0x25, kTechWaveland,    kTtStEscapeAir,   kTtStLandingFallSpecial, 0,  0, "Waveland"},
@@ -223,7 +223,7 @@ namespace extra {
             {0x29, kTechAgt,         kTtStEscapeAir,   kTtStItemThrow,          0,  0, "Bomb AGT"},
             {0x2C, kTechSpecialJc,   kTtStSpecialLw,   kTtStJumpSquat,          0,  0, "JC Shine"},
             {0x2D, kTechWallClimb,   kTtStAttachWall,  kTtStWallJump,           0,  0, "Wall Climb"},
-            {0x2E, kTechDacus,       kTtStAttackDash,  kTtStAttackHi4Start,     0,  0, "Snake DACUS"},
+            {0x2E, kTechDacus,       kTtStAttackDash,  kTtStAttackHi4Start,     0,  0, "DACUS"},
             {0x2F, kTechSpecialJc,   kTtStSpecialLw,   kTtStJumpSquat,          0,  0, "Spin Dash JC"},
             {0x30, kTechRar,         kTtStTurnRun,     kTtStAttackAir,          0,  0, "RAR Bair"},
             {0x31, kTechDacus,       kTtStAttackDash,  kTtStAttackHi4Start,     0,  0, "DACUS"}

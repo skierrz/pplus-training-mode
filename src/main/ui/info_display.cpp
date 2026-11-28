@@ -173,7 +173,7 @@ namespace ui {
         }
         if (cancel && used + 1 < size)
         {
-            snprintf(buf + used, size - used, "  Cancel: true");
+            snprintf(buf + used, size - used, "  Cancel: Yes");
         }
     }
 
@@ -188,10 +188,11 @@ namespace ui {
         struct Override { u8 id; const char* lbl; };
         static const Override kOv[] = {
             {kInfoVelocitySelf, "Vel (Self)"}, {kInfoVelocityKb, "Vel (KB)"},
-            {kInfoEngineLStick, "Stick (Eng)"}, {kInfoSystemLStick, "Stick (Pad)"},
-            {kInfoEngineCStick, "C-Stick (Eng)"}, {kInfoSystemCStick, "C-Stick (Pad)"},
-            {kInfoEngineTrigger, "Trig (Eng)"}, {kInfoSystemTrigger, "Trig (Pad)"},
-            {kInfoLineInfo, "Coll Lines"}, {kInfoBlastzoneLeftRight, "Blast L/R"},
+            {kInfoEngineLStick, "Stick (Game)"}, {kInfoSystemLStick, "Stick (Raw)"},
+            {kInfoEngineCStick, "C-Stick (Game)"}, {kInfoSystemCStick, "C-Stick (Raw)"},
+            {kInfoEngineTrigger, "Trig (Game)"}, {kInfoSystemTrigger, "Trig (Raw)"},
+            {kInfoIntangibility, "Intangibility"}, {kInfoGripStrength, "Grab Release"},
+            {kInfoLineInfo, "Stage Coll"}, {kInfoBlastzoneLeftRight, "Blast L/R"},
             {kInfoBlastzoneUpDown, "Blast U/D"}
         };
         for (int i = 0; i < static_cast<int>(sizeof(kOv) / sizeof(kOv[0])); i++)
@@ -299,7 +300,7 @@ namespace ui {
             {
                 return false;
             }
-            format = "%s: (%+.4f , %+.4f)";
+            format = "%s: (%+.4f,%+.4f)";
             x = b.stickX;
             y = b.stickY;
             break;
@@ -311,7 +312,7 @@ namespace ui {
             {
                 return false;
             }
-            format = "%s: (%+.4f , %+.4f)";
+            format = "%s: (%+.4f,%+.4f)";
             if (value == kInfoSystemLStick)
             {
                 // Raw pad scaled by P+'s directional-input rule (shared/game/stick.h).
@@ -491,7 +492,7 @@ namespace ui {
             snprintf(buf, size, "Hitstun: %d", st.hitstun);
             return true;
         case kInfoShieldStun:
-            snprintf(buf, size, "Shield Stun: %d/%d", st.shieldStun, s_clock[side].stunTotal);
+            snprintf(buf, size, "Shieldstun: %d/%d", st.shieldStun, s_clock[side].stunTotal);
             return true;
         case kInfoLineInfo:
         {
@@ -577,11 +578,11 @@ namespace ui {
         case kInfoActionable:
             if (f.actionable)
             {
-                snprintf(buf, size, "Actionable: true, %d f", since(t, t->actionableSince));
+                snprintf(buf, size, "Actionable: Yes (%df)", since(t, t->actionableSince));
             }
             else
             {
-                snprintf(buf, size, "Actionable: false, %d f", since(t, t->busySince));
+                snprintf(buf, size, "Actionable: No (%df)", since(t, t->busySince));
             }
             break;
         case kInfoHitlag:
@@ -591,7 +592,7 @@ namespace ui {
             groupText(f.groups, f.cancel != 0, buf, size);
             break;
         case kInfoAirborne:
-            snprintf(buf, size, "Airborne: %s", f.airborne ? "true" : "false");
+            snprintf(buf, size, "Airborne: %s", f.airborne ? "Yes" : "No");
             break;
         case kInfoLastHit:
         {

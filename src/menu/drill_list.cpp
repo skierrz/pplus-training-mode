@@ -122,11 +122,11 @@ namespace list {
             {
                 "Hit P+'s 7-frame L-cancel window",
                 "on whiff, hit, or shield. Flags",
-                "Auto L-Cancel when active."
+                "ALC Rule On when active."
             },
             "Any Fighter",
             "Free Practice",
-            "In-match L + D-Up: Free / 10 / 20-Rep"
+            "In-match L + D-Pad Up: Free / 10 / 20"
         },
         {
             "Wavedash / Waveland",
@@ -139,20 +139,20 @@ namespace list {
             },
             "Any Fighter",
             "Free Practice",
-            "In-match L + D-Up: Free / 10 / 20-Rep"
+            "In-match L + D-Pad Up: Free / 10 / 20"
         },
         {
             "Ledgedash",
             kRowSkillDrill,
             drills::kDrillLedgedash,
             {
-                "GALINT = invincible frames left",
-                "once actionable onstage. Tracks",
-                "Tourney Winners & 5-grab limit."
+                "GALINT = Grounded Actionable",
+                "Ledge Intangibility (invincible",
+                "frames left onstage)."
             },
             "Any Fighter",
             "Free Practice",
-            "In-match L+D-Up: Mode | D-Right: Side"
+            "L + D-Pad Up: Mode | D-Pad Right: Side"
         },
         {
             "Combo Lab",
@@ -211,13 +211,13 @@ namespace list {
             kRowSkillDrill,
             drills::kDrillPowershield,
             {
-                "Land P+'s 2-frame physical or",
-                "projectile powershields and",
-                "5-frame PS-Drop punishes."
+                "Land P+'s 2f powershield or",
+                "Light->Hard (f1 light, f2 hard",
+                "for f2-3) & 5f PS-Drop punishes."
             },
             "Any Fighter",
             "Projectile CPU",
-            "In-match L + D-Up: Free / 10 / 20-Rep"
+            "In-match L + D-Pad Up: Free / 10 / 20"
         },
         {
             "Shield Drop",
@@ -290,25 +290,25 @@ namespace list {
             drills::kDrillRar,
             {
                 "Reverse Aerial Rush: turnaround",
-                "dash jump into frame-1 back air",
+                "dash jump into frame-1 Bair",
                 "retaining forward dash momentum."
             },
             "Any Fighter",
             "Free Practice",
-            "In-match L + D-Up: Free / 10 / 20-Rep"
+            "In-match L + D-Pad Up: Free / 10 / 20"
         },
         {
             "DACUS",
             kRowSkillDrill,
             drills::kDrillDacus,
             {
-                "Dash Attack Cancelled Up Smash:",
+                "Dash Attack Canceled U-Smash:",
                 "cancel dash attack frames 2-3,",
                 "including hitlag Gatling timing."
             },
             "Any Fighter",
             "Free Practice",
-            "In-match L + D-Up: Free / 10 / 20-Rep"
+            "In-match L + D-Pad Up: Free / 10 / 20"
         },
         {
             "B-Reverse / Wavebounce",
@@ -321,7 +321,7 @@ namespace list {
             },
             "Any Fighter",
             "Free Practice",
-            "In-match L + D-Up: Free / 10 / 20-Rep"
+            "In-match L + D-Pad Up: Free / 10 / 20"
         },
         {
             "Float / Hover & DJC",
@@ -334,7 +334,7 @@ namespace list {
             },
             "6 Float / DJC Cast",
             "Free Practice",
-            "In-match L + D-Up: Free / 10 / 20-Rep"
+            "In-match L + D-Pad Up: Free / 10 / 20"
         },
 #if TM_STAGE4C
         {
@@ -348,7 +348,7 @@ namespace list {
             },
             "Any Fighter",
             "Free / Set / 60s",
-            "In-match L + D-Up: Free / 10 / 20 / 60s"
+            "L + D-Pad Up: Free / 10 / 20 / 60s"
         },
 #endif
         {
@@ -356,13 +356,13 @@ namespace list {
             kRowSkillDrill,
             drills::kDrillComboBreakRush,
             {
-                "Break Brawl targets across the",
-                "stage for x1-x8 chains in Timed",
-                "or Free mode."
+                "Break targets across the stage",
+                "for x1-x8 chains in Timed or",
+                "Free Practice mode."
             },
             "Any Fighter",
-            "Brawl Targets",
-            "In-match L + D-Up: Free / 30s / 60s"
+            "Target Chains",
+            "L + D-Pad Up: Free / 30s / 60s"
         }
 #if TM_STAGE4C
         , {
@@ -376,7 +376,7 @@ namespace list {
             },
             "Snake Only",
             "Free / Set / 60s",
-            "In-match L + D-Up: Free / 10 / 20 / 60s"
+            "L + D-Pad Up: Free / 10 / 20 / 60s"
         }
 #endif
 #if TM_BOOT_CANCEL_ENDURANCE
@@ -387,11 +387,11 @@ namespace list {
             {
                 "Chain fighter-specific jump,",
                 "hover, or special cancels",
-                "with tight frame-delta scoring."
+                "with frame-tight cancel timing."
             },
             "Cancel Fighters",
             "Free / Set / 60s",
-            "In-match L + D-Up: Free / 10 / 20 / 60s"
+            "L + D-Pad Up: Free / 10 / 20 / 60s"
         }
 #endif
 #if TM_BOOT_EXTRA_CHALLENGES
@@ -406,7 +406,7 @@ namespace list {
             },
             "Any Fighter",
             "Free / Set / 60s",
-            "In-match L + D-Up: Free / 10 / 20 / 60s"
+            "L + D-Pad Up: Free / 10 / 20 / 60s"
         },
         {
             "Situational Reaction Lab",
@@ -419,7 +419,7 @@ namespace list {
             },
             "Any Fighter",
             "Free / Set / 60s",
-            "In-match L + D-Up: Free / 10 / 20 / 60s"
+            "L + D-Pad Up: Free / 10 / 20 / 60s"
         },
         {
             "Universal Techchase Escape",
@@ -432,7 +432,7 @@ namespace list {
             },
             "Any Fighter",
             "Free / Set / 60s",
-            "In-match L + D-Up: Free / 10 / 20 / 60s"
+            "L + D-Pad Up: Free / 10 / 20 / 60s"
         },
         {
             "Universal Recovery Sweetspot",
@@ -445,7 +445,7 @@ namespace list {
             },
             "Any Fighter",
             "3D Ledge Guides",
-            "In-match L + D-Up: Free / 10 / 20 / 60s"
+            "L + D-Pad Up: Free / 10 / 20 / 60s"
         }
 #endif
     };

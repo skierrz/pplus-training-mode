@@ -263,7 +263,7 @@ namespace pages {
     TM_LABELS_BEGIN(kSides) TM_L("Right") TM_L("Left") TM_L("Random") TM_LABELS_END
     TM_LABELS_BEGIN(kTechSetups) TM_L("Tumble Drop") TM_L("Free Hit") TM_LABELS_END
     TM_LABELS_BEGIN(kTechPositions) TM_L("Ground") TM_L("Platform 1") TM_L("Platform 2") TM_L("Platform 3") TM_L("Platform 4") TM_LABELS_END
-    TM_LABELS_BEGIN(kTechEscapes) TM_L("Intang Flash") TM_L("Spotdodge") TM_L("Jab") TM_L("Jump") TM_L("Shield") TM_L("Roll") TM_L("None") TM_LABELS_END
+    TM_LABELS_BEGIN(kTechEscapes) TM_L("Flash on Miss") TM_L("Spotdodge") TM_L("Jab") TM_L("Jump") TM_L("Shield") TM_L("Roll") TM_L("None") TM_LABELS_END
     TM_LABELS_BEGIN(kTechTdis) TM_L("Random") TM_L("None") TM_L("Away") TM_L("Toward") TM_L("Survival") TM_LABELS_END
     TM_LABELS_BEGIN(kEdgeSetups) TM_L("Knockback Launch") TM_L("Offstage Spawn") TM_LABELS_END
     TM_LABELS_BEGIN(kEdgeStrengths) TM_L("Weak") TM_L("Normal") TM_L("Strong") TM_L("Random") TM_LABELS_END
@@ -284,20 +284,20 @@ namespace pages {
         TM_L("Close Low") TM_L("Deep Low") TM_L("Far Out") TM_L("High") TM_L("Random")
     TM_LABELS_END
     TM_LABELS_BEGIN(kLedgetechAttacks)
-        TM_L("Down Tilt") TM_L("Fwd Tilt") TM_L("F-Smash") TM_L("Down Smash") TM_L("Down Air") TM_L("Neutral B") TM_L("Side B") TM_L("Random")
+        TM_L("D-Tilt") TM_L("F-Tilt") TM_L("F-Smash") TM_L("D-Smash") TM_L("Dair") TM_L("Neutral B") TM_L("Side B") TM_L("Random")
     TM_LABELS_END
     TM_LABELS_BEGIN(kShieldDropPlats) TM_L("Left") TM_L("Right") TM_L("Top") TM_L("Random") TM_LABELS_END
-    TM_LABELS_BEGIN(kShieldDropAttacks) TM_L("SH Aerial") TM_L("Tilt") TM_L("Down Smash") TM_L("Off") TM_LABELS_END
+    TM_LABELS_BEGIN(kShieldDropAttacks) TM_L("SH Aerial") TM_L("Tilt") TM_L("D-Smash") TM_L("Off") TM_LABELS_END
     TM_LABELS_BEGIN(kShieldDropSpacing) TM_L("Random") TM_L("Close") TM_L("Under") TM_L("Far") TM_LABELS_END
     TM_LABELS_BEGIN(kShieldDropFacing) TM_L("Toward") TM_L("Away") TM_L("Random") TM_LABELS_END
     TM_LABELS_BEGIN(kSlideOffStarts) TM_L("Knockdown") TM_L("Tumble") TM_L("Standing") TM_LABELS_END
-    TM_LABELS_BEGIN(kSlideOffAttacks) TM_L("Under Up Air") TM_L("Under Fair") TM_L("Under Nair") TM_L("On-Plat Ftilt") TM_LABELS_END
+    TM_LABELS_BEGIN(kSlideOffAttacks) TM_L("Under Uair") TM_L("Under Fair") TM_L("Under Nair") TM_L("On-Plat F-Tilt") TM_LABELS_END
     TM_LABELS_BEGIN(kGrabActions)
         TM_L("Hold (Mash Out)") TM_L("Random Throw") TM_L("F-Throw") TM_L("B-Throw") TM_L("U-Throw") TM_L("D-Throw") TM_L("Stand (P1 Grabs)")
     TM_LABELS_END
     TM_LABELS_BEGIN(kGrabPctModes) TM_L("Random 0-79%") TM_L("Current P1 %") TM_LABELS_END
     TM_LABELS_BEGIN(kMultiHitMoves)
-        TM_L("Auto (Best)") TM_L("Nair") TM_L("Fair") TM_L("Up Air") TM_L("Down Air") TM_L("Rapid Jab") TM_L("Up B") TM_L("Side B") TM_L("Down B")
+        TM_L("Auto (Best)") TM_L("Nair") TM_L("Fair") TM_L("Uair") TM_L("Dair") TM_L("Rapid Jab") TM_L("Up B") TM_L("Side B") TM_L("Down B")
     TM_LABELS_END
     TM_LABELS_BEGIN(kPracticeModes) TM_L("Free Practice") TM_L("10-Rep Set") TM_L("20-Rep Set") TM_LABELS_END
     TM_LABELS_BEGIN(kPsAtkModes) TM_L("Projectile") TM_L("Physical") TM_LABELS_END
@@ -306,7 +306,7 @@ namespace pages {
     TM_LABELS_BEGIN(kLedgeSides) TM_L("Same Side") TM_L("Opposite") TM_L("Random") TM_LABELS_END
     TM_LABELS_BEGIN(kLedgeInvulns) TM_L("P+ 5-Grab Limit") TM_L("Unlimited") TM_LABELS_END
     TM_LABELS_BEGIN(kPracticeTargets) TM_L("Off") TM_L("Stationary CPU") TM_L("Shielding CPU") TM_L("Moving CPU") TM_LABELS_END
-    TM_LABELS_BEGIN(kComboPostEscapes) TM_L("Dodge") TM_L("Jump-Invuln") TM_L("Counter") TM_L("Custom Pool") TM_L("None") TM_LABELS_END
+    TM_LABELS_BEGIN(kComboPostEscapes) TM_L("Dodge") TM_L("Jump Out") TM_L("Counter") TM_L("Custom Pool") TM_L("None") TM_LABELS_END
     TM_LABELS_BEGIN(kComboResetDelays) TM_L("Instant") TM_L("15f") TM_L("30f") TM_L("45f") TM_L("60f") TM_LABELS_END
     TM_LABELS_BEGIN(kComboTechLabels) TM_L("Random") TM_L("In Place") TM_L("Away") TM_L("Toward") TM_L("Miss") TM_LABELS_END
 
@@ -330,14 +330,14 @@ namespace pages {
         TM_SCEN_CHOICE("Side", side, kSides, 3, 0, scenarioSideActive),
         // Combo Lab inline quick-knobs
         TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(comboTrainer.postHitstunEscape),
-                        main::kComboEscapeCount, main::kComboEscapeDodge, "Post-Hitstun", kComboPostEscapes, NULL,
+                        main::kComboEscapeCount, main::kComboEscapeDodge, "Combo Escape", kComboPostEscapes, NULL,
                         scenarioComboLabActive),
         TM_ROW(::tm::ui::kKindMenu, ::tm::ui::kFlagHideWhenDisabled, 0, 0, P_COUNTER_POOL, 0, "Edit Air Pool", NULL,
                NULL, scenarioEditAirPoolActive),
         TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(comboTrainer.resetDelay), main::kComboDelayCount,
                         main::kComboDelay30, "Reset Delay", kComboResetDelays, NULL, scenarioComboLabActive),
         TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.tdi), cpu::kTdiCount, 0,
-                        "Trajectory DI", kTdiLabels, NULL, scenarioComboLabActive),
+                        "DI", kTdiLabels, NULL, scenarioComboLabActive),
         TM_ROW_CHOICE_P(::tm::ui::kFlagHideWhenDisabled, TM_FIELD(cpu.options.tech), 5, 0,
                         "Tech Option", kComboTechLabels, NULL, scenarioComboLabActive),
         TM_ROW(::tm::ui::kKindToggle, ::tm::ui::kFlagHideWhenDisabled, TM_FIELD(comboTrainer.resetP1), 0, 1, 1,
@@ -359,7 +359,7 @@ namespace pages {
                TM_SCEN_OFF(techSound), 0, 1, 0, "Tech Sound Cue", NULL, main::extraScenarioChanged,
                scenarioTechchaseActive),
         TM_SCEN_CHOICE("Pre-Tech Drift", techPreDrift, kPreTechDriftLabels, 6, 0, scenarioTechchaseActive),
-        TM_SCEN_CHOICE("CPU Launch DI", techTdi, kTechTdis, 5, 0, scenarioTechchaseActive),
+        TM_SCEN_CHOICE("DI", techTdi, kTechTdis, 5, 0, scenarioTechchaseActive),
         // Edgeguard inline rows
         TM_SCEN_CHOICE("Setup", edgeguardSetup, kEdgeSetups, 2, 0, scenarioEdgeguardActive),
         TM_SCEN_CHOICE("Launch Strength", edgeguardStrength, kEdgeStrengths, 4, 1, scenarioEdgeguardLaunchActive),
@@ -403,7 +403,7 @@ namespace pages {
         TM_PRAC_CHOICE("Cadence", psCadence, kPsCadences, 4, 1, practicePsActive),
         TM_PRAC_CHOICE("Reset Ledge", ledgeResetSide, kLedgeSides, 3, 0, practiceLedgeActive),
         TM_PRAC_TOGGLE("Ledge Auto-Reset", ledgeAutoReset, 1, practiceLedgeActive),
-        TM_PRAC_CHOICE("Ledge Invuln", ledgeInvulnLimit, kLedgeInvulns, 2, 0, practiceLedgeActive),
+        TM_PRAC_CHOICE("Ledgegrab Limit", ledgeInvulnLimit, kLedgeInvulns, 2, 0, practiceLedgeActive),
         TM_PRAC_CHOICE("Target", lcancelTarget, kPracticeTargets, 4, 1, practiceLcActive),
         TM_PRAC_CHOICE("Target", floatDjcTarget, kPracticeTargets, 4, 1, practiceFloatActive),
         TM_PRAC_TOGGLE("Target Zone", wdTargetZone, 0, practiceWdActive),

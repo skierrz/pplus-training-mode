@@ -73,7 +73,7 @@ TEST(action_log, ring_buffer_accumulates_durations_and_wraps_at_eight)
     REQUIRE(st.count == kActionLogCap);
     CHECK_EQ(10u, st.totalTransitions);
     CHECK(strcmp(actionLogAt(st, 0)->label, "Fair") == 0);
-    CHECK(strcmp(actionLogAt(st, 3)->label, "Guard") == 0);
+    CHECK(strcmp(actionLogAt(st, 3)->label, "Shield") == 0);
     CHECK_EQ(static_cast<int>(kStateDefense), static_cast<int>(actionLogAt(st, 3)->stateClass));
     CHECK(strcmp(actionLogAt(st, 5)->label, "Tumbl") == 0);
     CHECK_EQ(static_cast<int>(kStateHitstun), static_cast<int>(actionLogAt(st, 5)->stateClass));

@@ -891,7 +891,7 @@ namespace extra {
         frameDataFrame();
         CHECK_LOG("advantage predicted: P1 -> P2 on shield +1 (hit 100, attacker in 13 how 2, defender in 14)");
         CHECK_EQ(1, host::fakes::osdCount());
-        CHECK_STR("Shield Adv.\n+1 f", host::fakes::osdText());
+        CHECK_STR("Shield Adv.\n+1f", host::fakes::osdText());
         CHECK_EQ(0, host::fakes::osdPlayer());
         CHECK_EQ(osd::kIdFrameAdvantage, host::fakes::osdId());
 
@@ -909,7 +909,7 @@ namespace extra {
         CHECK(frameDataMeasured(measured(100, -2, true)));
         CHECK_LOG("predicted +1 measured -2 DIFFERENT");
         CHECK_EQ(2, host::fakes::osdCount());
-        CHECK_STR("Shield Adv.\nActual: -2 f", host::fakes::osdText());
+        CHECK_STR("Shield Adv.\nActual: -2f", host::fakes::osdText());
         // That exchange is done: a second measurement finds nothing.
         CHECK(!frameDataMeasured(measured(100, -2, true)));
     }

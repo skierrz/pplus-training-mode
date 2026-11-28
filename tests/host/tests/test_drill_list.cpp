@@ -1795,7 +1795,7 @@ TEST(drill_list, minigames_and_tech_tab_and_locked_flags)
     menu::list::onRender(0);
     CHECK(canvasDrew("Minigames & Tech"));
     CHECK(canvasDrew("Break the Targets!"));
-    CHECK(canvasDrew("Brawl Targets"));
+    CHECK(canvasDrew("Target Chains"));
     CHECK(canvasDrew("Best Score"));
     CHECK(canvasDrew("1250"));
 

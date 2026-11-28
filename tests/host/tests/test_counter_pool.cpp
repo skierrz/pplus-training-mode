@@ -232,7 +232,7 @@ TEST(counter_pool, all_legal_moves_exposed_nothing_bit0_and_slot_dispatch)
         setBit(seen[cat], idx);
         if (idx == 0)
         {
-            CHECK(strcmp(o.name, "Nothing (Wait)") == 0);
+            CHECK(strcmp(o.name, "Do Nothing") == 0);
             CHECK_EQ(0, static_cast<int>(o.def));
         }
         else
@@ -376,7 +376,7 @@ TEST(counter_pool, scenarios_one_click_edit_air_and_shield_pool_jumps)
     const ui::Page& scen = ui::pages::kScenarios;
     const ui::Page& pool = ui::pages::kCounterPool;
 
-    int postHitstunRow = findRowByName(scen, "Post-Hitstun");
+    int postHitstunRow = findRowByName(scen, "Combo Escape");
     int editAirRow = findRowByName(scen, "Edit Air Pool");
     int cpuOosRow = findRowByName(scen, "CPU OoS");
     int editShieldRow = findRowByName(scen, "Edit Shield Pool");

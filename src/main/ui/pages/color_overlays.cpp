@@ -8,7 +8,7 @@ namespace tm {
 namespace ui {
 namespace pages {
 #ifndef __MWERKS__
-    TM_LABELS_BEGIN(kPreset) TM_L("Custom") TM_L("ProjectPunch") TM_LABELS_END
+    TM_LABELS_BEGIN(kPreset) TM_L("Custom") TM_L("Standard (PPunch)") TM_LABELS_END
     // In game::OverlayChoice order.
     TM_LABELS_BEGIN(kColor)
         TM_L("None") TM_L("Red") TM_L("Green") TM_L("Blue")
@@ -107,7 +107,7 @@ namespace pages {
         TM_GROUP(side, 8, "Wait", onGroup), TM_GROUP(side, 9, "Walk", onGroup), TM_GROUP(side, 10, "Dash", onGroup), \
         TM_GROUP(side, 11, "Run", onGroup), TM_GROUP(side, 13, "Full Hop", onGroup),                                 \
         TM_GROUP(side, 14, "Short Hop", onGroup), TM_GROUP(side, 15, "IASA", onGroup),                               \
-        TM_GROUP(side, 16, "Shield Stun", onGroup)
+        TM_GROUP(side, 16, "Shieldstun", onGroup)
 
     static const Option kHmnRows[] = {TM_OVERLAY_PAGE(0, hmnPreset, hmnGroup)};
     static const Option kCpuRows[] = {TM_OVERLAY_PAGE(1, cpuPreset, cpuGroup)};

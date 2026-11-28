@@ -117,7 +117,7 @@ namespace pages {
         TM_CHANCE("Tech Away %", cpu.options.techChance[1], rebalanceRow, techRandom),
         TM_CHANCE("Tech Toward %", cpu.options.techChance[2], rebalanceRow, techRandom),
         TM_CHANCE("Miss Tech %", cpu.options.techChance[3], rebalanceRow, techRandom),
-        TM_CPU_INT("Down Wait %", cpu.options.missTechWait, 0, 100, 0, "%d%%"),
+        TM_CPU_INT("Knockdown Wait %", cpu.options.missTechWait, 0, 100, 0, "%d%%"),
         TM_CHANCE("Stand %", cpu.options.getupChance[0], rebalanceRow, getupRandom),
         TM_CHANCE("Roll Away %", cpu.options.getupChance[1], rebalanceRow, getupRandom),
         TM_CHANCE("Roll Toward %", cpu.options.getupChance[2], rebalanceRow, getupRandom),

@@ -712,11 +712,11 @@ TEST(scenario_presets, clamps_out_of_range_inputs_and_general_row_index_is_12)
     REQUIRE(scen.count == 58);
     CHECK(strcmp(scen.options[0].name, "Preset") == 0);
     CHECK_EQ(kScenarioCount - 1, scen.options[0].max);
-    CHECK(strcmp(scen.options[3].name, "Post-Hitstun") == 0);
+    CHECK(strcmp(scen.options[3].name, "Combo Escape") == 0);
     CHECK(strcmp(scen.options[4].name, "Edit Air Pool") == 0);
     CHECK_EQ(ui::pages::P_COUNTER_POOL, scen.options[4].max);
     CHECK(strcmp(scen.options[5].name, "Reset Delay") == 0);
-    CHECK(strcmp(scen.options[6].name, "Trajectory DI") == 0);
+    CHECK(strcmp(scen.options[6].name, "DI") == 0);
     CHECK(strcmp(scen.options[7].name, "Tech Option") == 0);
     CHECK(strcmp(scen.options[8].name, "Reset P1 Position") == 0);
     CHECK(strcmp(scen.options[9].name, "Noclip Reset") == 0);

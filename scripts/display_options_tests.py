@@ -1338,7 +1338,7 @@ def sc_wave3_viz(r):
     r.load(running=True)
     r.pause()
     r.lab.open_menu()
-    r.lab.menu_nav_to("CPU > DI & SDI > Trajectory DI")
+    r.lab.menu_nav_to("CPU > DI & SDI > DI")
     for _ in range(9):
         r.lab.tap(stick=LT.RIGHT)
     r.lab.menu_nav_to("CPU > DI & SDI > Pick DI Angle")

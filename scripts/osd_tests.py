@@ -70,11 +70,11 @@ OSD_ROWS = {"wavedash": 6, "lcancel": 7, "ledgedash": 8, "actoos": 9,
             "sdi": 21, "lockout": 22, "combo": 23, "grabbreakout": 24, "itemthrow": 25}
 OSD_LABELS = {
     "wavedash": "Wavedash", "lcancel": "L-Cancel", "ledgedash": "Ledgedash Info",
-    "actoos": "Act OoS Frame", "dashback": "Dashback", "powershield": "Powershield",
+    "actoos": "Act OoS", "dashback": "Dashback", "powershield": "Powershield",
     "actoolag": "Act OoLag", "actooairborne": "Act OoAirborne", "actoohitstun": "Act OoHitstun",
     "jumpcancel": "Jump Cancel", "fastfall": "Fastfall Timing", "boostgrab": "Boost Grab / DACUS",
     "sdi": "SDI Inputs", "lockout": "Tech Lockout", "combo": "Combo Counter",
-    "grabbreakout": "Grab Escape", "itemthrow": "Item Throw",
+    "grabbreakout": "Mash Out", "itemthrow": "Item Throw",
 }
 
 # Sequential osd::Id values (src/main/ui/osd.h).
@@ -465,7 +465,7 @@ def sc_lcancel(r, press, name):
         e = land + earliest_jump(r, fr, probe_land, ("lag", "nair-lc" if ok else "nair")) - probe_land
         n = jab - e + 1
         if n <= ACT_OOLAG_SHOWN:
-            r.expect_osd(name + "-actoolag", text, 1, ID_ACT_OOLAG, ["Post-Lag", f"Frame {n}"])
+            r.expect_osd(name + "-actoolag", text, 1, ID_ACT_OOLAG, ["Act OoWait", f"Frame {n}"])
         else:
             no_osd(r, name + "-actoolag", text, 1, ID_ACT_OOLAG, f"a jab on frame {n} after the landing")
     return ok, lag
@@ -643,7 +643,7 @@ def sc_actoos(r, delay, name):
     if None in (stun, out, act):
         raise OsdError(f"{name}: shield stun {stun}, out {out}, jump {act}")
     n = act - out + 1
-    r.expect_osd(name, text, 2, ID_ACTOOS, ["OoS Action", f"Frame {n}"])
+    r.expect_osd(name, text, 2, ID_ACTOOS, ["Act OoS", f"Frame {n}"])
     r.check_color(r.shots[-1], 2, GREEN if n == 1 else WHITE, name)
     return n
 
@@ -790,7 +790,7 @@ def sc_actoohitstun(r, name):
     js = entered(rows, "c", JUMP_SQUAT)
     if js is None:
         raise OsdError(f"{name}: no jump in the timed run")
-    r.expect_osd(name, text, 2, ID_ACT_OOHITSTUN, ["Out of Hitstun", f"Frame {js - f0 + 1}"])
+    r.expect_osd(name, text, 2, ID_ACT_OOHITSTUN, ["Act OoHitstun", f"Frame {js - f0 + 1}"])
     return js - f0 + 1
 
 
@@ -835,9 +835,9 @@ def sc_ledgedash(r, wait, name):
         galint = -(landed - last)  # the first vulnerable frame counts 1
     ledge_frame = left - w0 + 1
     if ledge_frame <= 24:
-        r.expect_osd(name + "-cliffwait", text, 2, ID_CLIFFWAIT, ["Ledge Hang", f"{ledge_frame} Frames"])
+        r.expect_osd(name + "-cliffwait", text, 2, ID_CLIFFWAIT, ["Ledge Hang", f"{ledge_frame}f"])
     if galint >= -24:
-        r.expect_osd(name, text, 2, ID_GALINT, ["GALINT", f"{galint:+d} Frames"])
+        r.expect_osd(name, text, 2, ID_GALINT, ["GALINT", f"{galint:+d}f"])
     else:
         no_osd(r, name, text, 2, ID_GALINT, "over 24 vulnerable frames (no OSD shown)")
     m = LEDGE.findall(text)
@@ -1417,7 +1417,7 @@ def sc_lcancel_exact(r, before, name, act_after=None):
     if jab != e + act_after:
         raise OsdError(f"{name}: jab on {jab}, scripted on {e + act_after} (earliest jump {e}, landing status "
                        f"left on {out})")
-    r.expect_osd(name + "-actoolag", text, 1, ID_ACT_OOLAG, ["Post-Lag", f"Frame {jab - e + 1}"])
+    r.expect_osd(name + "-actoolag", text, 1, ID_ACT_OOLAG, ["Act OoWait", f"Frame {jab - e + 1}"])
     r.note(f"{name}: landing on {land}, earliest jump {e}, landing status left on {out}")
     return lc > 0, lag
 
@@ -1578,7 +1578,7 @@ def sc_actoolag(r, kind, delay, name, shot=False, turn=False, from_wait=False):
     if not shown:
         no_osd(r, name, text, 1, ID_ACT_OOLAG, f"{kind} landing ({status:#x} from {before:#x}), jump on frame {n}")
         return n
-    head = "Autocancel" if kind == "autocancel" else "Post-Lag"
+    head = "Act OoAutocancel" if kind == "autocancel" else "Act OoWait"
     r.expect_osd(name, text, 1, ID_ACT_OOLAG, [head, f"Frame {n}"])
     if shot:
         r.check_color(r.shots[-1], 1, GREEN if n == 1 else RED, name)
@@ -1619,7 +1619,7 @@ def sc_actoos_exact(r, delay, drop, name):
         # GuardOff (shield drop) is not counted as an OoS action.
         no_osd(r, name, text, 2, ID_ACTOOS, "a shield drop and no action after it")
     else:
-        r.expect_osd(name, text, 2, ID_ACTOOS, ["OoS Action", f"Frame {n}"])
+        r.expect_osd(name, text, 2, ID_ACTOOS, ["Act OoS", f"Frame {n}"])
         r.check_color(r.shots[-1], 2, GREEN if n == 1 else WHITE, name)
     # Frame advantage: the defender's frame is its first frame out of
     # shield stun whether it acts on that frame or not.
@@ -1700,7 +1700,7 @@ def sc_actoohitstun_exact(r, delay, name):
     js = entered(rows, "c", JUMP_SQUAT)
     if js != f0 + delay:
         raise OsdError(f"{name}: jumped on {js}, scripted {f0 + delay}")
-    r.expect_osd(name, text, 2, ID_ACT_OOHITSTUN, ["Out of Hitstun", f"Frame {js - f0 + 1}"])
+    r.expect_osd(name, text, 2, ID_ACT_OOHITSTUN, ["Act OoHitstun", f"Frame {js - f0 + 1}"])
     return js - f0 + 1
 
 
@@ -1810,9 +1810,9 @@ def sc_ledgedash_perfect(r, name):
         raise OsdError(f"{name}: left CliffWait on {left}, actionable on the ground {landed}")
     xlu = rows[landed]["c"]["xlu"]
     galint = xlu if xlu > 0 else -(landed - max(k for k in range(landed) if rows[k]["c"]["xlu"] > 0))
-    r.expect_osd(name + "-cliffwait", text, 2, ID_CLIFFWAIT, ["Ledge Hang", "3 Frames"])
+    r.expect_osd(name + "-cliffwait", text, 2, ID_CLIFFWAIT, ["Ledge Hang", "3f"])
     if galint >= -24:
-        r.expect_osd(name, text, 2, ID_GALINT, ["GALINT", f"{galint:+d} Frames"])
+        r.expect_osd(name, text, 2, ID_GALINT, ["GALINT", f"{galint:+d}f"])
     else:
         no_osd(r, name, text, 2, ID_GALINT, "over 24 vulnerable frames (no OSD shown)")
     m = LEDGE.findall(text)
@@ -2216,10 +2216,10 @@ def sc_grab(r, mash, name, off=False):
     want = []
     for k, n in enumerate(held, 1):
         c = rows[n]["c"]["clatter"]
-        want.append(["Grab Escape", f"Timer: {int(f32(c + 0.5))}", f"{f32(f32(start - c) / k):.1f} / frame"])
+        want.append(["Mash Out", f"{int(f32(c + 0.5))}f ({f32(f32(start - c) / k):.1f}/f)"])
     if start > 0.0:
         optimal = max(1, int(f32(f32(start + 16.999) / 17.0)))
-        want.append(["Grab Escape", f"Frames {len(held)} / {optimal}", f"{f32(start / len(held)):.1f} / frame"])
+        want.append(["Mash Out", f"{len(held)}/{optimal}f ({f32(start / len(held)):.1f}/f)"])
     got = r.messages(text, 2, ID_GRAB_BREAKOUT)
     if got != want:
         bad = next((k for k in range(min(len(got), len(want))) if got[k] != want[k]), min(len(got), len(want)))

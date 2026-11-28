@@ -299,8 +299,8 @@ def sc_ledge_5_grab(emu, notes, shots, has_d3d):
     log6 = emu.log_text()[pos_before_6:]
     osds6 = [(int(p), int(wid), txt) for p, wid, txt in OSD_RE.findall(log6)]
     notes.append(f"grab #6 immediate OSDs: {osds6}")
-    if not any(p == 1 and wid == ID_GALINT and txt == "Ledge Limit | Grab 6/5" for p, wid, txt in osds6):
-        fails.append(f"grab #6 missing immediate Ledge Limit OSD; got {osds6}")
+    if not any(p == 1 and wid == ID_GALINT and txt == "Ledgegrab Limit | Grab 6/5" for p, wid, txt in osds6):
+        fails.append(f"grab #6 missing immediate Ledgegrab Limit OSD; got {osds6}")
 
     # Now ledgedash onto FD from grab #6!
     pos_ld = len(emu.log_text())

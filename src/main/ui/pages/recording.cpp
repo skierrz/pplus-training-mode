@@ -128,7 +128,7 @@ namespace pages {
         TM_REC_CHOICE("Playback Takeover", recording.takeover, kTakeover, 3, 0, NULL, record::positionsSaved),
         TM_REC_TOGGLE("Start On Input", recording.startOnFirstInput, 0, record::positionsSaved),
         TM_REC_FUNC("Re-Save Positions", record::resavePositions, record::positionsSaved),
-        TM_REC_FUNC("Prune Positions", record::prunePositions, record::positionsSaved),
+        TM_REC_FUNC("Trim Recording", record::prunePositions, record::positionsSaved),
         TM_ROW(::tm::ui::kKindFunc, ::tm::ui::kFlagHideWhenDisabled, 0, 0, 0, 0, "Delete Positions",
                record::g_deletePosLabel, record::deletePositionsPressed, record::positionsSaved),
         TM_REC_FUNC("Export Recording", storage::exportRecording, storage::exportAvailable)

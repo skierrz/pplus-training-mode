@@ -204,10 +204,10 @@ namespace pages {
         TM_OLI_SCR_CHOICE("Start Slot 2", TM_OLI_SCR(startSlot) + 1, kOlimarStartSlot, main::kOlimarStartSlotCount, olimarScratchChanged),
         TM_OLI_SCR_CHOICE("Start Slot 3", TM_OLI_SCR(startSlot) + 2, kOlimarStartSlot, main::kOlimarStartSlotCount, olimarScratchChanged),
         TM_OLI_SCR_CHOICE("Start Slot 4", TM_OLI_SCR(startSlot) + 3, kOlimarStartSlot, main::kOlimarStartSlotCount, olimarScratchChanged),
-        TM_OLI_PRESET_CHOICE("Preset D-Up", TM_OLI_SCR(dpadPreset) + 0),
-        TM_OLI_PRESET_CHOICE("Preset D-Down", TM_OLI_SCR(dpadPreset) + 1),
-        TM_OLI_PRESET_CHOICE("Preset D-Left", TM_OLI_SCR(dpadPreset) + 2),
-        TM_OLI_PRESET_CHOICE("Preset D-Right", TM_OLI_SCR(dpadPreset) + 3)
+        TM_OLI_PRESET_CHOICE("Preset D-Pad Up", TM_OLI_SCR(dpadPreset) + 0),
+        TM_OLI_PRESET_CHOICE("Preset D-Pad Down", TM_OLI_SCR(dpadPreset) + 1),
+        TM_OLI_PRESET_CHOICE("Preset D-Pad Left", TM_OLI_SCR(dpadPreset) + 2),
+        TM_OLI_PRESET_CHOICE("Preset D-Pad Right", TM_OLI_SCR(dpadPreset) + 3)
     };
 #undef TM_OLI_BIT
 #undef TM_OLI_SCR_CHOICE

@@ -84,7 +84,7 @@ namespace extra {
         {
             if (ov.preset == 1)
             {
-                return copyStr(buf, cap, "ProjectPunch");
+                return copyStr(buf, cap, "Standard");
             }
             return activeOrOff(buf, cap, countOverlayActive(ov), "Off");
         }

@@ -325,7 +325,7 @@ def collect_entries() -> list[tuple[str, bytes]]:
     entries.append(("ov_names", b"".join(x.encode("ascii") + b"\x00" for x in [
         "Preset", "Actionable", "Hitstun", "Invincible", "Ledge Actionable", "Missed L-Cancel",
         "Can Fastfall", "Autocancel", "Crouch", "Wait", "Walk", "Dash", "Run", "Full Hop",
-        "Short Hop", "IASA", "Shield Stun"
+        "Short Hop", "IASA", "Shieldstun"
     ])))
 
     # 9. recording.cpp: 7 label tables + 9+9 row names
@@ -394,7 +394,7 @@ def collect_entries() -> list[tuple[str, bytes]]:
         ("rev_wgt", b"Slot 2 Chance\x00"),
         ("rec_save", b"Save Positions\x00"),
         ("rec_restore", b"Restore Positions\x00"),
-        ("pool_nothing", b"Nothing (Wait)\x00"),
+        ("pool_nothing", b"Do Nothing\x00"),
     ]
 
     return entries

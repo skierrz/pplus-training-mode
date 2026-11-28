@@ -13,9 +13,9 @@ namespace pages {
 #ifndef __MWERKS__
     static const char* const kValues[kInfoValueCount] = {
         "None", "Position", "State Name", "State Frame", "Velocity - Self", "Velocity - KB", "Velocity - Total",
-        "Engine LStick", "System LStick", NA "Engine CStick", "System CStick", "Engine Trigger", "System Trigger",
-        "Ledgegrab Timer", "Intangibility", "Hitlag", "Hitstun", "Shield Health", "Shield Stun", "Grip Strength",
-        "ECB Lock", "ECB Bottom", "Jumps", "Walljumps", "Can Walljump", NA "Jab Counter", "Line Info",
+        "Analog Stick (Game)", "Analog Stick (Raw)", NA "C-Stick (Game)", "C-Stick (Raw)", "Trigger (Game)", "Trigger (Raw)",
+        "Ledgegrab Timer", "Intangibility Timer", "Hitlag", "Hitstun", "Shield Health", "Shieldstun", "Grab Release Timer",
+        "ECB Lock", "ECB Bottom", "Jumps", "Walljumps", "Can Walljump", NA "Jab Counter", "Stage Collision",
         "Blastzone X", "Blastzone Y", "Damage", "Subaction", "Cancel Flags", "Actionable", "Airborne", "Last Hit",
         "Actionable In", "Wall Cling"
     };

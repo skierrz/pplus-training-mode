@@ -182,7 +182,7 @@ TEST(drill_hud, ledgedash_10_rep_set_opens_modal_and_tracks_best)
     ledge.seq++;
     ledge.last.outcome = kLedgeOutcomeSd;
     CHECK(drillHudStep(hud, f));
-    CHECK(strcmp(hud.lastFeedback, "LEDGESLIP / SD") == 0);
+    CHECK(strcmp(hud.lastFeedback, "SD") == 0);
     CHECK_EQ(10, static_cast<int>(hud.repsDone));
     CHECK_EQ(7, static_cast<int>(hud.repsHit));
     CHECK_EQ(1, static_cast<int>(hud.modalOpen));
@@ -301,7 +301,7 @@ TEST(drill_hud, wavedash_and_lcancel_grading_and_late_upgrade)
     CHECK_EQ(3, static_cast<int>(lcHud.repsDone));
     CHECK_EQ(1, static_cast<int>(lcHud.repsHit));
     CHECK_EQ(1, static_cast<int>(lcHud.alcNotice));
-    CHECK(strcmp(lcHud.lastFeedback, "AUTO L-CANCEL ON") == 0);
+    CHECK(strcmp(lcHud.lastFeedback, "ALC RULE ON") == 0);
 }
 
 TEST(drill_hud, hover_ps_and_split_pplus_tech_drills)
@@ -319,7 +319,7 @@ TEST(drill_hud, hover_ps_and_split_pplus_tech_drills)
     CHECK(!drillHudStep(fdHud, ff));
     CHECK_EQ(static_cast<int>(kDrillGradeWarn), static_cast<int>(fdHud.lastGrade));
     CHECK_EQ(1, static_cast<int>(fdHud.alcNotice));
-    CHECK(strcmp(fdHud.lastFeedback, "PICK PEACH/MEWTWO/DJC") == 0);
+    CHECK(strcmp(fdHud.lastFeedback, "PICK FLOAT / DJC CAST") == 0);
     ff.ineligibleFighter = false;
 
     fd.stats.fcAttempts++;
@@ -464,7 +464,7 @@ TEST(drill_hud, stage4c_all_seven_challenges_modes_timed60_and_bests)
 
         f.ineligibleFighter = true;
         CHECK(!drillHudStep(hud, f));
-        CHECK(strcmp(hud.lastFeedback, "PICK SPACIE/PK/M2/LUC") == 0);
+        CHECK(strcmp(hud.lastFeedback, "PICK CANCEL CAST") == 0);
         f.ineligibleFighter = false;
 
         // Cycle Free -> 10-Rep -> 20-Rep -> 60s Timed -> Free.
@@ -638,7 +638,7 @@ TEST(drill_hud, stage4c_all_seven_challenges_modes_timed60_and_bests)
         rf.lastFhOutcome = kFhCcFloorhugCancel;
         rf.lastHitstunSaved = 9;
         CHECK(drillHudStep(hud, f));
-        CHECK(strcmp(hud.lastFeedback, "CC / ASDI-DN -9f") == 0);
+        CHECK(strcmp(hud.lastFeedback, "CC / ASDI-DOWN -9f") == 0);
         CHECK_EQ(1u, static_cast<unsigned>(hud.totalHit));
         drillHudFormatHighlight(hud, hl, sizeof(hl));
         CHECK(strcmp(hl, "9f") == 0);
@@ -646,7 +646,7 @@ TEST(drill_hud, stage4c_all_seven_challenges_modes_timed60_and_bests)
         rf.out.fhReps = 2;
         rf.lastFhOutcome = kFhMissedFloorhug;
         CHECK(drillHudStep(hud, f));
-        CHECK(strcmp(hud.lastFeedback, "MISSED ASDI-DN") == 0);
+        CHECK(strcmp(hud.lastFeedback, "MISSED ASDI-DOWN") == 0);
     }
 
     // 7. Snake Infinite Recovery: ineligible warning, C4 refresh hit, recovery completed.

@@ -68,7 +68,7 @@ SHOT_DELAY = 10      # frames from the OSD message to its screenshot
 # Sides has each player's newest box centred at (SIDES_X[player], BOX_Y);
 # 124 x 46, narrowed by 0.75 on 16:9. Message colours (src/main/ui/osd.h).
 SIDES_X = [96.0, 245.0, 395.0, 544.0]
-BOX_Y, BOX_W, BOX_H = 366.0, 124.0, 46.0
+BOX_Y, BOX_W, BOX_H = 366.0, 96.0, 40.0
 GREEN, RED, WHITE = (74, 222, 128), (255, 148, 138), (241, 245, 249)
 
 ADV = re.compile(r"advantage: P(\d)(b?) -> P(\d)(b?) on (hit|shield) ([+-]\d+) \(hit (\d+), attacker (\d+) "
@@ -323,7 +323,7 @@ class Runner:
         else:
             want_id = ID_FRAME_ADVANTAGE if exp["shield"] else ID_FRAME_ADVANTAGE_HIT
             shown, lines = self.message(text_idle, sc["players"][0], want_id)
-            title, fmt = ("Shield Adv.", "{:+d} f") if exp["shield"] else ("Hit Adv.", "{:+d} f")
+            title, fmt = ("Shield Adv.", "{:+d}f") if exp["shield"] else ("Hit Adv.", "{:+d}f")
             # A value shown at the hit that the measurement corrects comes
             # back marked "Actual:".
             if lines not in ([title, fmt.format(exp["value"])], [title, "Actual: " + fmt.format(exp["value"])]):

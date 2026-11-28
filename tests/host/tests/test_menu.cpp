@@ -659,7 +659,7 @@ TEST(lab_menu, seven_top_level_categories_and_subpage_placement)
     CHECK_EQ(ui::pages::P_CPU_DEFENSE, cpuP.options[8].max);
 
     const ui::Page& defP = ui::pages::kCpuDefense;
-    CHECK(strcmp(defP.options[defP.count - 1].name, "Status Mash") == 0);
+    CHECK(strcmp(defP.options[defP.count - 1].name, "Bury / Stun Mash") == 0);
 
     const ui::Page& osdP = ui::pages::kOsdMenu;
     REQUIRE(osdP.count == 8);
@@ -2040,7 +2040,7 @@ TEST(lab_menu, stream1_combo_lab_inline_rows_on_scenarios)
     const ui::Page& scen = ui::pages::kScenarios;
     static const char* const kExpectedComboLab[11] = {
         "Preset", "Auto-Reset", "Side",
-        "Post-Hitstun", "Reset Delay", "Trajectory DI", "Tech Option", "Reset P1 Position", "Noclip Reset",
+        "Combo Escape", "Reset Delay", "DI", "Tech Option", "Reset P1 Position", "Noclip Reset",
         "Reset Now", "More Combo Options"
     };
     int vis = 0;

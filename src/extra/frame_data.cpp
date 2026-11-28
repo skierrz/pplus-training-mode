@@ -1774,7 +1774,7 @@ namespace extra {
         if (wanted && inRange)
         {
             osd::post(att->playerNo, osd::kIdFrameAdvantage, osd::frameAdvantageColor(p.value),
-                      "Shield Adv.\n%+d f", p.value);
+                      "Shield Adv.\n%+df", p.value);
             p.shown = true;
         }
     }
@@ -1807,7 +1807,7 @@ namespace extra {
             // The message shown at the hit was wrong: the measured value
             // takes its place, and says that it is the measured one.
             osd::post(r.attackerPlayer, osd::kIdFrameAdvantage, osd::frameAdvantageColor(r.value),
-                      "Shield Adv.\nActual: %+d f", r.value);
+                      "Shield Adv.\nActual: %+df", r.value);
         }
         return true;
     }

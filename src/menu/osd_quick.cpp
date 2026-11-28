@@ -57,8 +57,8 @@ namespace osdQuick {
     static const char* const kPositions[] = {"HUD", "Sides", "Top Left", "Top Right"};
     static const char* const kWho[] = {"Off", "P1", "CPU", "Both"};
     static const char* const kFrameMeter[] = {"Off", "P1 Top", "CPU Top"};
-    static const char* const kTiming[] = {"Off", "All", "L-Cancel", "Wavedash", "Act-Out"};
-    static const char* const kSparkle[] = {"Off", "Perfect Wavedash", "Shorthop", "Both"};
+    static const char* const kTiming[] = {"Off", "All", "L-Cancel", "Wavedash", "Actionable"};
+    static const char* const kSparkle[] = {"Off", "Perfect Wavedash", "Short Hop", "Both"};
 
     enum RowKind { kKindChoice = 0, kKindInt = 1, kKindToggle = 2, kKindSub = 3 };
     enum DataSrc { kSrcOsd = 0, kSrcDisplay = 1, kSrcGeneral = 2, kSrcTechOsd = 3, kSrcNone = 4 };
@@ -94,7 +94,7 @@ namespace osdQuick {
         {"Wavedash",            kKindToggle, kSrcOsd,     TM_QOFF(wavedash),              0, 1,              NULL},
         {"L-Cancel",            kKindToggle, kSrcOsd,     TM_QOFF(lCancel),               0, 1,              NULL},
         {"Ledgedash Info",      kKindToggle, kSrcOsd,     TM_QOFF(ledgedashInfo),         0, 1,              NULL},
-        {"Act OoS Frame",       kKindToggle, kSrcOsd,     TM_QOFF(actOos),                0, 1,              NULL},
+        {"Act OoS",             kKindToggle, kSrcOsd,     TM_QOFF(actOos),                0, 1,              NULL},
         {"Shield Advantage",    kKindToggle, kSrcOsd,     TM_QOFF(frameAdvantage),        0, 1,              NULL},
         {"Hit Advantage",       kKindToggle, kSrcOsd,     TM_QOFF(frameAdvantageOnHit),   0, 1,              NULL},
         {"Advantage Tolerance", kKindInt,    kSrcOsd,     TM_QOFF(advantageTolerance),    0, 5,              NULL},
@@ -109,7 +109,7 @@ namespace osdQuick {
         {"SDI Inputs",          kKindToggle, kSrcOsd,     TM_QOFF(sdi),                   0, 1,              NULL},
         {"Tech Lockout",        kKindToggle, kSrcOsd,     TM_QOFF(lockoutTimers),         0, 1,              NULL},
         {"Combo Counter",       kKindToggle, kSrcOsd,     TM_QOFF(comboCounter),          0, 1,              NULL},
-        {"Grab Escape",         kKindToggle, kSrcOsd,     TM_QOFF(grabBreakout),          0, 1,              NULL},
+        {"Mash Out",            kKindToggle, kSrcOsd,     TM_QOFF(grabBreakout),          0, 1,              NULL},
         {"Item Throw",          kKindToggle, kSrcOsd,     TM_QOFF(itemThrow),             0, 1,              NULL},
         {"Max OSDs",            kKindInt,    kSrcOsd,     TM_QOFF(maxMessages),           1, osd::kPerPlayer, NULL}
     };
@@ -118,10 +118,10 @@ namespace osdQuick {
         "Apply Essentials, Movement, Defense, or Custom 1-3.",
         "Where OSD notifications appear during matches.",
         "Live GameCube stick and button overlays.",
-        "SF6-style frame activity timeline strip.",
+        "Live startup, active, and lag frame strip.",
         "Draw attack, grab, shield, and hurtbox bubbles.",
         "Floating timing bar above fighters.",
-        "Visual flash on Frame-1 Wavedash or Shorthop.",
+        "Visual flash on Frame-1 Wavedash or Short Hop.",
         "Open all 20 individual OSDs, Max OSDs, and Tolerance."
     };
 #undef TM_QOFF

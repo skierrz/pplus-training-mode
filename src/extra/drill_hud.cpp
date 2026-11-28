@@ -246,13 +246,13 @@ namespace extra {
                 const char* from;
                 const char* to;
             } kMap[] = {
-                {"CC / ASDI-DN ", "CC "},      {"PERFECT CANCEL ", "Perfect "},
+                {"CC / ASDI-DOWN ", "ASDI-Down "}, {"PERFECT CANCEL ", "Perfect "},
                 {"GATLING DACUS ", "Gatling "}, {"SWEETSPOT ", "Sweet "},
                 {"INSTANT DJC ", "DJC "},       {"C4 REFRESH ", "C4 "},
                 {"NADE REFRESH ", "Nade "},     {"PERFECT ESC ", "Perfect "},
                 {"RECOVERED ", "Clear "},       {"COURSE ", "Clear "},
-                {"HIGH OVERSHOOT", "Overshoot"}, {"MISSED ASDI-DN", "Missed"},
-                {"BROKEN TUMBLE", "Tumble"},    {"SD / MISSED LEDGE", "SD / Miss"},
+                {"HIGH OVERSHOOT", "Overshoot"}, {"MISSED ASDI-DOWN", "Missed"},
+                {"CAN'T CC (TUMBLE)", "Tumble"}, {"SD / MISSED LEDGE", "SD / Miss"},
                 {"ASDI-DOWN TECH", "ASDI Tech"}, {"TRUE PUNISH!", "Punish!"},
                 {"DROPPED FLOAT", "Dropped"},   {"FLOAT CANCEL", "Float Ok"},
                 {"HOVER CANCEL", "Hover Ok"},   {"TURNAROUND B", "Turn-B"},
@@ -323,7 +323,7 @@ namespace extra {
             }
             if (st.alcNotice)
             {
-                snprintf(val0, sizeof(val0), d == drills::kDrillLCancel ? "Auto LC On" : "Check Cast");
+                snprintf(val0, sizeof(val0), d == drills::kDrillLCancel ? "ALC Rule On" : "Check Cast");
             }
             else
             {
@@ -432,7 +432,7 @@ namespace extra {
                     }
                     else if (r.outcome == kWdMissUpwardAirdodge)
                     {
-                        snprintf(val0, sizeof(val0), "Air Dodge");
+                        snprintf(val0, sizeof(val0), "Airdodge");
                         col0 = kHudRed;
                     }
                     else if (r.outcome == kWdMissZairTether)
@@ -515,7 +515,7 @@ namespace extra {
                     else if (r.outcome == kLcSuccessAuto)
                     {
                         ptrCell = 4 + hitlagExt + 3;
-                        snprintf(val0, sizeof(val0), "Auto ON");
+                        snprintf(val0, sizeof(val0), "ALC Rule On");
                         col0 = kHudWarn;
                     }
                     else if (r.outcome == kLcAutoCanceled)
@@ -573,7 +573,7 @@ namespace extra {
                         col0 = kHudGreen;
                         const char* typeStr = r.psDropUsed ? "PS-Drop"
                                                            : (r.outcome == kPsReflect ? "Reflect"
-                                                                                      : (r.lightToHard ? "Light-Hard"
+                                                                                      : (r.lightToHard ? "Light->Hard"
                                                                                                        : "Physical"));
                         snprintf(val1, sizeof(val1), "%s", typeStr);
                     }
@@ -582,7 +582,7 @@ namespace extra {
                         ptrCell = 5;
                         snprintf(val0, sizeof(val0), "Buffered");
                         col0 = kHudWarn;
-                        snprintf(val1, sizeof(val1), "No Hard");
+                        snprintf(val1, sizeof(val1), "No Hard Press");
                     }
                     else if (r.outcome == kPsMissEarly)
                     {

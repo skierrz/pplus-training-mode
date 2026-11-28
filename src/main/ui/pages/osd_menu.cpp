@@ -18,7 +18,7 @@ namespace pages {
     TM_LABELS_ASSERT(kPosition, osd::kPositionCount, tm_osd_positions_match);
 
     // In main::TimingMeterMode order (main/settings.h).
-    TM_LABELS_BEGIN(kTimingMeter) TM_L("Off") TM_L("All") TM_L("L-Cancel") TM_L("Wavedash") TM_L("Act-Out") TM_LABELS_END
+    TM_LABELS_BEGIN(kTimingMeter) TM_L("Off") TM_L("All") TM_L("L-Cancel") TM_L("Wavedash") TM_L("Actionable") TM_LABELS_END
     TM_LABELS_ASSERT(kTimingMeter, main::kTimingMeterCount, tm_timing_meter_labels_match);
 
     // In main::OsdPreset order (main/settings.h).
@@ -30,7 +30,7 @@ namespace pages {
     TM_LABELS_ASSERT(kOsdSaveTargets, main::kOsdCustomSlotCount, tm_osd_save_targets_match);
 
     // In main::TechSparkleMode order (main/settings.h).
-    TM_LABELS_BEGIN(kTechSparkle) TM_L("Off") TM_L("Perfect Wavedash") TM_L("Shorthop") TM_L("Both") TM_LABELS_END
+    TM_LABELS_BEGIN(kTechSparkle) TM_L("Off") TM_L("Perfect Wavedash") TM_L("Short Hop") TM_L("Both") TM_LABELS_END
     TM_LABELS_ASSERT(kTechSparkle, main::kTechSparkleCount, tm_tech_sparkle_labels_match);
 #endif
 
@@ -248,7 +248,7 @@ namespace pages {
         TM_TOGGLE("Wavedash", osd.wavedash, 1, osdRowEdited),
         TM_TOGGLE("L-Cancel", osd.lCancel, 1, osdRowEdited),
         TM_TOGGLE("Ledgedash Info", osd.ledgedashInfo, 1, osdRowEdited),
-        TM_TOGGLE("Act OoS Frame", osd.actOos, 1, osdRowEdited),
+        TM_TOGGLE("Act OoS", osd.actOos, 1, osdRowEdited),
         TM_TOGGLE("Shield Advantage", osd.frameAdvantage, 1, osdRowEdited),
         TM_TOGGLE("Hit Advantage", osd.frameAdvantageOnHit, 1, osdRowEdited),
         TM_ROW(kKindInt, kFlagHideWhenDisabled, TM_FIELD(osd.advantageTolerance), 0, 5, 1, "Advantage Tolerance",
@@ -265,7 +265,7 @@ namespace pages {
         TM_TOGGLE("SDI Inputs", osd.sdi, 0, osdRowEdited),
         TM_TOGGLE("Tech Lockout", osd.lockoutTimers, 0, osdRowEdited),
         TM_TOGGLE("Combo Counter", osd.comboCounter, 0, osdRowEdited),
-        TM_TOGGLE("Grab Escape", osd.grabBreakout, 0, osdRowEdited),
+        TM_TOGGLE("Mash Out", osd.grabBreakout, 0, osdRowEdited),
         TM_TOGGLE("Item Throw", osd.itemThrow, 0, osdRowEdited),
         TM_ROW(kKindToggle, 0, TM_FIELD(cpu.options.techTrackerOsd), 0, 1, 0, "P+ Tech OSD", NULL, osdRowEdited,
                main::extraLoaded)

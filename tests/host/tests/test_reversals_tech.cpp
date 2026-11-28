@@ -393,7 +393,7 @@ TEST(reversals_tech, tech_tracker_detectors_cover_verified_pplus_families)
     addTtEv(d2, kTtStAttackHi4Start, kTtStAttackDash);
     CHECK(stepFighterTech(d2, w, st, label));
     CHECK_EQ(1u, st.successes);
-    CHECK(label != NULL && strcmp(label, "Snake DACUS") == 0);
+    CHECK(label != NULL && strcmp(label, "DACUS") == 0);
 
     // 8. Knuckles (0x2D) Wall Climb -> Walljump: Attach_Wall (0x68) -> Wall_Jump (0x67)
     techWatchReset(w);
