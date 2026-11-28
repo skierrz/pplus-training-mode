@@ -15,6 +15,21 @@ namespace cpu {
         return status == game::kStatusGuardDamage
                && (hitlag > prevHitlag || shieldStun > prevShieldStun || prevStatus != game::kStatusGuardDamage);
     }
+
+    inline bool canSpoofWallTech(bool onCliff, bool hasFloor, const CpuOptions& c, s32 now, s32 lastPress,
+                                 s32 techFrom, s32 techGap)
+    {
+        if (onCliff || hasFloor || c.tech == kTechNone || c.techTrap != kTrapOff)
+        {
+            return false;
+        }
+        if (c.tech == kTechRandom && (c.techChance[0] | c.techChance[1] | c.techChance[2]) == 0
+            && c.techChance[3] > 0)
+        {
+            return false;
+        }
+        return now >= techFrom && now - lastPress >= techGap;
+    }
 }
 }
 
