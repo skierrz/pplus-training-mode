@@ -460,9 +460,9 @@ def check_menu(closed_path, open_path, xscale, cursor_row, count, disabled_rows=
     add("border colour", BORDER, p, close(p, BORDER, tol_colour))
 
     # Sample header, rail, and right-pane gutters guaranteed free of text and highlights.
-    # Depth >= 1 widens the rail header ribbon from 292 to 472; TM_VERSION_MARK starts at ~487 in 16:9 (~497 in 4:3),
-    # leaving the clean charcoal gutter at 474..484.
-    title_rect = (474, 34, 484, 58) if subpage else (340, 34, 440, 58)
+    # Depth >= 1 widens the rail header ribbon to ~472; TM_VERSION_MARK sits centered in y=40..49,
+    # leaving the clean charcoal band at x=480..580, y=52..59 clear in both 16:9 and 4:3.
+    title_rect = (480, 52, 580, 59) if subpage else (340, 34, 440, 58)
     for name, top_c, bot_c, band_y, want_alpha, rect in (
         ("title band", TITLE_TOP, TITLE_BOT, TITLE_Y, TITLE_ALPHA, title_rect),
         ("rail band", RAIL_TOP, RAIL_BOT, RAIL_Y, RAIL_ALPHA, (44, 356, 190, 364)),

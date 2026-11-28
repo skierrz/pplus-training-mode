@@ -2385,6 +2385,7 @@ def cmd_test_lab(rest):
 
                 step = "Start mode: OSD Menu scroll and toggle"
                 lab.menu_nav_to("OSDs > Individual OSDs")
+                lab.tap(["A"])
                 shot("restyle-osd-menu")
                 ps_row = lab.menu_select_row("Powershield")["row"]
                 lab.tap(["A"])

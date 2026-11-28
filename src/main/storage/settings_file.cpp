@@ -457,7 +457,6 @@ namespace storage {
         }
         else if (stats.grown + stats.reset > 0)
         {
-            s_state->force = 1;
             notice(kNoticeWarn, "Lab settings from an older version: new ones at defaults");
         }
     }

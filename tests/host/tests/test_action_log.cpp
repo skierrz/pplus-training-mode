@@ -322,4 +322,10 @@ TEST(action_log, sf6_dual_strip_phase_classification_advantage_and_ring_wrap)
     CHECK(sf6CellHasXlu(sf6CellAt(sfLedge, 0, 4)));
     CHECK_EQ(static_cast<int>(kSf6Galint), static_cast<int>(sf6CellKind(sf6CellAt(sfLedge, 0, 5))));
     CHECK_EQ(static_cast<int>(kSf6Empty), static_cast<int>(sf6CellKind(sf6CellAt(sfLedge, 0, 6))));
+
+    // Out-of-play fighters (Standby / Dead) stay matte empty even with global XLU active.
+    CHECK_EQ(static_cast<int>(kSf6Empty),
+             static_cast<int>(sf6ClassifyCell(kStatusStandby, true, false, false, false, false, true, false)));
+    CHECK_EQ(static_cast<int>(kSf6Empty),
+             static_cast<int>(sf6ClassifyCell(kStatusDead, false, false, false, false, false, true, false)));
 }

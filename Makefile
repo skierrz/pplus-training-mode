@@ -482,6 +482,9 @@ test-osds: install
 test-drills: install
 	$(Q)$(EMU) test-drills $(REL) $(DRILLS_ARGS)
 
+test-select: install
+	$(Q)$(EMU) test-select $(REL) $(SELECT_ARGS)
+
 # CPU_ARGS, e.g. CPU_ARGS="--only c1 counter-ground".
 test-cpu: install
 	$(Q)$(EMU) test-cpu $(REL) $(CPU_ARGS)

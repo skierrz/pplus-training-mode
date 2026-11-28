@@ -143,16 +143,16 @@ def run(emu, s, state):
     s.expect("menu", "launcher: A on Training Lab", lambda: press(["A"]), [CONFIRM])
     if nav.drill_list_state(emu) != "closed":
         raise SoundError("Training Lab did not close the launcher")
-    s.expect("menu", "CSS: B reopens launcher", lambda: press(["B"]), [OPEN])
+    s.expect("menu", "CSS: L+R reopens launcher", lambda: press(["L", "R"]), [OPEN])
+    emu.advance(20)
+    s.expect("menu", "launcher: Tap B closes to CSS", lambda: press(["B"]), [BACK])
+    if nav.drill_list_state(emu) != "closed":
+        raise SoundError("Tap B did not close the launcher")
+    s.expect("menu", "CSS: L+R reopens launcher (2)", lambda: press(["L", "R"]), [OPEN])
     emu.advance(20)
     s.expect("menu", "launcher: A on Training Lab (2)", lambda: press(["A"]), [CONFIRM])
     if nav.drill_list_state(emu) != "closed":
         raise SoundError("Training Lab did not close the launcher (2)")
-    s.expect("menu", "CSS: L+R reopens launcher", lambda: press(["L", "R"]), [OPEN])
-    emu.advance(20)
-    s.expect("menu", "launcher: A on Training Lab (3)", lambda: press(["A"]), [CONFIRM])
-    if nav.drill_list_state(emu) != "closed":
-        raise SoundError("Training Lab did not close the launcher (3)")
     in_css = s.counted
     if len(s.since(0)) != in_css:
         raise SoundError(f"{len(s.since(0))} sound lines on the character select, {in_css} of them from a press")
@@ -181,9 +181,8 @@ def run(emu, s, state):
     LT.write_u8(emu, lab, LT.SET_START_OPENS, 0)
     nav.pause_training(emu)
     emu.advance(20)
-    # Opens on Lab row 0 (Frame Advance) with options pane focused; B moves to rail (soft MOVE tick).
+    # Opens on left category rail (Lab highlighted).
     s.expect("ui", "lab menu: Z opens it", lambda: tap(["Z"]), [OPEN])
-    s.expect("ui", "lab menu: B focuses Draft C rail", lambda: tap(["B"]), [MOVE])
     s.expect("ui", "lab menu: stick up on first rail row", lambda: tap(stick=UP), [])
     s.expect("ui", "lab menu: down to Scenarios on rail", lambda: tap(stick=DOWN), [MOVE])
     s.expect("ui", "lab menu: back up to Lab on rail", lambda: tap(stick=UP), [MOVE])

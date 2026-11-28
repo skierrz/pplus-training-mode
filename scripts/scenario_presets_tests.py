@@ -246,8 +246,7 @@ def scenario_off_snapshot_restore(r, sb):
     # preset's temporary cpu.options / comboTrainer overrides as persisted changes
     # (no save attempt / no write-protect save error on the locked card).
     log_before_menu = r.emu.log_text()
-    r.emu.press(0, ["START"], frames=2, after=6)
-    r.emu.press(0, ["B"], frames=2, after=4)               # Focus Draft C rail (0 = Lab)
+    r.emu.press(0, ["START"], frames=2, after=6)           # Opens on Draft C rail (0 = Lab)
     r.emu.press(0, [], stick=LT.DOWN, frames=2, after=4)   # Rail 1 = Scenarios
     r.emu.press(0, ["A"], frames=2, after=6)               # Scenarios page (row 0 = Preset)
     r.emu.press(0, [], stick=LT.RIGHT, frames=2, after=6)  # Combo Lab

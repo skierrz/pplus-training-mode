@@ -165,6 +165,10 @@ namespace extra {
     inline u8 sf6ClassifyCell(int status, bool actionable, bool activeHitbox, bool inStun, bool sawActive,
                               bool activeGrab = false, bool intangible = false, bool fromLedge = false)
     {
+        if (status == game::kStatusStandby || status == game::kStatusDead)
+        {
+            return static_cast<u8>(kSf6Empty);
+        }
         u8 xluFlag = intangible ? static_cast<u8>(kSf6XluBit) : 0u;
         if (inStun)
         {

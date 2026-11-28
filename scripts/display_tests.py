@@ -68,7 +68,7 @@ SHOT_DELAY = 10      # frames from the OSD message to its screenshot
 # Sides has each player's newest box centred at (SIDES_X[player], BOX_Y);
 # 124 x 46, narrowed by 0.75 on 16:9. Message colours (src/main/ui/osd.h).
 SIDES_X = [96.0, 245.0, 395.0, 544.0]
-BOX_Y, BOX_W, BOX_H = 366.0, 96.0, 40.0
+BOX_Y, BOX_W, BOX_H = 360.0, 96.0, 46.0
 GREEN, RED, WHITE = (74, 222, 128), (255, 148, 138), (241, 245, 249)
 
 ADV = re.compile(r"advantage: P(\d)(b?) -> P(\d)(b?) on (hit|shield) ([+-]\d+) \(hit (\d+), attacker (\d+) "
@@ -268,7 +268,7 @@ class Runner:
         # positive green, zero white, negative red.
         colour = GREEN if value > 0 else RED if value < 0 else WHITE
         half = BOX_W * squeeze / 2
-        margin = 32.0 if squeeze >= 1.0 else 12.0
+        margin = 32.0 if squeeze >= 1.0 else 46.0
         cx = (margin + half) if player == 1 else (640.0 - margin - half)
 
         def count(x0, x1):

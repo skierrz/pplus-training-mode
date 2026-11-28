@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "extra/action_log_core.h"
+#include "extra/drill_practice_driver.h"
 #include "extra/hud_draw.h"
 #include "extra/pplus_collision.h"
 #include "main/display/display.h"
@@ -309,24 +310,27 @@ namespace extra {
         const game::Tracked* botRow = wantCpu && p2 != NULL ? p1 : p2;
         s_net->topIsCpu = (topRow != NULL && topRow->cpu) ? 1u : 0u;
         s_net->botIsCpu = (botRow != NULL && botRow->cpu) ? 1u : 0u;
-        int st0 = topRow != NULL ? static_cast<int>(topRow->cur.status) : 0;
-        bool act0 = topRow == NULL || topRow->cur.actionable != 0;
-        bool hit0 = trackedHasActiveHitbox(topRow);
-        bool grab0 = trackedHasActiveGrab(topRow);
-        bool xlu0 = trackedHasXlu(topRow);
-        bool ledge0 = trackedSawLedgeEvent(topRow);
-        bool stun0 = topRow != NULL
-                     && sf6IsDefenderStun(st0, topRow->cur.hitstun, topRow->cur.shieldStun, topRow->cur.hitReceived,
-                                          topRow->cur.shieldReceived);
-        int st1 = botRow != NULL ? static_cast<int>(botRow->cur.status) : 0;
-        bool act1 = botRow == NULL || botRow->cur.actionable != 0;
-        bool hit1 = trackedHasActiveHitbox(botRow);
-        bool grab1 = trackedHasActiveGrab(botRow);
-        bool xlu1 = trackedHasXlu(botRow);
-        bool ledge1 = trackedSawLedgeEvent(botRow);
-        bool stun1 = botRow != NULL
-                     && sf6IsDefenderStun(st1, botRow->cur.hitstun, botRow->cur.shieldStun, botRow->cur.hitReceived,
-                                          botRow->cur.shieldReceived);
+        bool standby = drillPracticeCpuInStandby();
+        const game::Tracked* topS = (standby && s_net->topIsCpu != 0u) ? NULL : topRow;
+        const game::Tracked* botS = (standby && s_net->botIsCpu != 0u) ? NULL : botRow;
+        int st0 = topS != NULL ? static_cast<int>(topS->cur.status) : 0;
+        bool act0 = topS == NULL || topS->cur.actionable != 0;
+        bool hit0 = trackedHasActiveHitbox(topS);
+        bool grab0 = trackedHasActiveGrab(topS);
+        bool xlu0 = trackedHasXlu(topS);
+        bool ledge0 = trackedSawLedgeEvent(topS);
+        bool stun0 = topS != NULL
+                     && sf6IsDefenderStun(st0, topS->cur.hitstun, topS->cur.shieldStun, topS->cur.hitReceived,
+                                          topS->cur.shieldReceived);
+        int st1 = botS != NULL ? static_cast<int>(botS->cur.status) : 0;
+        bool act1 = botS == NULL || botS->cur.actionable != 0;
+        bool hit1 = trackedHasActiveHitbox(botS);
+        bool grab1 = trackedHasActiveGrab(botS);
+        bool xlu1 = trackedHasXlu(botS);
+        bool ledge1 = trackedSawLedgeEvent(botS);
+        bool stun1 = botS != NULL
+                     && sf6IsDefenderStun(st1, botS->cur.hitstun, botS->cur.shieldStun, botS->cur.hitReceived,
+                                          botS->cur.shieldReceived);
         sf6PushDualFrame(s_net->sf6, game::trackerFrame(), st0, act0, hit0, stun0, st1, act1, hit1, stun1,
                          grab0, xlu0, ledge0, grab1, xlu1, ledge1);
         syncDebug(mode, slot);
