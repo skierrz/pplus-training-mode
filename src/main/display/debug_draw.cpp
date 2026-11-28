@@ -22,6 +22,7 @@ namespace display {
         kEcbPatch2 = 0x80137860,
         kDrawCollisionList = 0x80541F90,
         kCollisionList = 0x8049E57C,
+        kDebugDataReady = 0x805483FF,
         kSlotHit = 0xD8,
         kSlotAttack = 0x120,
         kSlotShield = 0x88,
@@ -56,6 +57,13 @@ namespace display {
     static u32 word(u32 address)
     {
         return *reinterpret_cast<const u32*>(address);
+    }
+
+    // P+ 3.2.1's DebugFileLoader (HOOK @ 0x800B08A0) sets 0x805483FF to 1 once
+    // /menu3/data.debug is loaded at 0x80548400 (capsule display lists + colours).
+    static bool debugDataReady()
+    {
+        return *reinterpret_cast<volatile const u8*>(kDebugDataReady) == 1;
     }
 
     // The target of the unconditional relative branch at `address`, or 0.
@@ -115,7 +123,7 @@ namespace display {
         {
             debugDrawCheck();
         }
-        return s_boxes;
+        return s_boxes && debugDataReady();
     }
 
     bool collisionAvailable()
@@ -124,7 +132,7 @@ namespace display {
         {
             debugDrawCheck();
         }
-        return s_collision;
+        return s_collision && debugDataReady();
     }
 
     // Calls fn(object) with r31 set to `r31Value` for the call.
