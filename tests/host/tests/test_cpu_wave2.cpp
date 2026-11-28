@@ -61,43 +61,37 @@ TEST(cpu_wave2, shield_hit_refreshed_detects_multihit_shieldstun_without_hitlag_
 
 TEST(cpu_wave2, wall_tech_spoof_gates_ledge_onstage_lockout_and_miss_random)
 {
-    const s32 kGap = 41;
     CpuOptions c = makeBaseOptions();
 
     // Valid offstage recovery with active tech option and no lockout allows spoof.
-    CHECK(canSpoofWallTech(false, false, c, 200, -1000, -1000, kGap));
+    CHECK(canSpoofWallTech(false, false, c, 200, -1000));
     c.tech = kTechAway;
-    CHECK(canSpoofWallTech(false, false, c, 200, -1000, -1000, kGap));
+    CHECK(canSpoofWallTech(false, false, c, 200, -1000));
     c.tech = kTechTowards;
-    CHECK(canSpoofWallTech(false, false, c, 200, -1000, -1000, kGap));
+    CHECK(canSpoofWallTech(false, false, c, 200, -1000));
     c.tech = kTechInPlace;
 
     // 1) Hanging on ledge (onCliff) blocks spoof.
-    CHECK(!canSpoofWallTech(true, false, c, 200, -1000, -1000, kGap));
-    CHECK(!canSpoofWallTech(true, true, c, 200, -1000, -1000, kGap));
+    CHECK(!canSpoofWallTech(true, false, c, 200, -1000));
+    CHECK(!canSpoofWallTech(true, true, c, 200, -1000));
 
     // 2) Onstage floor below fighter (hasFloor) blocks spoof.
-    CHECK(!canSpoofWallTech(false, true, c, 200, -1000, -1000, kGap));
+    CHECK(!canSpoofWallTech(false, true, c, 200, -1000));
 
     // 3) Tech None or Simulate Tech Trap blocks spoof.
     c.tech = kTechNone;
-    CHECK(!canSpoofWallTech(false, false, c, 200, -1000, -1000, kGap));
+    CHECK(!canSpoofWallTech(false, false, c, 200, -1000));
     c.tech = kTechInPlace;
     c.techTrap = kTrapEarliest;
-    CHECK(!canSpoofWallTech(false, false, c, 200, -1000, -1000, kGap));
+    CHECK(!canSpoofWallTech(false, false, c, 200, -1000));
     c.techTrap = kTrapLatest;
-    CHECK(!canSpoofWallTech(false, false, c, 200, -1000, -1000, kGap));
+    CHECK(!canSpoofWallTech(false, false, c, 200, -1000));
     c.techTrap = kTrapOff;
 
     // 4) Active techFrom window blocks spoof until now >= techFrom.
-    CHECK(!canSpoofWallTech(false, false, c, 199, -1000, 200, kGap));
-    CHECK(canSpoofWallTech(false, false, c, 200, -1000, 200, kGap));
-    CHECK(canSpoofWallTech(false, false, c, 210, -1000, 200, kGap));
-
-    // Active 40-frame guard lockout (lastPress) blocks spoof until now - lastPress >= 41.
-    CHECK(!canSpoofWallTech(false, false, c, 200, 160, -1000, kGap));
-    CHECK(!canSpoofWallTech(false, false, c, 200, 199, -1000, kGap));
-    CHECK(canSpoofWallTech(false, false, c, 201, 160, -1000, kGap));
+    CHECK(!canSpoofWallTech(false, false, c, 199, 200));
+    CHECK(canSpoofWallTech(false, false, c, 200, 200));
+    CHECK(canSpoofWallTech(false, false, c, 210, 200));
 
     // 5) Tech: Random with 100% miss weight blocks spoof; any non-miss weight
     // or all-zero uniform fallback still allows spoof.
@@ -106,24 +100,24 @@ TEST(cpu_wave2, wall_tech_spoof_gates_ledge_onstage_lockout_and_miss_random)
     c.techChance[1] = 0;
     c.techChance[2] = 0;
     c.techChance[3] = 100;
-    CHECK(!canSpoofWallTech(false, false, c, 200, -1000, -1000, kGap));
+    CHECK(!canSpoofWallTech(false, false, c, 200, -1000));
 
     c.techChance[3] = 1;
-    CHECK(!canSpoofWallTech(false, false, c, 200, -1000, -1000, kGap));
+    CHECK(!canSpoofWallTech(false, false, c, 200, -1000));
 
     // All-zero falls back to uniform 25% each in cpuWeighted -> not 100% miss.
     c.techChance[3] = 0;
-    CHECK(canSpoofWallTech(false, false, c, 200, -1000, -1000, kGap));
+    CHECK(canSpoofWallTech(false, false, c, 200, -1000));
 
     // Any positive non-miss chance allows spoof.
     c.techChance[0] = 1;
     c.techChance[3] = 99;
-    CHECK(canSpoofWallTech(false, false, c, 200, -1000, -1000, kGap));
+    CHECK(canSpoofWallTech(false, false, c, 200, -1000));
 
     c.techChance[0] = 0;
     c.techChance[2] = 20;
     c.techChance[3] = 80;
-    CHECK(canSpoofWallTech(false, false, c, 200, -1000, -1000, kGap));
+    CHECK(canSpoofWallTech(false, false, c, 200, -1000));
 }
 
 TEST(cpu_wave2, savestate_frame_rebasing_preserves_sentinels_and_step_alignment)

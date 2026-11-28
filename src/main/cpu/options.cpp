@@ -869,7 +869,7 @@ namespace cpu {
             bool hasFloor = !v.air || groundBetween(f, v.x, v.y + 4.0f, 0.0f, -kRayDown, floorY);
             if (onCliff || (v.air && (!hasFloor || recovering)))
             {
-                if (canSpoofWallTech(onCliff, hasFloor, c, now, lastPress, techFrom, kTechGap))
+                if (canSpoofWallTech(onCliff, hasFloor, c, now, techFrom))
                 {
                     spoofWallTechTrigger(f);
                 }

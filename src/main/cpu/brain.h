@@ -16,8 +16,7 @@ namespace cpu {
                && (hitlag > prevHitlag || shieldStun > prevShieldStun || prevStatus != game::kStatusGuardDamage);
     }
 
-    static inline bool canSpoofWallTech(bool onCliff, bool hasFloor, const CpuOptions& c, s32 now, s32 lastPress,
-                                        s32 techFrom, s32 techGap)
+    static inline bool canSpoofWallTech(bool onCliff, bool hasFloor, const CpuOptions& c, s32 now, s32 techFrom)
     {
         if (onCliff || hasFloor || c.tech == kTechNone || c.techTrap != kTrapOff)
         {
@@ -28,7 +27,7 @@ namespace cpu {
         {
             return false;
         }
-        return now >= techFrom && now - lastPress >= techGap;
+        return now >= techFrom;
     }
 
     // Frame number that the next game step's Brain::next() will observe from

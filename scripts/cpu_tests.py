@@ -6536,40 +6536,43 @@ def o_shield_multihit_stun(r):
     # 2) Multi-hit shield: P1 Mario Down-B (Mario Tornado) against shielding Fox
     # (also log Mario SH Dair) to verify consecutive Guard_Damage hits with
     # shieldStun refresh increment `hits` for Per-Hit Counters.
-    for mv_name, move_fn in (
-        ("Down-B", lambda i, rows: (r.emu.hold(0, buttons=["B"], stick=(128, 0)) if i == 25 else
-                                    (r.emu.neutral(0) if i == 28 else
-                                     (r.emu.hold(0, buttons=["B"]) if i in (32, 36, 40, 44) else
-                                      (r.emu.neutral(0) if i in (34, 38, 42, 46) else None))))),
-        ("SH Dair", lambda i, rows: (r.emu.hold(0, buttons=["X"]) if i == 25 else
-                                     (r.emu.neutral(0) if i == 26 else
-                                      (r.emu.hold(0, buttons=["A"], stick=(128, 0)) if i == 29 else
-                                       (r.emu.neutral(0) if i == 32 else None))))),
-    ):
-        r.load("near", on(behavior=BEHAVIOR["Shield"], infiniteShields=SHIELDS["On"], shieldHealth=60,
-                          counterShield=0, shieldTiming=SHIELD_TIMING["First Gap"]), percent=0)
-        tbl = bytearray([1])
-        for h_idx in range(10):
-            if h_idx < 3:
-                tbl += bytes([1, 0, 0, 0, 0, 0, 0])  # Disable hits 1..3
-            else:
-                tbl += bytes([2, 0, 0, SHIELD_ACTIONS["Grab"], 0, 0, 0])  # Custom Grab hit 4+
-        r.emu.h.call("write_mem", addr=r.opt.base + SET_CPU_TABLES, hex=tbl.hex())
-        pos = len(r.emu.log_text())
-        rows = r.record(110, players=(CPU, P1), each=move_fn, extras=True)
-        r.emu.neutral(0)
-        gd_rows = [(k, rows[k][CPU]["hitlag"], rows[k]["x"]["sstun"])
-                   for k in range(25, len(rows)) if rows[k][CPU]["status"] == STATUS["Guard_Damage"]]
-        stun_jumps_no_hl = 0
-        for idx in range(1, len(gd_rows)):
-            k0, hl0, ss0 = gd_rows[idx - 1]
-            k1, hl1, ss1 = gd_rows[idx]
-            if k1 == k0 + 1 and ss1 > ss0 and hl1 <= hl0:
-                stun_jumps_no_hl += 1
-        c_logs = [ln for ln in r.emu.log_text()[pos:].splitlines() if "cpu: P2 counter" in ln]
-        catch = first(rows, 25, lambda x: x[CPU]["status"] == STATUS["Catch"])
-        res.note(f"Mario {mv_name}: gd_rows={gd_rows[:30]}, jumps_hl<=prev={stun_jumps_no_hl}, "
-                 f"catch={catch}, logs={c_logs}")
+    try:
+        for mv_name, move_fn in (
+            ("Down-B", lambda i, rows: (r.emu.hold(0, buttons=["B"], stick=(128, 0)) if i == 25 else
+                                        (r.emu.neutral(0) if i == 28 else
+                                         (r.emu.hold(0, buttons=["B"]) if i in (32, 36, 40, 44) else
+                                          (r.emu.neutral(0) if i in (34, 38, 42, 46) else None))))),
+            ("SH Dair", lambda i, rows: (r.emu.hold(0, buttons=["X"]) if i == 25 else
+                                         (r.emu.neutral(0) if i == 26 else
+                                          (r.emu.hold(0, buttons=["A"], stick=(128, 0)) if i == 29 else
+                                           (r.emu.neutral(0) if i == 32 else None))))),
+        ):
+            r.load("near", on(behavior=BEHAVIOR["Shield"], infiniteShields=SHIELDS["On"], shieldHealth=60,
+                              counterShield=0, shieldTiming=SHIELD_TIMING["First Gap"]), percent=0)
+            tbl = bytearray([1])
+            for h_idx in range(10):
+                if h_idx < 3:
+                    tbl += bytes([1, 0, 0, 0, 0, 0, 0])  # Disable hits 1..3
+                else:
+                    tbl += bytes([2, 0, 0, SHIELD_ACTIONS["Grab"], 0, 0, 0])  # Custom Grab hit 4+
+            r.emu.h.call("write_mem", addr=r.opt.base + SET_CPU_TABLES, hex=tbl.hex())
+            pos = len(r.emu.log_text())
+            rows = r.record(110, players=(CPU, P1), each=move_fn, extras=True)
+            r.emu.neutral(0)
+            gd_rows = [(k, rows[k][CPU]["hitlag"], rows[k]["x"]["sstun"])
+                       for k in range(25, len(rows)) if rows[k][CPU]["status"] == STATUS["Guard_Damage"]]
+            stun_jumps_no_hl = 0
+            for idx in range(1, len(gd_rows)):
+                k0, hl0, ss0 = gd_rows[idx - 1]
+                k1, hl1, ss1 = gd_rows[idx]
+                if k1 == k0 + 1 and ss1 > ss0 and hl1 <= hl0:
+                    stun_jumps_no_hl += 1
+            c_logs = [ln for ln in r.emu.log_text()[pos:].splitlines() if "cpu: P2 counter" in ln]
+            catch = first(rows, 25, lambda x: x[CPU]["status"] == STATUS["Catch"])
+            res.note(f"Mario {mv_name}: gd_rows={gd_rows[:30]}, jumps_hl<=prev={stun_jumps_no_hl}, "
+                     f"catch={catch}, logs={c_logs}")
+    finally:
+        r.emu.h.call("write_mem", addr=r.opt.base + SET_CPU_TABLES, hex=bytes(CPU_TABLES_SIZE).hex())
     res.row("Multi-hit shield stun refresh triggers counter",
             "Catch after multi-hit shield", f"catch={catch}, jumps={stun_jumps_no_hl}",
             catch is not None)
@@ -6591,20 +6594,23 @@ def o_shield_multihit_aura(r):
             tbl += bytes([1, 0, 0, 0, 0, 0, 0])
         else:
             tbl += bytes([2, 0, 0, SHIELD_ACTIONS["Grab"], 0, 0, 0])
-    r.emu.h.call("write_mem", addr=r.opt.base + SET_CPU_TABLES, hex=tbl.hex())
-    pos = len(r.emu.log_text())
+    try:
+        r.emu.h.call("write_mem", addr=r.opt.base + SET_CPU_TABLES, hex=tbl.hex())
+        pos = len(r.emu.log_text())
 
-    def aura(i, rows):
-        if i == 15:
-            put_fighter(r, r.g.entry(P1), rows[-1][CPU]["x"] - 5.0, 0.0)
-            r.emu.hold(0, buttons=["B"])
-        elif i == 55:
-            r.emu.neutral(0)
-        if 16 <= i <= 55 and rows:
-            if rows[-1][CPU]["x"] - rows[-1][P1]["x"] > 6.0:
+        def aura(i, rows):
+            if i == 15:
                 put_fighter(r, r.g.entry(P1), rows[-1][CPU]["x"] - 5.0, 0.0)
-    rows = r.record(110, players=(CPU, P1), each=aura, extras=True)
-    r.emu.neutral(0)
+                r.emu.hold(0, buttons=["B"])
+            elif i == 55:
+                r.emu.neutral(0)
+            if 16 <= i <= 55 and rows:
+                if rows[-1][CPU]["x"] - rows[-1][P1]["x"] > 6.0:
+                    put_fighter(r, r.g.entry(P1), rows[-1][CPU]["x"] - 5.0, 0.0)
+        rows = r.record(110, players=(CPU, P1), each=aura, extras=True)
+        r.emu.neutral(0)
+    finally:
+        r.emu.h.call("write_mem", addr=r.opt.base + SET_CPU_TABLES, hex=bytes(CPU_TABLES_SIZE).hex())
     gd_rows = [(k, rows[k][CPU]["hitlag"], rows[k]["x"]["sstun"])
                for k in range(15, len(rows)) if rows[k][CPU]["status"] == STATUS["Guard_Damage"]]
     stun_jumps_no_hl = 0
