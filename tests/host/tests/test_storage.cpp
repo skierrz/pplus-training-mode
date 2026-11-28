@@ -3058,3 +3058,116 @@ TEST(settings_file, bests_and_osd_quick_oversized_newer_format_preserves_sequenc
     CHECK_EQ(0, host::fakes::heapBlocks(Heaps::Network));
     CHECK_EQ(0, host::fakes::heapBlocks(Heaps::MenuInstance));
 }
+
+// If a second edit queues s_again while a save is already in flight and the
+// player immediately exits the match, settingsDetach() finishes the in-flight
+// save and synchronously flushes the pending s_again edit, while respecting
+// DMA timeout / stale-job safety and always clearing s_again on detach.
+TEST(settings_file, detach_flushes_pending_second_save_and_handles_timeout)
+{
+    // 1. In-flight kFolder + rapid edit (s_again) + immediate detach().
+    boot();
+    host::card::setDelay(5);
+    main::settings().general.ledgeHud = 0;
+    storage::settingsMenuClosed(); // starts kFolder for save 1
+    frames(1);                     // still in kFolder
+    CHECK_EQ(0, host::card::fileCount());
+    main::settings().general.ledgeMaxFrames = 40;
+    storage::settingsMenuClosed(); // queues s_again
+    storage::detach();
+    REQUIRE(host::card::has(kFileA) && host::card::has(kFileB));
+    CHECK_EQ(1u, header(kFileA)->sequence);
+    CHECK_EQ(2u, header(kFileB)->sequence);
+    CHECK_EQ(storage::kOk, storage::checkHeader(host::card::data(kFileA), header(kFileA)->size, storage::kSettingsMagic,
+                                                storage::kSettingsFormat, true));
+    CHECK_EQ(storage::kOk, storage::checkHeader(host::card::data(kFileB), header(kFileB)->size, storage::kSettingsMagic,
+                                                storage::kSettingsFormat, true));
+
+    host::card::setDelay(0);
+    boot();
+    CHECK_EQ(0, static_cast<int>(main::settings().general.ledgeHud));
+    CHECK_EQ(40, static_cast<int>(main::settings().general.ledgeMaxFrames));
+    storage::detach();
+
+    // 2. In-flight kWrite + rapid edit (s_again) + immediate detach().
+    host::card::reset();
+    boot();
+    host::card::setDelay(3);
+    main::settings().general.ledgeHud = 0;
+    storage::settingsMenuClosed();
+    frames(4); // folder completes on poll 4 and starts kWrite
+    CHECK_EQ(1, host::card::writes());
+    CHECK_EQ(0, host::card::fileCount());
+    main::settings().general.cameraMode = 1;
+    storage::settingsMenuClosed(); // queues s_again while in kWrite
+    storage::detach();
+    REQUIRE(host::card::has(kFileA) && host::card::has(kFileB));
+    CHECK_EQ(1u, header(kFileA)->sequence);
+    CHECK_EQ(2u, header(kFileB)->sequence);
+
+    host::card::setDelay(0);
+    boot();
+    CHECK_EQ(0, static_cast<int>(main::settings().general.ledgeHud));
+    CHECK_EQ(1, static_cast<int>(main::settings().general.cameraMode));
+    storage::detach();
+
+    // 3. Second close with no effective change after save 1 skips redundant write.
+    host::card::reset();
+    boot();
+    host::card::setDelay(5);
+    main::settings().general.ledgeHud = 0;
+    storage::settingsMenuClosed();
+    frames(1);
+    storage::settingsMenuClosed(); // queues s_again with identical settings
+    storage::detach();
+    REQUIRE(host::card::has(kFileA));
+    CHECK(!host::card::has(kFileB));
+    CHECK_EQ(1, host::card::writes());
+
+    // 4. DMA timeout (kBusy) during detach with s_again queued must NOT start
+    //    a second overlapping write or leak stale s_again into the next match.
+    host::card::reset();
+    u8* block = boot();
+    host::card::setDelay(3001); // kWaitMs (3000) polls 3001 times -> kBusy with 0 polls left
+    main::settings().general.ledgeHud = 0;
+    storage::settingsMenuClosed(); // starts kFolder
+    main::settings().general.ledgeMaxFrames = 42;
+    storage::settingsMenuClosed(); // queues s_again
+    int writesBefore = host::card::writes();
+    host::log::clear();
+    storage::detach();
+    CHECK_LOG("storage: settings write finished at detach: busy");
+    CHECK_EQ(writesBefore, host::card::writes());
+    CHECK(!host::card::has(kFileA) && !host::card::has(kFileB));
+
+    // Re-attach without closing menu: draining the stale job must NOT trigger
+    // a write from the cleared s_again flag.
+    host::card::setDelay(0);
+    storage::attach(block);
+    frames(4);
+    CHECK_EQ(writesBefore, host::card::writes());
+    CHECK(!host::card::has(kFileA) && !host::card::has(kFileB));
+    storage::detach();
+
+    // 5. Pending s_again while s_phase == kIdle (blocked by s_jobStale), then
+    //    the stale job finishes at detach: flushes cleanly!
+    host::card::reset();
+    block = boot();
+    host::card::setDelay(3001);
+    main::settings().general.ledgeHud = 0;
+    storage::settingsMenuClosed(); // starts kFolder
+    storage::detach();             // times out -> s_jobStale = true, 0 polls left on folder job
+    host::card::setDelay(0);
+    storage::attach(block); // s_jobStale = true, s_phase = kIdle, s_state->magic intact
+    main::settings().general.ledgeMaxFrames = 46;
+    writesBefore = host::card::writes();
+    storage::settingsMenuClosed(); // startSave() sees s_jobStale -> sets s_again = true, s_phase stays kIdle
+    CHECK_EQ(writesBefore, host::card::writes());
+    storage::detach(); // drains stale folder job (0 polls left), then flushes pending s_again save!
+    REQUIRE(host::card::has(kFileA));
+    CHECK_EQ(1u, header(kFileA)->sequence);
+    boot();
+    CHECK_EQ(0, static_cast<int>(main::settings().general.ledgeHud));
+    CHECK_EQ(46, static_cast<int>(main::settings().general.ledgeMaxFrames));
+    storage::detach();
+}

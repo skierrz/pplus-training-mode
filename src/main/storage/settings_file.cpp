@@ -738,12 +738,32 @@ namespace storage {
             s_state->magic = 0;
         }
         clearV1();
-        bool dmaBusy = false;
-        if (s_phase != kIdle)
+        int status = 0;
+        int r = kOk;
+        if (s_phase == kIdle && s_jobStale && s_job.poll(r, status))
         {
+            s_jobStale = false;
+            r = kOk;
+        }
+        bool flushedAgain = false;
+        while (s_phase != kIdle || (!flushedAgain && s_again))
+        {
+            if (s_phase == kIdle)
+            {
+                flushedAgain = true;
+                s_again = false;
+                if (r != kOk || s_jobStale || s_state == NULL || s_state->magic != kStateMagic || s_file == NULL)
+                {
+                    break;
+                }
+                startSave();
+                if (s_phase == kIdle)
+                {
+                    break;
+                }
+            }
             // Finish what was started: the folder, then the write.
-            int status = 0;
-            int r = s_job.wait(kWaitMs, status);
+            r = s_job.wait(kWaitMs, status);
             if (s_phase == kFolder && r != kBusy && s_file != NULL)
             {
                 s_phase = kWrite;
@@ -753,25 +773,23 @@ namespace storage {
             {
                 commitSavedState();
             }
-            dmaBusy = (r == kBusy);
-            if (dmaBusy)
+            if (r == kBusy)
             {
                 s_jobStale = true;
             }
             TM_LOG("storage: settings write finished at detach: %s (status %d)\n", resultText(r), status);
             s_phase = kIdle;
         }
+        s_again = false;
 #ifdef __MWERKS__
         if (s_file != NULL)
         {
-            if (!dmaBusy)
+            if (r != kBusy)
             {
                 free(s_file);
             }
             s_file = NULL;
         }
-#else
-        (void)dmaBusy;
 #endif
     }
 }
