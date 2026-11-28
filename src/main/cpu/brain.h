@@ -60,6 +60,13 @@ namespace cpu {
             }
         }
     }
+
+    inline void resetActionState(int& state, bool& shieldKind, int& powershield, int nextState)
+    {
+        state = nextState;
+        shieldKind = false;
+        powershield = 0;
+    }
 }
 }
 

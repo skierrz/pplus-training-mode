@@ -320,8 +320,7 @@ namespace cpu {
 
     void Brain::clearAction(int nextState)
     {
-        state = nextState;
-        shieldKind = false;
+        resetActionState(state, shieldKind, powershield, nextState);
         script = NULL;
         pending = NULL;
     }
@@ -729,12 +728,12 @@ namespace cpu {
             revPicked = false;
             script = NULL;
             pending = NULL;
+            powershield = 0;
             hits++;
             if (v.status == game::kStatusGuardDamage)
             {
                 state = kShieldStun;
                 shieldKind = true;
-                powershield = 0;
                 if (c.shieldTiming == kShieldTimingFullMove)
                 {
                     main::extraShieldHoldFullMove(who.playerNo, who.entryId, v, true);
