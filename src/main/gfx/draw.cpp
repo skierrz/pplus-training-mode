@@ -59,10 +59,13 @@ namespace gfx {
 
     void end()
     {
-        // Camera 0 is the main camera. Always restore 1 TEV stage on 2D exit so
-        // our 2-stage crisp text TEV can never leak even after forgetState().
+        // Camera 0 is the main camera. Always restore 1 TEV stage, 1px line
+        // width (6 sixths-px, offset 0) and back-face culling (__GXInitGX
+        // defaults: 0x801EE028, 0x801EE184) so 2D passes never leak GX state.
 #ifdef __MWERKS__
         GXSetNumTevStages(1);
+        GXSetLineWidth(6, 0);
+        GXSetCullMode(GX_CULL_BACK);
 #endif
         s_camera = kMainCamera;
         s_state = kStateNone;
