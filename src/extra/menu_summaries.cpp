@@ -258,13 +258,23 @@ namespace extra {
             return copyStr(buf, cap, "Default");
 
         case ui::pages::P_CPU_DEFENSE:
-            if (c.recovery == cpu::kRecoveryPPlusAi && c.ledgeOption == cpu::kLedgeDefault
-                && c.shieldAngle == cpu::kAngleNeutral && c.grabEscape == cpu::kMashNone
-                && c.grabRelease == cpu::kReleaseGrounded && c.clatterEscape == cpu::kMashNone)
+        {
+            const bool healthDef = (c.infiniteShields == cpu::kShieldsOff || c.shieldHealth == 60);
+            const bool otherDef = healthDef && c.shieldAngle == cpu::kAngleNeutral
+                && c.grabEscape == cpu::kMashNone && c.grabRelease == cpu::kReleaseGrounded
+                && c.clatterEscape == cpu::kMashNone;
+            if (otherDef && c.intangible == 0)
             {
-                return copyStr(buf, cap, "Default");
+                if (c.infiniteShields == cpu::kShieldsOff) return copyStr(buf, cap, "Off");
+                if (c.infiniteShields == cpu::kShieldsUntilHit) return copyStr(buf, cap, "Until Hit");
+                if (c.infiniteShields == cpu::kShieldsOn) return copyStr(buf, cap, "Infinite");
+            }
+            if (otherDef && c.intangible != 0 && c.infiniteShields == cpu::kShieldsUntilHit)
+            {
+                return copyStr(buf, cap, "No KB");
             }
             return copyStr(buf, cap, "Custom");
+        }
 
         case ui::pages::P_COUNTER_POOL:
             return summarizePool(s, buf, cap);
@@ -299,7 +309,8 @@ namespace extra {
 
         case ui::pages::P_REC_MANAGE:
             if (s.recording.mirrored != 0) return copyStr(buf, cap, "Mirrored");
-            if (s.recording.startPaused != 0 || s.recording.startOnFirstInput != 0)
+            if (s.recording.cpuCounter != 1 || s.recording.takeover != 0 || s.recording.startPaused != 0
+                || s.recording.startOnFirstInput != 0)
             {
                 return copyStr(buf, cap, "Custom");
             }
@@ -311,9 +322,16 @@ namespace extra {
 
         case ui::pages::P_OLIMAR:
         {
-            u8 mode = olimarDpadMode(s.fighterMechanics);
+            const main::FighterMechanicsSettings& fm = s.fighterMechanics;
+            u8 mode = olimarDpadMode(fm);
             if (mode == main::kOlimarDpadPluck) return copyStr(buf, cap, "D-Pad Pluck");
             if (mode == main::kOlimarDpadPresets) return copyStr(buf, cap, "Presets");
+            if (olimarEffectivePullMask(fm) != main::kOlimarPullPoolAll || olimarWhistleColor(fm) != 0u
+                || fm.olimarMaturity != 0 || (fm.olimarColorMatAndMode & 0x03FFu) != 0u
+                || (fm.olimarStartLineup & 0x0FFFu) != 0u)
+            {
+                return copyStr(buf, cap, "Custom");
+            }
             return copyStr(buf, cap, "Default");
         }
 

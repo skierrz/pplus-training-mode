@@ -2951,6 +2951,51 @@ TEST(menu_summaries, real_extra_submenu_summaries_fit_and_track_state)
     CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_CPU_DI, buf, sizeof(buf)), "Random") == 0);
     CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_TECH_WEIGHTS, buf, sizeof(buf)), "Default") == 0);
     CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_COLLISION, buf, sizeof(buf)), "Off") == 0);
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_CPU_DEFENSE, buf, sizeof(buf)), "Until Hit") == 0);
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_REC_MANAGE, buf, sizeof(buf)), "Default") == 0);
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_OLIMAR, buf, sizeof(buf)), "Default") == 0);
+
+    // Parent P_CPU fields (recovery / ledgeOption) must NOT affect P_CPU_DEFENSE.
+    main::settings().cpu.options.recovery = cpu::kRecoveryOff;
+    main::settings().cpu.options.ledgeOption = cpu::kLedgeNeutral;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_CPU_DEFENSE, buf, sizeof(buf)), "Until Hit") == 0);
+    main::settings().cpu.options.recovery = cpu::kRecoveryPPlusAi;
+    main::settings().cpu.options.ledgeOption = cpu::kLedgeDefault;
+
+    // P_CPU_DEFENSE tracks its actual 7 fields accurately.
+    main::settings().cpu.options.shieldHealth = 30;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_CPU_DEFENSE, buf, sizeof(buf)), "Custom") == 0);
+    main::settings().cpu.options.infiniteShields = cpu::kShieldsOff;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_CPU_DEFENSE, buf, sizeof(buf)), "Off") == 0);
+    main::settings().cpu.options.shieldHealth = 60;
+    main::settings().cpu.options.infiniteShields = cpu::kShieldsOn;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_CPU_DEFENSE, buf, sizeof(buf)), "Infinite") == 0);
+    main::settings().cpu.options.infiniteShields = cpu::kShieldsUntilHit;
+    main::settings().cpu.options.intangible = 1;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_CPU_DEFENSE, buf, sizeof(buf)), "No KB") == 0);
+    main::settings().cpu.options.intangible = 0;
+
+    // P_REC_MANAGE checks cpuCounter and takeover.
+    main::settings().recording.cpuCounter = 0;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_REC_MANAGE, buf, sizeof(buf)), "Custom") == 0);
+    main::settings().recording.cpuCounter = 1;
+    main::settings().recording.takeover = 1;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_REC_MANAGE, buf, sizeof(buf)), "Custom") == 0);
+    main::settings().recording.takeover = 0;
+    main::settings().recording.mirrored = 1;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_REC_MANAGE, buf, sizeof(buf)), "Mirrored") == 0);
+    main::settings().recording.mirrored = 0;
+
+    // P_OLIMAR detects Pull Pool / Maturity / Start Lineup overrides when D-Pad mode is Off.
+    main::settings().fighterMechanics.olimarPullAndWhistle = 0x1E;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_OLIMAR, buf, sizeof(buf)), "Custom") == 0);
+    main::settings().fighterMechanics.olimarPullAndWhistle = main::kOlimarPullPoolAll;
+    main::settings().fighterMechanics.olimarMaturity = main::kPikminFlower;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_OLIMAR, buf, sizeof(buf)), "Custom") == 0);
+    main::settings().fighterMechanics.olimarMaturity = 0;
+    main::settings().fighterMechanics.olimarStartLineup = 1;
+    CHECK(strcmp(extra::menuSubmenuSummary(ui::pages::P_OLIMAR, buf, sizeof(buf)), "Custom") == 0);
+    main::settings().fighterMechanics.olimarStartLineup = 0;
 
     // Overrides reflect live state accurately.
     main::settings().controls.menuStyle = main::kMenuStyleTabs;
